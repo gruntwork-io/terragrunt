@@ -14,8 +14,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
+	"github.com/opencontainers/go-digest"
 	ociv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content"
+	"oras.land/oras-go/v2/registry"
 )
 
 const (
@@ -24,8 +26,13 @@ const (
 	// ociDefaultTag is the tag used when the source pins neither a tag nor a
 	// digest, matching OpenTofu.
 	ociDefaultTag = "latest"
+	// ociMaxManifestSize bounds manifest downloads so a registry cannot force
+	// an unbounded allocation, matching OpenTofu.
+	ociMaxManifestSize = 4 << 20
 	// ociLayerSizeWarnThreshold warns before downloading an anomalously large layer.
 	ociLayerSizeWarnThreshold = 50 << 20
+	// ociMaxLayerSize rejects layer descriptors above this size before fetching.
+	ociMaxLayerSize int64 = 512 << 20
 	// ociMaxDecompressedSize caps the bytes a module layer may expand to, so a
 	// digest-valid archive cannot exhaust the disk.
 	ociMaxDecompressedSize int64 = 512 << 20
@@ -66,6 +73,76 @@ func (err OCIUnsupportedQueryParamError) Error() string {
 	return fmt.Sprintf("unsupported argument %q", err.Param)
 }
 
+// OCIDuplicateQueryParamError reports a query parameter given more than once
+// on an oci source.
+type OCIDuplicateQueryParamError struct {
+	Param string
+}
+
+func (err OCIDuplicateQueryParamError) Error() string {
+	return fmt.Sprintf("argument %q must not be repeated", err.Param)
+}
+
+// OCIEmptyQueryParamError reports a query parameter with an empty value on an
+// oci source.
+type OCIEmptyQueryParamError struct {
+	Param string
+}
+
+func (err OCIEmptyQueryParamError) Error() string {
+	return fmt.Sprintf("argument %q must not be empty", err.Param)
+}
+
+// OCIInvalidDigestError reports a digest pin that does not parse as an OCI
+// digest, so it can never be mistaken for a mutable tag.
+type OCIInvalidDigestError struct {
+	Err   error
+	Value string
+}
+
+func (err OCIInvalidDigestError) Error() string {
+	return fmt.Sprintf("invalid digest %q: %s", err.Value, err.Err)
+}
+
+func (err OCIInvalidDigestError) Unwrap() error {
+	return err.Err
+}
+
+// OCIInvalidTagError reports a tag pin that does not satisfy the OCI tag
+// grammar.
+type OCIInvalidTagError struct {
+	Err   error
+	Value string
+}
+
+func (err OCIInvalidTagError) Error() string {
+	return fmt.Sprintf("invalid tag %q: %s", err.Value, err.Err)
+}
+
+func (err OCIInvalidTagError) Unwrap() error {
+	return err.Err
+}
+
+// OCIManifestMediaTypeError reports a manifest descriptor or document whose
+// media type is not the OCI image manifest type.
+type OCIManifestMediaTypeError struct {
+	MediaType string
+}
+
+func (err OCIManifestMediaTypeError) Error() string {
+	return fmt.Sprintf("unexpected manifest media type %q, expected %q", err.MediaType, ociv1.MediaTypeImageManifest)
+}
+
+// OCIManifestSizeError reports a manifest descriptor whose declared size is
+// not positive or exceeds [ociMaxManifestSize].
+type OCIManifestSizeError struct {
+	Size int64
+}
+
+func (err OCIManifestSizeError) Error() string {
+	return fmt.Sprintf("manifest size %d is outside the accepted range (0, %d]", err.Size, ociMaxManifestSize)
+}
+
 // OCIArtifactTypeError reports a manifest whose artifact type is not the
 // OpenTofu module-package type.
 type OCIArtifactTypeError struct {
@@ -86,6 +163,34 @@ func (err OCILayerCountError) Error() string {
 	return fmt.Sprintf("expected exactly one %q layer, found %d", MediaTypeModuleZip, err.Count)
 }
 
+// OCILayerSizeError reports a layer descriptor whose declared size is outside (0, ociMaxLayerSize].
+type OCILayerSizeError struct {
+	Size int64
+}
+
+func (err OCILayerSizeError) Error() string {
+	return fmt.Sprintf("layer size %d is outside the accepted range (0, %d]", err.Size, ociMaxLayerSize)
+}
+
+// OCIRestoreError reports a failed destination swap whose previous contents could not be put back.
+type OCIRestoreError struct {
+	PromoteErr error
+	RestoreErr error
+	BackupPath string
+}
+
+func (err OCIRestoreError) Error() string {
+	return fmt.Sprintf(
+		"moving module into destination failed: %v; restoring the previous contents failed: %v; backup retained at %s",
+		err.PromoteErr, err.RestoreErr, err.BackupPath,
+	)
+}
+
+// Unwrap exposes both failures to errors.Is and errors.As.
+func (err OCIRestoreError) Unwrap() []error {
+	return []error{err.PromoteErr, err.RestoreErr}
+}
+
 // OCIDigestVerificationError reports blob bytes that do not match the digest
 // the manifest layer descriptor promised.
 type OCIDigestVerificationError struct {
@@ -103,13 +208,13 @@ func (err OCIDigestVerificationError) Unwrap() error {
 
 // OCIRepositoryStore is the narrow seam between the OCI getter and the
 // registry client that serves it. Resolve turns a tag or digest reference
-// into a manifest descriptor; Fetch streams the blob a descriptor points at.
-// The method set intentionally matches oras-go's content.Fetcher signature so
-// manifest and blob helpers work through the seam without adapters, and unit
-// tests can drive the getter with a fake store and no network.
+// into a manifest descriptor; Fetch streams the blob a descriptor points at,
+// taking the descriptor by pointer to keep call frames small. oras-go's
+// by-value client is bridged by [OCIRemoteStore], and unit tests can drive
+// the getter with a fake store and no network.
 type OCIRepositoryStore interface {
 	Resolve(ctx context.Context, ref string) (ociv1.Descriptor, error)
-	Fetch(ctx context.Context, desc ociv1.Descriptor) (io.ReadCloser, error)
+	Fetch(ctx context.Context, desc *ociv1.Descriptor) (io.ReadCloser, error)
 }
 
 // OCINewStoreFunc builds the [OCIRepositoryStore] serving one repository on
@@ -138,6 +243,10 @@ type OCIGetter struct {
 	NewStore OCINewStoreFunc
 	Logger   log.Logger
 	FS       vfs.FS
+	// MaxDecompressedSize bounds archive expansion in bytes; zero uses the default.
+	MaxDecompressedSize int64
+	// MaxDecompressedFiles bounds archive entry count; zero uses the default.
+	MaxDecompressedFiles int
 }
 
 var _ getter.Getter = (*OCIGetter)(nil)
@@ -198,6 +307,10 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
+	if layer.Size <= 0 || layer.Size > ociMaxLayerSize {
+		return OCILayerSizeError{Size: layer.Size}
+	}
+
 	if layer.Size > ociLayerSizeWarnThreshold {
 		g.Logger.Warnf(
 			"OCI layer %s declares %d bytes, above the %d byte threshold; downloading it may be slow",
@@ -230,29 +343,57 @@ func (g *OCIGetter) GetFile(_ context.Context, _ *getter.Request) error {
 	return ErrOCIGetFileUnsupported
 }
 
-// ociRefFromQuery validates the source query and returns the reference to
-// resolve: the digest when pinned, the tag otherwise, defaulting to
-// [ociDefaultTag] when neither is set.
-func ociRefFromQuery(queryValues url.Values) (string, error) {
-	for param := range queryValues {
+func validateOCIQueryParams(queryValues url.Values) error {
+	for param, values := range queryValues {
 		if param != ociTagQueryKey && param != ociDigestQueryKey {
-			return "", OCIUnsupportedQueryParamError{Param: param}
+			return OCIUnsupportedQueryParamError{Param: param}
+		}
+
+		if len(values) > 1 {
+			return OCIDuplicateQueryParamError{Param: param}
+		}
+
+		if len(values) == 0 || values[0] == "" {
+			return OCIEmptyQueryParamError{Param: param}
 		}
 	}
 
-	tag := queryValues.Get(ociTagQueryKey)
-	digest := queryValues.Get(ociDigestQueryKey)
+	return nil
+}
 
-	if tag != "" && digest != "" {
+// ociRefFromQuery validates the source query and returns the reference to
+// resolve: the digest when pinned, the tag otherwise, defaulting to
+// [ociDefaultTag] when neither key is present. Each key must appear at most
+// once with a non-empty value that satisfies its grammar, so a typo can
+// never silently resolve a different reference.
+func ociRefFromQuery(queryValues url.Values) (string, error) {
+	if err := validateOCIQueryParams(queryValues); err != nil {
+		return "", err
+	}
+
+	_, hasTag := queryValues[ociTagQueryKey]
+	_, hasDigest := queryValues[ociDigestQueryKey]
+
+	if hasTag && hasDigest {
 		return "", ErrOCITagDigestExclusive
 	}
 
-	if digest != "" {
-		return digest, nil
+	if hasDigest {
+		value := queryValues.Get(ociDigestQueryKey)
+		if _, err := digest.Parse(value); err != nil {
+			return "", OCIInvalidDigestError{Value: value, Err: err}
+		}
+
+		return value, nil
 	}
 
-	if tag != "" {
-		return tag, nil
+	if hasTag {
+		value := queryValues.Get(ociTagQueryKey)
+		if err := (registry.Reference{Reference: value}).ValidateReferenceAsTag(); err != nil {
+			return "", OCIInvalidTagError{Value: value, Err: err}
+		}
+
+		return value, nil
 	}
 
 	return ociDefaultTag, nil
@@ -266,14 +407,31 @@ func resolveModuleZipLayer(ctx context.Context, store OCIRepositoryStore, ref st
 		return ociv1.Descriptor{}, fmt.Errorf("resolving OCI reference %q: %w", ref, err)
 	}
 
-	manifestBytes, err := content.FetchAll(ctx, store, manifestDesc)
+	if manifestDesc.MediaType != ociv1.MediaTypeImageManifest {
+		return ociv1.Descriptor{}, OCIManifestMediaTypeError{MediaType: manifestDesc.MediaType}
+	}
+
+	if manifestDesc.Size <= 0 || manifestDesc.Size > ociMaxManifestSize {
+		return ociv1.Descriptor{}, OCIManifestSizeError{Size: manifestDesc.Size}
+	}
+
+	manifestReader, err := store.Fetch(ctx, &manifestDesc)
 	if err != nil {
+		return ociv1.Descriptor{}, fmt.Errorf("fetching OCI manifest %s: %w", manifestDesc.Digest, err)
+	}
+
+	manifestBytes, readErr := content.ReadAll(manifestReader, manifestDesc)
+	if err := errors.Join(readErr, manifestReader.Close()); err != nil {
 		return ociv1.Descriptor{}, fmt.Errorf("fetching OCI manifest %s: %w", manifestDesc.Digest, err)
 	}
 
 	var manifest ociv1.Manifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		return ociv1.Descriptor{}, fmt.Errorf("parsing OCI manifest %s: %w", manifestDesc.Digest, err)
+	}
+
+	if manifest.MediaType != "" && manifest.MediaType != ociv1.MediaTypeImageManifest {
+		return ociv1.Descriptor{}, OCIManifestMediaTypeError{MediaType: manifest.MediaType}
 	}
 
 	if manifest.ArtifactType != ArtifactTypeModulePkg {
@@ -304,7 +462,7 @@ func (g *OCIGetter) fetchModuleZip(
 	layer *ociv1.Descriptor,
 	parent string,
 ) (string, error) {
-	blob, err := store.Fetch(ctx, *layer)
+	blob, err := store.Fetch(ctx, layer)
 	if err != nil {
 		return "", fmt.Errorf("fetching OCI layer %s: %w", layer.Digest, err)
 	}
@@ -343,15 +501,17 @@ func (g *OCIGetter) fetchModuleZip(
 
 // extractModule expands the module zip under the shipped extraction bounds.
 func (g *OCIGetter) extractModule(zipPath, subDir, dstPath, source string, umask os.FileMode) error {
-	return g.extractModuleWithLimits(
-		zipPath,
-		subDir,
-		dstPath,
-		source,
-		umask,
-		ociMaxDecompressedSize,
-		ociMaxDecompressedFiles,
-	)
+	sizeLimit := ociMaxDecompressedSize
+	if g.MaxDecompressedSize > 0 {
+		sizeLimit = g.MaxDecompressedSize
+	}
+
+	filesLimit := ociMaxDecompressedFiles
+	if g.MaxDecompressedFiles > 0 {
+		filesLimit = g.MaxDecompressedFiles
+	}
+
+	return g.extractModuleWithLimits(zipPath, subDir, dstPath, source, umask, sizeLimit, filesLimit)
 }
 
 // extractModuleWithLimits expands the module zip into a staging directory beside
@@ -376,7 +536,14 @@ func (g *OCIGetter) extractModuleWithLimits(
 		return err
 	}
 
+	var keepStaging bool
+
 	defer func() {
+		if keepStaging {
+			g.Logger.Warnf("Keeping staging directory %s: it holds the previous module contents", staging)
+			return
+		}
+
 		if err := g.FS.RemoveAll(staging); err != nil {
 			g.Logger.Warnf("Error removing staging directory %s: %v", staging, err)
 		}
@@ -402,7 +569,14 @@ func (g *OCIGetter) extractModuleWithLimits(
 		}
 	}
 
-	return g.promoteModule(staging, sourcePath, dstPath)
+	err = g.promoteModule(staging, sourcePath, dstPath)
+
+	var restoreErr OCIRestoreError
+	if errors.As(err, &restoreErr) {
+		keepStaging = true
+	}
+
+	return err
 }
 
 // promoteModule swaps sourcePath into dstPath through renames, restoring the
@@ -421,13 +595,16 @@ func (g *OCIGetter) promoteModule(staging, sourcePath, dstPath string) error {
 	}
 
 	if err := g.FS.Rename(sourcePath, dstPath); err != nil {
-		if replacing {
-			if restoreErr := g.FS.Rename(backupPath, dstPath); restoreErr != nil {
-				g.Logger.Warnf("Error restoring destination path %s: %v", dstPath, restoreErr)
-			}
+		promoteErr := fmt.Errorf("moving module into destination path %s: %w", dstPath, err)
+		if !replacing {
+			return promoteErr
 		}
 
-		return fmt.Errorf("moving module into destination path %s: %w", dstPath, err)
+		if restoreErr := g.FS.Rename(backupPath, dstPath); restoreErr != nil {
+			return OCIRestoreError{PromoteErr: promoteErr, RestoreErr: restoreErr, BackupPath: backupPath}
+		}
+
+		return promoteErr
 	}
 
 	return nil

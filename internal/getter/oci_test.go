@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -295,6 +294,99 @@ func TestOCIGetterGetNotConfigured(t *testing.T) {
 	}
 }
 
+func TestOCIGetterGetQueryValidation(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		wantErrIs error
+		name      string
+		src       string
+	}{
+		{
+			name:      "duplicate tag",
+			src:       "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0&tag=2.0.0",
+			wantErrIs: getter.OCIDuplicateQueryParamError{Param: "tag"},
+		},
+		{
+			name: "duplicate digest",
+			src: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" +
+				manifestDesc.Digest.String() + "&digest=" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIDuplicateQueryParamError{Param: "digest"},
+		},
+		{
+			name:      "empty tag",
+			src:       "oci://127.0.0.1:5000/terraform-modules/vpc?tag=",
+			wantErrIs: getter.OCIEmptyQueryParamError{Param: "tag"},
+		},
+		{
+			name:      "empty digest",
+			src:       "oci://127.0.0.1:5000/terraform-modules/vpc?digest=",
+			wantErrIs: getter.OCIEmptyQueryParamError{Param: "digest"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, tc.wantErrIs)
+			assert.Empty(t, store.gotRefs, "validation must fail before any resolution")
+		})
+	}
+}
+
+func TestOCIGetterGetInvalidRefValues(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+	g := newTestOCIGetter(staticStore(store))
+
+	// A digest value that does not parse must never be resolved as a ref,
+	// since a registry could interpret it as a mutable tag.
+	_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=prod",
+		Dst:     filepath.Join(t.TempDir(), "module"),
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+
+	var digestErr getter.OCIInvalidDigestError
+
+	require.ErrorAs(t, err, &digestErr)
+	assert.Equal(t, "prod", digestErr.Value)
+	assert.Empty(t, store.gotRefs)
+
+	_, err = newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=.invalid",
+		Dst:     filepath.Join(t.TempDir(), "module"),
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+
+	var tagErr getter.OCIInvalidTagError
+
+	require.ErrorAs(t, err, &tagErr)
+	assert.Equal(t, ".invalid", tagErr.Value)
+	assert.Empty(t, store.gotRefs)
+}
+
 func TestOCIGetterGetStoreError(t *testing.T) {
 	t.Parallel()
 
@@ -321,6 +413,90 @@ func TestOCIGetterGetFileUnsupported(t *testing.T) {
 	err := g.GetFile(t.Context(), &gogetter.Request{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, getter.ErrOCIGetFileUnsupported)
+}
+
+func TestOCIGetterGetManifestHardening(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	wrongDescMediaType := manifestDesc
+	wrongDescMediaType.MediaType = "application/vnd.example.other"
+
+	oversized := manifestDesc
+	oversized.Size = 5 << 20
+
+	negativeSize := manifestDesc
+	negativeSize.Size = -1
+
+	mismatchedManifest := ociv1.Manifest{
+		Versioned:    specs.Versioned{SchemaVersion: 2},
+		MediaType:    "application/vnd.example.other",
+		ArtifactType: getter.ArtifactTypeModulePkg,
+		Config:       ociv1.DescriptorEmptyJSON,
+		Layers:       []ociv1.Descriptor{layer},
+	}
+	mismatchedBytes, err := json.Marshal(mismatchedManifest)
+	require.NoError(t, err)
+
+	mismatchedDesc := ociv1.Descriptor{
+		MediaType: ociv1.MediaTypeImageManifest,
+		Digest:    digest.FromBytes(mismatchedBytes),
+		Size:      int64(len(mismatchedBytes)),
+	}
+
+	testCases := []struct {
+		wantErrIs     error
+		manifestDesc  ociv1.Descriptor
+		name          string
+		manifestBytes []byte
+	}{
+
+		{
+			name:          "descriptor media type rejected before fetch",
+			manifestBytes: manifestBytes,
+			manifestDesc:  wrongDescMediaType,
+			wantErrIs:     getter.OCIManifestMediaTypeError{MediaType: "application/vnd.example.other"},
+		},
+		{
+			name:          "oversized manifest rejected before fetch",
+			manifestBytes: manifestBytes,
+			manifestDesc:  oversized,
+			wantErrIs:     getter.OCIManifestSizeError{Size: 5 << 20},
+		},
+		{
+			name:          "negative manifest size rejected before fetch",
+			manifestBytes: manifestBytes,
+			manifestDesc:  negativeSize,
+			wantErrIs:     getter.OCIManifestSizeError{Size: -1},
+		},
+		{
+			name:          "decoded media type must match the descriptor",
+			manifestBytes: mismatchedBytes,
+			manifestDesc:  mismatchedDesc,
+			wantErrIs:     getter.OCIManifestMediaTypeError{MediaType: "application/vnd.example.other"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(tc.manifestBytes, &tc.manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tc.wantErrIs)
+		})
+	}
 }
 
 func TestOCIGetterGetRemovesStaleFiles(t *testing.T) {
@@ -421,9 +597,10 @@ func TestOCIGetterGetFailedExtractionPreservesDestination(t *testing.T) {
 func TestOCIGetterGetRejectsTooManyFiles(t *testing.T) {
 	t.Parallel()
 
-	entries := make([]zipEntry, 0, getter.MaxDecompressedFiles+1)
-	for i := range getter.MaxDecompressedFiles + 1 {
-		entries = append(entries, zipEntry{name: fmt.Sprintf("f%d.tf", i), body: ""})
+	entries := []zipEntry{
+		{name: "a.tf", body: ""},
+		{name: "b.tf", body: ""},
+		{name: "c.tf", body: ""},
 	}
 
 	zipBytes := orderedModuleZipBytes(t, entries)
@@ -431,9 +608,12 @@ func TestOCIGetterGetRejectsTooManyFiles(t *testing.T) {
 	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
+	g := newTestOCIGetter(staticStore(store))
+	g.MaxDecompressedFiles = 2
+
 	dst := filepath.Join(t.TempDir(), "module")
 
-	_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+	_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
 		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
 		Dst:     dst,
 		GetMode: gogetter.ModeDir,
@@ -442,25 +622,141 @@ func TestOCIGetterGetRejectsTooManyFiles(t *testing.T) {
 	assert.NoDirExists(t, dst, "an over-limit archive must not land in the destination")
 }
 
-// TestOCIGetterExtractModuleRejectsOversizedContent: a digest-valid archive must
-// not exhaust the disk. The bound is driven directly so the test does not have to
-// stage a production-sized archive.
-func TestOCIGetterExtractModuleRejectsOversizedContent(t *testing.T) {
+// TestOCIGetterGetRejectsOversizedContent: a digest-valid archive must not exhaust the disk.
+func TestOCIGetterGetRejectsOversizedContent(t *testing.T) {
 	t.Parallel()
 
-	zipPath := filepath.Join(t.TempDir(), "module.zip")
 	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "oversized" {}`})
-	require.NoError(t, os.WriteFile(zipPath, zipBytes, 0o600))
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+	g := newTestOCIGetter(staticStore(store))
+	g.MaxDecompressedSize = 8
 
 	dst := filepath.Join(t.TempDir(), "module")
 
-	const sizeLimit, filesLimit = 8, 2
-
-	err := newTestOCIGetter(nil).ExtractModuleWithLimits(
-		zipPath, "", dst, "oci://example.com/vpc", 0, sizeLimit, filesLimit,
-	)
+	_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
 	require.Error(t, err)
 	assert.NoDirExists(t, dst, "an oversized archive must not land in the destination")
+}
+
+// TestOCIGetterGetRejectsLayerSize: invalid declared layer sizes fail before any fetch.
+func TestOCIGetterGetRejectsLayerSize(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		size int64
+	}{
+		{name: "oversized layer", size: 1 << 40},
+		{name: "zero size layer", size: 0},
+		{name: "negative size layer", size: -1},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "sized" {}`})
+			layer := zipLayerDesc(zipBytes)
+			layer.Size = tc.size
+			manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			// Drop the layer blob so any premature fetch fails the assertion below.
+			delete(store.blobs, layer.Digest.String())
+
+			g := newTestOCIGetter(staticStore(store))
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, getter.OCILayerSizeError{Size: tc.size})
+		})
+	}
+}
+
+// TestOCIGetterGetKeepsBackupWhenRestoreFails: the displaced module must survive a double rename failure.
+func TestOCIGetterGetKeepsBackupWhenRestoreFails(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "next" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+	parentDir := t.TempDir()
+	dst := filepath.Join(parentDir, "module")
+	require.NoError(t, os.MkdirAll(dst, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dst, "old.tf"), []byte(`output "old" {}`), 0o600))
+
+	g := newTestOCIGetter(staticStore(store))
+	g.FS = &renameFailFromFS{FS: g.FS, failFrom: 2}
+
+	_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+
+	var restoreErr getter.OCIRestoreError
+
+	require.ErrorAs(t, err, &restoreErr)
+	assert.NotEmpty(t, restoreErr.BackupPath)
+
+	backups, globErr := filepath.Glob(filepath.Join(parentDir, ".terragrunt-oci*", "previous", "old.tf"))
+	require.NoError(t, globErr)
+	require.Len(t, backups, 1, "the previous module must remain recoverable")
+}
+
+// TestOCIGetterGetHonorsUmask: the promoted module root must respect the request umask.
+func TestOCIGetterGetHonorsUmask(t *testing.T) {
+	t.Parallel()
+
+	moduleFiles := map[string]string{
+		"main.tf":       `output "root" {}`,
+		"subdir/sub.tf": `output "sub" {}`,
+	}
+	zipBytes := moduleZipBytes(t, moduleFiles)
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		name string
+		src  string
+	}{
+		{name: "whole module", src: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"},
+		{name: "subdir selector", src: "oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+				Umask:   0o077,
+			})
+			require.NoError(t, err)
+
+			info, statErr := os.Stat(dst)
+			require.NoError(t, statErr)
+			assert.Equal(t, os.FileMode(0o700), info.Mode().Perm(), "module root must respect the umask")
+		})
+	}
 }
 
 // TestOCIGetterGetRestoresDestinationWhenPromotionFails: the previous module must
@@ -490,6 +786,58 @@ func TestOCIGetterGetRestoresDestinationWhenPromotionFails(t *testing.T) {
 	require.ErrorIs(t, err, errRenameFailed)
 	assert.FileExists(t, sentinel, "a failed promotion must restore the previous module")
 	assert.NoFileExists(t, filepath.Join(dst, "main.tf"), "a failed promotion must not leave the new module behind")
+}
+
+func TestNewClientWithOCIDetectOrdering(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "wired" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+	client := getter.NewClient(
+		getter.WithLogger(logger.CreateLogger()),
+		getter.WithOCI(newTestOCIGetter(staticStore(store))),
+	)
+
+	dst := filepath.Join(t.TempDir(), "module")
+
+	// The full default protocol set (git, http(s), s3, gcs, file) is
+	// registered; a successful fake-store download proves the OCI getter
+	// claimed the source before any generic getter shadowed it.
+	_, err := client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1.0.0"}, store.gotRefs)
+	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+}
+
+func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
+	t.Parallel()
+
+	client := getter.NewClient(getter.WithLogger(logger.CreateLogger()))
+	dst := filepath.Join(t.TempDir(), "module")
+
+	_, err := client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?bogus=1",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+	// Without WithOCI no getter recognizes the scheme, so the typed OCI
+	// validation error never appears.
+	assert.NotErrorIs(t, err, getter.OCIUnsupportedQueryParamError{Param: "bogus"})
+}
+
+func TestDefaultGenericFetchersExcludeOCI(t *testing.T) {
+	t.Parallel()
+
+	_, found := getter.DefaultGenericFetchers()[getter.SchemeOCI]
+	assert.False(t, found, "generic dispatch must never route oci sources")
 }
 
 // errRenameFailed is the injected fault renameFailFS returns.
@@ -540,8 +888,7 @@ func (s *fakeStore) Resolve(_ context.Context, ref string) (ociv1.Descriptor, er
 	return s.manifestDesc, nil
 }
 
-//nolint:gocritic // hugeParam: by-value descriptor is mandated by the OCIRepositoryStore seam
-func (s *fakeStore) Fetch(_ context.Context, desc ociv1.Descriptor) (io.ReadCloser, error) {
+func (s *fakeStore) Fetch(_ context.Context, desc *ociv1.Descriptor) (io.ReadCloser, error) {
 	if desc.Digest == s.manifestDesc.Digest {
 		return io.NopCloser(bytes.NewReader(s.manifestBytes)), nil
 	}
@@ -662,4 +1009,20 @@ func manifestFor(t *testing.T, artifactType string, layers ...ociv1.Descriptor) 
 		Digest:    digest.FromBytes(manifestBytes),
 		Size:      int64(len(manifestBytes)),
 	}
+}
+
+// renameFailFromFS fails every Rename from call number failFrom onward.
+type renameFailFromFS struct {
+	vfs.FS
+	calls    int
+	failFrom int
+}
+
+func (f *renameFailFromFS) Rename(oldname, newname string) error {
+	f.calls++
+	if f.calls >= f.failFrom {
+		return errRenameFailed
+	}
+
+	return f.FS.Rename(oldname, newname)
 }

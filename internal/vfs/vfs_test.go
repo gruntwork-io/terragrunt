@@ -562,6 +562,51 @@ func TestUnzip(t *testing.T) {
 	})
 }
 
+func TestUnzipSymlinkLimits(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	t.Run("symlink target counts toward the size limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("x"), "link", "target.txt")
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(2)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
+	})
+
+	t.Run("symlink target above the hard cap is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("x"), "link", strings.Repeat("a", 5000))
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+		require.ErrorContains(t, err, "target exceeds")
+	})
+}
+
+func TestUnzipRootUmask(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	fs := vfs.NewMemMapFS()
+	zipData := createZipArchive(t, map[string][]byte{"file.txt": []byte("content")})
+	require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+	require.NoError(t, vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0077))
+
+	info, err := fs.Stat("/dst")
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0700), info.Mode().Perm())
+}
+
 func TestUnzipWithSymlinks(t *testing.T) {
 	t.Parallel()
 
@@ -770,8 +815,8 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 
 		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).Unzip(l, fs, "/dst", "/archive.zip", 0)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds limit")
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
 	})
 
 	t.Run("cumulative size limit across files", func(t *testing.T) {
@@ -788,8 +833,8 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 
 		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(25)).Unzip(l, fs, "/dst", "/archive.zip", 0)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds limit")
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
 	})
 
 	t.Run("no limit when FileSizeLimit is zero", func(t *testing.T) {

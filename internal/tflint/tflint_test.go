@@ -479,7 +479,7 @@ func runWithOpts(
 		Exec:    exec,
 		FS:      fs,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 
 	l := logger.CreateLogger()
