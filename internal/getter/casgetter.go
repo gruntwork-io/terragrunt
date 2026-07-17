@@ -259,12 +259,12 @@ func GitCloneURL(urlStr string) string {
 // source URL. req.Forced (set by the outer client when it stripped a
 // "<scheme>::" prefix) wins; otherwise the URL scheme is consulted.
 //
-// URL-scheme claiming is restricted to http, https, and tfr. The bare
-// go-getter v2 protocol getters for s3, gcs, hg, smb reject
+// URL-scheme claiming is restricted to http, https, tfr, and oci. The
+// bare go-getter v2 protocol getters for s3, gcs, hg, smb reject
 // `<scheme>://...` URLs (they expect canonical HTTPS forms or the
 // forced-prefix syntax), so claiming those schemes here would set up a
-// doomed inner fetch on every cache miss. The tfr fetcher
-// ([RegistryGetter]) accepts tfr:// URLs natively.
+// doomed inner fetch on every cache miss. The tfr ([RegistryGetter]) and
+// oci ([OCIGetter]) fetchers accept their scheme URLs natively.
 //
 // HTTPS URLs against AWS S3 hosts are an exception: virtual-host forms
 // (`<bucket>.s3.amazonaws.com/<key>`) would route through the HTTPS
@@ -473,9 +473,9 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 			return "", err
 		}
 
-		// A mutable source can move between the probe and this download (an
-		// oci tag re-push). Re-probe and drop a stale suggested key so the
-		// fetched bytes are never stored under the earlier key.
+		// Re-probe after the download and drop a stale suggested key, so a
+		// source that moved mid-fetch (an oci tag re-push) is never stored
+		// under the earlier key.
 		if suggestedKey != "" {
 			if resolver := g.resolvers[scheme]; resolver != nil {
 				key, probeErr := resolver.Probe(ctx, urlStr)

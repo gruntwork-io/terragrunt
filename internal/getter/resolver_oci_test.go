@@ -74,7 +74,10 @@ func TestOCIResolverProbeStripsSubdir(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+
+	var gotDomain, gotRepo string
+
+	r := getter.NewOCIResolver(recordingStore(store, &gotDomain, &gotRepo))
 
 	whole, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
 	require.NoError(t, err)
@@ -83,6 +86,41 @@ func TestOCIResolverProbeStripsSubdir(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, whole, subdir)
+	assert.Equal(t, "127.0.0.1:5000", gotDomain)
+	assert.Equal(t, "terraform-modules/vpc", gotRepo, "the subdir selector must not reach the repository name")
+}
+
+// TestOCIResolverProbeIgnoresArchiveMarker: the CAS dispatch marker must not defeat the probe.
+func TestOCIResolverProbeIgnoresArchiveMarker(t *testing.T) {
+	t.Parallel()
+
+	store := resolverFakeStore(t)
+	r := getter.NewOCIResolver(staticStore(store))
+
+	plain, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	require.NoError(t, err)
+
+	marked, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?archive=false&tag=1.0.0")
+	require.NoError(t, err)
+
+	assert.Equal(t, plain, marked)
+}
+
+// TestOCIResolverProbeAppliesTimeout: the store must see a bounded context.
+func TestOCIResolverProbeAppliesTimeout(t *testing.T) {
+	t.Parallel()
+
+	var sawDeadline bool
+
+	r := getter.NewOCIResolver(func(ctx context.Context, _, _ string) (getter.OCIRepositoryStore, error) {
+		_, sawDeadline = ctx.Deadline()
+
+		return nil, errUnknownBlob
+	})
+
+	_, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
+	assert.True(t, sawDeadline, "the probe must bound registry calls with a deadline")
 }
 
 // TestOCIResolverProbeTagAndDigestShareKey: a tag resolving to a digest shares its entry.
@@ -194,11 +232,19 @@ func TestDefaultSourceResolversOCIConfig(t *testing.T) {
 	_, found := getter.DefaultSourceResolvers()[getter.SchemeOCI]
 	assert.False(t, found, "oci resolver must be absent without WithOCIConfig")
 
-	resolvers := getter.DefaultSourceResolvers(getter.WithOCIConfig(logger.CreateLogger(), venvtest.New()))
+	resolvers := func() map[string]getter.SourceResolver {
+		v := venvtest.New()
+
+		return getter.DefaultSourceResolvers(getter.WithOCIConfig(logger.CreateLogger(), v, v.FS))
+	}()
 
 	r, found := resolvers[getter.SchemeOCI]
 	require.True(t, found, "oci resolver must be present with WithOCIConfig")
 	assert.Equal(t, getter.SchemeOCI, r.Scheme())
+
+	ociResolver, castOK := r.(*getter.OCIResolver)
+	require.True(t, castOK, "oci resolver must be an OCIResolver")
+	assert.NotNil(t, ociResolver.NewStore, "resolver must carry the shared store seam")
 }
 
 // resolverFakeStore builds a fake store carrying only a resolvable manifest descriptor.

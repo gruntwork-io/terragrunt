@@ -79,11 +79,85 @@ func TestCASGetterOCIMovedTagNeverPoisonsProbeKey(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dstThree, "main.tf"))
 }
 
+// TestCASGetterOCIReProbeFailureDropsSuggestedKey pins the guard's error
+// path: when the post-fetch re-probe fails, the fetched bytes must not be
+// stored under the pre-fetch probe key.
+func TestCASGetterOCIReProbeFailureDropsSuggestedKey(t *testing.T) {
+	t.Parallel()
+
+	keyA := tgcas.ContentKey("oci-manifest", "sha256:aaaa")
+
+	resolver := &movingTagResolver{tagKey: keyA, digestKey: keyA}
+	// The first download breaks tag probing mid-fetch.
+	fetcher := &countingModuleGetter{onFirstGet: func() { resolver.setTagFailure() }}
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+
+	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v, err := tgcas.OSVenv()
+	require.NoError(t, err)
+
+	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+		getter.WithGenericFetchers(map[string]gogetter.Getter{
+			getter.SchemeOCI: fetcher,
+		}),
+		getter.WithGenericResolvers(map[string]getter.SourceResolver{
+			getter.SchemeOCI: resolver,
+		}),
+	)
+	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+
+	dstOne := filepath.Join(t.TempDir(), "one")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dstOne,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, fetcher.gets.Load())
+
+	// Key A must be unpopulated after the failed re-probe, so a digest pin
+	// for A has to fetch instead of hitting unverifiable content.
+	dstTwo := filepath.Join(t.TempDir(), "two")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=sha256:aaaa",
+		Dst:     dstTwo,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, fetcher.gets.Load(), "a hit would mean the failed re-probe kept the stale key")
+}
+
+// TestCASGetterDoesNotClaimOCIWithoutFetcher pins that oci:// stays unclaimed
+// when the oci fetcher is not registered.
+func TestCASGetterDoesNotClaimOCIWithoutFetcher(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+
+	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v, err := tgcas.OSVenv()
+	require.NoError(t, err)
+
+	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
+
+	claimed, err := g.Detect(&gogetter.Request{Src: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"})
+	require.NoError(t, err)
+	assert.False(t, claimed, "oci must not be claimed without a registered oci fetcher")
+}
+
 // movingTagResolver models a mutable tag: digest probes are deterministic,
-// tag probes follow the current tag position.
+// tag probes follow the current tag position or fail on demand.
 type movingTagResolver struct {
 	tagKey    string
 	digestKey string
+	failTag   bool
 	mu        sync.Mutex
 }
 
@@ -97,6 +171,10 @@ func (r *movingTagResolver) Probe(_ context.Context, rawURL string) (string, err
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if r.failTag {
+		return "", errUnknownBlob
+	}
+
 	return r.tagKey, nil
 }
 
@@ -105,6 +183,13 @@ func (r *movingTagResolver) setTag(key string) {
 	defer r.mu.Unlock()
 
 	r.tagKey = key
+}
+
+func (r *movingTagResolver) setTagFailure() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.failTag = true
 }
 
 // countingModuleGetter writes a one-file module, counts downloads, and runs

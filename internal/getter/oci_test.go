@@ -841,7 +841,8 @@ func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
 	_, found := getter.DefaultGenericFetchers()[getter.SchemeOCI]
 	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")
 
-	fetchers := getter.DefaultGenericFetchers(getter.WithOCIConfig(logger.CreateLogger(), venvtest.New()))
+	v := venvtest.New()
+	fetchers := getter.DefaultGenericFetchers(getter.WithOCIConfig(logger.CreateLogger(), v, v.FS))
 
 	g, found := fetchers[getter.SchemeOCI]
 	require.True(t, found, "oci fetcher must be present with WithOCIConfig")
@@ -849,6 +850,8 @@ func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
 	ociGetter, castOK := g.(*getter.OCIGetter)
 	require.True(t, castOK, "oci fetcher must be an OCIGetter")
 	assert.NotNil(t, ociGetter.NewStore, "oci fetcher must carry the default store")
+	assert.NotNil(t, ociGetter.Logger, "oci fetcher must carry the configured logger")
+	assert.NotNil(t, ociGetter.FS, "oci fetcher must carry the extraction filesystem")
 }
 
 // errRenameFailed is the injected fault renameFailFS returns.

@@ -3,7 +3,6 @@ package getter
 import (
 	"context"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -44,21 +43,12 @@ func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	registryDomain := srcURL.Host
-	if registryDomain == "" {
-		return "", cas.ErrNoVersionMetadata
-	}
-
-	// Strip the //subdir selector so two URLs that only differ in subdir
-	// produce the same probe key.
-	repositoryName, _ := SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
-	if repositoryName == "" {
-		return "", cas.ErrNoVersionMetadata
-	}
-
 	queryValues := srcURL.Query()
+	// Drop the archive marker the CAS dispatch injects.
+	queryValues.Del("archive")
+	srcURL.RawQuery = queryValues.Encode()
 
-	ref, err := ociRefFromQuery(queryValues)
+	registryDomain, repositoryName, _, ref, err := parseOCISource(srcURL)
 	if err != nil {
 		return "", cas.ErrNoVersionMetadata
 	}
