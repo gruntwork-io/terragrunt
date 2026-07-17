@@ -404,7 +404,14 @@ func CopyFolderContents(
 	}
 
 	if cfg.fastCopy {
-		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
+		return copyFolderContentsFast(
+			l,
+			source,
+			destination,
+			manifestFile,
+			cfg.includeInCopy,
+			cfg.excludeFromCopy,
+		)
 	}
 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)

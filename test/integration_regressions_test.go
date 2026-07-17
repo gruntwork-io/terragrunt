@@ -124,9 +124,19 @@ func TestAutoInitSkippedWhenOnlyUncopiedFilesChange(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
-	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"), "first plan should run init")
+	assert.Equal(
+		t,
+		1,
+		strings.Count(stdout.String(), "has been successfully initialized!"),
+		"first plan should run init",
+	)
 
 	// Hidden files are never copied into the cache, so appearing or changing
 	// ones must not alter the computed source version.
@@ -135,9 +145,19 @@ func TestAutoInitSkippedWhenOnlyUncopiedFilesChange(t *testing.T) {
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
-	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
-	assert.NotContains(t, stdout.String(), "has been successfully initialized!", "second plan should not re-run init when only a file the copy skips changed")
+	assert.NotContains(
+		t,
+		stdout.String(),
+		"has been successfully initialized!",
+		"second plan should not re-run init when only a file the copy skips changed",
+	)
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
