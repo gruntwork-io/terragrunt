@@ -88,11 +88,18 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	v.RequireEnv()
 	v.RequireGOOS()
 	v.RequireUserHomeDir()
+	v.RequireHTTP()
 
 	resolveCredential := sync.OnceValues(func() (ociCredentialFactory, error) {
 		return ociCredentialFunc(l, v)
 	})
 	caches := &ociCacheSet{caches: map[string]auth.Cache{}}
+
+	// Registry requests ride the venv's outbound client instead of ORAS's
+	// OS-default retry.DefaultClient; wrapping the venv transport in ORAS's
+	// retry policy keeps the same transient-failure behavior.
+	httpClient := *v.HTTP
+	httpClient.Transport = retry.NewTransport(httpClient.Transport)
 
 	return func(_ context.Context, registryDomain, repositoryName string) (OCIRepositoryStore, error) {
 		credentialFor, err := resolveCredential()
@@ -108,7 +115,7 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 		}
 
 		repo.Client = &auth.Client{
-			Client:     retry.DefaultClient,
+			Client:     &httpClient,
 			Cache:      caches.get(reference),
 			Credential: credentialFor(repositoryName),
 			Header:     http.Header{"User-Agent": []string{ociUserAgent()}},

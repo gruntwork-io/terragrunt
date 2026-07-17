@@ -1350,7 +1350,7 @@ func TestBuildDownloadClientPassesVenvToOCIStore(t *testing.T) {
 	})
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
-		v,
+		&v,
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)

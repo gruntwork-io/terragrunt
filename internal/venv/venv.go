@@ -36,6 +36,9 @@ var ErrVenvEnvUnset = errors.New("venv.Venv.Env is required but unset")
 // ErrVenvFSUnset is the panic value [Venv.RequireFS] raises when FS is nil.
 var ErrVenvFSUnset = errors.New("venv.Venv.FS is required but unset")
 
+// ErrVenvHTTPUnset is the panic value [Venv.RequireHTTP] raises when HTTP is nil.
+var ErrVenvHTTPUnset = errors.New("venv.Venv.HTTP is required but unset")
+
 // ErrVenvGOOSUnset is the panic value [Venv.RequireGOOS] raises when GOOS is empty.
 var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset")
 
@@ -162,6 +165,13 @@ func (v Venv) RequireEnv() {
 func (v Venv) RequireFS() {
 	if v.FS == nil {
 		panic(ErrVenvFSUnset)
+	}
+}
+
+// RequireHTTP panics with [ErrVenvHTTPUnset] when HTTP is nil.
+func (v Venv) RequireHTTP() {
+	if v.HTTP == nil {
+		panic(ErrVenvHTTPUnset)
 	}
 }
 
