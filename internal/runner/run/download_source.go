@@ -478,7 +478,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, src, opts, cfg.Terraform.Mutable)
+		done, err := tryCASDownload(ctx, l, v, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -515,13 +515,14 @@ func downloadSource(
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	mutable bool,
 ) (bool, error) {
-	// The CAS matcher cannot claim oci:// sources yet, so skip the attempt
-	// instead of logging a guaranteed fallback on every oci download.
-	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI {
+	// Without the oci experiment the CAS maps carry no oci entries, so skip
+	// the attempt instead of logging a guaranteed fallback on every download.
+	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI && !opts.Experiments.Evaluate(experiment.OCI) {
 		return false, nil
 	}
 
@@ -573,6 +574,10 @@ func tryCASDownload(
 
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithTFRConfig(l, opts.TofuImplementation, casVenv.FS),
+	}
+
+	if opts.Experiments.Evaluate(experiment.OCI) {
+		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, v))
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources

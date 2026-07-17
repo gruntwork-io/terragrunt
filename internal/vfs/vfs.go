@@ -602,10 +602,20 @@ const defaultZipDirMode os.FileMode = 0755
 const maxSymlinkTargetSize = 4096
 
 // ZipDecompressedSizeLimitError reports an extraction exceeding its configured decompressed size limit.
-type ZipDecompressedSizeLimitError struct{}
+type ZipDecompressedSizeLimitError struct {
+	// Name is the archive entry whose extraction breached the limit.
+	Name string
+	// Size is the entry's declared uncompressed size in bytes.
+	Size uint64
+	// Limit is the configured total decompressed size limit in bytes.
+	Limit int64
+}
 
-func (ZipDecompressedSizeLimitError) Error() string {
-	return "decompressed size exceeds limit"
+func (err ZipDecompressedSizeLimitError) Error() string {
+	return fmt.Sprintf(
+		"file %q of decompressed size %d exceeds the total decompressed size limit of %d",
+		err.Name, err.Size, err.Limit,
+	)
 }
 
 // ZipDecompressor handles zip archive extraction with configurable limits.
@@ -770,6 +780,9 @@ func (z *ZipDecompressor) extractRegularFile(
 		reader = &limitedReader{
 			reader:    rc,
 			remaining: z.FileSizeLimit - *totalSize,
+			name:      zipFile.Name,
+			size:      zipFile.UncompressedSize64,
+			limit:     z.FileSizeLimit,
 		}
 	}
 
@@ -812,7 +825,10 @@ func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
 // limitedReader wraps a reader and enforces a size limit.
 type limitedReader struct {
 	reader    io.Reader
+	name      string
 	remaining int64
+	size      uint64
+	limit     int64
 }
 
 func (r *limitedReader) Read(p []byte) (int, error) {
@@ -831,7 +847,7 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 
 	n, err := r.reader.Read(probe[:])
 	if n > 0 {
-		return 0, ZipDecompressedSizeLimitError{}
+		return 0, ZipDecompressedSizeLimitError{Name: r.name, Size: r.size, Limit: r.limit}
 	}
 
 	if err == nil {
@@ -1207,7 +1223,11 @@ func (z *ZipDecompressor) extractSymlink(
 
 	if z.FileSizeLimit > 0 {
 		if *totalSize+int64(len(targetBytes)) > z.FileSizeLimit {
-			return ZipDecompressedSizeLimitError{}
+			return ZipDecompressedSizeLimitError{
+				Name:  zipFile.Name,
+				Size:  uint64(len(targetBytes)),
+				Limit: z.FileSizeLimit,
+			}
 		}
 
 		*totalSize += int64(len(targetBytes))

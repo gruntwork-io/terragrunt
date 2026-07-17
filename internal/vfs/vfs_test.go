@@ -578,6 +578,9 @@ func TestUnzipSymlinkLimits(t *testing.T) {
 
 		var limitErr vfs.ZipDecompressedSizeLimitError
 		require.ErrorAs(t, err, &limitErr)
+		assert.Equal(t, "link", limitErr.Name)
+		assert.Equal(t, uint64(len("target.txt")), limitErr.Size)
+		assert.Equal(t, int64(2), limitErr.Limit)
 	})
 
 	t.Run("symlink target above the hard cap is rejected", func(t *testing.T) {
