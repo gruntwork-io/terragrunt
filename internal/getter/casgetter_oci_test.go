@@ -18,21 +18,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCASGetterOCITagFetchIsDigestPinned pins the ABA-proof design: the
-// fetch is bound to the digest resolved at download start, so a tag moving
-// mid-fetch (even A to B and back to A) can never mis-key the cache.
+// TestCASGetterOCITagFetchIsDigestPinned pins the ABA-proof design with
+// digest-specific content: the fetch is bound to the digest resolved at
+// download start, so a tag moving A to B and back to A can neither mis-key
+// the cache nor materialize the wrong manifest's bytes.
 func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 	t.Parallel()
 
 	resolver := &movingTagResolver{tagDigest: "sha256:aaaa"}
-	// The first download re-pushes the tag mid-fetch.
-	fetcher := &countingModuleGetter{onFirstGet: func() { resolver.setTag("sha256:bbbb") }}
+	fetcher := &digestModuleGetter{}
+	// First download: the tag moves A to B mid-fetch. Second download: it
+	// moves back to A, completing the A to B to A sequence.
+	fetcher.onGet = func(call int32) {
+		if call == 1 {
+			resolver.setTag("sha256:bbbb")
+		}
 
-	g, client := newOCICASHarness(t, resolver, fetcher)
-	_ = g
+		if call == 2 {
+			resolver.setTag("sha256:aaaa")
+		}
+	}
+
+	_, client := newOCICASHarness(t, resolver, fetcher)
 
 	tagSrc := "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"
 
+	// Fetch 1 pins digest A before the mid-fetch move, so A's content lands
+	// under A's key.
 	dstOne := filepath.Join(t.TempDir(), "one")
 
 	_, err := client.Get(t.Context(), &gogetter.Request{Src: tagSrc, Dst: dstOne, GetMode: gogetter.ModeDir})
@@ -40,25 +52,47 @@ func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 	require.EqualValues(t, 1, fetcher.gets.Load())
 	assert.Contains(t, fetcher.lastSrc(), "digest=sha256%3Aaaaa", "the download must be pinned to the resolved digest")
 	assert.NotContains(t, fetcher.lastSrc(), "tag=", "the mutable tag must not reach the download")
+	assertModuleContent(t, dstOne, "sha256:aaaa")
 
-	// The pinned fetch keyed A with A's content, so a digest request hits.
+	// The tag points at B now: fetch 2 pins digest B and moves the tag back
+	// to A mid-fetch, so B's content lands under B's key.
 	dstTwo := filepath.Join(t.TempDir(), "two")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{Src: tagSrc, Dst: dstTwo, GetMode: gogetter.ModeDir})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, fetcher.gets.Load(), "the moved tag must re-fetch")
+	assert.Contains(t, fetcher.lastSrc(), "digest=sha256%3Abbbb", "the re-fetch must pin the moved digest")
+	assertModuleContent(t, dstTwo, "sha256:bbbb")
+
+	// After A to B to A, digest requests hit their own entries with their
+	// own bytes and no further fetches.
+	dstA := filepath.Join(t.TempDir(), "digest-a")
 
 	_, err = client.Get(t.Context(), &gogetter.Request{
 		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=sha256:aaaa",
-		Dst:     dstTwo,
+		Dst:     dstA,
 		GetMode: gogetter.ModeDir,
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, fetcher.gets.Load(), "digest A must hit the entry the pinned fetch stored")
+	assertModuleContent(t, dstA, "sha256:aaaa")
 
-	// The moved tag resolves to B now, so the tag misses and re-fetches by B.
+	dstB := filepath.Join(t.TempDir(), "digest-b")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=sha256:bbbb",
+		Dst:     dstB,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	assertModuleContent(t, dstB, "sha256:bbbb")
+
+	// The tag is back on A: a tag request hits A's cached entry.
 	dstThree := filepath.Join(t.TempDir(), "three")
 
 	_, err = client.Get(t.Context(), &gogetter.Request{Src: tagSrc, Dst: dstThree, GetMode: gogetter.ModeDir})
 	require.NoError(t, err)
-	assert.EqualValues(t, 2, fetcher.gets.Load(), "the moved tag must re-fetch")
-	assert.Contains(t, fetcher.lastSrc(), "digest=sha256%3Abbbb", "the re-fetch must pin the moved digest")
+	assert.EqualValues(t, 2, fetcher.gets.Load(), "every request after the two fetches must be a cache hit")
+	assertModuleContent(t, dstThree, "sha256:aaaa")
 }
 
 // TestCASGetterOCIResolveFailureFallsBackToContentHash pins the pin-failure
@@ -124,41 +158,60 @@ func TestCASGetterDoesNotClaimOCIWithoutFetcher(t *testing.T) {
 }
 
 // TestCASGetterOCISubdirSelectionSharesOneEntry proves root and subdir
-// requests can safely share one cache entry: the client strips //subdir
-// before dispatch, the cached tree is always the full root, and the client
-// applies the selector after materialization.
+// requests share one full-root cache entry in either order: the client strips
+// //subdir before dispatch, so even a subdir-first miss ingests the complete
+// root, and the client applies the selector after materialization.
 func TestCASGetterOCISubdirSelectionSharesOneEntry(t *testing.T) {
 	t.Parallel()
 
-	resolver := &movingTagResolver{tagDigest: "sha256:aaaa"}
-	fetcher := &treeModuleGetter{}
+	testCases := []struct {
+		name        string
+		subdirFirst bool
+	}{
+		{name: "root then subdir", subdirFirst: false},
+		{name: "subdir then root", subdirFirst: true},
+	}
 
-	_, client := newOCICASHarness(t, resolver, fetcher)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	dstRoot := filepath.Join(t.TempDir(), "root")
+			resolver := &movingTagResolver{tagDigest: "sha256:aaaa"}
+			fetcher := &treeModuleGetter{}
 
-	_, err := client.Get(t.Context(), &gogetter.Request{
-		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
-		Dst:     dstRoot,
-		GetMode: gogetter.ModeDir,
-	})
-	require.NoError(t, err)
-	assert.FileExists(t, filepath.Join(dstRoot, "main.tf"))
-	assert.FileExists(t, filepath.Join(dstRoot, "subdir", "sub.tf"))
+			_, client := newOCICASHarness(t, resolver, fetcher)
 
-	// The subdir request hits the same entry yet receives only the subtree.
-	dstSub := filepath.Join(t.TempDir(), "sub")
+			rootSrc := "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"
+			subSrc := "oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0"
 
-	_, err = client.Get(t.Context(), &gogetter.Request{
-		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0",
-		Dst:     dstSub,
-		GetMode: gogetter.ModeDir,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 1, fetcher.gets.Load(), "the subdir request must be served from the shared entry")
-	assert.FileExists(t, filepath.Join(dstSub, "sub.tf"))
-	assert.NoFileExists(t, filepath.Join(dstSub, "main.tf"), "the root tree must not leak into a subdir request")
-	assert.NoFileExists(t, filepath.Join(dstSub, "subdir"), "the selector must be applied, not the full tree")
+			first, second := rootSrc, subSrc
+			if tc.subdirFirst {
+				first, second = subSrc, rootSrc
+			}
+
+			dstFirst := filepath.Join(t.TempDir(), "first")
+
+			_, err := client.Get(t.Context(), &gogetter.Request{Src: first, Dst: dstFirst, GetMode: gogetter.ModeDir})
+			require.NoError(t, err)
+
+			dstSecond := filepath.Join(t.TempDir(), "second")
+
+			_, err = client.Get(t.Context(), &gogetter.Request{Src: second, Dst: dstSecond, GetMode: gogetter.ModeDir})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, fetcher.gets.Load(), "both orders must share one full-root cache entry")
+
+			dstRoot, dstSub := dstFirst, dstSecond
+			if tc.subdirFirst {
+				dstRoot, dstSub = dstSecond, dstFirst
+			}
+
+			assert.FileExists(t, filepath.Join(dstRoot, "main.tf"))
+			assert.FileExists(t, filepath.Join(dstRoot, "subdir", "sub.tf"))
+			assert.FileExists(t, filepath.Join(dstSub, "sub.tf"))
+			assert.NoFileExists(t, filepath.Join(dstSub, "main.tf"), "the root tree must not leak into a subdir request")
+			assert.NoFileExists(t, filepath.Join(dstSub, "subdir"), "the selector must be applied, not the full tree")
+		})
+	}
 }
 
 // TestCASGetterOCIProbeOnlyResolverNeverKeysMutableTags pins the fallback for
@@ -349,5 +402,63 @@ func (f *treeModuleGetter) Mode(_ context.Context, _ *url.URL) (gogetter.Mode, e
 }
 
 func (f *treeModuleGetter) Detect(_ *gogetter.Request) (bool, error) {
+	return true, nil
+}
+
+// assertModuleContent asserts the materialized module carries the content of
+// the given digest.
+func assertModuleContent(t *testing.T, dst, digestValue string) {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(dst, "main.tf"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), digestValue, "the materialized tree must match the pinned digest")
+}
+
+// digestModuleGetter writes digest-specific content, records the requested
+// source, and runs onGet with the download count for mid-fetch tag moves.
+type digestModuleGetter struct {
+	onGet func(call int32)
+	src   string
+	srcMu sync.Mutex
+	gets  atomic.Int32
+}
+
+func (f *digestModuleGetter) Get(_ context.Context, req *gogetter.Request) error {
+	f.srcMu.Lock()
+	f.src = req.Src
+	f.srcMu.Unlock()
+
+	call := f.gets.Add(1)
+	if f.onGet != nil {
+		f.onGet(call)
+	}
+
+	pinned := "UNPINNED"
+	if u, err := url.Parse(req.Src); err == nil && u.Query().Get("digest") != "" {
+		pinned = u.Query().Get("digest")
+	}
+
+	content := `output "manifest" { value = "` + pinned + `" }`
+
+	return os.WriteFile(filepath.Join(req.Dst, "main.tf"), []byte(content), 0o644)
+}
+
+func (f *digestModuleGetter) lastSrc() string {
+	f.srcMu.Lock()
+	defer f.srcMu.Unlock()
+
+	return f.src
+}
+
+func (f *digestModuleGetter) GetFile(_ context.Context, _ *gogetter.Request) error {
+	return getter.ErrOCIGetFileUnsupported
+}
+
+func (f *digestModuleGetter) Mode(_ context.Context, _ *url.URL) (gogetter.Mode, error) {
+	return gogetter.ModeDir, nil
+}
+
+func (f *digestModuleGetter) Detect(_ *gogetter.Request) (bool, error) {
 	return true, nil
 }
