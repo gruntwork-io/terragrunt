@@ -86,12 +86,12 @@ func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOp
 
 // Run executes the Queue return error summarizing all entries that failed to run.
 func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_controller", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "runner_pool_controller", map[string]any{
 		"total_tasks":             len(dr.q.Entries),
 		"concurrency":             dr.concurrency,
 		"fail_fast":               dr.q.FailFast,
 		"ignore_dependency_order": dr.q.IgnoreDependencyOrder,
-	}, func(childCtx context.Context) error {
+	}, func(childCtx context.Context, l log.Logger) error {
 		var (
 			wg      sync.WaitGroup
 			sem     = make(chan struct{}, dr.concurrency)

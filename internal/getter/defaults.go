@@ -22,6 +22,7 @@ const (
 	SchemeHg    = "hg"
 	SchemeSMB   = "smb"
 	SchemeTFR   = "tfr"
+	SchemeOCI   = "oci"
 )
 
 // GenericFetcherOption configures the generic-dispatch defaults consumed
@@ -29,10 +30,10 @@ const (
 type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
-	httpExtra  http.Header
-	httpsExtra http.Header
 	tfrLogger  log.Logger
 	tfrFS      vfs.FS
+	httpExtra  http.Header
+	httpsExtra http.Header
 	tfrImpl    tfimpl.Type
 }
 
@@ -93,13 +94,15 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 //
 //  1. tfr (Terraform Registry): must precede git so tfr:// wins forced
 //     detection.
-//  2. CAS protocol getter (when CAS is enabled): resolves `cas::`
+//  2. oci (OCI Distribution registries, when registered): precedes the
+//     generic getters so oci:// wins forced detection.
+//  3. CAS protocol getter (when CAS is enabled): resolves `cas::`
 //     source references produced by `update_source_with_cas` stack
 //     rewrites.
-//  3. CAS getter (when CAS is enabled): intercepts git, s3, gcs,
+//  4. CAS getter (when CAS is enabled): intercepts git, s3, gcs,
 //     http(s), hg, and smb sources ahead of the bare protocol getters.
-//  4. Caller-prepended getters (tests).
-//  5. The default protocol set: git, hg, smb, http(s), s3, gcs, file.
+//  5. Caller-prepended getters (tests).
+//  6. The default protocol set: git, hg, smb, http(s), s3, gcs, file.
 //
 // file goes last so it does not claim sources another detector
 // recognizes.
@@ -132,6 +135,10 @@ func buildGetters(b *builder) []Getter {
 		out = append(out, b.tfRegistry)
 	}
 
+	if b.oci != nil {
+		out = append(out, b.oci)
+	}
+
 	if b.casStore != nil {
 		fetchers := map[string]getter.Getter{
 			SchemeS3:    s3Getter,
@@ -147,6 +154,10 @@ func buildGetters(b *builder) []Getter {
 		if b.tfRegistry != nil {
 			fetchers[SchemeTFR] = b.tfRegistry
 			resolverOpts = append(resolverOpts, WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS))
+		}
+
+		if b.oci != nil {
+			fetchers[SchemeOCI] = b.oci
 		}
 
 		out = append(out,

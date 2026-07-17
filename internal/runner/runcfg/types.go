@@ -54,6 +54,10 @@ type TerraformConfig struct {
 	// Source is the terraform source URL
 	Source string
 
+	// Version is the version constraint used to resolve a tfr:// registry
+	// module (for example "~> 3.3"). Empty when unset.
+	Version string
+
 	// IncludeInCopy lists files to include when copying source
 	IncludeInCopy []string
 

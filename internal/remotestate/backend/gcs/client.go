@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"google.golang.org/api/iterator"
 )
@@ -33,12 +34,13 @@ type Client struct {
 // NewClient inits GCS client.
 func NewClient(
 	ctx context.Context,
+	v venv.Venv,
 	config *ExtendedRemoteStateConfigGCS,
 	opts *backend.Options,
 ) (*Client, error) {
 	gcsClient, err := gcphelper.NewGCPConfigBuilder().
 		WithSessionConfig(config.GetGCPSessionConfig()).
-		WithEnv(opts.Env).
+		WithEnv(v.Env).
 		BuildGCSClient(ctx)
 	if err != nil {
 		return nil, err
@@ -54,7 +56,7 @@ func NewClient(
 
 // CreateGCSBucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
 // confirms, creates the bucket and enables versioning for it.
-func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *backend.Options) error {
+func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logger, v venv.Venv, bucketName string, opts *backend.Options) error {
 	if client.DoesGCSBucketExist(ctx, bucketName) {
 		return nil
 	}
@@ -77,7 +79,7 @@ func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logg
 
 	prompt := fmt.Sprintf("Remote state GCS bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", bucketName)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Writers.ErrWriter)
 	if err != nil {
 		return err
 	}

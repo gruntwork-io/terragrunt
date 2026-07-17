@@ -2163,6 +2163,103 @@ resource "null_resource" "test" {}
 	require.NotContains(t, output, "Expected at most one positional argument")
 }
 
+// TestDestroyWithOutDirGitFilterDependentsWithRacing is a regression test for
+// https://github.com/gruntwork-io/terragrunt/issues/6319.
+// It verifies that --filter-allow-destroy works correctly when the filter uses
+// the ...[from...to] dependents syntax (not just the plain [from...to] syntax).
+func TestDestroyWithOutDirGitFilterDependentsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	outDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	err := os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte(".terragrunt-cache/\n.terraform/\n.terraform.lock.hcl\n"), 0644)
+	require.NoError(t, err)
+
+	// create unit to destroy
+	unitDir := filepath.Join(tmpDir, "unit-to-destroy")
+	err = os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit to destroy`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+resource "null_resource" "test" {}
+`), 0644)
+	require.NoError(t, err)
+
+	// create unit-a which depends on unit-to-destroy.
+	// This is necessary so that discoverDependentsUpstream finds unit-a as a
+	// dependent and calls processUpstreamCandidate, which exercises the
+	// shallow-copy path in DiscoveryContext.Copy().
+	unitADir := filepath.Join(tmpDir, "unit-a")
+	err = os.MkdirAll(unitADir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(`
+dependency "b" {
+  config_path = "../unit-to-destroy"
+  mock_outputs = {}
+  mock_outputs_allowed_terraform_commands = ["plan", "apply"]
+}
+`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitADir, "main.tf"), []byte(`
+resource "null_resource" "unit_a" {}
+`), 0644)
+	require.NoError(t, err)
+
+	// Initial commit
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
+
+	// do initial apply
+	cmd := "terragrunt run --all --no-color --non-interactive --working-dir " + tmpDir +
+		" -- apply"
+	helpers.RunTerragrunt(t, cmd)
+
+	// remove unit to trigger destruction
+	err = os.RemoveAll(unitDir)
+	require.NoError(t, err)
+
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Unit removal"))
+
+	// Use ...[HEAD~1...HEAD] (dependents syntax) instead of plain [HEAD~1...HEAD].
+	// The graph expression wrapper must not strip the -destroy flag from the
+	// deleted unit's DiscoveryContext.
+	cmd = "terragrunt run --all --no-color --experiment-mode --non-interactive --working-dir " + tmpDir +
+		" --out-dir " + outDir + " --filter-allow-destroy --filter '...[HEAD~1...HEAD]' -- plan"
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	output := stdout + stderr
+	require.NotContains(t, output, "Too many command line arguments")
+	require.NotContains(t, output, "Expected at most one positional argument")
+
+	// check creation of plan files
+	var planFiles []string
+
+	err = filepath.Walk(outDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if strings.HasSuffix(path, ".tfplan") {
+			planFiles = append(planFiles, path)
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, planFiles)
+}
+
 func TestFilterExcludeByDefault(t *testing.T) {
 	t.Parallel()
 

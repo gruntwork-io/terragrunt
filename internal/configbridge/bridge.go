@@ -56,10 +56,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.Experiments = opts.Experiments
 	pctx.StrictControls = opts.StrictControls
 	pctx.FeatureFlags = opts.FeatureFlags
-	pctx.Writers = opts.Writers
 	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
 	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
-	pctx.Env = opts.Env
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
 	pctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
@@ -92,8 +90,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 	s := shell.NewShellOptions().
 		WithWorkingDir(opts.WorkingDir).
-		WithEnv(opts.Env).
-		WithWriters(opts.Writers).
 		WithTelemetry(opts.Telemetry).
 		WithEngine(opts.EngineConfig, opts.EngineOptions).
 		WithTFPath(opts.TFPath).
@@ -110,8 +106,6 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
 func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
-		Writers:                      opts.Writers,
-		Env:                          opts.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
@@ -143,7 +137,6 @@ func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
 // This replaces the former run.NewOptions(opts) function.
 func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts := run.NewOptions()
-	runOpts.Writers = opts.Writers
 	runOpts.LogShowAbsPaths = opts.LogShowAbsPaths
 	runOpts.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	runOpts.TerragruntConfigPath = opts.TerragruntConfigPath
@@ -157,7 +150,6 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.TerraformCliArgs = opts.TerraformCliArgs
 	runOpts.Source = opts.Source
 	runOpts.SourceMap = opts.SourceMap
-	runOpts.Env = opts.Env
 	runOpts.IAMRoleOptions = opts.IAMRoleOptions
 	runOpts.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
 	runOpts.EngineConfig = opts.EngineConfig

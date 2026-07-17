@@ -10,10 +10,15 @@ type Options struct {
 	TraceParent string
 	// MetricExporter is the type of metrics exporter.
 	MetricExporter string
+	// LogsExporter is the type of logs exporter to be used.
+	LogsExporter string
 	// TraceExporterInsecureEndpoint is useful for collecting traces locally.
 	// If set to true, the exporter will not validate the server certificate.
 	TraceExporterInsecureEndpoint bool
 	// MetricExporterInsecureEndpoint is useful for local metrics collection.
 	// If set to true, the exporter will not validate the server's certificate.
 	MetricExporterInsecureEndpoint bool
+	// LogsExporterInsecureEndpoint is useful for local logs collection.
+	// If set to true, the exporter will not validate the server's certificate.
+	LogsExporterInsecureEndpoint bool
 }

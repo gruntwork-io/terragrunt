@@ -76,12 +76,12 @@ func (c *Content) Link(
 		desired &^= WriteBitMask
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_link", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, "cas_link", map[string]any{
 		"hash":       hash,
 		"path":       targetPath,
 		"force_copy": o.forceCopy,
 		"perm":       uint32(desired),
-	}, func(childCtx context.Context) error {
+	}, func(childCtx context.Context, _ log.Logger) error {
 		sourcePath := c.getPath(hash)
 
 		// Hardlink when the stored blob's perms already match what the caller

@@ -27,7 +27,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
@@ -56,8 +55,6 @@ type Options struct {
 	Telemetry                    *telemetry.Options
 	FS                           vfs.FS
 	SourceMap                    map[string]string
-	Env                          map[string]string
-	Writers                      writer.Writers
 	TFPath                       string
 	TerraformCommand             string
 	TofuImplementation           tfimpl.Type
@@ -175,18 +172,20 @@ func (o *Options) AppendTerraformCliArgs(argsToAppend ...string) {
 	}
 }
 
-// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
-func (o *Options) TerraformDataDir() string {
-	if tfDataDir, ok := o.Env["TF_DATA_DIR"]; ok {
+// TerraformDataDir returns Terraform data directory (.terraform by default,
+// overridden by the TF_DATA_DIR entry in env).
+func (o *Options) TerraformDataDir(env map[string]string) string {
+	if tfDataDir, ok := env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
 
 	return defaultTFDataDir
 }
 
-// DataDir returns the Terraform data directory prepended with the working directory path.
-func (o *Options) DataDir() string {
-	tfDataDir := o.TerraformDataDir()
+// DataDir returns the Terraform data directory prepended with the working
+// directory path.
+func (o *Options) DataDir(env map[string]string) string {
+	tfDataDir := o.TerraformDataDir(env)
 	if filepath.IsAbs(tfDataDir) {
 		return tfDataDir
 	}
@@ -199,8 +198,6 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 	s := shell.NewShellOptions().
 		WithWorkingDir(o.CacheDir).
 		WithUnitDir(o.UnitDir).
-		WithEnv(o.Env).
-		WithWriters(o.Writers).
 		WithTelemetry(o.Telemetry).
 		WithEngine(o.EngineConfig, o.EngineOptions).
 		WithTFPath(o.TFPath).
@@ -230,8 +227,6 @@ func (o *Options) tfRunOptions() *tf.TFOptions {
 func (o *Options) remoteStateOpts() *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
-			Writers:                      o.Writers,
-			Env:                          o.Env,
 			IAMRoleOptions:               o.IAMRoleOptions,
 			NonInteractive:               o.NonInteractive,
 			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
@@ -245,7 +240,6 @@ func (o *Options) remoteStateOpts() *remotestate.Options {
 func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
 		ShellOptions:         o.shellRunOptions(),
-		Writers:              o.Writers,
 		LogShowAbsPaths:      o.LogShowAbsPaths,
 		WorkingDir:           o.CacheDir,
 		RootWorkingDir:       o.RootWorkingDir,

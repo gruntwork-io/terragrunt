@@ -868,6 +868,7 @@ func (conf *ErrorHook) String() string {
 // well.
 type TerraformConfig struct {
 	Source              *string `hcl:"source,attr"`
+	Version             *string `hcl:"version,attr"`
 	UpdateSourceWithCAS *bool   `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool   `hcl:"mutable,attr"`
 
@@ -924,6 +925,38 @@ func (cfg *TerraformConfig) ValidateHooks() error {
 		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
 			return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
 		}
+	}
+
+	return nil
+}
+
+// ValidateVersion checks the optional version attribute. The attribute is gated behind
+// the version-attribute experiment, and once enabled a version constraint only has
+// meaning for a tfr:// registry source and must not duplicate a constraint already
+// pinned inline via ?version= on that source. version and the source it constrains can
+// come from different files via include, so this must run on the merged config rather
+// than per file.
+func (cfg *TerraformConfig) ValidateVersion(experiments experiment.Experiments, configPath string) error {
+	if cfg == nil || cfg.Version == nil {
+		return nil
+	}
+
+	if !experiments.Evaluate(experiment.VersionAttribute) {
+		return VersionAttributeRequiresExperimentError{ConfigPath: configPath}
+	}
+
+	var source string
+	if cfg.Source != nil {
+		source = *cfg.Source
+	}
+
+	sourceURL, err := url.Parse(source)
+	if err != nil || sourceURL.Scheme != "tfr" {
+		return VersionAttributeNonRegistrySourceError{ConfigPath: configPath}
+	}
+
+	if sourceURL.Query().Has("version") {
+		return VersionAttributeSourceConstraintConflictError{ConfigPath: configPath}
 	}
 
 	return nil
@@ -1232,13 +1265,14 @@ func ParseConfigFile(
 
 	err = TraceParseConfigFile(
 		ctx,
+		l,
 		configPath,
 		pctx.WorkingDir,
 		isPartial,
 		pctx.PartialParseDecodeList,
 		includeFromChild,
 		cacheHit,
-		func(childCtx context.Context) error {
+		func(childCtx context.Context, l log.Logger) error {
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
@@ -1323,6 +1357,10 @@ func ParseConfig(
 
 	if err := DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
 		return nil, err
+	}
+
+	if terraformSourceReferencesDependency(file) {
+		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}
 
 	if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
@@ -1444,7 +1482,15 @@ func ParseConfig(
 			mergedConfig.Exclude = config.Exclude
 		}
 
-		return mergedConfig, errors.Join(errs...)
+		config = mergedConfig
+	}
+
+	// A non-nil includeFromChild means this parse is itself an included parent, not a
+	// final config; the including child validates the merged result.
+	if includeFromChild == nil && config != nil {
+		if err := config.Terraform.ValidateVersion(pctx.Experiments, file.ConfigPath); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return config, errors.Join(errs...)

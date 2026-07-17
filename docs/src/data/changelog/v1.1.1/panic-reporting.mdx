@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "process-updates"
+---
+
+#### Friendly panic reports
+
+Terragrunt now writes a `terragrunt-crash-YYYYMMDDTHHMMSSZ-<pid>.log` file when it crashes.
+
+The report includes runtime details, the command line, the panic message, and the stack trace. You can conveniently share this file (after reviewing for sensitive information) to report panics if Terragrunt crashes.

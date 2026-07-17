@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +71,12 @@ func TestParseTerraformVersionWithDebug(t *testing.T) {
 
 func TestParseTerraformVersionWithChanges(t *testing.T) {
 	t.Parallel()
-	testParseTerraformVersion(t, "Terraform v0.9.4-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)", "v0.9.4", nil)
+	testParseTerraformVersion(
+		t,
+		"Terraform v0.9.4-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)",
+		"v0.9.4",
+		nil,
+	)
 }
 
 func TestParseTerraformVersionWithDev(t *testing.T) {
@@ -169,17 +175,13 @@ func TestCheckTerragruntVersionMeetsConstraintPrerelease(t *testing.T) {
 	testCheckTerragruntVersionMeetsConstraint(t, "v0.23.18-alpha202409013", ">= v0.23.18", true)
 }
 
-// TestPopulateTFVersionRespectsTFPath is a regression test for issue #6147:
-// when both tofu and terraform are installed and `terraform_binary = "terraform"`
-// is set in HCL, the default `tofu` binary was selected anyway. The root cause
-// was that the run-scoped version cache keyed only by workingDir and the
-// contents of any version-pinning files, so an early call (e.g. from
-// setupAutoProviderCacheDir) that resolved against `tofu` would poison the
-// cache for the later call made after `terraform_binary` had taken effect.
-//
-// The fix folds the resolved binary path into the cache key. This test feeds
-// distinct --version stdout per binary through a vexec.MemExec handler and
-// asserts the second call resolves Terraform, not the cached OpenTofu entry.
+// TestPopulateTFVersionRespectsTFPath verifies that the run-scoped version
+// cache is keyed by the resolved binary path. Two calls with the same working
+// directory but different binaries must resolve independently: an early call
+// that resolves against `tofu` must not poison the entry a later call reads
+// after `terraform_binary` has taken effect. The test feeds distinct --version
+// stdout per binary through a vexec.MemExec handler and asserts the second call
+// resolves Terraform, not the cached OpenTofu entry.
 func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	t.Parallel()
 
@@ -215,7 +217,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// First call mirrors what setupAutoProviderCacheDir does before
 	// terraform_binary is read from HCL: TFPath is still the auto-detected
 	// "tofu", and the OpenTofu version gets resolved and cached.
-	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, e, run.PopulateTFVersionInput{
+	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, venvtest.New().WithExec(e), run.PopulateTFVersionInput{
 		TFOpts: tfOpts("tofu"),
 	})
 	require.NoError(t, err)
@@ -226,9 +228,14 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// "terraform"` has been applied. Before the fix, this hit the poisoned
 	// cache entry and returned OpenTofu v1.9.0, which then failed any
 	// terraform-version-constraint check pinned to a real Terraform release.
-	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(ctx, l, e, run.PopulateTFVersionInput{
-		TFOpts: tfOpts("terraform"),
-	})
+	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(
+		ctx,
+		l,
+		venvtest.New().WithExec(e),
+		run.PopulateTFVersionInput{
+			TFOpts: tfOpts("terraform"),
+		},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, tfimpl.Terraform, terraformImpl,
 		"expected Terraform after switching TFPath to 'terraform'; got %s"+

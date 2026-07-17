@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -739,8 +740,13 @@ func TestTerragruntVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+		opts := options.NewTerragruntOptions()
+
+		testV := venv.OSVenv()
+
+		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 		app.Version = version
 
 		err := app.Run(tc.args)
@@ -794,8 +800,13 @@ func TestTerragruntHelp(t *testing.T) {
 			t.Parallel()
 
 			output := &bytes.Buffer{}
-			opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-			app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+			opts := options.NewTerragruntOptions()
+
+			testV := venv.OSVenv()
+
+			testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+			app := cli.NewApp(logger.CreateLogger(), opts, testV)
 			err := app.Run(tc.args)
 			require.NoError(t, err, tc)
 
@@ -822,8 +833,13 @@ func TestTerraformHelp(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+		opts := options.NewTerragruntOptions()
+
+		testV := venv.OSVenv()
+
+		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 		err := app.Run(tc.args)
 		require.NoError(t, err)
 
@@ -836,8 +852,13 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 	output := &bytes.Buffer{}
 
-	opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-	app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+	opts := options.NewTerragruntOptions()
+
+	testV := venv.OSVenv()
+
+	testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+	app := cli.NewApp(logger.CreateLogger(), opts, testV)
 
 	err := app.Run([]string{"terragrunt", "plan", "help"})
 	require.Error(t, err)
@@ -921,8 +942,13 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 		t.Setenv("COMP_LINE", "terragrunt "+tc.compLine)
 
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+		opts := options.NewTerragruntOptions()
+
+		testV := venv.OSVenv()
+
+		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 
 		app.Commands = app.Commands.FilterByNames([]string{"hcl", "render", "run"})
 

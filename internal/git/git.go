@@ -138,7 +138,7 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 		ref = "HEAD"
 	}
 
-	args := []string{repo, ref}
+	args := []string{"--", repo, ref}
 
 	cmd := g.prepareCommand(ctx, "ls-remote", args...)
 
@@ -250,7 +250,7 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 		args = append(args, "--branch", branch)
 	}
 
-	args = append(args, repo, g.WorkDir)
+	args = append(args, "--", repo, g.WorkDir)
 
 	cmd := g.prepareCommand(ctx, "clone", args...)
 
@@ -308,7 +308,7 @@ func (g *GitRunner) Fetch(ctx context.Context, repo, ref string, depth int) erro
 		args = append(args, "--depth", strconv.Itoa(depth), "--no-tags")
 	}
 
-	args = append(args, repo, ref)
+	args = append(args, "--", repo, ref)
 
 	cmd := g.prepareCommand(ctx, "fetch", args...)
 
@@ -464,7 +464,7 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 
 // CatFile writes the contents of a git object
 // to a given writer.
-func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) error {
+func (g *GitRunner) CatFile(ctx context.Context, hash string, w io.Writer) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
@@ -473,7 +473,7 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 
 	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
 
-	cmd.SetStdout(out)
+	cmd.SetStdout(w)
 	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {

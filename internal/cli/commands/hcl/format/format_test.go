@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -36,7 +37,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -121,7 +122,7 @@ func TestHCLFmtErrors(t *testing.T) {
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = format.Run(t.Context(), l, newTgOptions)
+			err = format.Run(t.Context(), l, venv.OSVenv(), newTgOptions)
 			require.Error(t, err)
 		})
 	}
@@ -147,7 +148,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -191,7 +192,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -234,7 +235,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -303,7 +304,7 @@ func TestHCLFmtStdin(t *testing.T) {
 
 	// format hcl from stdin
 	tgOptions.HclFromStdin = true
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.NoError(t, err)
 
 	formatted, err := os.ReadFile(tempStdoutFile.Name())
@@ -327,7 +328,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.NoError(t, err)
 
 	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")
@@ -362,7 +363,7 @@ func TestRunForFiles(t *testing.T) {
 		"README.md",                                       // non-hcl, should be skipped
 	}
 
-	err = format.RunForFiles(t.Context(), logger.CreateLogger(), tgOptions, tmpPath, files)
+	err = format.RunForFiles(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions, tmpPath, files)
 	require.NoError(t, err)
 
 	// Verify formatted files
@@ -389,7 +390,7 @@ func TestRunForFilesEmptyList(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	err = format.RunForFiles(t.Context(), logger.CreateLogger(), tgOptions, t.TempDir(), nil)
+	err = format.RunForFiles(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions, t.TempDir(), nil)
 	require.NoError(t, err)
 }
 
@@ -423,7 +424,7 @@ func TestHCLFmtFilter(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -495,7 +496,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -567,7 +568,7 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {

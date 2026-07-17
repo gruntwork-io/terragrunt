@@ -1,0 +1,4 @@
+# No lock file is committed here on purpose. These tests assert how the provider
+# cache behaves when `.terraform.lock.hcl` is absent and `-lockfile=readonly`
+# is requested, so each run must start without one.
+.terraform.lock.hcl

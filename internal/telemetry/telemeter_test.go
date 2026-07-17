@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -49,11 +48,11 @@ func TestNewTelemeterEnvOverrides(t *testing.T) {
 
 			var buf bytes.Buffer
 
-			opts := options.NewTerragruntOptionsWithWriters(io.Discard, io.Discard)
+			opts := options.NewTerragruntOptions()
 			opts.Telemetry.TraceExporter = "console"
 			opts.Telemetry.MetricExporter = "console"
 
-			tlm, err := telemetry.NewTelemeter(t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry)
+			tlm, err := telemetry.NewTelemeter(t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false)
 			require.NoError(t, err)
 			require.NotNil(t, tlm)
 

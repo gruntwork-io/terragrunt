@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -58,7 +58,13 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	require.NoError(
 		t,
-		tf.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.TFRunOptsFromOpts(mockOptions), "apply", "-auto-approve", "-var-file", debugFile),
+		tf.RunCommand(
+			t.Context(),
+			l,
+			venv.OSVenv(),
+			configbridge.TFRunOptsFromOpts(mockOptions),
+			"apply", "-auto-approve", "-var-file", debugFile,
+		),
 	)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
@@ -182,6 +188,38 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 
 	args := []string{}
 	helpers.RunTerragruntValidateInputs(t, rootPath, args, true)
+}
+
+// pins that hcl validate --inputs resolves get_original_terragrunt_dir() to the discovered unit
+func TestTerragruntHCLValidateInputsResolvesOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	fixture := "fixtures/hcl-validate-original-dir"
+	helpers.CleanupTerraformFolder(t, filepath.Join(fixture, "unit"))
+	tmpEnvPath := helpers.CopyEnvironment(t, fixture)
+	rootPath := filepath.Join(tmpEnvPath, fixture)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt hcl validate --inputs --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+}
+
+// pins the same for hcl validate without --inputs, which parses units through a separate path
+func TestTerragruntHCLValidateResolvesOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	fixture := "fixtures/hcl-validate-original-dir"
+	helpers.CleanupTerraformFolder(t, filepath.Join(fixture, "unit"))
+	tmpEnvPath := helpers.CopyEnvironment(t, fixture)
+	rootPath := filepath.Join(tmpEnvPath, fixture)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt hcl validate --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
 }
 
 func TestRenderJSONConfig(t *testing.T) {

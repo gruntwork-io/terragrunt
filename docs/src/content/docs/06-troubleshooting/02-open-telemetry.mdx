@@ -6,6 +6,9 @@ sidebar:
   order: 2
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format in the form of traces and metrics.
 
 OpenTelemetry tracing is typically used in Terragrunt to analyze performance. For more details on analyzing and optimizing performance, read the dedicated [Performance documentation](/troubleshooting/performance).
@@ -40,6 +43,25 @@ Metrics configuration:
   - `grpcHttp` - export metrics to an OpenTelemetry collector over gRPC [otlpmetricgrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc)
 - `TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
 
+<Since version="1.1.2">
+
+Logs configuration:
+
+<Aside type="tip" title="Experimental">
+The logs signal is gated behind the [`otel-logs`](/reference/experiments/active#otel-logs) experiment. Enable it with `--experiment otel-logs` (or `TG_EXPERIMENT=otel-logs`); otherwise the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
+</Aside>
+
+- `TG_TELEMETRY_LOGS_EXPORTER` - logs exporter type to be used. Currently supported values are:
+  - `none` - no log exporting, default value.
+  - `console` - write log records to console as JSONs.
+  - `otlpHttp` - export logs to an OpenTelemetry collector over HTTP [otlploghttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp)
+  - `otlpGrpc` - export logs to an OpenTelemetry collector over gRPC [otlploggrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc)
+- `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter disables TLS and sends logs over an insecure connection, for local logs collection only.
+
+The OTLP log exporters read their endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Records emitted while a span is active carry its trace and span IDs, so those logs and traces correlate in the backend.
+
+</Since>
+
 Resource attributes:
 
 - `OTEL_SERVICE_NAME` - overrides the `service.name` resource attribute attached to every span and metric. Defaults to `terragrunt`. Useful for distinguishing multiple Terragrunt invocations in the same backend (e.g. per-environment or per-user).
@@ -57,7 +79,7 @@ Collection of examples how to configure Terragrunt to emit traces and metrics in
 docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4317:4317 -p 4318:4318 jaegertracing/all-in-one:1.54.0
 ```
 
-- Verify that UI is available at <http://localhost:16686/>
+- Verify that UI is available at [http://localhost:16686/](http://localhost:16686/)
 - Define environment variables for Terragrunt to report traces to Jaeger:
 
 ```bash
@@ -164,7 +186,7 @@ scrape_configs:
       - targets: ['otel-collector:8889']
 ```
 
-- Confirm that Prometheus is available at <http://localhost:9090/>
+- Confirm that Prometheus is available at [http://localhost:9090/](http://localhost:9090/)
 - Define environment variables for Terragrunt to report metrics to OpenTelemetry collector:
 
 ```bash

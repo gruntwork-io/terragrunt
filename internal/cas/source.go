@@ -102,7 +102,7 @@ func (c *CAS) FetchSource(
 
 	tlm := telemetry.TelemeterFromContext(ctx)
 
-	return tlm.Collect(ctx, "cas_fetch_source", attrs, func(childCtx context.Context) error {
+	return tlm.Collect(ctx, l, "cas_fetch_source", attrs, func(childCtx context.Context, l log.Logger) error {
 		suggestedKey := c.probeSource(childCtx, l, src)
 
 		if suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {
@@ -160,7 +160,7 @@ func OpaqueKey(scheme, url, token string) string {
 func (c *CAS) MakeFetchTempDir(l log.Logger, v Venv) (string, func(), error) {
 	v.RequireFS()
 
-	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fetch-*")
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fetch-")
 	if err != nil {
 		return "", nil, fmt.Errorf("create source fetch dir: %w", err)
 	}

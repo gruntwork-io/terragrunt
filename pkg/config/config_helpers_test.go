@@ -466,7 +466,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, tc.configPath)
 
 			if tc.env != nil {
-				pctx.Env = tc.env
+				pctx.Venv.Env = tc.env
 			}
 
 			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
@@ -636,11 +636,10 @@ func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *
 	pctx.DownloadDir = downloadDir
 	pctx.TFPath = "tofu"
 	pctx.AutoInit = true
-	pctx.Env = map[string]string{}
+	pctx.Venv.Env = map[string]string{}
 	pctx.SourceMap = map[string]string{}
 	pctx.TerraformCliArgs = iacargs.New()
-	pctx.Writers.Writer = os.Stdout
-	pctx.Writers.ErrWriter = os.Stderr
+	pctx.Venv = pctx.Venv.WithWriter(os.Stdout).WithErrWriter(os.Stderr)
 	pctx.MaxFoldersToCheck = 100
 	pctx.TofuImplementation = tfimpl.Unknown
 	pctx.Experiments = experiment.NewExperiments()
@@ -1175,6 +1174,36 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	assert.Equal(t, json.Number("2"), localsMap["x"].(json.Number))
 	assert.Equal(t, "Hello world", strings.TrimSpace(localsMap["file_contents"].(string)))
 	assert.Equal(t, json.Number("42"), localsMap["number_expression"].(json.Number))
+}
+
+// pins that read_terragrunt_config resolves get_original_terragrunt_dir() relative to OriginalTerragruntConfigPath
+func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	unitFilename, err := filepath.Abs(
+		filepath.Join("..", "..", "test", "fixtures", "hcl-validate-original-dir", "unit", "terragrunt.hcl"),
+	)
+	require.NoError(t, err)
+
+	// correct original path: get_original_terragrunt_dir() resolves to the unit dir
+	ctx, pctx := newTestParsingContext(t, unitFilename)
+	pctx.OriginalTerragruntConfigPath = unitFilename
+	pctx.SkipOutput = true
+
+	cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), unitFilename, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.Equal(t, "hello from original terragrunt dir", cfg.Inputs["input"])
+
+	// wrong original path (pre-fix): the relative read escapes the fixture and fails
+	parentFilename := filepath.Join(filepath.Dir(filepath.Dir(unitFilename)), config.DefaultTerragruntConfigPath)
+
+	ctxWrong, pctxWrong := newTestParsingContext(t, unitFilename)
+	pctxWrong.OriginalTerragruntConfigPath = parentFilename
+	pctxWrong.SkipOutput = true
+
+	_, err = config.ParseConfigFile(ctxWrong, pctxWrong, logger.CreateLogger(), unitFilename, nil)
+	require.Error(t, err)
 }
 
 func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {

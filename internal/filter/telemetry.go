@@ -75,15 +75,16 @@ func TraceGitWorktreeCreate(
 		attrs[AttrGitRepoCommit] = repoCommit
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreeCreate, attrs, fn)
+	return telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, nil, TelemetryOpGitWorktreeCreate, attrs, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitWorktreeRemove wraps a git worktree remove operation with telemetry.
 func TraceGitWorktreeRemove(ctx context.Context, ref, worktreeDir string, fn func(ctx context.Context) error) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreeRemove, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpGitWorktreeRemove, map[string]any{
 		AttrGitRef:         ref,
 		AttrGitWorktreeDir: worktreeDir,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitWorktreesCreate wraps multiple git worktree create operations with telemetry.
@@ -110,7 +111,8 @@ func TraceGitWorktreesCreate(
 		attrs[AttrGitRepoCommit] = repoCommit
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreesCreate, attrs, fn)
+	return telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, nil, TelemetryOpGitWorktreesCreate, attrs, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitWorktreesCleanup wraps git worktrees cleanup with telemetry.
@@ -127,7 +129,8 @@ func TraceGitWorktreesCleanup(
 		attrs[AttrGitRepoRemote] = repoRemote
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreesCleanup, attrs, fn)
+	return telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, nil, TelemetryOpGitWorktreesCleanup, attrs, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitDiff wraps a git diff operation with telemetry.
@@ -140,22 +143,22 @@ func TraceGitDiff(ctx context.Context, fromRef, toRef, repoRemote string, fn fun
 		attrs[AttrGitRepoRemote] = repoRemote
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitDiff, attrs, fn)
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpGitDiff, attrs, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitWorktreeDiscovery wraps git worktree discovery operations with telemetry.
 func TraceGitWorktreeDiscovery(ctx context.Context, pairCount int, fn func(ctx context.Context) error) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreeDiscovery, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpGitWorktreeDiscovery, map[string]any{
 		AttrWorktreePairCount: pairCount,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitWorktreeStackWalk wraps git worktree stack walking operations with telemetry.
 func TraceGitWorktreeStackWalk(ctx context.Context, fromRef, toRef string, fn func(ctx context.Context) error) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreeStackWalk, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpGitWorktreeStackWalk, map[string]any{
 		AttrGitFromRef: fromRef,
 		AttrGitToRef:   toRef,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitWorktreeFilterApply wraps filter application to git worktrees with telemetry.
@@ -164,10 +167,10 @@ func TraceGitWorktreeFilterApply(
 	filterCount, resultCount int,
 	fn func(ctx context.Context) error,
 ) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreeFilterApply, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpGitWorktreeFilterApply, map[string]any{
 		AttrFilterCount: filterCount,
 		AttrResultCount: resultCount,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }
 
 // TraceFilterEvaluate wraps filter evaluation with telemetry.
@@ -176,17 +179,17 @@ func TraceFilterEvaluate(
 	filterCount, componentCount int,
 	fn func(ctx context.Context) error,
 ) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpFilterEvaluate, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpFilterEvaluate, map[string]any{
 		AttrFilterCount:    filterCount,
 		AttrComponentCount: componentCount,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }
 
 // TraceFilterParse wraps filter parsing with telemetry.
 func TraceFilterParse(ctx context.Context, query string, fn func(ctx context.Context) error) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpFilterParse, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpFilterParse, map[string]any{
 		AttrFilterQuery: query,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitFilterExpand wraps git filter expansion with telemetry.
@@ -196,13 +199,13 @@ func TraceGitFilterExpand(
 	addedCount, removedCount, changedCount int,
 	fn func(ctx context.Context) error,
 ) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitFilterExpand, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpGitFilterExpand, map[string]any{
 		AttrGitFromRef:     fromRef,
 		AttrGitToRef:       toRef,
 		AttrGitDiffAdded:   addedCount,
 		AttrGitDiffRemoved: removedCount,
 		AttrGitDiffChanged: changedCount,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }
 
 // TraceGitFilterEvaluate wraps git filter evaluation with telemetry.
@@ -212,11 +215,11 @@ func TraceGitFilterEvaluate(
 	componentCount int,
 	fn func(ctx context.Context) error,
 ) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitFilterEvaluate, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpGitFilterEvaluate, map[string]any{
 		AttrGitFromRef:     fromRef,
 		AttrGitToRef:       toRef,
 		AttrComponentCount: componentCount,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }
 
 // TraceGraphFilterTraverse wraps graph filter traversal with telemetry.
@@ -226,8 +229,8 @@ func TraceGraphFilterTraverse(
 	componentCount int,
 	fn func(ctx context.Context) error,
 ) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGraphFilterTraverse, map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, TelemetryOpGraphFilterTraverse, map[string]any{
 		AttrFilterType:     filterType,
 		AttrComponentCount: componentCount,
-	}, fn)
+	}, telemetry.WithoutLogger(fn))
 }

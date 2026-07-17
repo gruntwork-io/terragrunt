@@ -7,7 +7,6 @@ import (
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -40,7 +39,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx context.Context, _ *clihelper.Context) error {
-					return RunGenerate(ctx, l, opts.OptionsFromContext(ctx))
+					return RunGenerate(ctx, l, v, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, nil),
 			},
@@ -48,7 +47,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
 				Action: func(ctx context.Context, _ *clihelper.Context) error {
-					return Run(ctx, l, run.FromRoot(v), opts.OptionsFromContext(ctx))
+					return Run(ctx, l, v, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, nil),
 			},
@@ -61,7 +60,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 						index = val
 					}
 
-					return RunOutput(ctx, l, opts.OptionsFromContext(ctx), index)
+					return RunOutput(ctx, l, v, opts.OptionsFromContext(ctx), index)
 				},
 				Flags: outputFlags(l, opts, nil),
 			},

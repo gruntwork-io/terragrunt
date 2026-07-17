@@ -30,7 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -207,6 +207,7 @@ func InitServer(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkin
 func (pc *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
@@ -236,12 +237,14 @@ func (pc *ProviderCache) TerraformCommandHook(
 		}
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), tfOpts, args...)
+		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
 	}
 
-	env := pc.providerCacheEnvironment(tfOpts.ShellOptions.Env, tfOpts.TofuImplementation, cliConfigFilename)
+	v = v.WithEnv(pc.providerCacheEnvironment(v.Env, tfOpts.TofuImplementation, cliConfigFilename))
 
-	if output, err := pc.warmUpCache(ctx, l, tfOpts, cliConfigFilename, args, env, lockfileExists); err != nil {
+	lockfileReadonly := LockfileReadonlyRequested(args, v.Env)
+
+	if output, err := pc.warmUpCache(ctx, l, v, tfOpts, cliConfigFilename, args, lockfileExists, lockfileReadonly); err != nil {
 		return output, err
 	}
 
@@ -249,17 +252,18 @@ func (pc *ProviderCache) TerraformCommandHook(
 		return &util.CmdOutput{}, nil
 	}
 
-	return pc.runTerraformWithCache(ctx, l, tfOpts, cliConfigFilename, args, env)
+	return pc.runTerraformWithCache(ctx, l, v, tfOpts, cliConfigFilename, args)
 }
 
 func (pc *ProviderCache) warmUpCache(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
-	env map[string]string,
 	lockfileExists bool,
+	lockfileReadonly bool,
 ) (*util.CmdOutput, error) {
 	var (
 		cacheRequestID = uuid.New().String()
@@ -277,7 +281,7 @@ func (pc *ProviderCache) warmUpCache(
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 
 	for _, args := range commandsArgs {
-		if output, err := pc.runTerraformCommand(ctx, l, tfOpts, args, env); err != nil {
+		if output, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args); err != nil {
 			return output, err
 		}
 	}
@@ -295,6 +299,18 @@ func (pc *ProviderCache) warmUpCache(
 	}
 
 	isUpgrade := tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains("-upgrade")
+
+	// `-lockfile=readonly` asks OpenTofu/Terraform to verify that every provider is
+	// already recorded in `.terraform.lock.hcl` and to fail otherwise. If Terragrunt
+	// wrote the lock file here, that check would always pass, silently defeating the
+	// flag. Leave the lock file untouched and let OpenTofu/Terraform enforce it.
+	if lockfileReadonly {
+		l.Warnf("`%s=%s` is set, so Terragrunt will not generate or update %s in %s. "+
+			"OpenTofu/Terraform will fail if the lock file is missing or incomplete.",
+			tf.FlagNameLockfile, tf.LockfileModeReadonly, tf.TerraformLockFile, tfOpts.ShellOptions.WorkingDir)
+
+		return nil, nil
+	}
 
 	// If a lock file already existed before this run, skip writing to it — let
 	// OpenTofu/Terraform verify and manage the lock file during the actual init.
@@ -336,10 +352,10 @@ func (pc *ProviderCache) warmUpCache(
 func (pc *ProviderCache) runTerraformWithCache(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
-	env map[string]string,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
 	if err := pc.createLocalCLIConfig(ctx, tfOpts.TofuImplementation, cliConfigFilename, ""); err != nil {
@@ -347,7 +363,6 @@ func (pc *ProviderCache) runTerraformWithCache(
 	}
 
 	shellOpts := *tfOpts.ShellOptions // shallow copy
-	shellOpts.Env = env
 
 	newTFOpts := &tf.TFOptions{
 		JSONLogFormat:                tfOpts.JSONLogFormat,
@@ -358,7 +373,49 @@ func (pc *ProviderCache) runTerraformWithCache(
 		ShellOptions:                 &shellOpts,
 	}
 
-	return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, args...)
+	return tf.RunCommandWithOutput(ctx, l, v, newTFOpts, args...)
+}
+
+// LockfileReadonlyRequested reports whether the user asked OpenTofu/Terraform to treat
+// `.terraform.lock.hcl` as read-only via `-lockfile=readonly`. The flag may be supplied
+// directly on the command line or through the `TF_CLI_ARGS` / `TF_CLI_ARGS_init`
+// environment variables that OpenTofu/Terraform reads for the `init` command.
+func LockfileReadonlyRequested(args clihelper.Args, env map[string]string) bool {
+	if argsRequestReadonlyLockfile(args) {
+		return true
+	}
+
+	for _, name := range []string{tf.EnvNameTFCLIArgs, tf.EnvNameTFCLIArgsInit} {
+		if argsRequestReadonlyLockfile(strings.Fields(env[name])) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// argsRequestReadonlyLockfile reports whether the given args set the lock file to
+// read-only mode, accepting both the `-lockfile=readonly` and `-lockfile readonly`
+// forms as well as their double-dash variants.
+func argsRequestReadonlyLockfile(args []string) bool {
+	for i, arg := range args {
+		name, value, hasValue := strings.Cut(arg, "=")
+
+		if name != tf.FlagNameLockfile && name != "-"+tf.FlagNameLockfile {
+			continue
+		}
+
+		if hasValue {
+			return value == tf.LockfileModeReadonly
+		}
+
+		// `-lockfile readonly` form: the mode is supplied as the next argument.
+		if i+1 < len(args) && args[i+1] == tf.LockfileModeReadonly {
+			return true
+		}
+	}
+
+	return false
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -497,7 +554,7 @@ func isRegistryTimeoutError(output []byte) bool {
 	})
 }
 
-func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
+func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, v venv.Venv, tfOpts *tf.TFOptions, args []string) (*util.CmdOutput, error) {
 	// add -no-color flag to args if it was set in Terragrunt arguments
 	if tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains(tf.FlagNameNoColor) &&
 		!slices.Contains(args, tf.FlagNameNoColor) {
@@ -505,8 +562,6 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 	}
 
 	shellOpts := *tfOpts.ShellOptions // shallow copy
-	shellOpts.Writers.Writer = io.Discard
-	shellOpts.Env = envs
 
 	newCliArgs := iacargs.New(args...)
 
@@ -529,10 +584,11 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 		l,
 		log.DebugLevel,
 		func(ctx context.Context) error {
-			errWriter := util.NewTrapWriter(tfOpts.ShellOptions.Writers.ErrWriter)
-			shellOpts.Writers.ErrWriter = errWriter
+			errWriter := util.NewTrapWriter(v.Writers.ErrWriter)
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, newCliArgs.Slice()...)
+			cmdV := v.WithWriter(io.Discard).WithErrWriter(errWriter)
+
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, cmdV, newTFOpts, newCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),

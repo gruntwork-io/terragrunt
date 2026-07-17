@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
@@ -331,7 +331,7 @@ func UnitsWithDependents(q *queue.Queue) map[string]bool {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
+func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -442,39 +442,51 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 			syncUnitCliArgs(l, stackOpts, unitOpts, u)
 		}
 
-		// Wrap ErrWriter with plan error buffer for plan commands
+		// Wrap ErrWriter with plan error buffer for plan commands. The
+		// wrapped writer is materialized on the per-unit venv below.
+		var unitErrWriterWrap io.Writer
+
 		if isPlan {
 			if buf := planErrorBuffers[u.Path()]; buf != nil {
-				unitOpts.Writers.ErrWriter = io.MultiWriter(buf, unitOpts.Writers.ErrWriter)
+				unitErrWriterWrap = io.MultiWriter(buf, v.Writers.ErrWriter)
 			}
 		}
 
 		unitPath := u.Path()
 		unitName := filepath.Base(unitPath)
 
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx, unitLogger, "runner_pool_task", map[string]any{
 			"unit_path":              unitPath,
 			"unit_name":              unitName,
 			"terraform_command":      unitOpts.TerraformCommand,
 			"terraform_cli_args":     unitOpts.TerraformCliArgs,
 			"working_dir":            unitOpts.WorkingDir,
 			"terragrunt_config_path": unitOpts.TerragruntConfigPath,
-		}, func(childCtx context.Context) error {
+		}, func(childCtx context.Context, unitLogger log.Logger) error {
 			l.Debugf("Runner Pool Task: starting unit=%s command=%s", unitPath, unitOpts.TerraformCommand)
 
-			// Wrap the writer to buffer unit-scoped output
-			unitWriter := NewUnitWriter(unitOpts.Writers.Writer)
-			unitOpts.Writers.Writer = unitWriter
+			// Wrap the writer to buffer unit-scoped output. Build a per-unit
+			// venv so the wrapped writers flow through tf and shell calls.
+			unitWriter := NewUnitWriter(v.Writers.Writer)
+
+			// Per-unit mutations (e.g. SetTerragruntInputsAsEnvVars writing
+			// TF_VAR_* in run.go) must not leak across concurrent units.
+			unitV := v.WithEnvCloned().WithWriter(unitWriter)
+
+			if unitErrWriterWrap != nil {
+				unitV = unitV.WithErrWriter(unitErrWriterWrap)
+			}
+
 			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials
-			// available in opts.Env during HCL evaluation.
+			// available in v.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
 			//
 			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
 			// only when an auth provider is configured, so no conditional is needed here.
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, v.Exec, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitV, unitOpts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
 				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
@@ -483,13 +495,13 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 
 			var cfg *config.TerragruntConfig
 
-			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_read_config", map[string]any{
+			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, unitLogger, "unit_read_config", map[string]any{
 				"unit_path":              unitPath,
 				"unit_name":              unitName,
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
-			}, func(readCtx context.Context) error {
+			}, func(readCtx context.Context, unitLogger log.Logger) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
-				pctx.Venv = v.ToRoot()
+				pctx = pctx.WithVenv(unitV)
 
 				var readErr error
 
@@ -508,17 +520,21 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				return err
 			}
 
+			if !unitOpts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
+				unitOpts.TFPath = cfg.TerraformBinary
+			}
+
 			runCfg := cfg.ToRunConfig(unitLogger)
 
-			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_run", map[string]any{
+			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, unitLogger, "unit_run", map[string]any{
 				"unit_path":         unitPath,
 				"unit_name":         unitName,
 				"terraform_command": unitOpts.TerraformCommand,
-			}, func(runCtx context.Context) error {
+			}, func(runCtx context.Context, unitLogger log.Logger) error {
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
-					v,
+					unitV,
 					unitOpts,
 					r,
 					runCfg,

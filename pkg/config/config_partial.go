@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
 	"errors"
@@ -81,6 +82,46 @@ type terragruntTerraformSource struct {
 type terraformConfigSourceOnly struct {
 	Source *string  `hcl:"source,attr"`
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// terraformSourceReferencesDependency reports whether the terraform block's `source` attribute references the
+// `dependency` namespace anywhere. The module source is consumed during discovery, `--filter 'source='` matching,
+// and queue construction, so a source that names a dependency
+// can never be satisfied there and is rejected outright.
+//
+// Returns false for JSON configs, whose body is not hclsyntax.
+func terraformSourceReferencesDependency(file *hclparse.File) bool {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return false
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type != MetadataTerraform {
+			continue
+		}
+
+		sourceAttr, ok := block.Body.Attributes["source"]
+		if !ok {
+			continue
+		}
+
+		if expressionReferencesDependency(sourceAttr.Expr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func expressionReferencesDependency(expr hcl.Expression) bool {
+	for _, traversal := range expr.Variables() {
+		if traversal.RootName() == MetadataDependency {
+			return true
+		}
+	}
+
+	return false
 }
 
 // terragruntTerraformExtraArgs decodes only the terraform source and extra_arguments blocks.
@@ -302,13 +343,14 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 
 	err = TraceParseConfigFile(
 		ctx,
+		l,
 		configPath,
 		pctx.WorkingDir,
 		true, // isPartial
 		pctx.PartialParseDecodeList,
 		include,
 		cacheHit,
-		func(ctx context.Context) error {
+		func(ctx context.Context, l log.Logger) error {
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
@@ -487,10 +529,13 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			output.Terraform = decoded.Terraform
 
 		case TerraformSource:
+			if terraformSourceReferencesDependency(file) {
+				return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+			}
+
 			decoded := terragruntTerraformSource{}
 
-			err := file.Decode(&decoded, evalParsingContext)
-			if err != nil {
+			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				return nil, err
 			}
 

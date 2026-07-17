@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -75,7 +76,7 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
-		_, err := d.Discover(t.Context(), l, opts)
+		_, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 	}
 }

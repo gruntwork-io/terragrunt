@@ -429,7 +429,7 @@ func (c *CAS) populateTreeFromCommitRef(
 // makeFallbackCloneDir creates a temporary directory for a bare clone
 // fallback and returns a cleanup function that removes it.
 func (c *CAS) makeFallbackCloneDir(l log.Logger, v Venv) (string, func(), error) {
-	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fallback-*")
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fallback-")
 	if err != nil {
 		return "", nil, fmt.Errorf("create fallback clone dir: %w", errors.Join(ErrFallbackCloneDir, err))
 	}

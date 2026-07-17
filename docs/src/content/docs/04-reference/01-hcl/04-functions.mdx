@@ -778,6 +778,7 @@ timestamp = run_cmd("--terragrunt-no-cache", "date", "+%s")
 ```hcl
 # Disable cache AND suppress output for a sensitive dynamic value
 session_token = run_cmd("--terragrunt-no-cache", "--terragrunt-quiet", "./generate-temp-token.sh")
+```
 
 ### Caching Behavior
 

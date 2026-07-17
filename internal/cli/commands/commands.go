@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strings"
 
@@ -14,13 +15,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -93,8 +96,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	)
 
 	discoveryCommands := clihelper.Commands{
-		find.NewCommand(l, opts), // find
-		list.NewCommand(l, opts), // list
+		find.NewCommand(l, opts, v), // find
+		list.NewCommand(l, opts, v), // list
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
@@ -105,7 +108,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	configurationCommands := clihelper.Commands{
 		hcl.NewCommand(l, opts, v),              // hcl
 		info.NewCommand(l, opts, v),             // info
-		dag.NewCommand(l, opts),                 // dag
+		dag.NewCommand(l, opts, v),              // dag
 		render.NewCommand(l, opts, v),           // render
 		helpcmd.NewCommand(l, opts),             // help (hidden)
 		versioncmd.NewCommand(),                 // version (hidden)
@@ -133,8 +136,12 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	return allCommands
 }
 
-// WrapWithTelemetry wraps CLI command execution with setting of telemetry
-// context and labels. If telemetry is disabled, just runs the command.
+// WrapWithTelemetry wraps CLI command execution with telemetry initialization,
+// context setting and labels. If telemetry is disabled, just runs the command.
+//
+// The telemeter is created here rather than at app startup because command
+// actions run after the full CLI parse, so telemetry options and experiments
+// (such as otel-logs) are honored whether they were set via flags or env vars.
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -145,15 +152,37 @@ func WrapWithTelemetry(
 		cliCtx *clihelper.Context,
 		action clihelper.ActionFunc,
 	) error {
+		telemeter, err := telemetry.NewTelemeter(ctx, l, cliCtx.App.Name, cliCtx.App.Version, cliCtx.App.Writer, opts.Telemetry, opts.Experiments.Evaluate(experiment.OtelLogs))
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			if err := telemeter.Shutdown(ctx); err != nil {
+				_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+			}
+		}()
+
+		ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
+
 		cmdName := fmt.Sprintf(
 			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
 		)
 
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx, cmdName, map[string]any{
+		return telemeter.Collect(ctx, l, cmdName, map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
-		}, func(childCtx context.Context) error {
+		}, func(childCtx context.Context, l log.Logger) error {
+			// Engines emit telemetry during shutdown, so stop them while the
+			// command span is still open (and before the telemeter's deferred
+			// Shutdown flushes) to keep their records correlated with it.
+			defer func() {
+				if err := engine.Shutdown(childCtx, l, opts.Experiments, opts.EngineOptions.NoEngine); err != nil {
+					_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+				}
+			}()
+
 			if err := initialSetup(cliCtx, l, opts); err != nil {
 				return err
 			}
@@ -259,7 +288,7 @@ func RunAction(
 
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(ctx, l, opts, v.Exec); err != nil {
+		if err := setupAutoProviderCacheDir(ctx, l, opts, v); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
 	}
@@ -269,7 +298,7 @@ func RunAction(
 		v.FS,
 		runtime.GOOS,
 		opts.Tips,
-		opts.Env,
+		v.Env,
 		opts.ProviderCacheOptions.Enabled,
 		opts.TofuImplementation,
 		opts.TerraformVersion,
@@ -307,8 +336,13 @@ func RunAction(
 	}
 
 	// Run command action
-	errGroup.Go(func() error {
+	errGroup.Go(func() (err error) {
 		defer cancel()
+		defer func() {
+			if rec := recover(); rec != nil {
+				err = panicreport.NewRecoveredError(rec, debug.Stack())
+			}
+		}()
 
 		if action != nil {
 			return action(actionCtx, cliCtx)
@@ -325,19 +359,25 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 // setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
 //
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
-func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, exec vexec.Exec) error {
+//
+// Panics if v.Env is nil, as it mutates it.
+func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+	if v.Env == nil {
+		panic("setupAutoProviderCacheDir: venv environment map is nil")
+	}
+
 	// Set TF_PLUGIN_CACHE_DIR environment variable
-	if opts.Env[tf.EnvNameTFPluginCacheDir] != "" {
+	if v.Env[tf.EnvNameTFPluginCacheDir] != "" {
 		l.Debugf(
 			"TF_PLUGIN_CACHE_DIR already set to %s, skipping auto provider cache dir",
-			opts.Env[tf.EnvNameTFPluginCacheDir],
+			v.Env[tf.EnvNameTFPluginCacheDir],
 		)
 
 		return nil
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(ctx, l, exec, run.PopulateTFVersionInput{
+		_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
 			WorkingDir:   opts.WorkingDir,
 			VersionFiles: opts.VersionManagerFileName,
@@ -397,12 +437,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 		return fmt.Errorf("failed to create provider cache directory: %w", err)
 	}
 
-	// Initialize environment variables map if it's nil
-	if opts.Env == nil {
-		opts.Env = make(map[string]string)
-	}
-
-	opts.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
+	v.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
 
 	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
 
@@ -414,10 +449,13 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(clihelper.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
+	isRunCommand := cmdName == runcmd.CommandName
 
-	if cmdName == runcmd.CommandName {
+	if isRunCommand {
 		cmdName = args.CommandName()
-	} else {
+	}
+
+	if !isRunCommand {
 		args = append([]string{cmdName}, args...)
 	}
 
@@ -439,8 +477,6 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
-
-	opts.Env = util.EnvironMap()
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {

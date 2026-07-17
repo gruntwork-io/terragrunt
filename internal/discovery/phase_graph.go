@@ -14,7 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -62,7 +62,12 @@ func (p *GraphPhase) Kind() PhaseKind {
 }
 
 // Run executes the graph discovery phase.
-func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
+func (p *GraphPhase) Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	input *PhaseInput,
+) (*PhaseResults, error) {
 	results := NewPhaseResults()
 
 	discovery := input.Discovery
@@ -145,7 +150,7 @@ func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 
 		for _, candidate := range matchingCandidates {
 			g.Go(func() error {
-				err := p.processGraphTarget(ctx, l, state, candidate, graphExpr)
+				err := p.processGraphTarget(ctx, l, v, state, candidate, graphExpr)
 				if err != nil {
 					errMu.Lock()
 
@@ -174,6 +179,7 @@ func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 func (p *GraphPhase) processGraphTarget(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *graphTraversalState,
 	candidate DiscoveryResult,
 	graphExpr *filter.GraphExpressionInfo,
@@ -199,7 +205,7 @@ func (p *GraphPhase) processGraphTarget(
 			depth = graphExpr.DependencyDepth
 		}
 
-		err := p.discoverDependencies(ctx, l, state, c, depth)
+		err := p.discoverDependencies(ctx, l, v, state, c, depth)
 		if err != nil {
 			return err
 		}
@@ -211,7 +217,7 @@ func (p *GraphPhase) processGraphTarget(
 			depth = graphExpr.DependentDepth
 		}
 
-		err := p.discoverDependents(ctx, l, state, c, depth)
+		err := p.discoverDependents(ctx, l, v, state, c, depth)
 		if err != nil {
 			return err
 		}
@@ -235,7 +241,17 @@ func (p *GraphPhase) processGraphTarget(
 
 			visitedDirs := newStringSet()
 
-			err := p.discoverDependentsUpstream(ctx, l, state, c, visitedDirs, startDir, boundaryRoot, depth)
+			err := p.discoverDependentsUpstream(
+				ctx,
+				l,
+				v,
+				state,
+				c,
+				visitedDirs,
+				startDir,
+				boundaryRoot,
+				depth,
+			)
 			if err != nil {
 				return err
 			}
@@ -249,6 +265,7 @@ func (p *GraphPhase) processGraphTarget(
 func (p *GraphPhase) discoverDependencies(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
@@ -268,7 +285,7 @@ func (p *GraphPhase) discoverDependencies(
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependencies)
 
-	if err := ensureParsed(ctx, l, c, state.opts, state.discovery); err != nil {
+	if err := ensureParsed(ctx, l, v, c, state.opts, state.discovery); err != nil {
 		return err
 	}
 
@@ -279,7 +296,7 @@ func (p *GraphPhase) discoverDependencies(
 		return err
 	}
 
-	depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, depPaths)
+	depPaths, err = stackDependencyPaths(ctx, l, v, state.opts, depPaths)
 	if err != nil {
 		return err
 	}
@@ -323,7 +340,14 @@ func (p *GraphPhase) discoverDependencies(
 					Phase:     PhaseGraph,
 				})
 
-				err = p.discoverDependencies(contextWithIncrementedParseDepth(ctx), l, state, depComponent, depthRemaining-1)
+				err = p.discoverDependencies(
+					contextWithIncrementedParseDepth(ctx),
+					l,
+					v,
+					state,
+					depComponent,
+					depthRemaining-1,
+				)
 				if err != nil {
 					errMu.Lock()
 
@@ -352,6 +376,7 @@ func (p *GraphPhase) discoverDependencies(
 func (p *GraphPhase) discoverDependents(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
@@ -386,7 +411,7 @@ func (p *GraphPhase) discoverDependents(
 				Phase:     PhaseGraph,
 			})
 
-			err := p.discoverDependents(ctx, l, state, dependent, depthRemaining-1)
+			err := p.discoverDependents(ctx, l, v, state, dependent, depthRemaining-1)
 			if err != nil {
 				errMu.Lock()
 
@@ -430,6 +455,7 @@ type upstreamDiscoveryState struct {
 func (p *GraphPhase) discoverDependentsUpstream(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *graphTraversalState,
 	target component.Component,
 	visitedDirs *stringSet,
@@ -451,8 +477,14 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		return nil
 	}
 
-	if boundaryRoot != "" && currentDir != boundaryRoot && !strings.HasPrefix(currentDir, boundaryRoot) {
-		l.Debugf("discoverDependentsUpstream: outside boundary (currentDir=%s, boundaryRoot=%s)", currentDir, boundaryRoot)
+	if boundaryRoot != "" && currentDir != boundaryRoot &&
+		!strings.HasPrefix(currentDir, boundaryRoot) {
+		l.Debugf(
+			"discoverDependentsUpstream: outside boundary (currentDir=%s, boundaryRoot=%s)",
+			currentDir,
+			boundaryRoot,
+		)
+
 		return nil
 	}
 
@@ -506,7 +538,11 @@ func (p *GraphPhase) discoverDependentsUpstream(
 			return nil
 		}
 
-		candidate := createComponentFromPath(path, state.discovery.configFilenames, state.discovery.discoveryContext)
+		candidate := createComponentFromPath(
+			path,
+			state.discovery.configFilenames,
+			state.discovery.discoveryContext,
+		)
 		if candidate != nil {
 			candidates = append(candidates, candidate)
 		}
@@ -540,7 +576,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 	for _, candidate := range candidates {
 		g.Go(func() error {
-			dependent := p.processUpstreamCandidate(gCtx, l, upstreamState, candidate)
+			dependent := p.processUpstreamCandidate(gCtx, l, v, upstreamState, candidate)
 			if dependent != nil {
 				dependentsMu.Lock()
 
@@ -562,7 +598,10 @@ func (p *GraphPhase) discoverDependentsUpstream(
 			continue
 		}
 
-		l.Debugf("Found dependent during upstream walk: %s (depends on target), adding to results", dependent.Path())
+		l.Debugf(
+			"Found dependent during upstream walk: %s (depends on target), adding to results",
+			dependent.Path(),
+		)
 
 		state.results.AddDiscovered(DiscoveryResult{
 			Component: dependent,
@@ -575,10 +614,14 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 		freshVisitedDirs := newStringSet()
 
-		l.Debugf("Recursively discovering dependents of %s from %s", dependent.Path(), filepath.Dir(dependent.Path()))
+		l.Debugf(
+			"Recursively discovering dependents of %s from %s",
+			dependent.Path(),
+			filepath.Dir(dependent.Path()),
+		)
 
 		err := p.discoverDependentsUpstream(
-			contextWithIncrementedParseDepth(ctx), l, state, dependent, freshVisitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, v, state, dependent, freshVisitedDirs,
 			filepath.Dir(dependent.Path()), boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -589,7 +632,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	parentDir := filepath.Dir(currentDir)
 	if parentDir != currentDir && depthRemaining > 0 {
 		err := p.discoverDependentsUpstream(
-			contextWithIncrementedParseDepth(ctx), l, state, target, visitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, v, state, target, visitedDirs,
 			parentDir, boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -610,6 +653,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 func (p *GraphPhase) processUpstreamCandidate(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *upstreamDiscoveryState,
 	candidate component.Component,
 ) component.Component {
@@ -637,7 +681,14 @@ func (p *GraphPhase) processUpstreamCandidate(
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
 	graphState := state.graphTraversalState
 
-	if err := ensureParsed(ctx, l, candidate, graphState.opts, graphState.discovery); err != nil {
+	if err := ensureParsed(
+		ctx,
+		l,
+		v,
+		candidate,
+		graphState.opts,
+		graphState.discovery,
+	); err != nil {
 		if !state.graphTraversalState.discovery.suppressParseErrors {
 			state.errMu.Lock()
 
@@ -664,7 +715,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	var stackErr error
 
-	deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.graphTraversalState.opts, deps)
+	deps, stackErr = stackDependencyPaths(ctx, l, v, state.graphTraversalState.opts, deps)
 	if stackErr != nil {
 		state.errMu.Lock()
 		*state.errs = append(*state.errs, stackErr)
@@ -673,36 +724,38 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	canonicalCandidate, created := state.graphTraversalState.threadSafeComponents.EnsureComponent(candidate)
-	if created {
-		dCtx := state.target.DiscoveryContext()
-		if dCtx != nil {
-			copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+	if dCtx := state.target.DiscoveryContext(); dCtx != nil {
+		copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
-			// Clear the Ref and related args for graph-discovered components.
-			// They shouldn't inherit the git ref from the target, as this would
-			// cause them to match git filters and become targets themselves.
-			copiedCtx.Ref = ""
-			copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-				return arg == "-destroy"
-			})
+		copiedCtx.Ref = ""
+		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+			return arg == "-destroy"
+		})
 
-			canonicalCandidate.SetDiscoveryContext(copiedCtx)
-		}
+		candidate.SetDiscoveryContext(copiedCtx)
 	}
+
+	canonicalCandidate, _ := state.graphTraversalState.threadSafeComponents.EnsureComponent(
+		candidate,
+	)
 
 	dependsOnTarget := false
 
-	for _, dep := range deps {
-		depComponent := componentFromDependencyPath(dep, state.graphTraversalState.threadSafeComponents)
-		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(depComponent)
+	parentCtx := canonicalCandidate.DiscoveryContext()
 
-		parentCtx := canonicalCandidate.DiscoveryContext()
-		if parentCtx != nil && isExternal(parentCtx.WorkingDir, dep) {
-			if ext, ok := depComponent.(*component.Unit); ok {
-				ext.SetExternal()
-			}
+	for _, dep := range deps {
+		depComponent := componentFromDependencyPath(
+			dep,
+			state.graphTraversalState.threadSafeComponents,
+		)
+
+		if parentCtx != nil {
+			assignGraphDiscoveryContext(depComponent, parentCtx, dep)
 		}
+
+		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(
+			depComponent,
+		)
 
 		// Compare paths: first try exact match, then try relative suffix match
 		// for worktree scenarios where target is in a different directory.
@@ -757,28 +810,46 @@ func (p *GraphPhase) resolveDependency(
 
 	depComponent := componentFromDependencyPath(depPath, threadSafeComponents)
 
-	addedComponent, created := threadSafeComponents.EnsureComponent(depComponent)
-	if created {
-		copiedCtx := parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+	assignGraphDiscoveryContext(depComponent, parentCtx, depPath)
 
-		// Clear the Ref and related args for graph-discovered dependencies.
-		// They shouldn't inherit the git ref from the parent, as this would
-		// cause them to match git filters and become targets themselves.
-		copiedCtx.Ref = ""
-		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-			return arg == "-destroy"
-		})
-
-		depComponent.SetDiscoveryContext(copiedCtx)
-	}
-
-	if isExternal(parentCtx.WorkingDir, depPath) {
-		if ext, ok := addedComponent.(*component.Unit); ok {
-			ext.SetExternal()
-		}
-	}
+	addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
 
 	parent.AddDependency(addedComponent)
 
 	return addedComponent, nil
+}
+
+// assignGraphDiscoveryContext gives a graph-discovered dependency its discovery
+// context, derived from the parent that reached it, before it is published to the
+// shared component set. Assigning the context first is what keeps discovery
+// correct under concurrency: the graph phase fans out one goroutine per
+// dependency and a dependency shared by several parents is reached along many
+// paths at once, so a component must never become visible to another goroutine
+// before its working directory is set.
+//
+// It is a no-op once the component already has a working directory, which keeps
+// the assignment to the first goroutine to reach the component along any path.
+func assignGraphDiscoveryContext(
+	dep component.Component,
+	parentCtx *component.DiscoveryContext,
+	depPath string,
+) {
+	if dctx := dep.DiscoveryContext(); dctx != nil && dctx.WorkingDir != "" {
+		return
+	}
+
+	copiedCtx := parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+	copiedCtx.Ref = ""
+	copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+		return arg == "-destroy"
+	})
+
+	dep.SetDiscoveryContext(copiedCtx)
+
+	if isExternal(parentCtx.WorkingDir, depPath) {
+		if ext, ok := dep.(*component.Unit); ok {
+			ext.SetExternal()
+		}
+	}
 }

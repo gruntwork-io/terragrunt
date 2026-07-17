@@ -2,7 +2,6 @@ package run_test
 
 import (
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,8 +20,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +59,7 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{Exec: exec, FS: vfs.NewOSFS()}
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
@@ -96,7 +95,7 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{Exec: exec, FS: vfs.NewOSFS()}
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
@@ -136,7 +135,7 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{Exec: exec, FS: vfs.NewOSFS()}
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
@@ -213,12 +212,10 @@ func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...
 		TerraformCommand:             command,
 		TerraformCliArgs:             args,
 		TFPath:                       "tofu",
-		Env:                          map[string]string{},
 		SourceMap:                    map[string]string{},
 		Experiments:                  experiment.NewExperiments(),
 		StrictControls:               controls.New(),
 		MaxFoldersToCheck:            5,
-		Writers:                      writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 		Telemetry:                    &telemetry.Options{},
 		OriginalIAMRoleOptions:       iam.RoleOptions{},
 		IAMRoleOptions:               iam.RoleOptions{},
