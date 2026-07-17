@@ -1,6 +1,7 @@
 package run_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -934,6 +935,78 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
 	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceOCIThroughCASExperimentGate: with the oci experiment on,
+// an oci source enters the CAS path (observed via the CAS attempt log) and
+// reaches the real getter; off, the CAS attempt is skipped up front.
+func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		enableOCI bool
+	}{
+		{name: "experiment enabled reaches the oci getter", enableOCI: true},
+		{name: "experiment disabled skips the oci getter", enableOCI: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+			src := &tf.Source{
+				CanonicalSourceURL: parseURL(t, "oci://127.0.0.1:1/terraform-modules/vpc?tag=1.0.0"),
+				DownloadDir:        tmpDir,
+				WorkingDir:         tmpDir,
+				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+			}
+
+			opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+			require.NoError(t, err)
+
+			opts.Experiments = experiment.NewExperiments()
+
+			if tc.enableOCI {
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.OCI))
+			}
+
+			cfg := &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{
+					ExtraArgs: []runcfg.TerraformExtraArguments{},
+				},
+			}
+
+			var logBuf bytes.Buffer
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
+
+			_, err = run.DownloadTerraformSourceIfNecessary(
+				t.Context(),
+				l,
+				venv.OSVenv(),
+				src,
+				configbridge.NewRunOptions(opts),
+				cfg,
+				report.NewReport(),
+			)
+			require.Error(t, err, "the registry at port 1 is unreachable")
+
+			const casAttempt = "CAS enabled: attempting to use Content Addressable Storage"
+
+			if tc.enableOCI {
+				require.ErrorContains(t, err, "resolving OCI reference", "the oci getter must run when the experiment is on")
+				assert.Contains(t, logBuf.String(), casAttempt, "the oci source must enter the CAS path when the experiment is on")
+
+				return
+			}
+
+			assert.NotContains(t, err.Error(), "resolving OCI reference", "no oci getter must run when the experiment is off")
+			assert.NotContains(t, logBuf.String(), casAttempt, "the CAS attempt must be skipped when the experiment is off")
+		})
+	}
 }
 
 // TestDownloadSourceWithCASGitSource tests CAS functionality with a Git source

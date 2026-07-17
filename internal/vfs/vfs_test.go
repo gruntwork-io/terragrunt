@@ -844,7 +844,7 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 		require.ErrorAs(t, err, &limitErr)
 		assert.Equal(t, uint64(10), limitErr.Size, "the breaching entry itself is only 10 bytes")
 		assert.Equal(t, int64(25), limitErr.Limit)
-		assert.Contains(t, limitErr.Error(), "exceeded the total decompressed size limit of 25")
+		assert.Contains(t, limitErr.Error(), "breached the total decompressed size limit of 25")
 	})
 
 	t.Run("no limit when FileSizeLimit is zero", func(t *testing.T) {

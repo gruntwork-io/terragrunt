@@ -147,9 +147,16 @@ func TestCASGetterDoesNotClaimOCIWithoutFetcher(t *testing.T) {
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
 
-	claimed, err := g.Detect(&gogetter.Request{Src: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"})
-	require.NoError(t, err)
-	assert.False(t, claimed, "oci must not be claimed without a registered oci fetcher")
+	req := &gogetter.Request{
+		Src: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Pwd: t.TempDir(),
+	}
+
+	// The URL falls through to the file detector and fails there, which is
+	// exactly what proves the oci scheme was not claimed.
+	_, err = g.Detect(req)
+	require.ErrorContains(t, err, "directory not found")
+	assert.NotEqual(t, getter.SchemeOCI, req.Forced, "oci must not be claimed without a registered oci fetcher")
 }
 
 // movingTagResolver models a mutable tag: digest probes are deterministic,

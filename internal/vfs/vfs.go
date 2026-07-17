@@ -613,7 +613,7 @@ type ZipDecompressedSizeLimitError struct {
 
 func (err ZipDecompressedSizeLimitError) Error() string {
 	return fmt.Sprintf(
-		"extracting file %q exceeded the total decompressed size limit of %d (declared entry size %d)",
+		"extracting file %q breached the total decompressed size limit of %d (entry size %d)",
 		err.Name, err.Limit, err.Size,
 	)
 }
