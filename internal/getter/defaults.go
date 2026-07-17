@@ -31,22 +31,27 @@ const (
 type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
-	tfrLogger  log.Logger
-	tfrFS      vfs.FS
-	ociLogger  log.Logger
-	ociVenv    venv.Venv
-	httpExtra  http.Header
-	httpsExtra http.Header
-	tfrImpl    tfimpl.Type
+	tfrLogger   log.Logger
+	tfrFS       vfs.FS
+	ociLogger   log.Logger
+	ociVenv     venv.Venv
+	ociNewStore OCINewStoreFunc
+	httpExtra   http.Header
+	httpsExtra  http.Header
+	tfrImpl     tfimpl.Type
 }
 
 // WithOCIConfig registers the dependencies the oci:// fetcher and resolver
 // need for CAS dispatch. When unset, oci is omitted from the generic maps so
-// CASGetter never claims oci:// sources.
+// CASGetter never claims oci:// sources. The store seam is built once here so
+// the fetcher and the resolver share one credential discovery and auth cache.
 func WithOCIConfig(l log.Logger, v venv.Venv) GenericFetcherOption {
+	newStore := NewOCIRepositoryStore(l, v)
+
 	return func(c *genericFetcherConfig) {
 		c.ociLogger = l
 		c.ociVenv = v
+		c.ociNewStore = newStore
 	}
 }
 
@@ -101,7 +106,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 
 	if cfg.ociLogger != nil {
 		m[SchemeOCI] = &OCIGetter{
-			NewStore: NewOCIRepositoryStore(cfg.ociLogger, cfg.ociVenv),
+			NewStore: cfg.ociNewStore,
 			Logger:   cfg.ociLogger,
 			FS:       cfg.ociVenv.FS,
 		}

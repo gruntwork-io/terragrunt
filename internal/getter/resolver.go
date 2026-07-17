@@ -43,10 +43,10 @@ func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResol
 		SchemeTFR:   tfr,
 	}
 
-	// Registered only alongside the oci fetcher, so the probe shares the
-	// getter's credential path and CASGetter claims oci:// consistently.
+	// Registered only alongside the oci fetcher, sharing its store seam so
+	// probe and fetch use one credential discovery and auth cache.
 	if cfg.ociLogger != nil {
-		resolvers[SchemeOCI] = NewOCIResolver(NewOCIRepositoryStore(cfg.ociLogger, cfg.ociVenv))
+		resolvers[SchemeOCI] = NewOCIResolver(cfg.ociNewStore)
 	}
 
 	return resolvers

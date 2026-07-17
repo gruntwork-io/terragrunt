@@ -473,6 +473,18 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 			return "", err
 		}
 
+		// A mutable source can move between the probe and this download (an
+		// oci tag re-push). Re-probe and drop a stale suggested key so the
+		// fetched bytes are never stored under the earlier key.
+		if suggestedKey != "" {
+			if resolver := g.resolvers[scheme]; resolver != nil {
+				key, probeErr := resolver.Probe(ctx, urlStr)
+				if probeErr != nil || key != suggestedKey {
+					suggestedKey = ""
+				}
+			}
+		}
+
 		return g.CAS.IngestDirectory(l, v, tempDir, suggestedKey)
 	}
 }
