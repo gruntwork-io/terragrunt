@@ -2,6 +2,7 @@ package getter
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -38,9 +39,24 @@ func (r *OCIResolver) Scheme() string { return SchemeOCI }
 // through to the download-then-content-hash path, surfacing the underlying
 // error on the real fetch attempt.
 func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	srcURL, err := url.Parse(rawURL)
-	if err != nil || srcURL.Scheme != SchemeOCI {
+	digestValue, err := r.ResolveDigest(ctx, rawURL)
+	if err != nil {
 		return "", cas.ErrNoVersionMetadata
+	}
+
+	return cas.ContentKey(ociManifestKeyAlg, digestValue), nil
+}
+
+// ResolveDigest returns the manifest digest rawURL points at right now: the
+// pinned digest verbatim, or a fresh tag resolution through the store seam.
+func (r *OCIResolver) ResolveDigest(ctx context.Context, rawURL string) (string, error) {
+	srcURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("parsing oci source %q: %w", rawURL, err)
+	}
+
+	if srcURL.Scheme != SchemeOCI {
+		return "", ErrOCIMissingRegistryDomain
 	}
 
 	queryValues := srcURL.Query()
@@ -50,16 +66,16 @@ func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 
 	registryDomain, repositoryName, _, ref, err := parseOCISource(srcURL)
 	if err != nil {
-		return "", cas.ErrNoVersionMetadata
+		return "", err
 	}
 
 	// A digest pin already names the manifest content; no resolution needed.
 	if queryValues.Has(ociDigestQueryKey) {
-		return cas.ContentKey(ociManifestKeyAlg, ref), nil
+		return ref, nil
 	}
 
 	if r.NewStore == nil {
-		return "", cas.ErrNoVersionMetadata
+		return "", ErrOCIGetterNotConfigured
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, ociResolverTimeout)
@@ -67,15 +83,13 @@ func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 
 	store, err := r.NewStore(ctx, registryDomain, repositoryName)
 	if err != nil {
-		return "", cas.ErrNoVersionMetadata
+		return "", err
 	}
 
-	// Tags are mutable: resolve on every probe so a re-pushed tag can never
-	// serve a stale cache entry.
 	desc, err := store.Resolve(ctx, ref)
 	if err != nil {
-		return "", cas.ErrNoVersionMetadata
+		return "", fmt.Errorf("resolving OCI reference %q: %w", ref, err)
 	}
 
-	return cas.ContentKey(ociManifestKeyAlg, desc.Digest.String()), nil
+	return desc.Digest.String(), nil
 }

@@ -464,8 +464,10 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 
 		inner := g.innerClient(bare, scheme)
 
+		fetchURL, treeKey := g.pinOCIDigest(ctx, scheme, urlStr, suggestedKey)
+
 		if _, err := inner.Get(ctx, &getter.Request{
-			Src:     urlStr,
+			Src:     fetchURL,
 			Dst:     tempDir,
 			Forced:  scheme,
 			GetMode: getter.ModeAny,
@@ -473,20 +475,51 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 			return "", err
 		}
 
-		// Re-probe after the download and drop a stale suggested key, so a
-		// source that moved mid-fetch (an oci tag re-push) is never stored
-		// under the earlier key.
-		if suggestedKey != "" {
-			if resolver := g.resolvers[scheme]; resolver != nil {
-				key, probeErr := resolver.Probe(ctx, urlStr)
-				if probeErr != nil || key != suggestedKey {
-					suggestedKey = ""
-				}
-			}
-		}
-
-		return g.CAS.IngestDirectory(l, v, tempDir, suggestedKey)
+		return g.CAS.IngestDirectory(l, v, tempDir, treeKey)
 	}
+}
+
+// ociDigestResolver binds a mutable oci reference to the digest it resolves
+// to at download time.
+type ociDigestResolver interface {
+	ResolveDigest(ctx context.Context, rawURL string) (string, error)
+}
+
+// pinOCIDigest rewrites a mutable oci reference to the digest it resolves to
+// right now, so the download and the cache key name one immutable manifest
+// and a tag moving mid-fetch can never be stored under a stale key.
+func (g *CASGetter) pinOCIDigest(ctx context.Context, scheme, rawURL, suggestedKey string) (string, string) {
+	if scheme != SchemeOCI {
+		return rawURL, suggestedKey
+	}
+
+	resolver, ok := g.resolvers[scheme].(ociDigestResolver)
+	if !ok {
+		return rawURL, suggestedKey
+	}
+
+	digestValue, err := resolver.ResolveDigest(ctx, rawURL)
+	if err != nil {
+		// Unresolvable right now: content-hash instead of trusting the probe key.
+		return rawURL, ""
+	}
+
+	return pinnedOCIURL(rawURL, digestValue), cas.ContentKey(ociManifestKeyAlg, digestValue)
+}
+
+// pinnedOCIURL swaps a tag reference for the resolved digest pin.
+func pinnedOCIURL(rawURL, digestValue string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	q := u.Query()
+	q.Del(ociTagQueryKey)
+	q.Set(ociDigestQueryKey, digestValue)
+	u.RawQuery = q.Encode()
+
+	return u.String()
 }
 
 // defaultInnerClientBuilder is the inner-client builder used when none
