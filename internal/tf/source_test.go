@@ -5,7 +5,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -341,4 +344,123 @@ func TestRegressionCASRefNoSubdir(t *testing.T) {
 
 	assert.Equal(t, "cas::sha1:"+hash, src.CanonicalSourceURL.String())
 	assert.Equal(t, src.DownloadDir, src.WorkingDir)
+}
+
+// TestEncodeSourceVersionTracksOnlyCopiedFiles pins the local-source version
+// hash to the files a copy would deliver: changes to files the copy skips
+// (hidden files, exclude_from_copy matches) must not flip the version, while
+// changes to copied files (including include_in_copy resurrections) must.
+func TestEncodeSourceVersionTracksOnlyCopiedFiles(t *testing.T) {
+	t.Parallel()
+
+	past := time.Now().Add(-24 * time.Hour)
+
+	touch := func(name string) func(t *testing.T, sourceDir string) {
+		return func(t *testing.T, sourceDir string) {
+			t.Helper()
+
+			now := time.Now()
+			require.NoError(t, os.Chtimes(filepath.Join(sourceDir, name), now, now))
+		}
+	}
+
+	create := func(name string) func(t *testing.T, sourceDir string) {
+		return func(t *testing.T, sourceDir string) {
+			t.Helper()
+
+			path := filepath.Join(sourceDir, name)
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+			require.NoError(t, os.WriteFile(path, []byte(name), 0644))
+		}
+	}
+
+	testCases := []struct {
+		mutate   func(t *testing.T, sourceDir string)
+		name     string
+		copyOpts []util.CopyOption
+		wantSame bool
+	}{
+		{
+			name:     "hidden file creation ignored",
+			mutate:   create(".this_file_does_not_matter"),
+			wantSame: true,
+		},
+		{
+			name:     "hidden file touch ignored",
+			mutate:   touch(".hidden.txt"),
+			wantSame: true,
+		},
+		{
+			name:     "file in hidden dir ignored",
+			mutate:   create(".cache/entry.txt"),
+			wantSame: true,
+		},
+		{
+			name:     "tracked file touch detected",
+			mutate:   touch("main.tf"),
+			wantSame: false,
+		},
+		{
+			name:     "tracked file creation detected",
+			mutate:   create("outputs.tf"),
+			wantSame: false,
+		},
+		{
+			name:     "exclude_from_copy touch ignored",
+			copyOpts: []util.CopyOption{util.WithExcludeFromCopy("ignored.txt")},
+			mutate:   touch("ignored.txt"),
+			wantSame: true,
+		},
+		{
+			name:     "include_in_copy hidden file touch detected",
+			copyOpts: []util.CopyOption{util.WithIncludeInCopy(".hidden.txt")},
+			mutate:   touch(".hidden.txt"),
+			wantSame: false,
+		},
+	}
+
+	for _, fastCopy := range []bool{false, true} {
+		for _, tc := range testCases {
+			name := tc.name
+			if fastCopy {
+				name += " with fast-copy"
+			}
+
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				l := logger.CreateLogger()
+				sourceDir := t.TempDir()
+
+				for _, name := range []string{"main.tf", "ignored.txt", ".hidden.txt"} {
+					path := filepath.Join(sourceDir, name)
+					require.NoError(t, os.WriteFile(path, []byte(name), 0644))
+					require.NoError(t, os.Chtimes(path, past, past))
+				}
+
+				copyOpts := tc.copyOpts
+				if fastCopy {
+					copyOpts = slices.Concat(copyOpts, []util.CopyOption{util.WithFastCopy()})
+				}
+
+				src, err := tf.NewSource(l, sourceDir, t.TempDir(), sourceDir, false)
+				require.NoError(t, err)
+
+				before, err := src.EncodeSourceVersion(l, copyOpts...)
+				require.NoError(t, err)
+
+				tc.mutate(t, sourceDir)
+
+				after, err := src.EncodeSourceVersion(l, copyOpts...)
+				require.NoError(t, err)
+
+				if tc.wantSame {
+					assert.Equal(t, before, after)
+					return
+				}
+
+				assert.NotEqual(t, before, after)
+			})
+		}
+	}
 }

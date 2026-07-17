@@ -116,6 +116,30 @@ func TestAutoInitHonorsMarkerWhenModulesCached(t *testing.T) {
 	assert.NotContains(t, stderr.String(), "Required plugins are not installed")
 }
 
+func TestAutoInitSkippedWhenOnlyUncopiedFilesChange(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitMarkerCachedModules)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitMarkerCachedModules)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"), "first plan should run init")
+
+	// Hidden files are never copied into the cache, so appearing or changing
+	// ones must not alter the computed source version.
+	hiddenFile := filepath.Join(rootPath, "src", ".this_file_does_not_matter")
+	require.NoError(t, os.WriteFile(hiddenFile, []byte("ignored"), 0644))
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.NotContains(t, stdout.String(), "has been successfully initialized!", "second plan should not re-run init when only a file the copy skips changed")
+}
+
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
 func TestYamlDecodeRegressions(t *testing.T) {
 	t.Parallel()

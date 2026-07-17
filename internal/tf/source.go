@@ -103,16 +103,20 @@ func (src Source) String() string {
 // string of the source URL, calculate its sha1, and base 64 encode it. For remote URLs (e.g. Git URLs), this is
 // based on the assumption that the scheme/host/path of the URL (e.g. git::github.com/foo/bar) identifies the module
 // name and the query string (e.g. ?ref=v0.0.3) identifies the version. For local file paths, there is no query string,
-// so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
-// and returned as version. In case of hash error the default encoded source version will be returned.
-// See also the encodeSourceName and ProcessTerraformSource methods.
-func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
-	if IsLocalSource(src.CanonicalSourceURL) {
-		sourceHash := sha256.New()
-		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
+// so instead the version is a hash of each file's path and modification time, restricted to the files a copy
+// configured with copyOpts would deliver (see [util.NewCopyFilter]). Files that never reach the cache — hidden files
+// not resurrected by include_in_copy, exclude_from_copy matches — cannot change the version, so they don't force a
+// spurious re-download and re-init. See also the encodeSourceName and ProcessTerraformSource methods.
+func (src Source) EncodeSourceVersion(l log.Logger, copyOpts ...util.CopyOption) (string, error) {
+	if !IsLocalSource(src.CanonicalSourceURL) {
+		return util.EncodeBase64Sha1(src.CanonicalSourceURL.Query().Encode()), nil
+	}
 
-		var err error
+	sourceHash := sha256.New()
+	sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
 
+	copied, err := util.NewCopyFilter(l, sourceDir, copyOpts...)
+	if err == nil {
 		walkDir := filepath.WalkDir
 		if src.WalkDirWithSymlinks {
 			walkDir = util.WalkDirWithSymlinks
@@ -126,10 +130,18 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 
 			if d.IsDir() {
 				// We don't use any info from directories to calculate our hash
-				return util.SkipDirIfIgnorable(d.Name())
+				if !copied(path, true) {
+					return filepath.SkipDir
+				}
+
+				return nil
 			}
 			// avoid checking .terraform.lock.hcl file since contents is auto-generated
 			if d.Name() == util.TerraformLockFile {
+				return nil
+			}
+
+			if !copied(path, false) {
 				return nil
 			}
 
@@ -145,25 +157,24 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 
 			return nil
 		})
-		if err == nil {
-			hash := hex.EncodeToString(sourceHash.Sum(nil))
-
-			return hash, nil
-		}
-
-		l.WithError(err).Warnf("Could not encode version for local source")
-
-		return "", err
 	}
 
-	return util.EncodeBase64Sha1(src.CanonicalSourceURL.Query().Encode()), nil
+	if err == nil {
+		hash := hex.EncodeToString(sourceHash.Sum(nil))
+
+		return hash, nil
+	}
+
+	l.WithError(err).Warnf("Could not encode version for local source")
+
+	return "", err
 }
 
 // WriteVersionFile writes a file into the DownloadDir that contains
 // the version number of this source code. The version number is
-// calculated using the EncodeSourceVersion method.
-func (src Source) WriteVersionFile(l log.Logger) error {
-	version, err := src.EncodeSourceVersion(l)
+// calculated using the EncodeSourceVersion method with the same copyOpts.
+func (src Source) WriteVersionFile(l log.Logger, copyOpts ...util.CopyOption) error {
+	version, err := src.EncodeSourceVersion(l, copyOpts...)
 	if err != nil {
 		// If we failed to calculate a SHA of the downloaded source, write a SHA of
 		// some random data into the version file.
