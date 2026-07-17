@@ -25,7 +25,7 @@ const (
 	ShowAllFlagName = "all"
 )
 
-func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func NewListFlags(_ *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	return clihelper.Flags{

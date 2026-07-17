@@ -158,7 +158,7 @@ func findCatalogConfig(ctx context.Context, l log.Logger, outerPctx *ParsingCont
 	return "", "", nil
 }
 
-func convertToTerragruntCatalogConfig(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntCatalogConfig(_ context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 	var (
 		terragruntConfig = &TerragruntConfig{}
 		defaultMetadata  = map[string]any{FoundInFile: configPath}
