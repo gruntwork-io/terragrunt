@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
+	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,20 +23,27 @@ import (
 // digest-specific content: the fetch is bound to the digest resolved at
 // download start, so a tag moving A to B and back to A can neither mis-key
 // the cache nor materialize the wrong manifest's bytes.
+// Valid manifest digests the OCI fakes share, satisfying the digest grammar
+// production enforces.
+var (
+	digestA = digest.FromString("manifest-a").String()
+	digestB = digest.FromString("manifest-b").String()
+)
+
 func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 	t.Parallel()
 
-	resolver := &movingTagResolver{tagDigest: "sha256:aaaa"}
+	resolver := &movingTagResolver{tagDigest: digestA}
 	fetcher := &digestModuleGetter{}
 	// First download: the tag moves A to B mid-fetch. Second download: it
 	// moves back to A, completing the A to B to A sequence.
 	fetcher.onGet = func(call int32) {
 		if call == 1 {
-			resolver.setTag("sha256:bbbb")
+			resolver.setTag(digestB)
 		}
 
 		if call == 2 {
-			resolver.setTag("sha256:aaaa")
+			resolver.setTag(digestA)
 		}
 	}
 
@@ -50,9 +58,12 @@ func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 	_, err := client.Get(t.Context(), &gogetter.Request{Src: tagSrc, Dst: dstOne, GetMode: gogetter.ModeDir})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, fetcher.gets.Load())
-	assert.Contains(t, fetcher.lastSrc(), "digest=sha256%3Aaaaa", "the download must be pinned to the resolved digest")
+	assert.Contains(
+		t, fetcher.lastSrc(), "digest="+url.QueryEscape(digestA),
+		"the download must be pinned to the resolved digest",
+	)
 	assert.NotContains(t, fetcher.lastSrc(), "tag=", "the mutable tag must not reach the download")
-	assertModuleContent(t, dstOne, "sha256:aaaa")
+	assertModuleContent(t, dstOne, digestA)
 
 	// The tag points at B now: fetch 2 pins digest B and moves the tag back
 	// to A mid-fetch, so B's content lands under B's key.
@@ -61,30 +72,30 @@ func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 	_, err = client.Get(t.Context(), &gogetter.Request{Src: tagSrc, Dst: dstTwo, GetMode: gogetter.ModeDir})
 	require.NoError(t, err)
 	require.EqualValues(t, 2, fetcher.gets.Load(), "the moved tag must re-fetch")
-	assert.Contains(t, fetcher.lastSrc(), "digest=sha256%3Abbbb", "the re-fetch must pin the moved digest")
-	assertModuleContent(t, dstTwo, "sha256:bbbb")
+	assert.Contains(t, fetcher.lastSrc(), "digest="+url.QueryEscape(digestB), "the re-fetch must pin the moved digest")
+	assertModuleContent(t, dstTwo, digestB)
 
 	// After A to B to A, digest requests hit their own entries with their
 	// own bytes and no further fetches.
 	dstA := filepath.Join(t.TempDir(), "digest-a")
 
 	_, err = client.Get(t.Context(), &gogetter.Request{
-		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=sha256:aaaa",
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + digestA,
 		Dst:     dstA,
 		GetMode: gogetter.ModeDir,
 	})
 	require.NoError(t, err)
-	assertModuleContent(t, dstA, "sha256:aaaa")
+	assertModuleContent(t, dstA, digestA)
 
 	dstB := filepath.Join(t.TempDir(), "digest-b")
 
 	_, err = client.Get(t.Context(), &gogetter.Request{
-		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=sha256:bbbb",
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + digestB,
 		Dst:     dstB,
 		GetMode: gogetter.ModeDir,
 	})
 	require.NoError(t, err)
-	assertModuleContent(t, dstB, "sha256:bbbb")
+	assertModuleContent(t, dstB, digestB)
 
 	// The tag is back on A: a tag request hits A's cached entry.
 	dstThree := filepath.Join(t.TempDir(), "three")
@@ -92,7 +103,7 @@ func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 	_, err = client.Get(t.Context(), &gogetter.Request{Src: tagSrc, Dst: dstThree, GetMode: gogetter.ModeDir})
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, fetcher.gets.Load(), "every request after the two fetches must be a cache hit")
-	assertModuleContent(t, dstThree, "sha256:aaaa")
+	assertModuleContent(t, dstThree, digestA)
 }
 
 // TestCASGetterOCIResolveFailureFallsBackToContentHash pins the pin-failure
@@ -101,7 +112,7 @@ func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 func TestCASGetterOCIResolveFailureFallsBackToContentHash(t *testing.T) {
 	t.Parallel()
 
-	resolver := &movingTagResolver{tagDigest: "sha256:aaaa", failTagAfter: 1}
+	resolver := &movingTagResolver{tagDigest: digestA, failTagAfter: 1}
 	fetcher := &countingModuleGetter{}
 
 	_, client := newOCICASHarness(t, resolver, fetcher)
@@ -122,7 +133,7 @@ func TestCASGetterOCIResolveFailureFallsBackToContentHash(t *testing.T) {
 	dstTwo := filepath.Join(t.TempDir(), "two")
 
 	_, err = client.Get(t.Context(), &gogetter.Request{
-		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=sha256:aaaa",
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + digestA,
 		Dst:     dstTwo,
 		GetMode: gogetter.ModeDir,
 	})
@@ -176,7 +187,7 @@ func TestCASGetterOCISubdirSelectionSharesOneEntry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolver := &movingTagResolver{tagDigest: "sha256:aaaa"}
+			resolver := &movingTagResolver{tagDigest: digestA}
 			fetcher := &treeModuleGetter{}
 
 			_, client := newOCICASHarness(t, resolver, fetcher)
@@ -220,7 +231,7 @@ func TestCASGetterOCISubdirSelectionSharesOneEntry(t *testing.T) {
 func TestCASGetterOCIProbeOnlyResolverNeverKeysMutableTags(t *testing.T) {
 	t.Parallel()
 
-	keyA := tgcas.ContentKey("oci-manifest", "sha256:aaaa")
+	keyA := tgcas.ContentKey("oci-manifest", digestA)
 
 	resolver := &probeOnlyResolver{key: keyA}
 	fetcher := &countingModuleGetter{}
@@ -324,12 +335,11 @@ func (r *movingTagResolver) setTag(digestValue string) {
 }
 
 // countingModuleGetter writes a one-file module, records the requested source,
-// and runs onFirstGet during the first download to simulate a mid-fetch re-push.
+// and counts downloads.
 type countingModuleGetter struct {
-	onFirstGet func()
-	src        string
-	srcMu      sync.Mutex
-	gets       atomic.Int32
+	src   string
+	srcMu sync.Mutex
+	gets  atomic.Int32
 }
 
 func (f *countingModuleGetter) Get(_ context.Context, req *gogetter.Request) error {
@@ -337,9 +347,7 @@ func (f *countingModuleGetter) Get(_ context.Context, req *gogetter.Request) err
 	f.src = req.Src
 	f.srcMu.Unlock()
 
-	if f.gets.Add(1) == 1 && f.onFirstGet != nil {
-		f.onFirstGet()
-	}
+	f.gets.Add(1)
 
 	return os.WriteFile(filepath.Join(req.Dst, "main.tf"), []byte(`output "fetched" {}`), 0o644)
 }
