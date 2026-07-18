@@ -71,7 +71,7 @@ func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, v v
 			err = processError.Err
 		}
 
-		return fmt.Sprintf("Failed to execute \"%s %s\": %s", opts.TFPath, strings.Join(terraformHelpCmd, " "), err.Error())
+		return fmt.Sprintf("Failed to execute \"%s %s\": %s\n\nThis may be caused by a shim wrapping the configured Terraform/OpenTofu binary.", opts.TFPath, strings.Join(terraformHelpCmd, " "), err.Error())
 	}
 
 	result := out.Stdout.String()
