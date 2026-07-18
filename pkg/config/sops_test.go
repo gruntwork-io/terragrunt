@@ -12,13 +12,14 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // generateTestSecretFiles creates plain JSON files in a temp directory.
-// No SOPS encryption needed — the test injects a mock decryptFn to read raw files.
+// No SOPS encryption needed — the test injects a mock decrypter to read raw files.
 func generateTestSecretFiles(t *testing.T, count int) []string {
 	t.Helper()
 
@@ -62,15 +63,15 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	secretFiles := generateTestSecretFiles(t, 1)
 	secretFile := secretFiles[0]
 
-	// Mock decryptFn that requires authKey to be set — simulates KMS auth.
-	authRequiringDecryptFn := func(path string, _ string) ([]byte, error) {
+	// Mock decrypter that requires authKey to be set — simulates KMS auth.
+	authRequiringDecrypter := vsops.NewMemDecrypter(func(path string, _ string) ([]byte, error) {
 		token := os.Getenv(authKey)
 		if token == "" {
 			return nil, errors.New("KMS auth failed: no credential set")
 		}
 
 		return os.ReadFile(path)
-	}
+	})
 
 	// Subtest 1: Existing process env vars are preserved (not overridden).
 	// Models: CI runner has real AWS_SESSION_TOKEN, auth-provider returns empty token.
@@ -93,7 +94,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 				l,
 				secretFile,
 				"json",
-				authRequiringDecryptFn,
+				authRequiringDecrypter,
 			)
 			require.NoError(t, err, "decrypt must succeed using existing process env credentials")
 			assert.Contains(t, result, `"value":"secret-from-unit-01"`)
@@ -123,7 +124,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 				l,
 				secretFile,
 				"json",
-				authRequiringDecryptFn,
+				authRequiringDecrypter,
 			)
 			require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
 			assert.Contains(t, result, `"value":"secret-from-unit-01"`)
@@ -150,7 +151,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 			// Empty env — simulates auth-provider NOT having run (the original bug)
 			pctx.Venv.Env = map[string]string{}
 
-			_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
+			_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
 			require.Error(t, err,
 				"decrypt must fail without auth credentials — reproduces original issue #5515")
 		},
@@ -186,20 +187,22 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 					expectedToken := fmt.Sprintf("token-%d", idx)
 
-					// Each goroutine's decryptFn verifies it sees ITS OWN token
-					tokenCheckFn := func(path string, _ string) ([]byte, error) {
-						actual := os.Getenv(authKey)
-						if actual != expectedToken {
-							return nil, fmt.Errorf(
-								"goroutine %d: expected %q, got %q",
-								idx,
-								expectedToken,
-								actual,
-							)
-						}
+					// Each goroutine's decrypter verifies it sees ITS OWN token
+					tokenCheckDecrypter := vsops.NewMemDecrypter(
+						func(path string, _ string) ([]byte, error) {
+							actual := os.Getenv(authKey)
+							if actual != expectedToken {
+								return nil, fmt.Errorf(
+									"goroutine %d: expected %q, got %q",
+									idx,
+									expectedToken,
+									actual,
+								)
+							}
 
-						return os.ReadFile(path)
-					}
+							return os.ReadFile(path)
+						},
+					)
 
 					l := logger.CreateLogger()
 					_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
@@ -212,7 +215,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 						l,
 						filePath,
 						"json",
-						tokenCheckFn,
+						tokenCheckDecrypter,
 					)
 					if decryptErr != nil {
 						t.Logf("goroutine %d failed: %v", idx, decryptErr)

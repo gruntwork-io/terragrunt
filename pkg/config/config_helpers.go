@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"slices"
@@ -19,8 +18,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/getsops/sops/v3/cmd/sops/formats"
-	"github.com/getsops/sops/v3/decrypt"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -45,6 +42,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -979,16 +977,17 @@ func getAWSField(
 
 	var result string
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "config_get_aws_field", map[string]any{
-		"config_path": pctx.TerragruntConfigPath,
-		"role_arn":    pctx.IAMRoleOptions.RoleARN,
-	}, func(ctx context.Context, l log.Logger) error {
-		var fetchErr error
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "config_get_aws_field", map[string]any{
+			"config_path": pctx.TerragruntConfigPath,
+			"role_arn":    pctx.IAMRoleOptions.RoleARN,
+		}, func(ctx context.Context, l log.Logger) error {
+			var fetchErr error
 
-		result, fetchErr = fetchFn(ctx, &awsConfig)
+			result, fetchErr = fetchFn(ctx, &awsConfig)
 
-		return fetchErr
-	})
+			return fetchErr
+		})
 
 	return result, err
 }
@@ -1276,10 +1275,7 @@ func sopsDecryptFile(
 
 	sourceFile := params[0]
 
-	format, err := getSopsFileFormat(sourceFile)
-	if err != nil {
-		return "", fmt.Errorf("determining sops file format: %w", err)
-	}
+	format := vsops.FormatForPath(sourceFile)
 
 	path := sourceFile
 
@@ -1290,7 +1286,7 @@ func sopsDecryptFile(
 
 	pctx.FilesRead.Add(path)
 
-	return sopsDecryptFileImpl(ctx, pctx, l, path, format, decrypt.File)
+	return sopsDecryptFileImpl(ctx, pctx, l, path, format, pctx.Venv.Sops)
 }
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
@@ -1300,7 +1296,7 @@ func sopsDecryptFileImpl(
 	l log.Logger,
 	path string,
 	format string,
-	decryptFn func(string, string) ([]byte, error),
+	d vsops.Decrypter,
 ) (string, error) {
 	sopsCache := cache.ContextCache[string](ctx, SopsCacheContextKey)
 
@@ -1357,18 +1353,19 @@ func sopsDecryptFileImpl(
 
 	var rawData []byte
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "config_sops_decrypt", map[string]any{
-		"path":   path,
-		"format": format,
-	}, func(ctx context.Context, l log.Logger) error {
-		var decryptErr error
+	err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "config_sops_decrypt", map[string]any{
+			"path":   path,
+			"format": format,
+		}, func(ctx context.Context, l log.Logger) error {
+			var decryptErr error
 
-		rawData, decryptErr = decryptFn(path, format)
+			rawData, decryptErr = d.DecryptFile(path, format)
 
-		return decryptErr
-	})
+			return decryptErr
+		})
 	if err != nil {
-		return "", extractSopsErrors(err)
+		return "", err
 	}
 
 	if utf8.Valid(rawData) {
@@ -1379,27 +1376,6 @@ func sopsDecryptFileImpl(
 	}
 
 	return "", InvalidSopsFormatError{SourceFilePath: path}
-}
-
-// Mapping of SOPS format to string
-var sopsFormatToString = map[formats.Format]string{
-	formats.Binary: "binary",
-	formats.Dotenv: "dotenv",
-	formats.Ini:    "ini",
-	formats.Json:   "json",
-	formats.Yaml:   "yaml",
-}
-
-// getSopsFileFormat - Return file format for SOPS library
-func getSopsFileFormat(sourceFile string) (string, error) {
-	fileFormat := formats.FormatForPath(sourceFile)
-
-	format, found := sopsFormatToString[fileFormat]
-	if !found {
-		return "", InvalidSopsFormatError{SourceFilePath: sourceFile}
-	}
-
-	return format, nil
 }
 
 // Return the location of the Terraform files provided via --source
@@ -1813,37 +1789,6 @@ func ParseAndDecodeVarFile(l log.Logger, varFile string, fileContents []byte, ou
 	}
 
 	return gocty.FromCtyValue(ctyVal, out)
-}
-
-// extractSopsErrors pulls the per-group errors out of sops' getDataKeyError via reflection.
-// The sops library doesn't export these, so the field walk may break on future sops versions.
-func extractSopsErrors(err error) error {
-	var errs []error
-
-	errValue := reflect.ValueOf(err)
-	if errValue.Kind() == reflect.Pointer {
-		errValue = errValue.Elem()
-	}
-
-	if errValue.Type().Name() == "getDataKeyError" {
-		groupResultsField := errValue.FieldByName("GroupResults")
-		if groupResultsField.IsValid() && groupResultsField.Kind() == reflect.Slice {
-			for i := range groupResultsField.Len() {
-				groupErr := groupResultsField.Index(i)
-				if groupErr.CanInterface() {
-					if err, ok := groupErr.Interface().(error); ok {
-						errs = append(errs, err)
-					}
-				}
-			}
-		}
-	}
-
-	if len(errs) == 0 {
-		errs = append(errs, err)
-	}
-
-	return errors.Join(errs...)
 }
 
 // ConstraintCheck Implementation of Terraform's StartsWith function

@@ -3,8 +3,9 @@
 //
 // A [Venv] bundles the side-effect handles every layer below the CLI needs
 // to do its work: [vfs.FS] for filesystem reads and writes, [vexec.Exec]
-// for spawning subprocesses, the shell environment variables and platform
-// handles read at startup, and the stdout/stderr writers. Production code
+// for spawning subprocesses, [vsops.Decrypter] for SOPS decryption, the
+// shell environment variables and platform handles read at startup, and
+// the stdout/stderr writers. Production code
 // constructs the real bundle once at the top via [OSVenv]; tests construct
 // an in-memory bundle and drive the full CLI through it.
 //
@@ -23,6 +24,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
 
@@ -48,12 +50,14 @@ type Platform struct {
 }
 
 // Venv is the root virtualized environment. It carries the filesystem,
-// process-execution, environment-variable, platform, and writer handles that
-// every Terragrunt operation needs. Env is shared by reference across the run
-// and mutated in place as provider-cache, hook, and inputs contributions resolve.
+// process-execution, SOPS-decryption, environment-variable, platform, and
+// writer handles that every Terragrunt operation needs. Env is shared by
+// reference across the run and mutated in place as provider-cache, hook, and
+// inputs contributions resolve.
 type Venv struct {
 	FS       vfs.FS
 	Exec     vexec.Exec
+	Sops     vsops.Decrypter
 	Env      map[string]string
 	Platform *Platform
 	Writers  *writer.Writers
@@ -96,6 +100,13 @@ func (v Venv) WithExec(exec vexec.Exec) Venv {
 // by h, for the in-memory test bundles this package serves.
 func (v Venv) WithHandler(h vexec.Handler) Venv {
 	v.Exec = vexec.NewMemExec(h)
+
+	return v
+}
+
+// WithSops returns a copy of v whose SOPS decrypter is d.
+func (v Venv) WithSops(d vsops.Decrypter) Venv {
+	v.Sops = d
 
 	return v
 }
@@ -188,6 +199,7 @@ func OSVenv() Venv {
 	return Venv{
 		FS:   vfs.NewOSFS(),
 		Exec: vexec.NewOSExec(),
+		Sops: vsops.NewOSDecrypter(),
 		Env:  ParseEnviron(os.Environ()),
 		Platform: &Platform{
 			UserHomeDir: os.UserHomeDir,
