@@ -65,7 +65,11 @@ type osDecrypter struct{}
 func (osDecrypter) DecryptFile(path, format string) ([]byte, error) {
 	data, err := decrypt.File(path, format)
 	if err != nil {
-		return nil, extractGroupErrors(err)
+		if groupErrs := dataKeyGroupErrors(err); len(groupErrs) > 0 {
+			return nil, errors.Join(groupErrs...)
+		}
+
+		return nil, err
 	}
 
 	return data, nil
@@ -79,33 +83,35 @@ func (d memDecrypter) DecryptFile(path, format string) ([]byte, error) {
 	return d.handler(path, format)
 }
 
-// extractGroupErrors pulls the per-group errors out of sops' getDataKeyError via reflection.
-// The sops library doesn't export these, so the field walk may break on future sops versions.
-func extractGroupErrors(err error) error {
-	var errs []error
-
+// dataKeyGroupErrors returns the per-key-group failures hidden in sops'
+// getDataKeyError, whose own message doesn't explain why each key group
+// failed. The sops library doesn't export the type or its fields, so the
+// field walk is reflective and may break on future sops versions. A nil
+// result means there is nothing to extract: err isn't a getDataKeyError,
+// its shape changed, or no group recorded a failure (successful groups
+// leave nil entries in GroupResults).
+func dataKeyGroupErrors(err error) []error {
 	errValue := reflect.ValueOf(err)
 	if errValue.Kind() == reflect.Pointer {
 		errValue = errValue.Elem()
 	}
 
-	if errValue.Type().Name() == "getDataKeyError" {
-		groupResultsField := errValue.FieldByName("GroupResults")
-		if groupResultsField.IsValid() && groupResultsField.Kind() == reflect.Slice {
-			for i := range groupResultsField.Len() {
-				groupErr := groupResultsField.Index(i)
-				if groupErr.CanInterface() {
-					if resultErr, ok := groupErr.Interface().(error); ok {
-						errs = append(errs, resultErr)
-					}
-				}
-			}
+	if errValue.Type().Name() != "getDataKeyError" {
+		return nil
+	}
+
+	field := errValue.FieldByName("GroupResults")
+	if !field.IsValid() || field.Type() != reflect.TypeFor[[]error]() {
+		return nil
+	}
+
+	var groupErrs []error
+
+	for _, groupErr := range field.Interface().([]error) {
+		if groupErr != nil {
+			groupErrs = append(groupErrs, groupErr)
 		}
 	}
 
-	if len(errs) == 0 {
-		errs = append(errs, err)
-	}
-
-	return errors.Join(errs...)
+	return groupErrs
 }
