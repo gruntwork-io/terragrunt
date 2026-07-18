@@ -1635,3 +1635,60 @@ func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 		})
 	}
 }
+
+func TestReadTerragruntConfigWithCacheReusesParsedConfig(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx = config.WithConfigValues(ctx)
+
+	fixturePath := "../../test/fixtures/locals/canonical/terragrunt.hcl"
+
+	const hclTemplate = `locals {
+  first = read_terragrunt_config("--terragrunt-with-cache", %q)
+  second = read_terragrunt_config("--terragrunt-with-cache", %q)
+}`
+
+	out, err := config.ParseConfigString(ctx, pctx, l, "test.hcl", fmt.Sprintf(hclTemplate, fixturePath, fixturePath), nil)
+	require.NoError(t, err)
+	require.NotNil(t, out.Locals)
+
+	first, ok := out.Locals["first"]
+	require.True(t, ok)
+	second, ok := out.Locals["second"]
+	require.True(t, ok)
+	assert.Equal(t, first, second)
+}
+
+func TestReadTerragruntConfigWithCacheFlagOnlyReturnsError(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx = config.WithConfigValues(ctx)
+
+	const hcl = `locals {
+  x = read_terragrunt_config("--terragrunt-with-cache")
+}`
+
+	_, err := config.ParseConfigString(ctx, pctx, l, "test.hcl", hcl, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Expected 2 or 3 (with --terragrunt-with-cache) params for function read_terragrunt_config")
+}
+
+func TestReadTerragruntConfigUnknownOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx = config.WithConfigValues(ctx)
+
+	const hcl = `locals {
+  x = read_terragrunt_config("--terragrunt-unknown", "common.hcl")
+}`
+
+	_, err := config.ParseConfigString(ctx, pctx, l, "test.hcl", hcl, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `Unknown option "--terragrunt-unknown" for function read_terragrunt_config`)
+}

@@ -152,6 +152,18 @@ func (err ConflictingRunCmdCacheOptionsError) Error() string {
 	return "The --terragrunt-global-cache and --terragrunt-no-cache options cannot be used together. Choose one caching option for run_cmd."
 }
 
+type UnknownReadTerragruntConfigOptionError struct {
+	Option string
+}
+
+func (err UnknownReadTerragruntConfigOptionError) Error() string {
+	return fmt.Sprintf(
+		"Unknown option %q for function read_terragrunt_config. The only supported option is %q.",
+		err.Option,
+		"--terragrunt-with-cache",
+	)
+}
+
 type TerragruntConfigNotFoundError struct {
 	Path string
 }
