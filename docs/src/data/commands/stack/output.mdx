@@ -73,6 +73,37 @@ $ terragrunt stack output project1_app1.custom_value1
 project1_app1.custom_value1 = "value1"
 ```
 
+## Implicit stacks
+
+Gated behind the [`stack-output-implicit`](/reference/experiments/active/#stack-output-implicit---what-it-does) experiment. Enable with `--experiment stack-output-implicit` (or `TG_EXPERIMENT=stack-output-implicit`).
+
+When enabled, `terragrunt stack output` discovers units that are not declared in any `terragrunt.stack.hcl` file and aggregates their outputs keyed by each unit's directory path (relative to the working directory, forward slashes on every OS):
+
+```bash
+$ terragrunt stack output
+db = {
+  endpoint = "db.local"
+  port     = 5432
+}
+vpc = {
+  vpc_id = "vpc-1234567890"
+}
+apps/api = {
+  domain = "api.example.com"
+}
+```
+
+Indexing and drill-down work the same way:
+
+```bash
+$ terragrunt stack output vpc.vpc_id --format raw
+vpc-1234567890
+```
+
+The path key is preserved verbatim, so two units in different directories never collide. As with explicit-stack unit names, directory names containing `.` cannot be drilled into with the dot separator — use `--format json` for those.
+
+In a tree that also contains explicit stacks, each stack's output tree is nested under the stack directory's path relative to the working directory — a stack at `prod/terragrunt.stack.hcl` declaring a unit `db` is addressed as `prod.db`, while a loose unit at `db/` is addressed as `db`. Every key reflects a filesystem position, so explicit and implicit entries cannot collide. A stack file in the working directory itself gets no prefix, preserving the established output shape, and units materialized by an explicit stack are never repeated under their own path keys.
+
 ## Output formats
 
 Terragrunt provides multiple output formats for easier parsing and integration with other tools. The desired format can be specified using the `--format` CLI flag.
