@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOSExec_Output_Windows(t *testing.T) {
+func TestExecOS_Output_Windows(t *testing.T) {
 	t.Parallel()
 
 	out, err := vexec.Output(vexec.NewOSExec(), t.Context(), "cmd", "/C", "echo hello")
@@ -26,7 +26,7 @@ func TestOSExec_Output_Windows(t *testing.T) {
 	assert.Equal(t, "hello", strings.TrimSpace(string(out)))
 }
 
-func TestOSExec_LookPath_Windows(t *testing.T) {
+func TestExecOS_LookPath_Windows(t *testing.T) {
 	t.Parallel()
 
 	e := vexec.NewOSExec()
@@ -40,7 +40,7 @@ func TestOSExec_LookPath_Windows(t *testing.T) {
 	assert.ErrorIs(t, err, exec.ErrNotFound)
 }
 
-func TestOSExec_ExitCode_Windows(t *testing.T) {
+func TestExecOS_ExitCode_Windows(t *testing.T) {
 	t.Parallel()
 
 	err := vexec.Run(vexec.NewOSExec(), t.Context(), "cmd", "/C", "exit 3")
@@ -49,7 +49,7 @@ func TestOSExec_ExitCode_Windows(t *testing.T) {
 	assert.Equal(t, 3, vexec.ExitCode(err))
 }
 
-func TestOSExec_StartWait_Windows(t *testing.T) {
+func TestExecOS_StartWait_Windows(t *testing.T) {
 	t.Parallel()
 
 	var stdout, stderr bytes.Buffer
@@ -67,7 +67,7 @@ func TestOSExec_StartWait_Windows(t *testing.T) {
 	assert.True(t, cmd.ProcessState().Success())
 }
 
-func TestOSExec_CombinedOutput_Windows(t *testing.T) {
+func TestExecOS_CombinedOutput_Windows(t *testing.T) {
 	t.Parallel()
 
 	out, err := vexec.NewOSExec().
@@ -80,7 +80,7 @@ func TestOSExec_CombinedOutput_Windows(t *testing.T) {
 	assert.Contains(t, string(out), "err")
 }
 
-func TestOSExec_SetDir_Windows(t *testing.T) {
+func TestExecOS_SetDir_Windows(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -98,7 +98,7 @@ func TestOSExec_SetDir_Windows(t *testing.T) {
 	)
 }
 
-func TestOSExec_SetEnv_Windows(t *testing.T) {
+func TestExecOS_SetEnv_Windows(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -112,7 +112,7 @@ func TestOSExec_SetEnv_Windows(t *testing.T) {
 	assert.Equal(t, "bar", strings.TrimSpace(buf.String()))
 }
 
-func TestOSExec_SetStdin_Windows(t *testing.T) {
+func TestExecOS_SetStdin_Windows(t *testing.T) {
 	t.Parallel()
 
 	var stdout bytes.Buffer
@@ -126,7 +126,7 @@ func TestOSExec_SetStdin_Windows(t *testing.T) {
 	assert.Equal(t, "hello from stdin", strings.TrimSpace(stdout.String()))
 }
 
-func TestParity_OSVsMem_Windows(t *testing.T) {
+func TestExecParity_OSVsMem_Windows(t *testing.T) {
 	t.Parallel()
 
 	runParityCases(t, []parityCase{
