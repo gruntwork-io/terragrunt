@@ -1,6 +1,8 @@
 package providercache_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -48,6 +50,17 @@ func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
 
 func TestProviderCache(t *testing.T) {
 	t.Parallel()
+
+	testProviderCache(t, vhttp.NewMemClient(registryHandler(t)))
+}
+
+// testProviderCache drives the provider cache server through discovery,
+// version listing, and provider download over c. The default build passes an
+// in-memory client synthesizing registry.terraform.io; the http-tagged
+// variant passes an OS client so the same scenarios run against the real
+// registry.
+func testProviderCache(t *testing.T, c vhttp.Client) {
+	t.Helper()
 
 	token := fmt.Sprintf("%s:%s", providercache.APIKeyAuth, uuid.New().String())
 
@@ -118,9 +131,9 @@ func TestProviderCache(t *testing.T) {
 			errGroup, ctx := errgroup.WithContext(ctx)
 			l := logger.CreateLogger()
 
-			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
-			providerHandler := handlers.NewDirectProviderHandler(l, vhttp.NewOSClient(), new(cliconfig.ProviderInstallationDirect), nil)
-			proxyProviderHandler := handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)
+			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l, services.WithHTTPClient(c))
+			providerHandler := handlers.NewDirectProviderHandler(l, c, new(cliconfig.ProviderInstallationDirect), nil)
+			proxyProviderHandler := handlers.NewProxyProviderHandler(l, c, nil)
 
 			tc.opts = append(tc.opts,
 				cache.WithProviderService(providerService),
@@ -180,6 +193,73 @@ func TestProviderCache(t *testing.T) {
 			require.NoError(t, errGroup.Wait())
 		})
 	}
+}
+
+// registryHandler synthesizes the slice of the provider registry protocol the
+// cache server exercises: service discovery, version listings, platform
+// download documents, and the release archives themselves. Anything else gets
+// a 404, which is also what the real registry returns for the fabricated
+// 1234.5678.9 version — the cache must then fall back to the user plugin dir.
+func registryHandler(t *testing.T) vhttp.Handler {
+	t.Helper()
+
+	const downloadJSONFmt = `{"os":%q,"arch":%q,"filename":%q,"download_url":"https://releases.hashicorp.com%s"}`
+
+	const (
+		awsZipPath      = "/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"
+		templateZipPath = "/terraform-provider-template/2.2.0/terraform-provider-template_2.2.0_linux_amd64.zip"
+	)
+
+	jsonByPath := map[string]string{
+		"/.well-known/terraform.json": `{"providers.v1":"/v1/providers"}`,
+		"/v1/providers/hashicorp/aws/versions": `{"versions":[` +
+			`{"version":"5.36.0","protocols":["5.0"],"platforms":[{"os":"darwin","arch":"arm64"}]}]}`,
+		"/v1/providers/hashicorp/aws/5.36.0/download/darwin/arm64": fmt.Sprintf(downloadJSONFmt,
+			"darwin", "arm64", filepath.Base(awsZipPath), awsZipPath),
+		"/v1/providers/hashicorp/template/2.2.0/download/linux/amd64": fmt.Sprintf(downloadJSONFmt,
+			"linux", "amd64", filepath.Base(templateZipPath), templateZipPath),
+	}
+
+	zipByPath := map[string][]byte{
+		awsZipPath:      zipWithFile(t, "terraform-provider-aws_v5.36.0_x5"),
+		templateZipPath: zipWithFile(t, "terraform-provider-template_v2.2.0_x4"),
+	}
+
+	return func(_ context.Context, req *http.Request) (*http.Response, error) {
+		switch req.URL.Host {
+		case "registry.terraform.io":
+			if body, ok := jsonByPath[req.URL.Path]; ok {
+				return vhttp.Respond(http.StatusOK, []byte(body),
+					http.Header{"Content-Type": []string{"application/json"}}), nil
+			}
+		case "releases.hashicorp.com":
+			if body, ok := zipByPath[req.URL.Path]; ok {
+				return vhttp.Respond(http.StatusOK, body,
+					http.Header{"Content-Type": []string{"application/zip"}}), nil
+			}
+		}
+
+		return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+	}
+}
+
+// zipWithFile builds an in-memory zip archive holding a single file, standing
+// in for a provider release archive.
+func zipWithFile(t *testing.T, name string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	zw := zip.NewWriter(&buf)
+
+	w, err := zw.Create(name)
+	require.NoError(t, err)
+
+	_, err = w.Write([]byte("fake provider binary"))
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+
+	return buf.Bytes()
 }
 
 func TestProviderCacheHomeless(t *testing.T) {
