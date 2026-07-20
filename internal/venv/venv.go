@@ -37,6 +37,9 @@ var ErrVenvFSUnset = errors.New("venv.Venv.FS is required but unset")
 // ErrVenvGOOSUnset is the panic value [Venv.RequireGOOS] raises when GOOS is empty.
 var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset")
 
+// ErrVenvExecUnset is the panic value [Venv.RequireExec] raises when Exec is nil.
+var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
+
 // ErrVenvUserHomeDirUnset is the panic value [Venv.RequireUserHomeDir] raises
 // when UserHomeDir is nil.
 var ErrVenvUserHomeDirUnset = errors.New("venv.Venv.Platform.UserHomeDir is required but unset")
@@ -172,6 +175,14 @@ func (v Venv) RequireFS() {
 func (v Venv) RequireGOOS() {
 	if v.Platform == nil || v.Platform.GOOS == "" {
 		panic(ErrVenvGOOSUnset)
+	}
+}
+
+// RequireExec panics with [ErrVenvExecUnset] when Exec is nil, guarding
+// functions that dispatch external processes.
+func (v Venv) RequireExec() {
+	if v.Exec == nil {
+		panic(ErrVenvExecUnset)
 	}
 }
 
