@@ -31,9 +31,9 @@ search order OpenTofu uses. Static credentials can be limited to one registry wi
 `TG_TMP_OCI_REGISTRY`; other registries then fall back to ambient discovery.
 Without it, the static credentials may be offered to any registry the process
 contacts, so scope them or avoid setting them when talking to unrelated or
-untrusted registries. Credential helpers (such as `ecr-login`)
-are not invoked yet, so registries that need per-run token minting only work
-while an externally obtained login is present in an ambient file. When the
+untrusted registries. Credential helpers configured in the Docker config (`credHelpers` and
+`credsStore`, such as `ecr-login`) are invoked and re-minted on every run, so
+ECR and other helper-backed registries work without a baked-in login. When the
 experiment is disabled, `oci://` sources remain unsupported.
 
 ### `oci` - How to enable it
@@ -63,7 +63,7 @@ To transition the `oci` feature to a stable release, the following must be addre
 
 - [x] A getter that resolves `oci://` sources, selecting the `application/vnd.opentofu.modulepkg` artifact and its `archive/zip` layer, with blob digest verification.
 - [x] Static and ambient Docker-config credential discovery matching OpenTofu's search order.
-- [ ] Credential-helper support (`docker-credential-*`, `ecr-login`) so ECR and other helper-backed registries work with per-run token minting.
+- [x] Credential-helper support (`docker-credential-*`, `ecr-login`) so ECR and other helper-backed registries work with per-run token minting.
 - [ ] Content-addressable caching keyed on the resolved manifest digest, with correct re-resolution of mutable tags.
 - [ ] A portability guarantee that one source string produces an identical module via `tofu` and Terragrunt.
 - [ ] Documentation covering the source syntax, authentication tiers, and publishing contract.
