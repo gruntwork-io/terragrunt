@@ -229,10 +229,11 @@ func (v Venv) RequireUserHomeDir() {
 // streams.
 //
 // It returns a *[Venv] so the bundle is threaded by pointer through every
-// downstream call — small parameter, no copying, and shallow-copying a
-// pointed-to [Venv] (via `local := *v`) yields an independent value that
-// callers can mutate (Env, Writers via [writer.Writers.WithWriter]) without
-// affecting the original.
+// downstream call — small parameter, no copying. Shallow-copying a
+// pointed-to [Venv] (via `local := *v`) still shares the Env map with the
+// original, so callers must go through [Venv.WithEnvCloned] before mutating
+// environment variables; writer swaps stay independent because
+// [writer.Writers.WithWriter] returns a fresh copy.
 func OSVenv() *Venv {
 	return &Venv{
 		FS:   vfs.NewOSFS(),

@@ -809,6 +809,7 @@ func runTerraformInitRunCfg(
 		l.Warnf(
 			"Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.",
 		)
+
 		return nil
 	}
 

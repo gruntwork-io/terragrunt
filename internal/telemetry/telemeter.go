@@ -21,7 +21,12 @@ type Telemeter struct {
 // enableLogs (wired to the otel-logs experiment) and stays inert when disabled,
 // regardless of any configured logs exporter.
 func NewTelemeter(
-	ctx context.Context, l log.Logger, appName, appVersion string, writer io.Writer, opts *Options, enableLogs bool,
+	ctx context.Context,
+	l log.Logger,
+	appName, appVersion string,
+	writer io.Writer,
+	opts *Options,
+	enableLogs bool,
 ) (*Telemeter, error) {
 	tlm := &Telemeter{l: l}
 
@@ -136,7 +141,9 @@ func (tlm *Telemeter) Collect(
 
 // WithoutLogger adapts a logger-less callback to [Telemeter.Collect]'s
 // signature, for pure-data spans that have no logger to correlate.
-func WithoutLogger(fn func(ctx context.Context) error) func(ctx context.Context, l log.Logger) error {
+func WithoutLogger(
+	fn func(ctx context.Context) error,
+) func(ctx context.Context, l log.Logger) error {
 	return func(ctx context.Context, _ log.Logger) error {
 		return fn(ctx)
 	}

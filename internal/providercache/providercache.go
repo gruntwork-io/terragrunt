@@ -149,6 +149,8 @@ func (pc *ProviderCache) Init(
 		return err
 	}
 
+	v.RequireHTTP()
+
 	providerService := services.NewProviderService(
 		pcOpts.Dir,
 		userProviderDir,
@@ -681,42 +683,10 @@ func (pc *ProviderCache) runTerraformCommand(
 		l,
 		log.DebugLevel,
 		func(ctx context.Context) error {
-			errWriter := util.NewTrapWriter(v.Writers.ErrWriter)
-
-			cmdV := v.WithWriter(io.Discard).WithErrWriter(errWriter)
-
-			output, cmdErr := tf.RunCommandWithOutput(
-				ctx,
-				l,
-				&cmdV,
-				newTFOpts,
-				newCliArgs.Slice()...)
+			output, attemptErr := runProviderLockAttempt(ctx, l, v, newTFOpts)
 			finalOutput = output
 
-			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),
-			// it means success - the cache recorded the request
-			if cmdErr != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
-				return nil
-			}
-
-			if cmdErr != nil {
-				if isRegistryTimeoutError(output.Stderr.Bytes()) {
-					return cmdErr
-				}
-
-				err := errWriter.Flush()
-				if err != nil {
-					l.Warnf("Failed to flush stderr: %v", err)
-				}
-
-				return util.FatalError{Underlying: cmdErr}
-			}
-
-			if flushErr := errWriter.Flush(); flushErr != nil {
-				return util.FatalError{Underlying: flushErr}
-			}
-
-			return nil
+			return attemptErr
 		},
 	)
 	if err != nil {
@@ -729,6 +699,54 @@ func (pc *ProviderCache) runTerraformCommand(
 	}
 
 	return finalOutput, nil
+}
+
+// runProviderLockAttempt performs one `providers lock` run against the cache
+// server, classifying the outcome for the retry loop in
+// [ProviderCache.runTerraformCommand]: a 423 Locked response counts as
+// success, registry timeouts stay retryable, and anything else becomes a
+// [util.FatalError] that stops further attempts.
+func runProviderLockAttempt(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	tfOpts *tf.TFOptions,
+) (*util.CmdOutput, error) {
+	errWriter := util.NewTrapWriter(v.Writers.ErrWriter)
+
+	cmdV := v.WithWriter(io.Discard).WithErrWriter(errWriter)
+
+	output, cmdErr := tf.RunCommandWithOutput(
+		ctx,
+		l,
+		&cmdV,
+		tfOpts,
+		tfOpts.TerraformCliArgs.Slice()...)
+
+	// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),
+	// it means success - the cache recorded the request
+	if cmdErr != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
+		return output, nil
+	}
+
+	if cmdErr != nil {
+		if isRegistryTimeoutError(output.Stderr.Bytes()) {
+			return output, cmdErr
+		}
+
+		err := errWriter.Flush()
+		if err != nil {
+			l.Warnf("Failed to flush stderr: %v", err)
+		}
+
+		return output, util.FatalError{Underlying: cmdErr}
+	}
+
+	if flushErr := errWriter.Flush(); flushErr != nil {
+		return output, util.FatalError{Underlying: flushErr}
+	}
+
+	return output, nil
 }
 
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.

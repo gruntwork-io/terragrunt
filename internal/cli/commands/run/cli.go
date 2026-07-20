@@ -55,7 +55,11 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	return cmd
 }
 
-func NewSubcommands(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
+func NewSubcommands(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v *venv.Venv,
+) clihelper.Commands {
 	var subcommands = make(clihelper.Commands, len(tf.CommandNames))
 
 	for i, name := range tf.CommandNames {

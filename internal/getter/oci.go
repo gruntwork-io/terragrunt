@@ -130,7 +130,11 @@ type OCIManifestMediaTypeError struct {
 }
 
 func (err OCIManifestMediaTypeError) Error() string {
-	return fmt.Sprintf("unexpected manifest media type %q, expected %q", err.MediaType, ociv1.MediaTypeImageManifest)
+	return fmt.Sprintf(
+		"unexpected manifest media type %q, expected %q",
+		err.MediaType,
+		ociv1.MediaTypeImageManifest,
+	)
 }
 
 // OCIManifestSizeError reports a manifest descriptor whose declared size is
@@ -140,7 +144,11 @@ type OCIManifestSizeError struct {
 }
 
 func (err OCIManifestSizeError) Error() string {
-	return fmt.Sprintf("manifest size %d is outside the accepted range (0, %d]", err.Size, ociMaxManifestSize)
+	return fmt.Sprintf(
+		"manifest size %d is outside the accepted range (0, %d]",
+		err.Size,
+		ociMaxManifestSize,
+	)
 }
 
 // OCIArtifactTypeError reports a manifest whose artifact type is not the
@@ -150,7 +158,11 @@ type OCIArtifactTypeError struct {
 }
 
 func (err OCIArtifactTypeError) Error() string {
-	return fmt.Sprintf("unexpected artifact type %q, expected %q", err.ArtifactType, ArtifactTypeModulePkg)
+	return fmt.Sprintf(
+		"unexpected artifact type %q, expected %q",
+		err.ArtifactType,
+		ArtifactTypeModulePkg,
+	)
 }
 
 // OCILayerCountError reports a manifest that does not contain exactly one
@@ -169,7 +181,11 @@ type OCILayerSizeError struct {
 }
 
 func (err OCILayerSizeError) Error() string {
-	return fmt.Sprintf("layer size %d is outside the accepted range (0, %d]", err.Size, ociMaxLayerSize)
+	return fmt.Sprintf(
+		"layer size %d is outside the accepted range (0, %d]",
+		err.Size,
+		ociMaxLayerSize,
+	)
 }
 
 // OCIRestoreError reports a failed destination swap whose previous contents could not be put back.
@@ -182,7 +198,9 @@ type OCIRestoreError struct {
 func (err OCIRestoreError) Error() string {
 	return fmt.Sprintf(
 		"moving module into destination failed: %v; restoring the previous contents failed: %v; backup retained at %s",
-		err.PromoteErr, err.RestoreErr, err.BackupPath,
+		err.PromoteErr,
+		err.RestoreErr,
+		err.BackupPath,
 	)
 }
 
@@ -287,7 +305,12 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 
 	store, err := g.NewStore(ctx, registryDomain, repositoryName)
 	if err != nil {
-		return fmt.Errorf("creating OCI repository store for %s/%s: %w", registryDomain, repositoryName, err)
+		return fmt.Errorf(
+			"creating OCI repository store for %s/%s: %w",
+			registryDomain,
+			repositoryName,
+			err,
+		)
 	}
 
 	layer, err := resolveModuleZipLayer(ctx, store, ref)
@@ -302,7 +325,9 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 	if layer.Size > ociLayerSizeWarnThreshold {
 		g.Logger.Warnf(
 			"OCI layer %s declares %d bytes, above the %d byte threshold; downloading it may be slow",
-			layer.Digest, layer.Size, ociLayerSizeWarnThreshold,
+			layer.Digest,
+			layer.Size,
+			ociLayerSizeWarnThreshold,
 		)
 	}
 
@@ -410,7 +435,11 @@ func ociRefFromQuery(queryValues url.Values) (string, error) {
 
 // resolveModuleZipLayer resolves ref to a manifest, enforces the module
 // package contract, and returns the single module-zip layer descriptor.
-func resolveModuleZipLayer(ctx context.Context, store OCIRepositoryStore, ref string) (ociv1.Descriptor, error) {
+func resolveModuleZipLayer(
+	ctx context.Context,
+	store OCIRepositoryStore,
+	ref string,
+) (ociv1.Descriptor, error) {
 	manifestDesc, err := store.Resolve(ctx, ref)
 	if err != nil {
 		return ociv1.Descriptor{}, fmt.Errorf("resolving OCI reference %q: %w", ref, err)
@@ -426,17 +455,29 @@ func resolveModuleZipLayer(ctx context.Context, store OCIRepositoryStore, ref st
 
 	manifestReader, err := store.Fetch(ctx, &manifestDesc)
 	if err != nil {
-		return ociv1.Descriptor{}, fmt.Errorf("fetching OCI manifest %s: %w", manifestDesc.Digest, err)
+		return ociv1.Descriptor{}, fmt.Errorf(
+			"fetching OCI manifest %s: %w",
+			manifestDesc.Digest,
+			err,
+		)
 	}
 
 	manifestBytes, readErr := content.ReadAll(manifestReader, manifestDesc)
 	if err := errors.Join(readErr, manifestReader.Close()); err != nil {
-		return ociv1.Descriptor{}, fmt.Errorf("fetching OCI manifest %s: %w", manifestDesc.Digest, err)
+		return ociv1.Descriptor{}, fmt.Errorf(
+			"fetching OCI manifest %s: %w",
+			manifestDesc.Digest,
+			err,
+		)
 	}
 
 	var manifest ociv1.Manifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return ociv1.Descriptor{}, fmt.Errorf("parsing OCI manifest %s: %w", manifestDesc.Digest, err)
+		return ociv1.Descriptor{}, fmt.Errorf(
+			"parsing OCI manifest %s: %w",
+			manifestDesc.Digest,
+			err,
+		)
 	}
 
 	if manifest.MediaType != "" && manifest.MediaType != ociv1.MediaTypeImageManifest {
@@ -509,7 +550,10 @@ func (g *OCIGetter) fetchModuleZip(
 }
 
 // extractModule expands the module zip under the shipped extraction bounds.
-func (g *OCIGetter) extractModule(zipPath, subDir, dstPath, source string, umask os.FileMode) error {
+func (g *OCIGetter) extractModule(
+	zipPath, subDir, dstPath, source string,
+	umask os.FileMode,
+) error {
 	sizeLimit := ociMaxDecompressedSize
 	if g.MaxDecompressedSize > 0 {
 		sizeLimit = g.MaxDecompressedSize
@@ -549,7 +593,11 @@ func (g *OCIGetter) extractModuleWithLimits(
 
 	defer func() {
 		if keepStaging {
-			g.Logger.Warnf("Keeping staging directory %s: it holds the previous module contents", staging)
+			g.Logger.Warnf(
+				"Keeping staging directory %s: it holds the previous module contents",
+				staging,
+			)
+
 			return
 		}
 
@@ -610,7 +658,11 @@ func (g *OCIGetter) promoteModule(staging, sourcePath, dstPath string) error {
 		}
 
 		if restoreErr := g.FS.Rename(backupPath, dstPath); restoreErr != nil {
-			return OCIRestoreError{PromoteErr: promoteErr, RestoreErr: restoreErr, BackupPath: backupPath}
+			return OCIRestoreError{
+				PromoteErr: promoteErr,
+				RestoreErr: restoreErr,
+				BackupPath: backupPath,
+			}
 		}
 
 		return promoteErr

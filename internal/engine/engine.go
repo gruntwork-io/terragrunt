@@ -330,6 +330,8 @@ func downloadEngine(
 		// identify engine version if not specified
 		if len(e.Version) == 0 {
 			if !isDirectURL(e.Source) {
+				v.RequireHTTP()
+
 				tag, err := lastReleaseVersion(ctx, v.HTTP, execOptions)
 				if err != nil {
 					return err

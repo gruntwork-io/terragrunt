@@ -281,7 +281,10 @@ func checkUnitVersionConstraints(
 		terraformVersionConstraint = unitConfig.TerraformVersionConstraint
 	}
 
-	if err := run.CheckTerraformVersionMeetsConstraint(unitOpts.TerraformVersion, terraformVersionConstraint); err != nil {
+	if err := run.CheckTerraformVersionMeetsConstraint(
+		unitOpts.TerraformVersion,
+		terraformVersionConstraint,
+	); err != nil {
 		return fmt.Errorf("terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
 	}
 

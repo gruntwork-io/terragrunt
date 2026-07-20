@@ -198,25 +198,26 @@ func (d *Discovery) Discover(
 		components = filtered
 	}
 
-	cycleCheckErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "discovery_cycle_check", map[string]any{},
-		func(childCtx context.Context, l log.Logger) error {
-			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
-				l.Debugf("Cycle: %v", cycleErr)
+	cycleCheckErr := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "discovery_cycle_check", map[string]any{},
+			func(childCtx context.Context, l log.Logger) error {
+				if _, cycleErr := components.CycleCheck(); cycleErr != nil {
+					l.Debugf("Cycle: %v", cycleErr)
 
-				if d.breakCycles {
-					l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+					if d.breakCycles {
+						l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-					var removeErr error
+						var removeErr error
 
-					components, removeErr = removeCycles(components)
-					if removeErr != nil {
-						return removeErr
+						components, removeErr = removeCycles(components)
+						if removeErr != nil {
+							return removeErr
+						}
 					}
 				}
-			}
 
-			return nil
-		})
+				return nil
+			})
 
 	if cycleCheckErr != nil && !d.suppressParseErrors {
 		return components, cycleCheckErr

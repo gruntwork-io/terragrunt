@@ -46,10 +46,14 @@ var ociDockerHubRegistries = []string{
 }
 
 // ErrOCIStaticCredentialConflict reports both a token and a username or password set.
-var ErrOCIStaticCredentialConflict = errors.New("cannot set both a token and a username or password for oci sources")
+var ErrOCIStaticCredentialConflict = errors.New(
+	"cannot set both a token and a username or password for oci sources",
+)
 
 // ErrOCIStaticCredentialIncomplete reports a username without a password, or the reverse.
-var ErrOCIStaticCredentialIncomplete = errors.New("oci static credentials require both a username and a password")
+var ErrOCIStaticCredentialIncomplete = errors.New(
+	"oci static credentials require both a username and a password",
+)
 
 // OCIRemoteStore adapts oras' by-value Fetch to the pointer-taking [OCIRepositoryStore] seam.
 type OCIRemoteStore struct {
@@ -217,7 +221,12 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 			// registry-wide one and no other namespace's entry can answer.
 			for _, key := range ociCredentialKeys(hostport, repositoryName) {
 				for _, ambient := range stores {
-					if cred := ociCredentialFromAmbientStore(ctx, l, ambient, key); cred != auth.EmptyCredential {
+					if cred := ociCredentialFromAmbientStore(
+						ctx,
+						l,
+						ambient,
+						key,
+					); cred != auth.EmptyCredential {
 						return cred, nil
 					}
 				}
@@ -358,7 +367,10 @@ func ociCanonicalAuthKey(key string) string {
 }
 
 // ociAuthFile reads an auth file through v.FS and builds its exact-key index.
-func ociAuthFile(v venv.Venv, path string) (map[string]json.RawMessage, map[string][]string, error) {
+func ociAuthFile(
+	v venv.Venv,
+	path string,
+) (map[string]json.RawMessage, map[string][]string, error) {
 	data, err := vfs.ReadFile(v.FS, path)
 	if err != nil {
 		return nil, nil, err
@@ -385,7 +397,10 @@ func ociAuthFile(v venv.Venv, path string) (map[string]json.RawMessage, map[stri
 
 // ociCredentialFromAuthConfig delegates one selected entry to ORAS's Docker
 // config decoder without letting ORAS normalize the file's real lookup key.
-func ociCredentialFromAuthConfig(ctx context.Context, raw json.RawMessage) (auth.Credential, error) {
+func ociCredentialFromAuthConfig(
+	ctx context.Context,
+	raw json.RawMessage,
+) (auth.Credential, error) {
 	const syntheticKey = "terragrunt.invalid"
 
 	data, err := json.Marshal(struct {

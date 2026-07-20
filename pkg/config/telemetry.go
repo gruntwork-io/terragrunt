@@ -57,7 +57,8 @@ func TraceParseConfigFile(
 		attrs[AttrIncludeChildPath] = includeFromChild.Path
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, TelemetryOpParseConfigFile, attrs, fn)
+	return telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, TelemetryOpParseConfigFile, attrs, fn)
 }
 
 // TraceParseDependencies wraps dependency parsing with telemetry.
@@ -80,7 +81,8 @@ func TraceParseDependencies(
 		attrs[AttrDependencyNames] = strings.Join(dependencyNames, ",")
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, TelemetryOpParseDependencies, attrs, fn)
+	return telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, TelemetryOpParseDependencies, attrs, fn)
 }
 
 // formatDecodeList converts a slice of PartialDecodeSectionType to a comma-separated string.
