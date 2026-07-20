@@ -154,7 +154,8 @@ func TestRegistryGetterWithoutVersion(t *testing.T) {
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
 	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
-	// No ?version= — getter resolves latest (3.3.0) via the versions endpoint.
+	// With no ?version= query, the getter resolves the latest version (4.0.0)
+	// via the versions endpoint.
 	src := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
 	client := newRegistryTestClient(t, server.Client(), tfimpl.Terraform)
 
