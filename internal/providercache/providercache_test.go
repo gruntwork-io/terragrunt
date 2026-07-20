@@ -297,9 +297,11 @@ type fakeRegistryRoute struct {
 
 // newFakeRegistryServer starts an in-process provider registry that serves
 // versions metadata, download metadata, archives and checksums for the
-// providers requested by TestProviderCache, so caching test cases never make
-// requests outside localhost. Unknown paths, such as versions that do not
-// exist upstream, get 404 responses.
+// providers requested by TestProviderCache, so the direct-handler test cases
+// never make requests outside localhost. The proxy test case keeps its own
+// discovery cache and still performs live discovery against
+// registry.terraform.io. Unknown paths, such as versions that do not exist
+// upstream, get 404 responses.
 func newFakeRegistryServer(t *testing.T) *httptest.Server {
 	t.Helper()
 

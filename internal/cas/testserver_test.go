@@ -2,6 +2,7 @@ package cas_test
 
 import (
 	"context"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -15,9 +16,11 @@ import (
 // startStackTestServer, if any test started them, once the package's
 // tests finish.
 func TestMain(m *testing.M) {
-	defer closeSharedServers()
+	code := m.Run()
 
-	m.Run()
+	closeSharedServers()
+
+	os.Exit(code)
 }
 
 // newEmptyTestServer creates a Server that the caller can populate

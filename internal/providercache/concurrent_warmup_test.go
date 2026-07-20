@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
@@ -170,6 +171,10 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	reqGroup, reqCtx := errgroup.WithContext(ctx)
 
+	// A bounded client keeps a stuck cache server from hanging the test
+	// until the suite timeout.
+	client := &http.Client{Timeout: 30 * time.Second}
+
 	for i := range concurrentWarmupRequests {
 		reqGroup.Go(func() error {
 			req, err := http.NewRequestWithContext(
@@ -184,7 +189,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 			req.Header.Set("Authorization", "Bearer "+token)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := client.Do(req)
 			if err != nil {
 				return err
 			}

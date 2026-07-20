@@ -43,8 +43,13 @@ func NewGenerator() *Generator {
 
 // WithMaxLevel returns the Generator with its nested stack-generation cap set
 // to maxLevel, replacing [DefaultMaxLevel]. Tests use it to trip cycle
-// detection quickly.
+// detection quickly. Non-positive values are ignored: a cap below one would
+// silently skip generation instead of detecting a cycle.
 func (g *Generator) WithMaxLevel(maxLevel int) *Generator {
+	if maxLevel < 1 {
+		return g
+	}
+
 	g.maxLevel = maxLevel
 
 	return g
