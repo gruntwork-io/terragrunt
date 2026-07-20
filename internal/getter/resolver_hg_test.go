@@ -203,8 +203,9 @@ func TestHgResolver_AcceptsRevWithShellMetacharacters(t *testing.T) {
 // actual hg binary when it is installed. It uses a freshly-initialized
 // repository on disk so the test does not reach the network. The
 // assertion pins the resolver's key against a ContentKey derived
-// from the full 40-char node hash; this regresses if the resolver
-// reverts to `--id`'s 12-char short form.
+// from the full 40-char node hash reported by `hg --debug commit`;
+// this regresses if the resolver reverts to `--id`'s 12-char short
+// form.
 func TestHgResolver_AgainstRealHg(t *testing.T) {
 	t.Parallel()
 
@@ -214,30 +215,43 @@ func TestHgResolver_AgainstRealHg(t *testing.T) {
 
 	repoDir := t.TempDir()
 
-	hg := func(args ...string) {
+	hg := func(args ...string) string {
 		cmd := exec.CommandContext(t.Context(), "hg", args...)
 		cmd.Dir = repoDir
 
 		out, err := cmd.CombinedOutput()
 		require.NoErrorf(t, err, "hg %v failed: %s", args, string(out))
+
+		return string(out)
 	}
 
 	hg("init", ".")
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "main.tf"), []byte("hello\n"), 0o644))
-	hg("--config", "ui.username=test <test@test>", "commit", "-A", "-m", "initial")
 
-	// Independently query the full 40-char node hash so the assertion
-	// reflects what the resolver should be folding into the key.
-	nodeCmd := exec.CommandContext(t.Context(), "hg", "identify", "--template", "{node}\n", repoDir)
-	out, err := nodeCmd.Output()
-	require.NoError(t, err)
+	// `--debug commit` prints `committed changeset 0:<40-hex-node>`,
+	// which yields the full node hash without a separate `hg identify`
+	// spawn.
+	commitOut := hg("--debug", "--config", "ui.username=test <test@test>", "commit", "-A", "-m", "initial")
 
-	fullNode := strings.TrimSpace(string(out))
-	require.Len(t, fullNode, 40, "hg must emit a 40-char node hash with --template '{node}'")
+	var fullNode string
+
+	for line := range strings.Lines(commitOut) {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "committed changeset ")
+		if !ok {
+			continue
+		}
+
+		_, node, found := strings.Cut(rest, ":")
+		require.True(t, found, "committed changeset line must have rev:node form")
+
+		fullNode = node
+	}
+
+	require.Len(t, fullNode, 40, "hg --debug commit must report a full 40-char node hash")
 
 	r := getter.NewHgResolver()
 
-	got, err := r.Probe(t.Context(), repoDir)
+	got, err := r.Probe(t.Context(), repoDir+"?rev=tip")
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("hg-node", fullNode), got)
 }

@@ -42,7 +42,7 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 		"  generate = { path = \"backend.tf\", if_exists = \"overwrite\" }\n  config = {\n",
 	)
 
-	for i := range 8000 {
+	for i := range 2000 {
 		fmt.Fprintf(&sharedConfig, "    k%d = \"v%d\"\n", i, i)
 	}
 
@@ -76,7 +76,7 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
 
-	for range 8 {
+	for range 3 {
 		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)

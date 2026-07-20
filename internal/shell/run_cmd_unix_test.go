@@ -30,7 +30,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	l := logger.CreateLogger()
 
 	errCh := make(chan error)
-	expectedWait := 2
+	expectedWait := 1
 
 	ctx, cancel := context.WithCancelCause(t.Context())
 
@@ -56,7 +56,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 		errCh <- err
 	}()
 
-	time.AfterFunc(time.Second, func() {
+	time.AfterFunc(500*time.Millisecond, func() {
 		cancel(signal.NewContextCanceledError(syscall.SIGINT))
 	})
 

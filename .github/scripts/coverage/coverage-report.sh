@@ -146,6 +146,9 @@ cmd_timing() {
 				)
 			end
 		)
+		# No-test packages still emit a synthetic pass event with a nonzero
+		# Elapsed; drop them so only packages that ran tests get a wall_sec.
+		| .packages |= with_entries(select(.value.tests | length > 0))
 		| .total_sec = ([.packages[].wall_sec] | add // 0)
 		| . + {generated_at: $ts, commit: $commit, ref: $ref}
 	' "$events" >"$output"
@@ -385,7 +388,9 @@ cmd_compare_timing() {
 			}
 		)) as $slow_packages |
 
-		([$pkg_diff[] | select(.delta_sec != null and .delta_sec > 0)]
+		([$pkg_diff[]
+		 | select(.delta_sec != null and .delta_sec >= 1)
+		 | select(.previous_sec == 0 or (.delta_sec / .previous_sec) >= 0.2)]
 		 | sort_by(-.delta_sec) | .[:5] | map({
 			package: .package,
 			current_sec: .current_sec,
