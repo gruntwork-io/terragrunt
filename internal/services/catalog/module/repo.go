@@ -37,6 +37,12 @@ const (
 	cloneCompleteSentinel = ".catalog-clone-complete"
 )
 
+// ErrRemoteCloneFSNotOS is returned when a remote clone is attempted through
+// a non-OS filesystem. The clone runs through go-getter, which writes to the
+// real OS, so the sentinel and repo state tracked through v.FS would never
+// converge with the cloned files.
+var ErrRemoteCloneFSNotOS = errors.New("remote clone requires an OS-backed filesystem")
+
 var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
 	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+)[^/]*?(?:\.git)?$`)
@@ -80,7 +86,8 @@ type RepoOpts struct {
 // pre-populate a fake repo (with .git/config and .git/HEAD) in memory may
 // pass an in-memory bundle. Note that performing an actual remote clone
 // (i.e. CloneURL is a URL, not a local path) requires the OS filesystem
-// because the underlying go-getter writes through the real OS.
+// because the underlying go-getter writes through the real OS; such a
+// clone returns [ErrRemoteCloneFSNotOS] on any other filesystem.
 func NewRepo(ctx context.Context, l log.Logger, v venv.Venv, opts *RepoOpts) (*Repo, error) {
 	if opts == nil {
 		opts = &RepoOpts{}
@@ -472,6 +479,10 @@ func (repo *Repo) performClone(
 	v venv.Venv,
 	opts *CloneOptions,
 ) error {
+	if !vfs.IsOSFS(v.FS) {
+		return ErrRemoteCloneFSNotOS
+	}
+
 	var clientOpts []getter.Option
 
 	if repo.allowCAS {
