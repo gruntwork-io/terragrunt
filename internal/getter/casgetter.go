@@ -9,9 +9,11 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ErrDirectoryNotFound is returned when CASGetter cannot stat a local source.
@@ -26,7 +28,7 @@ type CASGetter struct {
 	CAS         *cas.CAS
 	Logger      log.Logger
 	Opts        *cas.CloneOptions
-	Venv        cas.Venv
+	Venv        venv.Venv
 	fetchers    map[string]getter.Getter
 	resolvers   map[string]cas.SourceResolver
 	innerClient InnerClientBuilder
@@ -95,20 +97,20 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 // [WithGenericFetchers] + [WithGenericResolvers]) to enable the non-git
 // dispatch path.
 //
-// Requires v.FS and v.Git: the file-path branch in Detect stats through
-// v.FS, and the git-path branch in Get clones through v.Git. Panics
-// with [cas.ErrVenvFSUnset] or [cas.ErrVenvGitUnset] respectively when
-// either is nil. Production callers build v through [cas.OSVenv], which
-// always supplies both.
+// Requires v.FS and v.Exec: the file-path branch in Detect stats through
+// v.FS, and the git-path branch in Get clones through a runner derived
+// from v.Exec. Panics with [venv.ErrVenvFSUnset] or [venv.ErrVenvExecUnset]
+// respectively when either is nil. Production callers thread the root
+// [venv.Venv], which always supplies both.
 func NewCASGetter(
 	l log.Logger,
 	c *cas.CAS,
-	v cas.Venv,
+	v venv.Venv,
 	opts *cas.CloneOptions,
 	options ...CASGetterOption,
 ) *CASGetter {
 	v.RequireFS()
-	v.RequireGit()
+	v.RequireExec()
 
 	if opts == nil {
 		opts = &cas.CloneOptions{}
@@ -463,7 +465,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 // their validScheme; without this the inner client falls through with a
 // generic "error downloading".
 func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) cas.SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v cas.Venv, suggestedKey string) (string, error) {
+	return func(ctx context.Context, l log.Logger, v venv.Venv, suggestedKey string) (string, error) {
 		tempDir, cleanup, err := g.CAS.MakeFetchTempDir(l, v)
 		if err != nil {
 			return "", err

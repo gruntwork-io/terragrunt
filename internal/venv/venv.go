@@ -10,7 +10,7 @@
 //
 // This is the one Venv type threaded through the codebase. A package may
 // define its own local Venv only when its handle set genuinely differs
-// (for example internal/cas, which carries a filesystem and a Git runner).
+// from what this bundle carries.
 package venv
 
 import (
@@ -32,7 +32,14 @@ import (
 var ErrVenvEnvUnset = errors.New("venv.Venv.Env is required but unset")
 
 // ErrVenvFSUnset is the panic value [Venv.RequireFS] raises when FS is nil.
+// Production callers build the Venv through [OSVenv], so it points at a test
+// that forgot to set FS rather than a runtime condition.
 var ErrVenvFSUnset = errors.New("venv.Venv.FS is required but unset")
+
+// ErrVenvExecUnset is the panic value [Venv.RequireExec] raises when Exec is
+// nil. Production callers build the Venv through [OSVenv], so it points at a
+// test that forgot to set Exec rather than a runtime condition.
+var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
 
 // ErrVenvGOOSUnset is the panic value [Venv.RequireGOOS] raises when GOOS is empty.
 var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset")
@@ -161,10 +168,23 @@ func (v Venv) RequireEnv() {
 	}
 }
 
-// RequireFS panics with [ErrVenvFSUnset] when FS is nil.
+// RequireFS panics with [ErrVenvFSUnset] when FS is nil. Functions that
+// touch the filesystem call this as their first statement so a missing
+// handle panics at the offending call site instead of inside an unrelated
+// stack frame.
 func (v Venv) RequireFS() {
 	if v.FS == nil {
 		panic(ErrVenvFSUnset)
+	}
+}
+
+// RequireExec panics with [ErrVenvExecUnset] when Exec is nil. Functions
+// that spawn subprocesses call this as their first statement so a missing
+// handle panics at the offending call site instead of inside an unrelated
+// stack frame.
+func (v Venv) RequireExec() {
+	if v.Exec == nil {
+		panic(ErrVenvExecUnset)
 	}
 }
 

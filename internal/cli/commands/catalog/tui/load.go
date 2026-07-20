@@ -74,7 +74,7 @@ func LoadURL(
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
-	repo, err := module.NewRepo(ctx, l, v.FS, &module.RepoOpts{
+	repo, err := module.NewRepo(ctx, l, v, &module.RepoOpts{
 		CloneURL:         repoURL,
 		Path:             tempPath,
 		WalkWithSymlinks: walkWithSymlinks,

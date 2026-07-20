@@ -5,11 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestFindModules(t *testing.T) {
@@ -67,7 +70,7 @@ func TestFindModules(t *testing.T) {
 			repo, err := module.NewRepo(
 				ctx,
 				logger.CreateLogger(),
-				vfs.NewOSFS(),
+				venv.OSVenv(),
 				&module.RepoOpts{CloneURL: tc.repoPath},
 			)
 			require.NoError(t, err)
@@ -89,6 +92,24 @@ func TestFindModules(t *testing.T) {
 			assert.Equal(t, tc.expectedData, realData)
 		})
 	}
+}
+
+// TestNewRepoRemoteCloneRejectsNonOSFS pins the performClone contract: a
+// remote clone writes through go-getter to the real OS, so an in-memory
+// bundle must be rejected before any clone work starts.
+func TestNewRepoRemoteCloneRejectsNonOSFS(t *testing.T) {
+	t.Parallel()
+
+	_, err := module.NewRepo(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.New(),
+		&module.RepoOpts{
+			CloneURL: "https://example.com/org/target.git",
+			Path:     t.TempDir(),
+		},
+	)
+	require.ErrorIs(t, err, module.ErrRemoteCloneFSNotOS)
 }
 
 func TestModuleURL(t *testing.T) {

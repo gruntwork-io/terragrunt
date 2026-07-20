@@ -9,14 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestGitStoreEnsureRef_InitsAndFetches(t *testing.T) {
@@ -200,16 +202,13 @@ func TestGitStoreEnsureRef_FetchFailureSurfacesError(t *testing.T) {
 func TestGitStoreRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
 	root := filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore")
 
 	store := cas.NewGitStore(root)
 
-	memVenv := cas.Venv{FS: vfs.NewMemMapFS(), Git: runner}
+	memVenv := venvtest.New()
 
-	_, err = store.EnsureRef(
+	_, err := store.EnsureRef(
 		t.Context(), logger.CreateLogger(), memVenv,
 		"file:///does/not/exist", "main", "deadbeef", 0,
 	)
@@ -220,13 +219,12 @@ func TestGitStoreRejectsNonOSFilesystem(t *testing.T) {
 	})
 }
 
-func newTestGitStore(t *testing.T) (*cas.GitStore, cas.Venv, string) {
+func newTestGitStore(t *testing.T) (*cas.GitStore, venv.Venv, string) {
 	t.Helper()
 
 	root := filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore")
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	store := cas.NewGitStore(root)
 

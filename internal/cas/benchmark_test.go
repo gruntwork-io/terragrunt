@@ -9,11 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkClone(b *testing.B) {
@@ -21,8 +23,7 @@ func BenchmarkClone(b *testing.B) {
 
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(b, err)
+	v := venv.OSVenv()
 
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
@@ -87,8 +88,7 @@ func BenchmarkContent(b *testing.B) {
 
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(b, err)
+	v := venv.OSVenv()
 
 	b.Run("store", func(b *testing.B) {
 		for i := 0; b.Loop(); i++ {

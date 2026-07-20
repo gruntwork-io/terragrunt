@@ -5,12 +5,14 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestRegistryGetterMode pins ModeDir for tfr sources, the only mode
@@ -73,7 +75,7 @@ func TestRegistryGetterDetect(t *testing.T) {
 func TestCASProtocolGetterMode(t *testing.T) {
 	t.Parallel()
 
-	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, cas.Venv{FS: vfs.NewOSFS()})
+	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, venvtest.New())
 
 	mode, err := g.Mode(t.Context(), &url.URL{Scheme: "cas"})
 	require.NoError(t, err)
@@ -85,7 +87,7 @@ func TestCASProtocolGetterMode(t *testing.T) {
 func TestCASProtocolGetterGetFile(t *testing.T) {
 	t.Parallel()
 
-	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, cas.Venv{FS: vfs.NewOSFS()})
+	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, venvtest.New())
 
 	err := g.GetFile(t.Context(), &getter.Request{})
 	require.ErrorIs(t, err, cas.ErrGetFileNotSupported)

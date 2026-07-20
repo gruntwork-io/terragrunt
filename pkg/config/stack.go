@@ -10,10 +10,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -23,8 +25,9 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+
+	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -148,7 +151,7 @@ func GenerateStackFile(
 		return err
 	}
 
-	cs, err := setupCAS(l, casEnabled, pctx.CASCloneDepth)
+	cs, err := setupCAS(l, pctx.Venv, casEnabled, pctx.CASCloneDepth)
 	if err != nil {
 		return err
 	}
@@ -166,17 +169,14 @@ func GenerateStackFile(
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      cs.Enabled,
 		casInstance:     cs.Instance,
-		casVenv:         cs.Venv,
 		strictControls:  pctx.StrictControls,
 	}
 
-	fs := pctx.Venv.FS
-
-	if err := generateUnits(ctx, l, fs, &genOpts, pool, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, l, fs, &genOpts, pool, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -293,7 +293,12 @@ func resolveStackAutoIncludes(
 	// The phased parser resolves autoincludes from the base stack file only. A sibling
 	// terragrunt.autoinclude.stack.hcl overrides same-name components wholesale, so an overridden
 	// component must not inherit the base block's resolved unit-level autoinclude.
-	if pruneErr := pruneOverriddenStackAutoIncludes(autoIncludes, stackSourceDir, prodEvalCtx, scopedPctx.ParserOptions); pruneErr != nil {
+	if pruneErr := pruneOverriddenStackAutoIncludes(
+		autoIncludes,
+		stackSourceDir,
+		prodEvalCtx,
+		scopedPctx.ParserOptions,
+	); pruneErr != nil {
 		return nil, nil, AutoIncludeParserStageError{
 			Stage: "autoinclude-override-prune",
 			File:  stackFilePath,
@@ -373,14 +378,13 @@ func rejectTerraformUpdateSourceWithoutCAS(fs vfs.FS, dest string) error {
 	}
 }
 
-// casSetup is the result of setupCAS: the CAS instance and Venv that
-// stack/unit generation threads through every CAS call, plus the
-// Enabled flag callers gate CAS features on. Enabled is false either
-// because casEnabled started false or because construction failed and
-// the warning was already logged.
+// casSetup is the result of setupCAS: the CAS instance stack/unit
+// generation threads through every CAS call, plus the Enabled flag
+// callers gate CAS features on. Enabled is false either because
+// casEnabled started false or because construction failed and the
+// warning was already logged.
 type casSetup struct {
 	Instance *cas.CAS
-	Venv     cas.Venv
 	Enabled  bool
 }
 
@@ -389,7 +393,7 @@ type casSetup struct {
 // depth); transient setup failures log a warning and return an
 // Enabled=false bundle so the caller falls through to the standard
 // getter.
-func setupCAS(l log.Logger, enabled bool, cloneDepth int) (casSetup, error) {
+func setupCAS(l log.Logger, v venv.Venv, enabled bool, cloneDepth int) (casSetup, error) {
 	if !enabled {
 		return casSetup{}, nil
 	}
@@ -404,20 +408,18 @@ func setupCAS(l log.Logger, enabled bool, cloneDepth int) (casSetup, error) {
 		return casSetup{}, nil
 	}
 
-	v, err := cas.OSVenv()
-	if err != nil {
+	if _, err := git.NewGitRunner(v.Exec); err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. CAS features disabled.", err)
 		return casSetup{}, nil
 	}
 
-	return casSetup{Instance: c, Venv: v, Enabled: true}, nil
+	return casSetup{Instance: c, Enabled: true}, nil
 }
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	casInstance     *cas.CAS
-	casVenv         cas.Venv
 	sourceMap       map[string]string
 	strictControls  strict.Controls
 	rootWorkingDir  string
@@ -437,7 +439,7 @@ type generateOpts struct {
 func generateUnits(
 	ctx context.Context,
 	l log.Logger,
-	fs vfs.FS,
+	v venv.Venv,
 	opts *generateOpts,
 	pool *worker.Pool,
 	units []*Unit,
@@ -470,7 +472,7 @@ func generateUnits(
 					"unit_source": unit.Source,
 					"unit_path":   unit.Path,
 				}, func(ctx context.Context, l log.Logger) error {
-					return generateComponent(ctx, l, fs, opts, &item)
+					return generateComponent(ctx, l, v, opts, &item)
 				})
 		})
 	}
@@ -483,7 +485,7 @@ func generateUnits(
 func generateStacks(
 	ctx context.Context,
 	l log.Logger,
-	fs vfs.FS,
+	v venv.Venv,
 	opts *generateOpts,
 	pool *worker.Pool,
 	stacks []*Stack,
@@ -516,7 +518,7 @@ func generateStacks(
 					"stack_source": stack.Source,
 					"stack_path":   stack.Path,
 				}, func(ctx context.Context, l log.Logger) error {
-					return generateComponent(ctx, l, fs, opts, &item)
+					return generateComponent(ctx, l, v, opts, &item)
 				})
 		})
 	}
@@ -637,7 +639,7 @@ func validateGeneratedComponent(
 // generateAutoInclude writes the autoinclude file for a component if one was resolved.
 func generateAutoInclude(
 	l log.Logger,
-	fs vfs.FS,
+	v venv.Venv,
 	opts *generateOpts,
 	cmp *componentToGenerate,
 	dest string,
@@ -667,7 +669,13 @@ func generateAutoInclude(
 	// The autoinclude resolves entirely in the stack file context, so the resolution-time eval context (functions
 	// scoped to the stack file, like the discovery path) is reused as-is: every expression except dependency.* is
 	// already a literal, and directory-context functions resolve where the autoinclude was authored.
-	if err := inthclparse.GenerateAutoIncludeFile(fs, resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
+	if err := inthclparse.GenerateAutoIncludeFile(
+		v.FS,
+		resolved,
+		dest,
+		resolved.SourceBytes,
+		resolved.EvalCtx,
+	); err != nil {
 		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
@@ -678,7 +686,7 @@ func generateAutoInclude(
 func generateComponent(
 	ctx context.Context,
 	l log.Logger,
-	fs vfs.FS,
+	v venv.Venv,
 	opts *generateOpts,
 	cmp *componentToGenerate,
 ) error {
@@ -701,12 +709,12 @@ func generateComponent(
 
 	l.Debugf("Generating: %s (%s) to %s", cmp.name, source, dest)
 
-	if err := fetchComponentSource(ctx, l, opts, cmp, kindStr, source, dest); err != nil {
+	if err := fetchComponentSource(ctx, l, v, opts, cmp, kindStr, source, dest); err != nil {
 		return err
 	}
 
 	if !opts.casEnabled && cmp.kind == unitKind {
-		if err := rejectTerraformUpdateSourceWithoutCAS(fs, dest); err != nil {
+		if err := rejectTerraformUpdateSourceWithoutCAS(v.FS, dest); err != nil {
 			return err
 		}
 	}
@@ -719,7 +727,7 @@ func generateComponent(
 		return fmt.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
-	return generateAutoInclude(l, fs, opts, cmp, dest)
+	return generateAutoInclude(l, v, opts, cmp, dest)
 }
 
 // fetchComponentSource handles the paths for fetching a component's source:
@@ -740,6 +748,7 @@ func generateComponent(
 func fetchComponentSource(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *generateOpts,
 	cmp *componentToGenerate,
 	kindStr, source, dest string,
@@ -772,7 +781,7 @@ func fetchComponentSource(
 			matOpts = append(matOpts, cas.WithForceCopy())
 		}
 
-		if err := opts.casInstance.MaterializeTree(ctx, l, opts.casVenv, hash, dest, matOpts...); err != nil {
+		if err := opts.casInstance.MaterializeTree(ctx, l, v, hash, dest, matOpts...); err != nil {
 			return fmt.Errorf(
 				"failed to materialize CAS tree for %s %s: %w",
 				kindStr,
@@ -785,7 +794,7 @@ func fetchComponentSource(
 	}
 
 	if opts.casEnabled {
-		casErr := fetchViaCAS(ctx, l, opts, cmp.sourceDir, kindStr, source, dest)
+		casErr := fetchViaCAS(ctx, l, v, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {
 			return nil
 		}
@@ -837,18 +846,13 @@ func fetchComponentSource(
 func fetchViaCAS(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *generateOpts,
 	sourceDir, kindStr, source, dest string,
 ) error {
 	resolvedSource := resolveLocalCASSource(l, sourceDir, source)
 
-	result, err := opts.casInstance.ProcessStackComponent(
-		ctx,
-		l,
-		opts.casVenv,
-		resolvedSource,
-		kindStr,
-	)
+	result, err := opts.casInstance.ProcessStackComponent(ctx, l, v, resolvedSource, kindStr)
 	if err != nil {
 		return err
 	}
@@ -858,10 +862,18 @@ func fetchViaCAS(
 	// A copy failure can leave partial content in dest, so reset it before
 	// falling through to the standard getter. ProcessStackComponent writes only
 	// to its own temp dir, so failures before this point never touch dest.
-	if copyErr := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
-		return true
-	}); copyErr != nil {
-		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil &&
+	if copyErr := util.CopyFolderContentsWithFilter(
+		l,
+		result.ContentDir,
+		dest,
+		manifestName,
+		func(_ string) bool {
+			return true
+		},
+	); copyErr != nil {
+		if cleanupErr := os.RemoveAll(
+			dest,
+		); cleanupErr != nil &&
 			!errors.Is(cleanupErr, os.ErrNotExist) {
 			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
 		}
@@ -930,9 +942,15 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 
 	localSrc = filepath.Clean(localSrc)
 
-	if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
-		return true
-	}); err != nil {
+	if err := util.CopyFolderContentsWithFilter(
+		l,
+		localSrc,
+		dest,
+		manifestName,
+		func(absolutePath string) bool {
+			return true
+		},
+	); err != nil {
 		return fmt.Errorf("failed to copy %s to %s %w", localSrc, dest, err)
 	}
 
@@ -1052,7 +1070,12 @@ func ParseStackConfig(
 	// Expose unit.<name>.path / stack.<name>.path so a unit or stack block's values
 	// can reference where sibling components generate to (e.g. to pass a unit path
 	// down to a child stack).
-	if err := injectStackComponentRefs(file, evalParsingContext, filepath.Dir(file.ConfigPath), parser.ParserOptions); err != nil {
+	if err := injectStackComponentRefs(
+		file,
+		evalParsingContext,
+		filepath.Dir(file.ConfigPath),
+		parser.ParserOptions,
+	); err != nil {
 		return nil, err
 	}
 
@@ -1064,11 +1087,23 @@ func ParseStackConfig(
 	// Process include blocks and merge any generated stack-level autoinclude file.
 	stackDir := filepath.Dir(file.ConfigPath)
 
-	if err := processStackConfigIncludes(config, stackDir, evalParsingContext, parser.ParserOptions); err != nil {
+	if err := processStackConfigIncludes(
+		config,
+		stackDir,
+		evalParsingContext,
+		parser.ParserOptions,
+	); err != nil {
 		return nil, err
 	}
 
-	if err := mergeStackAutoIncludeFile(l, config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+	if err := mergeStackAutoIncludeFile(
+		l,
+		config,
+		stackDir,
+		filepath.Base(file.ConfigPath),
+		evalParsingContext,
+		parser.ParserOptions,
+	); err != nil {
 		return nil, err
 	}
 
@@ -1415,7 +1450,10 @@ func mergeStackAutoIncludeFile(
 	}
 
 	// Backstop the fail-fast generation check for stale or hand-written files using the shared scan.
-	if typed := inthclparse.StackAutoIncludeDepValuesError(syntaxBody, filepath.Base(stackDir)); typed != nil {
+	if typed := inthclparse.StackAutoIncludeDepValuesError(
+		syntaxBody,
+		filepath.Base(stackDir),
+	); typed != nil {
 		return *typed
 	}
 

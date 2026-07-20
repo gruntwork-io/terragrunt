@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -119,12 +120,12 @@ func FormatCASRefWithSubdir(hash, subdir string) string {
 // MaterializeTree reads a tree from the CAS store and links its contents to the destination directory.
 // It tries the synth store first, then falls back to the git tree store.
 //
-// Requires v.FS for reading the stored tree and writing links. v.Git is
+// Requires v.FS for reading the stored tree and writing links. v.Exec is
 // not used because materialization is a pure FS operation.
 func (c *CAS) MaterializeTree(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	hash string,
 	dest string,
 	opts ...LinkTreeOption,

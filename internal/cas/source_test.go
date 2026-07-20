@@ -6,13 +6,15 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestFetchSource_ProbeHitSkipsDownload(t *testing.T) {
@@ -347,7 +349,7 @@ func (f *fakeResolver) Probe(_ context.Context, _ string) (string, error) {
 // ingests it into CAS via IngestDirectory, and returns the resulting
 // tree key. It counts invocations for assertions.
 func fakeFetcher(c *cas.CAS, files map[string]string, calls *atomic.Int32) cas.SourceFetcher {
-	return func(_ context.Context, l log.Logger, v cas.Venv, suggestedKey string) (string, error) {
+	return func(_ context.Context, l log.Logger, v venv.Venv, suggestedKey string) (string, error) {
 		calls.Add(1)
 
 		tempDir, cleanup, err := c.MakeFetchTempDir(l, v)

@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -478,7 +479,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, src, opts, cfg.Terraform.Mutable)
+		done, err := tryCASDownload(ctx, l, v, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -515,6 +516,7 @@ func downloadSource(
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	mutable bool,
@@ -549,8 +551,7 @@ func tryCASDownload(
 		return false, nil
 	}
 
-	casVenv, err := cas.OSVenv()
-	if err != nil {
+	if _, err := git.NewGitRunner(v.Exec); err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
@@ -568,11 +569,11 @@ func tryCASDownload(
 		Mutable:          mutable,
 	}
 
-	casProtocol := getter.NewCASProtocolGetter(l, c, casVenv)
+	casProtocol := getter.NewCASProtocolGetter(l, c, v)
 	casProtocol.Mutable = mutable
 
 	dispatchOpts := []getter.GenericFetcherOption{
-		getter.WithTFRConfig(l, opts.TofuImplementation, casVenv.FS),
+		getter.WithTFRConfig(l, opts.TofuImplementation, v.FS),
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
@@ -582,7 +583,13 @@ func tryCASDownload(
 	client := &getter.Client{
 		Getters: []getter.Getter{
 			casProtocol,
-			getter.NewCASGetter(l, c, casVenv, &cloneOpts, getter.WithDefaultGenericDispatch(dispatchOpts...)),
+			getter.NewCASGetter(
+				l,
+				c,
+				v,
+				&cloneOpts,
+				getter.WithDefaultGenericDispatch(dispatchOpts...),
+			),
 		},
 	}
 

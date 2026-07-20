@@ -9,12 +9,14 @@ import (
 	"io/fs"
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ErrNoVersionMetadata reports that a SourceResolver had no usable
@@ -46,7 +48,7 @@ type SourceResolver interface {
 // produced none. Fetchers that learn the canonical key only after
 // downloading (the git rev-parse path) may ignore it and return the
 // canonical key instead.
-type SourceFetcher func(ctx context.Context, l log.Logger, v Venv, suggestedKey string) (treeKey string, err error)
+type SourceFetcher func(ctx context.Context, l log.Logger, v venv.Venv, suggestedKey string) (treeKey string, err error)
 
 // SourceRequest is the input to CAS.FetchSource.
 type SourceRequest struct {
@@ -73,13 +75,13 @@ type SourceRequest struct {
 // opts.Dir is the destination. opts.Mutable selects copy vs hardlink
 // for the final link, matching the git path.
 //
-// Requires v.FS for store I/O. v.Git is only consulted by fetchers that
+// Requires v.FS for store I/O. v.Exec is only consulted by fetchers that
 // shell out to git (e.g. the closure built by [CAS.Clone]); other
 // fetchers are free to leave it unset.
 func (c *CAS) FetchSource(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	opts *CloneOptions,
 	src SourceRequest,
 ) error {
@@ -102,24 +104,30 @@ func (c *CAS) FetchSource(
 
 	tlm := telemetry.TelemeterFromContext(ctx)
 
-	return tlm.Collect(ctx, l, "cas_fetch_source", attrs, func(childCtx context.Context, l log.Logger) error {
-		suggestedKey := c.probeSource(childCtx, l, src)
+	return tlm.Collect(
+		ctx,
+		l,
+		"cas_fetch_source",
+		attrs,
+		func(childCtx context.Context, l log.Logger) error {
+			suggestedKey := c.probeSource(childCtx, l, src)
 
-		if suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {
-			recordFetchOutcome(childCtx, true)
+			if suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {
+				recordFetchOutcome(childCtx, true)
 
-			return c.linkStoredTree(childCtx, v, opts, suggestedKey)
-		}
+				return c.linkStoredTree(childCtx, v, opts, suggestedKey)
+			}
 
-		recordFetchOutcome(childCtx, false)
+			recordFetchOutcome(childCtx, false)
 
-		treeKey, err := src.Fetch(childCtx, l, v, suggestedKey)
-		if err != nil {
-			return fmt.Errorf("fetch %s: %w", src.URL, err)
-		}
+			treeKey, err := src.Fetch(childCtx, l, v, suggestedKey)
+			if err != nil {
+				return fmt.Errorf("fetch %s: %w", src.URL, err)
+			}
 
-		return c.linkStoredTree(childCtx, v, opts, treeKey)
-	})
+			return c.linkStoredTree(childCtx, v, opts, treeKey)
+		},
+	)
 }
 
 // ContentKey derives a cache key for a probe token that is a content
@@ -157,7 +165,7 @@ func OpaqueKey(scheme, url, token string) string {
 // share the same temp-dir layout.
 //
 // Requires v.FS.
-func (c *CAS) MakeFetchTempDir(l log.Logger, v Venv) (string, func(), error) {
+func (c *CAS) MakeFetchTempDir(l log.Logger, v venv.Venv) (string, func(), error) {
 	v.RequireFS()
 
 	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fetch-")
@@ -183,7 +191,7 @@ func (c *CAS) MakeFetchTempDir(l log.Logger, v Venv) (string, func(), error) {
 // Requires v.FS.
 func (c *CAS) IngestDirectory(
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	sourceDir, suggestedKey string,
 ) (string, error) {
 	v.RequireFS()
@@ -255,7 +263,12 @@ func recordFetchOutcome(ctx context.Context, cacheHit bool) {
 }
 
 // linkStoredTree materializes the tree at key into opts.Dir.
-func (c *CAS) linkStoredTree(ctx context.Context, v Venv, opts *CloneOptions, key string) error {
+func (c *CAS) linkStoredTree(
+	ctx context.Context,
+	v venv.Venv,
+	opts *CloneOptions,
+	key string,
+) error {
 	treeContent := NewContent(c.treeStore)
 
 	treeData, err := treeContent.Read(v, key)
@@ -290,7 +303,7 @@ func (c *CAS) linkStoredTree(ctx context.Context, v Venv, opts *CloneOptions, ke
 // content hash from buildLocalTree.
 func (c *CAS) storeFetchedContent(
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	sourceDir, treeKey string,
 	treeData []byte,
 	alg HashAlgorithm,
