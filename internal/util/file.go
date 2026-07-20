@@ -394,17 +394,90 @@ func CopyFolderContents(
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
 
-	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
-	// the copy filter. The expanded globs feed both the dest-inside-source
-	// assertion below and the filter passed to the slow-path implementation.
+	if cfg.fastCopy {
+		filter, err := newFastCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+		if err != nil {
+			return err
+		}
+
+		// The dest-inside-source assertion probes each destination path
+		// segment, and every segment is a directory on the way to the
+		// destination, so ask the filter with isDir=true.
+		if err := assertCopyPathsSafe(source, destination, func(absolutePath string) bool {
+			return filter(absolutePath, true)
+		}); err != nil {
+			return err
+		}
+
+		return copyFolderContentsFast(
+			l,
+			source,
+			destination,
+			manifestFile,
+			cfg.includeInCopy,
+			cfg.excludeFromCopy,
+		)
+	}
+
+	filter, err := newLegacyCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	if err != nil {
+		return err
+	}
+
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
+}
+
+// CopyFilter reports whether a copy configured with the same [CopyOption]
+// values would deliver the entry at absolutePath. isDir lets the fast-copy
+// variant keep descending through dot-prefixed directories that may hold
+// include_in_copy matches; the legacy variant ignores it.
+type CopyFilter func(absolutePath string, isDir bool) bool
+
+// NewCopyFilter builds the inclusion predicate that [CopyFolderContents]
+// applies with the same options, without performing a copy. It lets callers
+// reason about which files a copy would deliver — for example, hashing only
+// those files when computing a source version.
+func NewCopyFilter(l log.Logger, source string, opts ...CopyOption) (CopyFilter, error) {
+	var cfg copyConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	source = filepath.ToSlash(source)
+
+	if cfg.fastCopy {
+		return newFastCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	}
+
+	filter, err := newLegacyCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(absolutePath string, _ bool) bool {
+		return filter(absolutePath)
+	}, nil
+}
+
+// newLegacyCopyFilter expands the include/exclude globs against the current
+// contents of source and returns the filter applied by the legacy copy path.
+// The expanded globs feed both the dest-inside-source assertion in
+// [CopyFolderContents] and the filter passed to the slow-path implementation.
+func newLegacyCopyFilter(
+	l log.Logger,
+	source string,
+	includeInCopy, excludeFromCopy []string,
+) (func(absolutePath string) bool, error) {
+	// Expand all the includeInCopy glob paths, converting the globbed results
+	// to relative paths so that they work in the copy filter.
 	includeExpandedGlobs := []string{}
 
-	for _, includeGlob := range cfg.includeInCopy {
+	for _, includeGlob := range includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
 
 		expandGlob, err := expandGlobPath(source, globPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
@@ -412,18 +485,18 @@ func CopyFolderContents(
 
 	excludeExpandedGlobs := []string{}
 
-	for _, excludeGlob := range cfg.excludeFromCopy {
+	for _, excludeGlob := range excludeFromCopy {
 		globPath := filepath.Join(source, excludeGlob)
 
 		expandGlob, err := expandGlobPath(source, globPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	filter := func(absolutePath string) bool {
+	return func(absolutePath string) bool {
 		relativePath, err := filepath.Rel(source, absolutePath)
 		if err != nil {
 			l.Warnf("Failed to compute relative path from %s to %s: %v", source, absolutePath, err)
@@ -446,24 +519,71 @@ func CopyFolderContents(
 		}
 
 		return !TerragruntExcludes(filepath.FromSlash(relativePath))
+	}, nil
+}
+
+// newFastCopyFilter mirrors the per-entry decisions of the fast copy walk in
+// copyFolderContentsFast, using the same compiled matchers.
+func newFastCopyFilter(
+	l log.Logger,
+	source string,
+	includeInCopy, excludeFromCopy []string,
+) (CopyFilter, error) {
+	include, err := compileIncludePatterns(includeInCopy)
+	if err != nil {
+		return nil, err
 	}
 
-	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
-		return err
+	exclude, err := compileExcludePattern(excludeFromCopy)
+	if err != nil {
+		return nil, err
 	}
 
-	if cfg.fastCopy {
-		return copyFolderContentsFast(
-			l,
-			source,
-			destination,
-			manifestFile,
-			cfg.includeInCopy,
-			cfg.excludeFromCopy,
-		)
+	return func(absolutePath string, isDir bool) bool {
+		rel, err := filepath.Rel(source, absolutePath)
+		if err != nil {
+			l.Warnf("Failed to compute relative path from %s to %s: %v", source, absolutePath, err)
+			return false
+		}
+
+		return fastCopyIncludesEntry(filepath.ToSlash(rel), isDir, include, exclude)
+	}, nil
+}
+
+// fastCopyIncludesEntry applies the fast copy inclusion rules to a
+// source-relative slash-separated path.
+func fastCopyIncludesEntry(
+	rel string,
+	isDir bool,
+	include includePatterns,
+	exclude glob.Matcher,
+) bool {
+	if rel == "." {
+		return true
 	}
 
-	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
+	// Skip .terragrunt-cache before include matching. A user include
+	// like "**" would otherwise pull it back in.
+	if slices.Contains(strings.Split(rel, "/"), TerragruntCacheDir) {
+		return false
+	}
+
+	if exclude != nil && exclude.Match(rel) {
+		return false
+	}
+
+	if include.matches(rel) {
+		return true
+	}
+
+	if TerragruntExcludes(filepath.FromSlash(rel)) {
+		// A directory on the way to a potential include match must
+		// still be descended into even when TerragruntExcludes
+		// would reject it.
+		return isDir && include.isAncestor(rel)
+	}
+
+	return true
 }
 
 // copyFolderContentsFast is the [CopyFolderContents] path used when the
