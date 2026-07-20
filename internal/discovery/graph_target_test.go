@@ -58,7 +58,12 @@ dependency "db" {
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir)
 
-	configs, err := d.Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
+	configs, err := d.Discover(
+		t.Context(),
+		logger.CreateLogger(),
+		memGitTopLevelVenv(t, tmpDir),
+		opts,
+	)
 	require.NoError(t, err)
 
 	paths := configs.Filter(component.UnitKind).Paths()
@@ -97,7 +102,10 @@ dependency "db" {
 	opts.RootWorkingDir = tmpDir
 
 	// Path A: filter queries (experiment ON equivalent)
-	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{`...{` + vpcDir + `}`})
+	filters, err := filter.ParseFilterQueries(
+		logger.CreateLogger(),
+		[]string{`...{` + vpcDir + `}`},
+	)
 	require.NoError(t, err)
 
 	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
@@ -116,7 +124,11 @@ dependency "db" {
 		Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
 	require.NoError(t, err)
 
-	assert.ElementsMatch(t, configsA.Filter(component.UnitKind).Paths(), configsB.Filter(component.UnitKind).Paths())
+	assert.ElementsMatch(
+		t,
+		configsA.Filter(component.UnitKind).Paths(),
+		configsB.Filter(component.UnitKind).Paths(),
+	)
 }
 
 // Test that graph target with no dependents returns only the target.
@@ -146,7 +158,12 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 		WithRelationships().
 		WithGraphTarget(vpcDir)
 
-	configs, err := d.Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
+	configs, err := d.Discover(
+		t.Context(),
+		logger.CreateLogger(),
+		memGitTopLevelVenv(t, tmpDir),
+		opts,
+	)
 	require.NoError(t, err)
 
 	paths := configs.Filter(component.UnitKind).Paths()
@@ -185,7 +202,12 @@ dependency "vpc" {
 		WithRelationships().
 		WithOptions(graphTargetOpt)
 
-	configs, err := d.Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
+	configs, err := d.Discover(
+		t.Context(),
+		logger.CreateLogger(),
+		memGitTopLevelVenv(t, tmpDir),
+		opts,
+	)
 	require.NoError(t, err)
 
 	paths := configs.Filter(component.UnitKind).Paths()
@@ -200,7 +222,8 @@ func memGitTopLevelVenv(t *testing.T, repoRoot string) venv.Venv {
 	t.Helper()
 
 	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		if inv.Name == "git" && len(inv.Args) == 2 && inv.Args[0] == "rev-parse" && inv.Args[1] == "--show-toplevel" {
+		if inv.Name == "git" && len(inv.Args) == 2 && inv.Args[0] == "rev-parse" &&
+			inv.Args[1] == "--show-toplevel" {
 			return vexec.Result{Stdout: []byte(repoRoot + "\n")}
 		}
 

@@ -44,7 +44,13 @@ func TestGcpCASGCSMD5Probe(t *testing.T) {
 	v, err := tgcas.OSVenv()
 	require.NoError(t, err)
 
-	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{}, tggetter.WithDefaultGenericDispatch())
+	g := tggetter.NewCASGetter(
+		logger.CreateLogger(),
+		c,
+		v,
+		&tgcas.CloneOptions{},
+		tggetter.WithDefaultGenericDispatch(),
+	)
 	client := &tggetter.Client{Getters: []tggetter.Getter{g}}
 
 	// The bare v2 gcs.Getter's parseURL only recognizes

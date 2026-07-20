@@ -69,8 +69,12 @@ func TestWithDependencyConfigPath_DefaultDownloadDir_Updated(t *testing.T) {
 	require.NoError(t, err)
 
 	_, expectedDepDownloadDir := util.DefaultWorkingAndDownloadDirs(depConfigPath)
-	assert.Equal(t, expectedDepDownloadDir, depCtx.DownloadDir,
-		"DownloadDir should be updated to the dependency's default when no custom TG_DOWNLOAD_DIR is set")
+	assert.Equal(
+		t,
+		expectedDepDownloadDir,
+		depCtx.DownloadDir,
+		"DownloadDir should be updated to the dependency's default when no custom TG_DOWNLOAD_DIR is set",
+	)
 }
 
 // TestWithDependencyConfigPath_CustomDownloadDir_NotDefaultForAnyModule verifies that a

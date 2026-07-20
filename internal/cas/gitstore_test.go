@@ -32,7 +32,13 @@ func TestGitStoreEnsureRef_InitsAndFetches(t *testing.T) {
 	repo, err := store.EnsureRef(ctx, l, v, url, "main", hash, 0)
 	require.NoError(t, err)
 
-	assert.True(t, strings.HasPrefix(repo.Path, root), "repo path %q should be under store root %q", repo.Path, root)
+	assert.True(
+		t,
+		strings.HasPrefix(repo.Path, root),
+		"repo path %q should be under store root %q",
+		repo.Path,
+		root,
+	)
 
 	_, err = v.FS.Stat(filepath.Join(repo.Path, "HEAD"))
 	require.NoError(t, err)
@@ -137,7 +143,12 @@ func TestGitStoreEnsureRef_LockHeldRespectsContextCancellation(t *testing.T) {
 
 	_, err = store.EnsureRef(ctx, l, v, url, "main", hash, 0)
 	require.Error(t, err)
-	assert.Less(t, time.Since(start), 5*time.Second, "EnsureRef should not block past the context deadline")
+	assert.Less(
+		t,
+		time.Since(start),
+		5*time.Second,
+		"EnsureRef should not block past the context deadline",
+	)
 	assert.True(
 		t,
 		errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled),

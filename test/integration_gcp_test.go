@@ -62,7 +62,12 @@ func TestGcpBootstrapBackend(t *testing.T) {
 			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string, err error) {
 				t.Helper()
 
-				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+				validateGCSBucketExistsAndIsLabeled(
+					t,
+					terraformRemoteStateGcpRegion,
+					gcsBucketName,
+					nil,
+				)
 				require.NoError(t, err)
 			},
 		},
@@ -72,7 +77,12 @@ func TestGcpBootstrapBackend(t *testing.T) {
 			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string, err error) {
 				t.Helper()
 
-				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+				validateGCSBucketExistsAndIsLabeled(
+					t,
+					terraformRemoteStateGcpRegion,
+					gcsBucketName,
+					nil,
+				)
 				require.NoError(t, err)
 			},
 		},
@@ -384,7 +394,12 @@ func TestGcpWorksWithBackend(t *testing.T) {
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
 		"name":  "terraform_state_storage"}
-	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, expectedGCSLabels)
+	validateGCSBucketExistsAndIsLabeled(
+		t,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		expectedGCSLabels,
+	)
 }
 
 func TestGcpWorksWithExistingBucket(t *testing.T) {
@@ -623,7 +638,12 @@ func validateGCSBucketExistsAndIsLabeled(
 	attrs, err := bucket.Attrs(t.Context())
 	require.NoError(t, err)
 
-	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
+	assert.Equal(
+		t,
+		strings.ToUpper(location),
+		attrs.Location,
+		"Did not find GCS bucket in expected location.",
+	)
 
 	if expectedLabels != nil {
 		assertGCSLabels(t, expectedLabels, bucketName, gcsClient.Client)
@@ -643,7 +663,12 @@ func doesGCSBucketObjectExist(t *testing.T, bucketName, prefix string) bool {
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, venv.OSVenv(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(
+		ctx,
+		venv.OSVenv(),
+		extGCSCfg,
+		configbridge.BackendOptsFromOpts(opts),
+	)
 	require.NoError(t, err, "Error creating GCS client")
 
 	defer gcsClient.Close()
@@ -679,7 +704,12 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, venv.OSVenv(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(
+		ctx,
+		venv.OSVenv(),
+		extGCSCfg,
+		configbridge.BackendOptsFromOpts(opts),
+	)
 	require.NoError(t, err, "Error creating GCS client")
 
 	defer gcsClient.Close()
@@ -696,7 +726,12 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 	return attrs
 }
 
-func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
+func assertGCSLabels(
+	t *testing.T,
+	expectedLabels map[string]string,
+	bucketName string,
+	client *storage.Client,
+) {
 	t.Helper()
 
 	ctx := t.Context()
@@ -724,12 +759,22 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, venv.OSVenv(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(
+		ctx,
+		venv.OSVenv(),
+		extGCSCfg,
+		configbridge.BackendOptsFromOpts(opts),
+	)
 	require.NoError(t, err, "Error creating GCS client")
 
 	defer gcsClient.Close()
 
-	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
+	t.Logf(
+		"Creating test GCS bucket %s in project %s, location %s",
+		bucketName,
+		projectID,
+		location,
+	)
 
 	bucket := gcsClient.Bucket(bucketName)
 
@@ -754,7 +799,12 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, venv.OSVenv(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(
+		ctx,
+		venv.OSVenv(),
+		extGCSCfg,
+		configbridge.BackendOptsFromOpts(opts),
+	)
 	require.NoError(t, err, "Error creating GCS client")
 
 	defer gcsClient.Close()
@@ -788,7 +838,9 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 		}
 
 		// purge the object version
-		if err := bucket.Object(objectAttrs.Name).Generation(objectAttrs.Generation).Delete(ctx); err != nil {
+		if err := bucket.Object(objectAttrs.Name).
+			Generation(objectAttrs.Generation).
+			Delete(ctx); err != nil {
 			t.Errorf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
 			return
 		}

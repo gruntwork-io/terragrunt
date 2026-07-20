@@ -295,14 +295,20 @@ func copyFixturesToDisk(fixturesDir string, dirs []string, workDir, httpURL, ssh
 	repoRoot := filepath.Dir(filepath.Dir(fixturesDir))
 
 	for _, dir := range dirs {
-		err := walkFixturesRooted(repoRoot, filepath.Join(repoRoot, dir), httpURL, sshURL, func(rel string, data []byte) error {
-			dst := filepath.Join(workDir, filepath.FromSlash(rel))
-			if err := os.MkdirAll(filepath.Dir(dst), sshDirPerm); err != nil {
-				return err
-			}
+		err := walkFixturesRooted(
+			repoRoot,
+			filepath.Join(repoRoot, dir),
+			httpURL,
+			sshURL,
+			func(rel string, data []byte) error {
+				dst := filepath.Join(workDir, filepath.FromSlash(rel))
+				if err := os.MkdirAll(filepath.Dir(dst), sshDirPerm); err != nil {
+					return err
+				}
 
-			return os.WriteFile(dst, data, sshOutputFilePerm)
-		})
+				return os.WriteFile(dst, data, sshOutputFilePerm)
+			},
+		)
 		if err != nil {
 			return err
 		}

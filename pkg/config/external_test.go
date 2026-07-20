@@ -90,7 +90,12 @@ func TestExternalGetTerraformSourceURL(t *testing.T) {
 	t.Run("explicit source overrides config", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := config.GetTerraformSourceURL("explicit-source", nil, "config.hcl", &config.TerragruntConfig{})
+		result, err := config.GetTerraformSourceURL(
+			"explicit-source",
+			nil,
+			"config.hcl",
+			&config.TerragruntConfig{},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, "explicit-source", result)
 	})
@@ -98,7 +103,12 @@ func TestExternalGetTerraformSourceURL(t *testing.T) {
 	t.Run("no source returns dot", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := config.GetTerraformSourceURL("", nil, "config.hcl", &config.TerragruntConfig{})
+		result, err := config.GetTerraformSourceURL(
+			"",
+			nil,
+			"config.hcl",
+			&config.TerragruntConfig{},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, ".", result)
 	})
@@ -179,7 +189,10 @@ func TestExternalCtyHelpers(t *testing.T) {
 
 		assert.False(t, config.IsComplexType(cty.StringVal("simple")))
 		assert.False(t, config.IsComplexType(cty.NumberIntVal(1)))
-		assert.True(t, config.IsComplexType(cty.ObjectVal(map[string]cty.Value{"k": cty.StringVal("v")})))
+		assert.True(
+			t,
+			config.IsComplexType(cty.ObjectVal(map[string]cty.Value{"k": cty.StringVal("v")})),
+		)
 		assert.True(t, config.IsComplexType(cty.ListVal([]cty.Value{cty.StringVal("a")})))
 	})
 
@@ -421,7 +434,14 @@ inputs = {
 
 	ctx := t.Context()
 	ctx, pctx := config.NewParsingContext(ctx, l)
-	cfg, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, hclConfig, nil)
+	cfg, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		hclConfig,
+		nil,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, "dev", cfg.Inputs["env"])
@@ -568,7 +588,10 @@ func TestExternalReadValuesAndParseStackConfig(t *testing.T) {
 app_path = "my-app"
 region   = "us-west-2"
 `)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
+	)
 
 	ctx := t.Context()
 	ctx, pctx := config.NewParsingContext(ctx, l)
@@ -611,7 +634,10 @@ func TestExternalReadValuesAndParseConfig(t *testing.T) {
 env    = "staging"
 region = "eu-west-1"
 `)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
+	)
 
 	ctx := t.Context()
 	ctx, pctx := config.NewParsingContext(ctx, l)

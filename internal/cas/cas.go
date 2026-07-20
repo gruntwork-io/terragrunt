@@ -240,7 +240,13 @@ func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 //
 // Requires v.FS for store I/O and v.Git for the underlying clone.
 // Panics with [ErrVenvFSUnset] or [ErrVenvGitUnset] if either is unset.
-func (c *CAS) Clone(ctx context.Context, l log.Logger, v Venv, url string, options ...CloneOption) error {
+func (c *CAS) Clone(
+	ctx context.Context,
+	l log.Logger,
+	v Venv,
+	url string,
+	options ...CloneOption,
+) error {
 	v.RequireFS()
 	v.RequireGit()
 
@@ -335,7 +341,11 @@ func (c *CAS) populateTreeFromSymbolicRef(
 		return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts)
 	}
 
-	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", ref.URL, err)
+	l.Warnf(
+		"central git store unavailable for %s, falling back to temporary clone: %v",
+		ref.URL,
+		err,
+	)
 	RecordFallback(ctx, l, FallbackReasonGitStoreUnavailable, map[string]any{"url": ref.URL})
 
 	tempDir, cleanup, err := c.makeFallbackCloneDir(l, v)
@@ -386,7 +396,11 @@ func (c *CAS) populateTreeFromCommitRef(
 		return "", err
 	}
 
-	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", ref.URL, err)
+	l.Warnf(
+		"central git store unavailable for %s, falling back to temporary clone: %v",
+		ref.URL,
+		err,
+	)
 	RecordFallback(ctx, l, FallbackReasonGitStoreUnavailable, map[string]any{"url": ref.URL})
 
 	tempDir, cleanup, err := c.makeFallbackCloneDir(l, v)
@@ -431,7 +445,10 @@ func (c *CAS) populateTreeFromCommitRef(
 func (c *CAS) makeFallbackCloneDir(l log.Logger, v Venv) (string, func(), error) {
 	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fallback-")
 	if err != nil {
-		return "", nil, fmt.Errorf("create fallback clone dir: %w", errors.Join(ErrFallbackCloneDir, err))
+		return "", nil, fmt.Errorf(
+			"create fallback clone dir: %w",
+			errors.Join(ErrFallbackCloneDir, err),
+		)
 	}
 
 	cleanup := func() {
@@ -513,7 +530,11 @@ func (r *commitRef) CommitHash() string { return r.RawRef }
 // SHAs skip the probe to avoid mistaking a hex-named branch tip for the
 // SHA prefix and freezing the branch at its first-fetched tip (see
 // [looksLikeFullSHA]).
-func (c *CAS) resolveReference(ctx context.Context, v Venv, url, branch string) (resolvedRef, error) {
+func (c *CAS) resolveReference(
+	ctx context.Context,
+	v Venv,
+	url, branch string,
+) (resolvedRef, error) {
 	if looksLikeFullSHA(branch) {
 		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, v, url, branch); ok {
 			return &commitRef{URL: url, RawRef: branch, Hash: hash}, nil
@@ -607,7 +628,9 @@ func (c *CAS) storeRootTreeFrom(
 
 		path := filepath.Join(".git", file)
 
-		data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
+		data = append(
+			data,
+			fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
 	}
 
 	return treeContent.Store(l, v, hash, data)
@@ -648,7 +671,12 @@ func (c *CAS) storeTreeRecursive(
 // name objects that live in another repository entirely, so only blob
 // entries are written; submodule contents arrive via
 // [CAS.storeSubmodules].
-func (c *CAS) storeBlobs(ctx context.Context, v Venv, runner *git.GitRunner, entries []git.TreeEntry) error {
+func (c *CAS) storeBlobs(
+	ctx context.Context,
+	v Venv,
+	runner *git.GitRunner,
+	entries []git.TreeEntry,
+) error {
 	for _, entry := range entries {
 		if entry.Type != git.EntryTypeBlob {
 			continue
@@ -705,7 +733,11 @@ func (c *CAS) storeSubmodules(
 	for _, entry := range gitlinks {
 		subURL, ok := urls[entry.Path]
 		if !ok {
-			l.Debugf("cas: gitlink %s has no .gitmodules entry, leaving an empty directory", entry.Path)
+			l.Debugf(
+				"cas: gitlink %s has no .gitmodules entry, leaving an empty directory",
+				entry.Path,
+			)
+
 			continue
 		}
 
@@ -722,7 +754,11 @@ func (c *CAS) storeSubmodules(
 
 // submoduleURLs reads the submodule path → URL table from the tree's
 // .gitmodules blob. A tree without one yields an empty table.
-func submoduleURLs(ctx context.Context, runner *git.GitRunner, tree *git.Tree) (map[string]string, error) {
+func submoduleURLs(
+	ctx context.Context,
+	runner *git.GitRunner,
+	tree *git.Tree,
+) (map[string]string, error) {
 	for _, entry := range tree.Entries() {
 		if entry.Path == git.GitmodulesPath && entry.Type == git.EntryTypeBlob {
 			return runner.SubmoduleURLs(ctx, entry.Hash)

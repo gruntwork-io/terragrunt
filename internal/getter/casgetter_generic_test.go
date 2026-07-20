@@ -128,7 +128,12 @@ func TestCASGetter_HTTPArchiveCachesSecondRun(t *testing.T) {
 	firstHeads := h.heads.Load()
 
 	assert.Equal(t, int32(1), firstGets, "first run must download the archive once")
-	assert.GreaterOrEqual(t, firstHeads, int32(1), "first run must probe via HEAD before downloading")
+	assert.GreaterOrEqual(
+		t,
+		firstHeads,
+		int32(1),
+		"first run must probe via HEAD before downloading",
+	)
 
 	runOnce(t)
 

@@ -29,7 +29,13 @@ const (
 )
 
 // doWithTelemetry is a small helper to standardize telemetry collection calls.
-func doWithTelemetry(ctx context.Context, l log.Logger, name string, fields map[string]any, fn func(context.Context, log.Logger) error) error {
+func doWithTelemetry(
+	ctx context.Context,
+	l log.Logger,
+	name string,
+	fields map[string]any,
+	fn func(context.Context, log.Logger) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, name, fields, fn)
 }
 
@@ -260,7 +266,11 @@ func checkUnitVersionConstraints(
 		VersionFiles: unitOpts.VersionManagerFileName,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
+		return fmt.Errorf(
+			"failed to populate Terraform version for unit %s: %w",
+			unit.DisplayPath(),
+			err,
+		)
 	}
 
 	unitOpts.TerraformVersion = ver
@@ -280,7 +290,11 @@ func checkUnitVersionConstraints(
 			unitOpts.TerragruntVersion,
 			unitConfig.TerragruntVersionConstraint,
 		); err != nil {
-			return fmt.Errorf("terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
+			return fmt.Errorf(
+				"terragrunt version check failed for unit %s: %w",
+				unit.DisplayPath(),
+				err,
+			)
 		}
 	}
 

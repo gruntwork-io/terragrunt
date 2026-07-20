@@ -24,21 +24,29 @@ func NewBackendFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 			Destination: &opts.BackendBootstrap,
 			Usage:       "Automatically bootstrap backend infrastructure before attempting to use it.",
 		}),
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        BackendRequireBootstrapFlagName,
-			EnvVars:     tgPrefix.EnvVars(BackendRequireBootstrapFlagName),
-			Destination: &opts.FailIfBucketCreationRequired,
-			Usage:       "When this flag is set Terragrunt will fail if the remote state bucket needs to be created.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fail-on-state-bucket-creation"), opts.StrictControls),
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:        BackendRequireBootstrapFlagName,
+				EnvVars:     tgPrefix.EnvVars(BackendRequireBootstrapFlagName),
+				Destination: &opts.FailIfBucketCreationRequired,
+				Usage:       "When this flag is set Terragrunt will fail if the remote state bucket needs to be created.",
+			},
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("fail-on-state-bucket-creation"),
+				opts.StrictControls,
+			),
 		),
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        DisableBucketUpdateFlagName,
-			EnvVars:     tgPrefix.EnvVars(DisableBucketUpdateFlagName),
-			Destination: &opts.DisableBucketUpdate,
-			Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-bucket-update"), opts.StrictControls),
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:        DisableBucketUpdateFlagName,
+				EnvVars:     tgPrefix.EnvVars(DisableBucketUpdateFlagName),
+				Destination: &opts.DisableBucketUpdate,
+				Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
+			},
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("disable-bucket-update"),
+				opts.StrictControls,
+			),
 		),
 	}
 }

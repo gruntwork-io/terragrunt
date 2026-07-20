@@ -38,7 +38,12 @@ func TestTerragruntReport(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 	require.Error(t, err)
 
 	// Verify the report output contains expected information
@@ -114,20 +119,60 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 		},
 	}
 
-	expectedHeader := []string{"Name", "Started", "Ended", "Result", "Reason", "Cause", "Ref", "Cmd", "Args"}
+	expectedHeader := []string{
+		"Name",
+		"Started",
+		"Ended",
+		"Result",
+		"Reason",
+		"Cause",
+		"Ref",
+		"Cmd",
+		"Args",
+	}
 
 	expectedRecords := []map[string]string{
 		{"Name": "chain-a", "Result": "failed", "Reason": "run error", "Cause": ""},
 		{"Name": "chain-b", "Result": "early exit", "Reason": "ancestor error", "Cause": "chain-a"},
 		{"Name": "chain-c", "Result": "early exit", "Reason": "ancestor error", "Cause": "chain-b"},
-		{"Name": "error-ignore", "Result": "succeeded", "Reason": "error ignored", "Cause": "ignore_everything"},
-		{"Name": "first-early-exit", "Result": "early exit", "Reason": "ancestor error", "Cause": "first-failure"},
+		{
+			"Name":   "error-ignore",
+			"Result": "succeeded",
+			"Reason": "error ignored",
+			"Cause":  "ignore_everything",
+		},
+		{
+			"Name":   "first-early-exit",
+			"Result": "early exit",
+			"Reason": "ancestor error",
+			"Cause":  "first-failure",
+		},
 		{"Name": "first-exclude", "Result": "excluded", "Reason": "exclude block", "Cause": ""},
-		{"Name": "first-failure", "Result": "failed", "Reason": "run error", "Cause": ".*Failed to execute.*"},
+		{
+			"Name":   "first-failure",
+			"Result": "failed",
+			"Reason": "run error",
+			"Cause":  ".*Failed to execute.*",
+		},
 		{"Name": "first-success", "Result": "succeeded", "Reason": "", "Cause": ""},
-		{"Name": "retry-success", "Result": "succeeded", "Reason": "retry succeeded", "Cause": "file_not_there_yet"},
-		{"Name": "second-early-exit", "Result": "early exit", "Reason": "ancestor error", "Cause": "second-failure"},
-		{"Name": "second-failure", "Result": "failed", "Reason": "run error", "Cause": ".*Failed to execute.*"},
+		{
+			"Name":   "retry-success",
+			"Result": "succeeded",
+			"Reason": "retry succeeded",
+			"Cause":  "file_not_there_yet",
+		},
+		{
+			"Name":   "second-early-exit",
+			"Result": "early exit",
+			"Reason": "ancestor error",
+			"Cause":  "second-failure",
+		},
+		{
+			"Name":   "second-failure",
+			"Result": "failed",
+			"Reason": "run error",
+			"Cause":  ".*Failed to execute.*",
+		},
 		{"Name": "second-success", "Result": "succeeded", "Reason": "", "Cause": ""},
 	}
 
@@ -160,7 +205,8 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 				"terragrunt run --all apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
 				rootPath,
 				filepath.Join(rootPath, "second-exclude"),
-				reportFile)
+				reportFile,
+			)
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 			require.Error(t, err)
 
@@ -213,13 +259,29 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 			// Verify each record
 			for i, record := range records {
 				_, err := time.Parse(time.RFC3339, record["Started"])
-				require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i+1)
+				require.NoError(
+					t,
+					err,
+					"Started timestamp in record %d is not in RFC3339 format",
+					i+1,
+				)
 
 				_, err = time.Parse(time.RFC3339, record["Ended"])
-				require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i+1)
+				require.NoError(
+					t,
+					err,
+					"Ended timestamp in record %d is not in RFC3339 format",
+					i+1,
+				)
 
 				// Verify Result is one of the expected values
-				assert.True(t, validResults[record["Result"]], "Invalid result value in record %d: %s", i+1, record["Result"])
+				assert.True(
+					t,
+					validResults[record["Result"]],
+					"Invalid result value in record %d: %s",
+					i+1,
+					record["Result"],
+				)
 
 				// Create a new map with only the fields we want to compare
 				compareRecord := map[string]string{
@@ -350,7 +412,13 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 			switch tc.expectedFormat {
 			case "csv":
 				// For CSV, verify it starts with the expected header
-				assert.True(t, strings.HasPrefix(string(content), "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args"))
+				assert.True(
+					t,
+					strings.HasPrefix(
+						string(content),
+						"Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args",
+					),
+				)
 			case "json":
 				// For JSON, verify it's valid JSON and has the expected structure
 				var jsonContent []map[string]any
@@ -429,7 +497,12 @@ func TestTerragruntReportWithUnitTiming(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-per-unit",
+		&stdout,
+		&stderr,
+	)
 	require.Error(t, err)
 
 	// Verify the report output contains expected information
@@ -633,12 +706,20 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 			createReportTestUnit(t, filepath.Join(tmpDir, "unit-modified"), "# Unit to be modified")
 			createReportTestUnit(t, filepath.Join(tmpDir, "unit-removed"), "# Unit to be removed")
-			createReportTestUnit(t, filepath.Join(tmpDir, "unit-untouched"), "# Unit to be untouched")
+			createReportTestUnit(
+				t,
+				filepath.Join(tmpDir, "unit-untouched"),
+				"# Unit to be untouched",
+			)
 
 			require.NoError(t, runner.Add(t.Context(), "."))
 			require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
-			err := os.WriteFile(filepath.Join(tmpDir, "unit-modified", "terragrunt.hcl"), []byte("# Modified"), 0644)
+			err := os.WriteFile(
+				filepath.Join(tmpDir, "unit-modified", "terragrunt.hcl"),
+				[]byte("# Modified"),
+				0644,
+			)
 			require.NoError(t, err)
 
 			err = os.RemoveAll(filepath.Join(tmpDir, "unit-removed"))
@@ -678,7 +759,13 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 				for _, expectedUnit := range tc.expectedUnits {
 					run := runs.FindByName(expectedUnit)
-					require.NotNil(t, run, "Expected unit '%s' should be in report. Found: %v", expectedUnit, runNames)
+					require.NotNil(
+						t,
+						run,
+						"Expected unit '%s' should be in report. Found: %v",
+						expectedUnit,
+						runNames,
+					)
 
 					assert.NotContains(t, run.Name, "terragrunt-worktree",
 						"Report path should not contain worktree directory. Got: %s", run.Name)
@@ -691,8 +778,20 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 				for _, excludedUnit := range tc.excludedUnits {
 					run := runs.FindByName(excludedUnit)
-					require.NotNil(t, run, "Excluded unit '%s' should be in report. Found: %v", excludedUnit, runNames)
-					assert.Equal(t, "excluded", run.Result, "Unit '%s' should be marked as excluded", excludedUnit)
+					require.NotNil(
+						t,
+						run,
+						"Excluded unit '%s' should be in report. Found: %v",
+						excludedUnit,
+						runNames,
+					)
+					assert.Equal(
+						t,
+						"excluded",
+						run.Result,
+						"Unit '%s' should be marked as excluded",
+						excludedUnit,
+					)
 				}
 
 				for _, ignoredUnit := range tc.ignoredUnits {
@@ -708,7 +807,13 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 				for _, expectedUnit := range tc.expectedUnits {
 					run := runs.FindByName(expectedUnit)
-					require.NotNil(t, run, "Expected unit '%s' should be in report. Found: %v", expectedUnit, runNames)
+					require.NotNil(
+						t,
+						run,
+						"Expected unit '%s' should be in report. Found: %v",
+						expectedUnit,
+						runNames,
+					)
 
 					assert.NotContains(t, run.Name, "terragrunt-worktree",
 						"Report path should not contain worktree directory. Got: %s", run.Name)
@@ -721,8 +826,20 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 				for _, excludedUnit := range tc.excludedUnits {
 					run := runs.FindByName(excludedUnit)
-					require.NotNil(t, run, "Excluded unit '%s' should be in report. Found: %v", excludedUnit, runNames)
-					assert.Equal(t, "excluded", run.Result, "Unit '%s' should be marked as excluded", excludedUnit)
+					require.NotNil(
+						t,
+						run,
+						"Excluded unit '%s' should be in report. Found: %v",
+						excludedUnit,
+						runNames,
+					)
+					assert.Equal(
+						t,
+						"excluded",
+						run.Result,
+						"Unit '%s' should be marked as excluded",
+						excludedUnit,
+					)
 				}
 
 				for _, ignoredUnit := range tc.ignoredUnits {

@@ -100,7 +100,13 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 // with [cas.ErrVenvFSUnset] or [cas.ErrVenvGitUnset] respectively when
 // either is nil. Production callers build v through [cas.OSVenv], which
 // always supplies both.
-func NewCASGetter(l log.Logger, c *cas.CAS, v cas.Venv, opts *cas.CloneOptions, options ...CASGetterOption) *CASGetter {
+func NewCASGetter(
+	l log.Logger,
+	c *cas.CAS,
+	v cas.Venv,
+	opts *cas.CloneOptions,
+	options ...CASGetterOption,
+) *CASGetter {
 	v.RequireFS()
 	v.RequireGit()
 
@@ -424,7 +430,10 @@ func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
 func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	scheme, ok := g.lookupFetcher(strings.ToLower(req.Forced))
 	if !ok {
-		return fmt.Errorf("CASGetter: no fetcher registered for scheme %q", strings.ToLower(req.Forced))
+		return fmt.Errorf(
+			"CASGetter: no fetcher registered for scheme %q",
+			strings.ToLower(req.Forced),
+		)
 	}
 
 	bare := g.fetchers[scheme]

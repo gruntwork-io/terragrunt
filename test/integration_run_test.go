@@ -168,7 +168,10 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 			expect, ok := tt.expect[wrapped]
 			require.Truef(t, ok, "no expected cache key recorded for wrapped binary %q", wrapped)
 
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionFilesCacheKey, tt.versionFiles...)
+			tmpEnvPath := helpers.CopyEnvironment(
+				t,
+				testFixtureVersionFilesCacheKey,
+				tt.versionFiles...)
 			path := filepath.Join(tmpEnvPath, testFixtureVersionFilesCacheKey)
 			flags := make([]string, 0, 4+2*len(tt.versionFiles))
 			flags = append(flags,
@@ -211,8 +214,18 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 //nolint:paralleltest // Mutates PATH via t.Setenv, which is incompatible with t.Parallel.
 func TestRunAllHonorsTerraformBinaryWithBothOnPath(t *testing.T) {
 	binDir := t.TempDir()
-	writeMockTFBinary(t, filepath.Join(binDir, helpers.TofuBinary), "OpenTofu v1.99.9", helpers.TofuBinary)
-	writeMockTFBinary(t, filepath.Join(binDir, helpers.TerraformBinary), "Terraform v1.99.9", helpers.TerraformBinary)
+	writeMockTFBinary(
+		t,
+		filepath.Join(binDir, helpers.TofuBinary),
+		"OpenTofu v1.99.9",
+		helpers.TofuBinary,
+	)
+	writeMockTFBinary(
+		t,
+		filepath.Join(binDir, helpers.TerraformBinary),
+		"Terraform v1.99.9",
+		helpers.TerraformBinary,
+	)
 
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
@@ -227,10 +240,24 @@ func TestRunAllHonorsTerraformBinaryWithBothOnPath(t *testing.T) {
 		tfPathFlag   string
 		expected     string
 	}{
-		{name: "config terraform", configBinary: helpers.TerraformBinary, expected: helpers.TerraformBinary},
+		{
+			name:         "config terraform",
+			configBinary: helpers.TerraformBinary,
+			expected:     helpers.TerraformBinary,
+		},
 		{name: "config tofu", configBinary: helpers.TofuBinary, expected: helpers.TofuBinary},
-		{name: "tf-path overrides config tofu", configBinary: helpers.TofuBinary, tfPathFlag: helpers.TerraformBinary, expected: helpers.TerraformBinary},
-		{name: "tf-path overrides config terraform", configBinary: helpers.TerraformBinary, tfPathFlag: helpers.TofuBinary, expected: helpers.TofuBinary},
+		{
+			name:         "tf-path overrides config tofu",
+			configBinary: helpers.TofuBinary,
+			tfPathFlag:   helpers.TerraformBinary,
+			expected:     helpers.TerraformBinary,
+		},
+		{
+			name:         "tf-path overrides config terraform",
+			configBinary: helpers.TerraformBinary,
+			tfPathFlag:   helpers.TofuBinary,
+			expected:     helpers.TofuBinary,
+		},
 	}
 
 	for _, tc := range testCases {

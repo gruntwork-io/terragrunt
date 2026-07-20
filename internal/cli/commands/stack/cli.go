@@ -76,7 +76,11 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 	}
 }
 
-func defaultFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func defaultFlags(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	prefix flags.Prefix,
+) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	flags := clihelper.Flags{
@@ -92,7 +96,11 @@ func defaultFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Pr
 	return append(runcmd.NewFlags(l, opts, nil), flags...)
 }
 
-func outputFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func outputFlags(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	prefix flags.Prefix,
+) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	flags := clihelper.Flags{

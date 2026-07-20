@@ -177,7 +177,9 @@ func TestWindowsConsoleStdinFlagsOnCONIN(t *testing.T) {
 
 	defer setMode(t, conin, original)
 
-	required := uint32(windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT)
+	required := uint32(
+		windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT,
+	)
 
 	assert.Equal(t, required, original&required,
 		"a default console input handle should have LINE_INPUT, ECHO_INPUT, PROCESSED_INPUT")
@@ -202,7 +204,9 @@ func TestWindowsConsoleStdinFlagsOnCONIN(t *testing.T) {
 // when stdin is piped (e.g. CI), where SaveConsoleState/PrepareConsole are no-ops.
 // It is intentionally not parallel: it mutates the global os.Stdin console mode,
 // which would race with the parallel tests that read it.
-func TestWindowsConsoleRestoreClearsVirtualTerminalInput(t *testing.T) { //nolint:paralleltest // mutates global stdin
+func TestWindowsConsoleRestoreClearsVirtualTerminalInput(
+	t *testing.T,
+) { //nolint:paralleltest // mutates global stdin
 	var originalStdin uint32
 	if windows.GetConsoleMode(windows.Handle(os.Stdin.Fd()), &originalStdin) != nil {
 		t.Skip("skipping: os.Stdin is not a real console handle (piped stdin)")

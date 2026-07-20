@@ -47,7 +47,10 @@ func TestGithubAuthPickupOrder(t *testing.T) {
 		t.Setenv("GH_TOKEN", "goodtoken")
 		t.Setenv("GITHUB_TOKEN", "badtoken")
 
-		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth())
+		client := github.NewGitHubAPIClient(
+			github.WithBaseURL(server.URL),
+			github.WithGithubComDefaultAuth(),
+		)
 
 		_, err := client.GetLatestRelease(t.Context(), "owner/repo")
 		require.NoError(t, err)
@@ -70,7 +73,10 @@ func TestGithubAuthPickupOrder(t *testing.T) {
 
 		t.Setenv("GH_TOKEN", "")
 		t.Setenv("GITHUB_TOKEN", "goodtoken")
-		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth())
+		client := github.NewGitHubAPIClient(
+			github.WithBaseURL(server.URL),
+			github.WithGithubComDefaultAuth(),
+		)
 
 		_, err := client.GetLatestRelease(t.Context(), "owner/repo")
 		require.NoError(t, err)
@@ -175,7 +181,11 @@ func TestGetLatestReleaseHTTPError(t *testing.T) {
 
 	_, err := client.GetLatestRelease(t.Context(), "owner/repo")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "GitHub API request to determine latest release failed with status 404")
+	assert.ErrorContains(
+		t,
+		err,
+		"GitHub API request to determine latest release failed with status 404",
+	)
 }
 
 func TestGetLatestReleaseEmptyTag(t *testing.T) {
@@ -267,8 +277,12 @@ func TestDownloadReleaseAssetsValidation(t *testing.T) {
 			errorMsg: "package file path cannot be empty",
 		},
 		{
-			name:     "missing version for GitHub repo",
-			assets:   &github.ReleaseAssets{Repository: "owner/repo", Version: "", PackageFile: "/tmp/package.zip"},
+			name: "missing version for GitHub repo",
+			assets: &github.ReleaseAssets{
+				Repository:  "owner/repo",
+				Version:     "",
+				PackageFile: "/tmp/package.zip",
+			},
 			errorMsg: "version cannot be empty for GitHub repository downloads",
 		},
 	}

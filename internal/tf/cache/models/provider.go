@@ -178,7 +178,13 @@ func ParseProvider(str string) *Provider {
 
 func (provider *Provider) String() string {
 	if provider.Version != "" {
-		return fmt.Sprintf("%s/%s/%s v%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
+		return fmt.Sprintf(
+			"%s/%s/%s v%s",
+			provider.RegistryName,
+			provider.Namespace,
+			provider.Name,
+			provider.Version,
+		)
 	}
 
 	return fmt.Sprintf("%s/%s/%s", provider.RegistryName, provider.Namespace, provider.Name)
@@ -198,14 +204,19 @@ func (provider *Provider) Constraints() string {
 
 // Match returns true if all defined provider properties are matched.
 func (provider *Provider) Match(target *Provider) bool {
-	registryNameMatch := provider.RegistryName == "" || target.RegistryName == "" || provider.RegistryName == target.RegistryName
-	namespaceMatch := provider.Namespace == "" || target.Namespace == "" || provider.Namespace == target.Namespace
+	registryNameMatch := provider.RegistryName == "" || target.RegistryName == "" ||
+		provider.RegistryName == target.RegistryName
+	namespaceMatch := provider.Namespace == "" || target.Namespace == "" ||
+		provider.Namespace == target.Namespace
 	nameMatch := provider.Name == "" || target.Name == "" || provider.Name == target.Name
 	osMatch := provider.OS == "" || target.OS == "" || provider.OS == target.OS
 	archMatch := provider.Arch == "" || target.Arch == "" || provider.Arch == target.Arch
-	downloadURLMatch := provider.ResponseBody == nil || provider.DownloadURL == "" || target.DownloadURL == "" || provider.DownloadURL == target.DownloadURL
+	downloadURLMatch := provider.ResponseBody == nil || provider.DownloadURL == "" ||
+		target.DownloadURL == "" ||
+		provider.DownloadURL == target.DownloadURL
 
-	if registryNameMatch && namespaceMatch && nameMatch && osMatch && archMatch && downloadURLMatch {
+	if registryNameMatch && namespaceMatch && nameMatch && osMatch && archMatch &&
+		downloadURLMatch {
 		return true
 	}
 

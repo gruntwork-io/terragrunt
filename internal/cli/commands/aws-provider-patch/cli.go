@@ -53,19 +53,25 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
 	return clihelper.Flags{
-		flags.NewFlag(&clihelper.MapFlag[string, string]{
-			Name:        OverrideAttrFlagName,
-			EnvVars:     tgPrefix.EnvVars(OverrideAttrFlagName),
-			Destination: &opts.AwsProviderPatchOverrides,
-			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("override-attr"), opts.StrictControls)),
+		flags.NewFlag(
+			&clihelper.MapFlag[string, string]{
+				Name:        OverrideAttrFlagName,
+				EnvVars:     tgPrefix.EnvVars(OverrideAttrFlagName),
+				Destination: &opts.AwsProviderPatchOverrides,
+				Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
+			},
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("override-attr"),
+				opts.StrictControls,
+			),
+		),
 	}
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
 	control := controls.NewDeprecatedCommand(CommandName)
-	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).AddSubcontrols(control)
+	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).
+		AddSubcontrols(control)
 
 	cmdFlags := append(runcmd.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))

@@ -50,10 +50,17 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 		semaphore.Acquire()
 
 		// Increment the total number of running goroutines
-		totalGoRoutinesExecutingSimultaneously := atomic.AddUint32(&goRoutinesExecutingSimultaneously, 1)
+		totalGoRoutinesExecutingSimultaneously := atomic.AddUint32(
+			&goRoutinesExecutingSimultaneously,
+			1,
+		)
 
 		if totalGoRoutinesExecutingSimultaneously > uint32(permits) {
-			t.Fatalf("The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d", permits, totalGoRoutinesExecutingSimultaneously)
+			t.Fatalf(
+				"The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d",
+				permits,
+				totalGoRoutinesExecutingSimultaneously,
+			)
 		}
 
 		// Sleep for a random amount of time to represent this goroutine doing work

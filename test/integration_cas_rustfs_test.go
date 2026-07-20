@@ -94,7 +94,8 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 func setupRustFSForCAS(t *testing.T) string {
 	t.Helper()
 
-	_, addr := helpers.RunContainer(t,
+	_, addr := helpers.RunContainer(
+		t,
 		"rustfs/rustfs:1.0.0-beta.2@sha256:6bd08dc511cebe0a4b5c35c266db465c7eb92cf3df4321c69967be66fe4cb395",
 		9000,
 		testcontainers.WithCmd("/data"),
@@ -123,9 +124,12 @@ func newRustFSClient(t *testing.T, endpoint string) *s3.Client {
 // load, matching how a production resolver would honor request
 // cancellation.
 func newRustFSClientFor(ctx context.Context, endpoint string) (*s3.Client, error) {
-	cfg, err := config.LoadDefaultConfig(ctx,
+	cfg, err := config.LoadDefaultConfig(
+		ctx,
 		config.WithRegion("us-east-1"),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("rustfsadmin", "rustfsadmin", "")),
+		config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider("rustfsadmin", "rustfsadmin", ""),
+		),
 	)
 	if err != nil {
 		return nil, err

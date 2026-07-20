@@ -47,7 +47,14 @@ func SpinnerWriter() io.Writer {
 // NotifyIfSlow runs fn and, if it takes longer than timeout, shows a spinner on spinnerW.
 // When fn completes successfully, the spinner is replaced by an INFO log with the done message and elapsed time.
 // When fn returns an error, the spinner is cleared but no success message is logged.
-func NotifyIfSlow(ctx context.Context, l log.Logger, spinnerW io.Writer, timeout time.Duration, msgs SlowNotifyMsg, fn func() error) error {
+func NotifyIfSlow(
+	ctx context.Context,
+	l log.Logger,
+	spinnerW io.Writer,
+	timeout time.Duration,
+	msgs SlowNotifyMsg,
+	fn func() error,
+) error {
 	result := make(chan error, 1)
 	showed := make(chan struct{})
 	start := time.Now()

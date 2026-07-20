@@ -45,5 +45,9 @@ func validateStateIsEncrypted(t *testing.T, fileName string, path string) {
 	assert.True(t, ok, "The value of 'encrypted_data' should be a string")
 
 	_, err = base64.StdEncoding.DecodeString(encryptedDataStr)
-	assert.NoError(t, err, "The value of 'encrypted_data' should be base64 encoded, indicating AES-256 encryption")
+	assert.NoError(
+		t,
+		err,
+		"The value of 'encrypted_data' should be base64 encoded, indicating AES-256 encryption",
+	)
 }

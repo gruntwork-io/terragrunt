@@ -138,7 +138,12 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 			req := &gogetter.Request{Src: tt.src}
 
 			ok, _ := g.Detect(req)
-			assert.False(t, ok, "URL-scheme claim must not match %s; require <scheme>:: forced prefix instead", tt.src)
+			assert.False(
+				t,
+				ok,
+				"URL-scheme claim must not match %s; require <scheme>:: forced prefix instead",
+				tt.src,
+			)
 		})
 	}
 }
@@ -204,7 +209,12 @@ func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 			ok, err := g.Detect(req)
 			require.NoError(t, err)
 			require.True(t, ok, "detector should claim %s", tt.src)
-			assert.Equal(t, getter.SchemeS3, req.Forced, "AWS S3 host must route through the s3 fetcher")
+			assert.Equal(
+				t,
+				getter.SchemeS3,
+				req.Forced,
+				"AWS S3 host must route through the s3 fetcher",
+			)
 
 			u, parseErr := url.Parse(req.Src)
 			require.NoError(t, parseErr)
@@ -215,7 +225,12 @@ func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 			q.Del("archive")
 			u.RawQuery = q.Encode()
 
-			assert.Equal(t, tt.wantSrc, u.String(), "Src must be canonicalized to the bare s3 getter's accepted form")
+			assert.Equal(
+				t,
+				tt.wantSrc,
+				u.String(),
+				"Src must be canonicalized to the bare s3 getter's accepted form",
+			)
 		})
 	}
 }
@@ -267,7 +282,12 @@ func TestCASGetterDetect_NonS3AmazonAWSHostFallsThroughToHTTPS(t *testing.T) {
 			ok, err := g.Detect(req)
 			require.NoError(t, err)
 			require.True(t, ok)
-			assert.Equal(t, getter.SchemeHTTPS, req.Forced, "non-S3 amazonaws.com hosts must route through HTTPS, not s3")
+			assert.Equal(
+				t,
+				getter.SchemeHTTPS,
+				req.Forced,
+				"non-S3 amazonaws.com hosts must route through HTTPS, not s3",
+			)
 		})
 	}
 }
@@ -414,8 +434,16 @@ func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
 		src  string
 		want string
 	}{
-		{name: "preserve archive=true", src: "https://example.com/mod.tar.gz?archive=true", want: "true"},
-		{name: "preserve archive=false", src: "https://example.com/mod.tar.gz?archive=false", want: "false"},
+		{
+			name: "preserve archive=true",
+			src:  "https://example.com/mod.tar.gz?archive=true",
+			want: "true",
+		},
+		{
+			name: "preserve archive=false",
+			src:  "https://example.com/mod.tar.gz?archive=false",
+			want: "false",
+		},
 	}
 
 	for _, tt := range tests {
@@ -447,5 +475,11 @@ func newCASGetterForDetect(t *testing.T) *getter.CASGetter {
 	v, err := tgcas.OSVenv()
 	require.NoError(t, err)
 
-	return getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+	return getter.NewCASGetter(
+		logger.CreateLogger(),
+		c,
+		v,
+		&tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(),
+	)
 }

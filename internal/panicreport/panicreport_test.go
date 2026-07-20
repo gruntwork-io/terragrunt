@@ -31,7 +31,13 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 	r := newStubReporter(fs, "/wd", when, 8080)
 	l, output := newPanicLogger()
 
-	r.ReportPanic(l, "1.7.9", "nil pointer dereference", []byte("stack-frames\nrunes"), []string{"terragrunt", "plan"})
+	r.ReportPanic(
+		l,
+		"1.7.9",
+		"nil pointer dereference",
+		[]byte("stack-frames\nrunes"),
+		[]string{"terragrunt", "plan"},
+	)
 
 	expectedPath := "/wd/terragrunt-crash-20260515T123045Z-8080.log"
 
@@ -120,7 +126,10 @@ func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 
 	r.ReportPanic(logger.CreateLogger(), "1.7.9", "divide by zero", []byte("stack"), nil)
 
-	expectedPath := filepath.Join("/tmp", "terragrunt-crash-"+when.UTC().Format("20060102T150405Z")+"-"+strconv.Itoa(pid)+".log")
+	expectedPath := filepath.Join(
+		"/tmp",
+		"terragrunt-crash-"+when.UTC().Format("20060102T150405Z")+"-"+strconv.Itoa(pid)+".log",
+	)
 	_, err := vfs.ReadFile(fs, expectedPath)
 	require.NoError(t, err, "expected crash file at %s", expectedPath)
 }
@@ -152,7 +161,15 @@ func TestPanicHandler(t *testing.T) {
 		t.Parallel()
 
 		r := newStubReporter(vfs.NewMemMapFS(), "/wd", time.Now().UTC(), 1)
-		assert.False(t, r.PanicHandler(nil, logger.CreateLogger(), func() string { return "1.7.9" }, []string{"terragrunt"}))
+		assert.False(
+			t,
+			r.PanicHandler(
+				nil,
+				logger.CreateLogger(),
+				func() string { return "1.7.9" },
+				[]string{"terragrunt"},
+			),
+		)
 	})
 
 	t.Run("returns true and writes report when rec is set", func(t *testing.T) {
@@ -169,7 +186,12 @@ func TestPanicHandler(t *testing.T) {
 
 		func() {
 			defer func() {
-				recovered = r.PanicHandler(recover(), l, func() string { return "1.7.9" }, []string{"terragrunt", "plan"})
+				recovered = r.PanicHandler(
+					recover(),
+					l,
+					func() string { return "1.7.9" },
+					[]string{"terragrunt", "plan"},
+				)
 			}()
 
 			panic("boom")
@@ -302,14 +324,19 @@ func TestIsPanic(t *testing.T) {
 		assert.True(t, panicreport.IsPanic(fmt.Errorf("wrapped: %w", err)))
 	})
 
-	t.Run("plain error containing panic text is not classified as a Terragrunt panic", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"plain error containing panic text is not classified as a Terragrunt panic",
+		func(t *testing.T) {
+			t.Parallel()
 
-		// Subprocess (tofu/terraform) crash text bubbled up as a regular error must NOT trigger a Terragrunt crash banner.
-		err := errors.New("panic: simulated\n\ngoroutine 1 [running]:\nruntime/debug.Stack()\npanic({0x...})\n\t/usr/local/go/src/runtime/panic.go:860")
+			// Subprocess (tofu/terraform) crash text bubbled up as a regular error must NOT trigger a Terragrunt crash banner.
+			err := errors.New(
+				"panic: simulated\n\ngoroutine 1 [running]:\nruntime/debug.Stack()\npanic({0x...})\n\t/usr/local/go/src/runtime/panic.go:860",
+			)
 
-		assert.False(t, panicreport.IsPanic(err))
-	})
+			assert.False(t, panicreport.IsPanic(err))
+		},
+	)
 
 	t.Run("matches a wrapped runtime.Error", func(t *testing.T) {
 		t.Parallel()
@@ -351,7 +378,11 @@ func TestIsPanic(t *testing.T) {
 			stack: "goroutine 1:\nruntime/panic.go:860\npanic({0x...})\n",
 		}
 
-		joined := errors.Join(errors.New("first benign failure"), panicErr, errors.New("second benign failure"))
+		joined := errors.Join(
+			errors.New("first benign failure"),
+			panicErr,
+			errors.New("second benign failure"),
+		)
 
 		assert.True(t, panicreport.IsPanic(joined))
 	})
@@ -404,7 +435,11 @@ func newPanicLogger() (log.Logger, *bytes.Buffer) {
 	buf := new(bytes.Buffer)
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 
-	return log.New(log.WithOutput(buf), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter)), buf
+	return log.New(
+		log.WithOutput(buf),
+		log.WithLevel(log.InfoLevel),
+		log.WithFormatter(formatter),
+	), buf
 }
 
 func newStubReporter(fs vfs.FS, workDir string, now time.Time, pid int) *panicreport.Reporter {

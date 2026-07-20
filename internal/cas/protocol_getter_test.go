@@ -166,14 +166,22 @@ func TestFormatCASRef(t *testing.T) {
 func TestFormatCASRefWithSubdir(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "cas::sha1:abc123//modules/vpc", cas.FormatCASRefWithSubdir("abc123", "modules/vpc"))
+	assert.Equal(
+		t,
+		"cas::sha1:abc123//modules/vpc",
+		cas.FormatCASRefWithSubdir("abc123", "modules/vpc"),
+	)
 }
 
 func TestDetectHashAlgorithm(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, cas.HashSHA1, cas.DetectHashAlgorithm("abc123"))
-	assert.Equal(t, cas.HashSHA1, cas.DetectHashAlgorithm("f39ea0ebf891c9954c89d07b73b487ff938ef08b"))
+	assert.Equal(
+		t,
+		cas.HashSHA1,
+		cas.DetectHashAlgorithm("f39ea0ebf891c9954c89d07b73b487ff938ef08b"),
+	)
 
 	sha256Hash := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	assert.Equal(t, cas.HashSHA256, cas.DetectHashAlgorithm(sha256Hash))

@@ -26,7 +26,12 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return runDelete(ctx, l, v, opts)
 }
 
-func runDelete(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runDelete(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 	pctx = pctx.WithVenv(v)
 
@@ -36,7 +41,12 @@ func runDelete(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Ter
 	}
 
 	if !opts.ForceBackendDelete {
-		enabled, err := remoteState.IsVersionControlEnabled(ctx, l, v, configbridge.RemoteStateOptsFromOpts(opts))
+		enabled, err := remoteState.IsVersionControlEnabled(
+			ctx,
+			l,
+			v,
+			configbridge.RemoteStateOptsFromOpts(opts),
+		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}

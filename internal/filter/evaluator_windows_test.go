@@ -20,19 +20,22 @@ import (
 func TestWindowsFilterNativeSeparators(t *testing.T) {
 	t.Parallel()
 
-	t.Run("path filter built from native separators matches forward-slash component", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"path filter built from native separators matches forward-slash component",
+		func(t *testing.T) {
+			t.Parallel()
 
-		// filepath.Dir on a git diff path yields backslashes on Windows; the resulting
-		// path filter must still match the forward-slash component path.
-		expr := mustPath(t, `apps\app1`)
-		c := component.NewUnit("apps/app1")
+			// filepath.Dir on a git diff path yields backslashes on Windows; the resulting
+			// path filter must still match the forward-slash component path.
+			expr := mustPath(t, `apps\app1`)
+			c := component.NewUnit("apps/app1")
 
-		l := logger.CreateLogger()
-		result, err := filter.Evaluate(l, expr, []component.Component{c})
-		require.NoError(t, err)
-		assert.Len(t, result, 1)
-	})
+			l := logger.CreateLogger()
+			result, err := filter.Evaluate(l, expr, []component.Component{c})
+			require.NoError(t, err)
+			assert.Len(t, result, 1)
+		},
+	)
 
 	t.Run("reading filter matches native read paths", func(t *testing.T) {
 		t.Parallel()

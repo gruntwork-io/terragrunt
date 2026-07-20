@@ -23,7 +23,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, iamRoleOpts iam.RoleOptions, env map[string]string) providers.Provider {
+func NewProvider(
+	l log.Logger,
+	iamRoleOpts iam.RoleOptions,
+	env map[string]string,
+) providers.Provider {
 	return &Provider{
 		iamRoleOpts: iamRoleOpts,
 		env:         env,

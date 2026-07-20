@@ -118,7 +118,9 @@ func RenderTagPills(tags []string, maxWidth int, selected bool) string {
 
 	// Reserve against the widest possible +N so the indicator always fits.
 	worstOverflowText := fmt.Sprintf("+%d", len(sorted))
-	worstOverflowW := lipgloss.Width(TagPillStyle(worstOverflowText, selected).Render(worstOverflowText))
+	worstOverflowW := lipgloss.Width(
+		TagPillStyle(worstOverflowText, selected).Render(worstOverflowText),
+	)
 
 	budget := maxWidth - labelW
 

@@ -26,7 +26,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, authProviderCmd string, runOpts *shell.ShellOptions) providers.Provider {
+func NewProvider(
+	l log.Logger,
+	authProviderCmd string,
+	runOpts *shell.ShellOptions,
+) providers.Provider {
 	return &Provider{
 		authProviderCmd: authProviderCmd,
 		runOpts:         runOpts,
@@ -226,7 +230,11 @@ func (role *AWSRole) Envs(
 	return envs
 }
 
-func (creds *AWSCredentials) Envs(_ context.Context, l log.Logger, authProviderCmd string) map[string]string {
+func (creds *AWSCredentials) Envs(
+	_ context.Context,
+	l log.Logger,
+	authProviderCmd string,
+) map[string]string {
 	var emptyFields []string
 
 	if creds.AccessKeyID == "" {

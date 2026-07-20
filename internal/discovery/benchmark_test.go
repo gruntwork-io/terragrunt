@@ -57,7 +57,10 @@ func benchmarkPathExpression(b *testing.B, n int) {
 	l := newDiscardLogger()
 	opts := &options.TerragruntOptions{WorkingDir: tmpDir, RootWorkingDir: tmpDir}
 
-	filterQueries, err := filter.ParseFilterQueries(l, []string{"./apps/app-0000", "./apps/app-0001"})
+	filterQueries, err := filter.ParseFilterQueries(
+		l,
+		[]string{"./apps/app-0000", "./apps/app-0001"},
+	)
 	require.NoError(b, err)
 
 	v := venv.OSVenv()
@@ -117,7 +120,10 @@ func benchmarkPathAndGraphExpression(b *testing.B, n int) {
 	l := newDiscardLogger()
 	opts := &options.TerragruntOptions{WorkingDir: tmpDir, RootWorkingDir: tmpDir}
 
-	filterQueries, err := filter.ParseFilterQueries(l, []string{"./apps/app-0000", "./apps/app-0001", "infra-0001..."})
+	filterQueries, err := filter.ParseFilterQueries(
+		l,
+		[]string{"./apps/app-0000", "./apps/app-0001", "infra-0001..."},
+	)
 	require.NoError(b, err)
 
 	v := venv.OSVenv()

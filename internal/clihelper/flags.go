@@ -20,7 +20,10 @@ func (flags Flags) Parse(args Args) error {
 	return nil
 }
 
-func (flags Flags) NewFlagSet(cmdName string, errHandler func(err error) error) (*libflag.FlagSet, error) {
+func (flags Flags) NewFlagSet(
+	cmdName string,
+	errHandler func(err error) error,
+) (*libflag.FlagSet, error) {
 	flagSet := libflag.NewFlagSet(cmdName, libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 

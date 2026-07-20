@@ -159,9 +159,17 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	require.NoError(t, srv.Close())
 
 	dst2 := filepath.Join(tempDir, "dst2")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst2),
+	require.NoError(t, c.Clone(
+		t.Context(),
+		l,
+		v,
+		repoURL,
+		cas.WithDir(dst2),
 		cas.WithBranch(headHash),
-		cas.WithDepth(-1)), "second clone keyed by full SHA must resolve from local CAS without ls-remote")
+		cas.WithDepth(
+			-1,
+		),
+	), "second clone keyed by full SHA must resolve from local CAS without ls-remote")
 
 	require.FileExists(t, filepath.Join(dst2, "README.md"))
 }

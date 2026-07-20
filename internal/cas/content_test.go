@@ -189,7 +189,11 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 		targetInfo, err := os.Stat(targetPath)
 		require.NoError(t, err)
-		assert.False(t, os.SameFile(sourceInfo, targetInfo), "expected independent inode (copy, not hard link)")
+		assert.False(
+			t,
+			os.SameFile(sourceInfo, targetInfo),
+			"expected independent inode (copy, not hard link)",
+		)
 		assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm(),
 			"force copy must preserve original git perms exactly")
 
@@ -231,41 +235,44 @@ func TestContent_Link(t *testing.T) {
 			"default path must clear write bits (0o644 -> 0o444)")
 	})
 
-	t.Run("default path hardlinks executable when store carries matching perms", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"default path hardlinks executable when store carries matching perms",
+		func(t *testing.T) {
+			t.Parallel()
 
-		v, err := cas.OSVenv()
-		require.NoError(t, err)
+			v, err := cas.OSVenv()
+			require.NoError(t, err)
 
-		storeDir := t.TempDir()
-		targetDir := t.TempDir()
-		store := cas.NewStore(storeDir)
+			storeDir := t.TempDir()
+			targetDir := t.TempDir()
+			store := cas.NewStore(storeDir)
 
-		content := cas.NewContent(store)
-		testHash := testHashValue
-		testData := []byte("#!/bin/sh\necho hi\n")
+			content := cas.NewContent(store)
+			testHash := testHashValue
+			testData := []byte("#!/bin/sh\necho hi\n")
 
-		require.NoError(t, content.Store(l, v, testHash, testData))
+			require.NoError(t, content.Store(l, v, testHash, testData))
 
-		// Mirror the store-side chmod that the git-clone path applies: stored
-		// blobs carry their original git mode with write bits cleared, so
-		// executables sit at 0o555 in the store.
-		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
-		require.NoError(t, os.Chmod(sourcePath, 0o555))
+			// Mirror the store-side chmod that the git-clone path applies: stored
+			// blobs carry their original git mode with write bits cleared, so
+			// executables sit at 0o555 in the store.
+			sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
+			require.NoError(t, os.Chmod(sourcePath, 0o555))
 
-		targetPath := filepath.Join(targetDir, "run.sh")
-		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o755))
+			targetPath := filepath.Join(targetDir, "run.sh")
+			require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o755))
 
-		info, err := os.Stat(targetPath)
-		require.NoError(t, err)
-		assert.Equal(t, os.FileMode(0o555), info.Mode().Perm(),
-			"executable entry must keep exec bits and lose only write (0o755 -> 0o555)")
+			info, err := os.Stat(targetPath)
+			require.NoError(t, err)
+			assert.Equal(t, os.FileMode(0o555), info.Mode().Perm(),
+				"executable entry must keep exec bits and lose only write (0o755 -> 0o555)")
 
-		sourceInfo, err := os.Stat(sourcePath)
-		require.NoError(t, err)
-		assert.True(t, os.SameFile(sourceInfo, info),
-			"executable entry should hardlink when the stored blob already carries 0o555")
-	})
+			sourceInfo, err := os.Stat(sourcePath)
+			require.NoError(t, err)
+			assert.True(t, os.SameFile(sourceInfo, info),
+				"executable entry should hardlink when the stored blob already carries 0o555")
+		},
+	)
 
 	t.Run("default path falls back to copy on perm collision", func(t *testing.T) {
 		t.Parallel()
@@ -318,7 +325,10 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, content.Store(l, v, testHash, testData))
 
 		targetPath := filepath.Join(targetDir, "run.sh")
-		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o755, cas.WithLinkForceCopy()))
+		require.NoError(
+			t,
+			content.Link(t.Context(), v, testHash, targetPath, 0o755, cas.WithLinkForceCopy()),
+		)
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)

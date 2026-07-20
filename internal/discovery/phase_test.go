@@ -82,7 +82,10 @@ func TestFilesystemPhase_SkipsIgnorableDirs(t *testing.T) {
 	for _, dir := range ignorableDirs {
 		ignorableUnit := filepath.Join(tmpDir, dir, "ignored")
 		require.NoError(t, os.MkdirAll(ignorableUnit, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(ignorableUnit, "terragrunt.hcl"), []byte(""), 0644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(ignorableUnit, "terragrunt.hcl"), []byte(""), 0644),
+		)
 	}
 
 	l := logger.CreateLogger()
@@ -493,12 +496,32 @@ func TestCandidacyClassifier_AnalyzesFiltersCorrectly(t *testing.T) {
 
 			classifier := filter.NewClassifier(filters)
 
-			assert.Equal(t, tt.expectHasPositive, classifier.HasPositiveFilters(), "HasPositiveFilters mismatch")
-			assert.Equal(t, tt.expectHasParseRequired, classifier.HasParseRequiredFilters(), "HasParseRequiredFilters mismatch")
-			assert.Equal(t, tt.expectHasGraphFilters, classifier.HasGraphFilters(), "HasGraphFilters mismatch")
+			assert.Equal(
+				t,
+				tt.expectHasPositive,
+				classifier.HasPositiveFilters(),
+				"HasPositiveFilters mismatch",
+			)
+			assert.Equal(
+				t,
+				tt.expectHasParseRequired,
+				classifier.HasParseRequiredFilters(),
+				"HasParseRequiredFilters mismatch",
+			)
+			assert.Equal(
+				t,
+				tt.expectHasGraphFilters,
+				classifier.HasGraphFilters(),
+				"HasGraphFilters mismatch",
+			)
 
 			if tt.expectGraphExprCount > 0 {
-				assert.Len(t, classifier.GraphExpressions(), tt.expectGraphExprCount, "GraphExpressions count mismatch")
+				assert.Len(
+					t,
+					classifier.GraphExpressions(),
+					tt.expectGraphExprCount,
+					"GraphExpressions count mismatch",
+				)
 			}
 		})
 	}
@@ -698,7 +721,12 @@ func TestClassifier_HasDependentFilters(t *testing.T) {
 
 			classifier := filter.NewClassifier(filters)
 
-			assert.Equal(t, tt.expectResult, classifier.HasDependentFilters(), "HasDependentFilters mismatch")
+			assert.Equal(
+				t,
+				tt.expectResult,
+				classifier.HasDependentFilters(),
+				"HasDependentFilters mismatch",
+			)
 		})
 	}
 }

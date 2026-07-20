@@ -47,22 +47,53 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 			expected:       map[string]string{"TF_VAR_foo": "bar"},
 		},
 		{
-			description:    "No env vars in opts, a few inputs",
-			envVarsInOpts:  nil,
-			inputsInConfig: map[string]any{"foo": "bar", "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
-			expected:       map[string]string{"TF_VAR_foo": "bar", "TF_VAR_list": "[1,2,3]", "TF_VAR_map": `{"a":"b"}`},
+			description:   "No env vars in opts, a few inputs",
+			envVarsInOpts: nil,
+			inputsInConfig: map[string]any{
+				"foo":  "bar",
+				"list": []int{1, 2, 3},
+				"map":  map[string]any{"a": "b"},
+			},
+			expected: map[string]string{
+				"TF_VAR_foo":  "bar",
+				"TF_VAR_list": "[1,2,3]",
+				"TF_VAR_map":  `{"a":"b"}`,
+			},
 		},
 		{
-			description:    "A few env vars in opts, a few inputs, no overlap",
-			envVarsInOpts:  map[string]string{"foo": "bar", "something": "else"},
-			inputsInConfig: map[string]any{"foo": "bar", "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
-			expected:       map[string]string{"foo": "bar", "something": "else", "TF_VAR_foo": "bar", "TF_VAR_list": "[1,2,3]", "TF_VAR_map": `{"a":"b"}`},
+			description:   "A few env vars in opts, a few inputs, no overlap",
+			envVarsInOpts: map[string]string{"foo": "bar", "something": "else"},
+			inputsInConfig: map[string]any{
+				"foo":  "bar",
+				"list": []int{1, 2, 3},
+				"map":  map[string]any{"a": "b"},
+			},
+			expected: map[string]string{
+				"foo":         "bar",
+				"something":   "else",
+				"TF_VAR_foo":  "bar",
+				"TF_VAR_list": "[1,2,3]",
+				"TF_VAR_map":  `{"a":"b"}`,
+			},
 		},
 		{
-			description:    "A few env vars in opts, a few inputs, with overlap",
-			envVarsInOpts:  map[string]string{"foo": "bar", "TF_VAR_foo": "original", "TF_VAR_list": "original"},
-			inputsInConfig: map[string]any{"foo": "bar", "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
-			expected:       map[string]string{"foo": "bar", "TF_VAR_foo": "original", "TF_VAR_list": "original", "TF_VAR_map": `{"a":"b"}`},
+			description: "A few env vars in opts, a few inputs, with overlap",
+			envVarsInOpts: map[string]string{
+				"foo":         "bar",
+				"TF_VAR_foo":  "original",
+				"TF_VAR_list": "original",
+			},
+			inputsInConfig: map[string]any{
+				"foo":  "bar",
+				"list": []int{1, 2, 3},
+				"map":  map[string]any{"a": "b"},
+			},
+			expected: map[string]string{
+				"foo":         "bar",
+				"TF_VAR_foo":  "original",
+				"TF_VAR_list": "original",
+				"TF_VAR_map":  `{"a":"b"}`,
+			},
 		},
 	}
 
@@ -222,13 +253,27 @@ func TestToTerraformEnvVars(t *testing.T) {
 		},
 		{
 			description: "nested map value",
-			vars:        map[string]any{"foo": map[string]any{"a": []int{1, 2, 3}, "b": "c", "d": map[string]any{"e": "f"}}},
-			expected:    map[string]string{"TF_VAR_foo": `{"a":[1,2,3],"b":"c","d":{"e":"f"}}`},
+			vars: map[string]any{
+				"foo": map[string]any{"a": []int{1, 2, 3}, "b": "c", "d": map[string]any{"e": "f"}},
+			},
+			expected: map[string]string{"TF_VAR_foo": `{"a":[1,2,3],"b":"c","d":{"e":"f"}}`},
 		},
 		{
 			description: "multiple values",
-			vars:        map[string]any{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
-			expected:    map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
+			vars: map[string]any{
+				"str":  "bar",
+				"int":  42,
+				"bool": false,
+				"list": []int{1, 2, 3},
+				"map":  map[string]any{"a": "b"},
+			},
+			expected: map[string]string{
+				"TF_VAR_str":  `bar`,
+				"TF_VAR_int":  `42`,
+				"TF_VAR_bool": `false`,
+				"TF_VAR_list": `[1,2,3]`,
+				"TF_VAR_map":  `{"a":"b"}`,
+			},
 		},
 		{
 			description: "map value with interpolation pattern",
@@ -274,94 +319,194 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		// Standard scenario
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
-			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan", "destroy"}, []string{}, []string{}),
+			mockExtraArgs(
+				[]string{"--foo", "bar"},
+				[]string{"apply", "plan", "destroy"},
+				[]string{},
+				[]string{},
+			),
 			[]string{"--foo", "bar"},
 		},
 		// optional existing var file
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
-			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{}, []string{temporaryFile}),
+			mockExtraArgs(
+				[]string{"--foo", "bar"},
+				[]string{"apply", "plan"},
+				[]string{},
+				[]string{temporaryFile},
+			),
 			[]string{"--foo", "bar", "-var-file=" + temporaryFile},
 		},
 		// required var file + optional existing var file
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
-			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			mockExtraArgs(
+				[]string{"--foo", "bar"},
+				[]string{"apply", "plan"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
 			[]string{"--foo", "bar", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// non existing required var file + non existing optional var file
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
-			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{"required.tfvars"}, []string{"optional.tfvars"}),
+			mockExtraArgs(
+				[]string{"--foo", "bar"},
+				[]string{"apply", "plan"},
+				[]string{"required.tfvars"},
+				[]string{"optional.tfvars"},
+			),
 			[]string{"--foo", "bar", "-var-file=required.tfvars"},
 		},
 		// plan providing a folder, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"plan", workingDir}),
-			mockExtraArgs([]string{"--foo", "bar"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			mockExtraArgs(
+				[]string{"--foo", "bar"},
+				[]string{"plan", "apply"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
 			[]string{"--foo", "bar", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// apply providing a folder, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"apply", workingDir}),
-			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
+			mockExtraArgs(
+				[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"},
+				[]string{"plan", "apply"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
+			[]string{
+				"--foo",
+				"-var-file=test.tfvars",
+				"-var='key=value'",
+				"-var-file=required.tfvars",
+				"-var-file=" + temporaryFile,
+			},
 		},
 		// apply providing a file, no var files included
 		{
 			mockCmdOptions(t, workingDir, []string{"apply", temporaryFile}),
-			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			mockExtraArgs(
+				[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"},
+				[]string{"plan", "apply"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
 			[]string{"--foo", "bar", "foo"},
 		},
 
 		// apply providing no params, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
-			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
+			mockExtraArgs(
+				[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"},
+				[]string{"plan", "apply"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
+			[]string{
+				"--foo",
+				"-var-file=test.tfvars",
+				"bar",
+				"-var='key=value'",
+				"foo",
+				"-var-file=required.tfvars",
+				"-var-file=" + temporaryFile,
+			},
 		},
 		// apply with some parameters, providing a file => no var files included
 		{
 			mockCmdOptions(t, workingDir, []string{"apply", "-no-color", "-foo", temporaryFile}),
-			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			mockExtraArgs(
+				[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"},
+				[]string{"plan", "apply"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
 			[]string{"--foo", "bar", "foo"},
 		},
 		// destroy providing a folder, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy", workingDir}),
-			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
+			mockExtraArgs(
+				[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"},
+				[]string{"plan", "destroy"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
+			[]string{
+				"--foo",
+				"-var-file=test.tfvars",
+				"-var='key=value'",
+				"-var-file=required.tfvars",
+				"-var-file=" + temporaryFile,
+			},
 		},
 		// destroy providing a file, no var files included
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy", temporaryFile}),
-			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			mockExtraArgs(
+				[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"},
+				[]string{"plan", "destroy"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
 			[]string{"--foo", "bar", "foo"},
 		},
 
 		// destroy providing no params, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy"}),
-			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
+			mockExtraArgs(
+				[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"},
+				[]string{"plan", "destroy"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
+			[]string{
+				"--foo",
+				"-var-file=test.tfvars",
+				"bar",
+				"-var='key=value'",
+				"foo",
+				"-var-file=required.tfvars",
+				"-var-file=" + temporaryFile,
+			},
 		},
 		// destroy with some parameters, providing a file => no var files included
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy", "-no-color", "-foo", temporaryFile}),
-			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			mockExtraArgs(
+				[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"},
+				[]string{"plan", "destroy"},
+				[]string{"required.tfvars"},
+				[]string{temporaryFile},
+			),
 			[]string{"--foo", "bar", "foo"},
 		},
 
 		// Command not included in commands list
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
-			mockExtraArgs([]string{"--foo", "bar"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{"optional.tfvars"}),
+			mockExtraArgs(
+				[]string{"--foo", "bar"},
+				[]string{"plan", "destroy"},
+				[]string{"required.tfvars"},
+				[]string{"optional.tfvars"},
+			),
 			[]string{},
 		},
 	}
 	for _, tc := range testCases {
 		config := runcfg.RunConfig{
-			Terraform: runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{tc.extraArgs}},
+			Terraform: runcfg.TerraformConfig{
+				ExtraArgs: []runcfg.TerraformExtraArguments{tc.extraArgs},
+			},
 		}
 		l := logger.CreateLogger()
 		out := run.FilterTerraformExtraArgs(l, configbridge.NewRunOptions(tc.options), &config)
@@ -371,7 +516,11 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 
 var defaultLogLevel = log.DebugLevel
 
-func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
+func mockCmdOptions(
+	t *testing.T,
+	workingDir string,
+	terraformCliArgs []string,
+) *options.TerragruntOptions {
 	t.Helper()
 
 	o := mockOptions(
@@ -393,7 +542,9 @@ func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) 
 	return o
 }
 
-func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []string) runcfg.TerraformExtraArguments {
+func mockExtraArgs(
+	arguments, commands, requiredVarFiles, optionalVarFiles []string,
+) runcfg.TerraformExtraArguments {
 	// Compute VarFiles from RequiredVarFiles and OptionalVarFiles, matching what happens
 	// during config translation in pkg/config/translate.go
 	var varFiles []string
@@ -426,7 +577,18 @@ func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []str
 	return a
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, _ log.Level, debug bool) *options.TerragruntOptions {
+func mockOptions(
+	t *testing.T,
+	terragruntConfigPath string,
+	workingDir string,
+	terraformCliArgs []string,
+	nonInteractive bool,
+	terragruntSource string,
+	ignoreDependencyErrors bool,
+	includeExternalDependencies bool,
+	_ log.Level,
+	debug bool,
+) *options.TerragruntOptions {
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)

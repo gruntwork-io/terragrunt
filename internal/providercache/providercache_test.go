@@ -52,7 +52,11 @@ func TestProviderCache(t *testing.T) {
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	opts := make([]cache.Option, 0, 3)
-	opts = append(opts, cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode))
+	opts = append(
+		opts,
+		cache.WithToken(token),
+		cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode),
+	)
 
 	testCases := []struct {
 		expectedBodyReg    *regexp.Regexp
@@ -66,7 +70,9 @@ func TestProviderCache(t *testing.T) {
 			opts:               opts,
 			fullURLPath:        "/.well-known/terraform.json",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg:    regexp.MustCompile(regexp.QuoteMeta(`{"providers.v1":"/v1/providers"}`)),
+			expectedBodyReg: regexp.MustCompile(
+				regexp.QuoteMeta(`{"providers.v1":"/v1/providers"}`),
+			),
 		},
 		{
 			opts:               append(opts, cache.WithToken("")),
@@ -77,7 +83,9 @@ func TestProviderCache(t *testing.T) {
 			opts:               opts,
 			relURLPath:         "/cache/registry.terraform.io/hashicorp/aws/versions",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg:    regexp.MustCompile(regexp.QuoteMeta(`"version":"5.36.0","protocols":["5.0"],"platforms"`)),
+			expectedBodyReg: regexp.MustCompile(
+				regexp.QuoteMeta(`"version":"5.36.0","protocols":["5.0"],"platforms"`),
+			),
 		},
 		{
 			opts:               opts,
@@ -92,16 +100,34 @@ func TestProviderCache(t *testing.T) {
 			expectedCachePath:  "registry.terraform.io/hashicorp/template/2.2.0/linux_amd64/terraform-provider-template_v2.2.0_x4",
 		},
 		{
-			opts:               opts,
-			relURLPath:         fmt.Sprintf("/cache/registry.terraform.io/hashicorp/template/1234.5678.9/download/%s/%s", runtime.GOOS, runtime.GOARCH),
+			opts: opts,
+			relURLPath: fmt.Sprintf(
+				"/cache/registry.terraform.io/hashicorp/template/1234.5678.9/download/%s/%s",
+				runtime.GOOS,
+				runtime.GOARCH,
+			),
 			expectedStatusCode: http.StatusLocked,
-			expectedCachePath:  createFakeProvider(t, pluginCacheDir, fmt.Sprintf("registry.terraform.io/hashicorp/template/1234.5678.9/%s_%s/terraform-provider-template_1234.5678.9_x5", runtime.GOOS, runtime.GOARCH)),
+			expectedCachePath: createFakeProvider(
+				t,
+				pluginCacheDir,
+				fmt.Sprintf(
+					"registry.terraform.io/hashicorp/template/1234.5678.9/%s_%s/terraform-provider-template_1234.5678.9_x5",
+					runtime.GOOS,
+					runtime.GOARCH,
+				),
+			),
 		},
 		{
 			opts:               opts,
 			relURLPath:         "//registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg:    regexp.MustCompile(`\{.*` + regexp.QuoteMeta(`"download_url":"http://127.0.0.1:`) + `\d+` + regexp.QuoteMeta(`/downloads/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`) + `.*\}`),
+			expectedBodyReg: regexp.MustCompile(
+				`\{.*` + regexp.QuoteMeta(
+					`"download_url":"http://127.0.0.1:`,
+				) + `\d+` + regexp.QuoteMeta(
+					`/downloads/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`,
+				) + `.*\}`,
+			),
 		},
 	}
 
@@ -116,7 +142,11 @@ func TestProviderCache(t *testing.T) {
 			l := logger.CreateLogger()
 
 			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
-			providerHandler := handlers.NewDirectProviderHandler(l, new(cliconfig.ProviderInstallationDirect), nil)
+			providerHandler := handlers.NewDirectProviderHandler(
+				l,
+				new(cliconfig.ProviderInstallationDirect),
+				nil,
+			)
 			proxyProviderHandler := handlers.NewProxyProviderHandler(l, nil)
 
 			tc.opts = append(tc.opts,

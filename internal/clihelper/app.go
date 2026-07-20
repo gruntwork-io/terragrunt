@@ -231,7 +231,9 @@ func (app *App) setupAutocomplete(arguments []string) error {
 
 	// If both install and uninstall flags are specified, then error
 	if isAutocompleteInstall && isAutocompleteUninstall {
-		return errors.New("either the autocomplete install or uninstall flag may be specified, but not both")
+		return errors.New(
+			"either the autocomplete install or uninstall flag may be specified, but not both",
+		)
 	}
 
 	// If the install flag is specified, perform the install or uninstall and exit

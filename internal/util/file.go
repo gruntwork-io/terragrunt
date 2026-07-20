@@ -312,10 +312,18 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 
 		relativeExpandGlobPath, err := filepath.Rel(source, absoluteExpandGlobPath)
 		if err != nil {
-			return nil, fmt.Errorf("relativize glob match %q against source %q: %w", absoluteExpandGlobPath, source, err)
+			return nil, fmt.Errorf(
+				"relativize glob match %q against source %q: %w",
+				absoluteExpandGlobPath,
+				source,
+				err,
+			)
 		}
 
-		includeExpandedGlobs = append(includeExpandedGlobs, filepath.ToSlash(relativeExpandGlobPath))
+		includeExpandedGlobs = append(
+			includeExpandedGlobs,
+			filepath.ToSlash(relativeExpandGlobPath),
+		)
 
 		if IsDir(absoluteExpandGlobPath) {
 			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
@@ -372,7 +380,11 @@ func WithFastCopy() CopyOption {
 //
 // Optional behavior is configured through [CopyOption] values such as
 // [WithIncludeInCopy], [WithExcludeFromCopy], and [WithFastCopy].
-func CopyFolderContents(l log.Logger, source, destination, manifestFile string, opts ...CopyOption) error {
+func CopyFolderContents(
+	l log.Logger,
+	source, destination, manifestFile string,
+	opts ...CopyOption,
+) error {
 	var cfg copyConfig
 	for _, opt := range opts {
 		opt(&cfg)
@@ -421,7 +433,10 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 		relativePath = filepath.ToSlash(relativePath)
 		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
 
-		listHasElementWithPrefix := listContainsElementWithPrefix(includeExpandedGlobs, relativePath)
+		listHasElementWithPrefix := listContainsElementWithPrefix(
+			includeExpandedGlobs,
+			relativePath,
+		)
 		if listHasElementWithPrefix && !pathHasPrefix {
 			return true
 		}
@@ -438,7 +453,14 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	}
 
 	if cfg.fastCopy {
-		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
+		return copyFolderContentsFast(
+			l,
+			source,
+			destination,
+			manifestFile,
+			cfg.includeInCopy,
+			cfg.excludeFromCopy,
+		)
 	}
 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
@@ -594,7 +616,12 @@ func copyFolderContentsFast(
 		return manifest.AddFile(dest)
 	}
 
-	if err := vfs.WalkDirParallel(vfs.NewOSFS(), source, walkFn, vfs.WithFollowSymlinks()); err != nil {
+	if err := vfs.WalkDirParallel(
+		vfs.NewOSFS(),
+		source,
+		walkFn,
+		vfs.WithFollowSymlinks(),
+	); err != nil {
 		return err
 	}
 
@@ -789,7 +816,13 @@ func CopyFolderContentsWithFilter(
 				return err
 			}
 
-			if err := CopyFolderContentsWithFilter(l, file, dest, manifestFile, filter); err != nil {
+			if err := CopyFolderContentsWithFilter(
+				l,
+				file,
+				dest,
+				manifestFile,
+				filter,
+			); err != nil {
 				return err
 			}
 
@@ -820,13 +853,23 @@ func CopyFolderContentsWithFilter(
 // CopyFolderToTemp creates a temp directory with the given prefix, copies the
 // contents of the source folder into it using the provided filter, and returns
 // the path to the temp directory.
-func CopyFolderToTemp(source string, tempPrefix string, filter func(path string) bool) (string, error) {
+func CopyFolderToTemp(
+	source string,
+	tempPrefix string,
+	filter func(path string) bool,
+) (string, error) {
 	dest, err := os.MkdirTemp("", tempPrefix)
 	if err != nil {
 		return "", err
 	}
 
-	if err := CopyFolderContentsWithFilter(log.New(), source, dest, ".copymanifest", filter); err != nil {
+	if err := CopyFolderContentsWithFilter(
+		log.New(),
+		source,
+		dest,
+		".copymanifest",
+		filter,
+	); err != nil {
 		return "", err
 	}
 
@@ -1027,9 +1070,17 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 		if err == nil {
 			// append path
 			if canonicalSourceURL.Opaque != "" {
-				canonicalSourceURL.Opaque = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceURL.Opaque, `/\`), cleanPath)
+				canonicalSourceURL.Opaque = fmt.Sprintf(
+					"%s//%s",
+					strings.TrimRight(canonicalSourceURL.Opaque, `/\`),
+					cleanPath,
+				)
 			} else {
-				canonicalSourceURL.Path = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceURL.Path, `/\`), cleanPath)
+				canonicalSourceURL.Path = fmt.Sprintf(
+					"%s//%s",
+					strings.TrimRight(canonicalSourceURL.Path, `/\`),
+					cleanPath,
+				)
 			}
 
 			return canonicalSourceURL.String()
@@ -1096,7 +1147,11 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 }
 
 // clean reads manifests and removes their entries using root-confined vfs operations.
-func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) error {
+func (manifest *fileManifest) clean(
+	l log.Logger,
+	fsys vfs.FS,
+	rootDir, manifestRelPath string,
+) error {
 	pending := []string{manifestRelPath}
 	ctx := &fileManifestCleanContext{
 		l:          l,
@@ -1110,7 +1165,11 @@ func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifest
 	for len(pending) > 0 {
 		if attemptedManifests >= maxFileManifests {
 			return fileManifestLimitError{
-				message: fmt.Sprintf("manifest cleanup under %q exceeded %d manifests", rootDir, maxFileManifests),
+				message: fmt.Sprintf(
+					"manifest cleanup under %q exceeded %d manifests",
+					rootDir,
+					maxFileManifests,
+				),
 			}
 		}
 
@@ -1243,14 +1302,21 @@ func (manifest *fileManifest) cleanOneManifest(
 	return nextRelPaths, nil
 }
 
-func openManifestFileForClean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) (vfs.File, bool, error) {
+func openManifestFileForClean(
+	l log.Logger,
+	fsys vfs.FS,
+	rootDir, manifestRelPath string,
+) (vfs.File, bool, error) {
 	parentHasSymlink, err := vfs.ParentPathHasSymlink(fsys, rootDir, manifestRelPath)
 	if err != nil {
 		return nil, false, err
 	}
 
 	if parentHasSymlink {
-		l.Warnf("Skipping manifest %s: parent path contains a symlink", filepath.Join(rootDir, manifestRelPath))
+		l.Warnf(
+			"Skipping manifest %s: parent path contains a symlink",
+			filepath.Join(rootDir, manifestRelPath),
+		)
 
 		return nil, false, nil
 	}
@@ -1305,12 +1371,22 @@ func (manifest *fileManifest) cleanManifestEntries(
 
 		manifestRelPath, err := manifest.cleanManifestEntry(ctx.l, ctx.fsys, ctx.rootDir, entry)
 		if err != nil {
-			ctx.l.Warnf("Error cleaning manifest entry %q from %s: %v", entry.Path, manifestPath, err)
+			ctx.l.Warnf(
+				"Error cleaning manifest entry %q from %s: %v",
+				entry.Path,
+				manifestPath,
+				err,
+			)
 
 			continue
 		}
 
-		manifestRelPaths, err = ctx.appendManifestRelPath(manifestPath, manifestRelPaths, manifestRelPath, limits)
+		manifestRelPaths, err = ctx.appendManifestRelPath(
+			manifestPath,
+			manifestRelPaths,
+			manifestRelPath,
+			limits,
+		)
 		if err != nil {
 			return manifestRelPaths, err
 		}
@@ -1319,7 +1395,9 @@ func (manifest *fileManifest) cleanManifestEntries(
 	return manifestRelPaths, decodeExtraManifestEntry(decoder, manifestPath, ctx.maxEntries)
 }
 
-func (ctx *fileManifestCleanContext) decodeManifestEntry(decoder *gob.Decoder) (fileManifestEntry, bool, error) {
+func (ctx *fileManifestCleanContext) decodeManifestEntry(
+	decoder *gob.Decoder,
+) (fileManifestEntry, bool, error) {
 	var entry fileManifestEntry
 	if err := decoder.Decode(&entry); err != nil {
 		if isFileManifestDecodeDone(err) {
@@ -1331,7 +1409,11 @@ func (ctx *fileManifestCleanContext) decodeManifestEntry(decoder *gob.Decoder) (
 
 	if ctx.decodedEntries >= ctx.maxEntries {
 		return entry, false, fileManifestLimitError{
-			message: fmt.Sprintf("manifest cleanup under %q exceeded entry cap of %d", ctx.rootDir, ctx.maxEntries),
+			message: fmt.Sprintf(
+				"manifest cleanup under %q exceeded entry cap of %d",
+				ctx.rootDir,
+				ctx.maxEntries,
+			),
 		}
 	}
 
@@ -1386,7 +1468,11 @@ func decodeExtraManifestEntry(decoder *gob.Decoder, manifestPath string, maxEntr
 	}
 
 	return fileManifestLimitError{
-		message: fmt.Sprintf("manifest %q exceeds entry cap; processing first %d entries only", manifestPath, maxEntries),
+		message: fmt.Sprintf(
+			"manifest %q exceeds entry cap; processing first %d entries only",
+			manifestPath,
+			maxEntries,
+		),
 	}
 }
 
@@ -1441,7 +1527,11 @@ func WithMaxManifestEntries(maxEntries int) FileManifestOption {
 	}
 }
 
-func NewFileManifest(manifestFolder string, manifestFile string, opts ...FileManifestOption) *fileManifest {
+func NewFileManifest(
+	manifestFolder string,
+	manifestFile string,
+	opts ...FileManifestOption,
+) *fileManifest {
 	manifest := &fileManifest{
 		ManifestFolder: manifestFolder,
 		ManifestFile:   manifestFile,
@@ -1739,54 +1829,62 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 	var walkFn func(pathPair) error
 
 	walkFn = func(pair pathPair) error {
-		return filepath.WalkDir(pair.physical, func(currentPath string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return externalWalkFn(currentPath, d, err)
-			}
-
-			// Convert the current physical path to a logical path relative to the walk root
-			rel, err := filepath.Rel(pair.physical, currentPath)
-			if err != nil {
-				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
-			}
-
-			logicalPath := filepath.Join(pair.logical, rel)
-
-			// Call the provided function only if we haven't seen this logical path before
-			if !visitedLogical[logicalPath] {
-				visitedLogical[logicalPath] = true
-
-				if err := externalWalkFn(logicalPath, d, nil); err != nil {
-					return err
-				}
-			}
-
-			// If we encounter a symlink, resolve and follow it
-			if d.Type()&fs.ModeSymlink != 0 {
-				realPath, isDir, evalErr := evalRealPathForWalkDir(currentPath)
-				if evalErr != nil {
-					return evalErr
+		return filepath.WalkDir(
+			pair.physical,
+			func(currentPath string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return externalWalkFn(currentPath, d, err)
 				}
 
-				// Skip if we've seen this symlink->target combination before
-				// This prevents infinite loops with circular symlinks
-				if visited[realPath+":"+currentPath] {
-					return nil
+				// Convert the current physical path to a logical path relative to the walk root
+				rel, err := filepath.Rel(pair.physical, currentPath)
+				if err != nil {
+					return fmt.Errorf(
+						"failed to get relative path between %s and %s: %w",
+						pair.physical,
+						currentPath,
+						err,
+					)
 				}
 
-				visited[realPath+":"+currentPath] = true
+				logicalPath := filepath.Join(pair.logical, rel)
 
-				// If the target is a directory, recursively walk it
-				if isDir {
-					return walkFn(pathPair{
-						physical: realPath,
-						logical:  logicalPath,
-					})
+				// Call the provided function only if we haven't seen this logical path before
+				if !visitedLogical[logicalPath] {
+					visitedLogical[logicalPath] = true
+
+					if err := externalWalkFn(logicalPath, d, nil); err != nil {
+						return err
+					}
 				}
-			}
 
-			return nil
-		})
+				// If we encounter a symlink, resolve and follow it
+				if d.Type()&fs.ModeSymlink != 0 {
+					realPath, isDir, evalErr := evalRealPathForWalkDir(currentPath)
+					if evalErr != nil {
+						return evalErr
+					}
+
+					// Skip if we've seen this symlink->target combination before
+					// This prevents infinite loops with circular symlinks
+					if visited[realPath+":"+currentPath] {
+						return nil
+					}
+
+					visited[realPath+":"+currentPath] = true
+
+					// If the target is a directory, recursively walk it
+					if isDir {
+						return walkFn(pathPair{
+							physical: realPath,
+							logical:  logicalPath,
+						})
+					}
+				}
+
+				return nil
+			},
+		)
 	}
 
 	realRoot, err := filepath.EvalSymlinks(root)
@@ -1939,7 +2037,11 @@ func (manifest *fileManifest) cleanManifestEntry(
 ) (string, error) {
 	rel, ok := relPathInsideRoot(rootDir, entry.Path)
 	if !ok {
-		l.Warnf("Skipping manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
+		l.Warnf(
+			"Skipping manifest entry %q: resolves outside manifest root %q",
+			entry.Path,
+			rootDir,
+		)
 
 		return "", nil
 	}
@@ -1967,12 +2069,18 @@ func removeManifestEntry(l log.Logger, fsys vfs.FS, rootDir, rel string) error {
 	}
 
 	if hasSymlink {
-		l.Warnf("Skipping manifest entry %s: parent path contains a symlink", filepath.Join(rootDir, rel))
+		l.Warnf(
+			"Skipping manifest entry %s: parent path contains a symlink",
+			filepath.Join(rootDir, rel),
+		)
 
 		return nil
 	}
 
-	if err := fsys.Remove(filepath.Join(rootDir, rel)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := fsys.Remove(
+		filepath.Join(rootDir, rel),
+	); err != nil &&
+		!errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
@@ -1994,7 +2102,10 @@ func removeManifestFile(fsys vfs.FS, rootDir, rel string) error {
 		return nil
 	}
 
-	if err := fsys.Remove(filepath.Join(rootDir, rel)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := fsys.Remove(
+		filepath.Join(rootDir, rel),
+	); err != nil &&
+		!errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
@@ -2016,7 +2127,10 @@ func removeManifestPath(fsys vfs.FS, rootDir, rel string) error {
 		return nil
 	}
 
-	if err := fsys.RemoveAll(filepath.Join(rootDir, rel)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := fsys.RemoveAll(
+		filepath.Join(rootDir, rel),
+	); err != nil &&
+		!errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
@@ -2025,7 +2139,8 @@ func removeManifestPath(fsys vfs.FS, rootDir, rel string) error {
 
 func cleanRootRelPath(rel string) (string, bool) {
 	rel = filepath.Clean(rel)
-	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." ||
+		strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", false
 	}
 

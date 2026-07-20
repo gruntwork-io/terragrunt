@@ -47,7 +47,8 @@ func TestFindModules(t *testing.T) {
 					description: "This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-aws-auth-merger",
 					moduleDir:   "modules/eks-aws-auth-merger",
-				}},
+				},
+			},
 		},
 	}
 
@@ -56,11 +57,19 @@ func TestFindModules(t *testing.T) {
 			t.Parallel()
 			// Unfortunately, we are unable to commit the `.git` directory. We have to temporarily rename it while running the tests.
 			os.Rename(filepath.Join(tc.repoPath, "gitdir"), filepath.Join(tc.repoPath, ".git"))
-			defer os.Rename(filepath.Join(tc.repoPath, ".git"), filepath.Join(tc.repoPath, "gitdir"))
+			defer os.Rename(
+				filepath.Join(tc.repoPath, ".git"),
+				filepath.Join(tc.repoPath, "gitdir"),
+			)
 
 			ctx := t.Context()
 
-			repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: tc.repoPath})
+			repo, err := module.NewRepo(
+				ctx,
+				logger.CreateLogger(),
+				vfs.NewOSFS(),
+				&module.RepoOpts{CloneURL: tc.repoPath},
+			)
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())

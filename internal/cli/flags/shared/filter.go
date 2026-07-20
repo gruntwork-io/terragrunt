@@ -77,7 +77,9 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 					gitRunner = gitRunner.WithWorkDir(workDir)
 
 					if gitRunner.HasUncommittedChanges(ctx) {
-						l.Warnf("Warning: You have uncommitted changes. The --filter-affected flag may not include all your local modifications.")
+						l.Warnf(
+							"Warning: You have uncommitted changes. The --filter-affected flag may not include all your local modifications.",
+						)
 					}
 
 					defaultBranch := gitRunner.GetDefaultBranch(ctx, l)

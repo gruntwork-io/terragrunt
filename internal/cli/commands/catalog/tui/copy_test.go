@@ -24,7 +24,12 @@ func TestCopyCmd_CopiesIntoWorkingDirectory(t *testing.T) {
 
 	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# vpc unit\n")
 	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "inputs.hcl"), "# inputs\n")
-	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", ".terragrunt-cache", "junk.txt"), "should be skipped")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "vpc", ".terragrunt-cache", "junk.txt"),
+		"should be skipped",
+	)
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
@@ -39,7 +44,10 @@ func TestCopyCmd_CopiesIntoWorkingDirectory(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 
-	require.NoError(t, tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run())
+	require.NoError(
+		t,
+		tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run(),
+	)
 
 	assertFileExistsFS(t, fsys, filepath.Join(workingDir, "terragrunt.hcl"))
 	assertFileExistsFS(t, fsys, filepath.Join(workingDir, "inputs.hcl"))
@@ -77,7 +85,10 @@ inputs = {
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 
-	require.NoError(t, tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run())
+	require.NoError(
+		t,
+		tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run(),
+	)
 
 	valuesPath := filepath.Join(workingDir, "terragrunt.values.hcl")
 	assertFileExistsFS(t, fsys, valuesPath)
@@ -117,12 +128,18 @@ func TestCopyCmd_LeavesExistingValuesFileAlone(t *testing.T) {
 
 	workingDir := testWorkingDir
 	existing := []byte(`region = "us-east-1"` + "\n")
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(workingDir, "terragrunt.values.hcl"), existing, 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(workingDir, "terragrunt.values.hcl"), existing, 0o644),
+	)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 
-	require.NoError(t, tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run())
+	require.NoError(
+		t,
+		tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run(),
+	)
 
 	got, err := vfs.ReadFile(fsys, filepath.Join(workingDir, "terragrunt.values.hcl"))
 	require.NoError(t, err)
@@ -285,7 +302,12 @@ func TestCopyCmd_ResultZeroValueBeforeRun(t *testing.T) {
 
 	cmd := tui.NewCopyCmd(logger.CreateLogger(), opts, nil)
 
-	assert.Equal(t, tui.CopyResult{}, cmd.Result(), "Result should return the zero value before Run")
+	assert.Equal(
+		t,
+		tui.CopyResult{},
+		cmd.Result(),
+		"Result should return the zero value before Run",
+	)
 }
 
 // TestCopyCmd_StdioSettersAreNoops verifies the tea.ExecCommand stdio setters

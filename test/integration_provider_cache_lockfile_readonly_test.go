@@ -31,7 +31,8 @@ func TestTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 
 		helpers.RunTerragrunt(t, fmt.Sprintf(
 			"terragrunt run --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s -- init",
-			providerCacheDir, appPath,
+			providerCacheDir,
+			appPath,
 		))
 
 		assert.True(t, util.FileExists(filepath.Join(appPath, lockfileName)),
@@ -54,19 +55,26 @@ func TestTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 	})
 
 	t.Run("readonly via TF_CLI_ARGS_init is enforced", func(t *testing.T) {
-		t.Setenv(tf.EnvNameTFCLIArgsInit, fmt.Sprintf("%s=%s", tf.FlagNameLockfile, tf.LockfileModeReadonly))
+		t.Setenv(
+			tf.EnvNameTFCLIArgsInit,
+			fmt.Sprintf("%s=%s", tf.FlagNameLockfile, tf.LockfileModeReadonly),
+		)
 
 		appPath := copyProviderCacheLockfileReadonlyFixture(t)
 		providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
 			"terragrunt run --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s -- init",
-			providerCacheDir, appPath,
+			providerCacheDir,
+			appPath,
 		))
 
 		require.Error(t, err, "init must fail because the lock file is missing and read-only")
-		assert.False(t, util.FileExists(filepath.Join(appPath, lockfileName)),
-			"provider cache must not generate the lock file when TF_CLI_ARGS_init requests -lockfile=readonly")
+		assert.False(
+			t,
+			util.FileExists(filepath.Join(appPath, lockfileName)),
+			"provider cache must not generate the lock file when TF_CLI_ARGS_init requests -lockfile=readonly",
+		)
 	})
 }
 

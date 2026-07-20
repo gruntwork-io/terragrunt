@@ -60,7 +60,10 @@ func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderCons
 }
 
 // parseProviderConstraintsFromFile parses a single .tf file and extracts required_providers constraints
-func parseProviderConstraintsFromFile(impl tfimpl.Type, filename string) (ProviderConstraints, error) {
+func parseProviderConstraintsFromFile(
+	impl tfimpl.Type,
+	filename string,
+) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
 	content, err := os.ReadFile(filename)
@@ -103,7 +106,10 @@ func parseProviderConstraintsFromFile(impl tfimpl.Type, filename string) (Provid
 }
 
 // parseProvidersFromRequiredProvidersBlock extracts provider constraints from a required_providers block
-func parseProvidersFromRequiredProvidersBlock(impl tfimpl.Type, block *hclsyntax.Block) ProviderConstraints {
+func parseProvidersFromRequiredProvidersBlock(
+	impl tfimpl.Type,
+	block *hclsyntax.Block,
+) ProviderConstraints {
 	constraints := make(ProviderConstraints)
 
 	// Parse the attributes in the required_providers block

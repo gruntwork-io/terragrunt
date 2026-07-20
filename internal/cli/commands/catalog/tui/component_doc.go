@@ -64,17 +64,25 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 		rawContent: rawContent,
 		fileExt:    fileExt,
 
-		tagRegs:            make(map[docTagName]*regexp.Regexp),
-		frontmatterReg:     regexp.MustCompile(`(?i)^[\s\n]*<!-- frontmatter[\s\n]*([\S\s]*?)[\s\n]*-->`),
-		frontmatterDashReg: regexp.MustCompile(`(?m)\A[\s\n]*---[\s\n]+([\S\s]*?)[\s\n]+---(?:[\s\n]|$)`),
+		tagRegs: make(map[docTagName]*regexp.Regexp),
+		frontmatterReg: regexp.MustCompile(
+			`(?i)^[\s\n]*<!-- frontmatter[\s\n]*([\S\s]*?)[\s\n]*-->`,
+		),
+		frontmatterDashReg: regexp.MustCompile(
+			`(?m)\A[\s\n]*---[\s\n]+([\S\s]*?)[\s\n]+---(?:[\s\n]|$)`,
+		),
 	}
 
 	doc.extractFrontmatter()
 
 	switch fileExt {
 	case mdExt:
-		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?:^|\n)\#{1}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
-		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?:^|\n)\#{2}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
+		doc.tagRegs[tagH1Block] = regexp.MustCompile(
+			`(?:^|\n)\#{1}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`,
+		)
+		doc.tagRegs[tagH2Block] = regexp.MustCompile(
+			`(?:^|\n)\#{2}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`,
+		)
 		doc.tagStripRegs = docRegs{
 			regexp.MustCompile("`{3}" + `.*[\r\n]+`),
 			regexp.MustCompile("`(.+?)`"),
@@ -95,8 +103,12 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 		}
 
 	case adocExt:
-		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?:^|\n)\={1}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`)
-		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?:^|\n)\={2}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`)
+		doc.tagRegs[tagH1Block] = regexp.MustCompile(
+			`(?:^|\n)\={1}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`,
+		)
+		doc.tagRegs[tagH2Block] = regexp.MustCompile(
+			`(?:^|\n)\={2}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`,
+		)
 		doc.tagStripRegs = docRegs{
 			regexp.MustCompile("<(.*?)>"),
 			regexp.MustCompile(`ifdef::env-github\[\][\S\s]*?endif::\[\]`),

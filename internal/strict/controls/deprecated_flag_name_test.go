@@ -42,7 +42,11 @@ func TestNewDeprecatedFlagName(t *testing.T) {
 	})
 }
 
-func parseFlag[T clihelper.GenericType](t *testing.T, flag *clihelper.GenericFlag[T], args []string) {
+func parseFlag[T clihelper.GenericType](
+	t *testing.T,
+	flag *clihelper.GenericFlag[T],
+	args []string,
+) {
 	t.Helper()
 
 	flag.LookupEnvFunc = func(key string) []string { return nil }

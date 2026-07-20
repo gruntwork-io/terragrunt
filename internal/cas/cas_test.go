@@ -159,7 +159,12 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 
 	info, err := os.Lstat(linkPath)
 	require.NoError(t, err)
-	assert.NotZero(t, info.Mode()&os.ModeSymlink, "link.txt is not a symlink (mode=%s)", info.Mode())
+	assert.NotZero(
+		t,
+		info.Mode()&os.ModeSymlink,
+		"link.txt is not a symlink (mode=%s)",
+		info.Mode(),
+	)
 
 	target, err := os.Readlink(linkPath)
 	require.NoError(t, err)

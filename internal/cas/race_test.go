@@ -127,7 +127,12 @@ func TestProcessStackComponentLocalSourceConcurrentWithRacing(t *testing.T) {
 	}
 
 	for i := 1; i < workers; i++ {
-		assert.Equal(t, results[0], results[i], "all concurrent runs must produce identical rewritten output")
+		assert.Equal(
+			t,
+			results[0],
+			results[i],
+			"all concurrent runs must produce identical rewritten output",
+		)
 	}
 }
 

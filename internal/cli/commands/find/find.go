@@ -73,16 +73,17 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 		discoverErr error
 	)
 
-	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "find_discover", map[string]any{
-		"working_dir":  opts.WorkingDir,
-		"no_hidden":    opts.NoHidden,
-		"dependencies": opts.Dependencies,
-		"mode":         opts.Mode,
-		"exclude":      opts.Exclude,
-	}, func(ctx context.Context, l log.Logger) error {
-		components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
-		return discoverErr
-	})
+	telemetryErr := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "find_discover", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"no_hidden":    opts.NoHidden,
+			"dependencies": opts.Dependencies,
+			"mode":         opts.Mode,
+			"exclude":      opts.Exclude,
+		}, func(ctx context.Context, l log.Logger) error {
+			components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
+			return discoverErr
+		})
 	if telemetryErr != nil {
 		l.Debugf("Errors encountered while discovering components:\n%s", telemetryErr)
 	}
@@ -115,14 +116,15 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 
 	var foundComponents FoundComponents
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "find_discovered_to_found", map[string]any{
-		"working_dir":  opts.WorkingDir,
-		"config_count": len(components),
-	}, func(ctx context.Context, l log.Logger) error {
-		foundComponents = discoveredToFound(l, components, opts)
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "find_discovered_to_found", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"config_count": len(components),
+		}, func(ctx context.Context, l log.Logger) error {
+			foundComponents = discoveredToFound(l, components, opts)
 
-		return nil
-	})
+			return nil
+		})
 	if err != nil {
 		return err
 	}
@@ -152,7 +154,11 @@ type FoundComponent struct {
 	Reading      []string `json:"reading,omitempty"`
 }
 
-func discoveredToFound(l log.Logger, components component.Components, opts *Options) FoundComponents {
+func discoveredToFound(
+	l log.Logger,
+	components component.Components,
+	opts *Options,
+) FoundComponents {
 	foundComponents := make(FoundComponents, 0, len(components))
 
 	for _, c := range components {
@@ -190,7 +196,12 @@ func discoveredToFound(l log.Logger, components component.Components, opts *Opti
 					foundComponent.Include = make(map[string]string, len(cfg.ProcessedIncludes))
 					for _, v := range cfg.ProcessedIncludes {
 						desc := fmt.Sprintf("include %q of unit %q", v.Name, unit.Path())
-						foundComponent.Include[v.Name] = discovery.RelPathOrAbs(l, opts.RootWorkingDir, v.Path, desc)
+						foundComponent.Include[v.Name] = discovery.RelPathOrAbs(
+							l,
+							opts.RootWorkingDir,
+							v.Path,
+							desc,
+						)
 					}
 				}
 			}
@@ -220,7 +231,12 @@ func discoveredToFound(l log.Logger, components component.Components, opts *Opti
 					depBase = dep.DiscoveryContext().WorkingDir
 				}
 
-				foundComponent.Dependencies[i] = discovery.RelPathOrAbs(l, depBase, dep.Path(), desc)
+				foundComponent.Dependencies[i] = discovery.RelPathOrAbs(
+					l,
+					depBase,
+					dep.Path(),
+					desc,
+				)
 			}
 		}
 
