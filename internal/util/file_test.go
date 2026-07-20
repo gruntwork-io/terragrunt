@@ -1574,6 +1574,30 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		},
 	)
 
+	// include_in_copy can resurrect a hidden destination that does not exist
+	// yet: legacy glob expansion finds nothing on disk and treats the segment
+	// as excluded, while the fast walk matches the pattern itself. The guard
+	// must probe the same filter the fast copy uses, or the copy recurses
+	// into its own destination.
+	t.Run(
+		"destination resurrected by include_in_copy is rejected on fast-copy path",
+		func(t *testing.T) {
+			t.Parallel()
+
+			err := util.CopyFolderContents(
+				l,
+				source,
+				filepath.Join(source, ".generated", "dest"),
+				".terragrunt-test",
+				util.WithFastCopy(),
+				util.WithIncludeInCopy(".generated/**"),
+			)
+
+			var insideErr util.CopyDestinationInsideSourceError
+			require.ErrorAs(t, err, &insideErr)
+		},
+	)
+
 	t.Run("relative source is rejected", func(t *testing.T) {
 		t.Parallel()
 

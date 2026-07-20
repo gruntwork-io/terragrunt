@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"io/fs"
 	"net/url"
 	"os"
@@ -112,62 +113,88 @@ func (src Source) EncodeSourceVersion(l log.Logger, copyOpts ...util.CopyOption)
 		return util.EncodeBase64Sha1(src.CanonicalSourceURL.Query().Encode()), nil
 	}
 
+	version, err := src.encodeLocalSourceVersion(l, copyOpts...)
+	if err != nil {
+		l.WithError(err).Warnf("Could not encode version for local source")
+
+		return "", err
+	}
+
+	return version, nil
+}
+
+// encodeLocalSourceVersion hashes the path and modification time of every
+// file under the local source directory that a copy configured with copyOpts
+// would deliver.
+func (src Source) encodeLocalSourceVersion(
+	l log.Logger,
+	copyOpts ...util.CopyOption,
+) (string, error) {
 	sourceHash := sha256.New()
 	sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
 
 	copied, err := util.NewCopyFilter(l, sourceDir, copyOpts...)
-	if err == nil {
-		walkDir := filepath.WalkDir
-		if src.WalkDirWithSymlinks {
-			walkDir = util.WalkDirWithSymlinks
+	if err != nil {
+		return "", err
+	}
+
+	walkDir := filepath.WalkDir
+	if src.WalkDirWithSymlinks {
+		walkDir = util.WalkDirWithSymlinks
+	}
+
+	err = walkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
+		return hashSourceEntry(sourceHash, copied, path, d, err)
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(sourceHash.Sum(nil)), nil
+}
+
+// hashSourceEntry folds one walked entry into sourceHash, pruning directories
+// the copy filter rejects and skipping files it would not deliver.
+func hashSourceEntry(
+	sourceHash hash.Hash,
+	copied util.CopyFilter,
+	path string,
+	d fs.DirEntry,
+	err error,
+) error {
+	if err != nil {
+		// If we've encountered an error while walking the tree, give up
+		return err
+	}
+
+	if d.IsDir() {
+		// We don't use any info from directories to calculate our hash
+		if !copied(path, true) {
+			return filepath.SkipDir
 		}
 
-		err = walkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				// If we've encountered an error while walking the tree, give up
-				return err
-			}
-
-			if d.IsDir() {
-				// We don't use any info from directories to calculate our hash
-				if !copied(path, true) {
-					return filepath.SkipDir
-				}
-
-				return nil
-			}
-			// avoid checking .terraform.lock.hcl file since contents is auto-generated
-			if d.Name() == util.TerraformLockFile {
-				return nil
-			}
-
-			if !copied(path, false) {
-				return nil
-			}
-
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-
-			fileModified := info.ModTime().UnixMicro()
-
-			hashContents := fmt.Sprintf("%s:%d", path, fileModified)
-			sourceHash.Write([]byte(hashContents))
-
-			return nil
-		})
+		return nil
+	}
+	// avoid checking .terraform.lock.hcl file since contents is auto-generated
+	if d.Name() == util.TerraformLockFile {
+		return nil
 	}
 
-	if err == nil {
-		hash := hex.EncodeToString(sourceHash.Sum(nil))
-
-		return hash, nil
+	if !copied(path, false) {
+		return nil
 	}
 
-	l.WithError(err).Warnf("Could not encode version for local source")
+	info, err := d.Info()
+	if err != nil {
+		return err
+	}
 
-	return "", err
+	fileModified := info.ModTime().UnixMicro()
+
+	hashContents := fmt.Sprintf("%s:%d", path, fileModified)
+	sourceHash.Write([]byte(hashContents))
+
+	return nil
 }
 
 // WriteVersionFile writes a file into the DownloadDir that contains

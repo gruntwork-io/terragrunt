@@ -394,16 +394,21 @@ func CopyFolderContents(
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
 
-	filter, err := newLegacyCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
-	if err != nil {
-		return err
-	}
-
-	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
-		return err
-	}
-
 	if cfg.fastCopy {
+		filter, err := newFastCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+		if err != nil {
+			return err
+		}
+
+		// The dest-inside-source assertion probes each destination path
+		// segment, and every segment is a directory on the way to the
+		// destination, so ask the filter with isDir=true.
+		if err := assertCopyPathsSafe(source, destination, func(absolutePath string) bool {
+			return filter(absolutePath, true)
+		}); err != nil {
+			return err
+		}
+
 		return copyFolderContentsFast(
 			l,
 			source,
@@ -412,6 +417,11 @@ func CopyFolderContents(
 			cfg.includeInCopy,
 			cfg.excludeFromCopy,
 		)
+	}
+
+	filter, err := newLegacyCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	if err != nil {
+		return err
 	}
 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
@@ -536,34 +546,44 @@ func newFastCopyFilter(
 			return false
 		}
 
-		rel = filepath.ToSlash(rel)
-		if rel == "." {
-			return true
-		}
-
-		// Skip .terragrunt-cache before include matching. A user include
-		// like "**" would otherwise pull it back in.
-		if slices.Contains(strings.Split(rel, "/"), TerragruntCacheDir) {
-			return false
-		}
-
-		if exclude != nil && exclude.Match(rel) {
-			return false
-		}
-
-		if include.matches(rel) {
-			return true
-		}
-
-		if TerragruntExcludes(filepath.FromSlash(rel)) {
-			// A directory on the way to a potential include match must
-			// still be descended into even when TerragruntExcludes
-			// would reject it.
-			return isDir && include.isAncestor(rel)
-		}
-
-		return true
+		return fastCopyIncludesEntry(filepath.ToSlash(rel), isDir, include, exclude)
 	}, nil
+}
+
+// fastCopyIncludesEntry applies the fast copy inclusion rules to a
+// source-relative slash-separated path.
+func fastCopyIncludesEntry(
+	rel string,
+	isDir bool,
+	include includePatterns,
+	exclude glob.Matcher,
+) bool {
+	if rel == "." {
+		return true
+	}
+
+	// Skip .terragrunt-cache before include matching. A user include
+	// like "**" would otherwise pull it back in.
+	if slices.Contains(strings.Split(rel, "/"), TerragruntCacheDir) {
+		return false
+	}
+
+	if exclude != nil && exclude.Match(rel) {
+		return false
+	}
+
+	if include.matches(rel) {
+		return true
+	}
+
+	if TerragruntExcludes(filepath.FromSlash(rel)) {
+		// A directory on the way to a potential include match must
+		// still be descended into even when TerragruntExcludes
+		// would reject it.
+		return isDir && include.isAncestor(rel)
+	}
+
+	return true
 }
 
 // copyFolderContentsFast is the [CopyFolderContents] path used when the
