@@ -199,6 +199,52 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 		"mutable clone should not strip write bits; default path does")
 }
 
+// TestCASClone_E2E_DepthQueryParamWithTag reproduces #6512: a
+// terraform.source that combines the go-getter depth query parameter with
+// ref=<tag>. Before the fix the CAS getter left "?depth=1" in the URL handed
+// to git, which rejected it as part of the repository name. The tagged
+// commit is deliberately behind HEAD so a shallow clone of the default
+// branch would not contain it, exercising the --branch <tag> --depth path.
+func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "add readme"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# tagged"), "tagged content"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.0.0"))
+	// Advance the default branch past the tag.
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# newer"), "post-tag commit"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	require.NoError(t, err)
+
+	v := venv.OSVenv()
+	l := logger.CreateLogger()
+
+	// Depth left at the CAS default so ?depth=1 in the URL is what drives the
+	// shallow clone.
+	g := getter.NewCASGetter(l, c, v, &cas.CloneOptions{})
+	client := &getter.Client{Getters: []getter.Getter{g}}
+
+	dst := filepath.Join(tempDir, "dst")
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "git::" + repoURL + "?depth=1&ref=v1.0.0",
+		Dst:     dst,
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+
+	// The checked-out content must be the tagged commit, not HEAD.
+	content, err := os.ReadFile(filepath.Join(dst, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, "# tagged", string(content))
+}
+
 // resolveHeadE2E is a convenience wrapper used by several tests in
 // this file; included here so the file is independent of
 // commitref_test.go's helpers.

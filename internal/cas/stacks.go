@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-getter/v2"
@@ -52,6 +53,34 @@ func DetectRemoteSource(src string) (string, error) {
 	}
 
 	return src, nil
+}
+
+// StripGitURLParams removes the go-getter query parameters CAS understands
+// (ref, depth) from u and returns their values. Both are go-getter parameters
+// rather than native git URL parameters, so they must not survive into the URL
+// handed to git: git would treat a trailing "?depth=1" as part of the
+// repository name and reject the clone (#6512). ref selects the revision to
+// check out; depth requests a shallow clone. depth is 0 when absent or not a
+// positive integer, matching go-getter's own git getter. u is mutated: its
+// RawQuery is rewritten with ref and depth removed.
+func StripGitURLParams(u *url.URL) (ref string, depth int) {
+	q := u.Query()
+	if len(q) == 0 {
+		return "", 0
+	}
+
+	ref = q.Get("ref")
+	q.Del("ref")
+
+	if n, err := strconv.Atoi(q.Get("depth")); err == nil && n > 0 {
+		depth = n
+	}
+
+	q.Del("depth")
+
+	u.RawQuery = q.Encode()
+
+	return ref, depth
 }
 
 // StackCASResult holds the results of CAS processing for a stack component.
@@ -101,11 +130,7 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("failed to parse source URL %q: %w", detectedURL, err)
 	}
 
-	ref := parsedURL.Query().Get("ref")
-
-	q := parsedURL.Query()
-	q.Del("ref")
-	parsedURL.RawQuery = q.Encode()
+	ref, depth := StripGitURLParams(parsedURL)
 
 	cleanURL := strings.TrimPrefix(parsedURL.String(), "git::")
 
@@ -135,9 +160,11 @@ func (c *CAS) ProcessStackComponent(
 
 	cloneDir := filepath.Join(tempDir, "repo")
 
+	// A depth on the source URL overrides the ambient clone depth; when
+	// absent (depth == 0), resolveCloneDepth falls back to c.cloneDepth.
 	if err := c.Clone(ctx, l, v, cleanURL, WithDir(cloneDir),
 		WithBranch(ref),
-		WithDepth(c.cloneDepth)); err != nil {
+		WithDepth(depth)); err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to CAS clone %q: %w", cleanURL, err)

@@ -1,0 +1,10 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### `cas` — `terraform.source` with a `depth` query parameter
+
+A `terraform.source` (or stack source) URL that combined the go-getter `depth` query parameter with a `ref` tag — for example `...vpc.git?depth=1&ref=v5.21.0` — failed to download. The content-addressable store lifted `ref` out of the URL but left `depth` in place, so native `git` received `...vpc.git?depth=1` and rejected it as an invalid repository name.
+
+CAS now strips `depth` alongside `ref` (matching go-getter's own git getter) and translates it into a shallow clone, so such sources download again. A `depth` supplied on the source URL takes precedence over the ambient CAS clone depth.

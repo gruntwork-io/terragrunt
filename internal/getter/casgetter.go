@@ -402,25 +402,33 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	return clone.String()
 }
 
-// getGit clones via [cas.CAS.Clone] after lifting ?ref= out of the URL
-// into [cas.CloneOptions.Branch].
+// GitURLParams lifts the go-getter query parameters CAS understands (ref,
+// depth) out of u via [cas.StripGitURLParams] and returns them alongside the
+// clone URL normalized by [GitCloneURL]. Both are go-getter parameters rather
+// than native git URL parameters, so they must not survive into the URL handed
+// to git: git would treat a trailing "?depth=1" as part of the repository name
+// and reject the clone (#6512). u is not mutated.
+func GitURLParams(u *url.URL) (cloneURL, ref string, depth int) {
+	clone := *u
+	ref, depth = cas.StripGitURLParams(&clone)
+
+	return GitCloneURL(clone.String()), ref, depth
+}
+
+// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and
+// depth query parameters out of the URL (see [GitURLParams]). A depth
+// supplied on the source URL overrides the ambient clone depth.
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
-	ref := ""
+	cloneURL, ref, depth := GitURLParams(req.URL())
 
-	u := req.URL()
-
-	q := u.Query()
-	if len(q) > 0 {
-		ref = q.Get("ref")
-		q.Del("ref")
-
-		u.RawQuery = q.Encode()
+	if depth == 0 {
+		depth = g.Opts.Depth
 	}
 
-	return g.CAS.Clone(ctx, g.Logger, g.Venv, GitCloneURL(u.String()),
+	return g.CAS.Clone(ctx, g.Logger, g.Venv, cloneURL,
 		cas.WithDir(req.Dst),
 		cas.WithBranch(ref),
-		cas.WithDepth(g.Opts.Depth),
+		cas.WithDepth(depth),
 		cas.WithMutable(g.Opts.Mutable),
 		cas.WithIncludedGitFiles(g.Opts.IncludedGitFiles))
 }
