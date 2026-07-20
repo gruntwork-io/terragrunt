@@ -36,7 +36,7 @@ func RunTerragruntCommand(b *testing.B, args ...string) {
 
 	v := venv.OSVenv().WithWriter(io.Discard).WithErrWriter(io.Discard)
 
-	app := cli.NewApp(l, opts, &v)
+	app := cli.NewApp(l, opts, v)
 
 	ctx := log.ContextWithLogger(b.Context(), l)
 

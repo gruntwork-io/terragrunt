@@ -23,7 +23,7 @@ func (s *Store) Path() string {
 }
 
 // NeedsWrite checks if a given hash needs to be stored.
-func (s *Store) NeedsWrite(v venv.Venv, hash string) bool {
+func (s *Store) NeedsWrite(v *venv.Venv, hash string) bool {
 	partitionDir := filepath.Join(s.path, hash[:2])
 	path := filepath.Join(partitionDir, hash)
 
@@ -32,7 +32,7 @@ func (s *Store) NeedsWrite(v venv.Venv, hash string) bool {
 
 // AcquireLock acquires a filesystem lock for the given hash.
 // Returns the lock that should be unlocked when done.
-func (s *Store) AcquireLock(v venv.Venv, hash string) (vfs.Unlocker, error) {
+func (s *Store) AcquireLock(v *venv.Venv, hash string) (vfs.Unlocker, error) {
 	partitionDir := filepath.Join(s.path, hash[:2])
 	lockPath := filepath.Join(partitionDir, hash+".lock")
 
@@ -45,7 +45,7 @@ func (s *Store) AcquireLock(v venv.Venv, hash string) (vfs.Unlocker, error) {
 
 // TryAcquireLock attempts to acquire a filesystem lock for the given hash without blocking.
 // Returns the lock and true if successful, nil and false if the lock is already held.
-func (s *Store) TryAcquireLock(v venv.Venv, hash string) (vfs.Unlocker, bool, error) {
+func (s *Store) TryAcquireLock(v *venv.Venv, hash string) (vfs.Unlocker, bool, error) {
 	partitionDir := filepath.Join(s.path, hash[:2])
 	lockPath := filepath.Join(partitionDir, hash+".lock")
 
@@ -65,7 +65,7 @@ func (s *Store) TryAcquireLock(v venv.Venv, hash string) (vfs.Unlocker, bool, er
 //   - lock: the acquired lock (nil if needsWrite is false)
 //   - error: any error that occurred
 func (s *Store) EnsureWithWait(
-	v venv.Venv,
+	v *venv.Venv,
 	hash string,
 ) (needsWrite bool, lock vfs.Unlocker, err error) {
 	partitionDir := filepath.Join(s.path, hash[:2])
@@ -108,7 +108,7 @@ func (s *Store) EnsureWithWait(
 	return true, waitLock, nil
 }
 
-func (s *Store) hasContent(v venv.Venv, path string) bool {
+func (s *Store) hasContent(v *venv.Venv, path string) bool {
 	_, err := v.FS.Stat(path)
 
 	return err == nil

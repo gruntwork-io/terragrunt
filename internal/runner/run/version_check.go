@@ -156,7 +156,7 @@ func GetTFVersion(
 
 	versionV.Env = envCopy
 
-	output, err := tf.RunCommandWithOutput(ctx, l, &versionV, &optsCopy, tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, versionV, &optsCopy, tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}

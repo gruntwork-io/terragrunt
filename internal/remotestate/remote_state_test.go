@@ -301,7 +301,7 @@ func TestNeedsBootstrapDisableInit(t *testing.T) {
 	needsBootstrap, err := remote.NeedsBootstrap(
 		t.Context(),
 		logger.CreateLogger(),
-		new(venvtest.New()),
+		venvtest.New(),
 		&remotestate.Options{},
 	)
 

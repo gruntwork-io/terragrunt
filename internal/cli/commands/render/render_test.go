@@ -31,7 +31,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		new(venv.OSVenv().WithWriter(&outputBuffer)),
+		venv.OSVenv().WithWriter(&outputBuffer),
 		opts,
 	)
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		new(venv.OSVenv().WithWriter(&outputBuffer)),
+		venv.OSVenv().WithWriter(&outputBuffer),
 		opts,
 	)
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		new(venv.OSVenv().WithWriter(io.Discard)),
+		venv.OSVenv().WithWriter(io.Discard),
 		opts,
 	)
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		new(venv.OSVenv().WithWriter(io.Discard)),
+		venv.OSVenv().WithWriter(io.Discard),
 		opts,
 	)
 	require.Error(t, err)
@@ -131,7 +131,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		new(venv.OSVenv().WithWriter(&renderedBuffer)),
+		venv.OSVenv().WithWriter(&renderedBuffer),
 		opts,
 	)
 	require.NoError(t, err)

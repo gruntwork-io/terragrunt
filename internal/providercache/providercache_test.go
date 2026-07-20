@@ -266,7 +266,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		server := providercache.NewProviderCache()
 		err := server.Init(
 			logger.CreateLogger(),
-			new(venvtest.New().WithFS(memFs)),
+			venvtest.New().WithFS(memFs),
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},
@@ -289,7 +289,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		server := providercache.NewProviderCache()
 		err := server.Init(
 			logger.CreateLogger(),
-			new(venvtest.New().WithFS(memFs)),
+			venvtest.New().WithFS(memFs),
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},

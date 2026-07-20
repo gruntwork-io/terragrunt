@@ -67,7 +67,7 @@ func TestRunActionWithHooks_FiresBeforeActionAfterInOrder(t *testing.T) {
 	}
 
 	require.NoError(t, run.RunActionWithHooks(
-		t.Context(), l, &v, "plan", newHookOpts(), cfg, report.NewReport(), action,
+		t.Context(), l, v, "plan", newHookOpts(), cfg, report.NewReport(), action,
 	))
 
 	assert.True(t, actionFired)
@@ -131,7 +131,7 @@ func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 	err := run.RunActionWithHooks(
 		t.Context(),
 		l,
-		&v,
+		v,
 		"plan",
 		newHookOpts(),
 		cfg,
@@ -190,7 +190,7 @@ func TestRunActionWithHooks_ActionFailureTriggersErrorHook(t *testing.T) {
 	err := run.RunActionWithHooks(
 		t.Context(),
 		l,
-		&v,
+		v,
 		"plan",
 		newHookOpts(),
 		cfg,
@@ -247,7 +247,7 @@ func TestRunActionWithHooks_AfterHooksSkipOnActionFailure(t *testing.T) {
 	err := run.RunActionWithHooks(
 		t.Context(),
 		l,
-		&v,
+		v,
 		"plan",
 		newHookOpts(),
 		cfg,
@@ -282,7 +282,7 @@ func TestRunActionWithHooks_NoHooksRunsActionDirectly(t *testing.T) {
 	}
 
 	require.NoError(t, run.RunActionWithHooks(
-		t.Context(), l, &v, "plan", newHookOpts(), &runcfg.RunConfig{}, report.NewReport(), action,
+		t.Context(), l, v, "plan", newHookOpts(), &runcfg.RunConfig{}, report.NewReport(), action,
 	))
 
 	assert.Equal(t, 1, actionFired, "action must fire exactly once")

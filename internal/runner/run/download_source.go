@@ -590,7 +590,7 @@ func tryCASDownload(
 		Mutable:          mutable,
 	}
 
-	casProtocol := getter.NewCASProtocolGetter(l, c, *v)
+	casProtocol := getter.NewCASProtocolGetter(l, c, v)
 	casProtocol.Mutable = mutable
 
 	dispatchOpts := []getter.GenericFetcherOption{
@@ -611,7 +611,7 @@ func tryCASDownload(
 			getter.NewCASGetter(
 				l,
 				c,
-				*v,
+				v,
 				&cloneOpts,
 				getter.WithDefaultGenericDispatch(dispatchOpts...),
 			),
@@ -682,7 +682,7 @@ func BuildDownloadClient(
 
 	if opts.Experiments.Evaluate(experiment.OCI) {
 		clientOpts = append(clientOpts, getter.WithOCI(&getter.OCIGetter{
-			NewStore: getter.NewOCIRepositoryStore(l, *v),
+			NewStore: getter.NewOCIRepositoryStore(l, v),
 			Logger:   l,
 			FS:       v.FS,
 		}))

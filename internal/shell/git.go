@@ -83,7 +83,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string
 	cmd, err := RunCommandWithOutput(
 		ctx,
 		l,
-		&gitV,
+		gitV,
 		gitRunOpts,
 		path,
 		true,
@@ -215,7 +215,7 @@ func GitRepoTags(
 	output, err := RunCommandWithOutput(
 		ctx,
 		l,
-		&gitV,
+		gitV,
 		gitRunOpts,
 		workingDir,
 		true,

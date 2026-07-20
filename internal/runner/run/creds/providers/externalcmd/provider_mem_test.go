@@ -31,7 +31,7 @@ func TestProviderEmptyAuthProviderCmdIsNoop(t *testing.T) {
 	})
 	p := externalcmd.NewProvider(logger.CreateLogger(), "", newRunOpts())
 
-	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), &v)
+	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.NoError(t, err)
 	assert.Nil(t, creds)
 	assert.Zero(t, calls, "expected no subprocess invocations for an empty auth-provider command")
@@ -61,7 +61,7 @@ func TestProviderDirectAWSCredentials(t *testing.T) {
 		newRunOpts(),
 	)
 
-	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), &v)
+	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.NoError(t, err)
 	require.NotNil(t, creds)
 	assert.Equal(t, providers.AWSCredentials, creds.Name)
@@ -87,7 +87,7 @@ func TestProviderArbitraryEnvs(t *testing.T) {
 	})
 	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
 
-	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), &v)
+	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.NoError(t, err)
 	require.NotNil(t, creds)
 	assert.Equal(t, "bar", creds.Envs["FOO"])
@@ -102,7 +102,7 @@ func TestProviderEmptyResponseErrors(t *testing.T) {
 	})
 	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
 
-	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), &v)
+	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not contain JSON")
 }
@@ -115,7 +115,7 @@ func TestProviderInvalidJSONErrors(t *testing.T) {
 	})
 	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
 
-	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), &v)
+	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid JSON")
 }
@@ -128,7 +128,7 @@ func TestProviderCommandFailurePropagates(t *testing.T) {
 	})
 	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
 
-	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), &v)
+	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.Error(t, err)
 }
 
@@ -149,7 +149,7 @@ func TestProviderCommandShellwordsParsing(t *testing.T) {
 		newRunOpts(),
 	)
 
-	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), &v)
+	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.NoError(t, err)
 }
 

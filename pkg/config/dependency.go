@@ -1471,7 +1471,7 @@ func getTerragruntOutputJSONFromInitFolder(
 	out, err := tf.RunCommandWithOutput(
 		bareCtx,
 		l,
-		&discardV,
+		discardV,
 		tfRunOpts,
 		tf.CommandNameOutput,
 		"-json",
@@ -1626,7 +1626,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	out, err := tf.RunCommandWithOutput(
 		bareCtx,
 		l,
-		&discardV,
+		discardV,
 		tfRunOpts,
 		tf.CommandNameOutput,
 		"-json",
@@ -1931,7 +1931,7 @@ func runTerraformInitForDependencyOutput(
 	if err := tf.RunCommand(
 		bareCtx,
 		l,
-		&initV,
+		initV,
 		initRunOpts,
 		tf.CommandNameInit,
 		"-get=false",

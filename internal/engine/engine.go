@@ -285,7 +285,7 @@ func createInstance(
 		execOptions:  execOptions,
 		// Snapshot the env so a later in-place mutation of the caller's venv
 		// cannot change what Shutdown addresses.
-		v: new(v.WithEnvCloned()),
+		v: v.WithEnvCloned(),
 	}, nil
 }
 

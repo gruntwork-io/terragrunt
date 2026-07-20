@@ -133,7 +133,7 @@ func TestCASProtocolGetterGet_MalformedHash(t *testing.T) {
 			c, err := cas.New(cas.WithStorePath(t.TempDir()))
 			require.NoError(t, err)
 
-			v := *venv.OSVenv()
+			v := venv.OSVenv()
 
 			l := logger.CreateLogger()
 			g := getter.NewCASProtocolGetter(l, c, v)

@@ -68,7 +68,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := t.Context()
 
-			v := *venv.OSVenv()
+			v := venv.OSVenv()
 			v.HTTP = vhttp.NewNoNetworkClient()
 
 			repo, err := module.NewRepo(

@@ -232,7 +232,7 @@ func memGitTopLevelVenv(t *testing.T, repoRoot string) *venv.Venv {
 		return vexec.Result{ExitCode: 1}
 	})
 
-	return new(venvtest.New().WithExec(exec))
+	return venvtest.New().WithExec(exec)
 }
 
 // mockGraphTargetOption implements the GraphTarget() interface for testing.

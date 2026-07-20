@@ -98,7 +98,7 @@ func runAll(
 		// Parsing can write obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runDelete(ctx, l, &unitV, unitOpts); err != nil {
+		if err := runDelete(ctx, l, unitV, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

@@ -112,7 +112,7 @@ func TestCASGetterGet(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	opts := &cas.CloneOptions{
 		Depth: -1,
@@ -164,7 +164,7 @@ func TestCASGetterLocalDir(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	opts := &cas.CloneOptions{
 		Branch: "main",
@@ -220,7 +220,7 @@ func newTestCASGetter(t *testing.T, opts *cas.CloneOptions) *getter.CASGetter {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	return getter.NewCASGetter(logger.CreateLogger(), c, v, opts)
 }

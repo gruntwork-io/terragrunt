@@ -97,7 +97,7 @@ func runAll(
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runSingle(ctx, l, &unitV, unitOpts); err != nil {
+		if err := runSingle(ctx, l, unitV, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

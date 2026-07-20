@@ -82,98 +82,109 @@ type Venv struct {
 
 // WithWriter returns a copy of v whose primary writer is w. The copy gets
 // a fresh Writers pointer so the caller's venv is untouched.
-func (v Venv) WithWriter(w io.Writer) Venv {
-	v.Writers = v.Writers.WithWriter(w)
+func (v *Venv) WithWriter(w io.Writer) *Venv {
+	c := *v
+	c.Writers = c.Writers.WithWriter(w)
 
-	return v
+	return &c
 }
 
 // WithErrWriter returns a copy of v whose error writer is w. The copy gets
 // a fresh Writers pointer so the caller's venv is untouched.
-func (v Venv) WithErrWriter(w io.Writer) Venv {
-	v.Writers = v.Writers.WithErrWriter(w)
+func (v *Venv) WithErrWriter(w io.Writer) *Venv {
+	c := *v
+	c.Writers = c.Writers.WithErrWriter(w)
 
-	return v
+	return &c
 }
 
 // WithExec returns a copy of v whose process executor is exec.
-func (v Venv) WithExec(exec vexec.Exec) Venv {
-	v.Exec = exec
+func (v *Venv) WithExec(exec vexec.Exec) *Venv {
+	c := *v
+	c.Exec = exec
 
-	return v
+	return &c
 }
 
 // WithHandler returns a copy of v whose executor is an in-memory exec driven
 // by h, for the in-memory test bundles this package serves.
-func (v Venv) WithHandler(h vexec.Handler) Venv {
-	v.Exec = vexec.NewMemExec(h)
+func (v *Venv) WithHandler(h vexec.Handler) *Venv {
+	c := *v
+	c.Exec = vexec.NewMemExec(h)
 
-	return v
+	return &c
 }
 
 // WithSops returns a copy of v whose SOPS decrypter is d.
-func (v Venv) WithSops(d vsops.Decrypter) Venv {
-	v.Sops = d
+func (v *Venv) WithSops(d vsops.Decrypter) *Venv {
+	c := *v
+	c.Sops = d
 
-	return v
+	return &c
 }
 
 // WithFS returns a copy of v backed by fs.
-func (v Venv) WithFS(fs vfs.FS) Venv {
-	v.FS = fs
+func (v *Venv) WithFS(fs vfs.FS) *Venv {
+	c := *v
+	c.FS = fs
 
-	return v
+	return &c
 }
 
 // WithGOOS returns a copy of v whose operating-system identifier is goos.
-func (v Venv) WithGOOS(goos string) Venv {
+func (v *Venv) WithGOOS(goos string) *Venv {
 	platform := Platform{}
 	if v.Platform != nil {
 		platform = *v.Platform
 	}
 
 	platform.GOOS = goos
-	v.Platform = &platform
 
-	return v
+	c := *v
+	c.Platform = &platform
+
+	return &c
 }
 
 // WithUserHomeDir returns a copy of v whose home-directory lookup is userHomeDir.
-func (v Venv) WithUserHomeDir(userHomeDir func() (string, error)) Venv {
+func (v *Venv) WithUserHomeDir(userHomeDir func() (string, error)) *Venv {
 	platform := Platform{}
 	if v.Platform != nil {
 		platform = *v.Platform
 	}
 
 	platform.UserHomeDir = userHomeDir
-	v.Platform = &platform
 
-	return v
+	c := *v
+	c.Platform = &platform
+
+	return &c
 }
 
 // WithEnv returns a copy of v whose shell environment is env. A nil env
 // becomes an empty map so the result still satisfies [Venv.RequireEnv].
-func (v Venv) WithEnv(env map[string]string) Venv {
+func (v *Venv) WithEnv(env map[string]string) *Venv {
 	if env == nil {
 		env = map[string]string{}
 	}
 
-	v.Env = env
+	c := *v
+	c.Env = env
 
-	return v
+	return &c
 }
 
 // WithEnvCloned returns a copy of v whose Env is an independent clone. Fan-out
 // paths that process units one at a time hand each unit a clone so
 // per-unit mutations (obtained credentials, TF_VAR_* contributions) never
 // leak into sibling units. A nil Env becomes an empty map, per [Venv.WithEnv].
-func (v Venv) WithEnvCloned() Venv {
+func (v *Venv) WithEnvCloned() *Venv {
 	return v.WithEnv(maps.Clone(v.Env))
 }
 
 // RequireEnv panics with [ErrVenvEnvUnset] when Env is nil, guarding
 // functions that write into the shared environment.
-func (v Venv) RequireEnv() {
+func (v *Venv) RequireEnv() {
 	if v.Env == nil {
 		panic(ErrVenvEnvUnset)
 	}
@@ -183,7 +194,7 @@ func (v Venv) RequireEnv() {
 // touch the filesystem call this as their first statement so a missing
 // handle panics at the offending call site instead of inside an unrelated
 // stack frame.
-func (v Venv) RequireFS() {
+func (v *Venv) RequireFS() {
 	if v.FS == nil {
 		panic(ErrVenvFSUnset)
 	}
@@ -193,7 +204,7 @@ func (v Venv) RequireFS() {
 // that spawn subprocesses call this as their first statement so a missing
 // handle panics at the offending call site instead of inside an unrelated
 // stack frame.
-func (v Venv) RequireExec() {
+func (v *Venv) RequireExec() {
 	if v.Exec == nil {
 		panic(ErrVenvExecUnset)
 	}
@@ -203,21 +214,21 @@ func (v Venv) RequireExec() {
 // that probe over HTTP call this as their first statement so a missing
 // handle panics at the offending call site instead of inside an unrelated
 // stack frame.
-func (v Venv) RequireHTTP() {
+func (v *Venv) RequireHTTP() {
 	if v.HTTP == nil {
 		panic(ErrVenvHTTPUnset)
 	}
 }
 
 // RequireGOOS panics with [ErrVenvGOOSUnset] when GOOS is empty.
-func (v Venv) RequireGOOS() {
+func (v *Venv) RequireGOOS() {
 	if v.Platform == nil || v.Platform.GOOS == "" {
 		panic(ErrVenvGOOSUnset)
 	}
 }
 
 // RequireUserHomeDir panics with [ErrVenvUserHomeDirUnset] when UserHomeDir is nil.
-func (v Venv) RequireUserHomeDir() {
+func (v *Venv) RequireUserHomeDir() {
 	if v.Platform == nil || v.Platform.UserHomeDir == nil {
 		panic(ErrVenvUserHomeDirUnset)
 	}

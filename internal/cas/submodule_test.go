@@ -57,7 +57,7 @@ func TestCAS_CloneRepoWithSubmodule(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
@@ -129,7 +129,7 @@ func TestCAS_CloneRepoWithNestedSubmodules(t *testing.T) {
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
@@ -179,7 +179,7 @@ func TestCAS_CloneRepoWithUnregisteredGitlink(t *testing.T) {
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
@@ -250,7 +250,7 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	// component for every request, so any path serves the main repo.
 	repoURL := srv.BaseURL() + "/parent.git"
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")

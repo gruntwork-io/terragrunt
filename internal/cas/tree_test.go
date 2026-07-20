@@ -269,7 +269,7 @@ func TestLinkTree(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		setupStore func(t *testing.T, v venv.Venv) (*cas.Store, string)
+		setupStore func(t *testing.T, v *venv.Venv) (*cas.Store, string)
 		treeData   []byte
 		wantFiles  []struct {
 			path    string
@@ -281,7 +281,7 @@ func TestLinkTree(t *testing.T) {
 	}{
 		{
 			name: "basic tree with files and directories",
-			setupStore: func(t *testing.T, v venv.Venv) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v *venv.Venv) (*cas.Store, string) {
 				t.Helper()
 
 				require.NoError(t, v.FS.MkdirAll("/store", 0755))
@@ -338,7 +338,7 @@ func TestLinkTree(t *testing.T) {
 		},
 		{
 			name: "empty tree",
-			setupStore: func(t *testing.T, v venv.Venv) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v *venv.Venv) (*cas.Store, string) {
 				t.Helper()
 
 				require.NoError(t, v.FS.MkdirAll("/store", 0755))
@@ -357,7 +357,7 @@ func TestLinkTree(t *testing.T) {
 		},
 		{
 			name: "tree with missing content",
-			setupStore: func(t *testing.T, v venv.Venv) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v *venv.Venv) (*cas.Store, string) {
 				t.Helper()
 
 				require.NoError(t, v.FS.MkdirAll("/store", 0755))

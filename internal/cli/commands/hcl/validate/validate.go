@@ -161,7 +161,7 @@ func RunValidate(
 			parseOpts.TerragruntConfigPath = stackFilePath
 
 			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser = parser.WithVenv(&componentV)
+			parser = parser.WithVenv(componentV)
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -212,7 +212,7 @@ func RunValidate(
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx = pctx.WithVenv(&componentV)
+		pctx = pctx.WithVenv(componentV)
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
@@ -364,14 +364,14 @@ func RunValidateInputs(
 		// missing inputs in the next.
 		unitV := v.WithEnvCloned()
 
-		prepared, err := prepare.PrepareConfig(ctx, l, &unitV, unitOpts)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := prepare.PrepareSource(ctx, l, &unitV, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -380,7 +380,7 @@ func RunValidateInputs(
 		// Generate config
 		if err := prepare.PrepareGenerate(
 			l,
-			&unitV,
+			unitV,
 			updatedOpts,
 			prepared.Cfg.ToRunConfig(l),
 		); err != nil {

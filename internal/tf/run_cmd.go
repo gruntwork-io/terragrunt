@@ -91,7 +91,7 @@ func RunCommandWithOutput(
 		outWriter, errWriter := logTFOutput(l, *v.Writers, runOpts, args)
 
 		localV := v.WithWriter(outWriter).WithErrWriter(errWriter)
-		v = &localV
+		v = localV
 	}
 
 	output, err := shell.RunCommandWithOutput(

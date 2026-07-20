@@ -23,7 +23,7 @@ func BenchmarkClone(b *testing.B) {
 
 	l := logger.CreateLogger()
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
@@ -88,7 +88,7 @@ func BenchmarkContent(b *testing.B) {
 
 	l := logger.CreateLogger()
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	b.Run("store", func(b *testing.B) {
 		for i := 0; b.Loop(); i++ {

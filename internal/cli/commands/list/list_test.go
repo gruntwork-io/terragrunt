@@ -73,7 +73,7 @@ func TestBasicDiscovery(t *testing.T) {
 
 	l.Formatter().SetDisabledColors(true)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(writer)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(writer), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -150,7 +150,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -225,7 +225,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -300,7 +300,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -414,7 +414,7 @@ dependency "C" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -554,7 +554,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -614,7 +614,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -687,7 +687,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -765,7 +765,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -836,7 +836,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -903,7 +903,7 @@ exclude {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -985,7 +985,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, new(venv.OSVenv().WithWriter(w)), opts)
+	err = list.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()

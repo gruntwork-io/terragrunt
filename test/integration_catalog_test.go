@@ -42,7 +42,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 	_, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		*venv.OSVenv(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
 			Path:     tempDir,
@@ -53,7 +53,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 	_, err = module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		*venv.OSVenv(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
 			Path:     tempDir,
@@ -72,7 +72,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		*venv.OSVenv(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
 			Path:     tempDir,
@@ -95,7 +95,7 @@ func TestScaffoldGitModule(t *testing.T) {
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		*venv.OSVenv(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git",
 			Path:     tempDir,
@@ -154,7 +154,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		*venv.OSVenv(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules",
 			Path:     tempDir,
@@ -371,7 +371,7 @@ func TestCatalogDiscoveryWithIgnoreFiles(t *testing.T) {
 	repo, err := module.NewRepo(
 		t.Context(),
 		logger.CreateLogger(),
-		*venv.OSVenv(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL:       repoDir,
 			Path:           repoDir,

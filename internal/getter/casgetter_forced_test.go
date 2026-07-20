@@ -41,7 +41,7 @@ func TestCASGetter_ForcedThreadedToInnerClient(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithGenericFetchers(map[string]gogetter.Getter{scheme: stub}),
@@ -95,7 +95,7 @@ func TestCASGetter_GetCanonicalizesForcedAlias(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithGenericFetchers(map[string]gogetter.Getter{getter.SchemeGCS: stub}),

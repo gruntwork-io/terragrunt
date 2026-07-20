@@ -81,7 +81,7 @@ func TestRun_NonOSBackedExecReturnsSentinel(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	_, err := engine.Run(ctx, log.New(), &v, opts)
+	_, err := engine.Run(ctx, log.New(), v, opts)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, vexec.ErrNotOSBacked)
 }

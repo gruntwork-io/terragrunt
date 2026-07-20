@@ -181,7 +181,7 @@ func (runner *UnitRunner) Run(
 		if err := run.Run(
 			ctx,
 			jsonLogger,
-			&jsonV,
+			jsonV,
 			runOpts,
 			adhocReport,
 			cfg,

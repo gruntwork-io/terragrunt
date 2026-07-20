@@ -31,7 +31,7 @@ func TestGetTFVersionOpenTofu(t *testing.T) {
 	_, ver, impl, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
-		&v,
+		v,
 		newVersionTFOptions("tofu"),
 	)
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestGetTFVersionTerraform(t *testing.T) {
 	_, ver, impl, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
-		&v,
+		v,
 		newVersionTFOptions("terraform"),
 	)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestGetTFVersionUnknownImplFallsBackToTerraform(t *testing.T) {
 	_, ver, impl, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
-		&v,
+		v,
 		newVersionTFOptions("custom-fork"),
 	)
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestGetTFVersionInvalidOutput(t *testing.T) {
 	_, _, _, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
-		&v,
+		v,
 		newVersionTFOptions("tofu"),
 	)
 	require.Error(t, err)
@@ -110,7 +110,7 @@ func TestGetTFVersionPropagatesExecError(t *testing.T) {
 	_, _, _, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
-		&v,
+		v,
 		newVersionTFOptions("tofu"),
 	)
 	require.Error(t, err)
@@ -139,7 +139,7 @@ func TestGetTFVersionStripsTFCLIArgs(t *testing.T) {
 	_, _, _, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
-		&v,
+		v,
 		newVersionTFOptions("tofu"),
 	)
 	require.NoError(t, err)

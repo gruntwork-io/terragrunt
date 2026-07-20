@@ -75,8 +75,8 @@ func Run(
 	// contributions during parsing (auth-provider-cmd credentials, TF_VAR_*)
 	// stay on their own side instead of clobbering one another, and so the
 	// pull and push below run under the correct environment.
-	srcV := new(v.WithEnvCloned())
-	dstV := new(v.WithEnvCloned())
+	srcV := v.WithEnvCloned()
+	dstV := v.WithEnvCloned()
 
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
 	srcPctx = srcPctx.WithVenv(srcV)

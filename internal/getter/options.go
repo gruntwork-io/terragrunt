@@ -39,7 +39,7 @@ func WithOCI(g *OCIGetter) Option {
 // them through Terragrunt's content-addressable storage. v supplies the
 // filesystem and process executor used by every CAS operation; [WithHTTP]
 // must also be set since the CAS dispatch probes over HTTP.
-func WithCAS(c *cas.CAS, v venv.Venv, cloneOpts *cas.CloneOptions) Option {
+func WithCAS(c *cas.CAS, v *venv.Venv, cloneOpts *cas.CloneOptions) Option {
 	return func(b *builder) {
 		b.casStore = c
 		b.casVenv = v
@@ -102,7 +102,7 @@ type builder struct {
 	oci              *OCIGetter
 	casStore         *cas.CAS
 	casCloneOpts     *cas.CloneOptions
-	casVenv          venv.Venv
+	casVenv          *venv.Venv
 	httpClient       vhttp.Client
 	httpExtraHeader  http.Header
 	httpsExtraHeader http.Header

@@ -64,11 +64,11 @@ func TestVenvRequireFS(t *testing.T) {
 	t.Parallel()
 
 	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
-		venv.Venv{}.RequireFS()
+		(&venv.Venv{}).RequireFS()
 	})
 
 	assert.NotPanics(t, func() {
-		venv.Venv{FS: vfs.NewOSFS()}.RequireFS()
+		(&venv.Venv{FS: vfs.NewOSFS()}).RequireFS()
 	})
 }
 
@@ -78,18 +78,18 @@ func TestVenvRequireExec(t *testing.T) {
 	t.Parallel()
 
 	assert.PanicsWithValue(t, venv.ErrVenvExecUnset, func() {
-		venv.Venv{FS: vfs.NewOSFS()}.RequireExec()
+		(&venv.Venv{FS: vfs.NewOSFS()}).RequireExec()
 	})
 
 	assert.NotPanics(t, func() {
-		venv.Venv{Exec: vexec.NewOSExec()}.RequireExec()
+		(&venv.Venv{Exec: vexec.NewOSExec()}).RequireExec()
 	})
 }
 
 func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	t.Parallel()
 
-	v := venv.Venv{Env: map[string]string{"FOO": "bar"}}
+	v := &venv.Venv{Env: map[string]string{"FOO": "bar"}}
 
 	clone := v.WithEnvCloned()
 	clone.Env["AWS_ACCESS_KEY_ID"] = "leaked"
@@ -148,12 +148,12 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	t.Parallel()
 
 	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
-		venv.Venv{}.RequireFS()
+		(&venv.Venv{}).RequireFS()
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvGOOSUnset, func() {
-		venv.Venv{}.RequireGOOS()
+		(&venv.Venv{}).RequireGOOS()
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
-		venv.Venv{}.RequireUserHomeDir()
+		(&venv.Venv{}).RequireUserHomeDir()
 	})
 }

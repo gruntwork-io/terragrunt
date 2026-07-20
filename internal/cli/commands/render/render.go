@@ -68,7 +68,7 @@ func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) erro
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
 
-		prepared, err := prepare.PrepareConfig(ctx, l, &unitV, unitOpts.TerragruntOptions)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue

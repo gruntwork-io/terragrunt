@@ -87,7 +87,7 @@ type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
 // Docker and containers auth files. It never invokes credential helpers, so
 // registries needing per-run token minting (e.g. Amazon ECR) only work for the
 // lifetime of an externally obtained login in one of the ambient files.
-func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
+func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	v.RequireFS()
 	v.RequireEnv()
 	v.RequireGOOS()
@@ -131,7 +131,7 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 
 // ociCredentialFunc resolves static environment credentials, falling back to
 // ambient discovery through the Venv.
-func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) {
+func ociCredentialFunc(l log.Logger, v *venv.Venv) (ociCredentialFactory, error) {
 	staticCred, found, err := ociStaticCredential(v)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,7 @@ func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) 
 }
 
 // ociStaticCredential reads a token or a username plus password from v.Env.
-func ociStaticCredential(v venv.Venv) (auth.Credential, bool, error) {
+func ociStaticCredential(v *venv.Venv) (auth.Credential, bool, error) {
 	username := v.Env[EnvOCIUsername]
 	password := v.Env[EnvOCIPassword]
 	token := v.Env[EnvOCIToken]
@@ -212,7 +212,7 @@ type ociAmbientStore struct {
 // ociAmbientCredentialFunc consults ambient files in order. Each file is read
 // only through v.FS, and only the selected entry is decoded, so one malformed
 // entry cannot hide valid credentials elsewhere in the same file.
-func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
+func ociAmbientCredentialFunc(l log.Logger, v *venv.Venv) ociCredentialFactory {
 	stores := loadOCIAmbientStores(l, v)
 
 	return func(repositoryName string) auth.CredentialFunc {
@@ -237,7 +237,7 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 	}
 }
 
-func loadOCIAmbientStores(l log.Logger, v venv.Venv) []ociAmbientStore {
+func loadOCIAmbientStores(l log.Logger, v *venv.Venv) []ociAmbientStore {
 	candidates := ociAmbientCredentialPaths(v)
 	stores := make([]ociAmbientStore, 0, len(candidates))
 
@@ -287,7 +287,7 @@ func ociCredentialFromAmbientStore(
 // ociAmbientCredentialPaths returns OpenTofu's containers-auth candidates in
 // precedence order. The runtime file is Linux-only; macOS and Windows search
 // literal ~/.config before XDG config; DOCKER_CONFIG is intentionally ignored.
-func ociAmbientCredentialPaths(v venv.Venv) []string {
+func ociAmbientCredentialPaths(v *venv.Venv) []string {
 	var paths []string
 
 	if v.Platform.GOOS == "linux" {
@@ -368,7 +368,7 @@ func ociCanonicalAuthKey(key string) string {
 
 // ociAuthFile reads an auth file through v.FS and builds its exact-key index.
 func ociAuthFile(
-	v venv.Venv,
+	v *venv.Venv,
 	path string,
 ) (map[string]json.RawMessage, map[string][]string, error) {
 	data, err := vfs.ReadFile(v.FS, path)

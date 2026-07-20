@@ -288,14 +288,14 @@ func writeLocalFixture(t *testing.T, files map[string]string) string {
 
 // newCAS constructs a CAS instance backed by a fresh per-test store directory
 // along with a production [venv.Venv].
-func newCAS(t *testing.T) (*cas.CAS, venv.Venv) {
+func newCAS(t *testing.T) (*cas.CAS, *venv.Venv) {
 	t.Helper()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	return c, v
 }

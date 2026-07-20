@@ -29,7 +29,7 @@ type CASGetter struct {
 	CAS         *cas.CAS
 	Logger      log.Logger
 	Opts        *cas.CloneOptions
-	Venv        venv.Venv
+	Venv        *venv.Venv
 	fetchers    map[string]getter.Getter
 	resolvers   map[string]cas.SourceResolver
 	innerClient InnerClientBuilder
@@ -122,7 +122,7 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 func NewCASGetter(
 	l log.Logger,
 	c *cas.CAS,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *cas.CloneOptions,
 	options ...CASGetterOption,
 ) *CASGetter {
@@ -482,7 +482,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 // their validScheme; without this the inner client falls through with a
 // generic "error downloading".
 func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) cas.SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v venv.Venv, suggestedKey string) (string, error) {
+	return func(ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string) (string, error) {
 		tempDir, cleanup, err := g.CAS.MakeFetchTempDir(l, v)
 		if err != nil {
 			return "", err

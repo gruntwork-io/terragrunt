@@ -818,7 +818,7 @@ func runTerraformInitRunCfg(
 		return err
 	}
 
-	initV := *v
+	initV := v
 	if suppressInitStdout {
 		initV = initV.WithWriter(io.Discard)
 	}
@@ -826,7 +826,7 @@ func runTerraformInitRunCfg(
 	if err := runTerragruntWithConfig(
 		ctx,
 		l,
-		&initV,
+		initV,
 		originalOpts,
 		initOptions,
 		cfg,

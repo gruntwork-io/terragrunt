@@ -368,7 +368,7 @@ func parseComponent(
 
 			if parseOpts.DiscoveryAuthProviderCmd {
 				if _, err := creds.ObtainCredsForParsing(
-					ctx, l, &parseV, parseOpts.AuthProviderCmd, shellOpts,
+					ctx, l, parseV, parseOpts.AuthProviderCmd, shellOpts,
 				); err != nil {
 					return fmt.Errorf(
 						"obtaining auth provider credentials for %s: %w",
@@ -379,7 +379,7 @@ func parseComponent(
 			}
 
 			ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parsingCtx = parsingCtx.WithVenv(&parseV).WithDecodeList(
+			parsingCtx = parsingCtx.WithVenv(parseV).WithDecodeList(
 				config.TerraformSource,
 				config.DependenciesBlock,
 				config.DependencyBlock,

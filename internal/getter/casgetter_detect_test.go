@@ -351,7 +351,7 @@ func TestCASGetterDetect_SchemeNotInRegistryFallsThrough(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	// No generic dispatch wired: only the git+file paths are active.
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
@@ -378,7 +378,7 @@ func TestNewCASGetter_PanicsOnNilVenvFS(t *testing.T) {
 	require.NoError(t, err)
 
 	require.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
-		getter.NewCASGetter(logger.CreateLogger(), c, venv.Venv{}, &tgcas.CloneOptions{})
+		getter.NewCASGetter(logger.CreateLogger(), c, &venv.Venv{}, &tgcas.CloneOptions{})
 	})
 }
 
@@ -393,7 +393,7 @@ func TestNewCASGetter_PanicsOnNilVenvExec(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.Venv{FS: vfs.NewOSFS()}
+	v := &venv.Venv{FS: vfs.NewOSFS()}
 
 	require.PanicsWithValue(t, venv.ErrVenvExecUnset, func() {
 		getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
@@ -412,7 +412,7 @@ func TestNewCASGetter_PanicsOnNilVenvHTTPWithDispatch(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 	v.HTTP = nil
 
 	require.PanicsWithValue(t, venv.ErrVenvHTTPUnset, func() {
@@ -435,7 +435,7 @@ func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
 		CAS:       c,
 		Logger:    logger.CreateLogger(),
 		Opts:      &tgcas.CloneOptions{},
-		Venv:      venv.Venv{},
+		Venv:      &venv.Venv{},
 		Detectors: []getter.Detector{new(getter.FileDetector)},
 	}
 
@@ -495,7 +495,7 @@ func newCASGetterForDetect(t *testing.T) *getter.CASGetter {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	return getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewNoNetworkClient())))

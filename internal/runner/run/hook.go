@@ -172,7 +172,7 @@ func ProcessErrorHooks(
 					_, possibleError := shell.RunCommandWithOutput(
 						ctx,
 						l,
-						&hookV,
+						hookV,
 						opts.shellRunOptions(),
 						curHook.WorkingDir,
 						curHook.SuppressStdout,
@@ -280,7 +280,7 @@ func runHook(
 	_, possibleError := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		&hookV,
+		hookV,
 		opts.shellRunOptions(),
 		workingDir,
 		suppressStdout,

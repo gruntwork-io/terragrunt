@@ -31,7 +31,7 @@ const DefaultLocalHashAlgorithm = HashSHA256
 func (c *CAS) StoreLocalDirectory(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	sourceDir, targetDir string,
 	opts ...LinkTreeOption,
 ) error {
@@ -69,7 +69,7 @@ func (c *CAS) StoreLocalDirectory(
 // hashes in the synthetic tree, so blob lookups and tree lookups stay consistent.
 //
 // Requires v.FS. v.Exec is not used.
-func (c *CAS) ComputeLocalRootHash(v venv.Venv, dir string, alg HashAlgorithm) (string, error) {
+func (c *CAS) ComputeLocalRootHash(v *venv.Venv, dir string, alg HashAlgorithm) (string, error) {
 	v.RequireFS()
 
 	hash, _, err := c.buildLocalTree(v, dir, alg)
@@ -85,7 +85,7 @@ func (c *CAS) ComputeLocalRootHash(v venv.Venv, dir string, alg HashAlgorithm) (
 // link target string, matching git's symlink representation. Targets that
 // escape dir are rejected at ingest time so the CAS cannot store a tree that
 // would resolve outside the destination at materialize time.
-func (c *CAS) buildLocalTree(v venv.Venv, dir string, alg HashAlgorithm) (string, []byte, error) {
+func (c *CAS) buildLocalTree(v *venv.Venv, dir string, alg HashAlgorithm) (string, []byte, error) {
 	var (
 		treeData []byte
 		rootBuf  []byte

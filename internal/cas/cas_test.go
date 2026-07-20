@@ -21,7 +21,7 @@ func TestCAS_Clone(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	t.Run("clone new repository", func(t *testing.T) {
 		t.Parallel()
@@ -108,7 +108,7 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
 		cas.WithDepth(-1))
@@ -146,7 +146,7 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
 		cas.WithDepth(-1))

@@ -37,7 +37,7 @@ func TestCASGetterRefOptionInjection(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &cas.CloneOptions{Depth: 1})
 	client := getter.Client{Getters: []getter.Getter{g}}

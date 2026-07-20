@@ -88,7 +88,7 @@ type RepoOpts struct {
 // (i.e. CloneURL is a URL, not a local path) requires the OS filesystem
 // because the underlying go-getter writes through the real OS; such a
 // clone returns [ErrRemoteCloneFSNotOS] on any other filesystem.
-func NewRepo(ctx context.Context, l log.Logger, v venv.Venv, opts *RepoOpts) (*Repo, error) {
+func NewRepo(ctx context.Context, l log.Logger, v *venv.Venv, opts *RepoOpts) (*Repo, error) {
 	if opts == nil {
 		opts = &RepoOpts{}
 	}
@@ -315,7 +315,7 @@ type CloneOptions struct {
 	TargetPath string
 }
 
-func (repo *Repo) clone(ctx context.Context, l log.Logger, v venv.Venv) error {
+func (repo *Repo) clone(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	cloneURL := repo.resolveCloneURL()
 
 	// Handle local directory case
@@ -476,7 +476,7 @@ func (repo *Repo) cloneCompleted(fsys vfs.FS) bool {
 func (repo *Repo) performClone(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *CloneOptions,
 ) error {
 	if !vfs.IsOSFS(v.FS) {

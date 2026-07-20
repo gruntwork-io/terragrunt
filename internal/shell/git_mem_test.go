@@ -37,7 +37,7 @@ func TestGitTopLevelDirDispatchesGitRevParse(t *testing.T) {
 
 	v := venvtest.New().WithExec(exec)
 
-	root, err := shell.GitTopLevelDir(gitMemCtx(t), logger.CreateLogger(), &v, "/tmp/repo")
+	root, err := shell.GitTopLevelDir(gitMemCtx(t), logger.CreateLogger(), v, "/tmp/repo")
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp/repo", root)
 	assert.Equal(t, 1, calls)
@@ -60,7 +60,7 @@ func TestGitTopLevelDirNormalizesWindowsSlashes(t *testing.T) {
 	root, err := shell.GitTopLevelDir(
 		gitMemCtx(t),
 		logger.CreateLogger(),
-		&v,
+		v,
 		"/c/Users/dev/repo",
 	)
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestGitTopLevelDirCacheHits(t *testing.T) {
 	v := venvtest.New().WithExec(exec)
 
 	for range 5 {
-		_, err := shell.GitTopLevelDir(ctx, l, &v, "/repo")
+		_, err := shell.GitTopLevelDir(ctx, l, v, "/repo")
 		require.NoError(t, err)
 	}
 
@@ -123,7 +123,7 @@ func TestGitRepoTagsParsesLsRemote(t *testing.T) {
 
 	v := venvtest.New().WithExec(exec)
 
-	tags, err := shell.GitRepoTags(t.Context(), logger.CreateLogger(), &v, "/work", u)
+	tags, err := shell.GitRepoTags(t.Context(), logger.CreateLogger(), v, "/work", u)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"refs/tags/v1.0.0", "refs/tags/v1.1.0", "refs/tags/v2.0.0"}, tags)
 }
@@ -149,7 +149,7 @@ func TestGitLastReleaseTagSelectsHighestSemver(t *testing.T) {
 
 	v := venvtest.New().WithExec(exec)
 
-	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), &v, "/work", u)
+	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), v, "/work", u)
 	require.NoError(t, err)
 	assert.Equal(t, "v1.10.0", tag)
 }
@@ -168,7 +168,7 @@ func TestGitLastReleaseTagEmptyOnNoSemver(t *testing.T) {
 
 	v := venvtest.New().WithExec(exec)
 
-	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), &v, "/work", u)
+	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), v, "/work", u)
 	require.NoError(t, err)
 	assert.Empty(t, tag)
 }

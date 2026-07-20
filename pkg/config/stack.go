@@ -151,7 +151,7 @@ func GenerateStackFile(
 		return err
 	}
 
-	cs, err := setupCAS(l, *pctx.Venv, casEnabled, pctx.CASCloneDepth)
+	cs, err := setupCAS(l, pctx.Venv, casEnabled, pctx.CASCloneDepth)
 	if err != nil {
 		return err
 	}
@@ -172,11 +172,11 @@ func GenerateStackFile(
 		strictControls:  pctx.StrictControls,
 	}
 
-	if err := generateUnits(ctx, l, *pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, l, *pctx.Venv, &genOpts, pool, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -393,7 +393,7 @@ type casSetup struct {
 // depth); transient setup failures log a warning and return an
 // Enabled=false bundle so the caller falls through to the standard
 // getter.
-func setupCAS(l log.Logger, v venv.Venv, enabled bool, cloneDepth int) (casSetup, error) {
+func setupCAS(l log.Logger, v *venv.Venv, enabled bool, cloneDepth int) (casSetup, error) {
 	if !enabled {
 		return casSetup{}, nil
 	}
@@ -439,7 +439,7 @@ type generateOpts struct {
 func generateUnits(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *generateOpts,
 	pool *worker.Pool,
 	units []*Unit,
@@ -485,7 +485,7 @@ func generateUnits(
 func generateStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *generateOpts,
 	pool *worker.Pool,
 	stacks []*Stack,
@@ -639,7 +639,7 @@ func validateGeneratedComponent(
 // generateAutoInclude writes the autoinclude file for a component if one was resolved.
 func generateAutoInclude(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *generateOpts,
 	cmp *componentToGenerate,
 	dest string,
@@ -686,7 +686,7 @@ func generateAutoInclude(
 func generateComponent(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *generateOpts,
 	cmp *componentToGenerate,
 ) error {
@@ -748,7 +748,7 @@ func generateComponent(
 func fetchComponentSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *generateOpts,
 	cmp *componentToGenerate,
 	kindStr, source, dest string,
@@ -846,7 +846,7 @@ func fetchComponentSource(
 func fetchViaCAS(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *generateOpts,
 	sourceDir, kindStr, source, dest string,
 ) error {

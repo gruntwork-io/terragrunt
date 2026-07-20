@@ -42,7 +42,7 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 
 	l := logger.CreateLogger()
 
-	client, err := s3backend.NewClient(t.Context(), l, new(venvtest.New()), extS3Cfg, mockOptions)
+	client, err := s3backend.NewClient(t.Context(), l, venvtest.New(), extS3Cfg, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return client

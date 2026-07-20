@@ -73,7 +73,7 @@ func runTFHelp(
 	out, err := tf.RunCommandWithOutput(
 		ctx,
 		l,
-		&helpV,
+		helpV,
 		configbridge.TFRunOptsFromOpts(opts),
 		terraformHelpCmd...)
 	if err != nil {

@@ -43,7 +43,7 @@ func TestGcpCASGCSMD5Probe(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := *venv.OSVenv()
+	v := venv.OSVenv()
 
 	g := tggetter.NewCASGetter(
 		logger.CreateLogger(),

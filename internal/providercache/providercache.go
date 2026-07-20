@@ -266,7 +266,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 	cacheEnvV := v.WithEnv(
 		pc.providerCacheEnvironment(v.Env, tfOpts.TofuImplementation, cliConfigFilename),
 	)
-	v = &cacheEnvV
+	v = cacheEnvV
 
 	lockfileReadonly := LockfileReadonlyRequested(args, v.Env)
 
@@ -719,7 +719,7 @@ func runProviderLockAttempt(
 	output, cmdErr := tf.RunCommandWithOutput(
 		ctx,
 		l,
-		&cmdV,
+		cmdV,
 		tfOpts,
 		tfOpts.TerraformCliArgs.Slice()...)
 

@@ -680,12 +680,12 @@ func TestOCIAmbientCredentialLegacySchemePrefixedEntry(t *testing.T) {
 }
 
 // credentialVenv builds a hermetic Linux Venv with home and extra env set.
-func credentialVenv(home string, extra map[string]string) venv.Venv {
+func credentialVenv(home string, extra map[string]string) *venv.Venv {
 	return credentialVenvForGOOS("linux", home, extra)
 }
 
 // credentialVenvForGOOS builds a hermetic in-memory Venv for goos.
-func credentialVenvForGOOS(goos, home string, extra map[string]string) venv.Venv {
+func credentialVenvForGOOS(goos, home string, extra map[string]string) *venv.Venv {
 	env := map[string]string{}
 	for name, value := range extra {
 		env[name] = value

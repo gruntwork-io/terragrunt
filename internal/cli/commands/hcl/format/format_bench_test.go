@@ -64,7 +64,7 @@ func BenchmarkFormat(b *testing.B) {
 
 				b.StartTimer()
 
-				if err := format.Run(ctx, l, &v, tgOptions); err != nil {
+				if err := format.Run(ctx, l, v, tgOptions); err != nil {
 					b.Fatalf("format.Run failed: %v", err)
 				}
 			}

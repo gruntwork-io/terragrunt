@@ -22,8 +22,8 @@ import (
 // cleartext, an empty (non-nil) environment, deterministic platform handles,
 // and both writers wired to [io.Discard]. Refine it with venv.Venv's fluent
 // With methods.
-func New() venv.Venv {
-	return venv.Venv{
+func New() *venv.Venv {
+	return &venv.Venv{
 		Exec: vexec.NewMemExec(
 			func(context.Context, vexec.Invocation) vexec.Result { return vexec.Result{} },
 		),
