@@ -80,7 +80,7 @@ func (m Model) renderFilePreview(n *Node, width int) string {
 
 	// The Markdown and syntax renderers, and the lipgloss display path, panic on
 	// invalid UTF-8, so coerce hostile file bytes before any of them see it.
-	source := strings.ToValidUTF8(string(data), "�")
+	source := sanitizePreviewText(strings.ToValidUTF8(string(data), "�"))
 	theme := themeFor(m.color, m.hasDarkBG)
 
 	switch strings.ToLower(filepath.Ext(n.name)) {
@@ -89,6 +89,27 @@ func (m Model) renderFilePreview(n *Node, width int) string {
 	default:
 		return highlightCode(n.name, source, theme)
 	}
+}
+
+// sanitizePreviewText replaces terminal control characters with the Unicode
+// replacement rune: the plain-color paths return source verbatim and the
+// highlighters pass control bytes through, so a hostile file could otherwise
+// inject escape sequences (cursor moves, title, clipboard, or hyperlink
+// writes) straight into the terminal. Newlines and tabs keep their formatting
+// role, and carriage returns are dropped so CRLF files render cleanly.
+func sanitizePreviewText(source string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n' || r == '\t':
+			return r
+		case r == '\r':
+			return -1
+		case r < 0x20 || r == 0x7f || (0x80 <= r && r <= 0x9f):
+			return '�'
+		}
+
+		return r
+	}, source)
 }
 
 // isBinary reports whether data looks like a binary file, sniffing up to its

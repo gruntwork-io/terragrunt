@@ -365,7 +365,6 @@ func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) 
 	newModel.warnCh = m.warnCh
 	newModel.toasts = m.toasts
 
-
 	width, height := m.width, m.height
 
 	initCmds := []tea.Cmd{newModel.Init()}

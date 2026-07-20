@@ -112,6 +112,27 @@ func TestMarkdownPreviewIsStyled(t *testing.T) {
 	assert.Contains(t, sel.Preview(), "\x1b[", "markdown should be rendered with styling")
 }
 
+func TestFilePreviewStripsTerminalControlSequences(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/evil.txt", []byte("before\x1b]0;pwned\x07after\r\nnext"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorDisabled)
+	m = press(t, m, 'l')
+
+	sel := m.Selected()
+	require.Equal(t, "evil.txt", sel.Name())
+
+	preview := sel.Preview()
+	assert.NotContains(t, preview, "\x1b", "escape bytes must not pass through to the terminal")
+	assert.NotContains(t, preview, "\x07")
+	assert.Contains(t, preview, "before")
+	assert.Contains(t, preview, "after\nnext", "CRLF should render as a plain newline")
+}
+
 func TestFilePreviewLexesByContentWithoutExtension(t *testing.T) {
 	t.Parallel()
 
