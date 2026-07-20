@@ -31,8 +31,7 @@ import (
 )
 
 const (
-	// concurrentWarmupRequests fans out enough clients to reliably overlap
-	// in-flight requests for the same provider platform.
+	// concurrentWarmupRequests is how many clients must be answered while one download is in flight.
 	concurrentWarmupRequests = 20
 
 	warmupProviderNamespace = "example"
@@ -45,6 +44,7 @@ const (
 // platform all receive the cache-provider status code while warm-up runs in
 // the background, WaitForCacheReady converges on a single ready cache entry,
 // and the upstream registry serves the provider archive exactly once.
+// The archive download stays blocked until every request is answered, proving all requests overlap it.
 func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -52,6 +52,9 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		archiveHitsMu sync.Mutex
 		archiveHits   int
 	)
+
+	// Blocks the upstream archive handler until every concurrent request has been answered.
+	releaseArchive := make(chan struct{})
 
 	providerOS := runtime.GOOS
 	providerArch := runtime.GOARCH
@@ -98,6 +101,8 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 			archiveHits++
 
 			archiveHitsMu.Unlock()
+
+			<-releaseArchive
 
 			if _, err := w.Write(archive); err != nil {
 				t.Errorf("upstream archive write failed: %v", err)
@@ -206,6 +211,9 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		assert.Equal(t, providercache.CacheProviderHTTPStatusCode, statusCode,
 			"request %d should be told the provider is being cached in the background", i)
 	}
+
+	// All requests were answered while the download was blocked; let it finish now.
+	close(releaseArchive)
 
 	cachedProviders, err := providerService.WaitForCacheReady(requestID)
 	require.NoError(t, err,

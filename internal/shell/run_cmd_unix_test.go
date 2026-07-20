@@ -4,6 +4,8 @@ package shell_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
@@ -35,6 +37,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(t.Context())
 
 	cmdPath := "testdata/test_sigint_wait.sh"
+	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
 
 	shellOpts := configbridge.ShellRunOptsFromOpts(terragruntOptions)
 	// Forward the interrupt near-immediately instead of waiting the production
@@ -52,13 +55,19 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 			false,
 			cmdPath,
 			strconv.Itoa(expectedWait),
+			readyPath,
 		)
 		errCh <- err
 	}()
 
-	time.AfterFunc(500*time.Millisecond, func() {
-		cancel(signal.NewContextCanceledError(syscall.SIGINT))
-	})
+	// Cancel only once the child confirms its INT trap is installed, instead of guessing with a timer.
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(readyPath)
+
+		return err == nil
+	}, 10*time.Second, 10*time.Millisecond, "child never wrote the trap-ready marker")
+
+	cancel(signal.NewContextCanceledError(syscall.SIGINT))
 
 	actualErr := <-errCh
 	require.Error(t, actualErr, "Expected an error but got none")
