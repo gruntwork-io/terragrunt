@@ -86,6 +86,21 @@ func TestVenvRequireExec(t *testing.T) {
 	})
 }
 
+// TestWithEnvRejectsNil pins the argument contract: WithEnv asserts a
+// non-nil env instead of silently substituting an empty map, and
+// WithEnvCloned asserts a non-nil receiver Env before cloning.
+func TestWithEnvRejectsNil(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvEnvNil, func() {
+		(&venv.Venv{}).WithEnv(nil)
+	})
+
+	assert.PanicsWithValue(t, venv.ErrVenvEnvUnset, func() {
+		(&venv.Venv{}).WithEnvCloned()
+	})
+}
+
 func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	t.Parallel()
 

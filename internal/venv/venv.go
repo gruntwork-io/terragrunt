@@ -34,6 +34,11 @@ import (
 // test that forgot to set Env rather than a runtime condition.
 var ErrVenvEnvUnset = errors.New("venv.Venv.Env is required but unset")
 
+// ErrVenvEnvNil is the panic value [Venv.WithEnv] raises when its env
+// argument is nil. Every caller builds the map it passes, so a nil points
+// at a caller bug rather than a runtime condition.
+var ErrVenvEnvNil = errors.New("venv.Venv.WithEnv: env must not be nil")
+
 // ErrVenvFSUnset is the panic value [Venv.RequireFS] raises when FS is nil.
 // Production callers build the Venv through [OSVenv], so it points at a test
 // that forgot to set FS rather than a runtime condition.
@@ -161,11 +166,12 @@ func (v *Venv) WithUserHomeDir(userHomeDir func() (string, error)) *Venv {
 	return &c
 }
 
-// WithEnv returns a copy of v whose shell environment is env. A nil env
-// becomes an empty map so the result still satisfies [Venv.RequireEnv].
+// WithEnv returns a copy of v whose shell environment is env. It panics
+// with [ErrVenvEnvNil] on a nil env so the result always satisfies
+// [Venv.RequireEnv].
 func (v *Venv) WithEnv(env map[string]string) *Venv {
 	if env == nil {
-		env = map[string]string{}
+		panic(ErrVenvEnvNil)
 	}
 
 	c := *v
@@ -177,8 +183,11 @@ func (v *Venv) WithEnv(env map[string]string) *Venv {
 // WithEnvCloned returns a copy of v whose Env is an independent clone. Fan-out
 // paths that process units one at a time hand each unit a clone so
 // per-unit mutations (obtained credentials, TF_VAR_* contributions) never
-// leak into sibling units. A nil Env becomes an empty map, per [Venv.WithEnv].
+// leak into sibling units. It panics with [ErrVenvEnvUnset], per
+// [Venv.RequireEnv], when Env is nil.
 func (v *Venv) WithEnvCloned() *Venv {
+	v.RequireEnv()
+
 	return v.WithEnv(maps.Clone(v.Env))
 }
 
