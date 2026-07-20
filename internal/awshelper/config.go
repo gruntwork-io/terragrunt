@@ -101,7 +101,9 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 
 	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
 
-	if envCreds := createCredentialsFromEnv(b.env); envCreds != nil {
+	envCreds := createCredentialsFromEnv(b.env)
+
+	if envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
 
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
@@ -139,11 +141,16 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 		return aws.Config{}, fmt.Errorf("error loading AWS config: %w", err)
 	}
 
-	// Role assumption must not be skipped when env credentials are present: they serve as the
-	// source identity for the assumption. The role-assuming credential providers below capture
-	// cfg by value before cfg.Credentials is overwritten, so the STS calls they make are signed
-	// with the env credentials, chaining the two.
-	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, b.iamRoleOpts)
+	// Callers that set iamRoleOpts (iam_role / TG_IAM_ASSUME_ROLE) run the amazonsts credentials
+	// provider first, which writes the assumed role's session into the env. When env credentials
+	// are present, re-assuming that role here would make the role assume itself, so only the
+	// session config's role (assume_role in the remote_state block) is chained on top of them.
+	iamRoleOpts := b.iamRoleOpts
+	if envCreds != nil {
+		iamRoleOpts = iam.RoleOptions{}
+	}
+
+	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, iamRoleOpts)
 	if mergedIAMRoleOptions.RoleARN == "" {
 		return cfg, nil
 	}

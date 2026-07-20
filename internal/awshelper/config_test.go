@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -189,6 +190,72 @@ func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 
 	assert.NotEqual(t, baseARN, chainedARN)
 	assert.Contains(t, chainedARN, ":assumed-role/"+roleName+"/"+sessionName)
+}
+
+// TestAwsConfigEnvCredsIgnoreIAMRoleOptions verifies that env credentials are used verbatim even
+// when IAM role options (iam_role / TG_IAM_ASSUME_ROLE) are set: by the time a backend operation
+// builds its AWS config, those options were already applied by the amazonsts credentials provider
+// and the env credentials are the assumed role's session. Re-assuming would chain the role onto
+// itself and fail unless the role trusts itself.
+func TestAwsConfigEnvCredsIgnoreIAMRoleOptions(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	env := map[string]string{
+		"AWS_ACCESS_KEY_ID":     "test-access-key",
+		"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+		"AWS_SESSION_TOKEN":     "test-session-token",
+		"AWS_REGION":            "us-west-2",
+	}
+
+	cfg, err := awshelper.NewAWSConfigBuilder().
+		WithEnv(env).
+		WithIAMRoleOptions(iam.RoleOptions{
+			RoleARN: "arn:aws:iam::111111111111:role/deploy-role",
+		}).
+		Build(t.Context(), l)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Credentials)
+
+	creds, err := cfg.Credentials.Retrieve(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "test-access-key", creds.AccessKeyID)
+	assert.Equal(t, "test-secret-key", creds.SecretAccessKey)
+	assert.Equal(t, "test-session-token", creds.SessionToken)
+}
+
+// TestAwsConfigEnvCredsStillChainSessionConfigRole verifies that a role from the session config
+// (the assume_role attribute of the remote_state block) is still assumed on top of env
+// credentials: unlike iam_role / TG_IAM_ASSUME_ROLE, it is never pre-applied into the env, so the
+// env credentials serve as the source identity for the STS exchange.
+func TestAwsConfigEnvCredsStillChainSessionConfigRole(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	env := map[string]string{
+		"AWS_ACCESS_KEY_ID":     "test-access-key",
+		"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+		"AWS_REGION":            "us-west-2",
+	}
+
+	cfg, err := awshelper.NewAWSConfigBuilder().
+		WithEnv(env).
+		WithSessionConfig(&awshelper.AwsSessionConfig{
+			RoleArn: "arn:aws:iam::111111111111:role/backend-role",
+		}).
+		Build(t.Context(), l)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Credentials)
+
+	// A canceled context makes the STS exchange fail before any network I/O: an error here proves
+	// credential resolution attempts the assumption instead of returning the env values verbatim.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err = cfg.Credentials.Retrieve(ctx)
+	require.Error(t, err)
 }
 
 func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
