@@ -16,6 +16,10 @@ import (
 func TestExecCommand(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	testCases := []struct {
 		scriptPath string
 		runInDir   string
@@ -71,6 +75,10 @@ func TestExecCommand(t *testing.T) {
 
 func TestExecCommandTfPath(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 
 	testCases := []struct {
 		expected string
