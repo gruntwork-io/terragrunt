@@ -349,7 +349,7 @@ func (logger *logger) clone() *logger {
 	// the new logger.
 	newLogrusLogger := logrus.New()
 	newLogrusLogger.SetOutput(parentLogger.Out)
-	newLogrusLogger.SetLevel(parentLogger.Level)
+	newLogrusLogger.SetLevel(parentLogger.GetLevel())
 	newLogrusLogger.SetFormatter(parentLogger.Formatter)
 
 	// The hook registry is copied bucket by bucket so that hooks added to the
