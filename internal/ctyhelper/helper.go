@@ -138,12 +138,14 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 }
 
 func unknownDefault(ty cty.Type) cty.Value {
-	switch ty {
-	case cty.Number:
+	switch {
+	case ty.Equals(cty.String):
+		return cty.StringVal("")
+	case ty.Equals(cty.Number):
 		return cty.NumberIntVal(0)
-	case cty.Bool:
+	case ty.Equals(cty.Bool):
 		return cty.False
 	default:
-		return cty.StringVal("")
+		return cty.NullVal(ty)
 	}
 }

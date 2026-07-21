@@ -5,4 +5,17 @@ category: "bug-fixes"
 
 #### Set-typed inputs no longer fail validation
 
-Running `terragrunt hcl validate --inputs` on a unit whose inputs contained a set (e.g. `toset([dependency.x.outputs.id, ...])`) failed with `failed to serialize value: value is not known`. Set-typed values with unresolved dependency outputs are now handled correctly during validation.
+Running `terragrunt hcl validate --inputs` on a unit that passed dependency outputs through `toset()` failed with `failed to serialize value: value is not known`:
+
+```hcl
+inputs = {
+  my_ids = toset([
+    dependency.vpc.outputs.id,
+    dependency.subnet.outputs.id,
+  ])
+}
+```
+
+During validation, dependency outputs are not resolved and are represented as placeholders. The placeholder replacement step handled lists, tuples, maps, and objects but skipped sets, leaving unresolved values inside the set and causing the serialization error.
+
+Terragrunt now replaces unresolved values inside sets before serialization, so `toset()` inputs validate correctly. Plan and apply were never affected.

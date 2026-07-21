@@ -140,6 +140,25 @@ func TestUpdateUnknownCtyValValuesWithSets(t *testing.T) {
 			value:         cty.SetVal([]cty.Value{cty.UnknownVal(cty.String)}).Mark("sensitive"),
 			expectedValue: cty.SetVal([]cty.Value{cty.StringVal("")}).Mark("sensitive"),
 		},
+		{
+			name:          "wholly unknown set",
+			value:         cty.UnknownVal(cty.Set(cty.String)),
+			expectedValue: cty.NullVal(cty.Set(cty.String)),
+		},
+		{
+			name:          "wholly unknown marked set",
+			value:         cty.UnknownVal(cty.Set(cty.String)).Mark("sensitive"),
+			expectedValue: cty.NullVal(cty.Set(cty.String)),
+		},
+		{
+			name: "set of objects with unknown elements",
+			value: cty.SetVal([]cty.Value{
+				cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.String)}),
+			}),
+			expectedValue: cty.SetVal([]cty.Value{
+				cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
+			}),
+		},
 	}
 
 	for _, tc := range testCases {
