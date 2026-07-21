@@ -250,7 +250,7 @@ type ociAmbientStore struct {
 	path       string
 }
 
-// Ambient credential specificity mirrors OpenTofu: repository-path beats domain, which beats global credsStore.
+// Ambient credential specificity: repository-path beats domain, which beats global credsStore.
 const (
 	ociGlobalSpecificity = 1
 	ociDomainSpecificity = 2
@@ -266,6 +266,16 @@ type ociCredentialCandidate struct {
 	helper      *ociHelperEntry
 	static      auth.Credential
 	specificity int
+}
+
+// ociOutranks reports whether the candidate replaces best, a helper beating an inline auth at equal specificity.
+func ociOutranks(specificity int, isHelper bool, best *ociCredentialCandidate) bool {
+	if specificity != best.specificity {
+		return specificity > best.specificity
+	}
+
+	// A per-registry helper is authoritative over a same-registry inline login, so it wins the equal-specificity tie.
+	return isHelper && best.helper == nil && best.specificity > 0
 }
 
 // ociSelectCredentialCandidate returns the most specific source, ties broken by discovery order (inline first).
@@ -285,21 +295,22 @@ func ociSelectCredentialCandidate(
 				continue
 			}
 
-			if spec := ociInlineSpecificity(key); spec > best.specificity {
+			if spec := ociInlineSpecificity(key); ociOutranks(spec, false, &best) {
 				best = ociCredentialCandidate{static: cred, specificity: spec}
 			}
 
 			break
 		}
 
-		// A per-registry credHelpers entry is a domain-level source.
-		if entry, ok := ambient.credHelpers[ociCanonicalAuthKey(hostport)]; ok && ociDomainSpecificity > best.specificity {
+		// A per-registry credHelpers entry wins a tie with a domain inline login.
+		entry, hasHelper := ambient.credHelpers[ociCanonicalAuthKey(hostport)]
+		if hasHelper && ociOutranks(ociDomainSpecificity, true, &best) {
 			winner := entry
 			best = ociCredentialCandidate{helper: &winner, specificity: ociDomainSpecificity}
 		}
 
 		// The global credsStore is the least specific source.
-		if ambient.credsStore != "" && ociGlobalSpecificity > best.specificity {
+		if ambient.credsStore != "" && ociOutranks(ociGlobalSpecificity, true, &best) {
 			best = ociCredentialCandidate{
 				helper:      &ociHelperEntry{suffix: ambient.credsStore, serverAddress: ociHelperServerAddress(hostport)},
 				specificity: ociGlobalSpecificity,

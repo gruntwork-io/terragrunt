@@ -747,6 +747,34 @@ func TestOCIHelperCredentialRepoInlineBeatsHelper(t *testing.T) {
 	assert.EqualValues(t, 0, calls.Load(), "the more specific inline auth must win and the helper must not run")
 }
 
+// TestOCIHelperCredentialDomainHelperBeatsDomainInline: a per-registry helper outranks a stale domain inline login.
+func TestOCIHelperCredentialDomainHelperBeatsDomainInline(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	exec := stubHelperExec(t, "ecr-login", func(string) vexec.Result {
+		return vexec.Result{Stdout: []byte(`{"Username":"AWS","Secret":"fake-secret-fresh"}`)}
+	}, &calls)
+
+	home := testHome
+	v := credentialVenv(home, nil).WithExec(exec)
+	path := filepath.Join(home, ".docker", "config.json")
+	// A stale domain-level inline login alongside a domain helper for the same registry.
+	writeDockerConfig(t, v.FS, path,
+		map[string]string{testRegistry: "stale-user:fake-secret-stale"},
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	want := auth.Credential{Username: "AWS", Password: "fake-secret-fresh"}
+	assert.Equal(t, want, credentialFor(t, store, testRegistry))
+	assert.EqualValues(t, 1, calls.Load(), "the per-registry helper must win the domain tie and remint")
+}
+
 // TestOCIHelperCredentialRepoInlineBeatsCredsStore: a repo inline auth outranks credsStore, which never runs.
 func TestOCIHelperCredentialRepoInlineBeatsCredsStore(t *testing.T) {
 	t.Parallel()
