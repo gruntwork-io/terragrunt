@@ -27,7 +27,8 @@ func TestCommandOutputOrder(t *testing.T) {
 	t.Run("withPtty", func(t *testing.T) {
 		t.Parallel()
 		testCommandOutputOrder(t, true,
-			[]string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"},
+			[]string{"stdout1", "stdout2"},
+			[]string{"stderr1", "stderr2", "stderr3"},
 			[]string{"stdout1", "stdout2"},
 			[]string{"stderr1", "stderr2", "stderr3"},
 		)
@@ -35,6 +36,7 @@ func TestCommandOutputOrder(t *testing.T) {
 	t.Run("withoutPtty", func(t *testing.T) {
 		t.Parallel()
 		testCommandOutputOrder(t, false,
+			nil,
 			[]string{"stderr1", "stderr2", "stderr3"},
 			[]string{"stdout1", "stdout2"},
 			[]string{"stderr1", "stderr2", "stderr3"},
@@ -47,7 +49,8 @@ func noop[T any](t T) {}
 func testCommandOutputOrder(
 	t *testing.T,
 	withPtty bool,
-	fullOutput []string,
+	mergedStdout []string,
+	mergedStderr []string,
 	stdout []string,
 	stderr []string,
 ) {
@@ -56,7 +59,7 @@ func testCommandOutputOrder(
 	testCommandOutput(
 		t,
 		noop[*options.TerragruntOptions],
-		assertOutputs(t, fullOutput, stdout, stderr),
+		assertOutputs(t, mergedStdout, mergedStderr, stdout, stderr),
 		withPtty,
 	)
 }
@@ -108,7 +111,8 @@ func testCommandOutput(
 
 func assertOutputs(
 	t *testing.T,
-	expectedAllOutputs []string,
+	expectedMergedStdout []string,
+	expectedMergedStderr []string,
 	expectedStdOutputs []string,
 	expectedStdErrs []string,
 ) func(string, *util.CmdOutput) {
@@ -116,11 +120,11 @@ func assertOutputs(
 
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		assert.Len(t, allOutputs, len(expectedAllOutputs))
+		assert.Len(t, allOutputs, len(expectedMergedStdout)+len(expectedMergedStderr))
 
-		for i := range allOutputs {
-			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
-		}
+		// Cross-stream arrival order in the merged buffer is scheduler-dependent, so only per-stream order is asserted.
+		assertContainsInOrder(t, allOutputs, expectedMergedStdout)
+		assertContainsInOrder(t, allOutputs, expectedMergedStderr)
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout.String()), "\n")
 		assert.Equal(t, expectedStdOutputs, stdOutputs)
@@ -128,6 +132,21 @@ func assertOutputs(
 		stdErrs := strings.Split(strings.TrimSpace(out.Stderr.String()), "\n")
 		assert.Equal(t, expectedStdErrs, stdErrs)
 	}
+}
+
+// assertContainsInOrder asserts that each expected entry matches a merged output line in the given relative order.
+func assertContainsInOrder(t *testing.T, lines []string, expected []string) {
+	t.Helper()
+
+	matched := 0
+
+	for _, line := range lines {
+		if matched < len(expected) && strings.Contains(line, expected[matched]) {
+			matched++
+		}
+	}
+
+	assert.Equal(t, len(expected), matched, "merged output must contain %v in per-stream order", expected)
 }
 
 // A goroutine-safe bytes.Buffer

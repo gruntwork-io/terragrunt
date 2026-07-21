@@ -25,14 +25,34 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// DefaultMaxLevel is the default cap on nested stack-generation levels. A run
+// that reaches it is treated as a cycle between stack files. Generous on
+// purpose: real stack trees stay far below it.
+const DefaultMaxLevel = 1024
+
 // Generator owns the per-working-directory lock for in-process GenerateStacks calls.
 type Generator struct {
-	locks *util.KeyLocks
+	locks    *util.KeyLocks
+	maxLevel int
 }
 
 // NewGenerator returns a ready-to-use Generator.
 func NewGenerator() *Generator {
-	return &Generator{locks: util.NewKeyLocks()}
+	return &Generator{locks: util.NewKeyLocks(), maxLevel: DefaultMaxLevel}
+}
+
+// WithMaxLevel returns the Generator with its nested stack-generation cap set
+// to maxLevel, replacing [DefaultMaxLevel]. Tests use it to trip cycle
+// detection quickly. Non-positive values are ignored: a cap below one would
+// silently skip generation instead of detecting a cycle.
+func (g *Generator) WithMaxLevel(maxLevel int) *Generator {
+	if maxLevel < 1 {
+		return g
+	}
+
+	g.maxLevel = maxLevel
+
+	return g
 }
 
 // StackNode represents a stack file in the file system.
@@ -138,7 +158,7 @@ func (g *Generator) generateStacks(
 
 	stackTrees := BuildStackTopology(l, foundFiles, workingDir)
 
-	const maxLevel = 1024
+	maxLevel := g.maxLevel
 	for level := range maxLevel {
 		if level == maxLevel-1 {
 			return fmt.Errorf("cycle detected: maximum level (%d) exceeded", maxLevel)

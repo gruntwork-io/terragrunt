@@ -957,13 +957,13 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 	providers := map[string][]string{
 		"first": {
-			"hashicorp/aws/5.36.0",
-			"hashicorp/azurerm/3.95.0",
+			"hashicorp/null/3.2.3",
+			"hashicorp/local/2.5.2",
 		},
 		"second": {
-			"hashicorp/aws/5.40.0",
-			"hashicorp/azurerm/3.95.0",
-			"hashicorp/kubernetes/2.27.0",
+			"hashicorp/null/3.2.4",
+			"hashicorp/local/2.5.2",
+			"hashicorp/random/3.6.3",
 		},
 	}
 
@@ -975,7 +975,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 	for subDir, providers := range providers {
 		var (
 			actualApps   int
-			expectedApps = 10
+			expectedApps = 3
 		)
 
 		subDir = filepath.Join(rootPath, subDir)

@@ -21,9 +21,12 @@ func startSubmoduleServer(t *testing.T, files map[string]string) (string, string
 
 	srv := newEmptyTestServer(t)
 
+	batch := make(map[string][]byte, len(files))
 	for path, content := range files {
-		require.NoError(t, srv.CommitFile(t.Context(), path, []byte(content), "add "+path))
+		batch[path] = []byte(content)
 	}
+
+	require.NoError(t, srv.CommitFiles(t.Context(), batch, "add fixture files"))
 
 	head, err := srv.Head(t.Context())
 	require.NoError(t, err)
