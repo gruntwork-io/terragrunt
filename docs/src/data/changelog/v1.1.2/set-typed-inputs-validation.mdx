@@ -18,4 +18,4 @@ inputs = {
 
 During validation, dependency outputs are not resolved and are represented as placeholders. The placeholder replacement step handled lists, tuples, maps, and objects but skipped sets, leaving unresolved values inside the set and causing the serialization error.
 
-Terragrunt now replaces unresolved values inside sets before serialization, so `toset()` inputs validate correctly. Plan and apply were never affected.
+Terragrunt now replaces unresolved values inside sets before serialization. Plan and apply were never affected.
