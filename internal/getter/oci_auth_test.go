@@ -937,19 +937,18 @@ func TestOCIHelperCredentialCredsStoreFailureIsNonFatal(t *testing.T) {
 
 	home := testHome
 	v := credentialVenv(home, nil).WithExec(exec)
-	// credsStore set globally, plus a valid inline auth for the registry.
-	writeDockerConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"),
-		map[string]string{testRegistry: "inline-user:fake-secret-inline"}, nil, "desktop")
+	// Only a global credsStore whose helper binary is missing; no inline auth or credHelpers.
+	writeHelperConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"), nil, "desktop")
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
 
-	// The broken credsStore is skipped; the inline auth still resolves.
+	// The broken credsStore is skipped and the pull resolves anonymously.
 	cred, credErr := credentialForErr(t, store, testRegistry)
 	require.NoError(t, credErr, "a missing credsStore helper must not fail the fetch")
-	assert.Equal(t, auth.Credential{Username: "inline-user", Password: "fake-secret-inline"}, cred)
+	assert.Equal(t, auth.EmptyCredential, cred)
 }
 
 // TestOCIHelperCredentialScopedStaticFallsThroughToHelper: a scoped static
