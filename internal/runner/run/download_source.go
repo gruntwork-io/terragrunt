@@ -598,7 +598,7 @@ func tryCASDownload(
 	}
 
 	if ociEnabled {
-		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, v, casVenv.FS))
+		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, v, v.FS))
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
