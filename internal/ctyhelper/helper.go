@@ -72,7 +72,9 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	switch {
 	case !value.IsKnown():
-		return unknownDefault(value.Type()), nil
+		unmarked, marks := value.Unmark()
+
+		return unknownDefault(unmarked.Type()).WithMarks(marks), nil
 	case value.IsNull():
 		return value, nil
 	case value.Type().IsMapType(), value.Type().IsObjectType():

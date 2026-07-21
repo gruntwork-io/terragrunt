@@ -148,7 +148,7 @@ func TestUpdateUnknownCtyValValuesWithSets(t *testing.T) {
 		{
 			name:          "wholly unknown marked set",
 			value:         cty.UnknownVal(cty.Set(cty.String)).Mark("sensitive"),
-			expectedValue: cty.NullVal(cty.Set(cty.String)),
+			expectedValue: cty.NullVal(cty.Set(cty.String)).Mark("sensitive"),
 		},
 		{
 			name: "set of objects with unknown elements",
