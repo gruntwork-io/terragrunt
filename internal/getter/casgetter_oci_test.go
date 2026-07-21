@@ -150,7 +150,7 @@ func TestCASGetterDoesNotClaimOCIWithoutFetcher(t *testing.T) {
 
 	v := venv.OSVenv()
 
-	g := getter.NewCASGetter(logger.CreateLogger(), c, *v, &tgcas.CloneOptions{})
+	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
 
 	req := &gogetter.Request{
 		Src: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
@@ -270,7 +270,7 @@ func newOCICASHarness(
 
 	v := venv.OSVenv()
 
-	g := getter.NewCASGetter(logger.CreateLogger(), c, *v, &tgcas.CloneOptions{},
+	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithGenericFetchers(map[string]gogetter.Getter{
 			getter.SchemeOCI: fetcher,
 		}),

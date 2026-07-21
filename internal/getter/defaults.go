@@ -48,7 +48,7 @@ type genericFetcherConfig struct {
 // CASGetter never claims oci:// sources. The store seam is built once here so
 // the fetcher and the resolver share one credential discovery and auth cache;
 // fs is the extraction filesystem, mirroring [WithTFRConfig].
-func WithOCIConfig(l log.Logger, v venv.Venv, fs vfs.FS) GenericFetcherOption {
+func WithOCIConfig(l log.Logger, v *venv.Venv, fs vfs.FS) GenericFetcherOption {
 	newStore := NewOCIRepositoryStore(l, v)
 
 	return func(c *genericFetcherConfig) {
