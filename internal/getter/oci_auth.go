@@ -120,10 +120,9 @@ func ociUserAgent() string {
 type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
 
 // NewOCIRepositoryStore returns the default [OCINewStoreFunc]: static
-// environment credentials when set, otherwise ambient discovery of Docker and
-// containers auth files, and finally the Docker credential helpers those files
-// configure. Helpers are re-minted per run, so registries with expiring tokens
-// (e.g. Amazon ECR via ecr-login) work without a baked-in login.
+// environment credentials when set, otherwise the most specific ambient source
+// across Docker and containers auth files, running a configured credential
+// helper (e.g. Amazon ECR via ecr-login) only when it is the selected source.
 func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	v.RequireFS()
 	v.RequireEnv()
@@ -251,55 +250,90 @@ type ociAmbientStore struct {
 	path       string
 }
 
-// helperFor returns the helper serving hostport and the server address to hand
-// it: the declared credHelpers spelling for a per-registry entry, else the
-// requested host (folded to Docker's index server for Docker Hub) for credsStore.
-func (s ociAmbientStore) helperFor(hostport string) (entry ociHelperEntry, ok bool) {
-	if entry, ok := s.credHelpers[ociCanonicalAuthKey(hostport)]; ok {
-		return entry, true
-	}
+// Ambient credential specificity mirrors OpenTofu: repository-path beats domain, which beats global credsStore.
+const (
+	ociGlobalSpecificity = 1
+	ociDomainSpecificity = 2
+)
 
-	if s.credsStore == "" {
-		return ociHelperEntry{}, false
-	}
-
-	return ociHelperEntry{suffix: s.credsStore, serverAddress: ociHelperServerAddress(hostport)}, true
+// ociInlineSpecificity returns an inline key's specificity: domain plus one per matched repository-path segment.
+func ociInlineSpecificity(key string) int {
+	return ociDomainSpecificity + strings.Count(key, "/")
 }
 
-// ociCredentialFromHelpers dispatches the first store helper that serves host.
-// An explicit per-registry helper's failure propagates so a misconfiguration
-// surfaces as an actionable error; the global credsStore is best-effort, so its
-// failure is logged and skipped rather than breaking unrelated pulls.
-func ociCredentialFromHelpers(
+// ociCredentialCandidate is a ranked ambient source whose helper runs only if the candidate wins selection.
+type ociCredentialCandidate struct {
+	helper      *ociHelperEntry
+	static      auth.Credential
+	specificity int
+}
+
+// ociSelectCredentialCandidate returns the most specific source, ties broken by discovery order (inline first).
+func ociSelectCredentialCandidate(
+	ctx context.Context,
+	l log.Logger,
+	stores []ociAmbientStore,
+	hostport, repositoryName string,
+) ociCredentialCandidate {
+	var best ociCredentialCandidate
+
+	for _, ambient := range stores {
+		// The most specific inline key that resolves in this file.
+		for _, key := range ociCredentialKeys(hostport, repositoryName) {
+			cred := ociCredentialFromAmbientStore(ctx, l, ambient, key)
+			if cred == auth.EmptyCredential {
+				continue
+			}
+
+			if spec := ociInlineSpecificity(key); spec > best.specificity {
+				best = ociCredentialCandidate{static: cred, specificity: spec}
+			}
+
+			break
+		}
+
+		// A per-registry credHelpers entry is a domain-level source.
+		if entry, ok := ambient.credHelpers[ociCanonicalAuthKey(hostport)]; ok && ociDomainSpecificity > best.specificity {
+			winner := entry
+			best = ociCredentialCandidate{helper: &winner, specificity: ociDomainSpecificity}
+		}
+
+		// The global credsStore is the least specific source.
+		if ambient.credsStore != "" && ociGlobalSpecificity > best.specificity {
+			best = ociCredentialCandidate{
+				helper:      &ociHelperEntry{suffix: ambient.credsStore, serverAddress: ociHelperServerAddress(hostport)},
+				specificity: ociGlobalSpecificity,
+			}
+		}
+	}
+
+	return best
+}
+
+// ociExecuteCredentialCandidate runs the winning source now, with an explicit helper fatal and credsStore best-effort.
+func ociExecuteCredentialCandidate(
 	ctx context.Context,
 	l log.Logger,
 	v venv.Venv,
-	stores []ociAmbientStore,
+	best *ociCredentialCandidate,
 	hostport string,
 ) (auth.Credential, error) {
-	for _, ambient := range stores {
-		entry, ok := ambient.helperFor(hostport)
-		if !ok {
-			continue
-		}
-
-		cred, err := ociCredentialFromHelper(ctx, v, entry)
-		if err != nil {
-			if entry.explicit {
-				return auth.EmptyCredential, err
-			}
-
-			l.Warnf("Skipping OCI credsStore helper %q for %s: %v", entry.suffix, hostport, err)
-
-			continue
-		}
-
-		if cred != auth.EmptyCredential {
-			return cred, nil
-		}
+	if best.helper == nil {
+		return best.static, nil
 	}
 
-	return auth.EmptyCredential, nil
+	cred, err := ociCredentialFromHelper(ctx, v, *best.helper)
+	if err != nil {
+		if best.helper.explicit {
+			return auth.EmptyCredential, err
+		}
+
+		l.Warnf("Skipping OCI credsStore helper %q for %s: %v", best.helper.suffix, hostport, err)
+
+		return auth.EmptyCredential, nil
+	}
+
+	return cred, nil
 }
 
 // ociHelperServerAddress folds a Docker Hub host to the index server helpers
@@ -320,24 +354,9 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 
 	return func(repositoryName string) auth.CredentialFunc {
 		return func(ctx context.Context, hostport string) (auth.Credential, error) {
-			// Helpers win over inline auths (Docker precedence), so a re-minting
-			// helper is not shadowed by a stale plaintext login.
-			cred, err := ociCredentialFromHelpers(ctx, l, v, stores, hostport)
-			if err != nil || cred != auth.EmptyCredential {
-				return cred, err
-			}
+			best := ociSelectCredentialCandidate(ctx, l, stores, hostport, repositoryName)
 
-			// Most specific inline key first, so a repository-scoped entry beats
-			// a registry-wide one and no other namespace's entry can answer.
-			for _, key := range ociCredentialKeys(hostport, repositoryName) {
-				for _, ambient := range stores {
-					if cred := ociCredentialFromAmbientStore(ctx, l, ambient, key); cred != auth.EmptyCredential {
-						return cred, nil
-					}
-				}
-			}
-
-			return auth.EmptyCredential, nil
+			return ociExecuteCredentialCandidate(ctx, l, v, &best, hostport)
 		}
 	}
 }
@@ -395,8 +414,9 @@ func ociEnvSlice(env map[string]string) []string {
 
 // boundedWriter accumulates at most max bytes and discards the rest.
 type boundedWriter struct {
-	buf strings.Builder
-	max int
+	buf       strings.Builder
+	max       int
+	truncated bool
 }
 
 func (w *boundedWriter) Write(p []byte) (int, error) {
@@ -404,11 +424,14 @@ func (w *boundedWriter) Write(p []byte) (int, error) {
 
 	remaining := w.max - w.buf.Len()
 	if remaining <= 0 {
+		w.truncated = true
+
 		return n, nil
 	}
 
 	if remaining < len(p) {
 		p = p[:remaining]
+		w.truncated = true
 	}
 
 	w.buf.Write(p)
@@ -416,7 +439,14 @@ func (w *boundedWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func (w *boundedWriter) String() string { return w.buf.String() }
+// String returns the captured bytes, marking a trailing ellipsis when capped.
+func (w *boundedWriter) String() string {
+	if w.truncated {
+		return w.buf.String() + "..."
+	}
+
+	return w.buf.String()
+}
 
 // ociCredentialFromHelperOutput decodes docker-credential-helper get output.
 // A "<token>" username marks a bearer token, matching the helper protocol.
@@ -602,8 +632,14 @@ func ociAuthFile(v venv.Venv, path string) (authFile, error) {
 	// The declared spelling is the server address helpers store credentials
 	// under (e.g. https://index.docker.io/v1/), so keep it, not the canonical key.
 	for _, declared := range slices.Sorted(maps.Keys(file.CredHelpers)) {
+		// An empty helper name is not runnable, so skip it and fall through to credsStore or inline auths.
+		suffix := file.CredHelpers[declared]
+		if suffix == "" {
+			continue
+		}
+
 		credHelpers[ociCanonicalAuthKey(declared)] = ociHelperEntry{
-			suffix:        file.CredHelpers[declared],
+			suffix:        suffix,
 			serverAddress: declared,
 			explicit:      true,
 		}
