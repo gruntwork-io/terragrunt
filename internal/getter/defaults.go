@@ -30,6 +30,7 @@ const (
 // by DefaultGenericFetchers and DefaultSourceResolvers.
 type GenericFetcherOption func(*genericFetcherConfig)
 
+// Shared logger/fs because the tfr and oci options must pass identical handles and the last applied wins.
 type genericFetcherConfig struct {
 	logger      log.Logger
 	fs          vfs.FS

@@ -932,6 +932,63 @@ func TestOCIHelperCredentialReceivesVenvEnv(t *testing.T) {
 	assert.Contains(t, gotEnv, "AWS_SESSION_TOKEN=assumed-session")
 }
 
+// TestOCIHelperCredentialEmptyEnvStaysNonNil: an empty v.Env yields a non-nil helper env, not host inheritance.
+func TestOCIHelperCredentialEmptyEnvStaysNonNil(t *testing.T) {
+	t.Parallel()
+
+	var gotEnv []string
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		gotEnv = inv.Env
+		return vexec.Result{Stdout: []byte(`{"Username":"AWS","Secret":"fake-secret-hub"}`)}
+	}, vexec.WithLookPath(func(file string) (string, error) { return "/usr/local/bin/" + file, nil }))
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	credentialFor(t, store, testRegistry)
+
+	require.NotNil(t, gotEnv, "an empty v.Env must produce a non-nil helper env, not host inheritance")
+	assert.Empty(t, gotEnv, "an empty v.Env must not leak host variables to the helper")
+}
+
+// TestOCIHelperCredentialSurfacesStderr: a failing helper surfaces its stderr diagnostic without leaking stdout.
+func TestOCIHelperCredentialSurfacesStderr(t *testing.T) {
+	t.Parallel()
+
+	exec := stubHelperExec(t, "ecr-login", func(string) vexec.Result {
+		return vexec.Result{
+			Stdout:   []byte("secret-on-stdout"),
+			Stderr:   []byte("could not refresh ECR token: expired"),
+			ExitCode: 1,
+		}
+	}, nil)
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	_, err = credentialForErr(t, store, testRegistry)
+	require.Error(t, err)
+
+	var helperErr getter.OCICredentialHelperError
+	require.ErrorAs(t, err, &helperErr)
+	assert.Contains(t, helperErr.Stderr, "could not refresh ECR token: expired", "the helper stderr must be captured")
+	assert.Contains(t, err.Error(), "could not refresh ECR token: expired", "stderr must surface in the error")
+	assert.NotContains(t, err.Error(), "secret-on-stdout", "the helper stdout must never leak into the error")
+}
+
 // TestOCIStaticCredentialsScopedRegistryCanonicalized: a non-canonical scoped
 // registry env value (scheme prefix) still matches the requested host.
 func TestOCIStaticCredentialsScopedRegistryCanonicalized(t *testing.T) {

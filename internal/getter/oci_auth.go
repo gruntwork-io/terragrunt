@@ -64,19 +64,27 @@ const (
 	ociHelperCredentialsNotFound = "credentials not found in native keychain"
 	// ociCredentialHelperTimeout bounds a helper subprocess so it cannot wedge a run.
 	ociCredentialHelperTimeout = 30 * time.Second
+	// ociCredentialHelperWaitDelay bounds the post-cancel drain of a helper's output pipes.
+	ociCredentialHelperWaitDelay = 5 * time.Second
+	// ociHelperStderrMax caps the helper stderr captured for diagnostics.
+	ociHelperStderrMax = 2048
 	// ociDockerHubIndexServer is the server address helpers store Docker Hub creds under.
 	ociDockerHubIndexServer = "https://index.docker.io/v1/"
 )
 
-// OCICredentialHelperError reports a credential helper that could not be run or
-// whose output could not be used. It never carries the helper's secret output.
+// OCICredentialHelperError reports a helper failure, carrying stderr diagnostics but never the secret stdout.
 type OCICredentialHelperError struct {
 	Err      error
 	Helper   string
 	Registry string
+	Stderr   string
 }
 
 func (err OCICredentialHelperError) Error() string {
+	if err.Stderr != "" {
+		return fmt.Sprintf("oci credential helper %q for %s: %v: %s", err.Helper, err.Registry, err.Err, err.Stderr)
+	}
+
 	return fmt.Sprintf("oci credential helper %q for %s: %v", err.Helper, err.Registry, err.Err)
 }
 
@@ -351,6 +359,10 @@ func ociCredentialFromHelper(ctx context.Context, v venv.Venv, entry ociHelperEn
 	cmd := v.Exec.Command(ctx, bin, "get")
 	cmd.SetStdin(strings.NewReader(entry.serverAddress))
 	cmd.SetEnv(ociEnvSlice(v.Env))
+	cmd.SetWaitDelay(ociCredentialHelperWaitDelay)
+
+	stderr := &boundedWriter{max: ociHelperStderrMax}
+	cmd.SetStderr(stderr)
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -360,18 +372,19 @@ func ociCredentialFromHelper(ctx context.Context, v venv.Venv, entry ociHelperEn
 			return auth.EmptyCredential, nil
 		}
 
-		return auth.EmptyCredential, OCICredentialHelperError{Helper: entry.suffix, Registry: entry.serverAddress, Err: err}
+		return auth.EmptyCredential, OCICredentialHelperError{
+			Helper:   entry.suffix,
+			Registry: entry.serverAddress,
+			Err:      err,
+			Stderr:   strings.TrimSpace(stderr.String()),
+		}
 	}
 
 	return ociCredentialFromHelperOutput(entry, out)
 }
 
-// ociEnvSlice renders env as a deterministic KEY=VALUE slice for a subprocess.
+// ociEnvSlice renders env as a deterministic KEY=VALUE slice, staying non-nil so exec does not inherit the host env.
 func ociEnvSlice(env map[string]string) []string {
-	if len(env) == 0 {
-		return nil
-	}
-
 	out := make([]string, 0, len(env))
 	for _, key := range slices.Sorted(maps.Keys(env)) {
 		out = append(out, key+"="+env[key])
@@ -379,6 +392,31 @@ func ociEnvSlice(env map[string]string) []string {
 
 	return out
 }
+
+// boundedWriter accumulates at most max bytes and discards the rest.
+type boundedWriter struct {
+	buf strings.Builder
+	max int
+}
+
+func (w *boundedWriter) Write(p []byte) (int, error) {
+	n := len(p)
+
+	remaining := w.max - w.buf.Len()
+	if remaining <= 0 {
+		return n, nil
+	}
+
+	if remaining < len(p) {
+		p = p[:remaining]
+	}
+
+	w.buf.Write(p)
+
+	return n, nil
+}
+
+func (w *boundedWriter) String() string { return w.buf.String() }
 
 // ociCredentialFromHelperOutput decodes docker-credential-helper get output.
 // A "<token>" username marks a bearer token, matching the helper protocol.

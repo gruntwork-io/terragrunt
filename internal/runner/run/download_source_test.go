@@ -1129,16 +1129,16 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 
 			const casAttempt = "CAS enabled: attempting to use Content Addressable Storage"
 
-			var refErr getter.OCIReferenceResolutionError
+			var resolutionErr getter.OCIReferenceResolutionError
 
 			if tc.enableOCI {
-				require.ErrorAs(t, err, &refErr, "the oci getter must run when the experiment is on")
+				require.ErrorAs(t, err, &resolutionErr, "the oci getter must run when the experiment is on")
 				assert.Contains(t, logBuf.String(), casAttempt, "the oci source must enter the CAS path when the experiment is on")
 
 				return
 			}
 
-			assert.NotErrorAs(t, err, &refErr, "no oci getter must run when the experiment is off")
+			assert.NotErrorAs(t, err, &resolutionErr, "no oci getter must run when the experiment is off")
 			assert.NotContains(t, logBuf.String(), casAttempt, "the CAS attempt must be skipped when the experiment is off")
 		})
 	}
