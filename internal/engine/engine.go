@@ -212,9 +212,13 @@ func Run(
 
 	cacheDir := execOptions.CacheDir
 
-	instance, found, err := engineClients.loadOrCreate(cacheDir, execOptions, func() (*engineInstance, error) {
-		return createInstance(ctx, l, v, execOptions)
-	})
+	instance, found, err := engineClients.loadOrCreate(
+		cacheDir,
+		execOptions,
+		func() (*engineInstance, error) {
+			return createInstance(ctx, l, v, execOptions)
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +379,8 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		checksumFile = result.ChecksumFile
 		checksumSigFile = result.ChecksumSigFile
 
-		if !execOptions.EngineOptions.SkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
+		if !execOptions.EngineOptions.SkipChecksumCheck && checksumFile != "" &&
+			checksumSigFile != "" {
 			l.Infof("Verifying checksum for %s", downloadFile)
 
 			if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
@@ -636,7 +641,12 @@ const (
 )
 
 // Shutdown shuts down the experimental engine.
-func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experiments, noEngine bool) error {
+func Shutdown(
+	ctx context.Context,
+	l log.Logger,
+	experiments experiment.Experiments,
+	noEngine bool,
+) error {
 	if !experiments.Evaluate(experiment.IacEngine) || noEngine {
 		return nil
 	}
@@ -702,7 +712,13 @@ func shutdownInstance(ctx context.Context, l log.Logger, instance *engineInstanc
 
 	l.Debugf("Shutting down engine for %s", instance.execOptions.CacheDir)
 
-	if err := shutdown(ctx, l, instance.v, instance.execOptions, instance.engineClient); err != nil {
+	if err := shutdown(
+		ctx,
+		l,
+		instance.v,
+		instance.execOptions,
+		instance.engineClient,
+	); err != nil {
 		l.Errorf("Error shutting down engine: %v", err)
 	}
 
@@ -790,7 +806,11 @@ func createEngine(
 		skipCheck := execOptions.EngineOptions.SkipChecksumCheck
 		if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 			util.FileExists(localChecksumSigFile) {
-			if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
+			if err = verifyFile(
+				localEnginePath,
+				localChecksumFile,
+				localChecksumSigFile,
+			); err != nil {
 				return err
 			}
 		} else {
@@ -971,13 +991,21 @@ func invoke(
 			switch resp := responseType.(type) {
 			case *proto.RunResponse_Stdout:
 				if resp.Stdout != nil {
-					if err = processStream(resp.Stdout.GetContent(), &stdoutLineBuf, stdout); err != nil {
+					if err = processStream(
+						resp.Stdout.GetContent(),
+						&stdoutLineBuf,
+						stdout,
+					); err != nil {
 						return err
 					}
 				}
 			case *proto.RunResponse_Stderr:
 				if resp.Stderr != nil {
-					if err = processStream(resp.Stderr.GetContent(), &stderrLineBuf, stderr); err != nil {
+					if err = processStream(
+						resp.Stderr.GetContent(),
+						&stderrLineBuf,
+						stderr,
+					); err != nil {
 						return err
 					}
 				}
@@ -1116,7 +1144,12 @@ func initialize(
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine init failed with exit code %d", exitCode)
-						return nil, fmt.Errorf("%w with exit code %d", ErrEngineInitFailed, exitCode)
+
+						return nil, fmt.Errorf(
+							"%w with exit code %d",
+							ErrEngineInitFailed,
+							exitCode,
+						)
 					}
 				}
 			case *proto.InitResponse_Log:
@@ -1193,7 +1226,12 @@ func shutdown(
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine shutdown failed with exit code %d", exitCode)
-						return nil, fmt.Errorf("%w with exit code %d", ErrEngineShutdownFailed, exitCode)
+
+						return nil, fmt.Errorf(
+							"%w with exit code %d",
+							ErrEngineShutdownFailed,
+							exitCode,
+						)
 					}
 				}
 			case *proto.ShutdownResponse_Log:
@@ -1225,7 +1263,8 @@ func ReadEngineOutput(v venv.Venv, forceStdErr bool, output outputFn) error {
 
 	for {
 		response, err := output()
-		if err != nil && (errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
+		if err != nil &&
+			(errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
 			return err
 		}
 

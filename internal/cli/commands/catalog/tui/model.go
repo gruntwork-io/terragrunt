@@ -186,7 +186,15 @@ type Model struct {
 // it can synthesize a DiscoveryCompleteMsg without racing the welcome model.
 // ctx is the cancellable context the welcome layer hands down so off-UI work
 // can observe Ctrl+C.
-func NewModelStreaming(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry, errCh chan error) Model {
+func NewModelStreaming(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	initial *ComponentEntry,
+	componentCh chan *ComponentEntry,
+	errCh chan error,
+) Model {
 	items := []list.Item{initial}
 
 	m := newModelWithItems(l, v, opts, items, componentCh)
@@ -398,7 +406,13 @@ func isDuplicate(items []list.Item, sourcePath string) bool {
 	return false
 }
 
-func newModelWithItems(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, items []list.Item, componentCh chan *ComponentEntry) Model {
+func newModelWithItems(
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	items []list.Item,
+	componentCh chan *ComponentEntry,
+) Model {
 	listKeys := NewListKeyMap()
 	delegateKeys := NewDelegateKeyMap()
 	pagerKeys := NewPagerKeyMap()

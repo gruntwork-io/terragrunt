@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/opencontainers/go-digest"
@@ -19,7 +20,7 @@ import (
 func TestOCIResolverScheme(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, getter.SchemeOCI, getter.NewOCIResolver(nil).Scheme())
+	assert.Equal(t, getter.SchemeOCI, getter.NewOCIResolver(discardLogger(), nil).Scheme())
 }
 
 // TestOCIResolverProbeDigestPinSkipsResolve: a digest pin is the key, no registry roundtrip.
@@ -27,7 +28,7 @@ func TestOCIResolverProbeDigestPinSkipsResolve(t *testing.T) {
 	t.Parallel()
 
 	pinned := digest.FromString("pinned-manifest").String()
-	r := getter.NewOCIResolver(failingNewStore())
+	r := getter.NewOCIResolver(discardLogger(), failingNewStore())
 
 	key, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?digest="+pinned)
 	require.NoError(t, err, "a digest pin must not consult the store")
@@ -39,7 +40,7 @@ func TestOCIResolverProbeTagResolvesEveryProbe(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 
 	first, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
 	require.NoError(t, err)
@@ -56,7 +57,7 @@ func TestOCIResolverProbeMovedTagChangesKey(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 
 	before, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
 	require.NoError(t, err)
@@ -77,7 +78,7 @@ func TestOCIResolverProbeStripsSubdir(t *testing.T) {
 
 	var gotDomain, gotRepo string
 
-	r := getter.NewOCIResolver(recordingStore(store, &gotDomain, &gotRepo))
+	r := getter.NewOCIResolver(discardLogger(), recordingStore(store, &gotDomain, &gotRepo))
 
 	whole, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
 	require.NoError(t, err)
@@ -95,7 +96,7 @@ func TestOCIResolverProbeIgnoresArchiveMarker(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 
 	plain, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
 	require.NoError(t, err)
@@ -112,7 +113,7 @@ func TestOCIResolverProbeAppliesTimeout(t *testing.T) {
 
 	var sawDeadline bool
 
-	r := getter.NewOCIResolver(func(ctx context.Context, _, _ string) (getter.OCIRepositoryStore, error) {
+	r := getter.NewOCIResolver(discardLogger(), func(ctx context.Context, _, _ string) (getter.OCIRepositoryStore, error) {
 		_, sawDeadline = ctx.Deadline()
 
 		return nil, errUnknownBlob
@@ -128,7 +129,7 @@ func TestOCIResolverProbeTagAndDigestShareKey(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 
 	viaTag, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
 	require.NoError(t, err)
@@ -173,12 +174,23 @@ func TestOCIResolverProbeErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			r := getter.NewOCIResolver(tc.newStore)
+			r := getter.NewOCIResolver(discardLogger(), tc.newStore)
 
 			_, err := r.Probe(t.Context(), tc.rawURL)
 			require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 		})
 	}
+}
+
+// TestOCIResolverResolveDigestWrongScheme: ResolveDigest surfaces a dedicated
+// scheme error for a non-oci source, not the unrelated missing-registry error.
+func TestOCIResolverResolveDigestWrongScheme(t *testing.T) {
+	t.Parallel()
+
+	r := getter.NewOCIResolver(discardLogger(), failingNewStore())
+
+	_, err := r.ResolveDigest(t.Context(), "tfr://registry.example.com/module?version=1.0.0")
+	require.ErrorIs(t, err, getter.ErrOCIUnexpectedScheme)
 }
 
 // TestOCIResolverProbeConcurrentWithRacing: concurrent probes of the same and
@@ -187,7 +199,7 @@ func TestOCIResolverProbeConcurrentWithRacing(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 	pinned := store.manifestDesc.Digest.String()
 
 	const probesPerShape = 8
@@ -278,4 +290,13 @@ func (failingResolveStore) Resolve(context.Context, string) (ociv1.Descriptor, e
 
 func (failingResolveStore) Fetch(context.Context, *ociv1.Descriptor) (io.ReadCloser, error) {
 	return nil, errUnknownBlob
+}
+
+// discardLogger returns a debug-level logger whose output is discarded, so the
+// resolver's probe-failure debug logs stay out of test output.
+func discardLogger() log.Logger {
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	return l
 }

@@ -120,7 +120,15 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	keyType := FlagVariable[K](new(genericVar[K]))
 	valType := FlagVariable[V](new(genericVar[V]))
 
-	value := newMapValue(keyType, valType, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination, flag.Setter)
+	value := newMapValue(
+		keyType,
+		valType,
+		flag.EnvVarSep,
+		flag.KeyValSep,
+		flag.Splitter,
+		flag.Destination,
+		flag.Setter,
+	)
 
 	flag.FlagValue = &flagValue{
 		multipleSet:      true,
@@ -190,7 +198,14 @@ type mapValue[K, V comparable] struct {
 	valSep   string
 }
 
-func newMapValue[K, V comparable](keyType FlagVariable[K], valType FlagVariable[V], argSep, valSep string, splitter SplitterFunc, dest *map[K]V, setter MapFlagSetterFunc[K, V]) *mapValue[K, V] {
+func newMapValue[K, V comparable](
+	keyType FlagVariable[K],
+	valType FlagVariable[V],
+	argSep, valSep string,
+	splitter SplitterFunc,
+	dest *map[K]V,
+	setter MapFlagSetterFunc[K, V],
+) *mapValue[K, V] {
 	return &mapValue[K, V]{
 		values:   dest,
 		setter:   setter,

@@ -30,7 +30,11 @@ var availablePlatforms []*models.Platform = []*models.Platform{
 // ProviderHandlers is a slice of ProviderHandler.
 type ProviderHandlers []ProviderHandler
 
-func NewProviderHandlers(cliCfg *cliconfig.Config, logger log.Logger, registryNames []string) (ProviderHandlers, error) {
+func NewProviderHandlers(
+	cliCfg *cliconfig.Config,
+	logger log.Logger,
+	registryNames []string,
+) (ProviderHandlers, error) {
 	var (
 		providerHandlers = make([]ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
 		excludeAddrs     = make([]string, 0, len(cliCfg.ProviderInstallation.Methods))
@@ -44,16 +48,26 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, logger log.Logger, registryNa
 	for _, method := range cliCfg.ProviderInstallation.Methods {
 		switch method := method.(type) {
 		case *cliconfig.ProviderInstallationFilesystemMirror:
-			providerHandlers = append(providerHandlers, NewFilesystemMirrorProviderHandler(logger, method))
+			providerHandlers = append(
+				providerHandlers,
+				NewFilesystemMirrorProviderHandler(logger, method),
+			)
 		case *cliconfig.ProviderInstallationNetworkMirror:
-			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(logger, method, cliCfg.CredentialsSource())
+			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(
+				logger,
+				method,
+				cliCfg.CredentialsSource(),
+			)
 			if err != nil {
 				return nil, err
 			}
 
 			providerHandlers = append(providerHandlers, networkMirrorHandler)
 		case *cliconfig.ProviderInstallationDirect:
-			providerHandlers = append(providerHandlers, NewDirectProviderHandler(logger, method, cliCfg.CredentialsSource()))
+			providerHandlers = append(
+				providerHandlers,
+				NewDirectProviderHandler(logger, method, cliCfg.CredentialsSource()),
+			)
 			directIsDefined = true
 		}
 
@@ -62,7 +76,14 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, logger log.Logger, registryNa
 
 	if !directIsDefined {
 		// In a case if none of direct provider installation methods `cliCfg.ProviderInstallation.Methods` are specified.
-		providerHandlers = append(providerHandlers, NewDirectProviderHandler(logger, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
+		providerHandlers = append(
+			providerHandlers,
+			NewDirectProviderHandler(
+				logger,
+				new(cliconfig.ProviderInstallationDirect),
+				cliCfg.CredentialsSource(),
+			),
+		)
 	}
 
 	return providerHandlers, nil
@@ -82,7 +103,10 @@ func (handlers ProviderHandlers) SetDiscoveryURLCache(registryName string, urls 
 // DiscoveryURL looks for the first handler that can handle the given `registryName`,
 // which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
 // If the handler is found, tries to discover its API endpoints otherwise return the default registry URLs.
-func (handlers ProviderHandlers) DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, error) {
+func (handlers ProviderHandlers) DiscoveryURL(
+	ctx context.Context,
+	registryName string,
+) (*RegistryURLs, error) {
 	provider := models.ParseProvider(registryName)
 
 	for _, handler := range handlers {

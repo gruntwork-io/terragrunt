@@ -86,8 +86,12 @@ func TestDefaultClientCanonicalizesS3SourceURLs(t *testing.T) {
 
 			u, err := url.Parse(req.Src)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantHost, u.Host,
-				"Detect must canonicalize to a path-style host the bare go-getter/s3 v2 getter accepts")
+			assert.Equal(
+				t,
+				tt.wantHost,
+				u.Host,
+				"Detect must canonicalize to a path-style host the bare go-getter/s3 v2 getter accepts",
+			)
 			assert.Equal(t, tt.wantPath, u.Path)
 		})
 	}

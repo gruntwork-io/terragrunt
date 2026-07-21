@@ -19,10 +19,20 @@ name: VPC App
 -->
 # Heading
 `
-	withDoc := tui.NewComponentForTest(tui.ComponentKindModule, "github.com/acme/repo", "modules/vpc", readme)
+	withDoc := tui.NewComponentForTest(
+		tui.ComponentKindModule,
+		"github.com/acme/repo",
+		"modules/vpc",
+		readme,
+	)
 	assert.Equal(t, "VPC App", withDoc.Title(), "front-matter name wins")
 
-	noDocTitle := tui.NewComponentForTest(tui.ComponentKindModule, "github.com/acme/repo", "modules/vpc", "")
+	noDocTitle := tui.NewComponentForTest(
+		tui.ComponentKindModule,
+		"github.com/acme/repo",
+		"modules/vpc",
+		"",
+	)
 	assert.Equal(t, "vpc", noDocTitle.Title(), "falls back to the directory basename")
 }
 
@@ -35,7 +45,12 @@ description: A VPC for application workloads.
 -->
 # VPC App
 `
-	withDesc := tui.NewComponentForTest(tui.ComponentKindModule, "github.com/acme/repo", "vpc", readme)
+	withDesc := tui.NewComponentForTest(
+		tui.ComponentKindModule,
+		"github.com/acme/repo",
+		"vpc",
+		readme,
+	)
 	assert.Equal(t, "A VPC for application workloads.", withDesc.Description())
 
 	noDesc := tui.NewComponentForTest(tui.ComponentKindModule, "github.com/acme/repo", "vpc", "")

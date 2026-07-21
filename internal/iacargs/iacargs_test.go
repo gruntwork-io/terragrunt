@@ -46,8 +46,15 @@ func TestNew(t *testing.T) {
 			wantArgs:  []string{"/tmp/x.tfplan"},
 		},
 		{
-			name:      "full destroy case with all flags",
-			input:     []string{"apply", "-no-color", "-destroy", "-input=false", "/tmp/plan.tfplan", "-auto-approve"},
+			name: "full destroy case with all flags",
+			input: []string{
+				"apply",
+				"-no-color",
+				"-destroy",
+				"-input=false",
+				"/tmp/plan.tfplan",
+				"-auto-approve",
+			},
 			wantCmd:   "apply",
 			wantFlags: []string{"-no-color", "-destroy", "-input=false", "-auto-approve"},
 			wantArgs:  []string{"/tmp/plan.tfplan"},

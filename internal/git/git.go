@@ -231,7 +231,13 @@ func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string
 }
 
 // Clone performs a git clone operation
-func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int, branch string) error {
+func (g *GitRunner) Clone(
+	ctx context.Context,
+	repo string,
+	bare bool,
+	depth int,
+	branch string,
+) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}

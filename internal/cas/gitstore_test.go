@@ -9,14 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestGitStoreEnsureRef_InitsAndFetches(t *testing.T) {
@@ -32,7 +34,13 @@ func TestGitStoreEnsureRef_InitsAndFetches(t *testing.T) {
 	repo, err := store.EnsureRef(ctx, l, v, url, "main", hash, 0)
 	require.NoError(t, err)
 
-	assert.True(t, strings.HasPrefix(repo.Path, root), "repo path %q should be under store root %q", repo.Path, root)
+	assert.True(
+		t,
+		strings.HasPrefix(repo.Path, root),
+		"repo path %q should be under store root %q",
+		repo.Path,
+		root,
+	)
 
 	_, err = v.FS.Stat(filepath.Join(repo.Path, "HEAD"))
 	require.NoError(t, err)
@@ -137,7 +145,12 @@ func TestGitStoreEnsureRef_LockHeldRespectsContextCancellation(t *testing.T) {
 
 	_, err = store.EnsureRef(ctx, l, v, url, "main", hash, 0)
 	require.Error(t, err)
-	assert.Less(t, time.Since(start), 5*time.Second, "EnsureRef should not block past the context deadline")
+	assert.Less(
+		t,
+		time.Since(start),
+		5*time.Second,
+		"EnsureRef should not block past the context deadline",
+	)
 	assert.True(
 		t,
 		errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled),
@@ -189,16 +202,13 @@ func TestGitStoreEnsureRef_FetchFailureSurfacesError(t *testing.T) {
 func TestGitStoreRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
 	root := filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore")
 
 	store := cas.NewGitStore(root)
 
-	memVenv := cas.Venv{FS: vfs.NewMemMapFS(), Git: runner}
+	memVenv := venvtest.New()
 
-	_, err = store.EnsureRef(
+	_, err := store.EnsureRef(
 		t.Context(), logger.CreateLogger(), memVenv,
 		"file:///does/not/exist", "main", "deadbeef", 0,
 	)
@@ -209,13 +219,12 @@ func TestGitStoreRejectsNonOSFilesystem(t *testing.T) {
 	})
 }
 
-func newTestGitStore(t *testing.T) (*cas.GitStore, cas.Venv, string) {
+func newTestGitStore(t *testing.T) (*cas.GitStore, venv.Venv, string) {
 	t.Helper()
 
 	root := filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore")
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	store := cas.NewGitStore(root)
 

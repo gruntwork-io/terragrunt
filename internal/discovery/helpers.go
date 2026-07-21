@@ -84,7 +84,13 @@ func (s *stringSet) Load(key string) bool {
 func RelPathOrAbs(l log.Logger, base, target, desc string) string {
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
-		l.Warnf("could not make %q relative to %q (%s): %v; emitting as-is", target, base, desc, err)
+		l.Warnf(
+			"could not make %q relative to %q (%s): %v; emitting as-is",
+			target,
+			base,
+			desc,
+			err,
+		)
 
 		return target
 	}
@@ -124,7 +130,10 @@ func isExternal(workingDir string, componentPath string) bool {
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.
-func componentFromDependencyPath(path string, components *component.ThreadSafeComponents) component.Component {
+func componentFromDependencyPath(
+	path string,
+	components *component.ThreadSafeComponents,
+) component.Component {
 	if existing := components.FindByPath(path); existing != nil {
 		return existing
 	}
@@ -311,9 +320,11 @@ func stackDependencyPaths(
 	pctx = pctx.WithVenv(v)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
-	funcsFor := inthclparse.StackFuncFactory(func(stackDir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
-	})
+	funcsFor := inthclparse.StackFuncFactory(
+		func(stackDir string) (map[string]function.Function, error) {
+			return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+		},
+	)
 
 	// Expand stack dependency paths to individual unit paths.
 	expanded := make([]string, 0, len(depPaths))

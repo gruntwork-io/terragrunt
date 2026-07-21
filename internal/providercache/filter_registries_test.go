@@ -50,7 +50,10 @@ func TestFilterRegistriesByImplementation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := providercache.FilterRegistriesByImplementation(tt.registryNames, tt.implementation)
+			got := providercache.FilterRegistriesByImplementation(
+				tt.registryNames,
+				tt.implementation,
+			)
 
 			assert.Equal(t, tt.expected, got)
 		})
@@ -94,7 +97,10 @@ func TestFilterRegistriesByImplementationWithCustomHosts(t *testing.T) {
 			baseRegistries := []string{"registry.terraform.io", "registry.opentofu.org"}
 			customHosts := []cliconfig.ConfigHost{{Name: "nexus.corp"}}
 
-			filtered := providercache.FilterRegistriesByImplementation(baseRegistries, tt.implementation)
+			filtered := providercache.FilterRegistriesByImplementation(
+				baseRegistries,
+				tt.implementation,
+			)
 			got := providercache.AppendCustomHostRegistries(customHosts, filtered)
 
 			assert.Equal(t, tt.expected, got)

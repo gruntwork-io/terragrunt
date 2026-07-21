@@ -23,8 +23,16 @@ func TestGenerateDAGTreeRendersLinearChain(t *testing.T) {
 	t.Parallel()
 
 	a := &dag.ListedComponent{Type: component.UnitKind, Path: "a"}
-	b := &dag.ListedComponent{Type: component.UnitKind, Path: "b", Dependencies: []*dag.ListedComponent{a}}
-	c := &dag.ListedComponent{Type: component.UnitKind, Path: "c", Dependencies: []*dag.ListedComponent{b}}
+	b := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "b",
+		Dependencies: []*dag.ListedComponent{a},
+	}
+	c := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "c",
+		Dependencies: []*dag.ListedComponent{b},
+	}
 
 	rendered := renderWithoutColor(dag.ListedComponents{a, b, c})
 
@@ -47,8 +55,16 @@ func TestGenerateDAGTreeSortsRootsBySubtreeSizeThenAlphabetically(t *testing.T) 
 	soloB := &dag.ListedComponent{Type: component.UnitKind, Path: "solo-b"}
 	soloA := &dag.ListedComponent{Type: component.UnitKind, Path: "solo-a"}
 	base := &dag.ListedComponent{Type: component.UnitKind, Path: "base"}
-	mid := &dag.ListedComponent{Type: component.UnitKind, Path: "mid", Dependencies: []*dag.ListedComponent{base}}
-	top := &dag.ListedComponent{Type: component.UnitKind, Path: "top", Dependencies: []*dag.ListedComponent{mid}}
+	mid := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "mid",
+		Dependencies: []*dag.ListedComponent{base},
+	}
+	top := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "top",
+		Dependencies: []*dag.ListedComponent{mid},
+	}
 
 	rendered := renderWithoutColor(dag.ListedComponents{soloB, soloA, base, mid, top})
 
@@ -71,9 +87,21 @@ func TestGenerateDAGTreeDuplicatesSharedDependentPerDependencyEdge(t *testing.T)
 	// The shared dependent d intentionally renders once under each
 	// dependency edge (see the GenerateDAGTree godoc).
 	a := &dag.ListedComponent{Type: component.UnitKind, Path: "a"}
-	b := &dag.ListedComponent{Type: component.UnitKind, Path: "b", Dependencies: []*dag.ListedComponent{a}}
-	c := &dag.ListedComponent{Type: component.UnitKind, Path: "c", Dependencies: []*dag.ListedComponent{a}}
-	d := &dag.ListedComponent{Type: component.UnitKind, Path: "d", Dependencies: []*dag.ListedComponent{b, c}}
+	b := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "b",
+		Dependencies: []*dag.ListedComponent{a},
+	}
+	c := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "c",
+		Dependencies: []*dag.ListedComponent{a},
+	}
+	d := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "d",
+		Dependencies: []*dag.ListedComponent{b, c},
+	}
 
 	rendered := renderWithoutColor(dag.ListedComponents{a, b, c, d})
 
@@ -97,10 +125,26 @@ func TestGenerateDAGTreeAttachesGrandchildOnlyToLastWiredDuplicate(t *testing.T)
 	// duplicate wired last (under c, the alphabetically last dependency).
 	// The duplicate under b renders childless.
 	a := &dag.ListedComponent{Type: component.UnitKind, Path: "a"}
-	b := &dag.ListedComponent{Type: component.UnitKind, Path: "b", Dependencies: []*dag.ListedComponent{a}}
-	c := &dag.ListedComponent{Type: component.UnitKind, Path: "c", Dependencies: []*dag.ListedComponent{a}}
-	d := &dag.ListedComponent{Type: component.UnitKind, Path: "d", Dependencies: []*dag.ListedComponent{b, c}}
-	f := &dag.ListedComponent{Type: component.UnitKind, Path: "f", Dependencies: []*dag.ListedComponent{d}}
+	b := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "b",
+		Dependencies: []*dag.ListedComponent{a},
+	}
+	c := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "c",
+		Dependencies: []*dag.ListedComponent{a},
+	}
+	d := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "d",
+		Dependencies: []*dag.ListedComponent{b, c},
+	}
+	f := &dag.ListedComponent{
+		Type:         component.UnitKind,
+		Path:         "f",
+		Dependencies: []*dag.ListedComponent{d},
+	}
 
 	rendered := renderWithoutColor(dag.ListedComponents{a, b, c, d, f})
 
@@ -150,7 +194,11 @@ func TestGenerateDAGTreeWithoutColorEmitsNoANSIEscapes(t *testing.T) {
 	t.Parallel()
 
 	a := &dag.ListedComponent{Type: component.UnitKind, Path: "live/a"}
-	b := &dag.ListedComponent{Type: component.StackKind, Path: "live/b", Dependencies: []*dag.ListedComponent{a}}
+	b := &dag.ListedComponent{
+		Type:         component.StackKind,
+		Path:         "live/b",
+		Dependencies: []*dag.ListedComponent{a},
+	}
 
 	rendered := renderWithoutColor(dag.ListedComponents{a, b})
 
@@ -221,9 +269,10 @@ func TestFromComponentsPathSelection(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			vpc := component.NewUnit("/deploy/vpc").WithDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: "/deploy",
-			})
+			vpc := component.NewUnit("/deploy/vpc").
+				WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: "/deploy",
+				})
 
 			listed := dag.FromComponents([]component.Component{vpc}, tc.useDisplayPath)
 

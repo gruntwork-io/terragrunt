@@ -35,7 +35,10 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				Destination: &opts.IgnoreDependencyErrors,
 				Usage:       "Continue processing Units even if a dependency fails.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-dependency-errors"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("ignore-dependency-errors"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -45,7 +48,10 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				Destination: &opts.IgnoreDependencyOrder,
 				Usage:       "Ignore DAG order for --all commands.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-dependency-order"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("ignore-dependency-order"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -56,13 +62,17 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				Hidden:  true,
 				Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
 					if value {
-						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).Evaluate(ctx)
+						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).
+							Evaluate(ctx)
 					}
 
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-external-dependencies"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("ignore-external-dependencies"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -82,12 +92,18 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					}
 
 					graphExpr := filter.NewGraphExpression(pathExpr).WithDependencies()
-					opts.Filters = append(opts.Filters, filter.NewFilter(graphExpr, graphExpr.String()))
+					opts.Filters = append(
+						opts.Filters,
+						filter.NewFilter(graphExpr, graphExpr.String()),
+					)
 
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-external-dependencies"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("include-external-dependencies"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -98,7 +114,10 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				Hidden:      true,
 				Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("excludes-file"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("excludes-file"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -119,13 +138,19 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 						}
 
 						prefixExpr := filter.NewPrefixExpression("!", pathExpr)
-						opts.Filters = append(opts.Filters, filter.NewFilter(prefixExpr, prefixExpr.String()))
+						opts.Filters = append(
+							opts.Filters,
+							filter.NewFilter(prefixExpr, prefixExpr.String()),
+						)
 					}
 
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("exclude-dir"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("exclude-dir"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -145,13 +170,19 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 							return err
 						}
 
-						opts.Filters = append(opts.Filters, filter.NewFilter(pathExpr, pathExpr.String()))
+						opts.Filters = append(
+							opts.Filters,
+							filter.NewFilter(pathExpr, pathExpr.String()),
+						)
 					}
 
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-dir"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("include-dir"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -162,13 +193,17 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				Hidden:  true,
 				Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
 					if value {
-						return opts.StrictControls.FilterByNames(controls.QueueStrictInclude).Evaluate(ctx)
+						return opts.StrictControls.FilterByNames(controls.QueueStrictInclude).
+							Evaluate(ctx)
 					}
 
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-include"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("strict-include"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -188,13 +223,19 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 							return err
 						}
 
-						opts.Filters = append(opts.Filters, filter.NewFilter(attrExpr, attrExpr.String()))
+						opts.Filters = append(
+							opts.Filters,
+							filter.NewFilter(attrExpr, attrExpr.String()),
+						)
 					}
 
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("queue-include-units-reading"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("queue-include-units-reading"),
+				opts.StrictControls,
+			),
 		),
 	}
 }

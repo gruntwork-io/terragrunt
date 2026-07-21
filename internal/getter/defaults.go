@@ -31,14 +31,13 @@ const (
 type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
-	tfrLogger   log.Logger
-	tfrFS       vfs.FS
-	ociLogger   log.Logger
-	ociFS       vfs.FS
+	logger      log.Logger
+	fs          vfs.FS
 	ociNewStore OCINewStoreFunc
 	httpExtra   http.Header
 	httpsExtra  http.Header
 	tfrImpl     tfimpl.Type
+	tfrEnabled  bool
 }
 
 // WithOCIConfig registers the dependencies the oci:// fetcher and resolver
@@ -50,8 +49,8 @@ func WithOCIConfig(l log.Logger, v venv.Venv, fs vfs.FS) GenericFetcherOption {
 	newStore := NewOCIRepositoryStore(l, v)
 
 	return func(c *genericFetcherConfig) {
-		c.ociLogger = l
-		c.ociFS = fs
+		c.logger = l
+		c.fs = fs
 		c.ociNewStore = newStore
 	}
 }
@@ -76,9 +75,10 @@ func WithHTTPSExtraHeaders(header http.Header) GenericFetcherOption {
 // [WithTFRegistry] and is unaffected.
 func WithTFRConfig(l log.Logger, impl tfimpl.Type, fs vfs.FS) GenericFetcherOption {
 	return func(c *genericFetcherConfig) {
-		c.tfrLogger = l
+		c.logger = l
 		c.tfrImpl = impl
-		c.tfrFS = fs
+		c.fs = fs
+		c.tfrEnabled = true
 	}
 }
 
@@ -101,15 +101,18 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 		SchemeSMB:   new(getter.SmbClientGetter),
 	}
 
-	if cfg.tfrLogger != nil {
-		m[SchemeTFR] = NewRegistryGetter(cfg.tfrLogger, cfg.tfrFS).WithTofuImplementation(cfg.tfrImpl)
+	if cfg.tfrEnabled {
+		m[SchemeTFR] = NewRegistryGetter(
+			cfg.logger,
+			cfg.fs,
+		).WithTofuImplementation(cfg.tfrImpl)
 	}
 
-	if cfg.ociLogger != nil {
+	if cfg.ociNewStore != nil {
 		m[SchemeOCI] = &OCIGetter{
 			NewStore: cfg.ociNewStore,
-			Logger:   cfg.ociLogger,
-			FS:       cfg.ociFS,
+			Logger:   cfg.logger,
+			FS:       cfg.fs,
 		}
 	}
 
@@ -180,7 +183,10 @@ func buildGetters(b *builder) []Getter {
 
 		if b.tfRegistry != nil {
 			fetchers[SchemeTFR] = b.tfRegistry
-			resolverOpts = append(resolverOpts, WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS))
+			resolverOpts = append(
+				resolverOpts,
+				WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS),
+			)
 		}
 
 		if b.oci != nil {

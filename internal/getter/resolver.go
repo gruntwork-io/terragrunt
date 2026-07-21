@@ -26,8 +26,8 @@ func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResol
 	}
 
 	tfr := NewTFRResolver()
-	if cfg.tfrLogger != nil {
-		tfr.WithLogger(cfg.tfrLogger)
+	if cfg.tfrEnabled {
+		tfr.WithLogger(cfg.logger)
 	}
 
 	if cfg.tfrImpl != "" {
@@ -45,8 +45,8 @@ func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResol
 
 	// Registered only alongside the oci fetcher, sharing its store seam so
 	// probe and fetch use one credential discovery and auth cache.
-	if cfg.ociLogger != nil {
-		resolvers[SchemeOCI] = NewOCIResolver(cfg.ociNewStore)
+	if cfg.ociNewStore != nil {
+		resolvers[SchemeOCI] = NewOCIResolver(cfg.logger, cfg.ociNewStore)
 	}
 
 	return resolvers

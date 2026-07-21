@@ -37,11 +37,19 @@ func TestGetRandomTime(t *testing.T) {
 
 					if tc.lowerBound > 0 && tc.upperBound > 0 {
 						if actual < tc.lowerBound {
-							t.Fatalf("Randomly computed time %v should not be less than lowerBound %v", actual, tc.lowerBound)
+							t.Fatalf(
+								"Randomly computed time %v should not be less than lowerBound %v",
+								actual,
+								tc.lowerBound,
+							)
 						}
 
 						if actual > tc.upperBound {
-							t.Fatalf("Randomly computed time %v should not be greater than upperBound %v", actual, tc.upperBound)
+							t.Fatalf(
+								"Randomly computed time %v should not be greater than upperBound %v",
+								actual,
+								tc.upperBound,
+							)
 						}
 					}
 				})

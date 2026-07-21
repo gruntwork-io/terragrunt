@@ -6,13 +6,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCASGetterMode(t *testing.T) {
@@ -45,7 +47,10 @@ func TestCASGetterDetect(t *testing.T) {
 
 	tmp := helpers.TmpDirWOSymlinks(t)
 
-	require.NoError(t, vfs.WriteFile(g.Venv.FS, filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(g.Venv.FS, filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644),
+	)
 
 	tests := []struct {
 		expectedErr error
@@ -107,8 +112,7 @@ func TestCASGetterGet(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	opts := &cas.CloneOptions{
 		Depth: -1,
@@ -160,8 +164,7 @@ func TestCASGetterLocalDir(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	opts := &cas.CloneOptions{
 		Branch: "main",
@@ -175,7 +178,10 @@ func TestCASGetterLocalDir(t *testing.T) {
 	fakeModuleSubdir := filepath.Join(fakeModule, "subdir")
 
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(fakeModule, "main.tf"), []byte(""), 0644))
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(fakeModuleSubdir, "subfile.tf"), []byte(""), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(v.FS, filepath.Join(fakeModuleSubdir, "subfile.tf"), []byte(""), 0644),
+	)
 
 	fakeDest := filepath.Join(tmp, "fake-dest")
 
@@ -214,8 +220,7 @@ func newTestCASGetter(t *testing.T, opts *cas.CloneOptions) *getter.CASGetter {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	return getter.NewCASGetter(logger.CreateLogger(), c, v, opts)
 }

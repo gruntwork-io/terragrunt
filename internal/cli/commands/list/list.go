@@ -120,18 +120,19 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 
 	var listedComponents dag.ListedComponents
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "list_discovered_to_listed", map[string]any{
-		"working_dir":  opts.WorkingDir,
-		"config_count": len(components),
-	}, func(ctx context.Context, l log.Logger) error {
-		listedComponents = discoveredToListed(l, components, opts)
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "list_discovered_to_listed", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"config_count": len(components),
+		}, func(ctx context.Context, l log.Logger) error {
+			listedComponents = discoveredToListed(l, components, opts)
 
-		if span := trace.SpanFromContext(ctx); span.IsRecording() {
-			span.SetAttributes(attribute.Int("listed_count", len(listedComponents)))
-		}
+			if span := trace.SpanFromContext(ctx); span.IsRecording() {
+				span.SetAttributes(attribute.Int("listed_count", len(listedComponents)))
+			}
 
-		return nil
-	})
+			return nil
+		})
 	if err != nil {
 		return err
 	}
@@ -152,7 +153,11 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	}
 }
 
-func discoveredToListed(l log.Logger, components component.Components, opts *Options) dag.ListedComponents {
+func discoveredToListed(
+	l log.Logger,
+	components component.Components,
+	opts *Options,
+) dag.ListedComponents {
 	listedComponents := make(dag.ListedComponents, 0, len(components))
 
 	for _, c := range components {
@@ -247,7 +252,12 @@ func shouldColor(l log.Logger) bool {
 }
 
 // renderLong renders the components in a long format.
-func renderLong(w io.Writer, opts *Options, components dag.ListedComponents, c *dag.Colorizer) error {
+func renderLong(
+	w io.Writer,
+	opts *Options,
+	components dag.ListedComponents,
+	c *dag.Colorizer,
+) error {
 	var buf strings.Builder
 
 	longestPathLen := getLongestPathLen(components)
@@ -333,7 +343,13 @@ func renderTabular(w io.Writer, components dag.ListedComponents, c *dag.Colorize
 }
 
 // outputTree outputs the discovered components in tree format.
-func outputTree(l log.Logger, w io.Writer, opts *Options, components dag.ListedComponents, sort string) error {
+func outputTree(
+	l log.Logger,
+	w io.Writer,
+	opts *Options,
+	components dag.ListedComponents,
+	sort string,
+) error {
 	s := dag.NewTreeStyler(shouldColor(l))
 
 	return renderTree(w, opts, components, s, sort)
@@ -406,7 +422,13 @@ func preProcessPath(path string) pathParts {
 }
 
 // renderTree renders the components in a tree format.
-func renderTree(w io.Writer, opts *Options, components dag.ListedComponents, s *dag.TreeStyler, _ string) error {
+func renderTree(
+	w io.Writer,
+	opts *Options,
+	components dag.ListedComponents,
+	s *dag.TreeStyler,
+	_ string,
+) error {
 	var t *tree.Tree
 
 	if opts.Mode == ModeDAG {

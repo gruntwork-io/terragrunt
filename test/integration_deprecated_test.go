@@ -58,7 +58,10 @@ func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.Error(t, err)
 
-			assert.True(t, strings.Contains(stderr, tc.expected) || strings.Contains(stdout, tc.expected))
+			assert.True(
+				t,
+				strings.Contains(stderr, tc.expected) || strings.Contains(stdout, tc.expected),
+			)
 		})
 	}
 }

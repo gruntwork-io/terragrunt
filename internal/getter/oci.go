@@ -63,6 +63,24 @@ var ErrOCIMissingRepositoryName = errors.New("oci source is missing a repository
 // way in both tools.
 var ErrOCITagDigestExclusive = errors.New(`cannot set both "tag" and "digest" arguments`)
 
+// ErrOCIUnexpectedScheme reports an oci resolver handed a source whose scheme
+// is not oci, so no manifest digest can be resolved for it.
+var ErrOCIUnexpectedScheme = errors.New("oci resolver received a source with a non-oci scheme")
+
+// OCIReferenceResolutionError reports a failure resolving an oci reference (a
+// tag or digest) to a manifest against the registry, wrapping the registry
+// error so callers can match on the cause with errors.As.
+type OCIReferenceResolutionError struct {
+	Err error
+	Ref string
+}
+
+func (err OCIReferenceResolutionError) Error() string {
+	return fmt.Sprintf("resolving OCI reference %q: %s", err.Ref, err.Err)
+}
+
+func (err OCIReferenceResolutionError) Unwrap() error { return err.Err }
+
 // OCIUnsupportedQueryParamError reports a query parameter other than tag or
 // digest on an oci source.
 type OCIUnsupportedQueryParamError struct {
@@ -280,17 +298,20 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return ErrOCIGetterNotConfigured
 	}
 
-	registryDomain, repositoryName, subDir, ref, err := parseOCISource(req.URL())
+	coords, err := parseOCISource(req.URL())
 	if err != nil {
 		return err
 	}
 
-	store, err := g.NewStore(ctx, registryDomain, repositoryName)
+	store, err := g.NewStore(ctx, coords.registryDomain, coords.repositoryName)
 	if err != nil {
-		return fmt.Errorf("creating OCI repository store for %s/%s: %w", registryDomain, repositoryName, err)
+		return fmt.Errorf(
+			"creating OCI repository store for %s/%s: %w",
+			coords.registryDomain, coords.repositoryName, err,
+		)
 	}
 
-	layer, err := resolveModuleZipLayer(ctx, store, ref)
+	layer, err := resolveModuleZipLayer(ctx, store, coords.ref)
 	if err != nil {
 		return err
 	}
@@ -323,7 +344,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	return g.extractModule(zipPath, subDir, req.Dst, req.Src, req.Umask)
+	return g.extractModule(zipPath, coords.subDir, req.Dst, req.Src, req.Umask)
 }
 
 // GetFile always fails, per [ErrOCIGetFileUnsupported].
@@ -349,25 +370,39 @@ func validateOCIQueryParams(queryValues url.Values) error {
 	return nil
 }
 
+// ociSourceCoordinates carries the registry coordinates, subdir selector, and
+// validated reference parsed from an oci source URL.
+type ociSourceCoordinates struct {
+	registryDomain string
+	repositoryName string
+	subDir         string
+	ref            string
+}
+
 // parseOCISource splits an oci source URL into registry coordinates, the
 // subdir selector, and the validated reference to resolve.
-func parseOCISource(srcURL *url.URL) (registryDomain, repositoryName, subDir, ref string, err error) {
-	registryDomain = srcURL.Host
+func parseOCISource(srcURL *url.URL) (ociSourceCoordinates, error) {
+	registryDomain := srcURL.Host
 	if registryDomain == "" {
-		return "", "", "", "", ErrOCIMissingRegistryDomain
+		return ociSourceCoordinates{}, ErrOCIMissingRegistryDomain
 	}
 
-	repositoryName, subDir = SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
+	repositoryName, subDir := SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
 	if repositoryName == "" {
-		return "", "", "", "", ErrOCIMissingRepositoryName
+		return ociSourceCoordinates{}, ErrOCIMissingRepositoryName
 	}
 
-	ref, err = ociRefFromQuery(srcURL.Query())
+	ref, err := ociRefFromQuery(srcURL.Query())
 	if err != nil {
-		return "", "", "", "", err
+		return ociSourceCoordinates{}, err
 	}
 
-	return registryDomain, repositoryName, subDir, ref, nil
+	return ociSourceCoordinates{
+		registryDomain: registryDomain,
+		repositoryName: repositoryName,
+		subDir:         subDir,
+		ref:            ref,
+	}, nil
 }
 
 // ociRefFromQuery validates the source query and returns the reference to
@@ -413,7 +448,7 @@ func ociRefFromQuery(queryValues url.Values) (string, error) {
 func resolveModuleZipLayer(ctx context.Context, store OCIRepositoryStore, ref string) (ociv1.Descriptor, error) {
 	manifestDesc, err := store.Resolve(ctx, ref)
 	if err != nil {
-		return ociv1.Descriptor{}, fmt.Errorf("resolving OCI reference %q: %w", ref, err)
+		return ociv1.Descriptor{}, OCIReferenceResolutionError{Ref: ref, Err: err}
 	}
 
 	if manifestDesc.MediaType != ociv1.MediaTypeImageManifest {

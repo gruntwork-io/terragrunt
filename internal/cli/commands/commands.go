@@ -361,7 +361,12 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
 //
 // Panics if v.Env is nil, as it mutates it.
-func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+func setupAutoProviderCacheDir(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v venv.Venv,
+) error {
 	if v.Env == nil {
 		panic("setupAutoProviderCacheDir: venv environment map is nil")
 	}
@@ -395,7 +400,10 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	// Check if OpenTofu is being used
 	if tfImplementation != tfimpl.OpenTofu {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
+		return fmt.Errorf(
+			"auto provider cache dir requires OpenTofu, but detected %s",
+			tfImplementation,
+		)
 	}
 
 	// Check OpenTofu version > 1.10
@@ -409,7 +417,10 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if terraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
+		return fmt.Errorf(
+			"auto provider cache dir requires OpenTofu version >= 1.10, but found %s",
+			terraformVersion,
+		)
 	}
 
 	// Set up the provider cache directory
@@ -543,7 +554,10 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	// Process filters file if the filters file is not disabled
 	if !opts.NoFiltersFile {
-		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
+		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(
+			opts.WorkingDir,
+			opts.FiltersFile,
+		)
 		if filtersFromFileErr != nil {
 			return filtersFromFileErr
 		}

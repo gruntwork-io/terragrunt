@@ -114,7 +114,10 @@ func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	stackHiddenDir := filepath.Join(tmpDir, ".terragrunt-stack", "u")
 	require.NoError(t, os.MkdirAll(stackHiddenDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(stackHiddenDir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(stackHiddenDir, "terragrunt.hcl"), []byte(""), 0644),
+	)
 
 	l := logger.CreateLogger()
 	opts := &options.TerragruntOptions{
@@ -322,7 +325,11 @@ dependency "foo" {
 	cycleComponent, cycleErr := components.CycleCheck()
 	require.Error(t, cycleErr, "Cycle check should detect a cycle between foo and bar")
 	assert.Contains(t, cycleErr.Error(), "cycle detected", "Error message should mention cycle")
-	assert.NotNil(t, cycleComponent, "Cycle check should return the component that is part of the cycle")
+	assert.NotNil(
+		t,
+		cycleComponent,
+		"Cycle check should return the component that is part of the cycle",
+	)
 
 	// Verify both foo and bar are in the discovered components
 	componentPaths := components.Paths()
@@ -385,7 +392,11 @@ dependency "foo" {
 
 	// Verify that a cycle is NOT detected because one dependency is disabled
 	_, cycleErr := components.CycleCheck()
-	require.NoError(t, cycleErr, "Cycle check should not detect a cycle when dependency is disabled")
+	require.NoError(
+		t,
+		cycleErr,
+		"Cycle check should not detect a cycle when dependency is disabled",
+	)
 
 	// Verify both foo and bar are in the discovered components
 	componentPaths := components.Paths()
@@ -469,13 +480,23 @@ exclude {
 	require.NotNil(t, unit1)
 	require.NotNil(t, unit1.Config(), "unit1 should have a parsed config")
 	require.NotNil(t, unit1.Config().Exclude, "unit1 should have an exclude block")
-	assert.Contains(t, unit1.Config().Exclude.Actions, "plan", "unit1 exclude should contain 'plan' action")
+	assert.Contains(
+		t,
+		unit1.Config().Exclude.Actions,
+		"plan",
+		"unit1 exclude should contain 'plan' action",
+	)
 
 	unit2 := findUnit("unit2")
 	require.NotNil(t, unit2)
 	require.NotNil(t, unit2.Config(), "unit2 should have a parsed config")
 	require.NotNil(t, unit2.Config().Exclude, "unit2 should have an exclude block")
-	assert.Contains(t, unit2.Config().Exclude.Actions, "apply", "unit2 exclude should contain 'apply' action")
+	assert.Contains(
+		t,
+		unit2.Config().Exclude.Actions,
+		"apply",
+		"unit2 exclude should contain 'apply' action",
+	)
 
 	unit3 := findUnit("unit3")
 	require.NotNil(t, unit3)
@@ -782,7 +803,10 @@ func TestDiscovery_HiddenIncludedByIncludeDirs(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	hiddenUnitDir := filepath.Join(tmpDir, ".hidden", "hunit")
 	require.NoError(t, os.MkdirAll(hiddenUnitDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(hiddenUnitDir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(hiddenUnitDir, "terragrunt.hcl"), []byte(""), 0644),
+	)
 
 	l := logger.CreateLogger()
 	opts := &options.TerragruntOptions{
@@ -1140,8 +1164,18 @@ dependency "dependency" {
   config_path = "../dependency"
 }
 `
-			require.NoError(t, os.WriteFile(filepath.Join(dependentDir, "terragrunt.hcl"), []byte(dependentHCL), 0644))
-			require.NoError(t, os.WriteFile(filepath.Join(dependencyDir, "terragrunt.hcl"), []byte(""), 0644))
+			require.NoError(
+				t,
+				os.WriteFile(
+					filepath.Join(dependentDir, "terragrunt.hcl"),
+					[]byte(dependentHCL),
+					0644,
+				),
+			)
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(dependencyDir, "terragrunt.hcl"), []byte(""), 0644),
+			)
 
 			l := logger.CreateLogger()
 			opts := &options.TerragruntOptions{
@@ -1179,8 +1213,18 @@ dependency "dependency" {
 			require.NotNil(t, dependentUnit, "dependent unit should be discovered")
 			require.NotNil(t, dependencyUnit, "dependency unit should be discovered")
 
-			assert.Equal(t, tt.dependentExcluded, dependentUnit.Excluded(), "dependent excluded state")
-			assert.Equal(t, tt.dependencyExcluded, dependencyUnit.Excluded(), "dependency excluded state")
+			assert.Equal(
+				t,
+				tt.dependentExcluded,
+				dependentUnit.Excluded(),
+				"dependent excluded state",
+			)
+			assert.Equal(
+				t,
+				tt.dependencyExcluded,
+				dependencyUnit.Excluded(),
+				"dependency excluded state",
+			)
 		})
 	}
 }

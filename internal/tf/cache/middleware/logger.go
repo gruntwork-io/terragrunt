@@ -18,7 +18,10 @@ func Logger(logger log.Logger) echo.MiddlewareFunc {
 				WithField(placeholders.CacheServerURLKeyName, req.URI).
 				WithField(placeholders.CacheServerStatusKeyName, req.Status)
 			if req.Error != nil {
-				logger.Errorf("Cache server was unable to process the received request, %s", req.Error.Error())
+				logger.Errorf(
+					"Cache server was unable to process the received request, %s",
+					req.Error.Error(),
+				)
 			} else {
 				logger.Tracef("Cache server received request")
 			}

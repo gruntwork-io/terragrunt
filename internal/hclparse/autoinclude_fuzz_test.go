@@ -100,7 +100,13 @@ stack "child" {
 	var out []byte
 
 	require.NotPanicsf(t, func() {
-		out = generateAutoIncludeForKind(t, src, hclparse.KindStack, "child", hclparse.AutoIncludeStackFile)
+		out = generateAutoIncludeForKind(
+			t,
+			src,
+			hclparse.KindStack,
+			"child",
+			hclparse.AutoIncludeStackFile,
+		)
 	}, "panic generating stack autoinclude for body:\n%s", body)
 
 	return out
@@ -108,11 +114,23 @@ stack "child" {
 
 // generateAutoIncludeForKind parses src, resolves the autoinclude for (kind, name), generates it, and returns the
 // generated file bytes (nil when the construct is rejected or produces no file).
-func generateAutoIncludeForKind(t *testing.T, src string, kind hclparse.AutoIncludeKind, name, fileName string) []byte {
+func generateAutoIncludeForKind(
+	t *testing.T,
+	src string,
+	kind hclparse.AutoIncludeKind,
+	name, fileName string,
+) []byte {
 	t.Helper()
 
 	// The read-back fileName must match the kind the generator derives from, else a stale or missing file masks bugs.
-	require.Equalf(t, hclparse.AutoIncludeFileNameForKind(kind), fileName, "harness fileName %q does not match kind %q", fileName, kind)
+	require.Equalf(
+		t,
+		hclparse.AutoIncludeFileNameForKind(kind),
+		fileName,
+		"harness fileName %q does not match kind %q",
+		fileName,
+		kind,
+	)
 
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
@@ -137,16 +155,49 @@ func generateAutoIncludeForKind(t *testing.T, src string, kind hclparse.AutoIncl
 
 	// A stored entry must be populated and consistent: generation needs EvalCtx and RawBody, and Kind drives the filename.
 	require.NotNilf(t, resolved, "autoinclude %s present but nil for body:\n%s", key, src)
-	require.NotNilf(t, resolved.EvalCtx, "autoinclude %s resolved with nil EvalCtx for body:\n%s", key, src)
-	require.NotNilf(t, resolved.RawBody, "autoinclude %s resolved with nil RawBody for body:\n%s", key, src)
-	require.Equalf(t, kind, resolved.Kind, "autoinclude %s resolved with kind %q for body:\n%s", key, resolved.Kind, src)
+	require.NotNilf(
+		t,
+		resolved.EvalCtx,
+		"autoinclude %s resolved with nil EvalCtx for body:\n%s",
+		key,
+		src,
+	)
+	require.NotNilf(
+		t,
+		resolved.RawBody,
+		"autoinclude %s resolved with nil RawBody for body:\n%s",
+		key,
+		src,
+	)
+	require.Equalf(
+		t,
+		kind,
+		resolved.Kind,
+		"autoinclude %s resolved with kind %q for body:\n%s",
+		key,
+		resolved.Kind,
+		src,
+	)
 
 	// A stack autoinclude injects only unit/stack blocks, so a cleanly resolved stack entry carries no dependencies.
 	if kind == hclparse.KindStack {
-		require.Emptyf(t, resolved.Dependencies, "stack autoinclude %s retained %d resolved dependencies for body:\n%s", key, len(resolved.Dependencies), src)
+		require.Emptyf(
+			t,
+			resolved.Dependencies,
+			"stack autoinclude %s retained %d resolved dependencies for body:\n%s",
+			key,
+			len(resolved.Dependencies),
+			src,
+		)
 	}
 
-	if genErr := hclparse.GenerateAutoIncludeFile(fs, resolved, aiFuzzGenDir, srcBytes, resolved.EvalCtx); genErr != nil {
+	if genErr := hclparse.GenerateAutoIncludeFile(
+		fs,
+		resolved,
+		aiFuzzGenDir,
+		srcBytes,
+		resolved.EvalCtx,
+	); genErr != nil {
 		return nil
 	}
 
@@ -171,7 +222,14 @@ func reparsesAsValidHCL(t *testing.T, body string, generated []byte) {
 		return
 	}
 
-	require.Failf(t, "generated invalid HCL", "autoinclude body:\n%s\noutput:\n%s\ndiags: %s", body, generated, diags.Error())
+	require.Failf(
+		t,
+		"generated invalid HCL",
+		"autoinclude body:\n%s\noutput:\n%s\ndiags: %s",
+		body,
+		generated,
+		diags.Error(),
+	)
 }
 
 // aiBlockBodySeeds is the shared seed corpus of HCL constructs placed inside an autoinclude block: scalars,

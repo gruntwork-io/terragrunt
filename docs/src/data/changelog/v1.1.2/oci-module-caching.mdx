@@ -7,4 +7,4 @@ category: "experiments-updated"
 
 `oci://` module sources now integrate with Content Addressable Storage. When the `oci` experiment is enabled, downloads are cached by their manifest digest, so a repeated fetch of the same tag or digest is served from the local store instead of re-downloaded from the registry.
 
-Mutable tags stay correct: every fetch re-resolves the tag to its current manifest digest at download time, so re-pushing a module under the same tag invalidates the cache and pulls the new content rather than serving a stale copy. A digest-pinned source (`?digest=sha256:...`) skips registry resolution and keys the cache directly.
+Mutable tags stay correct: every fetch re-resolves the tag to its current manifest digest against the registry, so re-pushing a module under the same tag resolves to a new digest that is fetched fresh rather than served from a stale entry. A digest-pinned source (`?digest=sha256:...`) skips registry resolution and keys the cache directly.

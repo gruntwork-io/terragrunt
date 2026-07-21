@@ -5,11 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestFindModules(t *testing.T) {
@@ -47,7 +50,8 @@ func TestFindModules(t *testing.T) {
 					description: "This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-aws-auth-merger",
 					moduleDir:   "modules/eks-aws-auth-merger",
-				}},
+				},
+			},
 		},
 	}
 
@@ -56,11 +60,19 @@ func TestFindModules(t *testing.T) {
 			t.Parallel()
 			// Unfortunately, we are unable to commit the `.git` directory. We have to temporarily rename it while running the tests.
 			os.Rename(filepath.Join(tc.repoPath, "gitdir"), filepath.Join(tc.repoPath, ".git"))
-			defer os.Rename(filepath.Join(tc.repoPath, ".git"), filepath.Join(tc.repoPath, "gitdir"))
+			defer os.Rename(
+				filepath.Join(tc.repoPath, ".git"),
+				filepath.Join(tc.repoPath, "gitdir"),
+			)
 
 			ctx := t.Context()
 
-			repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: tc.repoPath})
+			repo, err := module.NewRepo(
+				ctx,
+				logger.CreateLogger(),
+				venv.OSVenv(),
+				&module.RepoOpts{CloneURL: tc.repoPath},
+			)
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
@@ -80,6 +92,24 @@ func TestFindModules(t *testing.T) {
 			assert.Equal(t, tc.expectedData, realData)
 		})
 	}
+}
+
+// TestNewRepoRemoteCloneRejectsNonOSFS pins the performClone contract: a
+// remote clone writes through go-getter to the real OS, so an in-memory
+// bundle must be rejected before any clone work starts.
+func TestNewRepoRemoteCloneRejectsNonOSFS(t *testing.T) {
+	t.Parallel()
+
+	_, err := module.NewRepo(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.New(),
+		&module.RepoOpts{
+			CloneURL: "https://example.com/org/target.git",
+			Path:     t.TempDir(),
+		},
+	)
+	require.ErrorIs(t, err, module.ErrRemoteCloneFSNotOS)
 }
 
 func TestModuleURL(t *testing.T) {

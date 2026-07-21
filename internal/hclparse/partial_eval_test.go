@@ -133,10 +133,14 @@ func TestPartialEval(t *testing.T) {
 		{
 			// A deferred condition keeps the conditional structure while each arm is partially evaluated:
 			// the local.* arm renders to a literal at generate time, the dependency.* arm stays verbatim.
-			name:     "conditional deferred condition renders local arm, defers dependency arm",
-			hcl:      `val = dependency.vpc.outputs.ready ? local.region : dependency.vpc.outputs.vpc_id`,
-			evalCtx:  buildEvalCtx(),
-			contains: []string{`dependency.vpc.outputs.ready ?`, `"us-east-1"`, "dependency.vpc.outputs.vpc_id"},
+			name:    "conditional deferred condition renders local arm, defers dependency arm",
+			hcl:     `val = dependency.vpc.outputs.ready ? local.region : dependency.vpc.outputs.vpc_id`,
+			evalCtx: buildEvalCtx(),
+			contains: []string{
+				`dependency.vpc.outputs.ready ?`,
+				`"us-east-1"`,
+				"dependency.vpc.outputs.vpc_id",
+			},
 			excludes: []string{"local.region"},
 		},
 		{
@@ -215,17 +219,34 @@ func TestPartialEval(t *testing.T) {
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
 
-			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: tc.evalCtx, Deferred: testDeferred})
+			resultBytes, err := hclparse.PartialEval(
+				expr,
+				&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: tc.evalCtx, Deferred: testDeferred},
+			)
 			require.NoError(t, err)
 
 			result := string(resultBytes)
 
 			for _, want := range tc.contains {
-				assert.Contains(t, result, want, "expected result to contain %q, got %q", want, result)
+				assert.Contains(
+					t,
+					result,
+					want,
+					"expected result to contain %q, got %q",
+					want,
+					result,
+				)
 			}
 
 			for _, notWant := range tc.excludes {
-				assert.NotContains(t, result, notWant, "expected result NOT to contain %q, got %q", notWant, result)
+				assert.NotContains(
+					t,
+					result,
+					notWant,
+					"expected result NOT to contain %q, got %q",
+					notWant,
+					result,
+				)
 			}
 		})
 	}
@@ -252,16 +273,45 @@ func TestPartialEval_NonFiniteNumberFallsBackToSource(t *testing.T) {
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
 
-			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+			resultBytes, err := hclparse.PartialEval(
+				expr,
+				&hclparse.EvalArgs{
+					SrcBytes: srcBytes,
+					EvalCtx:  buildEvalCtx(),
+					Deferred: testDeferred,
+				},
+			)
 			require.NoError(t, err)
 
 			result := string(resultBytes)
 
-			assert.NotContains(t, result, "Inf", "non-finite number must not render as an Inf identifier, got %q", result)
-			assert.Contains(t, result, tc.contains, "expected verbatim source fallback, got %q", result)
+			assert.NotContains(
+				t,
+				result,
+				"Inf",
+				"non-finite number must not render as an Inf identifier, got %q",
+				result,
+			)
+			assert.Contains(
+				t,
+				result,
+				tc.contains,
+				"expected verbatim source fallback, got %q",
+				result,
+			)
 
-			_, diags := hclsyntax.ParseExpression(resultBytes, "result.hcl", hcl.Pos{Line: 1, Column: 1})
-			assert.False(t, diags.HasErrors(), "partial-eval result must be valid HCL, got %q: %s", result, diags.Error())
+			_, diags := hclsyntax.ParseExpression(
+				resultBytes,
+				"result.hcl",
+				hcl.Pos{Line: 1, Column: 1},
+			)
+			assert.False(
+				t,
+				diags.HasErrors(),
+				"partial-eval result must be valid HCL, got %q: %s",
+				result,
+				diags.Error(),
+			)
 		})
 	}
 }
@@ -295,18 +345,48 @@ func TestPartialEval_NonFiniteTraversalFallsBackToSource(t *testing.T) {
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
 
-			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: infCtx, Deferred: testDeferred})
+			resultBytes, err := hclparse.PartialEval(
+				expr,
+				&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: infCtx, Deferred: testDeferred},
+			)
 
 			var unresolved hclparse.PartialEvalUnresolvedError
-			require.ErrorAs(t, err, &unresolved, "non-finite traversal must surface a typed unresolved error")
+			require.ErrorAs(
+				t,
+				err,
+				&unresolved,
+				"non-finite traversal must surface a typed unresolved error",
+			)
 
 			result := string(resultBytes)
 
-			assert.NotContains(t, result, "Inf", "non-finite traversal must not render as an Inf identifier, got %q", result)
-			assert.Contains(t, result, tc.contains, "expected verbatim source fallback, got %q", result)
+			assert.NotContains(
+				t,
+				result,
+				"Inf",
+				"non-finite traversal must not render as an Inf identifier, got %q",
+				result,
+			)
+			assert.Contains(
+				t,
+				result,
+				tc.contains,
+				"expected verbatim source fallback, got %q",
+				result,
+			)
 
-			_, diags := hclsyntax.ParseExpression(resultBytes, "result.hcl", hcl.Pos{Line: 1, Column: 1})
-			assert.False(t, diags.HasErrors(), "partial-eval result must be valid HCL, got %q: %s", result, diags.Error())
+			_, diags := hclsyntax.ParseExpression(
+				resultBytes,
+				"result.hcl",
+				hcl.Pos{Line: 1, Column: 1},
+			)
+			assert.False(
+				t,
+				diags.HasErrors(),
+				"partial-eval result must be valid HCL, got %q: %s",
+				result,
+				diags.Error(),
+			)
 		})
 	}
 }
@@ -412,10 +492,21 @@ func TestPartialEval_EvaluatesFunctionCallsUnlessTheyReferenceDependency(t *test
 
 		expr, srcBytes := parseFirstAttrExpr(t, `val = danger()`)
 
-		resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(&called), Deferred: testDeferred})
+		resultBytes, err := hclparse.PartialEval(
+			expr,
+			&hclparse.EvalArgs{
+				SrcBytes: srcBytes,
+				EvalCtx:  newCtx(&called),
+				Deferred: testDeferred,
+			},
+		)
 		require.NoError(t, err)
 
-		assert.True(t, called, "a function call with no deferred reference is evaluated at generate time")
+		assert.True(
+			t,
+			called,
+			"a function call with no deferred reference is evaluated at generate time",
+		)
 		assert.Contains(t, string(resultBytes), "executed")
 	})
 
@@ -426,10 +517,21 @@ func TestPartialEval_EvaluatesFunctionCallsUnlessTheyReferenceDependency(t *test
 
 		expr, srcBytes := parseFirstAttrExpr(t, `val = danger(dependency.vpc.outputs.id)`)
 
-		resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(&called), Deferred: testDeferred})
+		resultBytes, err := hclparse.PartialEval(
+			expr,
+			&hclparse.EvalArgs{
+				SrcBytes: srcBytes,
+				EvalCtx:  newCtx(&called),
+				Deferred: testDeferred,
+			},
+		)
 		require.NoError(t, err)
 
-		assert.False(t, called, "a function call referencing dependency.* is preserved for unit-time evaluation")
+		assert.False(
+			t,
+			called,
+			"a function call referencing dependency.* is preserved for unit-time evaluation",
+		)
 		assert.Contains(t, string(resultBytes), "dependency.vpc.outputs.id")
 	})
 }
@@ -439,11 +541,18 @@ func TestPartialEval_PreservesConditionalReferencingDependency(t *testing.T) {
 
 	expr, srcBytes := parseFirstAttrExpr(t, `val = dependency.vpc.outputs.enabled ? "yes" : "no"`)
 
-	resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+	resultBytes, err := hclparse.PartialEval(
+		expr,
+		&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred},
+	)
 	require.NoError(t, err)
 
-	assert.Contains(t, string(resultBytes), `dependency.vpc.outputs.enabled ? "yes" : "no"`,
-		"a conditional whose condition references dependency.* is preserved for unit-time evaluation")
+	assert.Contains(
+		t,
+		string(resultBytes),
+		`dependency.vpc.outputs.enabled ? "yes" : "no"`,
+		"a conditional whose condition references dependency.* is preserved for unit-time evaluation",
+	)
 }
 
 // TestPartialEval_DeeplyNestedExpressionReturnsTypedError verifies depth-exhausted input returns source bytes plus PartialEvalDepthExceededError.
@@ -452,15 +561,28 @@ func TestPartialEval_DeeplyNestedExpressionReturnsTypedError(t *testing.T) {
 
 	const depth = 20000
 
-	hcl := "val = " + strings.Repeat("(", depth) + "dependency.vpc.outputs.id" + strings.Repeat(")", depth)
+	hcl := "val = " + strings.Repeat(
+		"(",
+		depth,
+	) + "dependency.vpc.outputs.id" + strings.Repeat(
+		")",
+		depth,
+	)
 	expr, srcBytes := parseFirstAttrExpr(t, hcl)
 
-	resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+	resultBytes, err := hclparse.PartialEval(
+		expr,
+		&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred},
+	)
 
 	var depthErr hclparse.PartialEvalDepthExceededError
 
 	require.ErrorAs(t, err, &depthErr)
-	assert.NotEmpty(t, resultBytes, "deeply nested input must still return source-byte fallback so callers have valid HCL")
+	assert.NotEmpty(
+		t,
+		resultBytes,
+		"deeply nested input must still return source-byte fallback so callers have valid HCL",
+	)
 }
 
 func TestPartialEval_ConditionalNullOrUnknownConditionReturnsTypedError(t *testing.T) {
@@ -486,12 +608,20 @@ func TestPartialEval_ConditionalNullOrUnknownConditionReturnsTypedError(t *testi
 
 			expr, srcBytes := parseFirstAttrExpr(t, `val = local.flag ? "yes" : "no"`)
 
-			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+			resultBytes, err := hclparse.PartialEval(
+				expr,
+				&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred},
+			)
 
 			var condErr hclparse.PartialEvalUnresolvedError
 
 			require.ErrorAs(t, err, &condErr)
-			assert.Contains(t, string(resultBytes), `local.flag ? "yes" : "no"`, "null/unknown condition must still return source fallback so callers have valid HCL")
+			assert.Contains(
+				t,
+				string(resultBytes),
+				`local.flag ? "yes" : "no"`,
+				"null/unknown condition must still return source fallback so callers have valid HCL",
+			)
 		})
 	}
 }
@@ -543,7 +673,10 @@ func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
 
-			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+			resultBytes, err := hclparse.PartialEval(
+				expr,
+				&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred},
+			)
 			require.NoError(t, err)
 
 			result := string(resultBytes)
@@ -607,7 +740,10 @@ func TestPartialEval_FunctionResolution(t *testing.T) {
 		t.Helper()
 
 		expr, srcBytes := parseFirstAttrExpr(t, src)
-		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(called), Deferred: testDeferred})
+		out, err := hclparse.PartialEval(
+			expr,
+			&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(called), Deferred: testDeferred},
+		)
 		require.NoError(t, err)
 
 		return string(out)
@@ -630,8 +766,17 @@ func TestPartialEval_FunctionResolution(t *testing.T) {
 		var called bool
 
 		out := eval(t, &called, `val = upper(dependency.vpc.outputs.region)`)
-		assert.False(t, called, "a function whose argument references dependency.* must not run at generate time")
-		assert.Contains(t, out, "upper(dependency.vpc.outputs.region)", "the call stays verbatim for the generated unit")
+		assert.False(
+			t,
+			called,
+			"a function whose argument references dependency.* must not run at generate time",
+		)
+		assert.Contains(
+			t,
+			out,
+			"upper(dependency.vpc.outputs.region)",
+			"the call stays verbatim for the generated unit",
+		)
 	})
 
 	t.Run("deferred call renders its sibling local arg", func(t *testing.T) {
@@ -641,7 +786,12 @@ func TestPartialEval_FunctionResolution(t *testing.T) {
 
 		out := eval(t, &called, `val = tag(local.region, dependency.vpc.outputs.region)`)
 		assert.False(t, called, "a call referencing dependency.* must not run at generate time")
-		assert.Contains(t, out, `tag("us-east-1", dependency.vpc.outputs.region)`, "the stack local renders while the dependency arg defers")
+		assert.Contains(
+			t,
+			out,
+			`tag("us-east-1", dependency.vpc.outputs.region)`,
+			"the stack local renders while the dependency arg defers",
+		)
 		assert.NotContains(t, out, "local.region")
 	})
 
@@ -652,7 +802,12 @@ func TestPartialEval_FunctionResolution(t *testing.T) {
 
 		out := eval(t, &called, `val = upper(local.region) == "US-EAST-1" ? "a" : "b"`)
 		assert.True(t, called)
-		assert.Contains(t, out, `"a"`, "the condition resolves at generate time and selects the true branch")
+		assert.Contains(
+			t,
+			out,
+			`"a"`,
+			"the condition resolves at generate time and selects the true branch",
+		)
 	})
 }
 
@@ -666,7 +821,10 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 		t.Helper()
 
 		expr, srcBytes := parseFirstAttrExpr(t, src)
-		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+		out, err := hclparse.PartialEval(
+			expr,
+			&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred},
+		)
 		require.NoError(t, err)
 
 		return string(out)
@@ -677,7 +835,12 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 
 		out := eval(t, `val = local.region == dependency.vpc.outputs.region`)
 		assert.Contains(t, out, `"us-east-1" ==`, "the stack local renders")
-		assert.Contains(t, out, "dependency.vpc.outputs.region", "the dependency reference stays verbatim")
+		assert.Contains(
+			t,
+			out,
+			"dependency.vpc.outputs.region",
+			"the dependency reference stays verbatim",
+		)
 		assert.NotContains(t, out, "local.region")
 	})
 
@@ -692,7 +855,12 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 		t.Parallel()
 
 		out := eval(t, `val = dependency.vpc.outputs.subnets[local.count]`)
-		assert.Contains(t, out, "dependency.vpc.outputs.subnets[3]", "the local index renders while the dependency collection defers")
+		assert.Contains(
+			t,
+			out,
+			"dependency.vpc.outputs.subnets[3]",
+			"the local index renders while the dependency collection defers",
+		)
 		assert.NotContains(t, out, "local.count")
 	})
 
@@ -717,27 +885,56 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 
 		out := eval(t, `val = [for s in dependency.vpc.outputs.subnets : local.region]`)
 		assert.Contains(t, out, `"us-east-1"`, "the stack local in the loop body renders")
-		assert.Contains(t, out, "dependency.vpc.outputs.subnets", "the dependency collection defers")
+		assert.Contains(
+			t,
+			out,
+			"dependency.vpc.outputs.subnets",
+			"the dependency collection defers",
+		)
 		assert.NotContains(t, out, "local.region")
 	})
 
-	t.Run("loop var shadowing a namespace does not leak to a sibling after the for", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"loop var shadowing a namespace does not leak to a sibling after the for",
+		func(t *testing.T) {
+			t.Parallel()
 
-		// The loop var `local` shadows the local namespace inside the for; after the for the deferred set must be
-		// restored so the sibling local.region renders instead of being kept verbatim as a still-deferred root.
-		out := eval(t, `val = [[for local in dependency.vpc.outputs.a : local], local.region]`)
-		assert.Contains(t, out, `"us-east-1"`, "the sibling local.region renders after the for, proving the deferred set was restored")
-		assert.Contains(t, out, "[for local in dependency.vpc.outputs.a : local]", "the loop var stays verbatim inside the for")
-	})
+			// The loop var `local` shadows the local namespace inside the for; after the for the deferred set must be
+			// restored so the sibling local.region renders instead of being kept verbatim as a still-deferred root.
+			out := eval(t, `val = [[for local in dependency.vpc.outputs.a : local], local.region]`)
+			assert.Contains(
+				t,
+				out,
+				`"us-east-1"`,
+				"the sibling local.region renders after the for, proving the deferred set was restored",
+			)
+			assert.Contains(
+				t,
+				out,
+				"[for local in dependency.vpc.outputs.a : local]",
+				"the loop var stays verbatim inside the for",
+			)
+		},
+	)
 
-	t.Run("nested for keeps both loop vars verbatim and renders the body local", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"nested for keeps both loop vars verbatim and renders the body local",
+		func(t *testing.T) {
+			t.Parallel()
 
-		out := eval(t, `val = [for x in dependency.vpc.outputs.a : [for x in dependency.vpc.outputs.b : "${x}-${local.region}"]]`)
-		assert.Contains(t, out, "${x}-us-east-1", "the body local renders while the loop var stays verbatim")
-		assert.NotContains(t, out, "${local.region}", "local.region must not stay verbatim")
-	})
+			out := eval(
+				t,
+				`val = [for x in dependency.vpc.outputs.a : [for x in dependency.vpc.outputs.b : "${x}-${local.region}"]]`,
+			)
+			assert.Contains(
+				t,
+				out,
+				"${x}-us-east-1",
+				"the body local renders while the loop var stays verbatim",
+			)
+			assert.NotContains(t, out, "${local.region}", "local.region must not stay verbatim")
+		},
+	)
 
 	t.Run("splat over a dependency source stays verbatim", func(t *testing.T) {
 		t.Parallel()
@@ -860,21 +1057,48 @@ func TestPartialEval_ObjectKeys(t *testing.T) {
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
 
-			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+			resultBytes, err := hclparse.PartialEval(
+				expr,
+				&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred},
+			)
 			require.NoError(t, err)
 
 			result := string(resultBytes)
 
 			// Substring assertions cannot catch a malformed key rendering, so the emitted HCL must also parse.
-			_, diags := hclsyntax.ParseConfig([]byte("attr = "+result), "out.hcl", hcl.Pos{Line: 1, Column: 1})
-			require.False(t, diags.HasErrors(), "emitted HCL must parse, got %q: %s", result, diags.Error())
+			_, diags := hclsyntax.ParseConfig(
+				[]byte("attr = "+result),
+				"out.hcl",
+				hcl.Pos{Line: 1, Column: 1},
+			)
+			require.False(
+				t,
+				diags.HasErrors(),
+				"emitted HCL must parse, got %q: %s",
+				result,
+				diags.Error(),
+			)
 
 			for _, want := range tc.contains {
-				assert.Contains(t, result, want, "expected result to contain %q, got %q", want, result)
+				assert.Contains(
+					t,
+					result,
+					want,
+					"expected result to contain %q, got %q",
+					want,
+					result,
+				)
 			}
 
 			for _, notWant := range tc.excludes {
-				assert.NotContains(t, result, notWant, "expected result NOT to contain %q, got %q", notWant, result)
+				assert.NotContains(
+					t,
+					result,
+					notWant,
+					"expected result NOT to contain %q, got %q",
+					notWant,
+					result,
+				)
 			}
 		})
 	}
@@ -904,7 +1128,14 @@ func TestPartialEval_ObjectKeyUndefinedReferenceFails(t *testing.T) {
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
 
-			_, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+			_, err := hclparse.PartialEval(
+				expr,
+				&hclparse.EvalArgs{
+					SrcBytes: srcBytes,
+					EvalCtx:  buildEvalCtx(),
+					Deferred: testDeferred,
+				},
+			)
 			require.Error(t, err, "a key referencing an undefined stack name must fail generation")
 
 			var unresolvedErr hclparse.PartialEvalUnresolvedError
@@ -921,7 +1152,10 @@ func TestPartialEval_TemplateDirectives(t *testing.T) {
 		t.Helper()
 
 		expr, srcBytes := parseFirstAttrExpr(t, src)
-		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+		out, err := hclparse.PartialEval(
+			expr,
+			&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred},
+		)
 		require.NoError(t, err)
 
 		return string(out)
@@ -930,8 +1164,18 @@ func TestPartialEval_TemplateDirectives(t *testing.T) {
 	requireValidHCL := func(t *testing.T, out string) {
 		t.Helper()
 
-		_, diags := hclsyntax.ParseConfig([]byte("attr = "+out), "out.hcl", hcl.Pos{Line: 1, Column: 1})
-		require.False(t, diags.HasErrors(), "the emitted template must be valid HCL, got %q: %s", out, diags.Error())
+		_, diags := hclsyntax.ParseConfig(
+			[]byte("attr = "+out),
+			"out.hcl",
+			hcl.Pos{Line: 1, Column: 1},
+		)
+		require.False(
+			t,
+			diags.HasErrors(),
+			"the emitted template must be valid HCL, got %q: %s",
+			out,
+			diags.Error(),
+		)
 	}
 
 	t.Run("for directive with a deferred body stays verbatim and valid", func(t *testing.T) {
@@ -939,7 +1183,12 @@ func TestPartialEval_TemplateDirectives(t *testing.T) {
 
 		tmpl := `"%{ for x in local.names }${x}-${dependency.vpc.outputs.id}%{ endfor }"`
 		out := eval(t, `val = `+tmpl)
-		assert.Equal(t, tmpl, out, "a directive template on the structural path is emitted verbatim")
+		assert.Equal(
+			t,
+			tmpl,
+			out,
+			"a directive template on the structural path is emitted verbatim",
+		)
 		requireValidHCL(t, out)
 	})
 
@@ -961,23 +1210,37 @@ func TestPartialEval_TemplateDirectives(t *testing.T) {
 		requireValidHCL(t, out)
 	})
 
-	t.Run("genuine conditional interpolation with a deferred condition is not mistaken for a directive", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"genuine conditional interpolation with a deferred condition is not mistaken for a directive",
+		func(t *testing.T) {
+			t.Parallel()
 
-		out := eval(t, `val = "v-${dependency.vpc.outputs.ready ? local.env : "b"}"`)
-		assert.Equal(t, `"v-${dependency.vpc.outputs.ready ? "production" : "b"}"`, out,
-			"a real ${cond ? a : b} part keeps its interpolation wrapping while its pure arms render")
-		requireValidHCL(t, out)
-	})
+			out := eval(t, `val = "v-${dependency.vpc.outputs.ready ? local.env : "b"}"`)
+			assert.Equal(
+				t,
+				`"v-${dependency.vpc.outputs.ready ? "production" : "b"}"`,
+				out,
+				"a real ${cond ? a : b} part keeps its interpolation wrapping while its pure arms render",
+			)
+			requireValidHCL(t, out)
+		},
+	)
 
-	t.Run("genuine conditional interpolation with a deferred arm is not mistaken for a directive", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"genuine conditional interpolation with a deferred arm is not mistaken for a directive",
+		func(t *testing.T) {
+			t.Parallel()
 
-		out := eval(t, `val = "v-${!local.flag ? local.env : dependency.vpc.outputs.id}"`)
-		assert.Equal(t, `"v-${dependency.vpc.outputs.id}"`, out,
-			"a real conditional part collapses to its chosen branch instead of being emitted as a directive")
-		requireValidHCL(t, out)
-	})
+			out := eval(t, `val = "v-${!local.flag ? local.env : dependency.vpc.outputs.id}"`)
+			assert.Equal(
+				t,
+				`"v-${dependency.vpc.outputs.id}"`,
+				out,
+				"a real conditional part collapses to its chosen branch instead of being emitted as a directive",
+			)
+			requireValidHCL(t, out)
+		},
+	)
 
 	t.Run("pure interpolation resolves next to a deferred directive", func(t *testing.T) {
 		t.Parallel()
@@ -992,7 +1255,12 @@ func TestPartialEval_TemplateDirectives(t *testing.T) {
 		t.Parallel()
 
 		out := eval(t, `val = "%{ for x in local.names }${x},%{ endfor }"`)
-		assert.Equal(t, `"a,b,"`, out, "a generate-time-knowable directive template resolves to its literal")
+		assert.Equal(
+			t,
+			`"a,b,"`,
+			out,
+			"a generate-time-knowable directive template resolves to its literal",
+		)
 	})
 }
 

@@ -919,7 +919,11 @@ func (f *FormModel) validateField(i int) error {
 		return nil
 	}
 
-	expr, diags := hclsyntax.ParseExpression([]byte(val), "form_input.hcl", hcl.Pos{Line: 1, Column: 1})
+	expr, diags := hclsyntax.ParseExpression(
+		[]byte(val),
+		"form_input.hcl",
+		hcl.Pos{Line: 1, Column: 1},
+	)
 	if diags.HasErrors() {
 		return errors.New(firstDiagMessage(diags))
 	}

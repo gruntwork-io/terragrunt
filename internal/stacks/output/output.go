@@ -138,12 +138,16 @@ func StackOutput(
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {
-			return cty.NilVal, waitWorkerErrors(fmt.Errorf("failed to read values from %s: %w", dir, valuesErr))
+			return cty.NilVal, waitWorkerErrors(
+				fmt.Errorf("failed to read values from %s: %w", dir, valuesErr),
+			)
 		}
 
 		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, pctx, path, values)
 		if stackErr != nil {
-			return cty.NilVal, waitWorkerErrors(fmt.Errorf("failed to read stack file %s: %w", path, stackErr))
+			return cty.NilVal, waitWorkerErrors(
+				fmt.Errorf("failed to read stack file %s: %w", path, stackErr),
+			)
 		}
 
 		parsedStackFiles[path] = stackFile
@@ -152,7 +156,11 @@ func StackOutput(
 
 		for _, stack := range stackFile.Stacks {
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
-			l.Debugf("Registered stack %s at path %s", stack.Name, filepath.Join(targetDir, stack.Path))
+			l.Debugf(
+				"Registered stack %s at path %s",
+				stack.Name,
+				filepath.Join(targetDir, stack.Path),
+			)
 		}
 
 		for _, unit := range stackFile.Units {
@@ -232,7 +240,11 @@ func StackOutput(
 
 	ctyResult, err := config.GoTypeToCty(nestedOutputs)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("failed to convert unit output to cty value: %s %w", result, err)
+		return cty.NilVal, fmt.Errorf(
+			"failed to convert unit output to cty value: %s %w",
+			result,
+			err,
+		)
 	}
 
 	return ctyResult, nil
@@ -275,7 +287,11 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 			if i == len(parts)-1 {
 				ctyValue, err := config.ConvertValuesMapToCtyVal(value)
 				if err != nil {
-					return nil, fmt.Errorf("failed to convert unit output to cty value: %s %w", flatKey, err)
+					return nil, fmt.Errorf(
+						"failed to convert unit output to cty value: %s %w",
+						flatKey,
+						err,
+					)
 				}
 
 				current[part] = ctyValue

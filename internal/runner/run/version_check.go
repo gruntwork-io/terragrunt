@@ -55,7 +55,11 @@ func PopulateTFVersion(
 	in PopulateTFVersionInput,
 ) (log.Logger, *version.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
-	cacheKey := computeVersionFilesCacheKey(in.WorkingDir, in.VersionFiles, in.TFOpts.ShellOptions.TFPath)
+	cacheKey := computeVersionFilesCacheKey(
+		in.WorkingDir,
+		in.VersionFiles,
+		in.TFOpts.ShellOptions.TFPath,
+	)
 	l.Debugf("using cache key for version files: %s", cacheKey)
 
 	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
@@ -170,7 +174,10 @@ func GetTFVersion(
 	if tfImplementation == tfimpl.Unknown {
 		tfImplementation = tfimpl.Terraform
 
-		l.Warnf("Failed to identify Terraform implementation, fallback to terraform version: %s", terraformVersion)
+		l.Warnf(
+			"Failed to identify Terraform implementation, fallback to terraform version: %s",
+			terraformVersion,
+		)
 	} else {
 		l.Debugf("%s version: %s", tfImplementation, terraformVersion)
 	}
@@ -180,7 +187,10 @@ func GetTFVersion(
 
 // CheckTerragruntVersionMeetsConstraint checks that the current version of
 // Terragrunt meets the specified constraint and returns an error if it doesn't.
-func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
+func CheckTerragruntVersionMeetsConstraint(
+	currentVersion *version.Version,
+	constraint string,
+) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
 		return err
@@ -198,7 +208,10 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 	}
 
 	if !versionConstraint.Check(checkedVersion) {
-		return InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint}
+		return InvalidTerragruntVersion{
+			CurrentVersion:     currentVersion,
+			VersionConstraints: versionConstraint,
+		}
 	}
 
 	return nil
@@ -206,14 +219,20 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 
 // CheckTerraformVersionMeetsConstraint checks that the current version of
 // Terraform meets the specified constraint and returns an error if it doesn't.
-func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
+func CheckTerraformVersionMeetsConstraint(
+	currentVersion *version.Version,
+	constraint string,
+) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
 		return err
 	}
 
 	if !versionConstraint.Check(currentVersion) {
-		return InvalidTerraformVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint}
+		return InvalidTerraformVersion{
+			CurrentVersion:     currentVersion,
+			VersionConstraints: versionConstraint,
+		}
 	}
 
 	return nil

@@ -119,7 +119,8 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 		return nil
 	})
 
-	if err := errGroup.Wait(); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
+	if err := errGroup.Wait(); err != nil && !errors.Is(err, io.EOF) &&
+		!errors.Is(err, context.Canceled) {
 		return err
 	}
 

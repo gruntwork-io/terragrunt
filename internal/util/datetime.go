@@ -47,12 +47,21 @@ func ParseTimestamp(ts string) (time.Time, error) {
 			case "Z07:00":
 				what = "UTC offset"
 			case "T":
-				return time.Time{}, errors.New("not a valid RFC3339 timestamp: missing required time introducer 'T'")
+				return time.Time{}, errors.New(
+					"not a valid RFC3339 timestamp: missing required time introducer 'T'",
+				)
 			case ":", "-":
 				if err.ValueElem == "" {
-					return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: end of string where %q is expected", err.LayoutElem)
+					return time.Time{}, fmt.Errorf(
+						"not a valid RFC3339 timestamp: end of string where %q is expected",
+						err.LayoutElem,
+					)
 				} else {
-					return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: found %q where %q is expected", err.ValueElem, err.LayoutElem)
+					return time.Time{}, fmt.Errorf(
+						"not a valid RFC3339 timestamp: found %q where %q is expected",
+						err.ValueElem,
+						err.LayoutElem,
+					)
 				}
 			default:
 				// Should never get here, because time.RFC3339 includes only the
@@ -62,9 +71,16 @@ func ParseTimestamp(ts string) (time.Time, error) {
 			}
 
 			if err.ValueElem == "" {
-				return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: end of string before %s", what)
+				return time.Time{}, fmt.Errorf(
+					"not a valid RFC3339 timestamp: end of string before %s",
+					what,
+				)
 			} else {
-				return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: cannot use %q as %s", err.ValueElem, what)
+				return time.Time{}, fmt.Errorf(
+					"not a valid RFC3339 timestamp: cannot use %q as %s",
+					err.ValueElem,
+					what,
+				)
 			}
 		}
 

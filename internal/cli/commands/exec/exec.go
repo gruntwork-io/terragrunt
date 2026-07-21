@@ -83,14 +83,31 @@ func runTargetCommand(
 
 	runOpts := configbridge.NewRunOptions(opts)
 
-	return run.RunActionWithHooks(ctx, l, v, command, runOpts, cfg, r, func(ctx context.Context) error {
-		_, err := shell.RunCommandWithOutput(
-			ctx, l, v, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to run command in directory %s: %w", dir, err)
-		}
+	return run.RunActionWithHooks(
+		ctx,
+		l,
+		v,
+		command,
+		runOpts,
+		cfg,
+		r,
+		func(ctx context.Context) error {
+			_, err := shell.RunCommandWithOutput(
+				ctx,
+				l,
+				v,
+				configbridge.ShellRunOptsFromOpts(opts),
+				dir,
+				false,
+				false,
+				command,
+				cmdArgs...,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to run command in directory %s: %w", dir, err)
+			}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }

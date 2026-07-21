@@ -25,7 +25,12 @@ import (
 )
 
 // RunGenerate runs the stack command.
-func RunGenerate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func RunGenerate(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
 
 	if opts.NoStackGenerate {
@@ -47,7 +52,11 @@ func RunGenerate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.T
 			return clean.CleanStacks(l, opts)
 		})
 		if err != nil {
-			return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
+			return fmt.Errorf(
+				"failed to clean stack directories under %q: %w",
+				opts.WorkingDir,
+				err,
+			)
 		}
 	}
 
@@ -92,7 +101,14 @@ func RunGenerate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.T
 
 	// After generation, hint when a literal stack filter left nested stacks ungenerated.
 	funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
-	tips.GiveStackNestedGenerateTip(l, vfs.NewOSFS(), funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
+	tips.GiveStackNestedGenerateTip(
+		l,
+		vfs.NewOSFS(),
+		funcsFor,
+		opts.WorkingDir,
+		opts.Filters,
+		opts.Tips,
+	)
 
 	return nil
 }
@@ -115,7 +131,13 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 }
 
 // RunOutput stack output.
-func RunOutput(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, index string) error {
+func RunOutput(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	index string,
+) error {
 	opts.StackAction = "output"
 	opts.TerraformCommand = "output" // required for discovery exclude action matching in StackOutput
 

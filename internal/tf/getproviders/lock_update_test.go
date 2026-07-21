@@ -76,11 +76,21 @@ func TestUpdateLockfileDoesNotMutateHardlinkedStore(t *testing.T) {
 
 	storeContent, err := os.ReadFile(storePath)
 	require.NoError(t, err)
-	assert.Equal(t, readOnlyLockfileContents, string(storeContent), "store blob content must stay intact")
+	assert.Equal(
+		t,
+		readOnlyLockfileContents,
+		string(storeContent),
+		"store blob content must stay intact",
+	)
 
 	storeInfoAfter, err := os.Stat(storePath)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0444), storeInfoAfter.Mode().Perm(), "store blob must stay read-only")
+	assert.Equal(
+		t,
+		os.FileMode(0444),
+		storeInfoAfter.Mode().Perm(),
+		"store blob must stay read-only",
+	)
 
 	targetInfo, err := os.Stat(lockfilePath)
 	require.NoError(t, err)

@@ -66,7 +66,12 @@ func TestParseTerraformVersionWithoutV(t *testing.T) {
 
 func TestParseTerraformVersionWithDebug(t *testing.T) {
 	t.Parallel()
-	testParseTerraformVersion(t, "Terraform v0.9.4 cad024a5fe131a546936674ef85445215bbc4226", "v0.9.4", nil)
+	testParseTerraformVersion(
+		t,
+		"Terraform v0.9.4 cad024a5fe131a546936674ef85445215bbc4226",
+		"v0.9.4",
+		nil,
+	)
 }
 
 func TestParseTerraformVersionWithChanges(t *testing.T) {
@@ -96,7 +101,12 @@ func TestParseTerraformVersionWithUnexpectedName(t *testing.T) {
 
 func TestParseTerraformVersionInvalidSyntax(t *testing.T) {
 	t.Parallel()
-	testParseTerraformVersion(t, "invalid-syntax", "", run.InvalidTerraformVersionSyntax("invalid-syntax"))
+	testParseTerraformVersion(
+		t,
+		"invalid-syntax",
+		"",
+		run.InvalidTerraformVersionSyntax("invalid-syntax"),
+	)
 }
 
 func testCheckTerraformVersionMeetsConstraint(
@@ -124,7 +134,12 @@ func testCheckTerraformVersionMeetsConstraint(
 	}
 }
 
-func testParseTerraformVersion(t *testing.T, versionString string, expectedVersion string, expectedErr error) {
+func testParseTerraformVersion(
+	t *testing.T,
+	versionString string,
+	expectedVersion string,
+	expectedErr error,
+) {
 	t.Helper()
 
 	actualVersion, actualErr := run.ParseTerraformVersion(versionString)
@@ -217,9 +232,14 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// First call mirrors what setupAutoProviderCacheDir does before
 	// terraform_binary is read from HCL: TFPath is still the auto-detected
 	// "tofu", and the OpenTofu version gets resolved and cached.
-	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, venvtest.New().WithExec(e), run.PopulateTFVersionInput{
-		TFOpts: tfOpts("tofu"),
-	})
+	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(
+		ctx,
+		l,
+		venvtest.New().WithExec(e),
+		run.PopulateTFVersionInput{
+			TFOpts: tfOpts("tofu"),
+		},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, tfimpl.OpenTofu, tofuImpl)
 	assert.Equal(t, "1.9.0", tofuVer.String())
@@ -265,7 +285,10 @@ func testCheckTerragruntVersionMeetsConstraint(
 		t.Fatalf("Expected Terragrunt version %s to meet constraint %s, but got error: %v",
 			currentVersion, versionConstraint, err)
 	} else if !versionMeetsConstraint && err == nil {
-		t.Fatalf("Expected Terragrunt version %s to NOT meet constraint %s, but got back a nil error",
-			currentVersion, versionConstraint)
+		t.Fatalf(
+			"Expected Terragrunt version %s to NOT meet constraint %s, but got back a nil error",
+			currentVersion,
+			versionConstraint,
+		)
 	}
 }

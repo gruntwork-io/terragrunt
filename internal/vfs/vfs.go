@@ -157,7 +157,8 @@ func EvalSymlinks(fsys FS, path string) (string, error) {
 // The final path component is not checked, so callers can safely remove a leaf symlink.
 func ParentPathHasSymlink(fsys FS, rootDir, rel string) (bool, error) {
 	rel = filepath.Clean(rel)
-	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." ||
+		strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return true, nil
 	}
 
@@ -935,7 +936,8 @@ func (state *symlinkWalkState) nextComponent() (string, int, bool) {
 }
 
 func (state *symlinkWalkState) processComponent(fsys FS, part string, end int) (bool, error) {
-	isWindowsDot := runtime.GOOS == "windows" && state.path[len(filepath.VolumeName(state.path)):] == "."
+	isWindowsDot := runtime.GOOS == "windows" &&
+		state.path[len(filepath.VolumeName(state.path)):] == "."
 	if part == "." && !isWindowsDot {
 		state.start = end
 
@@ -964,7 +966,8 @@ func (state *symlinkWalkState) processComponent(fsys FS, part string, end int) (
 }
 
 func (state *symlinkWalkState) appendPart(part string) {
-	if len(state.dest) > len(filepath.VolumeName(state.dest)) && !os.IsPathSeparator(state.dest[len(state.dest)-1]) {
+	if len(state.dest) > len(filepath.VolumeName(state.dest)) &&
+		!os.IsPathSeparator(state.dest[len(state.dest)-1]) {
 		state.dest += string(os.PathSeparator)
 	}
 
@@ -981,7 +984,11 @@ func (state *symlinkWalkState) processRegularComponent(info os.FileInfo, end int
 	return true, nil
 }
 
-func (state *symlinkWalkState) processSymlinkComponent(fsys FS, end int, isWindowsDot bool) (bool, error) {
+func (state *symlinkWalkState) processSymlinkComponent(
+	fsys FS,
+	end int,
+	isWindowsDot bool,
+) (bool, error) {
 	state.linksWalked++
 	if state.linksWalked > maxSymlinkEvaluations {
 		return false, errors.New("EvalSymlinks: too many links")
@@ -1121,7 +1128,10 @@ func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 			return nil, err
 		}
 
-		slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+		slices.SortFunc(
+			entries,
+			func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) },
+		)
 
 		return entries, nil
 	}
@@ -1137,7 +1147,10 @@ func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 		entries[i] = FileInfoDirEntry{FileInfo: info}
 	}
 
-	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	slices.SortFunc(
+		entries,
+		func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) },
+	)
 
 	return entries, nil
 }

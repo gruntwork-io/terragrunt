@@ -72,12 +72,19 @@ unit  b-unit
 			args = append(args, tc.args...)
 			args = append(args, "--working-dir", tc.workingDir)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, strings.Join(args, " "))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				strings.Join(args, " "),
+			)
 
 			require.NoError(t, err)
 
 			if tc.unnecessaryExperimentFlag {
-				require.Contains(t, stderr, "The following experiment(s) are already completed: cli-redesign. Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://docs.terragrunt.com/reference/experiments")
+				require.Contains(
+					t,
+					stderr,
+					"The following experiment(s) are already completed: cli-redesign. Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://docs.terragrunt.com/reference/experiments",
+				)
 			} else {
 				require.Empty(t, stderr)
 			}
@@ -141,7 +148,10 @@ unit  units/live/prod/vpc
 			args = append(args, tc.args...)
 			args = append(args, "--working-dir", tc.workingDir)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, strings.Join(args, " "))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				strings.Join(args, " "),
+			)
 			require.NoError(t, err)
 			require.Empty(t, stderr)
 
@@ -197,7 +207,10 @@ unit  unit3
 			args = append(args, tc.args...)
 			args = append(args, "--working-dir", testFixtureFindExclude)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, strings.Join(args, " "))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				strings.Join(args, " "),
+			)
 			require.NoError(t, err)
 			require.Empty(t, stderr)
 			assert.Equal(t, tc.expectedOutput, stdout)
