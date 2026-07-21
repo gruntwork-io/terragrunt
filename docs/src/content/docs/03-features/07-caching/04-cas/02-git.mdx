@@ -8,6 +8,7 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 <Before version="1.1.0">
 <Aside type="tip" title="Experimental">
@@ -20,6 +21,18 @@ Git is the most common source Terragrunt fetches and has the richest support in 
 ## Overview
 
 A Git source is identified by a remote URL and a ref (a branch, tag, or commit). Terragrunt resolves that ref to a commit hash, which serves as both the cache key and the Git object name it fetches. Content keeps Git's native content addressing, so identical objects are shared across repositories and refs.
+
+## Source URL parameters
+
+A Git source URL may carry go-getter query parameters that Terragrunt consumes to resolve the source rather than passing them through to `git`.
+
+- **`ref`** selects the revision — a branch, tag, or commit — to resolve and check out, for example `...vpc.git?ref=v5.21.0`.
+
+<Since version="1.1.2">
+
+- **`depth`** requests a shallow clone and overrides the ambient `--cas-clone-depth` for that source, for example `...vpc.git?ref=v5.21.0&depth=1`. Like `ref`, it is a go-getter parameter rather than a native Git URL parameter, so the CAS strips it from the URL before invoking `git` — otherwise `git` would treat a trailing `?depth=1` as part of the repository name and reject the clone. Only positive integers take effect; other values fall back to the ambient depth. Because the ambient default is already `1` (a shallow clone of the resolved commit), `?depth=1` only changes behavior when the ambient depth has been widened (for example `--cas-clone-depth=-1` for full history).
+
+</Since>
 
 ## The cheap probe
 
