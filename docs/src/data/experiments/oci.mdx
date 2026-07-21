@@ -33,8 +33,11 @@ Without it, the static credentials may be offered to any registry the process
 contacts, so scope them or avoid setting them when talking to unrelated or
 untrusted registries. Credential helpers configured in the Docker config (`credHelpers` and
 `credsStore`, such as `ecr-login`) are invoked and re-minted on every run, so
-ECR and other helper-backed registries work without a baked-in login. When the
-experiment is disabled, `oci://` sources remain unsupported.
+ECR and other helper-backed registries work without a baked-in login.
+Configured credentials from OpenTofu's CLI config (`oci_credentials` and
+`oci_default_credentials` in `.tofurc` / `.terraformrc`) are honored too, and
+take precedence over ambient discovery, so one configuration serves both tools.
+When the experiment is disabled, `oci://` sources remain unsupported.
 
 ### `oci` - How to enable it
 

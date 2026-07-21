@@ -152,45 +152,75 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	}
 }
 
-// ociCredentialFunc resolves static environment credentials, falling back to
-// ambient discovery through the Venv.
+// ociCredentialFunc resolves credentials in precedence order: static
+// environment credentials (Tier-1), then OpenTofu CLI-config oci_credentials
+// blocks (Tier-3), then ambient Docker/containers discovery and its helpers
+// (Tier-2 / Tier-1b).
 func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) {
 	staticCred, found, err := ociStaticCredential(v)
 	if err != nil {
 		return nil, err
 	}
 
+	staticApplies := ociStaticCredentialScope(v, found)
+	tofu := loadOCITofuCredentials(l, v)
 	ambient := ociAmbientCredentialFunc(l, v)
-
-	if !found {
-		return ambient, nil
-	}
-
-	if v.Env[EnvOCIRegistry] == "" {
-		// Unscoped: the credential applies to every registry the run contacts.
-		return func(_ string) auth.CredentialFunc {
-			return func(_ context.Context, _ string) (auth.Credential, error) {
-				return staticCred, nil
-			}
-		}, nil
-	}
-
-	// Scoped: static serves its registry, the rest still resolve ambient. The
-	// env value is canonicalized like ambient keys so spellings such as
-	// https://ghcr.io or a trailing slash match the requested host.
-	scopedRegistry := ociCanonicalAuthKey(v.Env[EnvOCIRegistry])
 
 	return func(repositoryName string) auth.CredentialFunc {
 		ambientFn := ambient(repositoryName)
 
 		return func(ctx context.Context, hostport string) (auth.Credential, error) {
-			if ociCanonicalAuthKey(hostport) == scopedRegistry {
+			if staticApplies(hostport) {
 				return staticCred, nil
 			}
 
-			return ambientFn(ctx, hostport)
+			// Tier-3: per-registry oci_credentials blocks are the most specific
+			// configured source, so they win over ambient discovery.
+			if cred, err := tofu.repoCredential(ctx, v, hostport, repositoryName); err != nil || cred != auth.EmptyCredential {
+				return cred, err
+			}
+
+			// Ambient discovery, unless the tofu config disabled it.
+			if tofu.discoverAmbient {
+				if cred, err := ambientFn(ctx, hostport); err != nil || cred != auth.EmptyCredential {
+					return cred, err
+				}
+			}
+
+			// The oci_default_credentials helper is the lowest-priority fallback,
+			// matching OpenTofu's global-helper specificity below ambient.
+			if tofu.defaultHelper != "" {
+				return ociCredentialFromHelper(ctx, v, ociHelperEntry{
+					suffix:        tofu.defaultHelper,
+					serverAddress: hostport,
+					explicit:      true,
+				})
+			}
+
+			return auth.EmptyCredential, nil
 		}
 	}, nil
+}
+
+// ociStaticCredentialScope reports, for each host, whether the static
+// credential applies: never when none is set, every host when unscoped, and
+// only the canonicalized scoped registry otherwise.
+func ociStaticCredentialScope(v venv.Venv, found bool) func(hostport string) bool {
+	if !found {
+		return func(string) bool { return false }
+	}
+
+	if v.Env[EnvOCIRegistry] == "" {
+		return func(string) bool { return true }
+	}
+
+	// The env value is canonicalized like ambient keys so spellings such as
+	// https://ghcr.io or a trailing slash match the requested host.
+	scopedRegistry := ociCanonicalAuthKey(v.Env[EnvOCIRegistry])
+
+	return func(hostport string) bool {
+		return ociCanonicalAuthKey(hostport) == scopedRegistry
+	}
 }
 
 // ociStaticCredential reads a token or a username plus password from v.Env.
@@ -339,6 +369,16 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 // AWS role for ecr-login) reach the helper. A not-in-keychain result is empty,
 // not an error. The helper's secret output is never placed in a returned error.
 func ociCredentialFromHelper(ctx context.Context, v venv.Venv, entry ociHelperEntry) (auth.Credential, error) {
+	// Reject a helper name with a path separator up front: exec.LookPath would
+	// treat it as a filesystem path and run a non-PATH binary.
+	if !ociValidHelperName(entry.suffix) {
+		return auth.EmptyCredential, OCICredentialHelperError{
+			Helper:   entry.suffix,
+			Registry: entry.serverAddress,
+			Err:      errOCIInvalidHelperName,
+		}
+	}
+
 	bin := ociCredentialHelperPrefix + entry.suffix
 
 	if _, err := v.Exec.LookPath(bin); err != nil {
