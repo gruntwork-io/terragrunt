@@ -280,19 +280,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return ErrOCIGetterNotConfigured
 	}
 
-	srcURL := req.URL()
-
-	registryDomain := srcURL.Host
-	if registryDomain == "" {
-		return ErrOCIMissingRegistryDomain
-	}
-
-	repositoryName, subDir := SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
-	if repositoryName == "" {
-		return ErrOCIMissingRepositoryName
-	}
-
-	ref, err := ociRefFromQuery(srcURL.Query())
+	registryDomain, repositoryName, subDir, ref, err := parseOCISource(req.URL())
 	if err != nil {
 		return err
 	}
@@ -359,6 +347,27 @@ func validateOCIQueryParams(queryValues url.Values) error {
 	}
 
 	return nil
+}
+
+// parseOCISource splits an oci source URL into registry coordinates, the
+// subdir selector, and the validated reference to resolve.
+func parseOCISource(srcURL *url.URL) (registryDomain, repositoryName, subDir, ref string, err error) {
+	registryDomain = srcURL.Host
+	if registryDomain == "" {
+		return "", "", "", "", ErrOCIMissingRegistryDomain
+	}
+
+	repositoryName, subDir = SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
+	if repositoryName == "" {
+		return "", "", "", "", ErrOCIMissingRepositoryName
+	}
+
+	ref, err = ociRefFromQuery(srcURL.Query())
+	if err != nil {
+		return "", "", "", "", err
+	}
+
+	return registryDomain, repositoryName, subDir, ref, nil
 }
 
 // ociRefFromQuery validates the source query and returns the reference to
