@@ -253,7 +253,10 @@ func Prepare(
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "scaffold_get_module", map[string]any{
 		"module_url": resolvedURL,
 	}, func(ctx context.Context, l log.Logger) error {
-		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
+		getterOpts := getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			WithTofuImplementation(opts.TofuImplementation))
+
+		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL, getterOpts); getErr != nil {
 			return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 		}
 
@@ -581,7 +584,10 @@ func downloadTemplate(
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "scaffold_get_template", map[string]any{
 		"template_url": baseURL.String(),
 	}, func(ctx context.Context, l log.Logger) error {
-		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+		getterOpts := getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			WithTofuImplementation(opts.TofuImplementation))
+
+		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String(), getterOpts); getErr != nil {
 			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
 		}
 
@@ -750,29 +756,27 @@ func rewriteModuleURL(
 		sourceURLType = fmt.Sprintf("%s", value)
 	}
 
-	// expand module url
-	parsedValue, err := parseURL(l, moduleURL)
-	if err != nil {
-		l.Warnf("Failed to parse module url %s", moduleURL)
-
-		parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
+	// The scheme/host/path regex below only matters for the git-ssh rewrite.
+	// For every other source URL type, moduleURL is already a successfully
+	// parsed URL (from tf.ToSourceURL upstream), so skip the regex parse
+	// entirely rather than logging a misleading "Failed to parse url" for
+	// schemes it was never meant to handle (tfr://, s3://, plain https://, ...).
+	if sourceURLType == sourceURLTypeGit {
+		parsedValue, err := parseURL(l, moduleURL)
 		if err != nil {
-			return nil, err
-		}
+			l.Warnf("Failed to parse module url %s", moduleURL)
+		} else if parsedValue.scheme == "https" {
+			// try to rewrite module url if is https and is requested to be git
+			// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+			// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+			gitUser := sourceGitSSHUser
+			if value, found := vars[sourceGitSSHUserVar]; found {
+				gitUser = fmt.Sprintf("%s", value)
+			}
 
-		return parsedModuleURL, nil
-	}
-	// try to rewrite module url if is https and is requested to be git
-	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
-	// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
-	if parsedValue.scheme == "https" && sourceURLType == sourceURLTypeGit {
-		gitUser := sourceGitSSHUser
-		if value, found := vars[sourceGitSSHUserVar]; found {
-			gitUser = fmt.Sprintf("%s", value)
+			path := strings.TrimPrefix(parsedValue.path, "/")
+			updatedModuleURL = fmt.Sprintf("%s@%s:%s", gitUser, parsedValue.host, path)
 		}
-
-		path := strings.TrimPrefix(parsedValue.path, "/")
-		updatedModuleURL = fmt.Sprintf("%s@%s:%s", gitUser, parsedValue.host, path)
 	}
 
 	// persist changes in url.URL
@@ -855,6 +859,14 @@ func addRefToModuleURL(
 			return nil, err
 		}
 
+		// Non-git schemes (registry, cloud storage, HTTP, OCI, local paths) have no
+		// git tags to look up, and shelling out to `git ls-remote` against them
+		// fails with a confusing "not a git command" error.
+		if !isGitShapedScheme(rootSourceURL.Scheme) {
+			l.Debugf("Skipping git tag lookup for non-git source URL: %s", rootSourceURL)
+			return moduleURL, nil
+		}
+
 		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
@@ -865,6 +877,26 @@ func addRefToModuleURL(
 	}
 
 	return moduleURL, nil
+}
+
+// isGitShapedScheme reports whether scheme belongs to a source that git
+// understands, so a `git ls-remote` tag lookup makes sense. Forced-getter
+// URLs (git::..., s3::..., gcs::...) carry the getter name as a "::"
+// separated scheme segment; a bare scheme (tfr, oci, http, https, ...) with
+// no "git"/"ssh" segment means the URL was never detected as a git remote,
+// and shelling out to git for it just fails with a confusing error.
+func isGitShapedScheme(scheme string) bool {
+	if scheme == "" || scheme == "file" {
+		return true
+	}
+
+	for _, part := range strings.Split(scheme, "::") {
+		if part == "git" || part == "ssh" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // parseURL parses module url to scheme, host and path
