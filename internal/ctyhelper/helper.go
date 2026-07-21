@@ -104,6 +104,23 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 		if len(sliceVals) > 0 {
 			updatedValue = sliceVals
 		}
+
+	case value.Type().IsSetType():
+		setVals := value.AsValueSlice()
+		for key, val := range setVals {
+			val, err := UpdateUnknownCtyValValues(val)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			setVals[key] = val
+		}
+
+		if len(setVals) > 0 {
+			return cty.SetVal(setVals), nil
+		}
+
+		return cty.SetValEmpty(value.Type().ElementType()), nil
 	}
 
 	if updatedValue == nil {

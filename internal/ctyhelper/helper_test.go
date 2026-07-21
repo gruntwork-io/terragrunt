@@ -81,3 +81,75 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateUnknownCtyValValuesWithSets(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value         cty.Value
+		expectedValue cty.Value
+		name          string
+	}{
+		{
+			name:          "set with unknown string elements",
+			value:         cty.SetVal([]cty.Value{cty.UnknownVal(cty.String)}),
+			expectedValue: cty.SetVal([]cty.Value{cty.StringVal("")}),
+		},
+		{
+			name: "set with mixed known and unknown elements",
+			value: cty.SetVal([]cty.Value{
+				cty.StringVal("known-value"),
+				cty.UnknownVal(cty.String),
+			}),
+			expectedValue: cty.SetVal([]cty.Value{
+				cty.StringVal("known-value"),
+				cty.StringVal(""),
+			}),
+		},
+		{
+			name:          "empty set",
+			value:         cty.SetValEmpty(cty.String),
+			expectedValue: cty.SetValEmpty(cty.String),
+		},
+		{
+			name: "object containing a set with unknown elements",
+			value: cty.ObjectVal(map[string]cty.Value{
+				"my_test_variable": cty.SetVal([]cty.Value{
+					cty.UnknownVal(cty.String),
+					cty.UnknownVal(cty.String),
+				}),
+			}),
+			expectedValue: cty.ObjectVal(map[string]cty.Value{
+				"my_test_variable": cty.SetVal([]cty.Value{
+					cty.StringVal(""),
+				}),
+			}),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actualValue, err := ctyhelper.UpdateUnknownCtyValValues(tc.value)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedValue, actualValue)
+		})
+	}
+}
+
+func TestParseCtyValueToMapWithSets(t *testing.T) {
+	t.Parallel()
+
+	input := cty.ObjectVal(map[string]cty.Value{
+		"my_test_variable": cty.SetVal([]cty.Value{
+			cty.UnknownVal(cty.String),
+			cty.UnknownVal(cty.String),
+		}),
+	})
+
+	result, err := ctyhelper.ParseCtyValueToMap(input)
+	require.NoError(t, err)
+	require.Contains(t, result, "my_test_variable")
+}

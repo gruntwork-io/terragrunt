@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Inputs using `toset()` no longer fail validation
+
+Running `terragrunt hcl validate --inputs` on a configuration that wrapped dependency outputs in `toset()` failed with `failed to serialize value: value is not known`. This happened because the internal function that replaces unknown cty values with placeholder defaults before JSON serialization did not handle set-typed values, so unknown elements inside sets were passed through to the JSON marshaller unchanged.
+
+The function now recurses into set elements, replacing any unknown values with defaults, then reconstructs the set. Inputs using `toset()`, `tolist()`, and other collection functions with dependency outputs now validate correctly.

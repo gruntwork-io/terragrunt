@@ -163,3 +163,21 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 	err = validate.RunValidateInputs(t.Context(), l, v, opts)
 	require.NoError(t, err)
 }
+
+func TestRunValidateInputsWithTosetDependencyOutputs(t *testing.T) {
+	t.Parallel()
+
+	fixtureDir, err := filepath.Abs("../../../../../test/fixtures/validate-inputs/success-toset-dependency/consumer")
+	require.NoError(t, err)
+
+	v := venvtest.New().WithFS(vfs.NewOSFS())
+	l := logger.CreateLogger()
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(fixtureDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = fixtureDir
+
+	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	require.NoError(t, err)
+}
