@@ -125,6 +125,21 @@ func TestUpdateUnknownCtyValValuesWithSets(t *testing.T) {
 				}),
 			}),
 		},
+		{
+			name:          "set with unknown number elements",
+			value:         cty.SetVal([]cty.Value{cty.NumberIntVal(42), cty.UnknownVal(cty.Number)}),
+			expectedValue: cty.SetVal([]cty.Value{cty.NumberIntVal(42), cty.NumberIntVal(0)}),
+		},
+		{
+			name:          "set with unknown bool elements",
+			value:         cty.SetVal([]cty.Value{cty.True, cty.UnknownVal(cty.Bool)}),
+			expectedValue: cty.SetVal([]cty.Value{cty.True, cty.False}),
+		},
+		{
+			name:          "marked set with unknown elements",
+			value:         cty.SetVal([]cty.Value{cty.UnknownVal(cty.String)}).Mark("sensitive"),
+			expectedValue: cty.SetVal([]cty.Value{cty.StringVal("")}).Mark("sensitive"),
+		},
 	}
 
 	for _, tc := range testCases {

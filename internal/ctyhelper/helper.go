@@ -72,7 +72,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	switch {
 	case !value.IsKnown():
-		return cty.StringVal(""), nil
+		return unknownDefault(value.Type()), nil
 	case value.IsNull():
 		return value, nil
 	case value.Type().IsMapType(), value.Type().IsObjectType():
@@ -106,7 +106,9 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 		}
 
 	case value.Type().IsSetType():
-		setVals := value.AsValueSlice()
+		unmarked, marks := value.Unmark()
+
+		setVals := unmarked.AsValueSlice()
 		for key, val := range setVals {
 			val, err := UpdateUnknownCtyValValues(val)
 			if err != nil {
@@ -116,11 +118,11 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			setVals[key] = val
 		}
 
-		if len(setVals) > 0 {
-			return cty.SetVal(setVals), nil
+		if len(setVals) == 0 {
+			return cty.SetValEmpty(value.Type().ElementType()).WithMarks(marks), nil
 		}
 
-		return cty.SetValEmpty(value.Type().ElementType()), nil
+		return cty.SetVal(setVals).WithMarks(marks), nil
 	}
 
 	if updatedValue == nil {
@@ -133,4 +135,15 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	}
 
 	return value, nil
+}
+
+func unknownDefault(ty cty.Type) cty.Value {
+	switch ty {
+	case cty.Number:
+		return cty.NumberIntVal(0)
+	case cty.Bool:
+		return cty.False
+	default:
+		return cty.StringVal("")
+	}
 }

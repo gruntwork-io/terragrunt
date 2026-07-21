@@ -1,0 +1,8 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Set-typed inputs no longer fail validation
+
+Running `terragrunt hcl validate --inputs` on a unit whose inputs contained a set (e.g. `toset([dependency.x.outputs.id, ...])`) failed with `failed to serialize value: value is not known`. Set-typed values with unresolved dependency outputs are now handled correctly during validation.
