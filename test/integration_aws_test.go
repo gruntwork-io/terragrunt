@@ -58,6 +58,8 @@ const (
 	testFixtureS3BackendUseLockfile              = "fixtures/s3-backend/use-lockfile"
 	testFixtureS3BackendDisableInit              = "fixtures/s3-backend-disable-init"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
+	testFixtureIamRoleAttrEnvCreds               = "fixtures/assume-role/iam-role-attr-env-creds"
+	testFixtureIamRoleFlagEnvCreds               = "fixtures/assume-role/flag-env-creds"
 
 	// Fixtures referenced only by AWS-gated tests. They live here, rather than in
 	// their untagged sibling files, so the unused check does not flag them when
@@ -2264,6 +2266,104 @@ func TestAwsAssumeRoleDuration(t *testing.T) {
 	assert.NotContains(t, output, "Initializing the backend...")
 	assert.NotContains(t, output, "has been successfully initialized!")
 	assert.Contains(t, output, "no changes are needed.")
+}
+
+// TestAwsIamRoleAttrWithAmbientCredentials runs a unit whose role comes from the iam_role
+// attribute while the run's ambient AWS credentials can assume that role. Terragrunt assumes the
+// role once up front and must reuse that session for its own backend operations: a second
+// assumption would ask the role to assume itself, which STS rejects unless the role's trust
+// policy includes the role.
+func TestAwsIamRoleAttrWithAmbientCredentials(t *testing.T) {
+	t.Parallel()
+
+	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
+	if len(assumeRole) == 0 {
+		t.Error("AWS_TEST_S3_ASSUME_ROLE environment variable not set")
+		return
+	}
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIamRoleAttrEnvCreds)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureIamRoleAttrEnvCreds)
+
+	originalTerragruntConfigPath := filepath.Join(testFixtureIamRoleAttrEnvCreds, "terragrunt.hcl")
+	tmpTerragruntConfigFile := filepath.Join(testPath, "terragrunt.hcl")
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		originalTerragruntConfigPath,
+		tmpTerragruntConfigFile,
+		map[string]string{
+			"__FILL_IN_BUCKET_NAME__": s3BucketName,
+			"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
+			"__FILL_IN_ASSUME_ROLE__": assumeRole,
+		},
+	)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --backend-bootstrap --working-dir "+testPath,
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
+
+	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
+	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+}
+
+// TestAwsIamRoleFlagWithAmbientCredentials is the --iam-assume-role flag variant of
+// [TestAwsIamRoleAttrWithAmbientCredentials]: same S3 backend without its own assume_role, with
+// the role supplied on the command line instead of the iam_role attribute.
+func TestAwsIamRoleFlagWithAmbientCredentials(t *testing.T) {
+	t.Parallel()
+
+	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
+	if len(assumeRole) == 0 {
+		t.Error("AWS_TEST_S3_ASSUME_ROLE environment variable not set")
+		return
+	}
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIamRoleFlagEnvCreds)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureIamRoleFlagEnvCreds)
+
+	originalTerragruntConfigPath := filepath.Join(testFixtureIamRoleFlagEnvCreds, "terragrunt.hcl")
+	tmpTerragruntConfigFile := filepath.Join(testPath, "terragrunt.hcl")
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		originalTerragruntConfigPath,
+		tmpTerragruntConfigFile,
+		map[string]string{
+			"__FILL_IN_BUCKET_NAME__": s3BucketName,
+			"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
+		},
+	)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --backend-bootstrap --iam-assume-role "+
+			assumeRole+" --working-dir "+testPath,
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
+
+	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
+	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
