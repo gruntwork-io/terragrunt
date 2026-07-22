@@ -34,7 +34,7 @@ func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResol
 		tfr.WithTofuImplementation(cfg.tfrImpl)
 	}
 
-	return map[string]SourceResolver{
+	resolvers := map[string]SourceResolver{
 		SchemeHTTP:  NewHTTPResolver(),
 		SchemeHTTPS: NewHTTPSResolver(),
 		SchemeS3:    NewS3Resolver(),
@@ -42,4 +42,12 @@ func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResol
 		SchemeHg:    NewHgResolver(),
 		SchemeTFR:   tfr,
 	}
+
+	// Registered only alongside the oci fetcher, sharing its store seam so
+	// probe and fetch use one credential discovery and auth cache.
+	if cfg.ociLogger != nil {
+		resolvers[SchemeOCI] = NewOCIResolver(cfg.ociNewStore)
+	}
+
+	return resolvers
 }

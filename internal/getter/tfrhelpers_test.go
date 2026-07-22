@@ -4,13 +4,140 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestVersionResolverMemoizesWithRacing pins that concurrent and repeated
+// resolutions for the same module and constraint query the registry's
+// list-versions endpoint exactly once.
+func TestVersionResolverMemoizesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	var versionsHits atomic.Int64
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
+		assert.NoError(t, err)
+	})
+	mux.HandleFunc(
+		"/v1/modules/foo/bar/baz/versions",
+		func(w http.ResponseWriter, _ *http.Request) {
+			versionsHits.Add(1)
+
+			_, err := w.Write(
+				[]byte(`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"}]}]}`),
+			)
+			assert.NoError(t, err)
+		},
+	)
+
+	server := httptest.NewTLSServer(mux)
+	t.Cleanup(server.Close)
+
+	resolver := getter.NewVersionResolver().WithHTTPClient(server.Client())
+	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
+
+	var wg sync.WaitGroup
+
+	for range 10 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			pinned, err := resolver.Pin(
+				t.Context(), logger.CreateLogger(), tfimpl.OpenTofu, source, "~> 3.0",
+			)
+			assert.NoError(t, err)
+			assert.Equal(t, source+"?version=3.3.0", pinned)
+		}()
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, int64(1), versionsHits.Load())
+}
+
+func TestPinModuleVersion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		constraint string
+		want       string
+	}{
+		{name: "pessimistic major", constraint: "~> 3.0", want: "3.4.0"},
+		{name: "pessimistic minor", constraint: "~> 3.3", want: "3.4.0"},
+		{name: "pessimistic patch", constraint: "~> 3.3.0", want: "3.3.1"},
+		{name: "range", constraint: ">= 3.2.0, < 3.4.0", want: "3.3.1"},
+		{name: "exact as constraint", constraint: "3.2.0", want: "3.2.0"},
+		{name: "prerelease excluded", constraint: ">= 4.0.0", want: "4.0.0"},
+		{name: "prerelease opt-in", constraint: ">= 4.1.0-rc1", want: "4.1.0-rc1"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newRegistryTestServer(t)
+			source := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
+
+			pinned, err := getter.PinModuleVersion(
+				t.Context(), logger.CreateLogger(), server.Client(), tfimpl.OpenTofu, source, tc.constraint,
+			)
+			require.NoError(t, err)
+			assert.Equal(t, source+"?version="+tc.want, pinned)
+		})
+	}
+}
+
+func TestSourceHasVersionConstraint(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		source string
+		want   bool
+	}{
+		{
+			name:   "exact pin",
+			source: "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws?version=3.3.0",
+			want:   false,
+		},
+		{
+			name:   "constraint",
+			source: "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws?version=~> 3.3",
+			want:   true,
+		},
+		{
+			name:   "no version query",
+			source: "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws",
+			want:   false,
+		},
+		{
+			name:   "non-tfr source",
+			source: "git::https://github.com/foo/bar.git?ref=v1.0.0",
+			want:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, getter.SourceHasVersionConstraint(tc.source))
+		})
+	}
+}
 
 func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	t.Parallel()
@@ -154,7 +281,7 @@ func TestGetLatestModuleVersion(t *testing.T) {
 		server.Listener.Addr().String(), "/v1/modules/", "terraform-aws-modules/vpc/aws",
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "3.3.0", latestVersion)
+	assert.Equal(t, "4.0.0", latestVersion)
 }
 
 // TestGetLatestModuleVersionSkipsPrereleases pins the behavior of the
@@ -331,15 +458,19 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 		assert.NoError(t, err)
 	})
 
-	// Serve the list-versions endpoint so TestRegistryGetterWithoutVersion can
-	// resolve the latest version without a ?version= query parameter.
+	// Serve the list-versions endpoint with a realistic spread of minor and
+	// patch lines plus a prerelease, so one server exercises latest-version
+	// resolution (TestRegistryGetterWithoutVersion) and every constraint case
+	// (TestPinModuleVersion).
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/versions",
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, err := w.Write(
 				[]byte(
-					`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"},{"version":"1.0.0"}]}]}`,
+					`{"modules":[{"versions":[` +
+						`{"version":"3.2.0"},{"version":"3.3.0"},{"version":"3.3.1"},` +
+						`{"version":"3.4.0"},{"version":"4.0.0"},{"version":"4.1.0-rc1"}]}]}`,
 				),
 			)
 			assert.NoError(t, err)
@@ -347,7 +478,7 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	)
 
 	mux.HandleFunc(
-		"/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
+		"/v1/modules/terraform-aws-modules/vpc/aws/{version}/download",
 		func(w http.ResponseWriter, r *http.Request) {
 			// Resolve against the request host so the downloader hits the same
 			// test server we are about to shut down at end-of-test.

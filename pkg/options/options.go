@@ -341,16 +341,18 @@ func NewTerragruntOptions() *TerragruntOptions {
 		Parallelism:              DefaultParallelism,
 		JSONOut:                  DefaultJSONOutName,
 		TofuImplementation:       tfimpl.Unknown,
-		ProviderCacheOptions:     pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
-		FeatureFlags:             xsync.NewMap[string, string](),
-		Errors:                   defaultErrorsConfig(),
-		StrictControls:           controls.New(),
-		Experiments:              experiment.NewExperiments(),
-		Tips:                     tips.NewTips(),
-		Telemetry:                new(telemetry.Options),
-		EngineOptions:            new(engine.EngineOptions),
-		VersionManagerFileName:   defaultVersionManagerFileName,
-		CASCloneDepth:            1,
+		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
+			RegistryNames: pcoptions.DefaultRegistryNames,
+		},
+		FeatureFlags:           xsync.NewMap[string, string](),
+		Errors:                 defaultErrorsConfig(),
+		StrictControls:         controls.New(),
+		Experiments:            experiment.NewExperiments(),
+		Tips:                   tips.NewTips(),
+		Telemetry:              new(telemetry.Options),
+		EngineOptions:          new(engine.EngineOptions),
+		VersionManagerFileName: defaultVersionManagerFileName,
+		CASCloneDepth:          1,
 	}
 }
 
@@ -397,7 +399,8 @@ func NewTerragruntOptionsForTest(
 
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).Errorf("%v\n", err)
+		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).
+			Errorf("%v\n", err)
 
 		return nil, err
 	}

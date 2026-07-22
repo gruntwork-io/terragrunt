@@ -197,7 +197,11 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			output, err := codegen.RemoteStateConfigToTerraformCode(tc.backend, tc.config, tc.encryption)
+			output, err := codegen.RemoteStateConfigToTerraformCode(
+				tc.backend,
+				tc.config,
+				tc.encryption,
+			)
 			// validates the first output.
 			if tc.expectErr {
 				require.Error(t, err)
@@ -211,7 +215,11 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 			// runs the function a few of times again. All the outputs must be
 			// equal to the first output.
 			for range 20 {
-				actual, _ := codegen.RemoteStateConfigToTerraformCode(tc.backend, tc.config, tc.encryption)
+				actual, _ := codegen.RemoteStateConfigToTerraformCode(
+					tc.backend,
+					tc.config,
+					tc.encryption,
+				)
 				assert.Equal(t, output, actual)
 			}
 		})
@@ -656,7 +664,12 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 
 	storeInfoAfter, err := os.Stat(storePath)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0444), storeInfoAfter.Mode().Perm(), "store blob must stay read-only")
+	assert.Equal(
+		t,
+		os.FileMode(0444),
+		storeInfoAfter.Mode().Perm(),
+		"store blob must stay read-only",
+	)
 
 	targetInfo, err := os.Stat(targetPath)
 	require.NoError(t, err)

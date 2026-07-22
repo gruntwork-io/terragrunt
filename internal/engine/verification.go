@@ -31,7 +31,12 @@ func verifyFile(checkedFile, checksumsFile, signatureFile string) error {
 		return err
 	}
 
-	_, err = openpgp.CheckDetachedSignature(keyring, bytes.NewReader(checksums), bytes.NewReader(checksumsSignature), nil)
+	_, err = openpgp.CheckDetachedSignature(
+		keyring,
+		bytes.NewReader(checksums),
+		bytes.NewReader(checksumsSignature),
+		nil,
+	)
 	if err != nil {
 		return err
 	}
@@ -55,7 +60,11 @@ func verifyFile(checkedFile, checksumsFile, signatureFile string) error {
 	}
 
 	if !bytes.Equal(expectedSHA256Sum[:], packageChecksum) {
-		return fmt.Errorf("checksum list has unexpected SHA-256 hash %x (expected %x)", packageChecksum, expectedSHA256Sum)
+		return fmt.Errorf(
+			"checksum list has unexpected SHA-256 hash %x (expected %x)",
+			packageChecksum,
+			expectedSHA256Sum,
+		)
 	}
 
 	return nil

@@ -139,7 +139,11 @@ func TestHTTPBackendEncryptionDependencyFails(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "This state file is encrypted and can not be read without an encryption configuration")
+	assert.NotContains(
+		t,
+		stderr,
+		"This state file is encrypted and can not be read without an encryption configuration",
+	)
 }
 
 // runHTTPStateServer starts an HTTP server that implements the Terraform HTTP backend API.

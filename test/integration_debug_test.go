@@ -94,7 +94,10 @@ func TestTerragruntInputsWithDashes(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --working-dir=%s --log-level=debug", rootPath))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf("terragrunt init --working-dir=%s --log-level=debug", rootPath),
+	)
 }
 
 func TestTerragruntValidateInputs(t *testing.T) {
@@ -116,7 +119,12 @@ func TestTerragruntValidateInputs(t *testing.T) {
 			modulePath := filepath.Join(tmpEnvPath, module)
 
 			nameDashSplit := strings.Split(name, "-")
-			helpers.RunTerragruntValidateInputs(t, modulePath, []string{"--strict"}, nameDashSplit[0] == "success")
+			helpers.RunTerragruntValidateInputs(
+				t,
+				modulePath,
+				[]string{"--strict"},
+				nameDashSplit[0] == "success",
+			)
 		})
 	}
 }
@@ -136,7 +144,12 @@ func TestTerragruntValidateInputsWithCLIVarFile(t *testing.T) {
 	require.NoError(t, err)
 
 	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-no-inputs")
-	args := []string{fmt.Sprintf("-var-file=%s/fixtures/validate-inputs/success-var-file/varfiles/main.tfvars", curdir)}
+	args := []string{
+		fmt.Sprintf(
+			"-var-file=%s/fixtures/validate-inputs/success-var-file/varfiles/main.tfvars",
+			curdir,
+		),
+	}
 	helpers.RunTerragruntValidateInputs(t, moduleDir, args, true)
 }
 
@@ -238,8 +251,18 @@ func TestRenderJSONConfig(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --working-dir %s --json-out %s", fixtureRenderJSONMainModulePath, jsonOut))
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt render --json -w --non-interactive --working-dir %s --json-out %s",
+			fixtureRenderJSONMainModulePath,
+			jsonOut,
+		),
+	)
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -351,7 +374,9 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	// which is more important.
 	// TODO: Re-evaluate this test after #5477 is merged. See https://github.com/gruntwork-io/terragrunt/pull/5477
 
-	t.Skip("Skipping this test to avoid blocking the merge of #5477. See https://github.com/gruntwork-io/terragrunt/pull/5477")
+	t.Skip(
+		"Skipping this test to avoid blocking the merge of #5477. See https://github.com/gruntwork-io/terragrunt/pull/5477",
+	)
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
@@ -359,9 +384,18 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureRenderJSONRegression)
 	workDir := filepath.Join(tmpEnvPath, fixtureRenderJSONRegression)
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve")
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve",
+	)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --working-dir %s --json-out ", workDir)+jsonOut)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt render --json -w --non-interactive --working-dir %s --json-out ",
+			workDir,
+		)+jsonOut,
+	)
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -469,9 +503,15 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 	defer os.Remove(bazJSONOut)
 	defer os.Remove(rootChildJSONOut)
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve")
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve",
+	)
 
-	helpers.RunTerragrunt(t, "terragrunt render --all --json -w --non-interactive --working-dir "+workDir)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt render --all --json -w --non-interactive --working-dir "+workDir,
+	)
 
 	bazJSONBytes, err := os.ReadFile(bazJSONOut)
 	require.NoError(t, err)
@@ -532,7 +572,10 @@ func TestRenderJSONConfigRunAllWithCLIRedesign(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+workDir)
 
-	helpers.RunTerragrunt(t, "terragrunt render --all --json -w --non-interactive --working-dir "+workDir)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt render --all --json -w --non-interactive --working-dir "+workDir,
+	)
 
 	bazJSONBytes, err := os.ReadFile(bazJSONOut)
 	require.NoError(t, err)
@@ -582,7 +625,12 @@ func TestDependencyGraphWithMultiInclude(t *testing.T) {
 	stderr := bytes.Buffer{}
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt dag graph --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt dag graph --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 	stdoutStr := stdout.String()
 

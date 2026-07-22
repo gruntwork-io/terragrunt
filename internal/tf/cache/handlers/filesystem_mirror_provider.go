@@ -21,7 +21,10 @@ type FilesystemMirrorProviderHandler struct {
 	filesystemMirrorPath string
 }
 
-func NewFilesystemMirrorProviderHandler(logger log.Logger, method *cliconfig.ProviderInstallationFilesystemMirror) *FilesystemMirrorProviderHandler {
+func NewFilesystemMirrorProviderHandler(
+	logger log.Logger,
+	method *cliconfig.ProviderInstallationFilesystemMirror,
+) *FilesystemMirrorProviderHandler {
 	return &FilesystemMirrorProviderHandler{
 		CommonProviderHandler: NewCommonProviderHandler(logger, method.Include, method.Exclude),
 		filesystemMirrorPath:  method.Path,
@@ -33,12 +36,20 @@ func (handler *FilesystemMirrorProviderHandler) String() string {
 }
 
 // GetVersions implements ProviderHandler.GetVersions
-func (handler *FilesystemMirrorProviderHandler) GetVersions(_ context.Context, provider *models.Provider) (models.Versions, error) {
+func (handler *FilesystemMirrorProviderHandler) GetVersions(
+	_ context.Context,
+	provider *models.Provider,
+) (models.Versions, error) {
 	var mirrorData struct {
 		Versions map[string]struct{} `json:"versions"`
 	}
 
-	filename := filepath.Join(provider.RegistryName, provider.Namespace, provider.Name, "index.json")
+	filename := filepath.Join(
+		provider.RegistryName,
+		provider.Namespace,
+		provider.Name,
+		"index.json",
+	)
 	if err := handler.readMirrorData(filename, &mirrorData); err != nil {
 		return nil, err
 	}
@@ -56,7 +67,10 @@ func (handler *FilesystemMirrorProviderHandler) GetVersions(_ context.Context, p
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
-func (handler *FilesystemMirrorProviderHandler) GetPlatform(_ context.Context, provider *models.Provider) (*models.ResponseBody, error) {
+func (handler *FilesystemMirrorProviderHandler) GetPlatform(
+	_ context.Context,
+	provider *models.Provider,
+) (*models.ResponseBody, error) {
 	var mirrorData struct {
 		Archives map[string]struct {
 			URL    string   `json:"url"`
@@ -64,7 +78,12 @@ func (handler *FilesystemMirrorProviderHandler) GetPlatform(_ context.Context, p
 		} `json:"archives"`
 	}
 
-	filename := filepath.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version+".json")
+	filename := filepath.Join(
+		provider.RegistryName,
+		provider.Namespace,
+		provider.Name,
+		provider.Version+".json",
+	)
 	if err := handler.readMirrorData(filename, &mirrorData); err != nil {
 		return nil, err
 	}
@@ -74,7 +93,13 @@ func (handler *FilesystemMirrorProviderHandler) GetPlatform(_ context.Context, p
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
 		// check if the URL contains http scheme, it may just be a filename and we need to build the URL
 		if !strings.Contains(archive.URL, "://") {
-			archive.URL = filepath.Join(handler.filesystemMirrorPath, provider.RegistryName, provider.Namespace, provider.Name, archive.URL)
+			archive.URL = filepath.Join(
+				handler.filesystemMirrorPath,
+				provider.RegistryName,
+				provider.Namespace,
+				provider.Name,
+				archive.URL,
+			)
 		}
 
 		resp = &models.ResponseBody{

@@ -26,7 +26,10 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			configPath: filepath.Join(basePath, "config1.hcl"),
 			expectedConfig: &config.CatalogConfig{
 				URLs: []string{
-					filepath.Join(basePath, "terraform-aws-eks"), // this path exists in the fixture directory and must be converted to the absolute path.
+					filepath.Join(
+						basePath,
+						"terraform-aws-eks",
+					), // this path exists in the fixture directory and must be converted to the absolute path.
 					"/repo-copier",
 					"./terraform-aws-service-catalog",
 					"/project/terragrunt/test/terraform-aws-vpc",
@@ -45,7 +48,10 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			configPath: filepath.Join(basePath, "complex-legacy-root/terragrunt.hcl"),
 			expectedConfig: &config.CatalogConfig{
 				URLs: []string{
-					filepath.Join(basePath, "complex-legacy-root/dev/us-west-1/modules/terraform-aws-eks"),
+					filepath.Join(
+						basePath,
+						"complex-legacy-root/dev/us-west-1/modules/terraform-aws-eks",
+					),
 					"./terraform-aws-service-catalog",
 					"https://github.com/gruntwork-io/terraform-aws-utilities",
 				},
@@ -65,7 +71,10 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			configPath: filepath.Join(basePath, "complex-legacy-root/dev/terragrunt.hcl"),
 			expectedConfig: &config.CatalogConfig{
 				URLs: []string{
-					filepath.Join(basePath, "complex-legacy-root/dev/us-west-1/modules/terraform-aws-eks"),
+					filepath.Join(
+						basePath,
+						"complex-legacy-root/dev/us-west-1/modules/terraform-aws-eks",
+					),
 					"./terraform-aws-service-catalog",
 					"https://github.com/gruntwork-io/terraform-aws-utilities",
 				},

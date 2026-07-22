@@ -26,11 +26,16 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return runBootstrap(ctx, l, v, opts)
 }
 
-func runBootstrap(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "backend_bootstrap", map[string]any{
+func runBootstrap(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "backend_bootstrap", map[string]any{
 		"working_dir":            opts.WorkingDir,
 		"terragrunt_config_path": opts.TerragruntConfigPath,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 		pctx = pctx.WithVenv(v)
 
@@ -53,47 +58,48 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 	units := components.Filter(component.UnitKind).Sort()
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "backend_bootstrap_all", map[string]any{
-		"working_dir": opts.WorkingDir,
-		"unit_count":  len(units),
-		"fail_fast":   opts.FailFast,
-	}, func(ctx context.Context) error {
-		var errs []error
+	return telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "backend_bootstrap_all", map[string]any{
+			"working_dir": opts.WorkingDir,
+			"unit_count":  len(units),
+			"fail_fast":   opts.FailFast,
+		}, func(ctx context.Context, l log.Logger) error {
+			var errs []error
 
-		for _, unit := range units {
-			unitOpts := opts.Clone()
-			unitOpts.WorkingDir = unit.Path()
+			for _, unit := range units {
+				unitOpts := opts.Clone()
+				unitOpts.WorkingDir = unit.Path()
 
-			configFilename := config.DefaultTerragruntConfigPath
-			if len(opts.TerragruntConfigPath) > 0 {
-				configFilename = filepath.Base(opts.TerragruntConfigPath)
-			}
-
-			unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
-			unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
-
-			// Parsing can write obtained credentials into the env, so each
-			// unit gets its own clone to keep them from leaking to siblings.
-			if err := runBootstrap(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
-				if opts.FailFast {
-					return err
+				configFilename := config.DefaultTerragruntConfigPath
+				if len(opts.TerragruntConfigPath) > 0 {
+					configFilename = filepath.Base(opts.TerragruntConfigPath)
 				}
 
-				errs = append(
-					errs,
-					fmt.Errorf(
-						"backend bootstrap for unit %s failed: %w",
-						unit.Path(),
-						err,
-					),
-				)
+				unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+				unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
+
+				// Parsing can write obtained credentials into the env, so each
+				// unit gets its own clone to keep them from leaking to siblings.
+				if err := runBootstrap(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
+					if opts.FailFast {
+						return err
+					}
+
+					errs = append(
+						errs,
+						fmt.Errorf(
+							"backend bootstrap for unit %s failed: %w",
+							unit.Path(),
+							err,
+						),
+					)
+				}
 			}
-		}
 
-		if len(errs) > 0 {
-			return errors.Join(errs...)
-		}
+			if len(errs) > 0 {
+				return errors.Join(errs...)
+			}
 
-		return nil
-	})
+			return nil
+		})
 }

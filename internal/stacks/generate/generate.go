@@ -25,14 +25,34 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// DefaultMaxLevel is the default cap on nested stack-generation levels. A run
+// that reaches it is treated as a cycle between stack files. Generous on
+// purpose: real stack trees stay far below it.
+const DefaultMaxLevel = 1024
+
 // Generator owns the per-working-directory lock for in-process GenerateStacks calls.
 type Generator struct {
-	locks *util.KeyLocks
+	locks    *util.KeyLocks
+	maxLevel int
 }
 
 // NewGenerator returns a ready-to-use Generator.
 func NewGenerator() *Generator {
-	return &Generator{locks: util.NewKeyLocks()}
+	return &Generator{locks: util.NewKeyLocks(), maxLevel: DefaultMaxLevel}
+}
+
+// WithMaxLevel returns the Generator with its nested stack-generation cap set
+// to maxLevel, replacing [DefaultMaxLevel]. Tests use it to trip cycle
+// detection quickly. Non-positive values are ignored: a cap below one would
+// silently skip generation instead of detecting a cycle.
+func (g *Generator) WithMaxLevel(maxLevel int) *Generator {
+	if maxLevel < 1 {
+		return g
+	}
+
+	g.maxLevel = maxLevel
+
+	return g
 }
 
 // StackNode represents a stack file in the file system.
@@ -138,7 +158,7 @@ func (g *Generator) generateStacks(
 
 	stackTrees := BuildStackTopology(l, foundFiles, workingDir)
 
-	const maxLevel = 1024
+	maxLevel := g.maxLevel
 	for level := range maxLevel {
 		if level == maxLevel-1 {
 			return fmt.Errorf("cycle detected: maximum level (%d) exceeded", maxLevel)
@@ -155,7 +175,18 @@ func (g *Generator) generateStacks(
 			return err
 		}
 
-		err := discoverAndAddNewNodes(ctx, l, v, opts, wts, workingDir, stackTrees, generatedFiles, level+1, scope)
+		err := discoverAndAddNewNodes(
+			ctx,
+			l,
+			v,
+			opts,
+			wts,
+			workingDir,
+			stackTrees,
+			generatedFiles,
+			level+1,
+			scope,
+		)
 		if err != nil {
 			return err
 		}
@@ -258,7 +289,11 @@ func discoverAndAddNewNodes(
 }
 
 // BuildStackTopology creates a topological tree based on directory hierarchy.
-func BuildStackTopology(l log.Logger, stackFiles []string, workingDir string) map[string]*StackNode {
+func BuildStackTopology(
+	l log.Logger,
+	stackFiles []string,
+	workingDir string,
+) map[string]*StackNode {
 	nodes := make(map[string]*StackNode)
 
 	for _, file := range stackFiles {
@@ -273,7 +308,12 @@ func BuildStackTopology(l log.Logger, stackFiles []string, workingDir string) ma
 }
 
 // assignNodeLevel recursively assigns levels to nodes based on directory depth.
-func assignNodeLevel(l log.Logger, node *StackNode, allNodes map[string]*StackNode, workingDir string) int {
+func assignNodeLevel(
+	l log.Logger,
+	node *StackNode,
+	allNodes map[string]*StackNode,
+	workingDir string,
+) int {
 	if node.Level != -1 {
 		return node.Level
 	}
@@ -299,13 +339,23 @@ func assignNodeLevel(l log.Logger, node *StackNode, allNodes map[string]*StackNo
 	node.Parent = parent
 	parent.Children = append(parent.Children, node)
 
-	l.Debugf("Stack %s (level %d) is child of %s (level %d)", node.FilePath, node.Level, parent.FilePath, parent.Level)
+	l.Debugf(
+		"Stack %s (level %d) is child of %s (level %d)",
+		node.FilePath,
+		node.Level,
+		parent.FilePath,
+		parent.Level,
+	)
 
 	return node.Level
 }
 
 // findParentStackFile finds the parent stack file for a given directory.
-func findParentStackFile(childDir string, allNodes map[string]*StackNode, workingDir string) string {
+func findParentStackFile(
+	childDir string,
+	allNodes map[string]*StackNode,
+	workingDir string,
+) string {
 	currentDir := childDir
 
 	for {
@@ -458,7 +508,10 @@ func ListStackFilesWithExcludes(
 		return nil, nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
 
-	foundFiles, excludedPaths, err := collectStackAndExcludedPaths(discoveredComponents, opts.WorkingDir)
+	foundFiles, excludedPaths, err := collectStackAndExcludedPaths(
+		discoveredComponents,
+		opts.WorkingDir,
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -482,7 +535,10 @@ func collectStackAndExcludedPaths(
 	for _, c := range components {
 		switch v := c.(type) {
 		case *component.Stack:
-			canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
+			canonical, err := util.CanonicalResolvedPath(
+				filepath.Join(c.Path(), config.DefaultStackFile),
+				workingDir,
+			)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -517,7 +573,10 @@ func appendStackFilePaths(
 			continue
 		}
 
-		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
+		canonical, err := util.CanonicalResolvedPath(
+			filepath.Join(c.Path(), config.DefaultStackFile),
+			workingDir,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -634,14 +693,28 @@ func worktreeStacksToGenerate(
 				mu.Unlock()
 			}
 
-			allFromStacks, err := discoverStacks(ctx, l, v, opts, pair.FromWorktree, len(deletedReadFilters) > 0)
+			allFromStacks, err := discoverStacks(
+				ctx,
+				l,
+				v,
+				opts,
+				pair.FromWorktree,
+				len(deletedReadFilters) > 0,
+			)
 			if err != nil {
 				recordErr(err)
 
 				return nil
 			}
 
-			allToStacks, err := discoverStacks(ctx, l, v, opts, pair.ToWorktree, len(toReadFilters) > 0)
+			allToStacks, err := discoverStacks(
+				ctx,
+				l,
+				v,
+				opts,
+				pair.ToWorktree,
+				len(toReadFilters) > 0,
+			)
 			if err != nil {
 				recordErr(err)
 
@@ -761,7 +834,11 @@ func discoverStacks(
 
 // findStackByRelPath finds a stack in the given components whose path relative to
 // worktreePath matches relPath.
-func findStackByRelPath(stacks component.Components, worktreePath string, relPath string) *component.Stack {
+func findStackByRelPath(
+	stacks component.Components,
+	worktreePath string,
+	relPath string,
+) *component.Stack {
 	for _, c := range stacks {
 		s, ok := c.(*component.Stack)
 		if !ok {

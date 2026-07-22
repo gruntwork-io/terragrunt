@@ -190,7 +190,10 @@ func (f Filters) RestrictToStacks() Filters {
 //     results and remove matching components
 //
 // If logger is provided, it will be used for logging warnings during evaluation.
-func (f Filters) Evaluate(l log.Logger, components component.Components) (component.Components, error) {
+func (f Filters) Evaluate(
+	l log.Logger,
+	components component.Components,
+) (component.Components, error) {
 	if len(f) == 0 {
 		return components, nil
 	}
@@ -259,7 +262,11 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 // EvaluateOnFiles evaluates the filters on a list of files and returns the filtered result.
 // This is useful for the hcl format command, where we want to evaluate filters on files
 // rather than directories, like we do with components.
-func (f Filters) EvaluateOnFiles(l log.Logger, files []string, workingDir string) (component.Components, error) {
+func (f Filters) EvaluateOnFiles(
+	l log.Logger,
+	files []string,
+	workingDir string,
+) (component.Components, error) {
 	if e, ok := f.RequiresDiscovery(); ok {
 		return nil, FilterQueryRequiresDiscoveryError{Query: e.String()}
 	}

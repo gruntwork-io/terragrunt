@@ -61,13 +61,20 @@ func TestCtyPathString(t *testing.T) {
 
 	// Conversion that descends through a Go map to reach the bad value -> populated cty.Path.
 	target := cty.Object(map[string]cty.Type{"outputs": cty.Map(cty.Bool)})
-	_, descend := gocty.ToCtyValue(map[string]any{"outputs": map[string]cty.Value{"enabled": cty.StringVal("x")}}, target)
+	_, descend := gocty.ToCtyValue(
+		map[string]any{"outputs": map[string]cty.Value{"enabled": cty.StringVal("x")}},
+		target,
+	)
 	require.Error(t, descend)
 	assert.Equal(t, `.outputs["enabled"]`, ctyPathString(descend))
 
 	// fieldError folds the field name + path into one locator.
 	folded := fieldError(MetadataDependency, descend)
-	assert.Equal(t, `dependency.outputs["enabled"]: unsuitable value: a bool is required`, folded.Error())
+	assert.Equal(
+		t,
+		`dependency.outputs["enabled"]: unsuitable value: a bool is required`,
+		folded.Error(),
+	)
 
 	var pathErr cty.PathError
 	require.ErrorAs(t, folded, &pathErr, "cty.PathError should survive the %w chain")
@@ -76,5 +83,9 @@ func TestCtyPathString(t *testing.T) {
 	_, bare := gocty.ToCtyValue(cty.StringVal("x"), cty.Bool)
 	require.Error(t, bare)
 	assert.Empty(t, ctyPathString(bare))
-	assert.Equal(t, `dependency: unsuitable value: a bool is required`, fieldError(MetadataDependency, bare).Error())
+	assert.Equal(
+		t,
+		`dependency: unsuitable value: a bool is required`,
+		fieldError(MetadataDependency, bare).Error(),
+	)
 }

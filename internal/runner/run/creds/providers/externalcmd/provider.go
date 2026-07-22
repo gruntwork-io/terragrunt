@@ -26,7 +26,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, authProviderCmd string, runOpts *shell.ShellOptions) providers.Provider {
+func NewProvider(
+	l log.Logger,
+	authProviderCmd string,
+	runOpts *shell.ShellOptions,
+) providers.Provider {
 	return &Provider{
 		authProviderCmd: authProviderCmd,
 		runOpts:         runOpts,
@@ -52,10 +56,10 @@ func (provider *Provider) GetCredentials(
 
 	var creds *providers.Credentials
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "obtain_creds", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "obtain_creds", map[string]any{
 		"auth_provider_cmd": provider.authProviderCmd,
 		"provider":          "external_cmd",
-	}, func(credsCtx context.Context) error {
+	}, func(credsCtx context.Context, l log.Logger) error {
 		var fetchErr error
 
 		creds, fetchErr = provider.fetchCredentials(credsCtx, l, v)
@@ -226,7 +230,11 @@ func (role *AWSRole) Envs(
 	return envs
 }
 
-func (creds *AWSCredentials) Envs(_ context.Context, l log.Logger, authProviderCmd string) map[string]string {
+func (creds *AWSCredentials) Envs(
+	_ context.Context,
+	l log.Logger,
+	authProviderCmd string,
+) map[string]string {
 	var emptyFields []string
 
 	if creds.AccessKeyID == "" {

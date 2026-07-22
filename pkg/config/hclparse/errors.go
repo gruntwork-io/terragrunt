@@ -11,5 +11,10 @@ type PanicWhileParsingConfigError struct {
 }
 
 func (err PanicWhileParsingConfigError) Error() string {
-	return fmt.Sprintf("Recovering panic while parsing '%s'. Got error of type '%v': %v", err.ConfigFile, reflect.TypeOf(err.RecoveredValue), err.RecoveredValue)
+	return fmt.Sprintf(
+		"Recovering panic while parsing '%s'. Got error of type '%v': %v",
+		err.ConfigFile,
+		reflect.TypeOf(err.RecoveredValue),
+		err.RecoveredValue,
+	)
 }

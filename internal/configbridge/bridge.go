@@ -33,7 +33,11 @@ func NewParsingContext(
 // StackFuncFactory returns a dir-scoped HCL function factory for early stack
 // discovery parsing, built from TerragruntOptions. Each call rebuilds the
 // function map for the given stack dir so dir-sensitive functions resolve there.
-func StackFuncFactory(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) inthclparse.StackFuncFactory {
+func StackFuncFactory(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) inthclparse.StackFuncFactory {
 	_, pctx := NewParsingContext(ctx, l, opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {

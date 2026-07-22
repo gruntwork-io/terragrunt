@@ -27,10 +27,20 @@ func TestLoggerLevelFiltering(t *testing.T) {
 		expectEmpty bool
 	}{
 		{name: "info_at_info_visible", loggerLevel: log.InfoLevel, msgLevel: log.InfoLevel},
-		{name: "debug_at_info_hidden", loggerLevel: log.InfoLevel, msgLevel: log.DebugLevel, expectEmpty: true},
+		{
+			name:        "debug_at_info_hidden",
+			loggerLevel: log.InfoLevel,
+			msgLevel:    log.DebugLevel,
+			expectEmpty: true,
+		},
 		{name: "error_at_info_visible", loggerLevel: log.InfoLevel, msgLevel: log.ErrorLevel},
 		{name: "trace_at_trace_visible", loggerLevel: log.TraceLevel, msgLevel: log.TraceLevel},
-		{name: "warn_at_error_hidden", loggerLevel: log.ErrorLevel, msgLevel: log.WarnLevel, expectEmpty: true},
+		{
+			name:        "warn_at_error_hidden",
+			loggerLevel: log.ErrorLevel,
+			msgLevel:    log.WarnLevel,
+			expectEmpty: true,
+		},
 		{name: "stderr_at_info_visible", loggerLevel: log.InfoLevel, msgLevel: log.StderrLevel},
 	}
 

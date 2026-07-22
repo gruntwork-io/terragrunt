@@ -35,7 +35,7 @@ func TestReadEngineOutput(t *testing.T) {
 	t.Parallel()
 
 	v := venv.Venv{
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 
 	outputReturned := false

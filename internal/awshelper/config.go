@@ -106,7 +106,10 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
 	} else if b.sessionConfig != nil && b.sessionConfig.CredsFilename != "" {
-		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{b.sessionConfig.CredsFilename}))
+		configOptions = append(
+			configOptions,
+			config.WithSharedConfigFiles([]string{b.sessionConfig.CredsFilename}),
+		)
 	}
 
 	// Prioritize configured region over environment variables
@@ -125,7 +128,10 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 	configOptions = append(configOptions, config.WithRegion(region))
 
 	if b.sessionConfig != nil && b.sessionConfig.Profile != "" {
-		configOptions = append(configOptions, config.WithSharedConfigProfile(b.sessionConfig.Profile))
+		configOptions = append(
+			configOptions,
+			config.WithSharedConfigProfile(b.sessionConfig.Profile),
+		)
 	}
 
 	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
@@ -150,7 +156,11 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 	}
 
 	l.Debugf("Assuming role %s", mergedIAMRoleOptions.RoleARN)
-	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, mergedIAMRoleOptions, getExternalID(b.sessionConfig))
+	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(
+		cfg,
+		mergedIAMRoleOptions,
+		getExternalID(b.sessionConfig),
+	)
 
 	return cfg, nil
 }
@@ -198,7 +208,10 @@ func getRegionFromEnv(env map[string]string) string {
 }
 
 // getMergedIAMRoleOptions merges IAM role options from awsCfg and the provided IAM role options.
-func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, iamRoleOpts iam.RoleOptions) iam.RoleOptions {
+func getMergedIAMRoleOptions(
+	awsCfg *AwsSessionConfig,
+	iamRoleOpts iam.RoleOptions,
+) iam.RoleOptions {
 	// Merge in awsCfg role options if available
 	if awsCfg != nil && awsCfg.RoleArn != "" {
 		iamRoleOpts = iam.MergeRoleOptions(
@@ -306,7 +319,10 @@ func AssumeIamRole(
 }
 
 // GetAWSCallerIdentity gets the caller identity from AWS
-func GetAWSCallerIdentity(ctx context.Context, cfg *aws.Config) (*sts.GetCallerIdentityOutput, error) {
+func GetAWSCallerIdentity(
+	ctx context.Context,
+	cfg *aws.Config,
+) (*sts.GetCallerIdentityOutput, error) {
 	stsClient := sts.NewFromConfig(*cfg)
 	return stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 }

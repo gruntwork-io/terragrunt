@@ -31,7 +31,10 @@ func TestCASGitSourceRefOptionInjection(t *testing.T) {
 	source := "git::file://" + repoDir + "?ref=" + url.QueryEscape(injectedRef)
 
 	config := "terraform {\n  source = \"" + source + "\"\n}\n"
-	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.hcl"), []byte(config), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(liveDir, "terragrunt.hcl"), []byte(config), 0o644),
+	)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,

@@ -98,7 +98,10 @@ func (o *Options) Clone() *Options {
 }
 
 // CloneWithConfigPath creates a copy of Options with updated config path and working directory.
-func (o *Options) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *Options, error) {
+func (o *Options) CloneWithConfigPath(
+	l log.Logger,
+	configPath string,
+) (log.Logger, *Options, error) {
 	newOpts := o.Clone()
 
 	configPath = filepath.Clean(configPath)

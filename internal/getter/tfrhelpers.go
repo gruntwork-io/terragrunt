@@ -10,14 +10,17 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
 	goversion "github.com/hashicorp/go-version"
 	svchost "github.com/hashicorp/terraform-svchost"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -306,6 +309,156 @@ func GetMatchingModuleVersion(
 	match := slices.MaxFunc(matching, func(a, b *goversion.Version) int { return a.Compare(b) })
 
 	return match.Original(), nil
+}
+
+// PinModuleVersion resolves constraint against the OpenTofu or Terraform module
+// registry addressed by the tfr:// source and returns the source URL rewritten
+// to pin the exact version that satisfies the constraint. tofuImpl selects the
+// default registry host when the source omits it; a nil httpClient uses a
+// default client.
+func PinModuleVersion(
+	ctx context.Context,
+	l log.Logger,
+	httpClient *http.Client,
+	tofuImpl tfimpl.Type,
+	source, constraint string,
+) (string, error) {
+	sourceURL, err := url.Parse(source)
+	if err != nil {
+		return "", err
+	}
+
+	registryDomain := sourceURL.Host
+	if registryDomain == "" {
+		registryDomain = tfimpl.DefaultRegistryDomain(tofuImpl)
+	}
+
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, httpClient, registryDomain)
+	if err != nil {
+		return "", err
+	}
+
+	modulePath, _ := SourceDirSubdir(sourceURL.Path)
+
+	version, err := GetMatchingModuleVersion(
+		ctx,
+		l,
+		httpClient,
+		registryDomain,
+		moduleRegistryBasePath,
+		modulePath,
+		constraint,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	query := sourceURL.Query()
+	query.Set("version", version)
+	sourceURL.RawQuery = query.Encode()
+
+	return sourceURL.String(), nil
+}
+
+// SourceHasVersionConstraint reports whether source is a tfr:// URL whose
+// ?version= query holds a version constraint rather than an exact version.
+func SourceHasVersionConstraint(source string) bool {
+	sourceURL, err := url.Parse(source)
+	if err != nil || sourceURL.Scheme != SchemeTFR {
+		return false
+	}
+
+	version := sourceURL.Query().Get("version")
+	if version == "" {
+		return false
+	}
+
+	_, err = goversion.NewVersion(version)
+
+	return err != nil
+}
+
+// VersionResolver memoizes constraint resolution so that repeated or concurrent
+// requests for the same module and constraint query the registry once instead
+// of once each, over a single shared connection pool. It is safe for concurrent
+// use; construct one with NewVersionResolver and share it for the lifetime of
+// a run.
+type VersionResolver struct {
+	httpClient *http.Client
+	cache      map[string]string
+	flight     singleflight.Group
+	mu         sync.Mutex
+}
+
+// NewVersionResolver returns a VersionResolver with an empty cache and a
+// [github.com/hashicorp/go-cleanhttp.DefaultClient] for registry-protocol
+// requests.
+func NewVersionResolver() *VersionResolver {
+	return &VersionResolver{
+		httpClient: cleanhttp.DefaultClient(),
+		cache:      make(map[string]string),
+	}
+}
+
+// WithHTTPClient overrides the HTTP client used for registry-protocol
+// requests. Intended for tests routing through a
+// [net/http/httptest.Server].
+func (r *VersionResolver) WithHTTPClient(c *http.Client) *VersionResolver {
+	r.httpClient = c
+	return r
+}
+
+// Pin resolves constraint for the tfr:// source and returns the source URL
+// rewritten with an exact ?version= pin, memoizing the result. Concurrent calls
+// for the same source, constraint, and tofuImpl share a single registry query;
+// later calls are served from the cache. See [PinModuleVersion].
+func (r *VersionResolver) Pin(
+	ctx context.Context,
+	l log.Logger,
+	tofuImpl tfimpl.Type,
+	source, constraint string,
+) (string, error) {
+	key := source + "\x00" + constraint + "\x00" + string(tofuImpl)
+
+	if pinned, ok := r.load(key); ok {
+		return pinned, nil
+	}
+
+	pinned, err, _ := r.flight.Do(key, func() (any, error) {
+		if pinned, ok := r.load(key); ok {
+			return pinned, nil
+		}
+
+		pinned, err := PinModuleVersion(ctx, l, r.httpClient, tofuImpl, source, constraint)
+		if err != nil {
+			return nil, err
+		}
+
+		r.store(key, pinned)
+
+		return pinned, nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return pinned.(string), nil
+}
+
+func (r *VersionResolver) load(key string) (string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	pinned, ok := r.cache[key]
+
+	return pinned, ok
+}
+
+func (r *VersionResolver) store(key, pinned string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.cache[key] = pinned
 }
 
 // listModuleVersions queries the registry's list-versions endpoint for the

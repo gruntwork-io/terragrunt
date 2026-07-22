@@ -1,10 +1,17 @@
 package venv_test
 
 import (
+	"errors"
+	"io"
+	"runtime"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 func TestParseEnviron(t *testing.T) {
@@ -51,6 +58,34 @@ func TestParseEnviron(t *testing.T) {
 	}
 }
 
+// TestVenvRequireFS pins the FS contract: the zero Venv panics with the
+// sentinel, a populated Venv passes.
+func TestVenvRequireFS(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
+		venv.Venv{}.RequireFS()
+	})
+
+	assert.NotPanics(t, func() {
+		venv.Venv{FS: vfs.NewOSFS()}.RequireFS()
+	})
+}
+
+// TestVenvRequireExec pins the Exec contract. A Venv with FS but no Exec
+// must still panic; only a populated Exec satisfies the check.
+func TestVenvRequireExec(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvExecUnset, func() {
+		venv.Venv{FS: vfs.NewOSFS()}.RequireExec()
+	})
+
+	assert.NotPanics(t, func() {
+		venv.Venv{Exec: vexec.NewOSExec()}.RequireExec()
+	})
+}
+
 func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	t.Parallel()
 
@@ -65,4 +100,60 @@ func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	v.Env["BAZ"] = "qux"
 
 	assert.NotContains(t, clone.Env, "BAZ")
+}
+
+func TestOSVenvProvidesPlatformHandles(t *testing.T) {
+	t.Parallel()
+
+	v := venv.OSVenv()
+
+	require.NotNil(t, v.Platform)
+	assert.Equal(t, runtime.GOOS, v.Platform.GOOS)
+	assert.NotNil(t, v.Platform.UserHomeDir)
+}
+
+func TestVenvPlatformBuilders(t *testing.T) {
+	t.Parallel()
+
+	wantHomeErr := errors.New("home lookup failed")
+	homeDir := func() (string, error) { return "", wantHomeErr }
+	original := venv.OSVenv()
+
+	got := original.WithGOOS("plan9").WithUserHomeDir(homeDir)
+
+	require.NotNil(t, got.Platform)
+	assert.Equal(t, "plan9", got.Platform.GOOS)
+	_, err := got.Platform.UserHomeDir()
+	require.ErrorIs(t, err, wantHomeErr)
+	assert.Equal(t, runtime.GOOS, original.Platform.GOOS)
+}
+
+func TestVenvWriterBuildersIsolateCopies(t *testing.T) {
+	t.Parallel()
+
+	original := venv.OSVenv()
+	originalWriter := original.Writers.Writer
+	originalErrWriter := original.Writers.ErrWriter
+
+	got := original.WithWriter(io.Discard).WithErrWriter(io.Discard)
+
+	require.NotSame(t, original.Writers, got.Writers)
+	assert.Equal(t, io.Discard, got.Writers.Writer)
+	assert.Equal(t, io.Discard, got.Writers.ErrWriter)
+	assert.Equal(t, originalWriter, original.Writers.Writer)
+	assert.Equal(t, originalErrWriter, original.Writers.ErrWriter)
+}
+
+func TestVenvPlatformRequirements(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
+		venv.Venv{}.RequireFS()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvGOOSUnset, func() {
+		venv.Venv{}.RequireGOOS()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
+		venv.Venv{}.RequireUserHomeDir()
+	})
 }

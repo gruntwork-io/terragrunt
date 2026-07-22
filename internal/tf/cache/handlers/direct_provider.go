@@ -21,7 +21,11 @@ type DirectProviderHandler struct {
 	client *helpers.Client
 }
 
-func NewDirectProviderHandler(logger log.Logger, method *cliconfig.ProviderInstallationDirect, credsSource *cliconfig.CredentialsSource) *DirectProviderHandler {
+func NewDirectProviderHandler(
+	logger log.Logger,
+	method *cliconfig.ProviderInstallationDirect,
+	credsSource *cliconfig.CredentialsSource,
+) *DirectProviderHandler {
 	return &DirectProviderHandler{
 		CommonProviderHandler: NewCommonProviderHandler(logger, method.Include, method.Exclude),
 		client:                helpers.NewClient(credsSource),
@@ -36,7 +40,10 @@ func (handler *DirectProviderHandler) String() string {
 // https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
 //
 //nolint:lll
-func (handler *DirectProviderHandler) GetVersions(ctx context.Context, provider *models.Provider) (models.Versions, error) {
+func (handler *DirectProviderHandler) GetVersions(
+	ctx context.Context,
+	provider *models.Provider,
+) (models.Versions, error) {
 	apiURLs, err := handler.DiscoveryURL(ctx, provider.RegistryName)
 	if err != nil {
 		return nil, err
@@ -60,7 +67,10 @@ func (handler *DirectProviderHandler) GetVersions(ctx context.Context, provider 
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
-func (handler *DirectProviderHandler) GetPlatform(ctx context.Context, provider *models.Provider) (*models.ResponseBody, error) {
+func (handler *DirectProviderHandler) GetPlatform(
+	ctx context.Context,
+	provider *models.Provider,
+) (*models.ResponseBody, error) {
 	apiURLs, err := handler.DiscoveryURL(ctx, provider.RegistryName)
 	if err != nil {
 		return nil, err

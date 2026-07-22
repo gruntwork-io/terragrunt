@@ -39,7 +39,12 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	}
 
 	if args.depth > maxPartialEvalDepth {
-		return RangeBytes(args.SrcBytes, expr.Range()), PartialEvalDepthExceededError{MaxDepth: maxPartialEvalDepth}
+		return RangeBytes(
+				args.SrcBytes,
+				expr.Range(),
+			), PartialEvalDepthExceededError{
+				MaxDepth: maxPartialEvalDepth,
+			}
 	}
 
 	args.depth++
@@ -104,7 +109,11 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 
 		defer func() { args.Deferred = saved }()
 
-		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.CollExpr, e.KeyExpr, e.ValExpr, e.CondExpr})
+		return partialEvalChildren(
+			args,
+			e.Range(),
+			[]hclsyntax.Expression{e.CollExpr, e.KeyExpr, e.ValExpr, e.CondExpr},
+		)
 	// Splat renders only the source; its body runs against the anonymous iterator which cannot be deferred by name, so it stays verbatim.
 	case *hclsyntax.SplatExpr:
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Source})
@@ -126,11 +135,21 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]by
 		return valueToHCLBytes(val), nil
 	}
 
-	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null, unknown, or non-finite at generation time", Err: diags}
+	return RangeBytes(
+			args.SrcBytes,
+			e.Range(),
+		), PartialEvalUnresolvedError{
+			Reason: "traversal value is null, unknown, or non-finite at generation time",
+			Err:    diags,
+		}
 }
 
 // partialEvalChildren rebuilds parent source bytes with each child replaced by its PartialEval output; gaps stay verbatim.
-func partialEvalChildren(args *EvalArgs, parentRange hcl.Range, children []hclsyntax.Expression) ([]byte, error) {
+func partialEvalChildren(
+	args *EvalArgs,
+	parentRange hcl.Range,
+	children []hclsyntax.Expression,
+) ([]byte, error) {
 	if len(children) == 0 {
 		return RangeBytes(args.SrcBytes, parentRange), nil
 	}
@@ -166,7 +185,11 @@ func partialEvalChildren(args *EvalArgs, parentRange hcl.Range, children []hclsy
 
 func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byte, error) {
 	if !IsPure(e.Condition, args.Deferred) {
-		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Condition, e.TrueResult, e.FalseResult})
+		return partialEvalChildren(
+			args,
+			e.Range(),
+			[]hclsyntax.Expression{e.Condition, e.TrueResult, e.FalseResult},
+		)
 	}
 
 	condVal, diags := e.Condition.Value(args.EvalCtx)
@@ -177,7 +200,12 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byt
 	boolVal, err := convert.Convert(condVal, cty.Bool)
 	// Null/unknown condition: emit source bytes and a typed error for strict callers.
 	if err != nil || boolVal.IsNull() || !boolVal.IsKnown() {
-		return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "conditional condition is null or unknown"}
+		return RangeBytes(
+				args.SrcBytes,
+				e.Range(),
+			), PartialEvalUnresolvedError{
+				Reason: "conditional condition is null or unknown",
+			}
 	}
 
 	if boolVal.True() {
@@ -255,7 +283,10 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 		}
 
 		// A %{ for }/%{ if } directive part spans its own markers and cannot be re-emitted inside ${...}, so it is emitted verbatim as a unit and resolves in the generated unit.
-		if directiveBytes, isDirective := templateDirectiveSource(part, args.SrcBytes); isDirective {
+		if directiveBytes, isDirective := templateDirectiveSource(
+			part,
+			args.SrcBytes,
+		); isDirective {
 			buf.Write(directiveBytes)
 
 			continue
@@ -400,7 +431,9 @@ func valueRendersAsHCLLiteral(val cty.Value, depth int) bool {
 		return !val.AsBigFloat().IsInf()
 	}
 
-	if valType.IsListType() || valType.IsSetType() || valType.IsTupleType() || valType.IsMapType() || valType.IsObjectType() {
+	if valType.IsListType() || valType.IsSetType() || valType.IsTupleType() ||
+		valType.IsMapType() ||
+		valType.IsObjectType() {
 		for it := val.ElementIterator(); it.Next(); {
 			_, elem := it.Element()
 			if !valueRendersAsHCLLiteral(elem, depth+1) {

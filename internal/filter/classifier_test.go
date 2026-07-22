@@ -166,7 +166,11 @@ func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
 	classifier := filter.NewClassifier(filter.Filters{f})
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
-	assert.False(t, classifier.HasDependentFilters(), "should not have dependent filters (db... is dependencies)")
+	assert.False(
+		t,
+		classifier.HasDependentFilters(),
+		"should not have dependent filters (db... is dependencies)",
+	)
 
 	graphExprs := classifier.GraphExpressions()
 	require.Len(t, graphExprs, 1)

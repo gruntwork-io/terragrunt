@@ -9,11 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkClone(b *testing.B) {
@@ -21,8 +23,7 @@ func BenchmarkClone(b *testing.B) {
 
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(b, err)
+	v := venv.OSVenv()
 
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
@@ -53,8 +54,11 @@ func BenchmarkClone(b *testing.B) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(b, err)
 
-		require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "initial")),
-			cas.WithDepth(-1)))
+		require.NoError(
+			b,
+			c.Clone(b.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "initial")),
+				cas.WithDepth(-1)),
+		)
 
 		b.ResetTimer()
 
@@ -84,8 +88,7 @@ func BenchmarkContent(b *testing.B) {
 
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(b, err)
+	v := venv.OSVenv()
 
 	b.Run("store", func(b *testing.B) {
 		for i := 0; b.Loop(); i++ {
@@ -199,9 +202,28 @@ func startBenchServer(b *testing.B) string {
 
 	b.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(b, srv.CommitFile(b.Context(), "README.md", []byte("# test repo"), "add readme"))
-	require.NoError(b, srv.CommitFile(b.Context(), "main.tf", []byte(`resource "null_resource" "test" {}`), "add main.tf"))
-	require.NoError(b, srv.CommitFile(b.Context(), "test/integration_test.go", []byte("package test"), "add test file"))
+	require.NoError(
+		b,
+		srv.CommitFile(b.Context(), "README.md", []byte("# test repo"), "add readme"),
+	)
+	require.NoError(
+		b,
+		srv.CommitFile(
+			b.Context(),
+			"main.tf",
+			[]byte(`resource "null_resource" "test" {}`),
+			"add main.tf",
+		),
+	)
+	require.NoError(
+		b,
+		srv.CommitFile(
+			b.Context(),
+			"test/integration_test.go",
+			[]byte("package test"),
+			"add test file",
+		),
+	)
 
 	url, err := srv.Start(b.Context())
 	require.NoError(b, err)

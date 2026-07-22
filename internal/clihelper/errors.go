@@ -25,7 +25,11 @@ func NewInvalidKeyValueError(sep, value string) *InvalidKeyValueError {
 }
 
 func (err InvalidKeyValueError) Error() string {
-	return fmt.Sprintf("invalid key-value pair, expected format KEY%sVALUE, got %s.", err.sep, err.value)
+	return fmt.Sprintf(
+		"invalid key-value pair, expected format KEY%sVALUE, got %s.",
+		err.sep,
+		err.value,
+	)
 }
 
 type exitError struct {
@@ -123,5 +127,6 @@ var (
 )
 
 func IsMultipleTimesSettingError(err error) bool {
-	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error()) || strings.Contains(err.Error(), ErrMultipleTimesSettingEnvVar.Error())
+	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error()) ||
+		strings.Contains(err.Error(), ErrMultipleTimesSettingEnvVar.Error())
 }

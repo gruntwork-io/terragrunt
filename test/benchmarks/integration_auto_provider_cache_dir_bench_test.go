@@ -23,7 +23,14 @@ func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 		originalMainTf, err := os.ReadFile(filepath.Join(fixtureSource, "main.tf"))
 		require.NoError(b, err)
 
-		require.NoError(b, os.WriteFile(terragruntConfigPath, originalTerragruntConfig, helpers.DefaultFilePermissions))
+		require.NoError(
+			b,
+			os.WriteFile(
+				terragruntConfigPath,
+				originalTerragruntConfig,
+				helpers.DefaultFilePermissions,
+			),
+		)
 		require.NoError(b, os.WriteFile(mainTfPath, originalMainTf, helpers.DefaultFilePermissions))
 
 		helpers.RunTerragruntCommand(
@@ -97,8 +104,18 @@ func BenchmarkProviderCachingComparison(b *testing.B) {
 			unitTerragruntConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
 			unitMainTfPath := filepath.Join(unitDir, "main.tf")
 
-			require.NoError(b, os.WriteFile(unitTerragruntConfigPath, originalTerragruntConfig, helpers.DefaultFilePermissions))
-			require.NoError(b, os.WriteFile(unitMainTfPath, originalMainTf, helpers.DefaultFilePermissions))
+			require.NoError(
+				b,
+				os.WriteFile(
+					unitTerragruntConfigPath,
+					originalTerragruntConfig,
+					helpers.DefaultFilePermissions,
+				),
+			)
+			require.NoError(
+				b,
+				os.WriteFile(unitMainTfPath, originalMainTf, helpers.DefaultFilePermissions),
+			)
 		}
 
 		// Run initial init to avoid noise from the first iteration being slower

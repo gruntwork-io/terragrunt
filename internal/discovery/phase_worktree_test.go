@@ -100,12 +100,18 @@ func TestGenerateDirSHA256(t *testing.T) {
 
 		tmpDir := t.TempDir()
 
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content1"), 0644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content1"), 0644),
+		)
 
 		hash1, err := discovery.GenerateDirSHA256(tmpDir)
 		require.NoError(t, err)
 
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content2"), 0644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content2"), 0644),
+		)
 
 		hash2, err := discovery.GenerateDirSHA256(tmpDir)
 		require.NoError(t, err)
@@ -129,7 +135,12 @@ func TestGenerateDirSHA256(t *testing.T) {
 		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
-		assert.NotEqual(t, hash1, hash2, "File rename (different path) should produce different hash")
+		assert.NotEqual(
+			t,
+			hash1,
+			hash2,
+			"File rename (different path) should produce different hash",
+		)
 	})
 
 	t.Run("file_move_to_subdirectory_produces_different_hash", func(t *testing.T) {
@@ -166,7 +177,14 @@ func TestGenerateDirSHA256(t *testing.T) {
 
 		// Add .terragrunt-stack-manifest only to tmpDir2
 		manifestContent := []byte("/path/to/something\n/another/path")
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, ".terragrunt-stack-manifest"), manifestContent, 0644))
+		require.NoError(
+			t,
+			os.WriteFile(
+				filepath.Join(tmpDir2, ".terragrunt-stack-manifest"),
+				manifestContent,
+				0644,
+			),
+		)
 
 		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
 		require.NoError(t, err)
@@ -174,7 +192,12 @@ func TestGenerateDirSHA256(t *testing.T) {
 		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
-		assert.Equal(t, hash1, hash2, ".terragrunt-stack-manifest should be ignored in hash calculation")
+		assert.Equal(
+			t,
+			hash1,
+			hash2,
+			".terragrunt-stack-manifest should be ignored in hash calculation",
+		)
 	})
 
 	t.Run("multiple_files_order_independent", func(t *testing.T) {
@@ -229,7 +252,12 @@ func TestGenerateDirSHA256(t *testing.T) {
 		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
-		assert.Equal(t, hash1, hash2, "Nested directories with same structure should produce same hash")
+		assert.Equal(
+			t,
+			hash1,
+			hash2,
+			"Nested directories with same structure should produce same hash",
+		)
 	})
 }
 
@@ -261,7 +289,12 @@ func TestMatchComponentPairs(t *testing.T) {
 		for _, p := range pairs {
 			fromSuffix := getRelativePath(p.FromComponent)
 			toSuffix := getRelativePath(p.ToComponent)
-			assert.Equal(t, fromSuffix, toSuffix, "Matched components should have same relative paths")
+			assert.Equal(
+				t,
+				fromSuffix,
+				toSuffix,
+				"Matched components should have same relative paths",
+			)
 			paths[fromSuffix] = true
 		}
 

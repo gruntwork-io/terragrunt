@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const defaultStorePath = "/store"
@@ -29,7 +31,7 @@ func TestStore(t *testing.T) {
 func TestStore_NeedsWrite(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(t)
+	v := venvtest.New()
 	storePath := defaultStorePath
 	store := cas.NewStore(storePath)
 
@@ -72,7 +74,7 @@ func TestStore_NeedsWrite(t *testing.T) {
 func TestStore_AcquireLock(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(t)
+	v := venvtest.New()
 	storePath := defaultStorePath
 	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
@@ -95,7 +97,7 @@ func TestStore_AcquireLock(t *testing.T) {
 func TestStore_TryAcquireLock(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(t)
+	v := venvtest.New()
 	storePath := defaultStorePath
 	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
@@ -130,7 +132,7 @@ func TestStore_TryAcquireLock(t *testing.T) {
 func TestStore_LockConcurrency(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(t)
+	v := venvtest.New()
 	storePath := defaultStorePath
 	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
@@ -180,7 +182,7 @@ func TestStore_LockConcurrency(t *testing.T) {
 func TestStore_EnsureWithWait(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(t)
+	v := venvtest.New()
 	storePath := defaultStorePath
 	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"

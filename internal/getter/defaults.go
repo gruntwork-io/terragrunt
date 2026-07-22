@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	gcs "github.com/hashicorp/go-getter/gcs/v2"
@@ -30,11 +31,29 @@ const (
 type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
-	httpExtra  http.Header
-	httpsExtra http.Header
-	tfrLogger  log.Logger
-	tfrFS      vfs.FS
-	tfrImpl    tfimpl.Type
+	tfrLogger   log.Logger
+	tfrFS       vfs.FS
+	ociLogger   log.Logger
+	ociFS       vfs.FS
+	ociNewStore OCINewStoreFunc
+	httpExtra   http.Header
+	httpsExtra  http.Header
+	tfrImpl     tfimpl.Type
+}
+
+// WithOCIConfig registers the dependencies the oci:// fetcher and resolver
+// need for CAS dispatch. When unset, oci is omitted from the generic maps so
+// CASGetter never claims oci:// sources. The store seam is built once here so
+// the fetcher and the resolver share one credential discovery and auth cache;
+// fs is the extraction filesystem, mirroring [WithTFRConfig].
+func WithOCIConfig(l log.Logger, v venv.Venv, fs vfs.FS) GenericFetcherOption {
+	newStore := NewOCIRepositoryStore(l, v)
+
+	return func(c *genericFetcherConfig) {
+		c.ociLogger = l
+		c.ociFS = fs
+		c.ociNewStore = newStore
+	}
 }
 
 // WithHTTPExtraHeaders attaches header to the bare http getter so
@@ -83,7 +102,18 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 	}
 
 	if cfg.tfrLogger != nil {
-		m[SchemeTFR] = NewRegistryGetter(cfg.tfrLogger, cfg.tfrFS).WithTofuImplementation(cfg.tfrImpl)
+		m[SchemeTFR] = NewRegistryGetter(
+			cfg.tfrLogger,
+			cfg.tfrFS,
+		).WithTofuImplementation(cfg.tfrImpl)
+	}
+
+	if cfg.ociLogger != nil {
+		m[SchemeOCI] = &OCIGetter{
+			NewStore: cfg.ociNewStore,
+			Logger:   cfg.ociLogger,
+			FS:       cfg.ociFS,
+		}
 	}
 
 	return m
@@ -94,13 +124,15 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 //
 //  1. tfr (Terraform Registry): must precede git so tfr:// wins forced
 //     detection.
-//  2. CAS protocol getter (when CAS is enabled): resolves `cas::`
+//  2. oci (OCI Distribution registries, when registered): precedes the
+//     generic getters so oci:// wins forced detection.
+//  3. CAS protocol getter (when CAS is enabled): resolves `cas::`
 //     source references produced by `update_source_with_cas` stack
 //     rewrites.
-//  3. CAS getter (when CAS is enabled): intercepts git, s3, gcs,
+//  4. CAS getter (when CAS is enabled): intercepts git, s3, gcs,
 //     http(s), hg, and smb sources ahead of the bare protocol getters.
-//  4. Caller-prepended getters (tests).
-//  5. The default protocol set: git, hg, smb, http(s), s3, gcs, file.
+//  5. Caller-prepended getters (tests).
+//  6. The default protocol set: git, hg, smb, http(s), s3, gcs, file.
 //
 // file goes last so it does not claim sources another detector
 // recognizes.
@@ -133,6 +165,10 @@ func buildGetters(b *builder) []Getter {
 		out = append(out, b.tfRegistry)
 	}
 
+	if b.oci != nil {
+		out = append(out, b.oci)
+	}
+
 	if b.casStore != nil {
 		fetchers := map[string]getter.Getter{
 			SchemeS3:    s3Getter,
@@ -147,7 +183,14 @@ func buildGetters(b *builder) []Getter {
 
 		if b.tfRegistry != nil {
 			fetchers[SchemeTFR] = b.tfRegistry
-			resolverOpts = append(resolverOpts, WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS))
+			resolverOpts = append(
+				resolverOpts,
+				WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS),
+			)
+		}
+
+		if b.oci != nil {
+			fetchers[SchemeOCI] = b.oci
 		}
 
 		out = append(out,

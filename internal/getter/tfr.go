@@ -129,12 +129,23 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := SourceDirSubdir(srcURL.Path)
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, r.Logger, r.HTTPClient, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(
+		ctx,
+		r.Logger,
+		r.HTTPClient,
+		registryDomain,
+	)
 	if err != nil {
 		return err
 	}
 
-	version, err := r.resolveVersion(ctx, queryValues, registryDomain, moduleRegistryBasePath, modulePath)
+	version, err := r.resolveVersion(
+		ctx,
+		queryValues,
+		registryDomain,
+		moduleRegistryBasePath,
+		modulePath,
+	)
 	if err != nil {
 		return err
 	}
@@ -192,7 +203,11 @@ func (r *RegistryGetter) delegateGet(ctx context.Context, dst, src string) error
 // getSubdir downloads the source into a temp dir, then copies the requested
 // subdirectory into dstPath. This is how the registry getter handles
 // `MODULE/subdir` selectors.
-func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, sourceURL, subDir string) error {
+func (r *RegistryGetter) getSubdir(
+	ctx context.Context,
+	l log.Logger,
+	dstPath, sourceURL, subDir string,
+) error {
 	// Hand the consumer a non-existent path inside an existing parent so
 	// go-getter can create the destination itself, and clean up the parent
 	// on return.
@@ -213,24 +228,30 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 		return fmt.Errorf("downloading registry module archive from %s: %w", sourceURL, err)
 	}
 
-	sourcePath, err := SubdirGlob(tempdirPath, subDir)
+	return copySubdirContents(l, r.FS, tempdirPath, subDir, dstPath, sourceURL)
+}
+
+// copySubdirContents resolves subDir under srcRoot and copies its contents
+// into dstPath, replacing whatever was there. source only labels errors.
+func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, source string) error {
+	sourcePath, err := SubdirGlob(srcRoot, subDir)
 	if err != nil {
-		return fmt.Errorf("resolving registry module subdir %q: %w", subDir, err)
+		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
 	}
 
-	if _, err := r.FS.Stat(sourcePath); err != nil {
+	if _, err := fs.Stat(sourcePath); err != nil {
 		return ModuleDownloadErr{
-			sourceURL: sourceURL,
+			sourceURL: source,
 			details:   fmt.Sprintf("could not stat download path %s: %s", sourcePath, err),
 		}
 	}
 
-	if err := r.FS.RemoveAll(dstPath); err != nil {
+	if err := fs.RemoveAll(dstPath); err != nil {
 		return fmt.Errorf("clearing destination path %s: %w", dstPath, err)
 	}
 
 	const ownerWriteGlobalReadExecutePerms = 0755
-	if err := r.FS.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
+	if err := fs.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
 		return fmt.Errorf("creating destination path %s: %w", dstPath, err)
 	}
 
@@ -238,12 +259,18 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 	manifestPath := filepath.Join(dstPath, manifestFname)
 
 	defer func(name string) {
-		if err := r.FS.Remove(name); err != nil {
-			l.Warnf("Error removing temporary directory %s: %v", name, err)
+		if err := fs.Remove(name); err != nil {
+			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 
-	return util.CopyFolderContentsWithFilter(l, sourcePath, dstPath, manifestFname, func(string) bool { return true })
+	return util.CopyFolderContentsWithFilter(
+		l,
+		sourcePath,
+		dstPath,
+		manifestFname,
+		func(string) bool { return true },
+	)
 }
 
 // resolveVersion determines the module version to download. If a version is
@@ -280,7 +307,11 @@ func (r *RegistryGetter) resolveVersion(
 		return "", err
 	}
 
-	r.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+	r.Logger.Infof(
+		"No version specified for module %s, using latest version %s",
+		modulePath,
+		latestVersion,
+	)
 
 	return latestVersion, nil
 }

@@ -18,11 +18,13 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
+	"github.com/stretchr/testify/require"
+
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/require"
 )
 
 // TestCAS_S3_RustFS_ProbeAvoidsRedownload verifies the S3 → CAS path
@@ -48,8 +50,7 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	resolvers := tggetter.DefaultSourceResolvers()
 	resolvers[tggetter.SchemeS3] = newRustFSS3Resolver(t, endpoint)
@@ -94,7 +95,8 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 func setupRustFSForCAS(t *testing.T) string {
 	t.Helper()
 
-	_, addr := helpers.RunContainer(t,
+	_, addr := helpers.RunContainer(
+		t,
 		"rustfs/rustfs:1.0.0-beta.2@sha256:6bd08dc511cebe0a4b5c35c266db465c7eb92cf3df4321c69967be66fe4cb395",
 		9000,
 		testcontainers.WithCmd("/data"),
@@ -123,9 +125,12 @@ func newRustFSClient(t *testing.T, endpoint string) *s3.Client {
 // load, matching how a production resolver would honor request
 // cancellation.
 func newRustFSClientFor(ctx context.Context, endpoint string) (*s3.Client, error) {
-	cfg, err := config.LoadDefaultConfig(ctx,
+	cfg, err := config.LoadDefaultConfig(
+		ctx,
 		config.WithRegion("us-east-1"),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("rustfsadmin", "rustfsadmin", "")),
+		config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider("rustfsadmin", "rustfsadmin", ""),
+		),
 	)
 	if err != nil {
 		return nil, err

@@ -46,7 +46,10 @@ func TerraformCommandHookFromContext(ctx context.Context) RunShellCommandFunc {
 }
 
 // ContextWithDetailedExitCode returns a new context containing the given DetailedExitCodeMap.
-func ContextWithDetailedExitCode(ctx context.Context, detailedExitCode *DetailedExitCodeMap) context.Context {
+func ContextWithDetailedExitCode(
+	ctx context.Context,
+	detailedExitCode *DetailedExitCodeMap,
+) context.Context {
 	return context.WithValue(ctx, DetailedExitCodeContextKey, detailedExitCode)
 }
 

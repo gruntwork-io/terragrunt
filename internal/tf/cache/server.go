@@ -86,7 +86,10 @@ func NewServer(opts ...Option) *Server {
 // DiscoveryURL looks for the first handler that can handle the given `registryName`,
 // which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
 // If the handler is found, tries to discover its API endpoints otherwise return the default registry URLs.
-func (server *Server) DiscoveryURL(ctx context.Context, registryName string) (*handlers.RegistryURLs, error) {
+func (server *Server) DiscoveryURL(
+	ctx context.Context,
+	registryName string,
+) (*handlers.RegistryURLs, error) {
 	return server.providerHandlers.DiscoveryURL(ctx, registryName)
 }
 
@@ -125,7 +128,10 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		// The parent ctx is by definition already cancelled here; detach from
 		// its cancellation (preserving any values) so http.Server.Shutdown gets
 		// the full shutdownTimeout to drain in-flight requests.
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), server.shutdownTimeout)
+		shutdownCtx, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			server.shutdownTimeout,
+		)
 		defer cancel()
 
 		if err := server.Shutdown(shutdownCtx); err != nil {

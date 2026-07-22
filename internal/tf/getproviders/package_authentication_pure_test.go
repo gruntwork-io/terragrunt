@@ -64,7 +64,10 @@ func TestPackageAuthenticationResultSignedBy(t *testing.T) {
 // passingChecksumAuth builds a matching-checksum authenticator whose document
 // lists the wanted hash for the given filename, so Authenticate succeeds without
 // touching the filesystem or any cryptography.
-func passingChecksumAuth(filename string, want [sha256.Size]byte) getproviders.PackageAuthentication {
+func passingChecksumAuth(
+	filename string,
+	want [sha256.Size]byte,
+) getproviders.PackageAuthentication {
 	document := fmt.Appendf(nil, "%x %s\n", want, filename)
 
 	return getproviders.NewMatchingChecksumAuthentication(document, filename, want)
@@ -97,7 +100,10 @@ func TestPackageAuthenticationAllAuthenticate(t *testing.T) {
 			fmt.Appendf(nil, "%x other.zip\n", want), "missing.zip", want,
 		)
 
-		auth := getproviders.PackageAuthenticationAll(failing, passingChecksumAuth("second.zip", want))
+		auth := getproviders.PackageAuthenticationAll(
+			failing,
+			passingChecksumAuth("second.zip", want),
+		)
 
 		_, err := auth.Authenticate("unused-path")
 		require.Error(t, err)

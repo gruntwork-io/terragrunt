@@ -54,7 +54,10 @@ func GenerateNUnits(b *testing.B, dir string, n int, tgConfig string, tfConfig s
 
 		// Create an empty `terragrunt.hcl` file
 		unitTerragruntConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
-		require.NoError(b, os.WriteFile(unitTerragruntConfigPath, []byte(tgConfig), DefaultFilePermissions))
+		require.NoError(
+			b,
+			os.WriteFile(unitTerragruntConfigPath, []byte(tgConfig), DefaultFilePermissions),
+		)
 
 		// Create an empty `main.tf` file
 		unitMainTfPath := filepath.Join(unitDir, "main.tf")
@@ -76,7 +79,10 @@ func GenerateEmptyUnits(b *testing.B, dir string, n int) {
 	rootTerragruntConfigPath := filepath.Join(dir, "root.hcl")
 
 	// Create an empty `root.hcl` file
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), DefaultFilePermissions),
+	)
 
 	// Generate n units
 	GenerateNUnits(b, dir, n, includeRootConfig, emptyMainTf)
@@ -88,7 +94,16 @@ func Init(b *testing.B, dir string) {
 	// Measure plan time
 	planStart := time.Now()
 
-	RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--non-interactive", "--working-dir", dir)
+	RunTerragruntCommand(
+		b,
+		"terragrunt",
+		"run",
+		"--all",
+		"init",
+		"--non-interactive",
+		"--working-dir",
+		dir,
+	)
 
 	planDuration := time.Since(planStart)
 
@@ -101,7 +116,16 @@ func Plan(b *testing.B, dir string) {
 	// Measure plan time
 	planStart := time.Now()
 
-	RunTerragruntCommand(b, "terragrunt", "run", "--all", "plan", "--non-interactive", "--working-dir", dir)
+	RunTerragruntCommand(
+		b,
+		"terragrunt",
+		"run",
+		"--all",
+		"plan",
+		"--non-interactive",
+		"--working-dir",
+		dir,
+	)
 
 	planDuration := time.Since(planStart)
 
@@ -114,7 +138,16 @@ func Apply(b *testing.B, dir string) {
 	// Track apply time
 	applyStart := time.Now()
 
-	RunTerragruntCommand(b, "terragrunt", "run", "--all", "apply", "--non-interactive", "--working-dir", dir)
+	RunTerragruntCommand(
+		b,
+		"terragrunt",
+		"run",
+		"--all",
+		"apply",
+		"--non-interactive",
+		"--working-dir",
+		dir,
+	)
 
 	applyDuration := time.Since(applyStart)
 
@@ -127,7 +160,18 @@ func ApplyWithRunnerPool(b *testing.B, dir string) {
 	// Track apply time
 	applyStart := time.Now()
 
-	RunTerragruntCommand(b, "terragrunt", "run", "--all", "apply", "--non-interactive", "--experiment", "runner-pool", "--working-dir", dir)
+	RunTerragruntCommand(
+		b,
+		"terragrunt",
+		"run",
+		"--all",
+		"apply",
+		"--non-interactive",
+		"--experiment",
+		"runner-pool",
+		"--working-dir",
+		dir,
+	)
 
 	applyDuration := time.Since(applyStart)
 

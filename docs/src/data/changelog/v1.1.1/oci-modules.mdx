@@ -7,6 +7,6 @@ category: "experiments-added"
 
 The `oci` experiment has been added as the gate for downloading source code (including OpenTofu modules) from OCI Distribution registries using `oci://` schema URLs in Terragrunt configurations (including `terraform.source` attributes). This targets the same registries OpenTofu 1.10 supports natively, such as Amazon ECR, GitHub Container Registry, Azure Container Registry, Google Artifact Registry, and self-hosted or air-gapped registries.
 
-In this release, the only change is the reservation of the experiment name. Enabling it has no behavioral effect yet, and `oci://` sources still fail to download. The getter that resolves `oci://` sources will be gated by this experiment in follow-up releases.
+Enabling the experiment has no behavioral effect yet: the getter that will resolve `oci://` sources is not wired into source downloading, so `oci://` sources still fail to download. Functional support will land in follow-up releases, gated by this experiment.
 
 For setup steps, see the [experiment documentation](/reference/experiments/active#oci).

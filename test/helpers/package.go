@@ -183,7 +183,14 @@ func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 	return tmpTerragruntConfigFile
 }
 
-func CopyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
+func CopyTerragruntConfigAndFillPlaceholders(
+	t *testing.T,
+	configSrcPath string,
+	configDestPath string,
+	s3BucketName string,
+	lockTableName string,
+	region string,
+) {
 	t.Helper()
 
 	CopyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
@@ -194,7 +201,12 @@ func CopyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string,
 	})
 }
 
-func CopyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, placeholders map[string]string) {
+func CopyAndFillMapPlaceholders(
+	t *testing.T,
+	srcPath string,
+	destPath string,
+	placeholders map[string]string,
+) {
 	t.Helper()
 
 	contents, err := util.ReadFileAsString(srcPath)
@@ -228,7 +240,11 @@ func UniqueID() string {
 }
 
 // CreateS3ClientForTest creates a S3 client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.TerragruntOptionsFunc) *s3.Client {
+func CreateS3ClientForTest(
+	t *testing.T,
+	awsRegion string,
+	opts ...options.TerragruntOptionsFunc,
+) *s3.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_s3_test")
@@ -250,7 +266,10 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.Terra
 }
 
 // CreateDynamoDBClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn string) *dynamodb.Client {
+func CreateDynamoDBClientForTest(
+	t *testing.T,
+	awsRegion, awsProfile, iamRoleArn string,
+) *dynamodb.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_dynamodb_test")
@@ -272,7 +291,12 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 }
 
 // DeleteS3Bucket deletes the specified S3 bucket potentially with error to clean up after a test.
-func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
+func DeleteS3Bucket(
+	t *testing.T,
+	awsRegion string,
+	bucketName string,
+	opts ...options.TerragruntOptionsFunc,
+) error {
 	t.Helper()
 
 	client := CreateS3ClientForTest(t, awsRegion, opts...)
@@ -295,7 +319,10 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 	cleanS3Bucket(t, ctx, client, bucketName)
 
-	if _, err := client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+	if _, err := client.DeleteBucket(
+		ctx,
+		&s3.DeleteBucketInput{Bucket: aws.String(bucketName)},
+	); err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s was already deleted", bucketName)
 			return nil
@@ -310,7 +337,10 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 		cleanS3Bucket(t, ctx, client, bucketName)
 
-		if _, err = client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		if _, err = client.DeleteBucket(
+			ctx,
+			&s3.DeleteBucketInput{Bucket: aws.String(bucketName)},
+		); err != nil {
 			if isAWSResourceNotFoundError(err) {
 				t.Logf("S3 bucket %s was already deleted", bucketName)
 				return nil
@@ -568,12 +598,23 @@ func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	testPath := filepath.Join(tmpEnvPath, TestFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all plan --non-interactive --working-dir %s %s", testPath, args))
+	stdout, stderr, err := RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terraform run --all plan --non-interactive --working-dir %s %s",
+			testPath,
+			args,
+		),
+	)
 
 	return tmpEnvPath, stdout, stderr, err
 }
 
-func RunNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, providerDir, token string) *url.URL {
+func RunNetworkMirrorServer(
+	t *testing.T,
+	ctx context.Context,
+	urlPrefix, providerDir, token string,
+) *url.URL {
 	t.Helper()
 
 	serverTLSConf, clientTLSConf := certSetup(t)
@@ -777,10 +818,13 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			StreetAddress: []string{"Golden Gate Bridge"},
 			PostalCode:    []string{"94016"},
 		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(10, 0, 0), //nolint:mnd
-		IsCA:                  true,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().AddDate(10, 0, 0), //nolint:mnd
+		IsCA:      true,
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageClientAuth,
+			x509.ExtKeyUsageServerAuth,
+		},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
@@ -828,7 +872,13 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	certPrivKey, err := rsa.GenerateKey(rand.Reader, caKeyBits)
 	require.NoError(t, err)
 
-	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, caPrivKey)
+	certBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		cert,
+		ca,
+		&certPrivKey.PublicKey,
+		caPrivKey,
+	)
 	require.NoError(t, err)
 
 	certPEM := new(bytes.Buffer)
@@ -929,7 +979,12 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
-	require.Len(t, matches, semverPartsLen, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
+	require.Len(
+		t,
+		matches,
+		semverPartsLen,
+		"Expected Terraform version to be in the format 'Terraform v1.10.0'",
+	)
 
 	major, err := strconv.Atoi(matches[1])
 	require.NoError(t, err)
@@ -968,7 +1023,12 @@ func IsOpenTofu112OrHigher(t *testing.T) bool {
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
-	require.Len(t, matches, semverPartsLen, "Expected OpenTofu version to be in the format 'OpenTofu v1.12.0'")
+	require.Len(
+		t,
+		matches,
+		semverPartsLen,
+		"Expected OpenTofu version to be in the format 'OpenTofu v1.12.0'",
+	)
 
 	major, err := strconv.Atoi(matches[1])
 	require.NoError(t, err)
@@ -1000,8 +1060,14 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 		output, err := exec.CommandContext(t.Context(), TerraformBinary, "-version").Output()
 		require.NoError(t, err)
 
-		matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
-		require.Len(t, matches, semverPartsLen, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
+		matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).
+			FindStringSubmatch(string(output))
+		require.Len(
+			t,
+			matches,
+			semverPartsLen,
+			"Expected Terraform version to be in the format 'Terraform v1.10.0'",
+		)
 
 		major, err := strconv.Atoi(matches[1])
 		require.NoError(t, err)
@@ -1009,14 +1075,20 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 		minor, err := strconv.Atoi(matches[2])
 		require.NoError(t, err)
 
-		return major > terraformRequiredMajor || (major == terraformRequiredMajor && minor >= terraformRequiredMinor)
+		return major > terraformRequiredMajor ||
+			(major == terraformRequiredMajor && minor >= terraformRequiredMinor)
 	}
 
 	output, err := exec.CommandContext(t.Context(), TofuBinary, "-version").Output()
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
-	require.Len(t, matches, semverPartsLen, "Expected OpenTofu version to be in the format 'OpenTofu v1.10.0'")
+	require.Len(
+		t,
+		matches,
+		semverPartsLen,
+		"Expected OpenTofu version to be in the format 'OpenTofu v1.10.0'",
+	)
 
 	major, err := strconv.Atoi(matches[1])
 	require.NoError(t, err)
@@ -1095,7 +1167,8 @@ func RunTerragruntCommandWithContext(
 	args, err := parser.Parse(filepath.ToSlash(command))
 	require.NoError(t, err)
 
-	if !strings.Contains(command, "-log-format") && !strings.Contains(command, "-log-custom-format") {
+	if !strings.Contains(command, "-log-format") &&
+		!strings.Contains(command, "-log-custom-format") {
 		var builtinCmd []string
 
 		for i := range args {
@@ -1121,7 +1194,7 @@ func RunTerragruntCommandWithContext(
 	opts := options.NewTerragruntOptions()
 
 	v := venv.OSVenv()
-	v.Writers = writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
+	v.Writers = &writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
 
 	l := log.New(
 		log.WithOutput(syncErrWriter),
@@ -1136,13 +1209,24 @@ func RunTerragruntCommandWithContext(
 	return app.RunContext(ctx, args)
 }
 
-func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
+func RunTerragruntCommand(
+	t *testing.T,
+	command string,
+	writer io.Writer,
+	errwriter io.Writer,
+) error {
 	t.Helper()
 
 	return RunTerragruntCommandWithContext(t, t.Context(), command, writer, errwriter)
 }
 
-func RunTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
+func RunTerragruntVersionCommand(
+	t *testing.T,
+	ver string,
+	command string,
+	writer io.Writer,
+	errwriter io.Writer,
+) error {
 	t.Helper()
 
 	version.Version = ver
@@ -1166,7 +1250,11 @@ func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	}
 }
 
-func RunTerragruntCommandWithOutputWithContext(t *testing.T, ctx context.Context, command string) (string, string, error) {
+func RunTerragruntCommandWithOutputWithContext(
+	t *testing.T,
+	ctx context.Context,
+	command string,
+) (string, string, error) {
 	t.Helper()
 
 	stdout := bytes.Buffer{}
@@ -1184,7 +1272,12 @@ func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 	return RunTerragruntCommandWithOutputWithContext(t, t.Context(), command)
 }
 
-func RunTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
+func RunTerragruntRedirectOutput(
+	t *testing.T,
+	command string,
+	writer io.Writer,
+	errwriter io.Writer,
+) {
 	t.Helper()
 
 	if err := RunTerragruntCommand(t, command, writer, errwriter); err != nil {
@@ -1198,7 +1291,13 @@ func RunTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 			stderr = stderrAsBuffer.String()
 		}
 
-		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, err.Error(), stdout, stderr)
+		t.Fatalf(
+			"Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s",
+			command,
+			err.Error(),
+			stdout,
+			stderr,
+		)
 	}
 }
 
@@ -1211,7 +1310,12 @@ func CreateEmptyStateFile(t *testing.T, testPath string) {
 	require.NoError(t, file.Close())
 }
 
-func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {
+func RunTerragruntValidateInputs(
+	t *testing.T,
+	moduleDir string,
+	extraArgs []string,
+	isSuccessTest bool,
+) {
 	t.Helper()
 
 	maybeNested := filepath.Join(moduleDir, "module")
@@ -1235,7 +1339,14 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 	}
 }
 
-func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
+func CreateTmpTerragruntConfigWithParentAndChild(
+	t *testing.T,
+	parentPath string,
+	childRelPath string,
+	s3BucketName string,
+	parentConfigFileName string,
+	childConfigFileName string,
+) string {
 	t.Helper()
 
 	tmpDir := TmpDirWOSymlinks(t)
@@ -1248,11 +1359,25 @@ func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 
 	parentTerragruntSrcPath := filepath.Join(parentPath, parentConfigFileName)
 	parentTerragruntDestPath := filepath.Join(tmpDir, parentConfigFileName)
-	CopyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used", "not-used")
+	CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		parentTerragruntSrcPath,
+		parentTerragruntDestPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
 
 	childTerragruntSrcPath := filepath.Join(parentPath, childRelPath, childConfigFileName)
 	childTerragruntDestPath := filepath.Join(childDestPath, childConfigFileName)
-	CopyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
+	CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		childTerragruntSrcPath,
+		childTerragruntDestPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
 
 	return childTerragruntDestPath
 }

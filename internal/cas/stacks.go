@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-getter/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -72,11 +73,12 @@ type StackCASResult struct {
 // "unit" or "stack".
 //
 // Requires v.FS unconditionally. Remote sources additionally require
-// v.Git; the assertion fires once dispatch picks the remote branch.
+// v.Exec for the git runner; the assertion fires once dispatch picks
+// the remote branch.
 func (c *CAS) ProcessStackComponent(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	source, kind string,
 ) (*StackCASResult, error) {
 	v.RequireFS()
@@ -87,7 +89,7 @@ func (c *CAS) ProcessStackComponent(
 		return c.processLocalStackComponent(ctx, l, v, repoURL, subdir)
 	}
 
-	v.RequireGit()
+	v.RequireExec()
 
 	detectedURL, err := DetectRemoteSource(repoURL)
 	if err != nil {
@@ -141,7 +143,7 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("failed to CAS clone %q: %w", cleanURL, err)
 	}
 
-	hashAlg, err := detectRepoHashAlgorithm(ctx, v.Git, cloneDir)
+	hashAlg, err := detectRepoHashAlgorithm(ctx, v, cloneDir)
 	if err != nil {
 		l.Debugf("Failed to detect object format, defaulting to SHA-1: %v", err)
 
@@ -235,8 +237,17 @@ func ResolveInRepoSource(repoRoot, dirPath, source string) (string, error) {
 }
 
 // detectRepoHashAlgorithm queries the git object format of a cloned repository
-// using the supplied runner so callers control the git/vexec binding.
-func detectRepoHashAlgorithm(ctx context.Context, runner *git.GitRunner, repoDir string) (HashAlgorithm, error) {
+// through a runner derived from v.Exec, so callers control the vexec binding.
+func detectRepoHashAlgorithm(
+	ctx context.Context,
+	v venv.Venv,
+	repoDir string,
+) (HashAlgorithm, error) {
+	runner, err := git.NewGitRunner(v.Exec)
+	if err != nil {
+		return "", err
+	}
+
 	format, err := runner.WithWorkDir(repoDir).ObjectFormat(ctx)
 	if err != nil {
 		return "", err
@@ -248,7 +259,7 @@ func detectRepoHashAlgorithm(ctx context.Context, runner *git.GitRunner, repoDir
 // processDirectory recursively processes a stack or unit directory, rewriting
 // sources and creating synthetic CAS entries.
 func (c *CAS) processDirectory(
-	ctx context.Context, l log.Logger, v Venv,
+	ctx context.Context, l log.Logger, v venv.Venv,
 	repoRoot, dirPath, refHash string, hashAlg HashAlgorithm,
 ) error {
 	stackFile := filepath.Join(dirPath, "terragrunt.stack.hcl")
@@ -268,7 +279,7 @@ func (c *CAS) processDirectory(
 // processStackFile processes a terragrunt.stack.hcl file, rewriting sources
 // for blocks that have update_source_with_cas = true.
 func (c *CAS) processStackFile(
-	ctx context.Context, l log.Logger, v Venv,
+	ctx context.Context, l log.Logger, v venv.Venv,
 	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm,
 ) error {
 	content, err := vfs.ReadFile(v.FS, stackFile)
@@ -290,27 +301,52 @@ func (c *CAS) processStackFile(
 			continue
 		}
 
-		l.Debugf("Processing CAS source rewrite for %s %q with source %q", block.BlockType, block.Name, block.Source)
+		l.Debugf(
+			"Processing CAS source rewrite for %s %q with source %q",
+			block.BlockType,
+			block.Name,
+			block.Source,
+		)
 
 		targetDir, err := ResolveInRepoSource(repoRoot, dirPath, block.Source)
 		if err != nil {
-			return fmt.Errorf("failed to resolve source for %s %q: %w", block.BlockType, block.Name, err)
+			return fmt.Errorf(
+				"failed to resolve source for %s %q: %w",
+				block.BlockType,
+				block.Name,
+				err,
+			)
 		}
 
 		if err := c.processDirectory(ctx, l, v, repoRoot, targetDir, refHash, hashAlg); err != nil {
-			return fmt.Errorf("failed to process %s %q source: %w", block.BlockType, block.Name, err)
+			return fmt.Errorf(
+				"failed to process %s %q source: %w",
+				block.BlockType,
+				block.Name,
+				err,
+			)
 		}
 
 		synthHash, err := c.buildSyntheticTree(l, v, targetDir, refHash, repoRoot, hashAlg)
 		if err != nil {
-			return fmt.Errorf("failed to build synthetic tree for %s %q: %w", block.BlockType, block.Name, err)
+			return fmt.Errorf(
+				"failed to build synthetic tree for %s %q: %w",
+				block.BlockType,
+				block.Name,
+				err,
+			)
 		}
 
 		newSource := FormatCASRef(synthHash)
 
 		content, err = RewriteStackBlockSource(content, block.BlockType, block.Name, newSource)
 		if err != nil {
-			return fmt.Errorf("failed to rewrite source for %s %q: %w", block.BlockType, block.Name, err)
+			return fmt.Errorf(
+				"failed to rewrite source for %s %q: %w",
+				block.BlockType,
+				block.Name,
+				err,
+			)
 		}
 
 		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
@@ -338,7 +374,7 @@ func (c *CAS) processStackFile(
 // shallow tree of just the leaf module and a CAS reference with no subdir.
 func (c *CAS) processUnitFile(
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	repoRoot, dirPath, unitFile, refHash string,
 	hashAlg HashAlgorithm,
 ) error {
@@ -418,7 +454,7 @@ func (c *CAS) processUnitFile(
 // CAS protocol getter materializes synthetic trees into a self-contained
 // destination directory and any escape would dangle.
 func (c *CAS) buildSyntheticTree(
-	l log.Logger, v Venv, dirPath, refHash, repoRoot string, hashAlg HashAlgorithm,
+	l log.Logger, v venv.Venv, dirPath, refHash, repoRoot string, hashAlg HashAlgorithm,
 ) (string, error) {
 	var treeData []byte
 
@@ -459,7 +495,9 @@ func (c *CAS) buildSyntheticTree(
 				return fmt.Errorf("failed to store symlink blob %s: %w", path, err)
 			}
 
-			treeData = append(treeData, fmt.Appendf(nil, "%s blob %s\t%s\n", gitSymlinkMode, blobHash, relPath)...)
+			treeData = append(
+				treeData,
+				fmt.Appendf(nil, "%s blob %s\t%s\n", gitSymlinkMode, blobHash, relPath)...)
 
 		case info.Mode().IsRegular():
 			fileHash, err := hashFileAlg(v.FS, path, hashAlg)
@@ -472,7 +510,9 @@ func (c *CAS) buildSyntheticTree(
 			}
 
 			mode := gitTreeMode(info.Mode())
-			treeData = append(treeData, fmt.Appendf(nil, "%s blob %s\t%s\n", mode, fileHash, relPath)...)
+			treeData = append(
+				treeData,
+				fmt.Appendf(nil, "%s blob %s\t%s\n", mode, fileHash, relPath)...)
 		}
 
 		return nil
@@ -554,7 +594,7 @@ func isLocalPath(fs vfs.FS, source string) bool {
 // mutate the caller's working tree, computes a content-addressed root hash,
 // and dispatches through the same processDirectory pipeline as the remote case.
 func (c *CAS) processLocalStackComponent(
-	ctx context.Context, l log.Logger, v Venv, sourceDir, subdir string,
+	ctx context.Context, l log.Logger, v venv.Venv, sourceDir, subdir string,
 ) (*StackCASResult, error) {
 	absSource, err := filepath.Abs(sourceDir)
 	if err != nil {
@@ -621,7 +661,15 @@ func (c *CAS) processLocalStackComponent(
 		return nil, fmt.Errorf("failed to compute local root hash: %w", err)
 	}
 
-	if err := c.processDirectory(ctx, l, v, repoRoot, contentDir, rootHash, DefaultLocalHashAlgorithm); err != nil {
+	if err := c.processDirectory(
+		ctx,
+		l,
+		v,
+		repoRoot,
+		contentDir,
+		rootHash,
+		DefaultLocalHashAlgorithm,
+	); err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to process local source for CAS: %w", err)
@@ -636,7 +684,7 @@ func (c *CAS) processLocalStackComponent(
 // copyTree copies the directory tree rooted at src into dst using v.FS for all
 // reads and writes, preserving file permissions. Regular files, directories,
 // and symlinks are copied; other special files are skipped.
-func (c *CAS) copyTree(v Venv, src, dst string) error {
+func (c *CAS) copyTree(v venv.Venv, src, dst string) error {
 	return vfs.WalkDir(v.FS, src, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -685,7 +733,7 @@ func (c *CAS) copyTree(v Venv, src, dst string) error {
 
 // copyFileInFS copies a single regular file from srcPath to dstPath through
 // v.FS, creating any missing parent directories with DefaultDirPerms.
-func (c *CAS) copyFileInFS(v Venv, srcPath, dstPath string, perm fs.FileMode) error {
+func (c *CAS) copyFileInFS(v venv.Venv, srcPath, dstPath string, perm fs.FileMode) error {
 	if err := v.FS.MkdirAll(filepath.Dir(dstPath), DefaultDirPerms); err != nil {
 		return err
 	}

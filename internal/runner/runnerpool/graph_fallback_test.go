@@ -85,7 +85,13 @@ dependency "db" {
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option
-	runnerOff, err := runnerpool.Build(ctx, l, venv.OSVenv(), optsOff, discovery.WithGraphTarget(vpcDir))
+	runnerOff, err := runnerpool.Build(
+		ctx,
+		l,
+		venv.OSVenv(),
+		optsOff,
+		discovery.WithGraphTarget(vpcDir),
+	)
 	require.NoError(t, err)
 
 	offPaths := make([]string, 0, len(runnerOff.GetStack().Units))

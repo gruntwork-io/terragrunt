@@ -35,7 +35,12 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return runSingle(ctx, l, v, opts)
 }
 
-func runSingle(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runSingle(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		return err
@@ -104,7 +109,11 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 	return nil
 }
 
-func runAwsProviderPatch(l log.Logger, env map[string]string, opts *options.TerragruntOptions) error {
+func runAwsProviderPatch(
+	l log.Logger,
+	env map[string]string,
+	opts *options.TerragruntOptions,
+) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
 		return MissingOverrideAttrError(OverrideAttrFlagName)
 	}
@@ -122,7 +131,11 @@ func runAwsProviderPatch(l log.Logger, env map[string]string, opts *options.Terr
 			return err
 		}
 
-		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, opts.AwsProviderPatchOverrides)
+		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(
+			originalTerraformFileContents,
+			terraformFile,
+			opts.AwsProviderPatchOverrides,
+		)
 		if err != nil {
 			return err
 		}
@@ -130,7 +143,11 @@ func runAwsProviderPatch(l log.Logger, env map[string]string, opts *options.Terr
 		if codeWasUpdated {
 			l.Debugf("Patching AWS provider in %s", terraformFile)
 
-			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, bytes.NewBufferString(updatedTerraformFileContents)); err != nil {
+			if err := util.WriteFileWithSamePermissions(
+				terraformFile,
+				terraformFile,
+				bytes.NewBufferString(updatedTerraformFileContents),
+			); err != nil {
 				return err
 			}
 		}
@@ -156,7 +173,10 @@ type TerraformModule struct {
 //
 // NOTE: this method supports *.tf and *.tofu files. Terraform/OpenTofu code defined in *.json files is not currently
 // supported.
-func findAllTerraformFilesInModules(env map[string]string, opts *options.TerragruntOptions) ([]string, error) {
+func findAllTerraformFilesInModules(
+	env map[string]string,
+	opts *options.TerragruntOptions,
+) ([]string, error) {
 	modulesJSONPath := filepath.Join(opts.DataDir(env), "modules", "modules.json")
 
 	if !util.FileExists(modulesJSONPath) {
@@ -218,7 +238,11 @@ func findAllTerraformFilesInModules(env map[string]string, opts *options.Terragr
 // This is a temporary workaround for a Terraform bug (https://github.com/hashicorp/terraform/issues/13018) where
 // any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
 // temporarily hard-coding them, we can allow 'import' to work.
-func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, bool, error) {
+func PatchAwsProviderInTerraformCode(
+	terraformCode string,
+	terraformFilePath string,
+	attributesToOverride map[string]string,
+) (string, bool, error) {
 	if len(attributesToOverride) == 0 {
 		return terraformCode, false, nil
 	}

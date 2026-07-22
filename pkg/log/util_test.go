@@ -121,7 +121,11 @@ func FuzzResetASCISeq(f *testing.F) {
 		result := log.ResetASCISeq(input)
 		// If input contained ANSI escape, output must end with reset sequence
 		if strings.Contains(input, "\033[") {
-			assert.True(t, strings.HasSuffix(result, "\033[0m"), "output with ANSI sequences should end with reset")
+			assert.True(
+				t,
+				strings.HasSuffix(result, "\033[0m"),
+				"output with ANSI sequences should end with reset",
+			)
 		}
 	})
 }

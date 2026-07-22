@@ -37,13 +37,20 @@ func TestSliceFlagStringApply(t *testing.T) {
 			flag: clihelper.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 		},
 		{
-			flag:          clihelper.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: new([]string{"default-value1", "default-value2"})},
+			flag: clihelper.SliceFlag[string]{
+				Name:        "foo",
+				EnvVars:     []string{"FOO"},
+				Destination: new([]string{"default-value1", "default-value2"}),
+			},
 			args:          []string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			envs:          map[string]string{"FOO": "env-value1,env-value2"},
 			expectedValue: []string{"arg-value1", "arg-value2"},
 		},
 		{
-			flag:          clihelper.SliceFlag[string]{Name: "foo", Destination: new([]string{"default-value1", "default-value2"})},
+			flag: clihelper.SliceFlag[string]{
+				Name:        "foo",
+				Destination: new([]string{"default-value1", "default-value2"}),
+			},
 			expectedValue: []string{"default-value1", "default-value2"},
 		},
 	}
@@ -115,7 +122,10 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 			expectedValue: []int64{20, 21},
 		},
 		{
-			flag:          clihelper.SliceFlag[int64]{Name: "foo", Destination: new([]int64{50, 51})},
+			flag: clihelper.SliceFlag[int64]{
+				Name:        "foo",
+				Destination: new([]int64{50, 51}),
+			},
 			expectedValue: []int64{50, 51},
 		},
 	}
@@ -129,7 +139,14 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 	}
 }
 
-func testSliceFlagApply[T clihelper.SliceFlagType](t *testing.T, flag *clihelper.SliceFlag[T], args []string, envs map[string]string, expectedValue []T, expectedErr error) {
+func testSliceFlagApply[T clihelper.SliceFlagType](
+	t *testing.T,
+	flag *clihelper.SliceFlag[T],
+	args []string,
+	envs map[string]string,
+	expectedValue []T,
+	expectedErr error,
+) {
 	t.Helper()
 
 	var (
@@ -189,7 +206,12 @@ func testSliceFlagApply[T clihelper.SliceFlagType](t *testing.T, flag *clihelper
 	assert.Equal(t, expectedStringValueFn(expectedValue), flag.GetValue(), "GetValue()")
 
 	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
-	assert.Equal(t, expectedStringValueFn(expectedDefaultValue), flag.GetDefaultText(), "GetDefaultText()")
+	assert.Equal(
+		t,
+		expectedStringValueFn(expectedDefaultValue),
+		flag.GetDefaultText(),
+		"GetDefaultText()",
+	)
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")
 	assert.True(t, flag.TakesValue(), "TakesValue()")

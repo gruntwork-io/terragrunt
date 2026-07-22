@@ -84,18 +84,6 @@ func NewServer() (_ *Server, retErr error) {
 		return nil, fmt.Errorf("init work dir: %w", err)
 	}
 
-	if err := s.gitIn(ctx, workDir, "remote", "add", "origin", bareDir); err != nil {
-		return nil, fmt.Errorf("add remote: %w", err)
-	}
-
-	if err := s.gitIn(ctx, workDir, "config", "user.email", "test@example.com"); err != nil {
-		return nil, fmt.Errorf("config user.email: %w", err)
-	}
-
-	if err := s.gitIn(ctx, workDir, "config", "user.name", "Test"); err != nil {
-		return nil, fmt.Errorf("config user.name: %w", err)
-	}
-
 	s.workDir = workDir
 
 	return s, nil
@@ -173,7 +161,14 @@ func (s *Server) CommitSubmodule(ctx context.Context, path, url, commitHash, msg
 	// requiring the submodule to be checked out locally.
 	cacheinfo := fmt.Sprintf("160000,%s,%s", commitHash, path)
 
-	if err := s.gitIn(ctx, s.workDir, "update-index", "--add", "--cacheinfo", cacheinfo); err != nil {
+	if err := s.gitIn(
+		ctx,
+		s.workDir,
+		"update-index",
+		"--add",
+		"--cacheinfo",
+		cacheinfo,
+	); err != nil {
 		return fmt.Errorf("update-index for submodule %s: %w", path, err)
 	}
 
@@ -402,9 +397,10 @@ func (s *Server) Close() (retErr error) {
 }
 
 // push pushes the current workDir HEAD to refs/heads/main in the bare repo.
-// All Server commits land on main.
+// All Server commits land on main. The bare repo is addressed by path, so
+// the workDir needs no configured remote.
 func (s *Server) push(ctx context.Context) error {
-	return s.gitIn(ctx, s.workDir, "push", "origin", "HEAD:refs/heads/main")
+	return s.gitIn(ctx, s.workDir, "push", s.bareDir, "HEAD:refs/heads/main")
 }
 
 // gitIn runs a git command with Dir set to dir, returning a formatted error
@@ -412,7 +408,12 @@ func (s *Server) push(ctx context.Context) error {
 func (s *Server) gitIn(ctx context.Context, dir string, args ...string) error {
 	out, err := s.gitCommand(ctx, dir, args...).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return fmt.Errorf(
+			"git %s: %w\n%s",
+			strings.Join(args, " "),
+			err,
+			strings.TrimSpace(string(out)),
+		)
 	}
 
 	return nil
@@ -428,7 +429,12 @@ func (s *Server) gitOut(ctx context.Context, dir string, args ...string) (string
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return "", fmt.Errorf(
+			"git %s: %w\n%s",
+			strings.Join(args, " "),
+			err,
+			strings.TrimSpace(stderr.String()),
+		)
 	}
 
 	return strings.TrimSpace(stdout.String()), nil
@@ -437,11 +443,20 @@ func (s *Server) gitOut(ctx context.Context, dir string, args ...string) (string
 // gitCommand builds a git command rooted at dir with the host's global and
 // system git config suppressed, so server behavior cannot vary with developer
 // settings such as init.defaultBranch, commit.gpgsign, or core.hooksPath.
+// Commit identity comes from the environment, so the work repo needs no
+// `git config user.*` calls.
 func (s *Server) gitCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, s.gitPath, args...)
 	cmd.Dir = dir
 
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1")
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL="+os.DevNull,
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=Test",
+		"GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=Test",
+		"GIT_COMMITTER_EMAIL=test@example.com",
+	)
 
 	return cmd
 }

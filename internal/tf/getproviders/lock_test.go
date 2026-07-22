@@ -21,7 +21,11 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func mockProviderWithConstraints(t *testing.T, ctrl *gomock.Controller, address, ver, constraints string) getproviders.Provider {
+func mockProviderWithConstraints(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	address, ver, constraints string,
+) getproviders.Provider {
 	t.Helper()
 
 	packageDir := helpers.TmpDirWOSymlinks(t)
@@ -60,7 +64,11 @@ func mockProviderWithConstraints(t *testing.T, ctrl *gomock.Controller, address,
 	return provider
 }
 
-func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, version string) getproviders.Provider {
+func mockProviderUpdateLock(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	address, version string,
+) getproviders.Provider {
 	t.Helper()
 
 	packageDir := helpers.TmpDirWOSymlinks(t)
@@ -234,17 +242,42 @@ provider "registry.terraform.io/hashicorp/template" {
 			switch i {
 			case 0:
 				tc.providers = []getproviders.Provider{
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0"),
+					mockProviderUpdateLock(
+						t,
+						ctrl,
+						"registry.terraform.io/hashicorp/aws",
+						"5.37.0",
+					),
 				}
 			case 1:
 				tc.providers = []getproviders.Provider{
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.36.0"),
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
+					mockProviderUpdateLock(
+						t,
+						ctrl,
+						"registry.terraform.io/hashicorp/aws",
+						"5.36.0",
+					),
+					mockProviderUpdateLock(
+						t,
+						ctrl,
+						"registry.terraform.io/hashicorp/template",
+						"2.2.0",
+					),
 				}
 			case 2:
 				tc.providers = []getproviders.Provider{
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0"),
-					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
+					mockProviderUpdateLock(
+						t,
+						ctrl,
+						"registry.terraform.io/hashicorp/aws",
+						"5.37.0",
+					),
+					mockProviderUpdateLock(
+						t,
+						ctrl,
+						"registry.terraform.io/hashicorp/template",
+						"2.2.0",
+					),
 				}
 			}
 
@@ -275,7 +308,12 @@ provider "registry.terraform.io/hashicorp/template" {
 // per-platform hashes matching the OpenTofu registry's `packages` response
 // field. The locally-computed `h1:` hash for the unpacked package is still
 // merged in alongside the registry-supplied hashes.
-func mockProviderWithRegistryHashes(t *testing.T, ctrl *gomock.Controller, address, ver string, hashesByPlatform map[string][]getproviders.Hash) (getproviders.Provider, string) {
+func mockProviderWithRegistryHashes(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	address, ver string,
+	hashesByPlatform map[string][]getproviders.Hash,
+) (getproviders.Provider, string) {
 	t.Helper()
 
 	packageDir := helpers.TmpDirWOSymlinks(t)
@@ -397,8 +435,12 @@ provider "registry.terraform.io/hashicorp/aws" {
 
 	// The constraints line must be preserved as the original aggregated constraints,
 	// NOT overwritten with the module-only constraints.
-	assert.Contains(t, string(actualLockfile), `constraints = ">= 2.0.0, >= 3.0.0, >= 4.9.0, < 7.0.0"`,
-		"Lock file constraints should be preserved, not overwritten with module-only constraints")
+	assert.Contains(
+		t,
+		string(actualLockfile),
+		`constraints = ">= 2.0.0, >= 3.0.0, >= 4.9.0, < 7.0.0"`,
+		"Lock file constraints should be preserved, not overwritten with module-only constraints",
+	)
 	assert.NotContains(t, string(actualLockfile), `constraints = ">= 3.0.0, < 7.0.0"`,
 		"Module-only constraints should not replace the aggregated constraints")
 }

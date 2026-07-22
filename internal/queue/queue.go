@@ -131,11 +131,13 @@ func (e *Entry) IsUp() bool {
 		return false
 	}
 
-	if e.Component.DiscoveryContext().Cmd == "apply" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
+	if e.Component.DiscoveryContext().Cmd == "apply" &&
+		slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
 		return false
 	}
 
-	if e.Component.DiscoveryContext().Cmd == "plan" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
+	if e.Component.DiscoveryContext().Cmd == "plan" &&
+		slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
 		return false
 	}
 
