@@ -92,7 +92,12 @@ func literalStackFilterPath(f *filter.Filter) string {
 // nested stacks that were not themselves recursively generated. For each nested
 // stack the parent generated, it checks whether that nested stack's own components
 // exist on disk (honoring no_dot_terragrunt_stack).
-func stackHasUngeneratedNestedStacks(l log.Logger, fs vfs.FS, funcsFor inthclparse.StackFuncFactory, dir string) bool {
+func stackHasUngeneratedNestedStacks(
+	l log.Logger,
+	fs vfs.FS,
+	funcsFor inthclparse.StackFuncFactory,
+	dir string,
+) bool {
 	_, nestedStackDirs, err := inthclparse.DirectComponentPaths(fs, dir, funcsFor)
 	if err != nil {
 		l.Debugf("stack-nested-generate tip: skipping %q: %v", dir, err)
@@ -110,7 +115,12 @@ func stackHasUngeneratedNestedStacks(l log.Logger, fs vfs.FS, funcsFor inthclpar
 
 // nestedStackGenerated reports whether every direct component of the nested stack
 // generated at nestedDir exists on disk, i.e. the nested stack was itself generated.
-func nestedStackGenerated(l log.Logger, fs vfs.FS, funcsFor inthclparse.StackFuncFactory, nestedDir string) bool {
+func nestedStackGenerated(
+	l log.Logger,
+	fs vfs.FS,
+	funcsFor inthclparse.StackFuncFactory,
+	nestedDir string,
+) bool {
 	unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(fs, nestedDir, funcsFor)
 	if err != nil {
 		l.Debugf("stack-nested-generate tip: skipping %q: %v", nestedDir, err)
@@ -144,7 +154,12 @@ func buildStackNestedGenerateMessage(paths []string) string {
 	b.WriteString(" For example:")
 
 	for _, p := range paths {
-		fmt.Fprintf(&b, "\n  --filter %q --filter %q", p+" | type=stack", SuggestRecursiveStackFilter(p))
+		fmt.Fprintf(
+			&b,
+			"\n  --filter %q --filter %q",
+			p+" | type=stack",
+			SuggestRecursiveStackFilter(p),
+		)
 	}
 
 	return b.String()

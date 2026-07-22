@@ -7,13 +7,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Options contains the subset of configuration needed by backend operations.
+// Options bundles the configuration the Backend interface needs at each call
+// site.
 type Options struct {
-	Writers                      writer.Writers
 	Experiments                  experiment.Experiments
 	IAMRoleOptions               iam.RoleOptions
 	NonInteractive               bool
@@ -38,16 +37,34 @@ type Backend interface {
 	Name() string
 
 	// IsVersionControlEnabled returns true if the version control is enabled.
-	IsVersionControlEnabled(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) (bool, error)
+	IsVersionControlEnabled(
+		ctx context.Context,
+		l log.Logger,
+		v venv.Venv,
+		config Config,
+		opts *Options,
+	) (bool, error)
 
 	// NeedsBootstrap returns true if remote state needs to be bootstrapped.
-	NeedsBootstrap(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) (bool, error)
+	NeedsBootstrap(
+		ctx context.Context,
+		l log.Logger,
+		v venv.Venv,
+		config Config,
+		opts *Options,
+	) (bool, error)
 
 	// Bootstrap bootstraps the remote state.
 	Bootstrap(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) error
 
 	// Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
-	Migrate(ctx context.Context, l log.Logger, v venv.Venv, srcConfig, dstConfig Config, opts *Options) error
+	Migrate(
+		ctx context.Context,
+		l log.Logger,
+		v venv.Venv,
+		srcConfig, dstConfig Config,
+		opts *Options,
+	) error
 
 	// Delete deletes the remote state.
 	Delete(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) error

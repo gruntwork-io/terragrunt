@@ -28,8 +28,10 @@ func run() (code int) {
 	defer originalConsole.Restore()
 
 	opts := options.NewTerragruntOptions()
+	v := venv.OSVenv()
+
 	l := log.New(
-		log.WithOutput(opts.Writers.ErrWriter),
+		log.WithOutput(v.Writers.ErrWriter),
 		log.WithLevel(options.DefaultLogLevel),
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
@@ -47,5 +49,5 @@ func run() (code int) {
 		return 1
 	}
 
-	return cli.NewApp(l, opts, venv.OSVenv()).RunWithExitCode(os.Args, tf.NewDetailedExitCodeMap(), reporter)
+	return cli.NewApp(l, opts, v).RunWithExitCode(os.Args, tf.NewDetailedExitCodeMap(), reporter)
 }

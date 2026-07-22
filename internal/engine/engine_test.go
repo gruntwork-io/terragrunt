@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -33,8 +34,8 @@ func TestConvertMetaToProtobuf(t *testing.T) {
 func TestReadEngineOutput(t *testing.T) {
 	t.Parallel()
 
-	runOpts := &engine.ExecutionOptions{
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+	v := venv.Venv{
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 
 	outputReturned := false
@@ -51,7 +52,7 @@ func TestReadEngineOutput(t *testing.T) {
 		}, nil
 	}
 
-	err := engine.ReadEngineOutput(runOpts, false, outputFn)
+	err := engine.ReadEngineOutput(v, false, outputFn)
 	assert.NoError(t, err)
 }
 

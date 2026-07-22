@@ -155,19 +155,39 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	output := map[string]cty.Value{}
 
 	// Convert attributes that are primitive types
-	if err := wrapWithMetadata(config, config.TerraformBinary, MetadataTerraformBinary, &output); err != nil {
+	if err := wrapWithMetadata(
+		config,
+		config.TerraformBinary,
+		MetadataTerraformBinary,
+		&output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.TerraformVersionConstraint, MetadataTerraformVersionConstraint, &output); err != nil {
+	if err := wrapWithMetadata(
+		config,
+		config.TerraformVersionConstraint,
+		MetadataTerraformVersionConstraint,
+		&output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.TerragruntVersionConstraint, MetadataTerragruntVersionConstraint, &output); err != nil {
+	if err := wrapWithMetadata(
+		config,
+		config.TerragruntVersionConstraint,
+		MetadataTerragruntVersionConstraint,
+		&output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.DownloadDir, MetadataDownloadDir, &output); err != nil {
+	if err := wrapWithMetadata(
+		config,
+		config.DownloadDir,
+		MetadataDownloadDir,
+		&output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 
@@ -175,17 +195,32 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.IamAssumeRoleSessionName, MetadataIamAssumeRoleSessionName, &output); err != nil {
+	if err := wrapWithMetadata(
+		config,
+		config.IamAssumeRoleSessionName,
+		MetadataIamAssumeRoleSessionName,
+		&output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 
 	if config.PreventDestroy != nil {
-		if err := wrapWithMetadata(config, *config.PreventDestroy, MetadataPreventDestroy, &output); err != nil {
+		if err := wrapWithMetadata(
+			config,
+			*config.PreventDestroy,
+			MetadataPreventDestroy,
+			&output,
+		); err != nil {
 			return cty.NilVal, err
 		}
 	}
 
-	if err := wrapWithMetadata(config, config.IamAssumeRoleDuration, MetadataIamAssumeRoleDuration, &output); err != nil {
+	if err := wrapWithMetadata(
+		config,
+		config.IamAssumeRoleDuration,
+		MetadataIamAssumeRoleDuration,
+		&output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 
@@ -195,7 +230,12 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 
 	if terraformConfigCty != cty.NilVal {
-		if err := wrapWithMetadata(config, terraformConfigCty, MetadataTerraform, &output); err != nil {
+		if err := wrapWithMetadata(
+			config,
+			terraformConfigCty,
+			MetadataTerraform,
+			&output,
+		); err != nil {
 			return cty.NilVal, err
 		}
 	}
@@ -207,7 +247,12 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 
 	if remoteStateCty != cty.NilVal {
-		if err := wrapWithMetadata(config, remoteStateCty, MetadataRemoteState, &output); err != nil {
+		if err := wrapWithMetadata(
+			config,
+			remoteStateCty,
+			MetadataRemoteState,
+			&output,
+		); err != nil {
 			return cty.NilVal, err
 		}
 	}
@@ -328,7 +373,12 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	return ConvertValuesMapToCtyVal(output)
 }
 
-func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]any, fieldType string, output *map[string]cty.Value) error {
+func wrapCtyMapWithMetadata(
+	config *TerragruntConfig,
+	data *map[string]any,
+	fieldType string,
+	output *map[string]cty.Value,
+) error {
 	var valueWithMetadata = map[string]cty.Value{}
 
 	for key, value := range *data {
@@ -366,7 +416,12 @@ func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]any, fiel
 	return nil
 }
 
-func wrapWithMetadata(config *TerragruntConfig, value any, metadataName string, output *map[string]cty.Value) error {
+func wrapWithMetadata(
+	config *TerragruntConfig,
+	value any,
+	metadataName string,
+	output *map[string]cty.Value,
+) error {
 	if value == nil {
 		return nil
 	}
@@ -399,7 +454,7 @@ func wrapWithMetadata(config *TerragruntConfig, value any, metadataName string, 
 
 // ValueWithMetadata stores value and metadata used in render-json with metadata.
 type ValueWithMetadata struct {
-	Value    cty.Value         `json:"value" cty:"value"`
+	Value    cty.Value         `json:"value"    cty:"value"`
 	Metadata map[string]string `json:"metadata" cty:"metadata"`
 }
 
@@ -567,11 +622,19 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 	// Only include update_source_with_cas when explicitly set, to avoid
 	// surfacing it as null in outputs for configs that don't use it.
 	if config.UpdateSourceWithCAS != nil {
-		val = ctyObjectAddField(val, "update_source_with_cas", goboolToCty(*config.UpdateSourceWithCAS))
+		val = ctyObjectAddField(
+			val,
+			"update_source_with_cas",
+			goboolToCty(*config.UpdateSourceWithCAS),
+		)
 	}
 
 	if config.Mutable != nil {
 		val = ctyObjectAddField(val, "mutable", goboolToCty(*config.Mutable))
+	}
+
+	if config.Version != nil {
+		val = ctyObjectAddField(val, "version", gostringToCty(*config.Version))
 	}
 
 	return val, nil

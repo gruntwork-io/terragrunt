@@ -33,7 +33,11 @@ func NewParsingContext(
 // StackFuncFactory returns a dir-scoped HCL function factory for early stack
 // discovery parsing, built from TerragruntOptions. Each call rebuilds the
 // function map for the given stack dir so dir-sensitive functions resolve there.
-func StackFuncFactory(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) inthclparse.StackFuncFactory {
+func StackFuncFactory(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) inthclparse.StackFuncFactory {
 	_, pctx := NewParsingContext(ctx, l, opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {
@@ -56,7 +60,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.Experiments = opts.Experiments
 	pctx.StrictControls = opts.StrictControls
 	pctx.FeatureFlags = opts.FeatureFlags
-	pctx.Writers = opts.Writers
 	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
 	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
@@ -91,7 +94,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 	s := shell.NewShellOptions().
 		WithWorkingDir(opts.WorkingDir).
-		WithWriters(opts.Writers).
 		WithTelemetry(opts.Telemetry).
 		WithEngine(opts.EngineConfig, opts.EngineOptions).
 		WithTFPath(opts.TFPath).
@@ -108,7 +110,6 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
 func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
-		Writers:                      opts.Writers,
 		Experiments:                  opts.Experiments,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
@@ -141,7 +142,6 @@ func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
 // This replaces the former run.NewOptions(opts) function.
 func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts := run.NewOptions()
-	runOpts.Writers = opts.Writers
 	runOpts.LogShowAbsPaths = opts.LogShowAbsPaths
 	runOpts.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	runOpts.TerragruntConfigPath = opts.TerragruntConfigPath

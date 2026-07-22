@@ -97,7 +97,12 @@ func TestRunCommandNoCacheRefuses(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	assert.Equal(t, int32(3), calls.Load(), "--terragrunt-no-cache must force a subprocess fork every call")
+	assert.Equal(
+		t,
+		int32(3),
+		calls.Load(),
+		"--terragrunt-no-cache must force a subprocess fork every call",
+	)
 }
 
 // TestRunCommandSurfacesSubprocessFailure pins the contract that a

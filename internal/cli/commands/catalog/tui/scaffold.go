@@ -25,7 +25,12 @@ type scaffoldCmd struct {
 	venv      venv.Venv
 }
 
-func newScaffoldCmd(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
+func newScaffoldCmd(
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	c *Component,
+) *scaffoldCmd {
 	return &scaffoldCmd{component: c, opts: opts, logger: l, venv: v}
 }
 
@@ -45,12 +50,19 @@ func (c *scaffoldCmd) Run() error {
 
 		c.logger.Debugf("Generating scaffolded component: %q", c.component.TerraformSourcePath())
 
-		return c.plan.Generate(context.Background(), c.logger, c.opts, c.values)
+		return c.plan.Generate(context.Background(), c.logger, c.venv, c.opts, c.values)
 	}
 
 	c.logger.Debugf("Scaffolding component: %q", c.component.TerraformSourcePath())
 
-	return scaffold.Run(context.Background(), c.logger, c.venv, c.opts, c.component.TerraformSourcePath(), "")
+	return scaffold.Run(
+		context.Background(),
+		c.logger,
+		c.venv,
+		c.opts,
+		c.component.TerraformSourcePath(),
+		"",
+	)
 }
 
 func (c *scaffoldCmd) SetStdin(io.Reader)  {}

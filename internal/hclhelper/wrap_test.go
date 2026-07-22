@@ -20,8 +20,11 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 			expected: `{key1="value1",key2=46521694,key3=true}`,
 		},
 		{
-			name:     "NestedMap",
-			input:    map[string]any{"key1": "value1", "key2": map[string]any{"nestedKey": "nestedValue"}},
+			name: "NestedMap",
+			input: map[string]any{
+				"key1": "value1",
+				"key2": map[string]any{"nestedKey": "nestedValue"},
+			},
 			expected: `{key1="value1",key2={nestedKey="nestedValue"}}`,
 		},
 		{

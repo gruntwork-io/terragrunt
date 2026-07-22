@@ -124,7 +124,12 @@ func TestNewRunnerPoolStack_Empty(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(context.Background(), l, opts, component.Components{})
+	runner, err := runnerpool.NewRunnerPoolStack(
+		context.Background(),
+		l,
+		opts,
+		component.Components{},
+	)
 	require.NoError(t, err)
 	require.NotNil(t, runner)
 
@@ -161,7 +166,12 @@ func TestNewRunnerPoolStack_WithPreventDestroy(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(context.Background(), l, opts, component.Components{vpc, app})
+	runner, err := runnerpool.NewRunnerPoolStack(
+		context.Background(),
+		l,
+		opts,
+		component.Components{vpc, app},
+	)
 	require.NoError(t, err)
 	require.NotNil(t, runner)
 
@@ -199,7 +209,12 @@ func TestNewRunnerPoolStack_FilterAllowDestroy(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(context.Background(), l, opts, component.Components{vpc})
+	runner, err := runnerpool.NewRunnerPoolStack(
+		context.Background(),
+		l,
+		opts,
+		component.Components{vpc},
+	)
 	require.NoError(t, err)
 
 	stack := runner.GetStack()
@@ -210,7 +225,11 @@ func TestNewRunnerPoolStack_FilterAllowDestroy(t *testing.T) {
 		if u.Path() == "/tmp/test/vpc" {
 			foundVPC = true
 
-			assert.True(t, u.Excluded(), "vpc should be excluded: destroy with git ref but no --filter-allow-destroy")
+			assert.True(
+				t,
+				u.Excluded(),
+				"vpc should be excluded: destroy with git ref but no --filter-allow-destroy",
+			)
 		}
 	}
 
@@ -230,7 +249,11 @@ func buildTestRunner(t *testing.T, workDir string, unitPaths []string) *runnerpo
 }
 
 // buildTestRunnerFromUnits creates a Runner from pre-built unit components.
-func buildTestRunnerFromUnits(t *testing.T, workDir string, components component.Components) *runnerpool.Runner {
+func buildTestRunnerFromUnits(
+	t *testing.T,
+	workDir string,
+	components component.Components,
+) *runnerpool.Runner {
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(workDir, "terragrunt.hcl"))

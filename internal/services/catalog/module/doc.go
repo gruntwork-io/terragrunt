@@ -57,14 +57,20 @@ func NewDoc(rawContent, fileExt string) *Doc {
 		rawContent: rawContent,
 		fileExt:    fileExt,
 
-		tagRegs:        make(map[docTagName]*regexp.Regexp),
-		frontmatterReg: regexp.MustCompile(`(?i)^[\s\n]*<!-- frontmatter[\s\n]*([\S\s]*?)[\s\n]*-->`),
+		tagRegs: make(map[docTagName]*regexp.Regexp),
+		frontmatterReg: regexp.MustCompile(
+			`(?i)^[\s\n]*<!-- frontmatter[\s\n]*([\S\s]*?)[\s\n]*-->`,
+		),
 	}
 
 	switch fileExt {
 	case mdExt:
-		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?:^|\n)\#{1}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
-		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?:^|\n)\#{2}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
+		doc.tagRegs[tagH1Block] = regexp.MustCompile(
+			`(?:^|\n)\#{1}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`,
+		)
+		doc.tagRegs[tagH2Block] = regexp.MustCompile(
+			`(?:^|\n)\#{2}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`,
+		)
 		doc.tagStripRegs = DocRegs{
 			// code
 			regexp.MustCompile("`{3}" + `.*[\r\n]+`),
@@ -97,8 +103,12 @@ func NewDoc(rawContent, fileExt string) *Doc {
 		}
 
 	case adocExt:
-		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?:^|\n)\={1}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`)
-		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?:^|\n)\={2}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`)
+		doc.tagRegs[tagH1Block] = regexp.MustCompile(
+			`(?:^|\n)\={1}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`,
+		)
+		doc.tagRegs[tagH2Block] = regexp.MustCompile(
+			`(?:^|\n)\={2}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`,
+		)
 		doc.tagStripRegs = DocRegs{
 			// html
 			regexp.MustCompile("<(.*?)>"),

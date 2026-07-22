@@ -1,16 +1,16 @@
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "5.40.0"
+    null = {
+      source  = "hashicorp/null"
+      version = "3.2.4"
     }
-    azure = {
-      source  = "hashicorp/azurerm"
-      version = "3.95.0"
+    local = {
+      source  = "hashicorp/local"
+      version = "2.5.2"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "2.27.0"
+    random = {
+      source  = "hashicorp/random"
+      version = "3.6.3"
     }
   }
 }

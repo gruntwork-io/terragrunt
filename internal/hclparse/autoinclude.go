@@ -92,7 +92,11 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 // ResolveForKind is Resolve with the component kind and parent name known, so a
 // stack-level autoinclude can be validated against the unsupported pattern where
 // an injected unit/stack consumes a sibling dependency's outputs through values.
-func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoIncludeKind, name string) (*AutoIncludeResolved, hcl.Diagnostics) {
+func (a *AutoIncludeHCL) ResolveForKind(
+	evalCtx *hcl.EvalContext,
+	kind AutoIncludeKind,
+	name string,
+) (*AutoIncludeResolved, hcl.Diagnostics) {
 	if a == nil || a.Remain == nil {
 		return nil, nil
 	}
@@ -139,8 +143,11 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Invalid dependency block labels",
-				Detail:   fmt.Sprintf("dependency block requires exactly one label, got %d", len(block.Labels)),
-				Subject:  block.DefRange().Ptr(),
+				Detail: fmt.Sprintf(
+					"dependency block requires exactly one label, got %d",
+					len(block.Labels),
+				),
+				Subject: block.DefRange().Ptr(),
 			})
 
 			continue
@@ -165,7 +172,10 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 }
 
 // resolveDependencyBlock extracts config_path from a dependency block; caller must ensure exactly one label.
-func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (AutoIncludeDependency, hcl.Diagnostics) {
+func resolveDependencyBlock(
+	block *hclsyntax.Block,
+	evalCtx *hcl.EvalContext,
+) (AutoIncludeDependency, hcl.Diagnostics) {
 	name := block.Labels[0]
 
 	// Decode only config_path from the block body, leaving everything else.
@@ -186,12 +196,18 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 		// Surface one clear error anchored at config_path; the raw diagnostics can carry a function-internal
 		// subject (e.g. a function that re-parses the stack file) that otherwise renders as a misleading
 		// top-level error pointing at an unrelated unit or stack block.
-		return AutoIncludeDependency{}, hcl.Diagnostics{{
-			Severity: hcl.DiagError,
-			Summary:  "Invalid config_path",
-			Detail:   fmt.Sprintf("dependency %q config_path could not be evaluated at stack generate time: %s", name, configPathEvalReason(diags)),
-			Subject:  pathRange,
-		}}
+		return AutoIncludeDependency{}, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid config_path",
+				Detail: fmt.Sprintf(
+					"dependency %q config_path could not be evaluated at stack generate time: %s",
+					name,
+					configPathEvalReason(diags),
+				),
+				Subject: pathRange,
+			},
+		}
 	}
 
 	// Null/unknown evaluate without HCL diagnostics; surface them as typed diags with source position so callers can detect the failure and editors can underline the offending expression.
@@ -269,7 +285,10 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 			errs = append(errs, MalformedDependencyError{
 				FilePath: autoIncludePath,
 				Name:     blockLabelsString(block),
-				Reason:   fmt.Sprintf("dependency block requires exactly one label, got %d", len(block.Labels)),
+				Reason: fmt.Sprintf(
+					"dependency block requires exactly one label, got %d",
+					len(block.Labels),
+				),
 			})
 
 			continue
@@ -331,24 +350,45 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 
 	configPathAttr, exists := block.Body.Attributes[attrConfigPath]
 	if !exists {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "missing config_path attribute"}
+		return "", MalformedDependencyError{
+			FilePath: autoIncludePath,
+			Name:     name,
+			Reason:   "missing config_path attribute",
+		}
 	}
 
 	val, valDiags := configPathAttr.Expr.Value(nil)
 	if valDiags.HasErrors() {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path evaluation failed", Err: valDiags}
+		return "", MalformedDependencyError{
+			FilePath: autoIncludePath,
+			Name:     name,
+			Reason:   "config_path evaluation failed",
+			Err:      valDiags,
+		}
 	}
 
 	if !val.IsKnown() {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path is unknown"}
+		return "", MalformedDependencyError{
+			FilePath: autoIncludePath,
+			Name:     name,
+			Reason:   "config_path is unknown",
+		}
 	}
 
 	if val.IsNull() {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path is null"}
+		return "", MalformedDependencyError{
+			FilePath: autoIncludePath,
+			Name:     name,
+			Reason:   "config_path is null",
+		}
 	}
 
 	if val.Type() != cty.String {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path must be a string, got " + val.Type().FriendlyName()}
+		return "", MalformedDependencyError{
+			FilePath: autoIncludePath,
+			Name:     name,
+			Reason:   "config_path must be a string, got " + val.Type().FriendlyName(),
+		}
 	}
 
 	depPath := val.AsString()
@@ -360,7 +400,10 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 }
 
 // StackAutoIncludeDepValuesError scans a stack autoinclude body for the unsupported cross-level pattern: an injected unit/stack whose values reference dependency outputs, which are not available at stack generate time. Returns the populated typed error, or nil when absent. Shared by the fail-fast generation check and the pkg/config backstop so the two cannot drift.
-func StackAutoIncludeDepValuesError(body *hclsyntax.Body, stackName string) *StackAutoIncludeDependencyValuesError {
+func StackAutoIncludeDepValuesError(
+	body *hclsyntax.Body,
+	stackName string,
+) *StackAutoIncludeDependencyValuesError {
 	for _, block := range body.Blocks {
 		if block.Type != VarUnit && block.Type != VarStack {
 			continue
@@ -402,7 +445,10 @@ func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) h
 }
 
 // rejectStackAutoIncludeDependencyBlocks rejects a top-level dependency block in a stack autoinclude, which is unsupported because a stack autoinclude injects only unit and stack blocks into the generated stack file.
-func rejectStackAutoIncludeDependencyBlocks(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+func rejectStackAutoIncludeDependencyBlocks(
+	body *hclsyntax.Body,
+	stackName string,
+) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	for _, block := range body.Blocks {
@@ -413,8 +459,12 @@ func rejectStackAutoIncludeDependencyBlocks(body *hclsyntax.Body, stackName stri
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "dependency block is not allowed in a stack autoinclude",
-			Detail:   fmt.Sprintf("stack %q autoinclude declares dependency %q, but a stack autoinclude may inject only unit and stack blocks; declare the dependency inside the target unit's own autoinclude instead", stackName, blockLabelsString(block)),
-			Subject:  block.DefRange().Ptr(),
+			Detail: fmt.Sprintf(
+				"stack %q autoinclude declares dependency %q, but a stack autoinclude may inject only unit and stack blocks; declare the dependency inside the target unit's own autoinclude instead",
+				stackName,
+				blockLabelsString(block),
+			),
+			Subject: block.DefRange().Ptr(),
 		})
 	}
 
@@ -440,7 +490,11 @@ func referencesRoot(expr hclsyntax.Expression, root string) bool {
 }
 
 // rejectAutoIncludeLocalsBlock rejects a locals block defined anywhere in the autoinclude body for both kinds.
-func rejectAutoIncludeLocalsBlock(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
+func rejectAutoIncludeLocalsBlock(
+	body *hclsyntax.Body,
+	kind AutoIncludeKind,
+	name string,
+) hcl.Diagnostics {
 	block, err := findNestedBlock(body, blockLocals, 0)
 	if err != nil {
 		return blockDepthDiags(body, err)
@@ -450,7 +504,11 @@ func rejectAutoIncludeLocalsBlock(body *hclsyntax.Body, kind AutoIncludeKind, na
 		return nil
 	}
 
-	typed := AutoIncludeLocalsBlockError{Subject: block.DefRange().Ptr(), Kind: string(kind), Component: name}
+	typed := AutoIncludeLocalsBlockError{
+		Subject:   block.DefRange().Ptr(),
+		Kind:      string(kind),
+		Component: name,
+	}
 
 	return hcl.Diagnostics{{
 		Severity: hcl.DiagError,
@@ -464,7 +522,11 @@ func rejectAutoIncludeLocalsBlock(body *hclsyntax.Body, kind AutoIncludeKind, na
 // rejectAutoIncludeNestedAutoInclude rejects an autoinclude block nested inside the autoinclude body, which would
 // otherwise recurse. An injected unit or stack legitimately carries its own autoinclude for the next generate pass,
 // so those subtrees are skipped.
-func rejectAutoIncludeNestedAutoInclude(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
+func rejectAutoIncludeNestedAutoInclude(
+	body *hclsyntax.Body,
+	kind AutoIncludeKind,
+	name string,
+) hcl.Diagnostics {
 	block, err := findNestedBlock(body, blockAutoInclude, 0)
 	if err != nil {
 		return blockDepthDiags(body, err)
@@ -474,7 +536,11 @@ func rejectAutoIncludeNestedAutoInclude(body *hclsyntax.Body, kind AutoIncludeKi
 		return nil
 	}
 
-	typed := AutoIncludeNestedError{Subject: block.DefRange().Ptr(), Kind: string(kind), Component: name}
+	typed := AutoIncludeNestedError{
+		Subject:   block.DefRange().Ptr(),
+		Kind:      string(kind),
+		Component: name,
+	}
 
 	return hcl.Diagnostics{{
 		Severity: hcl.DiagError,

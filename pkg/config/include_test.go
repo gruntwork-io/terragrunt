@@ -32,83 +32,267 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		{
 			&config.TerragruntConfig{},
-			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: new("foo")}},
-			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: new("foo")}},
+			&config.TerragruntConfig{
+				RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}),
+				Terraform:   &config.TerraformConfig{Source: new("foo")},
+			},
+			&config.TerragruntConfig{
+				RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}),
+				Terraform:   &config.TerraformConfig{Source: new("foo")},
+			},
 		},
 		{
-			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "foo"}), Terraform: &config.TerraformConfig{Source: new("foo")}},
-			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: new("foo")}},
-			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "foo"}), Terraform: &config.TerraformConfig{Source: new("foo")}},
+			&config.TerragruntConfig{
+				RemoteState: remotestate.New(&remotestate.Config{BackendName: "foo"}),
+				Terraform:   &config.TerraformConfig{Source: new("foo")},
+			},
+			&config.TerragruntConfig{
+				RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}),
+				Terraform:   &config.TerraformConfig{Source: new("foo")},
+			},
+			&config.TerragruntConfig{
+				RemoteState: remotestate.New(&remotestate.Config{BackendName: "foo"}),
+				Terraform:   &config.TerraformConfig{Source: new("foo")},
+			},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("foo")}},
-			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: new("foo")}},
-			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: new("foo")}},
+			&config.TerragruntConfig{
+				RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}),
+				Terraform:   &config.TerraformConfig{Source: new("foo")},
+			},
+			&config.TerragruntConfig{
+				RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}),
+				Terraform:   &config.TerraformConfig{Source: new("foo")},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}},
+				},
+			},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "parentArgs"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "parentArgs"}, {Name: "childArgs"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExtraArgs: []config.TerraformExtraArguments{{Name: "parentArgs"}},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExtraArgs: []config.TerraformExtraArguments{
+						{Name: "parentArgs"},
+						{Name: "childArgs"},
+					},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "overrideArgs", Arguments: &[]string{"-child"}}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "overrideArgs", Arguments: &[]string{"-parent"}}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "overrideArgs", Arguments: &[]string{"-child"}}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExtraArgs: []config.TerraformExtraArguments{
+						{Name: "overrideArgs", Arguments: &[]string{"-child"}},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExtraArgs: []config.TerraformExtraArguments{
+						{Name: "overrideArgs", Arguments: &[]string{"-parent"}},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExtraArgs: []config.TerraformExtraArguments{
+						{Name: "overrideArgs", Arguments: &[]string{"-child"}},
+					},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "childHooks"}},
+				},
+			},
 			&config.TerragruntConfig{Terraform: nil},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "childHooks"}},
+				},
+			},
 		},
 		{
 			&config.TerragruntConfig{Terraform: nil},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "parentHooks"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "parentHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "parentHooks"}},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "parentHooks"}},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "childHooks"}},
+				},
+			},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "childHooks"}},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "childHooks"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "parentHooks"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "parentHooks"}, {Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "childHooks"}},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "parentHooks"}},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{{Name: "parentHooks"}, {Name: "childHooks"}},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "overrideHooks", Commands: []string{"child-apply"}}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "overrideHooks", Commands: []string{"parent-apply"}}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{BeforeHooks: []config.Hook{{Name: "overrideHooks", Commands: []string{"child-apply"}}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{
+						{Name: "overrideHooks", Commands: []string{"child-apply"}},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{
+						{Name: "overrideHooks", Commands: []string{"parent-apply"}},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					BeforeHooks: []config.Hook{
+						{Name: "overrideHooks", Commands: []string{"child-apply"}},
+					},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "childHooks"}}},
+			},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "childHooks"}}},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "childHooks"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "parentHooks"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "parentHooks"}, {Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "childHooks"}}},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{{Name: "parentHooks"}},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{{Name: "parentHooks"}, {Name: "childHooks"}},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideHooks", Commands: []string{"child-apply"}}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideHooks", Commands: []string{"parent-apply"}}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideHooks", Commands: []string{"child-apply"}}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{
+						{Name: "overrideHooks", Commands: []string{"child-apply"}},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{
+						{Name: "overrideHooks", Commands: []string{"parent-apply"}},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{
+						{Name: "overrideHooks", Commands: []string{"child-apply"}},
+					},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideHooksPlusMore", Commands: []string{"child-apply"}}, {Name: "childHooks"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideHooksPlusMore", Commands: []string{"parent-apply"}}, {Name: "parentHooks"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideHooksPlusMore", Commands: []string{"child-apply"}}, {Name: "parentHooks"}, {Name: "childHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{
+						{Name: "overrideHooksPlusMore", Commands: []string{"child-apply"}},
+						{Name: "childHooks"},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{
+						{Name: "overrideHooksPlusMore", Commands: []string{"parent-apply"}},
+						{Name: "parentHooks"},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{
+						{Name: "overrideHooksPlusMore", Commands: []string{"child-apply"}},
+						{Name: "parentHooks"},
+						{Name: "childHooks"},
+					},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideWithEmptyHooks"}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideWithEmptyHooks", Commands: []string{"parent-apply"}}}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{AfterHooks: []config.Hook{{Name: "overrideWithEmptyHooks"}}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{{Name: "overrideWithEmptyHooks"}},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{
+						{Name: "overrideWithEmptyHooks", Commands: []string{"parent-apply"}},
+					},
+				},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					AfterHooks: []config.Hook{{Name: "overrideWithEmptyHooks"}},
+				},
+			},
 		},
 		{
 			&config.TerragruntConfig{IamRole: "role2"},
@@ -141,14 +325,65 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{IamAssumeRoleSessionName: "session"},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					CopyTerraformLockFile: &[]bool{false}[0],
+					IncludeInCopy:         &[]string{"abc"},
+				},
+			},
 		},
 		{
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					CopyTerraformLockFile: &[]bool{false}[0],
+					ExcludeFromCopy:       &[]string{"abc"},
+				},
+			},
+		},
+		{
+			config: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{Version: new("~> 4.0")},
+			},
+			includedConfig: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+					Version: new("~> 3.3"),
+				},
+			},
+			expected: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+					Version: new("~> 4.0"),
+				},
+			},
+		},
+		{
+			config: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+				},
+			},
+			includedConfig: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{Version: new("~> 3.3")},
+			},
+			expected: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+					Version: new("~> 3.3"),
+				},
+			},
 		},
 	}
 
@@ -255,21 +490,26 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		// Deep merge dependencies
 		{
 			name: "dependencies",
-			source: &config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../vpc"}},
+			source: &config.TerragruntConfig{
+				Dependencies: &config.ModuleDependencies{Paths: []string{"../vpc"}},
 				TerragruntDependencies: config.Dependencies{
 					config.Dependency{
 						Name:       "vpc",
 						ConfigPath: cty.StringVal("../vpc"),
 					},
-				}},
-			target: &config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../mysql"}},
+				},
+			},
+			target: &config.TerragruntConfig{
+				Dependencies: &config.ModuleDependencies{Paths: []string{"../mysql"}},
 				TerragruntDependencies: config.Dependencies{
 					config.Dependency{
 						Name:       "mysql",
 						ConfigPath: cty.StringVal("../mysql"),
 					},
-				}},
-			expected: &config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../mysql", "../vpc"}},
+				},
+			},
+			expected: &config.TerragruntConfig{
+				Dependencies: &config.ModuleDependencies{Paths: []string{"../mysql", "../vpc"}},
 				TerragruntDependencies: config.Dependencies{
 					config.Dependency{
 						Name:       "mysql",
@@ -279,7 +519,8 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 						Name:       "vpc",
 						ConfigPath: cty.StringVal("../vpc"),
 					},
-				}},
+				},
+			},
 		},
 		// Deep merge retryable errors
 		// Deep merge inputs
@@ -290,16 +531,69 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			expected: &config.TerragruntConfig{Inputs: mergedMap},
 		},
 		{
-			name:     "terraform copy_terraform_lock_file",
-			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
-			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
-			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
+			name: "terraform copy_terraform_lock_file",
+			source: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]},
+			},
+			target: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}},
+			},
+			expected: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					CopyTerraformLockFile: &[]bool{false}[0],
+					IncludeInCopy:         &[]string{"abc"},
+				},
+			},
 		},
 		{
-			name:     "terraform copy_terraform_lock_file",
-			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
-			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
-			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
+			name: "terraform copy_terraform_lock_file",
+			source: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]},
+			},
+			target: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}},
+			},
+			expected: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					CopyTerraformLockFile: &[]bool{false}[0],
+					ExcludeFromCopy:       &[]string{"abc"},
+				},
+			},
+		},
+		{
+			name: "terraform version overridden by source config",
+			source: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{Version: new("~> 4.0")},
+			},
+			target: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+					Version: new("~> 3.3"),
+				},
+			},
+			expected: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+					Version: new("~> 4.0"),
+				},
+			},
+		},
+		{
+			name: "terraform version kept from target config",
+			source: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+				},
+			},
+			target: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{Version: new("~> 3.3")},
+			},
+			expected: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+					Version: new("~> 3.3"),
+				},
+			},
 		},
 	}
 
@@ -375,15 +669,29 @@ func TestIncludeConfigNotFoundError(t *testing.T) {
 	t.Parallel()
 
 	// Test that IncludeConfigNotFoundError is properly defined and formatted
-	err := config.IncludeConfigNotFoundError{IncludePath: "/test/path/terragrunt.hcl", SourcePath: "/source/config.hcl"}
+	err := config.IncludeConfigNotFoundError{
+		IncludePath: "/test/path/terragrunt.hcl",
+		SourcePath:  "/source/config.hcl",
+	}
 
 	assert.Equal(t, "/test/path/terragrunt.hcl", err.IncludePath)
 	assert.Equal(t, "/source/config.hcl", err.SourcePath)
-	assert.Contains(t, err.Error(), "Include configuration not found: /test/path/terragrunt.hcl (referenced from: /source/config.hcl)")
+	assert.Contains(
+		t,
+		err.Error(),
+		"Include configuration not found: /test/path/terragrunt.hcl (referenced from: /source/config.hcl)",
+	)
 
 	// Test with a different path
-	err2 := config.IncludeConfigNotFoundError{IncludePath: "/another/path/config.hcl", SourcePath: "/different/source.hcl"}
+	err2 := config.IncludeConfigNotFoundError{
+		IncludePath: "/another/path/config.hcl",
+		SourcePath:  "/different/source.hcl",
+	}
 	assert.Equal(t, "/another/path/config.hcl", err2.IncludePath)
 	assert.Equal(t, "/different/source.hcl", err2.SourcePath)
-	assert.Contains(t, err2.Error(), "Include configuration not found: /another/path/config.hcl (referenced from: /different/source.hcl)")
+	assert.Contains(
+		t,
+		err2.Error(),
+		"Include configuration not found: /another/path/config.hcl (referenced from: /different/source.hcl)",
+	)
 }

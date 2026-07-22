@@ -31,7 +31,11 @@ func FuzzFindConfigInProject(f *testing.F) {
 		{layout: "", workingDir: "/", maxFolders: 1},
 		{layout: "/.tflint.hcl", workingDir: "/", maxFolders: 1},
 		{layout: ".tflint.hcl", workingDir: "relative", maxFolders: 3},
-		{layout: "/work/.tflint.hcl\n/work/.tflint.hcl/nested", workingDir: "/work/x/y/z", maxFolders: 10},
+		{
+			layout:     "/work/.tflint.hcl\n/work/.tflint.hcl/nested",
+			workingDir: "/work/x/y/z",
+			maxFolders: 10,
+		},
 	}
 
 	for _, s := range seeds {

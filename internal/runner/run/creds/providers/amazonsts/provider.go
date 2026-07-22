@@ -23,7 +23,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, iamRoleOpts iam.RoleOptions, env map[string]string) providers.Provider {
+func NewProvider(
+	l log.Logger,
+	iamRoleOpts iam.RoleOptions,
+	env map[string]string,
+) providers.Provider {
 	return &Provider{
 		iamRoleOpts: iamRoleOpts,
 		env:         env,
@@ -58,11 +62,11 @@ func (provider *Provider) GetCredentials(
 
 	var resp *types.Credentials
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "creds_assume_role", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "creds_assume_role", map[string]any{
 		"role_arn":     iamRoleOpts.RoleARN,
 		"session_name": iamRoleOpts.AssumeRoleSessionName,
 		"duration":     iamRoleOpts.AssumeRoleDuration,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		var assumeErr error
 
 		resp, assumeErr = awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.env)

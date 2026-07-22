@@ -48,7 +48,12 @@ var runAllDisabledCommands = map[string]string{
 // Run executes the configured terraform command across every unit in the
 // stack. v is the virtualized environment threaded through the runner pool
 // into each unit's run pipeline.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (err error) {
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) (err error) {
 	// --filter sets RunAll, so the CLI layer dispatches here without going
 	// through the single-unit run path. Emit the tip here as well; the
 	// underlying sync.Once dedupes if both paths fire.
@@ -109,7 +114,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 				return
 			}
 
-			if writeErr := r.WriteSummary(opts.Writers.Writer); writeErr != nil {
+			if writeErr := r.WriteSummary(v.Writers.Writer); writeErr != nil {
 				l.Warnf("Failed to write summary: %v", writeErr)
 			}
 		}()
@@ -145,24 +150,33 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 
 		// Clean stack folders before calling `generate` when the `--source-update` flag is passed
 		if opts.SourceUpdate {
-			errClean := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
-				"stack_config_path": opts.TerragruntStackConfigPath,
-				"working_dir":       opts.WorkingDir,
-			}, func(ctx context.Context) error {
-				l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
-				return clean.CleanStacks(l, opts)
-			})
+			errClean := telemetry.TelemeterFromContext(ctx).
+				Collect(ctx, l, "stack_clean", map[string]any{
+					"stack_config_path": opts.TerragruntStackConfigPath,
+					"working_dir":       opts.WorkingDir,
+				}, func(ctx context.Context, l log.Logger) error {
+					l.Debugf(
+						"Running stack clean for %s, as part of generate command",
+						opts.WorkingDir,
+					)
+
+					return clean.CleanStacks(l, opts)
+				})
 			if errClean != nil {
-				return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
+				return fmt.Errorf(
+					"failed to clean stack directories under %q: %w",
+					opts.WorkingDir,
+					errClean,
+				)
 			}
 		}
 
 		// Generate the stack configuration with telemetry tracking
 		gen := generate.NewGenerator()
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_generate", map[string]any{
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
-		}, func(ctx context.Context) error {
+		}, func(ctx context.Context, l log.Logger) error {
 			return gen.GenerateStacks(ctx, l, v, opts, wts)
 		})
 
@@ -222,7 +236,13 @@ func RunAllOnStack(
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
+		shouldRunAll, err := shell.PromptUserForYesNo(
+			ctx,
+			l,
+			prompt,
+			opts.NonInteractive,
+			v.Writers.ErrWriter,
+		)
 		if err != nil {
 			return err
 		}
@@ -238,26 +258,27 @@ func RunAllOnStack(
 
 	var runErr error
 
-	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
-		"terraform_command": opts.TerraformCommand,
-		"working_dir":       opts.WorkingDir,
-	}, func(ctx context.Context) error {
-		err := rnr.Run(ctx, l, v, opts, r)
-		if err != nil {
-			// At this stage, we can't handle the error any further, so we just log it and return nil.
-			// After this point, we'll need to report on what happened, and we want that to happen
-			// after the error summary.
-			l.Errorf("Run failed: %v", err)
+	telemetryErr := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "run_all_on_stack", map[string]any{
+			"terraform_command": opts.TerraformCommand,
+			"working_dir":       opts.WorkingDir,
+		}, func(ctx context.Context, l log.Logger) error {
+			err := rnr.Run(ctx, l, v, opts, r)
+			if err != nil {
+				// At this stage, we can't handle the error any further, so we just log it and return nil.
+				// After this point, we'll need to report on what happened, and we want that to happen
+				// after the error summary.
+				l.Errorf("Run failed: %v", err)
 
-			// Save error to potentially return after telemetry completes
-			runErr = err
+				// Save error to potentially return after telemetry completes
+				runErr = err
 
-			// Return nil to allow telemetry and reporting to complete
+				// Return nil to allow telemetry and reporting to complete
+				return nil
+			}
+
 			return nil
-		}
-
-		return nil
-	})
+		})
 
 	// log telemetry error and continue execution
 	if telemetryErr != nil {

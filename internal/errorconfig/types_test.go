@@ -63,8 +63,12 @@ func TestExtractErrorMessage_DoesNotFalselyMatchTimeout(t *testing.T) {
 	// The timeout pattern should NOT match because the extracted message only
 	// contains stderr and exit error, not the command flags.
 	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
-	assert.False(t, matched,
-		"timeout pattern should NOT match when 'timeout' only appears in command flags; cleaned message: %s", msg)
+	assert.False(
+		t,
+		matched,
+		"timeout pattern should NOT match when 'timeout' only appears in command flags; cleaned message: %s",
+		msg,
+	)
 }
 
 func TestExtractErrorMessage_StillMatchesRealTimeout(t *testing.T) {
@@ -89,8 +93,12 @@ func TestExtractErrorMessage_StillMatchesRealTimeout(t *testing.T) {
 
 	msg := errorconfig.ExtractErrorMessage(err)
 	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
-	assert.True(t, matched,
-		"timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s", msg)
+	assert.True(
+		t,
+		matched,
+		"timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s",
+		msg,
+	)
 }
 
 func TestExtractErrorMessage_StillMatchesTimeoutInStderrWithFlags(t *testing.T) {
@@ -116,8 +124,12 @@ func TestExtractErrorMessage_StillMatchesTimeoutInStderrWithFlags(t *testing.T) 
 
 	msg := errorconfig.ExtractErrorMessage(err)
 	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
-	assert.True(t, matched,
-		"timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s", msg)
+	assert.True(
+		t,
+		matched,
+		"timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s",
+		msg,
+	)
 }
 
 func TestExtractErrorMessage_NonProcessError(t *testing.T) {
@@ -135,7 +147,12 @@ func TestExtractErrorMessage_NonProcessError(t *testing.T) {
 	}
 
 	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
-	assert.True(t, matched, "timeout pattern should match for non-ProcessExecutionError; cleaned message: %s", msg)
+	assert.True(
+		t,
+		matched,
+		"timeout pattern should match for non-ProcessExecutionError; cleaned message: %s",
+		msg,
+	)
 }
 
 func TestErrorCleanPattern_PreservesCharacters(t *testing.T) {

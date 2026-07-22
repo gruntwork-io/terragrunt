@@ -1,0 +1,19 @@
+---
+version: "v1.1.1"
+category: "experiments-added"
+---
+
+#### `version-attribute` - Resolve registry modules from a version constraint
+
+The `version-attribute` experiment has been added to gate a new `version` attribute on the `terraform` block. It holds a version constraint (such as `~> 3.3` or `>= 1.0.0, < 2.0.0`) for a `tfr://` registry module, and Terragrunt resolves it to the highest published version that satisfies the constraint before downloading:
+
+```hcl
+terraform {
+  source  = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"
+  version = "~> 3.3"
+}
+```
+
+This brings the `terraform` block to parity with the `version` argument on OpenTofu and Terraform `module` blocks. The attribute applies to `tfr://` sources only, and cannot be combined with an inline `?version=` on the same source.
+
+Enable it with `--experiment version-attribute`. For setup steps and the criteria for stabilization, see the [experiment documentation](/reference/experiments/active#version-attribute).

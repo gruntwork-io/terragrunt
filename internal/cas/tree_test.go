@@ -5,12 +5,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestParseTreeEntry(t *testing.T) {
@@ -195,7 +198,7 @@ func TestLinkTreeSymlinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := newMemVenv(t)
+			v := venvtest.New()
 			require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 			store := cas.NewStore("/store")
@@ -236,7 +239,13 @@ func TestLinkTreeSymlinks(t *testing.T) {
 
 				info, err := vfs.Lstat(v.FS, full)
 				require.NoError(t, err)
-				assert.NotZero(t, info.Mode()&os.ModeSymlink, "%s is not a symlink (mode=%s)", full, info.Mode())
+				assert.NotZero(
+					t,
+					info.Mode()&os.ModeSymlink,
+					"%s is not a symlink (mode=%s)",
+					full,
+					info.Mode(),
+				)
 
 				got, err := vfs.Readlink(v.FS, full)
 				require.NoError(t, err)
@@ -260,7 +269,7 @@ func TestLinkTree(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		setupStore func(t *testing.T, v cas.Venv) (*cas.Store, string)
+		setupStore func(t *testing.T, v venv.Venv) (*cas.Store, string)
 		treeData   []byte
 		wantFiles  []struct {
 			path    string
@@ -272,7 +281,7 @@ func TestLinkTree(t *testing.T) {
 	}{
 		{
 			name: "basic tree with files and directories",
-			setupStore: func(t *testing.T, v cas.Venv) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v venv.Venv) (*cas.Store, string) {
 				t.Helper()
 
 				require.NoError(t, v.FS.MkdirAll("/store", 0755))
@@ -329,7 +338,7 @@ func TestLinkTree(t *testing.T) {
 		},
 		{
 			name: "empty tree",
-			setupStore: func(t *testing.T, v cas.Venv) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v venv.Venv) (*cas.Store, string) {
 				t.Helper()
 
 				require.NoError(t, v.FS.MkdirAll("/store", 0755))
@@ -348,7 +357,7 @@ func TestLinkTree(t *testing.T) {
 		},
 		{
 			name: "tree with missing content",
-			setupStore: func(t *testing.T, v cas.Venv) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v venv.Venv) (*cas.Store, string) {
 				t.Helper()
 
 				require.NoError(t, v.FS.MkdirAll("/store", 0755))
@@ -366,7 +375,7 @@ func TestLinkTree(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := newMemVenv(t)
+			v := venvtest.New()
 
 			// Setup store
 			store, _ := tt.setupStore(t, v)

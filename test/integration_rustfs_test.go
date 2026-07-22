@@ -32,11 +32,20 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteStateRustFS)
 
-	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteStateRustFS, "root.hcl")
-	helpers.CopyAndFillMapPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, map[string]string{
-		"__FILL_IN_BUCKET_NAME__": s3BucketName,
-		"__FILL_IN_S3_ENDPOINT__": rustfsAddr,
-	})
+	rootTerragruntConfigPath := filepath.Join(
+		tmpEnvPath,
+		testFixtureOutputFromRemoteStateRustFS,
+		"root.hcl",
+	)
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		map[string]string{
+			"__FILL_IN_BUCKET_NAME__": s3BucketName,
+			"__FILL_IN_S3_ENDPOINT__": rustfsAddr,
+		},
+	)
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputFromRemoteStateRustFS)
 
@@ -92,7 +101,10 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 func setupRustFS(t *testing.T) string {
 	t.Helper()
 
-	_, addr := helpers.RunContainer(t, "rustfs/rustfs:1.0.0-alpha.90@sha256:0725587f6fcca83c1898f321424327d6e6da5e01ea20382905dd258ed5af3be4", 9000,
+	_, addr := helpers.RunContainer(
+		t,
+		"rustfs/rustfs:1.0.0-alpha.90@sha256:0725587f6fcca83c1898f321424327d6e6da5e01ea20382905dd258ed5af3be4",
+		9000,
 		testcontainers.WithCmd("/data"),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("Starting:"),

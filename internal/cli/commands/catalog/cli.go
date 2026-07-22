@@ -54,7 +54,10 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 				}
 
 				if info.IsDir() {
-					return clihelper.NewExitError("--"+IgnoreFileFlagName+" must point to a file, not a directory", clihelper.ExitCodeGeneralError)
+					return clihelper.NewExitError(
+						"--"+IgnoreFileFlagName+" must point to a file, not a directory",
+						clihelper.ExitCodeGeneralError,
+					)
 				}
 
 				opts.CatalogIgnoreFile = resolved

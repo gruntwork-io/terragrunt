@@ -44,7 +44,10 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 }
 
 // DeepMerge feature flags.
-func deepMergeFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
+func deepMergeFeatureBlocks(
+	targetFeatureFlags []*FeatureFlag,
+	sourceFeatureFlags []*FeatureFlag,
+) ([]*FeatureFlag, error) {
 	if sourceFeatureFlags == nil && targetFeatureFlags == nil {
 		return nil, nil
 	}

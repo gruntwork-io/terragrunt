@@ -36,10 +36,21 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 				testPath,
 			),
 		)
-		require.NoError(t, err, "Failed to apply all units initially\nstdout: %s\nstderr: %s", stdout, stderr)
+		require.NoError(
+			t,
+			err,
+			"Failed to apply all units initially\nstdout: %s\nstderr: %s",
+			stdout,
+			stderr,
+		)
 
 		// Verify all units were applied
-		assert.Contains(t, stdout+stderr, "transitive-dependency", "transitive-dependency should be applied")
+		assert.Contains(
+			t,
+			stdout+stderr,
+			"transitive-dependency",
+			"transitive-dependency should be applied",
+		)
 		assert.Contains(t, stdout+stderr, "dependency", "dependency should be applied")
 		assert.Contains(t, stdout+stderr, "dependent", "dependent should be applied")
 
@@ -77,8 +88,12 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 
 		// Verify that transitive-dependency is NOT in the queue (filtered out)
 		// but dependency still runs successfully
-		assert.Contains(t, output, "found 1 readyEntries tasks",
-			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue")
+		assert.Contains(
+			t,
+			output,
+			"found 1 readyEntries tasks",
+			"Should show 'found 1 readyEntries tasks' - dependency should run even though transitive-dependency is not in queue",
+		)
 	})
 
 	t.Run("queue-include-dir and destroy", func(t *testing.T) {
@@ -207,7 +222,10 @@ func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 
 	// This reproduces the bug: --queue-include-units-reading
 	// without --queue-include-dir should still only include units that read the file
-	cmd := fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s --queue-include-units-reading=sources/source.hcl -- plan", testPath)
+	cmd := fmt.Sprintf(
+		"terragrunt run --all --non-interactive --working-dir %s --queue-include-units-reading=sources/source.hcl -- plan",
+		testPath,
+	)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 	// The command should succeed and discover the unit
@@ -217,6 +235,16 @@ func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 
 	// Verify that the unit reading sources/source.hcl is discovered and included
 	// This should pass after the fix, but currently fails due to the bug
-	assert.Contains(t, output, "live/foo", "Unit live/foo that reads sources/source.hcl should be included")
-	assert.NotContains(t, output, "No units discovered", "Should discover units reading sources/source.hcl")
+	assert.Contains(
+		t,
+		output,
+		"live/foo",
+		"Unit live/foo that reads sources/source.hcl should be included",
+	)
+	assert.NotContains(
+		t,
+		output,
+		"No units discovered",
+		"Should discover units reading sources/source.hcl",
+	)
 }

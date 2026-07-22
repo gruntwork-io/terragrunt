@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Telemetry operation names for config parsing operations.
@@ -31,13 +32,14 @@ const (
 // TraceParseConfigFile wraps a config file parsing operation with telemetry.
 func TraceParseConfigFile(
 	ctx context.Context,
+	l log.Logger,
 	configPath string,
 	workingDir string,
 	isPartial bool,
 	decodeList []PartialDecodeSectionType,
 	includeFromChild *IncludeConfig,
 	cacheHit bool,
-	fn func(ctx context.Context) error,
+	fn func(ctx context.Context, l log.Logger) error,
 ) error {
 	attrs := map[string]any{
 		AttrConfigPath:       configPath,
@@ -55,17 +57,18 @@ func TraceParseConfigFile(
 		attrs[AttrIncludeChildPath] = includeFromChild.Path
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpParseConfigFile, attrs, fn)
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, TelemetryOpParseConfigFile, attrs, fn)
 }
 
 // TraceParseDependencies wraps dependency parsing with telemetry.
 func TraceParseDependencies(
 	ctx context.Context,
+	l log.Logger,
 	configPath string,
 	skipOutputsResolution bool,
 	dependencyCount int,
 	dependencyNames []string,
-	fn func(ctx context.Context) error,
+	fn func(ctx context.Context, l log.Logger) error,
 ) error {
 	attrs := map[string]any{
 		AttrConfigPath:      configPath,
@@ -77,7 +80,7 @@ func TraceParseDependencies(
 		attrs[AttrDependencyNames] = strings.Join(dependencyNames, ",")
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpParseDependencies, attrs, fn)
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, TelemetryOpParseDependencies, attrs, fn)
 }
 
 // formatDecodeList converts a slice of PartialDecodeSectionType to a comma-separated string.

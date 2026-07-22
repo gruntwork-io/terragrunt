@@ -19,7 +19,13 @@ const (
 )
 
 // ParseLogFile extracts test failures from a log file.
-func ParseLogFile(logPath string, runID int64, jobName string, runURL string, failedAt time.Time) ([]types.TestFailure, error) {
+func ParseLogFile(
+	logPath string,
+	runID int64,
+	jobName string,
+	runURL string,
+	failedAt time.Time,
+) ([]types.TestFailure, error) {
 	file, err := os.Open(logPath)
 	if err != nil {
 		return nil, err

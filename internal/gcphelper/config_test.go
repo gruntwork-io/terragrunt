@@ -90,7 +90,10 @@ func TestGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 		Credentials: credsFile,
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(gcpCfg).WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+		WithSessionConfig(gcpCfg).
+		WithEnv(env).
+		Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -106,7 +109,10 @@ func TestGcpConfigWithAccessTokenFromConfig(t *testing.T) {
 		AccessToken: "test-access-token",
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(gcpCfg).WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+		WithSessionConfig(gcpCfg).
+		WithEnv(env).
+		Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -137,7 +143,10 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 		Credentials: configCredsFile, // This should be ignored in favor of env var
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(gcpCfg).WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+		WithSessionConfig(gcpCfg).
+		WithEnv(env).
+		Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 
@@ -146,7 +155,9 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 }
 
 func TestGcpConfigWithImpersonation(t *testing.T) {
-	t.Skip("impersonation succeeds when application default credentials are present, as they are in the GCP CI job")
+	t.Skip(
+		"impersonation succeeds when application default credentials are present, as they are in the GCP CI job",
+	)
 	t.Parallel()
 
 	ctx := context.Background()

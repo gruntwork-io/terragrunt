@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### `run --all` no longer crashes on dependency discovery with graph filters
+
+Running `run --all` with a filter that expands a git range through the dependency graph (for example `[HEAD~1...HEAD]...`) could fail during dependency discovery, reporting that a component "is missing its working directory". Whether it happened depended on the size and shape of the changed unit's dependency closure, so the same filter succeeded on smaller branches and `find` was unaffected.
+
+A dependency reached from several units at once could become visible to discovery before its working directory was set, so a concurrent traversal could read it before it was complete. Dependencies now have their working directory set before they become visible, so `run --all` behaves the same regardless of graph size.

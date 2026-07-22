@@ -105,7 +105,9 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 				if stderr != "" {
 					// Check that stderr only contains expected warnings, not actual errors
 					lowerStderr := strings.ToLower(stderr)
-					if strings.Contains(lowerStderr, "error") && !strings.Contains(lowerStderr, "suppressed") && !strings.Contains(lowerStderr, "warning") {
+					if strings.Contains(lowerStderr, "error") &&
+						!strings.Contains(lowerStderr, "suppressed") &&
+						!strings.Contains(lowerStderr, "warning") {
 						t.Errorf("Unexpected error in stderr: %s", stderr)
 					}
 				}
@@ -113,7 +115,13 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 				// Sort both outputs for comparison (find output order may vary)
 				expectedLines := strings.Fields(tc.expectedOutput)
 				actualLines := strings.Fields(stdout)
-				assert.ElementsMatch(t, expectedLines, actualLines, "Output mismatch for filter query: %s", tc.filterQuery)
+				assert.ElementsMatch(
+					t,
+					expectedLines,
+					actualLines,
+					"Output mismatch for filter query: %s",
+					tc.filterQuery,
+				)
 			}
 		})
 	}
@@ -135,16 +143,26 @@ func TestFilterFlagWithFindGraphExpressionsJSON(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:          "dependent traversal - ...b-dependency JSON",
-			filterQuery:   "...b-dependency",
-			expectedPaths: []string{"a-dependent", "b-dependency", "c-mixed-deps", "d-dependencies-only"},
-			expectError:   false,
+			name:        "dependent traversal - ...b-dependency JSON",
+			filterQuery: "...b-dependency",
+			expectedPaths: []string{
+				"a-dependent",
+				"b-dependency",
+				"c-mixed-deps",
+				"d-dependencies-only",
+			},
+			expectError: false,
 		},
 		{
-			name:          "both directions - ...a-dependent... JSON",
-			filterQuery:   "...a-dependent...",
-			expectedPaths: []string{"a-dependent", "b-dependency", "c-mixed-deps", "d-dependencies-only"},
-			expectError:   false,
+			name:        "both directions - ...a-dependent... JSON",
+			filterQuery: "...a-dependent...",
+			expectedPaths: []string{
+				"a-dependent",
+				"b-dependency",
+				"c-mixed-deps",
+				"d-dependencies-only",
+			},
+			expectError: false,
 		},
 		{
 			name:          "exclude target - ^a-dependent... JSON",
@@ -183,7 +201,13 @@ func TestFilterFlagWithFindGraphExpressionsJSON(t *testing.T) {
 			for _, expectedPath := range tc.expectedPaths {
 				assert.Contains(t, stdout, `"path"`, "JSON output should contain path field")
 				// The path might be relative or absolute, so we check for the component name
-				assert.Contains(t, stdout, expectedPath, "JSON output should contain path: %s", expectedPath)
+				assert.Contains(
+					t,
+					stdout,
+					expectedPath,
+					"JSON output should contain path: %s",
+					expectedPath,
+				)
 			}
 		})
 	}
@@ -241,7 +265,12 @@ func TestFilterFlagWithRunGraphExpressions(t *testing.T) {
 				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
 
 				if tc.errorPattern != "" {
-					assert.Contains(t, stderr, tc.errorPattern, "Error message should contain expected pattern")
+					assert.Contains(
+						t,
+						stderr,
+						tc.errorPattern,
+						"Error message should contain expected pattern",
+					)
 				}
 			} else {
 				// The command might fail due to terraform init/plan errors (missing providers, etc),
@@ -257,18 +286,33 @@ func TestFilterFlagWithRunGraphExpressions(t *testing.T) {
 
 				// Check for filter-related errors (these would indicate a problem with graph expressions)
 				if strings.Contains(output, "filter") {
-					if strings.Contains(output, "parse") || strings.Contains(output, "syntax") || strings.Contains(output, "invalid") {
-						t.Fatalf("Filter parsing/evaluation error detected in output: %s\nOutput: %s\nStderr: %s", errStr, stdout, stderr)
+					if strings.Contains(output, "parse") || strings.Contains(output, "syntax") ||
+						strings.Contains(output, "invalid") {
+						t.Fatalf(
+							"Filter parsing/evaluation error detected in output: %s\nOutput: %s\nStderr: %s",
+							errStr,
+							stdout,
+							stderr,
+						)
 					}
 				}
 
 				// Check error string directly for filter issues
 				if err != nil {
-					if strings.Contains(errStr, "filter") && (strings.Contains(errStr, "parse") || strings.Contains(errStr, "syntax") || strings.Contains(errStr, "invalid")) {
-						t.Fatalf("Filter parsing/evaluation error: %v\nOutput: %s\nStderr: %s", err, stdout, stderr)
+					if strings.Contains(errStr, "filter") &&
+						(strings.Contains(errStr, "parse") || strings.Contains(errStr, "syntax") || strings.Contains(errStr, "invalid")) {
+						t.Fatalf(
+							"Filter parsing/evaluation error: %v\nOutput: %s\nStderr: %s",
+							err,
+							stdout,
+							stderr,
+						)
 					}
 					// Terraform execution errors are acceptable - we're just verifying filter discovery works
-					t.Logf("Command completed (Terraform execution errors are expected in test environment): %v", err)
+					t.Logf(
+						"Command completed (Terraform execution errors are expected in test environment): %v",
+						err,
+					)
 				}
 
 				// Verify that the command at least attempted to process units (discovery phase completed)
@@ -656,7 +700,11 @@ dependency "vpc" {
   }
 }
 `
-		err = os.WriteFile(filepath.Join(cacheDir, "terragrunt.hcl"), []byte(modifiedCacheHCL), 0644)
+		err = os.WriteFile(
+			filepath.Join(cacheDir, "terragrunt.hcl"),
+			[]byte(modifiedCacheHCL),
+			0644,
+		)
 		require.NoError(t, err)
 
 		require.NoError(t, runner.Add(t.Context(), "."))
@@ -791,5 +839,11 @@ dependency "unit-a" {
 	expectedUnits := []string{"unit-a", "unit-b"}
 
 	assert.ElementsMatch(t, expectedUnits, actualUnits)
-	assert.Len(t, actualUnits, len(expectedUnits), "Expected no duplicate entries, but got: %v", actualUnits)
+	assert.Len(
+		t,
+		actualUnits,
+		len(expectedUnits),
+		"Expected no duplicate entries, but got: %v",
+		actualUnits,
+	)
 }

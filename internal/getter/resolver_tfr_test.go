@@ -27,7 +27,10 @@ func TestTFRResolver_ProbeReturnsContentKey(t *testing.T) {
 	key, err := r.Probe(t.Context(), src)
 	require.NoError(t, err)
 
-	expected := cas.ContentKey("tfr-xtg", "https://"+server.Listener.Addr().String()+"/download/terraform-aws-vpc.zip")
+	expected := cas.ContentKey(
+		"tfr-xtg",
+		"https://"+server.Listener.Addr().String()+"/download/terraform-aws-vpc.zip",
+	)
 	assert.Equal(t, expected, key)
 }
 
@@ -93,7 +96,10 @@ func TestTFRResolver_EmptyVersionReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := getter.NewTFRResolver().WithLogger(logger.CreateLogger())
 
-	_, err := r.Probe(t.Context(), "tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=")
+	_, err := r.Probe(
+		t.Context(),
+		"tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=",
+	)
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 

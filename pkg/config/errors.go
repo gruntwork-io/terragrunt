@@ -16,7 +16,10 @@ func (e InvalidArgError) Error() string {
 type IncludedConfigMissingPathError string
 
 func (err IncludedConfigMissingPathError) Error() string {
-	return fmt.Sprintf("The include configuration in %s must specify a 'path' parameter", string(err))
+	return fmt.Sprintf(
+		"The include configuration in %s must specify a 'path' parameter",
+		string(err),
+	)
 }
 
 type IncludeConfigNotFoundError struct {
@@ -25,7 +28,11 @@ type IncludeConfigNotFoundError struct {
 }
 
 func (err IncludeConfigNotFoundError) Error() string {
-	return fmt.Sprintf("Include configuration not found: %s (referenced from: %s)", err.IncludePath, err.SourcePath)
+	return fmt.Sprintf(
+		"Include configuration not found: %s (referenced from: %s)",
+		err.IncludePath,
+		err.SourcePath,
+	)
 }
 
 type TooManyLevelsOfInheritanceError struct {
@@ -35,7 +42,12 @@ type TooManyLevelsOfInheritanceError struct {
 }
 
 func (err TooManyLevelsOfInheritanceError) Error() string {
-	return fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.", err.ConfigPath, err.FirstLevelIncludePath, err.SecondLevelIncludePath)
+	return fmt.Sprintf(
+		"%s includes %s, which itself includes %s. Only one level of includes is allowed.",
+		err.ConfigPath,
+		err.FirstLevelIncludePath,
+		err.SecondLevelIncludePath,
+	)
 }
 
 type CouldNotResolveTerragruntConfigInFileError string
@@ -93,7 +105,12 @@ type WrongNumberOfParamsError struct {
 }
 
 func (err WrongNumberOfParamsError) Error() string {
-	return fmt.Sprintf("Expected %s params for function %s, but got %d", err.Expected, err.Func, err.Actual)
+	return fmt.Sprintf(
+		"Expected %s params for function %s, but got %d",
+		err.Expected,
+		err.Func,
+		err.Actual,
+	)
 }
 
 type InvalidParameterTypeError struct {
@@ -112,7 +129,12 @@ type ParentFileNotFoundError struct {
 }
 
 func (err ParentFileNotFoundError) Error() string {
-	return fmt.Sprintf("ParentFileNotFoundError: Could not find a %s in any of the parent folders of %s. Cause: %s.", err.File, err.Path, err.Cause)
+	return fmt.Sprintf(
+		"ParentFileNotFoundError: Could not find a %s in any of the parent folders of %s. Cause: %s.",
+		err.File,
+		err.Path,
+		err.Cause,
+	)
 }
 
 type InvalidGetEnvParamsError struct {
@@ -121,7 +143,11 @@ type InvalidGetEnvParamsError struct {
 }
 
 func (err InvalidGetEnvParamsError) Error() string {
-	return fmt.Sprintf("InvalidGetEnvParamsError: Expected one or two parameters (%s) for get_env but got %d.", err.Example, err.ActualNumParams)
+	return fmt.Sprintf(
+		"InvalidGetEnvParamsError: Expected one or two parameters (%s) for get_env but got %d.",
+		err.Example,
+		err.ActualNumParams,
+	)
 }
 
 type EnvVarNotFoundError struct {
@@ -129,7 +155,10 @@ type EnvVarNotFoundError struct {
 }
 
 func (err EnvVarNotFoundError) Error() string {
-	return fmt.Sprintf("EnvVarNotFoundError: Required environment variable %s - not found", err.EnvVar)
+	return fmt.Sprintf(
+		"EnvVarNotFoundError: Required environment variable %s - not found",
+		err.EnvVar,
+	)
 }
 
 type InvalidEnvParamNameError struct {
@@ -137,7 +166,10 @@ type InvalidEnvParamNameError struct {
 }
 
 func (err InvalidEnvParamNameError) Error() string {
-	return fmt.Sprintf("InvalidEnvParamNameError: Invalid environment variable name - (%s) ", err.EnvName)
+	return fmt.Sprintf(
+		"InvalidEnvParamNameError: Invalid environment variable name - (%s) ",
+		err.EnvName,
+	)
 }
 
 type EmptyStringNotAllowedError string
@@ -157,7 +189,10 @@ type TerragruntConfigNotFoundError struct {
 }
 
 func (err TerragruntConfigNotFoundError) Error() string {
-	return fmt.Sprintf("You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file. Please add a terragrunt.hcl file and try again.\n\nPath: %q", err.Path)
+	return fmt.Sprintf(
+		"You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file. Please add a terragrunt.hcl file and try again.\n\nPath: %q",
+		err.Path,
+	)
 }
 
 type InvalidSourceURLError struct {
@@ -167,7 +202,12 @@ type InvalidSourceURLError struct {
 }
 
 func (err InvalidSourceURLError) Error() string {
-	return fmt.Sprintf("The --source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceURL)
+	return fmt.Sprintf(
+		"The --source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!",
+		err.TerragruntSource,
+		err.ModulePath,
+		err.ModuleSourceURL,
+	)
 }
 
 type InvalidSourceURLWithMapError struct {
@@ -176,7 +216,11 @@ type InvalidSourceURLWithMapError struct {
 }
 
 func (err InvalidSourceURLWithMapError) Error() string {
-	return fmt.Sprintf("The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceURL)
+	return fmt.Sprintf(
+		"The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!",
+		err.ModulePath,
+		err.ModuleSourceURL,
+	)
 }
 
 type ParsingModulePathError struct {
@@ -184,7 +228,10 @@ type ParsingModulePathError struct {
 }
 
 func (err ParsingModulePathError) Error() string {
-	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceURL)
+	return fmt.Sprintf(
+		"Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.",
+		err.ModuleSourceURL,
+	)
 }
 
 type InvalidSopsFormatError struct {
@@ -192,7 +239,10 @@ type InvalidSopsFormatError struct {
 }
 
 func (err InvalidSopsFormatError) Error() string {
-	return fmt.Sprintf("File %s is not a valid format or encoding. Terragrunt will only decrypt yaml or json files in UTF-8 encoding.", err.SourceFilePath)
+	return fmt.Sprintf(
+		"File %s is not a valid format or encoding. Terragrunt will only decrypt yaml or json files in UTF-8 encoding.",
+		err.SourceFilePath,
+	)
 }
 
 type InvalidIncludeKeyError struct {
@@ -200,7 +250,10 @@ type InvalidIncludeKeyError struct {
 }
 
 func (err InvalidIncludeKeyError) Error() string {
-	return fmt.Sprintf("There is no include block in the current config with the label '%s'", err.name)
+	return fmt.Sprintf(
+		"There is no include block in the current config with the label '%s'",
+		err.name,
+	)
 }
 
 type DependencyFileNotFoundError struct {
@@ -227,7 +280,11 @@ type TerragruntOutputParsingError struct {
 }
 
 func (err TerragruntOutputParsingError) Error() string {
-	return fmt.Sprintf("Could not parse output from terragrunt config %s. Underlying error: %s", err.Path, err.Err)
+	return fmt.Sprintf(
+		"Could not parse output from terragrunt config %s. Underlying error: %s",
+		err.Path,
+		err.Err,
+	)
 }
 
 type TerragruntOutputEncodingError struct {
@@ -236,7 +293,11 @@ type TerragruntOutputEncodingError struct {
 }
 
 func (err TerragruntOutputEncodingError) Error() string {
-	return fmt.Sprintf("Could not encode output from terragrunt config %s. Underlying error: %s", err.Path, err.Err)
+	return fmt.Sprintf(
+		"Could not encode output from terragrunt config %s. Underlying error: %s",
+		err.Path,
+		err.Err,
+	)
 }
 
 type TerragruntOutputListEncodingError struct {
@@ -245,7 +306,11 @@ type TerragruntOutputListEncodingError struct {
 }
 
 func (err TerragruntOutputListEncodingError) Error() string {
-	return fmt.Sprintf("Could not encode output from list of terragrunt configs %v. Underlying error: %s", err.Paths, err.Err)
+	return fmt.Sprintf(
+		"Could not encode output from list of terragrunt configs %v. Underlying error: %s",
+		err.Paths,
+		err.Err,
+	)
 }
 
 type TerragruntOutputTargetNoOutputs struct {
@@ -312,7 +377,10 @@ type TerraformSourceReferencesDependencyError struct {
 }
 
 func (err TerraformSourceReferencesDependencyError) Error() string {
-	return fmt.Sprintf("terraform.source in %s cannot reference dependency outputs; the module source must be resolvable before dependencies are evaluated", err.ConfigPath)
+	return fmt.Sprintf(
+		"terraform.source in %s cannot reference dependency outputs; the module source must be resolvable before dependencies are evaluated",
+		err.ConfigPath,
+	)
 }
 
 // MaxParseDepthError is returned when config parsing exceeds the maximum allowed depth.
@@ -322,7 +390,11 @@ type MaxParseDepthError struct {
 }
 
 func (err MaxParseDepthError) Error() string {
-	return fmt.Sprintf("maximum parse depth of %d exceeded (current depth: %d). This usually indicates circular includes or extremely deep config nesting.", err.Max, err.Depth)
+	return fmt.Sprintf(
+		"maximum parse depth of %d exceeded (current depth: %d). This usually indicates circular includes or extremely deep config nesting.",
+		err.Max,
+		err.Depth,
+	)
 }
 
 // AutoIncludeParserStageError reports which stage of autoinclude parsing failed.
@@ -347,5 +419,48 @@ type DeepMergeRequiresExperimentError struct {
 }
 
 func (err DeepMergeRequiresExperimentError) Error() string {
-	return fmt.Sprintf("deep_merge in %s requires the 'deep-merge' experiment to be enabled", err.ConfigPath)
+	return fmt.Sprintf(
+		"deep_merge in %s requires the 'deep-merge' experiment to be enabled",
+		err.ConfigPath,
+	)
+}
+
+// VersionAttributeRequiresExperimentError is returned when the terraform block sets the
+// version attribute without the version-attribute experiment enabled.
+type VersionAttributeRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err VersionAttributeRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"the terraform block in %s sets the version attribute, which requires the 'version-attribute' experiment; enable it with --experiment version-attribute",
+		err.ConfigPath,
+	)
+}
+
+// VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
+// version attribute but its source is not a tfr:// registry URL, where a version
+// constraint has no meaning.
+type VersionAttributeNonRegistrySourceError struct {
+	ConfigPath string
+}
+
+func (err VersionAttributeNonRegistrySourceError) Error() string {
+	return fmt.Sprintf(
+		"the terraform block in %s sets version but its source is not a tfr:// registry URL; the version attribute only applies to registry (tfr://) sources",
+		err.ConfigPath,
+	)
+}
+
+// VersionAttributeSourceConstraintConflictError is returned when the terraform block sets
+// both the version attribute and an inline ?version= constraint on its tfr:// source.
+type VersionAttributeSourceConstraintConflictError struct {
+	ConfigPath string
+}
+
+func (err VersionAttributeSourceConstraintConflictError) Error() string {
+	return fmt.Sprintf(
+		"the terraform block in %s sets both the version attribute and an inline ?version= on its source; specify the version in only one place",
+		err.ConfigPath,
+	)
 }

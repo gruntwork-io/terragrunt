@@ -38,7 +38,10 @@ func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix)
 				Destination: &opts.IAMRoleOptions.AssumeRoleDuration,
 				Usage:       "Session duration for IAM Assume Role session.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-assume-role-duration"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("iam-assume-role-duration"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(
@@ -48,7 +51,10 @@ func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix)
 				Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
 				Usage:       "Name for the IAM Assumed Role session.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-assume-role-session-name"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("iam-assume-role-session-name"),
+				opts.StrictControls,
+			),
 		),
 
 		flags.NewFlag(

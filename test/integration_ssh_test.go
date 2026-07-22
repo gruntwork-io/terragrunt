@@ -46,7 +46,15 @@ func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt init --non-interactive --working-dir "+testPath, &stdout, &stderr))
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt init --non-interactive --working-dir "+testPath,
+			&stdout,
+			&stderr,
+		),
+	)
 	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
 
@@ -61,5 +69,13 @@ func TestSSHDownloadSourceWithRef(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --working-dir "+testPath, &stdout, &stderr))
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt plan --non-interactive --working-dir "+testPath,
+			&stdout,
+			&stderr,
+		),
+	)
 }

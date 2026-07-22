@@ -18,7 +18,8 @@ import (
 func TestEvaluateLocalsBlock(t *testing.T) {
 	t.Parallel()
 
-	file, err := hclparse.NewParser().ParseFromString(LocalsTestConfig, config.DefaultTerragruntConfigPath)
+	file, err := hclparse.NewParser().
+		ParseFromString(LocalsTestConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -60,7 +61,8 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 	t.Parallel()
 
-	file, err := hclparse.NewParser().ParseFromString(LocalsTestMultiDeepReferenceConfig, config.DefaultTerragruntConfigPath)
+	file, err := hclparse.NewParser().
+		ParseFromString(LocalsTestMultiDeepReferenceConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -96,7 +98,8 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	t.Parallel()
 
-	file, err := hclparse.NewParser().ParseFromString(LocalsTestImpossibleConfig, config.DefaultTerragruntConfigPath)
+	file, err := hclparse.NewParser().
+		ParseFromString(LocalsTestImpossibleConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -112,7 +115,8 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
 	t.Parallel()
 
-	file, err := hclparse.NewParser().ParseFromString(MultipleLocalsBlockConfig, config.DefaultTerragruntConfigPath)
+	file, err := hclparse.NewParser().
+		ParseFromString(MultipleLocalsBlockConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)

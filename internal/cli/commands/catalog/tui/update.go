@@ -135,7 +135,13 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			case viewSourceBtn:
 				if m.selectedComponent.URL() != "" {
 					if err := browser.OpenURL(m.selectedComponent.URL()); err != nil {
-						m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.selectedComponent.URL(), err))
+						m.viewport.SetContent(
+							fmt.Sprintf(
+								"could not open url in browser: %s. got error: %s",
+								m.selectedComponent.URL(),
+								err,
+							),
+						)
 					}
 				}
 			default:
@@ -149,7 +155,11 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			m.mdRenderer = nil
 
 			if m.selectedComponent != nil {
-				updated, content, err := m.renderComponentContent(m.selectedComponent, ResolveTagsDetailStyle(), m.selectedComponent.Tags())
+				updated, content, err := m.renderComponentContent(
+					m.selectedComponent,
+					ResolveTagsDetailStyle(),
+					m.selectedComponent.Tags(),
+				)
 				if err != nil {
 					return m, rendererErrCmd(err)
 				}
@@ -227,7 +237,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		viewportHeight := msg.Height - v - lipgloss.Height(m.footerView())
 
 		if !m.ready {
-			m.viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(viewportHeight))
+			m.viewport = viewport.New(
+				viewport.WithWidth(msg.Width),
+				viewport.WithHeight(viewportHeight),
+			)
 			m.ready = true
 		}
 
@@ -319,7 +332,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // renderComponentContent prepares the pager body, prepending tag pills
 // when configured. Markdown components run through the model's cached
 // glamour renderer, which may itself be (re)allocated.
-func (m Model) renderComponentContent(c *Component, tagsStyle TagsDetailStyle, tags []string) (Model, string, error) {
+func (m Model) renderComponentContent(
+	c *Component,
+	tagsStyle TagsDetailStyle,
+	tags []string,
+) (Model, string, error) {
 	if !c.IsMarkDown() {
 		content := c.Content(true)
 		if pills := RenderDetailTagPills(tags); pills != "" {
@@ -466,9 +483,15 @@ func formatCopyValuesMessage(r CopyResult, interactive bool) string {
 			Bold(true).
 			Render("terragrunt.values.hcl generated")
 
-		summary := fmt.Sprintf("%d required %s, %d optional %s",
-			len(r.References.Required), pluralize("entry", "entries", len(r.References.Required)),
-			len(r.References.Optional), pluralize("default", "defaults", len(r.References.Optional)))
+		summary := fmt.Sprintf(
+			"%d required %s, %d optional %s",
+			len(r.References.Required),
+			pluralize("entry", "entries", len(r.References.Required)),
+			len(
+				r.References.Optional,
+			),
+			pluralize("default", "defaults", len(r.References.Optional)),
+		)
 
 		body := "Open the file and replace each \"TODO\" with a real value.\n" +
 			"Optional defaults are pre-populated; edit or delete lines as needed\n" +
@@ -632,7 +655,13 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 // the source HCL and walking it via CollectValuesReferences. ctx is the
 // model's cancellable context so a Ctrl+C during discovery aborts the
 // download instead of running it to completion.
-func discoverFormCmd(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) tea.Cmd {
+func discoverFormCmd(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	c *Component,
+) tea.Cmd {
 	return func() tea.Msg {
 		if c.Kind.IsCopyable() {
 			return discoverValuesFields(c)
@@ -652,7 +681,13 @@ func discoverFormCmd(ctx context.Context, l log.Logger, v venv.Venv, opts *optio
 // is discarded. Real failures still surface: they come back as errors and
 // turn into a formDiscoveryErrMsg, which the outer Update renders as a
 // styled exit message after tea tears down.
-func discoverModuleFields(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) tea.Msg {
+func discoverModuleFields(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	c *Component,
+) tea.Msg {
 	quiet := l.WithOptions(log.WithOutput(io.Discard))
 
 	plan, err := scaffold.Prepare(ctx, quiet, v, opts, c.TerraformSourcePath(), "")
@@ -674,10 +709,15 @@ func discoverModuleFields(ctx context.Context, l log.Logger, v venv.Venv, opts *
 func discoverValuesFields(c *Component) tea.Msg {
 	configName := configFileForKind(c.Kind)
 	if configName == "" {
-		return formDiscoveryErrMsg{err: fmt.Errorf("component kind %q has no associated HCL file", c.Kind)}
+		return formDiscoveryErrMsg{
+			err: fmt.Errorf("component kind %q has no associated HCL file", c.Kind),
+		}
 	}
 
-	refs, err := CollectValuesReferences(vfs.NewOSFS(), filepath.Join(c.Repo.Path(), c.Dir, configName))
+	refs, err := CollectValuesReferences(
+		vfs.NewOSFS(),
+		filepath.Join(c.Repo.Path(), c.Dir, configName),
+	)
 	if err != nil {
 		return formDiscoveryErrMsg{err: err}
 	}
@@ -741,7 +781,13 @@ func (m *Model) abandonForm() {
 // call, threading the user-supplied HCL values. tea.Exec is used so the
 // generation (which formats HCL and writes files) runs outside the
 // bubbletea event loop.
-func scaffoldComponentWithPlanCmd(l log.Logger, m Model, c *Component, plan *scaffold.Plan, values map[string]string) tea.Cmd {
+func scaffoldComponentWithPlanCmd(
+	l log.Logger,
+	m Model,
+	c *Component,
+	plan *scaffold.Plan,
+	values map[string]string,
+) tea.Cmd {
 	cmd := newScaffoldCmd(l, m.venv, m.terragruntOptions, c).WithPlan(plan, values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
@@ -751,7 +797,12 @@ func scaffoldComponentWithPlanCmd(l log.Logger, m Model, c *Component, plan *sca
 
 // copyComponentWithValuesCmd schedules the unit/stack copy with the form's
 // collected HCL values threaded through CopyCmd.WithValues.
-func copyComponentWithValuesCmd(l log.Logger, m Model, c *Component, values map[string]string) tea.Cmd {
+func copyComponentWithValuesCmd(
+	l log.Logger,
+	m Model,
+	c *Component,
+	values map[string]string,
+) tea.Cmd {
 	cmd := NewCopyCmd(l, m.terragruntOptions, c).WithValues(values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {

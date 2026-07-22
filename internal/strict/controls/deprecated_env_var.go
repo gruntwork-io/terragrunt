@@ -26,7 +26,10 @@ type DeprecatedEnvVar struct {
 // NewDeprecatedEnvVar returns a new `DeprecatedEnvVar` instance.
 // Since we don't know which env vars can be used at the time of definition,
 // we take the first env var from the list `GetEnvVars()` for the name and description to display it in `info strict`.
-func NewDeprecatedEnvVar(deprecatedFlag, newFlag clihelper.Flag, newValue string) *DeprecatedEnvVar {
+func NewDeprecatedEnvVar(
+	deprecatedFlag, newFlag clihelper.Flag,
+	newValue string,
+) *DeprecatedEnvVar {
 	var (
 		deprecatedName = util.FirstNonEmpty(deprecatedFlag.GetEnvVars())
 		newName        = util.FirstNonEmpty(newFlag.GetEnvVars())
@@ -56,7 +59,8 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 		envName   string
 	)
 
-	if valueName == "" || !ctrl.deprecatedFlag.Value().IsEnvSet() || !slices.Contains(ctrl.deprecatedFlag.GetEnvVars(), valueName) {
+	if valueName == "" || !ctrl.deprecatedFlag.Value().IsEnvSet() ||
+		!slices.Contains(ctrl.deprecatedFlag.GetEnvVars(), valueName) {
 		return nil
 	}
 
@@ -65,7 +69,8 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 
 		value := ctrl.newFlag.Value().String()
 
-		if v, ok := ctrl.newFlag.Value().Get().(bool); ok && ctrl.newFlag.Value().IsNegativeBoolFlag() {
+		if v, ok := ctrl.newFlag.Value().Get().(bool); ok &&
+			ctrl.newFlag.Value().IsNegativeBoolFlag() {
 			value = strconv.FormatBool(!v)
 		}
 
@@ -84,7 +89,10 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 		return fmt.Errorf(ctrl.ErrorFmt, valueName, envName)
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.isSuppressed() {
+	if logger := log.LoggerFromContext(
+		ctx,
+	); logger != nil && ctrl.WarningFmt != "" &&
+		!ctrl.isSuppressed() {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warnf(ctrl.WarningFmt, valueName, envName)
 		})

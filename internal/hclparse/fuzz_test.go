@@ -155,7 +155,13 @@ unit "app" { source = "."; path = "app"
 		}
 
 		for _, resolved := range result.AutoIncludes {
-			_ = hclparse.GenerateAutoIncludeFile(fs, resolved, "/fuzz/.terragrunt-stack/out", srcBytes, resolved.EvalCtx)
+			_ = hclparse.GenerateAutoIncludeFile(
+				fs,
+				resolved,
+				"/fuzz/.terragrunt-stack/out",
+				srcBytes,
+				resolved.EvalCtx,
+			)
 		}
 	})
 }
@@ -396,7 +402,9 @@ unit "extra" { source = "."; path = "extra"; values = { v = dependency.foo.outpu
 	evalCtx := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"unit": cty.ObjectVal(map[string]cty.Value{
-				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+				"producer": cty.ObjectVal(
+					map[string]cty.Value{"path": cty.StringVal("../producer")},
+				),
 			}),
 			"stack": cty.EmptyObjectVal,
 		},
@@ -440,8 +448,18 @@ func FuzzUnitPathsFromStackDir_AutoIncludeContent(f *testing.F) {
 	f.Fuzz(func(t *testing.T, autoIncludeContent string) {
 		fs := vfs.NewMemMapFS()
 		_ = fs.MkdirAll("/fuzz", 0755)
-		_ = vfs.WriteFile(fs, "/fuzz/terragrunt.stack.hcl", []byte(`unit "base" { source = "."; path = "base" }`), 0644)
-		_ = vfs.WriteFile(fs, "/fuzz/"+hclparse.AutoIncludeStackFile, []byte(autoIncludeContent), 0644)
+		_ = vfs.WriteFile(
+			fs,
+			"/fuzz/terragrunt.stack.hcl",
+			[]byte(`unit "base" { source = "."; path = "base" }`),
+			0644,
+		)
+		_ = vfs.WriteFile(
+			fs,
+			"/fuzz/"+hclparse.AutoIncludeStackFile,
+			[]byte(autoIncludeContent),
+			0644,
+		)
 
 		_, _ = hclparse.UnitPathsFromStackDir(fs, "/fuzz", noFuncs)
 	})

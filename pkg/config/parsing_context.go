@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -38,10 +37,9 @@ const (
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	Writers writer.Writers
-
 	// Venv is the virtualized environment used by HCL helper functions
 	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
+	// It also carries the shell environment and stdout/stderr writers.
 	// Defaults to the OS-backed environment when [NewParsingContext] is
 	// called; callers with a threaded root Venv set it before parsing.
 	Venv venv.Venv
@@ -116,7 +114,11 @@ type ParsingContext struct {
 	skipAutoIncludeMerge bool
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
+func NewParsingContext(
+	ctx context.Context,
+	l log.Logger,
+	opts ...Option,
+) (context.Context, *ParsingContext) {
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
 		FilesRead:        NewFilesRead(),
@@ -217,7 +219,10 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 	}
 
 	c := ctx.Clone()
-	c.ParserOptions = slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
+	c.ParserOptions = slices.Concat(
+		ctx.ParserOptions,
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)},
+	)
 
 	return c
 }
@@ -255,7 +260,10 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 // reads another via read_terragrunt_config.
 //
 // To parse a dependency as an independent unit, use [ParsingContext.WithDependencyConfigPath].
-func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+func (ctx *ParsingContext) WithConfigPath(
+	l log.Logger,
+	configPath string,
+) (log.Logger, *ParsingContext, error) {
 	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
 		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
@@ -293,7 +301,10 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 // and additionally resets OriginalTerragruntConfigPath to the dependency's path.
 // This ensures that get_original_terragrunt_dir() resolves to the dependency's
 // own directory rather than the caller's.
-func (ctx *ParsingContext) WithDependencyConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+func (ctx *ParsingContext) WithDependencyConfigPath(
+	l log.Logger,
+	configPath string,
+) (log.Logger, *ParsingContext, error) {
 	l, c, err := ctx.WithConfigPath(l, configPath)
 	if err != nil {
 		return l, nil, err

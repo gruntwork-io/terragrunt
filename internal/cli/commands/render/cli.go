@@ -82,42 +82,67 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Usage:       "Write the rendered config to a file.",
 		}),
 
-		flags.NewFlag(&clihelper.GenericFlag[string]{
-			Name:        OutFlagName,
-			EnvVars:     tgPrefix.EnvVars(OutFlagName),
-			Destination: &opts.OutputPath,
-			Usage:       "The file name that terragrunt should use when rendering the terragrunt.hcl config (next to the unit configuration).",
-		},
-			flags.WithDeprecatedFlagName("json-out", opts.StrictControls),                          // `--json-out` (deprecated: use `--out` instead)
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-out"), opts.StrictControls),  // `TG_RENDER_JSON_OUT`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-out"), opts.StrictControls), // `TERRAGRUNT_JSON_OUT`
-		),
-
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        WithMetadataFlagName,
-			EnvVars:     tgPrefix.EnvVars(WithMetadataFlagName),
-			Destination: &opts.RenderMetadata,
-			Usage:       "Add metadata to the rendered output file.",
-		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-with-metadata"), opts.StrictControls), // `TG_RENDER_JSON_WITH_METADATA`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("with-metadata"), opts.StrictControls),     // `TERRAGRUNT_WITH_METADATA`
-		),
-
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:    DisableDependentModulesFlagName,
-			EnvVars: tgPrefix.EnvVars(DisableDependentModulesFlagName),
-			Hidden:  true,
-			Usage:   "Deprecated: Disable identification of dependent modules when rendering config. This flag has no effect as dependent modules discovery has been removed.",
-			Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
-				if value {
-					return opts.StrictControls.FilterByNames(controls.DisableDependentModules).Evaluate(ctx)
-				}
-
-				return nil
+		flags.NewFlag(
+			&clihelper.GenericFlag[string]{
+				Name:        OutFlagName,
+				EnvVars:     tgPrefix.EnvVars(OutFlagName),
+				Destination: &opts.OutputPath,
+				Usage:       "The file name that terragrunt should use when rendering the terragrunt.hcl config (next to the unit configuration).",
 			},
-		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-disable-dependent-modules"), opts.StrictControls),  // `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-disable-dependent-modules"), opts.StrictControls), // `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`
+			flags.WithDeprecatedFlagName(
+				"json-out",
+				opts.StrictControls,
+			), // `--json-out` (deprecated: use `--out` instead)
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("render-json-out"),
+				opts.StrictControls,
+			), // `TG_RENDER_JSON_OUT`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("json-out"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_JSON_OUT`
+		),
+
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:        WithMetadataFlagName,
+				EnvVars:     tgPrefix.EnvVars(WithMetadataFlagName),
+				Destination: &opts.RenderMetadata,
+				Usage:       "Add metadata to the rendered output file.",
+			},
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("render-json-with-metadata"),
+				opts.StrictControls,
+			), // `TG_RENDER_JSON_WITH_METADATA`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("with-metadata"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_WITH_METADATA`
+		),
+
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:    DisableDependentModulesFlagName,
+				EnvVars: tgPrefix.EnvVars(DisableDependentModulesFlagName),
+				Hidden:  true,
+				Usage:   "Deprecated: Disable identification of dependent modules when rendering config. This flag has no effect as dependent modules discovery has been removed.",
+				Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
+					if value {
+						return opts.StrictControls.FilterByNames(controls.DisableDependentModules).
+							Evaluate(ctx)
+					}
+
+					return nil
+				},
+			},
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("render-json-disable-dependent-modules"),
+				opts.StrictControls,
+			), // `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("json-disable-dependent-modules"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`
 		),
 	}
 }

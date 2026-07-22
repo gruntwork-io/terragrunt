@@ -6,13 +6,15 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestFetchSource_ProbeHitSkipsDownload(t *testing.T) {
@@ -35,23 +37,29 @@ func TestFetchSource_ProbeHitSkipsDownload(t *testing.T) {
 	}, &fetchCalls)
 
 	dst1 := filepath.Join(t.TempDir(), "dst1")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
-		Scheme:   "http",
-		URL:      "https://example.com/mod.tgz",
-		Resolver: resolver,
-		Fetch:    fetch,
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
+			Scheme:   "http",
+			URL:      "https://example.com/mod.tgz",
+			Resolver: resolver,
+			Fetch:    fetch,
+		}),
+	)
 
 	require.Equal(t, int32(1), fetchCalls.Load())
 	require.FileExists(t, filepath.Join(dst1, "main.tf"))
 
 	dst2 := filepath.Join(t.TempDir(), "dst2")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
-		Scheme:   "http",
-		URL:      "https://example.com/mod.tgz",
-		Resolver: resolver,
-		Fetch:    fetch,
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
+			Scheme:   "http",
+			URL:      "https://example.com/mod.tgz",
+			Resolver: resolver,
+			Fetch:    fetch,
+		}),
+	)
 
 	assert.Equal(t, int32(1), fetchCalls.Load(), "second call must hit the cache and not re-fetch")
 	assert.FileExists(t, filepath.Join(dst2, "main.tf"))
@@ -76,20 +84,26 @@ func TestFetchSource_NoMetadataFallsBackToContentHash(t *testing.T) {
 	}, &fetchCalls)
 
 	dst1 := filepath.Join(t.TempDir(), "dst1")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
-		Scheme:   "http",
-		URL:      "https://example.com/mod.tgz",
-		Resolver: resolver,
-		Fetch:    fetch,
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
+			Scheme:   "http",
+			URL:      "https://example.com/mod.tgz",
+			Resolver: resolver,
+			Fetch:    fetch,
+		}),
+	)
 
 	dst2 := filepath.Join(t.TempDir(), "dst2")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
-		Scheme:   "http",
-		URL:      "https://example.com/mod.tgz",
-		Resolver: resolver,
-		Fetch:    fetch,
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
+			Scheme:   "http",
+			URL:      "https://example.com/mod.tgz",
+			Resolver: resolver,
+			Fetch:    fetch,
+		}),
+	)
 
 	assert.Equal(t, int32(2), fetchCalls.Load(), "no probe means we re-download every time")
 	assert.Equal(t, int32(2), resolver.calls.Load())
@@ -109,11 +123,14 @@ func TestFetchSource_NilResolverContentHashes(t *testing.T) {
 	}, &fetchCalls)
 
 	dst := filepath.Join(t.TempDir(), "dst")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
-		Scheme: "s3",
-		URL:    "s3://bucket/key.tgz",
-		Fetch:  fetch,
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
+			Scheme: "s3",
+			URL:    "s3://bucket/key.tgz",
+			Fetch:  fetch,
+		}),
+	)
 
 	assert.Equal(t, int32(1), fetchCalls.Load())
 	assert.FileExists(t, filepath.Join(dst, "a.tf"))
@@ -140,20 +157,26 @@ func TestFetchSource_ContentAddressedDedupesAcrossURLs(t *testing.T) {
 	resolverB := &fakeResolver{scheme: "gcs", key: contentKey}
 
 	dstA := filepath.Join(t.TempDir(), "dstA")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
-		Scheme:   "s3",
-		URL:      "s3://bucketA/mod.tgz",
-		Resolver: resolverA,
-		Fetch:    fakeFetcher(c, files, &fetchCalls),
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
+			Scheme:   "s3",
+			URL:      "s3://bucketA/mod.tgz",
+			Resolver: resolverA,
+			Fetch:    fakeFetcher(c, files, &fetchCalls),
+		}),
+	)
 
 	dstB := filepath.Join(t.TempDir(), "dstB")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
-		Scheme:   "gcs",
-		URL:      "gs://bucketB/different/path.tgz",
-		Resolver: resolverB,
-		Fetch:    fakeFetcher(c, files, &fetchCalls),
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
+			Scheme:   "gcs",
+			URL:      "gs://bucketB/different/path.tgz",
+			Resolver: resolverB,
+			Fetch:    fakeFetcher(c, files, &fetchCalls),
+		}),
+	)
 
 	assert.Equal(t, int32(1), fetchCalls.Load(),
 		"content-addressed probe must dedupe identical bytes across two URLs")
@@ -180,20 +203,26 @@ func TestFetchSource_OpaqueProbeURLScoped(t *testing.T) {
 	}
 
 	dstA := filepath.Join(t.TempDir(), "dstA")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
-		Scheme:   "http",
-		URL:      "https://a.example.com/mod.tgz",
-		Resolver: resolverA,
-		Fetch:    fakeFetcher(c, files, &fetchCalls),
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
+			Scheme:   "http",
+			URL:      "https://a.example.com/mod.tgz",
+			Resolver: resolverA,
+			Fetch:    fakeFetcher(c, files, &fetchCalls),
+		}),
+	)
 
 	dstB := filepath.Join(t.TempDir(), "dstB")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
-		Scheme:   "http",
-		URL:      "https://b.example.com/mod.tgz",
-		Resolver: resolverB,
-		Fetch:    fakeFetcher(c, files, &fetchCalls),
-	}))
+	require.NoError(
+		t,
+		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
+			Scheme:   "http",
+			URL:      "https://b.example.com/mod.tgz",
+			Resolver: resolverB,
+			Fetch:    fakeFetcher(c, files, &fetchCalls),
+		}),
+	)
 
 	assert.Equal(t, int32(2), fetchCalls.Load(),
 		"opaque probe must not dedupe across distinct URLs even when the token matches")
@@ -320,7 +349,7 @@ func (f *fakeResolver) Probe(_ context.Context, _ string) (string, error) {
 // ingests it into CAS via IngestDirectory, and returns the resulting
 // tree key. It counts invocations for assertions.
 func fakeFetcher(c *cas.CAS, files map[string]string, calls *atomic.Int32) cas.SourceFetcher {
-	return func(_ context.Context, l log.Logger, v cas.Venv, suggestedKey string) (string, error) {
+	return func(_ context.Context, l log.Logger, v venv.Venv, suggestedKey string) (string, error) {
 		calls.Add(1)
 
 		tempDir, cleanup, err := c.MakeFetchTempDir(l, v)

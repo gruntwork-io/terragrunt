@@ -12,7 +12,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -58,8 +57,8 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *App {
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://docs.terragrunt.com/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
-	app.Writer = opts.Writers.Writer
-	app.ErrWriter = opts.Writers.ErrWriter
+	app.Writer = v.Writers.Writer
+	app.ErrWriter = v.Writers.ErrWriter
 	app.Flags = global.NewFlags(l, opts, nil)
 	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, v))
 	app.Before = beforeAction(opts)
@@ -81,7 +80,10 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 	signal.NotifierWithContext(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
 		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
-		app.l.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
+		app.l.Infof(
+			"%s signal received. Gracefully shutting down...",
+			cases.Title(language.English).String(sig.String()),
+		)
 
 		cancel(signal.NewContextCanceledError(sig))
 	}, signal.InterruptSignals...)
@@ -95,33 +97,12 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 
 	ctx = app.registerGracefullyShutdown(ctx)
 
-	if err := global.NewTelemetryFlags(app.opts, nil).Parse(os.Args); err != nil {
-		return err
-	}
-
-	telemeter, err := telemetry.NewTelemeter(ctx, app.l, app.Name, app.Version, app.Writer, app.opts.Telemetry)
-	if err != nil {
-		return err
-	}
-	defer func(ctx context.Context) {
-		if err := telemeter.Shutdown(ctx); err != nil {
-			_, _ = app.ErrWriter.Write([]byte(err.Error()))
-		}
-	}(ctx)
-
-	ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
-
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context
 	ctx = engine.WithEngineValues(ctx)
 
 	ctx = run.WithRunVersionCache(ctx)
-
-	defer func(ctx context.Context) {
-		if err := engine.Shutdown(ctx, app.l, app.opts.Experiments, app.opts.EngineOptions.NoEngine); err != nil {
-			_, _ = app.ErrWriter.Write([]byte(err.Error()))
-		}
-	}(ctx)
+	ctx = run.WithModuleVersionResolver(ctx)
 
 	args = removeNoColorFlagDuplicates(args)
 
@@ -176,7 +157,11 @@ func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {
 				// Show a clear error pointing users to the explicit run form.
 				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
 				return clihelper.NewExitError(
-					fmt.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
+					fmt.Errorf(
+						"unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command",
+						cmdName,
+						cmdName,
+					),
 					clihelper.ExitCodeGeneralError,
 				)
 			}

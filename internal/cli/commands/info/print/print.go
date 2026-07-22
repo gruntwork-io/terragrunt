@@ -32,13 +32,18 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return runPrint(ctx, l, v, opts)
 }
 
-func runPrint(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runPrint(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if printErr := printTerragruntContext(l, opts); printErr != nil {
+		if printErr := printTerragruntContext(l, v, opts); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
@@ -46,19 +51,26 @@ func runPrint(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terr
 	}
 
 	// Download source
-	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, report.NewReport())
+	updatedOpts, err := prepare.PrepareSource(
+		ctx,
+		l,
+		v,
+		prepared.Opts,
+		prepared.Cfg,
+		report.NewReport(),
+	)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if printErr := printTerragruntContext(l, opts); printErr != nil {
+		if printErr := printTerragruntContext(l, v, opts); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
 		return nil
 	}
 
-	return printTerragruntContext(l, updatedOpts)
+	return printTerragruntContext(l, v, updatedOpts)
 }
 
 func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
@@ -114,7 +126,7 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error {
+func printTerragruntContext(l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
@@ -130,7 +142,7 @@ func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error
 		return err
 	}
 
-	if _, err := fmt.Fprintf(opts.Writers.Writer, "%s\n", b); err != nil {
+	if _, err := fmt.Fprintf(v.Writers.Writer, "%s\n", b); err != nil {
 		return err
 	}
 

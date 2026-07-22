@@ -149,7 +149,11 @@ func newTraceProvider(
 }
 
 // NewTraceExporter creates a new exporter based on the telemetry options.
-func NewTraceExporter(ctx context.Context, writer io.Writer, opts *Options) (sdktrace.SpanExporter, error) {
+func NewTraceExporter(
+	ctx context.Context,
+	writer io.Writer,
+	opts *Options,
+) (sdktrace.SpanExporter, error) {
 	exporterType := traceExporterType(opts.TraceExporter)
 	if exporterType == "" {
 		exporterType = noneTraceExporterType
@@ -197,7 +201,8 @@ func NewTraceExporter(ctx context.Context, writer io.Writer, opts *Options) (sdk
 func (tracer *Tracer) Trace(
 	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
 ) error {
-	if tracer == nil || tracer.spanExporter == nil || tracer.provider == nil { // invoke function without tracing
+	if tracer == nil || tracer.spanExporter == nil ||
+		tracer.provider == nil { // invoke function without tracing
 		return fn(ctx)
 	}
 
@@ -207,7 +212,8 @@ func (tracer *Tracer) Trace(
 		if tracer.l != nil {
 			tracer.l.Debugf(
 				"openSpan returned nil span for %q (provider may have been shut down), bypassing tracing. Stack:\n%s",
-				name, debug.Stack(),
+				name,
+				debug.Stack(),
 			)
 		}
 
@@ -226,7 +232,11 @@ func (tracer *Tracer) Trace(
 }
 
 // openSpan creates a new span with attributes.
-func (tracer *Tracer) openSpan(ctx context.Context, name string, attrs map[string]any) (context.Context, trace.Span) {
+func (tracer *Tracer) openSpan(
+	ctx context.Context,
+	name string,
+	attrs map[string]any,
+) (context.Context, trace.Span) {
 	if tracer.provider == nil {
 		return ctx, nil
 	}

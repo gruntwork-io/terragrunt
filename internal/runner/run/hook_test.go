@@ -3,7 +3,6 @@ package run_test
 import (
 	"context"
 	"errors"
-	"io"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -13,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
@@ -275,7 +273,12 @@ func TestProcessErrorHooks_NoopWhenNoPriorErrors(t *testing.T) {
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.ErrorHook{
-		{Name: "on-anything", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "x"}},
+		{
+			Name:     "on-anything",
+			Commands: []string{"plan"},
+			OnErrors: []string{".*"},
+			Execute:  []string{"echo", "x"},
+		},
 	}
 
 	require.NoError(
@@ -303,7 +306,12 @@ func TestProcessErrorHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
 	opts.NoHooks = true
 
 	hooks := []runcfg.ErrorHook{
-		{Name: "disabled", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "skip-me"}},
+		{
+			Name:     "disabled",
+			Commands: []string{"plan"},
+			OnErrors: []string{".*"},
+			Execute:  []string{"echo", "skip-me"},
+		},
 	}
 
 	require.NoError(
@@ -408,7 +416,6 @@ func newHookOpts() *run.Options {
 		TerraformCommand:  "plan",
 		TFPath:            "/fake/tofu",
 		MaxFoldersToCheck: 5,
-		Writers:           writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 
