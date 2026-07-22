@@ -100,6 +100,18 @@ jobs:
                 GOOGLE_IDENTITY_EMAIL,
                 GOOGLE_PROJECT_ID,
               ]
+          - name: Azure
+            os: ubuntu
+            target: ./internal/azurehelper/...
+            tags: azure
+            secrets:
+              [
+                AZURE_CLIENT_ID,
+                AZURE_CLIENT_SECRET,
+                AZURE_TENANT_ID,
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+              ]
           - name: Windows
             os: windows
             target: ./...
@@ -194,6 +206,11 @@ jobs:
           GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
           GCLOUD_SERVICE_KEY_IMPERSONATOR: ${{ secrets.GCLOUD_SERVICE_KEY_IMPERSONATOR }}
           AWS_TEST_S3_ASSUME_ROLE: ${{ secrets.AWS_TEST_S3_ASSUME_ROLE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          TG_AZURE_TEST_STORAGE_ACCOUNT: ${{ secrets.TG_AZURE_TEST_STORAGE_ACCOUNT }}
+          TG_AZURE_TEST_SUBSCRIPTION_ID: ${{ secrets.TG_AZURE_TEST_SUBSCRIPTION_ID }}
         shell: bash
 
       - name: Setup

@@ -230,6 +230,7 @@ func (o *Options) tfRunOptions() *tf.TFOptions {
 func (o *Options) remoteStateOpts() *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
+			Experiments:                  o.Experiments,
 			IAMRoleOptions:               o.IAMRoleOptions,
 			NonInteractive:               o.NonInteractive,
 			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,

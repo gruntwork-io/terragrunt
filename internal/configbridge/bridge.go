@@ -110,6 +110,7 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
 func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
+		Experiments:                  opts.Experiments,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,

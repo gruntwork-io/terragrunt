@@ -60,6 +60,16 @@ for SECRET in $SECRETS; do
 		printf "export AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN" && -n "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" ]]; then
 		printf "export AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_CLIENT_ID" && -n "${AZURE_CLIENT_ID:-}" ]]; then
+		printf "export AZURE_CLIENT_ID='%s'\n" "${AZURE_CLIENT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_CLIENT_SECRET" && -n "${AZURE_CLIENT_SECRET:-}" ]]; then
+		printf "export AZURE_CLIENT_SECRET='%s'\n" "${AZURE_CLIENT_SECRET}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_TENANT_ID" && -n "${AZURE_TENANT_ID:-}" ]]; then
+		printf "export AZURE_TENANT_ID='%s'\n" "${AZURE_TENANT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_AZURE_TEST_STORAGE_ACCOUNT" && -n "${TG_AZURE_TEST_STORAGE_ACCOUNT:-}" ]]; then
+		printf "export TG_AZURE_TEST_STORAGE_ACCOUNT='%s'\n" "${TG_AZURE_TEST_STORAGE_ACCOUNT}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_AZURE_TEST_SUBSCRIPTION_ID" && -n "${TG_AZURE_TEST_SUBSCRIPTION_ID:-}" ]]; then
+		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID='%s'\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
 	fi
 done
 
