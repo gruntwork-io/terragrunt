@@ -22,6 +22,8 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 )
 
+const testWorkingDir = "/repo"
+
 func TestNewReport(t *testing.T) {
 	t.Parallel()
 
@@ -34,7 +36,7 @@ func TestNewReport(t *testing.T) {
 func TestNewRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	path := filepath.Join(tmp, "test-run")
 	run := newRun(t, path)
@@ -50,7 +52,7 @@ func TestNewRun(t *testing.T) {
 func TestAddRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -70,7 +72,7 @@ func TestAddRun(t *testing.T) {
 func TestGetRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -112,7 +114,7 @@ func TestGetRun(t *testing.T) {
 func TestEnsureRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -201,7 +203,7 @@ func TestEnsureRun(t *testing.T) {
 func TestEndRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -293,7 +295,7 @@ func TestEndRun(t *testing.T) {
 func TestEndRunAlreadyEnded(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -381,7 +383,7 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 func TestSummarize(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -528,35 +530,18 @@ func TestWriteCSV(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmp := helpers.TmpDirWOSymlinks(t)
+			tmp := testWorkingDir
 
 			l := logger.CreateLogger()
-
-			// Create a temporary file for the CSV
-			csvFile := filepath.Join(tmp, "report.csv")
-			file, err := os.Create(csvFile)
-			require.NoError(t, err)
-
-			defer file.Close()
 
 			// Setup and write the report
 			r := report.NewReport().WithWorkingDir(tmp)
 			tt.setup(l, tmp, r)
 
-			err = r.WriteCSV(file)
-			require.NoError(t, err)
+			var buf bytes.Buffer
+			require.NoError(t, r.WriteCSV(&buf))
 
-			// Close the file before reading
-			file.Close()
-
-			// Read the CSV file
-			file, err = os.Open(csvFile)
-			require.NoError(t, err)
-
-			defer file.Close()
-
-			reader := csv.NewReader(file)
-			records, err := reader.ReadAll()
+			records, err := csv.NewReader(&buf).ReadAll()
 			require.NoError(t, err)
 
 			// Verify the number of records
@@ -710,41 +695,21 @@ func TestWriteJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmp := helpers.TmpDirWOSymlinks(t)
-
-			// Create a temporary file for the JSON
-			jsonFile := filepath.Join(tmp, "report.json")
-			file, err := os.Create(jsonFile)
-			require.NoError(t, err)
-
-			defer file.Close()
+			tmp := testWorkingDir
 
 			// Setup and write the report
 			r := report.NewReport().WithWorkingDir(tmp)
 			tt.setup(l, tmp, r)
 
-			err = r.WriteJSON(file)
-			require.NoError(t, err)
-
-			// Close the file before reading
-			file.Close()
-
-			// Read the JSON file
-			file, err = os.Open(jsonFile)
-			require.NoError(t, err)
-
-			defer file.Close()
-
-			// Read the actual output
-			actualBytes, err := os.ReadFile(jsonFile)
-			require.NoError(t, err)
+			var buf bytes.Buffer
+			require.NoError(t, r.WriteJSON(&buf))
 
 			// Parse both expected and actual JSON to compare them
 			var expectedJSON, actualJSON []map[string]any
 
-			err = json.Unmarshal([]byte(tt.expected), &expectedJSON)
+			err := json.Unmarshal([]byte(tt.expected), &expectedJSON)
 			require.NoError(t, err)
-			err = json.Unmarshal(actualBytes, &actualJSON)
+			err = json.Unmarshal(buf.Bytes(), &actualJSON)
 			require.NoError(t, err)
 
 			// Verify the number of records
@@ -827,6 +792,40 @@ func TestWriteJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWriteJSONSiblingPrefixPath verifies that a run whose path merely shares a
+// string prefix with the working directory (a sibling like `<workingDir>-other`)
+// keeps its full path as its name, rather than having the working directory
+// sheared off mid-segment.
+func TestWriteJSONSiblingPrefixPath(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	workingDir := filepath.Join(testWorkingDir, "project")
+	siblingPath := filepath.Join(testWorkingDir, "project-staging", "unit")
+	subDirPath := filepath.Join(workingDir, "unit")
+
+	r := report.NewReport().WithWorkingDir(workingDir)
+
+	siblingRun := newRun(t, siblingPath)
+	require.NoError(t, r.AddRun(l, siblingRun))
+	require.NoError(t, r.EndRun(l, siblingRun.Path))
+
+	subRun := newRun(t, subDirPath)
+	require.NoError(t, r.AddRun(l, subRun))
+	require.NoError(t, r.EndRun(l, subRun.Path))
+
+	var buf bytes.Buffer
+	require.NoError(t, r.WriteJSON(&buf))
+
+	runs, err := report.ParseJSONRuns(buf.Bytes())
+	require.NoError(t, err)
+
+	names := runs.Names()
+	assert.Contains(t, names, siblingPath)
+	assert.Contains(t, names, "unit")
 }
 
 const ExpectedSchema = `{
@@ -991,7 +990,7 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 func TestWriteSummary(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -1091,7 +1090,7 @@ func TestWriteSummary(t *testing.T) {
 func TestSchemaIsValid(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -1150,37 +1149,16 @@ func TestSchemaIsValid(t *testing.T) {
 		report.WithCauseIgnoreBlock("ignore-block"),
 	)
 
-	// Write the report to a JSON file
-	reportFile := filepath.Join(tmp, "report.json")
-	file, err := os.Create(reportFile)
-	require.NoError(t, err)
+	var reportBuf bytes.Buffer
+	require.NoError(t, r.WriteJSON(&reportBuf))
 
-	defer file.Close()
+	var schemaBuf bytes.Buffer
+	require.NoError(t, report.WriteSchema(&schemaBuf))
 
-	err = r.WriteJSON(file)
-	require.NoError(t, err)
-	file.Close()
-
-	// Write the schema to a file
-	schemaFile := filepath.Join(tmp, "schema.json")
-	file, err = os.Create(schemaFile)
-	require.NoError(t, err)
-
-	defer file.Close()
-
-	err = report.WriteSchema(file)
-	require.NoError(t, err)
-	file.Close()
-
-	// Read the schema and report files
-	schemaBytes, err := os.ReadFile(schemaFile)
-	require.NoError(t, err)
-
-	reportBytes, err := os.ReadFile(reportFile)
-	require.NoError(t, err)
+	reportBytes := reportBuf.Bytes()
 
 	// Create a new schema loader
-	schemaLoader := gojsonschema.NewBytesLoader(schemaBytes)
+	schemaLoader := gojsonschema.NewBytesLoader(schemaBuf.Bytes())
 	documentLoader := gojsonschema.NewBytesLoader(reportBytes)
 
 	// Validate the report against the schema
@@ -1260,7 +1238,7 @@ func TestSchemaIsValid(t *testing.T) {
 func TestWriteUnitLevelSummary(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -1540,14 +1518,9 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 	// - Worktree path: /tmp/terragrunt-worktree-xxx/original/repo
 	// - Unit path in worktree: /tmp/terragrunt-worktree-xxx/original/repo/module/unit
 
-	// Create temp directories
-	originalRepoDir := helpers.TmpDirWOSymlinks(t)
-	worktreeDir := helpers.TmpDirWOSymlinks(t)
-
-	// Create the "unit" path in the worktree
+	originalRepoDir := "/original-repo"
+	worktreeDir := "/worktree"
 	unitPath := filepath.Join(worktreeDir, "module", "unit")
-	err := os.MkdirAll(unitPath, 0755)
-	require.NoError(t, err)
 
 	// Create a report with the original repo as working dir (simulating non-worktree scenario)
 	r := report.NewReport().WithWorkingDir(originalRepoDir)
@@ -1566,7 +1539,7 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 	// Write JSON and verify the name is relative to DiscoveryWorkingDir, not report.workingDir
 	var buf bytes.Buffer
 
-	err = r.WriteJSON(&buf)
+	err := r.WriteJSON(&buf)
 	require.NoError(t, err)
 
 	// Parse the JSON
@@ -1589,14 +1562,9 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	// Create temp directories (simulating worktree scenario)
-	originalRepoDir := helpers.TmpDirWOSymlinks(t)
-	worktreeDir := helpers.TmpDirWOSymlinks(t)
-
-	// Create the "unit" path in the worktree
+	originalRepoDir := "/original-repo"
+	worktreeDir := "/worktree"
 	unitPath := filepath.Join(worktreeDir, "module", "unit")
-	err := os.MkdirAll(unitPath, 0755)
-	require.NoError(t, err)
 
 	// Create a report with the original repo as working dir
 	r := report.NewReport().WithWorkingDir(originalRepoDir)
@@ -1610,7 +1578,7 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 	// Write CSV
 	var buf bytes.Buffer
 
-	err = r.WriteCSV(&buf)
+	err := r.WriteCSV(&buf)
 	require.NoError(t, err)
 
 	// Parse the CSV
