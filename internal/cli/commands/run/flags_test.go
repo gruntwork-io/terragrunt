@@ -38,3 +38,29 @@ func TestNoHooksFlagAllowedWithExperiment(t *testing.T) {
 	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
 	assert.True(t, opts.NoRunHooks)
 }
+
+func TestUpdateSourceOutOfCacheFlagRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, nil)
+
+	require.NoError(t, flags.Parse(clihelper.Args{"--tf-update-source-out-of-cache"}))
+
+	err := flags.RunActions(t.Context(), &clihelper.Context{})
+
+	require.ErrorIs(t, err, runcommand.ErrUpdateSourceOutOfCacheRequiresExperiment)
+	assert.True(t, opts.UpdateSourceOutOfCache)
+}
+
+func TestUpdateSourceOutOfCacheFlagAllowedWithExperiment(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.PatchSourceOutOfCache))
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, nil)
+
+	require.NoError(t, flags.Parse(clihelper.Args{"--tf-update-source-out-of-cache"}))
+	require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
+	assert.True(t, opts.UpdateSourceOutOfCache)
+}

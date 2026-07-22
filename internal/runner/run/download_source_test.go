@@ -961,6 +961,129 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
 }
 
+// TestDownloadWithNoSourceRewritesOutOfCachePaths verifies that with
+// --tf-update-source-out-of-cache enabled, a relative module source that
+// escapes the unit is rewritten to still resolve once the file is copied into
+// the cache, while an in-unit reference is left alone.
+func TestDownloadWithNoSourceRewritesOutOfCachePaths(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := helpers.TmpDirWOSymlinks(t)
+	defer os.RemoveAll(sourceDir)
+
+	mainTfContent := `module "escape" {
+  source = "../modules/escape"
+}
+
+module "local" {
+  source = "./modules/local"
+}
+`
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte(mainTfContent), 0644),
+	)
+
+	downloadDir := helpers.TmpDirWOSymlinks(t)
+	defer os.RemoveAll(downloadDir)
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(sourceDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = sourceDir
+	opts.DownloadDir = downloadDir
+	opts.Experiments = experiment.NewExperiments()
+	opts.UpdateSourceOutOfCache = true
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	updatedOpts, err := run.DownloadTerraformSource(
+		t.Context(),
+		l,
+		venv.OSVenv(),
+		".",
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.NoError(t, err)
+
+	prefix, err := filepath.Rel(updatedOpts.CacheDir, sourceDir)
+	require.NoError(t, err)
+
+	cachedContent, err := os.ReadFile(filepath.Join(updatedOpts.CacheDir, "main.tf"))
+	require.NoError(t, err)
+
+	expected := fmt.Sprintf(`module "escape" {
+  source = "%s/../modules/escape"
+}
+
+module "local" {
+  source = "./modules/local"
+}
+`, filepath.ToSlash(prefix))
+	assert.Equal(t, expected, string(cachedContent))
+}
+
+// TestDownloadWithNoSourceLeavesPathsWhenFlagDisabled verifies that without the
+// flag, the copied files are left exactly as authored.
+func TestDownloadWithNoSourceLeavesPathsWhenFlagDisabled(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := helpers.TmpDirWOSymlinks(t)
+	defer os.RemoveAll(sourceDir)
+
+	mainTfContent := `module "escape" {
+  source = "../modules/escape"
+}
+`
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte(mainTfContent), 0644),
+	)
+
+	downloadDir := helpers.TmpDirWOSymlinks(t)
+	defer os.RemoveAll(downloadDir)
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(sourceDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = sourceDir
+	opts.DownloadDir = downloadDir
+	opts.Experiments = experiment.NewExperiments()
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	updatedOpts, err := run.DownloadTerraformSource(
+		t.Context(),
+		l,
+		venv.OSVenv(),
+		".",
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.NoError(t, err)
+
+	cachedContent, err := os.ReadFile(filepath.Join(updatedOpts.CacheDir, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, mainTfContent, string(cachedContent))
+}
+
 // TestDownloadSourceWithCASExperimentDisabled tests that CAS is not used when the experiment is disabled
 func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	t.Parallel()
@@ -1083,10 +1206,13 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 
 			registryAddr := registry.Listener.Addr().String()
 			src := &tf.Source{
-				CanonicalSourceURL: parseURL(t, "oci://"+registryAddr+"/terraform-modules/vpc?tag=1.0.0"),
-				DownloadDir:        tmpDir,
-				WorkingDir:         tmpDir,
-				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+				CanonicalSourceURL: parseURL(
+					t,
+					"oci://"+registryAddr+"/terraform-modules/vpc?tag=1.0.0",
+				),
+				DownloadDir: tmpDir,
+				WorkingDir:  tmpDir,
+				VersionFile: filepath.Join(tmpDir, "version-file.txt"),
 			}
 
 			opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -1123,14 +1249,34 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 			const casAttempt = "CAS enabled: attempting to use Content Addressable Storage"
 
 			if tc.enableOCI {
-				require.ErrorContains(t, err, "resolving OCI reference", "the oci getter must run when the experiment is on")
-				assert.Contains(t, logBuf.String(), casAttempt, "the oci source must enter the CAS path when the experiment is on")
+				require.ErrorContains(
+					t,
+					err,
+					"resolving OCI reference",
+					"the oci getter must run when the experiment is on",
+				)
+				assert.Contains(
+					t,
+					logBuf.String(),
+					casAttempt,
+					"the oci source must enter the CAS path when the experiment is on",
+				)
 
 				return
 			}
 
-			assert.NotContains(t, err.Error(), "resolving OCI reference", "no oci getter must run when the experiment is off")
-			assert.NotContains(t, logBuf.String(), casAttempt, "the CAS attempt must be skipped when the experiment is off")
+			assert.NotContains(
+				t,
+				err.Error(),
+				"resolving OCI reference",
+				"no oci getter must run when the experiment is off",
+			)
+			assert.NotContains(
+				t,
+				logBuf.String(),
+				casAttempt,
+				"the CAS attempt must be skipped when the experiment is off",
+			)
 		})
 	}
 }
@@ -1536,7 +1682,11 @@ func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 				GetMode: getter.ModeDir,
 			})
 			require.Error(t, err)
-			assert.Equal(t, tc.enabled, errors.Is(err, getter.OCIUnsupportedQueryParamError{Param: "bogus"}))
+			assert.Equal(
+				t,
+				tc.enabled,
+				errors.Is(err, getter.OCIUnsupportedQueryParamError{Param: "bogus"}),
+			)
 		})
 	}
 }

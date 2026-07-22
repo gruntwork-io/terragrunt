@@ -38,9 +38,10 @@ const (
 	NoDestroyDependenciesCheckFlagName = "no-destroy-dependencies-check"
 	DestroyDependenciesCheckFlagName   = "destroy-dependencies-check"
 
-	SourceFlagName       = "source"
-	SourceMapFlagName    = "source-map"
-	SourceUpdateFlagName = "source-update"
+	SourceFlagName                 = "source"
+	SourceMapFlagName              = "source-map"
+	SourceUpdateFlagName           = "source-update"
+	UpdateSourceOutOfCacheFlagName = "tf-update-source-out-of-cache"
 
 	NoStackGenerate = "no-stack-generate"
 
@@ -89,6 +90,40 @@ const (
 var ErrNoHooksRequiresExperiment = errors.New(
 	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
 )
+
+var ErrUpdateSourceOutOfCacheRequiresExperiment = errors.New(
+	"--tf-update-source-out-of-cache requires the 'patch-source-out-of-cache' experiment to be enabled (e.g., --experiment=patch-source-out-of-cache)",
+)
+
+// newUpdateSourceOutOfCacheFlag builds the --tf-update-source-out-of-cache flag.
+// The usage advertises the gating experiment only while it is still ongoing;
+// once the experiment stabilizes the flag no longer requires it, so the note is
+// dropped rather than lingering as stale help text.
+func newUpdateSourceOutOfCacheFlag(opts *options.TerragruntOptions, tgPrefix flags.Prefix) *flags.Flag {
+	usage := "For units without a source, rewrite relative paths in the OpenTofu/Terraform files that point outside the unit so they still resolve after the files are copied into the .terragrunt-cache directory."
+
+	if exp := opts.Experiments.Find(experiment.PatchSourceOutOfCache); exp != nil && exp.Status == experiment.StatusOngoing {
+		usage += " Requires the 'patch-source-out-of-cache' experiment."
+	}
+
+	return flags.NewFlag(&clihelper.BoolFlag{
+		Name:        UpdateSourceOutOfCacheFlagName,
+		EnvVars:     tgPrefix.EnvVars(UpdateSourceOutOfCacheFlagName),
+		Destination: &opts.UpdateSourceOutOfCache,
+		Usage:       usage,
+		Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
+			if !value {
+				return nil
+			}
+
+			if opts.Experiments.Evaluate(experiment.PatchSourceOutOfCache) {
+				return nil
+			}
+
+			return ErrUpdateSourceOutOfCacheRequiresExperiment
+		},
+	})
+}
 
 // NewFlags creates and returns global flags.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
@@ -227,6 +262,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				opts.StrictControls,
 			),
 		),
+
+		newUpdateSourceOutOfCacheFlag(opts, tgPrefix),
 
 		flags.NewFlag(
 			&clihelper.MapFlag[string, string]{

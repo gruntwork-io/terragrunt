@@ -232,6 +232,9 @@ type TerragruntOptions struct {
 	RunAllAutoApprove bool
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
+	// If set to true, rewrite relative paths in the copied OpenTofu/Terraform files that point out of the unit
+	// directory so they still resolve once the files are copied into the .terragrunt-cache directory.
+	UpdateSourceOutOfCache bool
 	// HCLValidateStrict is a strict mode for HCL validation files. When
 	// it's set to false the command will only return an error if required
 	// inputs are missing from all input sources (env vars, var files, etc).
