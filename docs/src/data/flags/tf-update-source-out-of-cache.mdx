@@ -1,0 +1,23 @@
+---
+name: tf-update-source-out-of-cache
+description: For units without a source, rewrite relative paths in the OpenTofu/Terraform files that point outside the unit so they still resolve after the files are copied into the .terragrunt-cache directory. Requires the patch-source-out-of-cache experiment.
+type: bool
+env:
+  - TG_TF_UPDATE_SOURCE_OUT_OF_CACHE
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`patch-source-out-of-cache`](/reference/experiments/active#patch-source-out-of-cache) experiment. Enable it with `--experiment=patch-source-out-of-cache` or `TG_EXPERIMENT=patch-source-out-of-cache`; otherwise setting `--tf-update-source-out-of-cache` returns an error.
+</Aside>
+
+When a unit has no `terraform.source`, Terragrunt copies its OpenTofu/Terraform files a few directory levels down into `.terragrunt-cache` before running them. The copy preserves the unit's own directory structure, so references that stay inside the unit keep working, but a relative path that pointed outside the unit no longer resolves. A `module` block with `source = "../modules/foo"`, for example, now looks for `foo` relative to the cache directory rather than the unit.
+
+With this flag enabled, Terragrunt scans the copied `.tf` and `.tofu` files, finds relative paths that escape the unit directory, and prepends the path back out of `.terragrunt-cache` so each reference resolves to its original target. Only paths written with an explicit `./` or `../` prefix are considered, and paths that resolve back inside the unit are left alone. The `.tf.json` and `.tofu.json` variants are not rewritten.
+
+Example:
+
+```bash
+terragrunt run --experiment patch-source-out-of-cache --tf-update-source-out-of-cache -- plan
+```

@@ -180,6 +180,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.FailIfBucketCreationRequired = opts.FailIfBucketCreationRequired
 	runOpts.DisableBucketUpdate = opts.DisableBucketUpdate
 	runOpts.SourceUpdate = opts.SourceUpdate
+	runOpts.UpdateSourceOutOfCache = opts.UpdateSourceOutOfCache
 	runOpts.CASCloneDepth = opts.CASCloneDepth
 	runOpts.NoCAS = opts.NoCAS
 	runOpts.NoHooks = opts.NoRunHooks
