@@ -147,6 +147,10 @@ func unknownDefault(ty cty.Type) cty.Value {
 		return cty.NumberIntVal(0)
 	case ty.Equals(cty.Bool):
 		return cty.False
+	case ty == cty.DynamicPseudoType:
+		// Unresolved dependency outputs arrive with an unknown dynamic type. Keep them
+		// serializing as an empty string so rendered inputs stay backwards compatible.
+		return cty.StringVal("")
 	default:
 		return cty.NullVal(ty)
 	}
