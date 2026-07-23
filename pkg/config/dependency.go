@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -1046,20 +1048,30 @@ func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool)
 	}
 }
 
-func isAwsS3NoSuchKey(err error) bool {
-	if err != nil {
-		errStr := err.Error()
-		return strings.Contains(errStr, "NoSuchKey") || strings.Contains(errStr, "NotFound")
+// isAwsS3StateMissing reports whether err means the dependency's S3 state object or bucket doesn't
+// exist yet, the signal to fall back to mock outputs. It matches on the error code because GetObject
+// returns NoSuchBucket as a generic API error, not a *s3types.NoSuchBucket that errors.As could
+// match; AWS SDK v2 exposes no constants for the codes.
+func isAwsS3StateMissing(err error) bool {
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) {
+		return false
 	}
 
-	return false
+	switch apiErr.ErrorCode() {
+	case "NoSuchKey", "NoSuchBucket", "NotFound":
+		return true
+	default:
+		return false
+	}
 }
 
 // shouldFallBackToMockOutputs reports whether a failed dependency output fetch should fall back to
-// mock outputs instead of being fatal: either the target's remote state doesn't exist yet (an S3
-// NoSuchKey), or the command is a render, which tolerates unresolved outputs.
+// mock outputs instead of being fatal: either the target's remote state doesn't exist yet (a
+// missing S3 state object or bucket), or the command is a render, which tolerates unresolved
+// outputs.
 func shouldFallBackToMockOutputs(pctx *ParsingContext, err error) bool {
-	return isAwsS3NoSuchKey(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
+	return isAwsS3StateMissing(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json

@@ -2641,6 +2641,49 @@ func TestAwsStackDependencyMockOutputsFromRemoteState(t *testing.T) {
 	assert.Contains(t, stdout, "mock-subnet-id", "the unapplied unit must still resolve to its mock output")
 }
 
+// TestAwsMockOutputsFromRemoteStateMissingBucket pins that a dependency read falls back to
+// mock_outputs when the state bucket itself doesn't exist yet (NoSuchBucket), not only when the
+// state object is missing (NoSuchKey).
+func TestAwsMockOutputsFromRemoteStateMissingBucket(t *testing.T) { //nolint: paralleltest
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	// Never pre-created, so the dependency reads hit a missing bucket; init bootstraps it, so clean
+	// up regardless.
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteState)
+
+	rootTerragruntConfigPath := filepath.Join(
+		tmpEnvPath,
+		testFixtureOutputFromRemoteState,
+		"root.hcl",
+	)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
+
+	environmentPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteState, "env1")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt init --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir %s/app2",
+			environmentPath,
+		),
+	)
+	require.NoError(
+		t,
+		err,
+		"a dependency whose state bucket doesn't exist yet must fall back to mock outputs; stderr=%s",
+		stderr,
+	)
+}
+
 func TestAwsParallelStateInit(t *testing.T) {
 	t.Parallel()
 
