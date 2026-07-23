@@ -5,4 +5,4 @@ category: "bug-fixes"
 
 #### Fixed S3 source downloads under EKS Pod Identity
 
-Downloading unit sources from private S3 buckets (`s3::https://...`) now works when EKS Pod Identity is the only credential source. Previously, the bundled `aws-sdk-go` v1 rejected the Pod Identity Agent endpoint (`169.254.170.23`) because it only allowed loopback hosts. Bumped to `aws-sdk-go` v1.55.6, which includes the EKS/ECS container endpoint allowlist.
+Downloading unit sources from private S3 buckets (`s3::https://...`) now works when EKS Pod Identity is the only credential source. Previously, the bundled `aws-sdk-go` v1 rejected the Pod Identity Agent endpoint (`169.254.170.23`) because it only allowed loopback hosts. Terragrunt now uses `aws-sdk-go` v1.55.6, which allows the EKS and ECS container credential endpoints.

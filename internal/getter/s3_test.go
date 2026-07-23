@@ -1,11 +1,15 @@
 package getter_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,7 +22,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDefaultClientCanonicalizesS3SourceURLs verifies S3 URL canonicalization across all AWS endpoint forms.
+// TestDefaultClientCanonicalizesS3SourceURLs pins that `s3::https://`
+// sources work in every AWS S3 endpoint form, including the
+// virtual-hosted style (`<bucket>.s3.<region>.amazonaws.com`) AWS
+// documents as canonical. The upstream go-getter/s3/v2 getter only
+// parses path-style hostnames (`s3.amazonaws.com`,
+// `s3-<region>.amazonaws.com`), so whichever getter claims the request
+// must canonicalize req.Src at Detect time: Client.Get re-parses
+// req.Src after detection into the URL the fetch uses.
+//
+// The test mirrors the outer client's getter-selection loop instead of
+// calling Client.Get so no network I/O happens.
 func TestDefaultClientCanonicalizesS3SourceURLs(t *testing.T) {
 	t.Parallel()
 
@@ -84,14 +98,22 @@ func TestDefaultClientCanonicalizesS3SourceURLs(t *testing.T) {
 
 			u, err := url.Parse(req.Src)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantHost, u.Host)
+			assert.Equal(
+				t,
+				tt.wantHost,
+				u.Host,
+				"Detect must canonicalize to a path-style host the bare go-getter/s3 v2 getter accepts",
+			)
 			assert.Equal(t, tt.wantPath, u.Path)
 		})
 	}
 }
 
-// Regression test for #6450: aws-sdk-go v1.44.122 rejected 169.254.170.23 (EKS Pod Identity).
-// Uses a recording RoundTripper — no real network I/O, deterministic on any runner.
+// Verifies that the SDK allows EKS and ECS container credential endpoints
+// and rejects arbitrary hosts. Uses a recording RoundTripper so no real
+// network I/O occurs and results are deterministic on any runner.
+// This is a dependency-contract test: it exercises the same session constructor
+// go-getter/s3/v2 uses to verify the aws-sdk-go v1 version pin.
 func TestS3SessionCredentialEndpointHosts(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -156,6 +178,62 @@ func TestS3SessionCredentialEndpointHosts(t *testing.T) {
 	}
 }
 
+// Verifies the full EKS Pod Identity credential flow: endpoint acceptance,
+// authorization-token-file loading, header propagation, and response decoding.
+// Uses a recording RoundTripper against the EKS endpoint IP so no real
+// request reaches 169.254.170.23. The token file is a real temp file because
+// the SDK reads the OS filesystem directly.
+func TestS3SessionEKSPodIdentityAuthTokenFile(t *testing.T) {
+	const (
+		fakeAccessKey = "AKIAIOSFODNN7EXAMPLE"
+		fakeSecretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLE"
+		fakeToken     = "FwoGZXIvYXdzEBYaDHqa0AP"
+		authToken     = "k8s-pod-identity-token-xyz"
+	)
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte(authToken), 0o600))
+
+	suppressAWSEnv(t)
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.170.23/v1/credentials")
+	t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", tokenFile)
+
+	credsJSON, err := json.Marshal(map[string]any{
+		"AccessKeyId":     fakeAccessKey,
+		"SecretAccessKey": fakeSecretKey,
+		"Token":           fakeToken,
+		"Expiration":      time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+	})
+	require.NoError(t, err)
+
+	var gotAuthHeader string
+
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String("us-east-1"),
+		HTTPClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				gotAuthHeader = req.Header.Get("Authorization")
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": {"application/json"}},
+					Body:       io.NopCloser(bytes.NewReader(credsJSON)),
+				}, nil
+			}),
+		},
+		MaxRetries: aws.Int(0),
+	})
+	require.NoError(t, err)
+
+	creds, err := sess.Config.Credentials.Get()
+	require.NoError(t, err)
+
+	assert.Equal(t, fakeAccessKey, creds.AccessKeyID)
+	assert.Equal(t, fakeSecretKey, creds.SecretAccessKey)
+	assert.Equal(t, fakeToken, creds.SessionToken)
+	assert.Equal(t, authToken, gotAuthHeader)
+}
+
 // Verifies the full credential flow via a local httptest server serving STS-shaped credentials.
 func TestS3SessionRetrievesCredsFromLocalEndpoint(t *testing.T) {
 	const (
@@ -218,9 +296,12 @@ func suppressAWSEnv(t *testing.T) {
 func recordingTransport(called *atomic.Bool) http.RoundTripper {
 	return roundTripFunc(func(_ *http.Request) (*http.Response, error) {
 		called.Store(true)
-		return nil, errors.New("sentinel: transport invoked")
+
+		return nil, errTransportSentinel
 	})
 }
+
+var errTransportSentinel = errors.New("sentinel: transport invoked")
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
