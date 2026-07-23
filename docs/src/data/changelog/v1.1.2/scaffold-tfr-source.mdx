@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### `scaffold` now supports `tfr://` registry sources
+
+`terragrunt scaffold` failed on `tfr://` registry source URLs with `Failed to parse url`, `git: 'remote-tfr' is not a git command`, and a download error, even though the same URL worked fine in a `terraform.source` block. Scaffold built its module/template downloader without the registry getter the normal run path uses, and its URL-rewrite helpers assumed every source was git-shaped.
+
+`scaffold` now registers the registry getter for both module and template downloads, and skips git-only steps (tag lookup, git-ssh URL rewriting) for non-git schemes like `tfr`, `s3`, `gcs`, and `oci`.
