@@ -139,6 +139,22 @@ func DownloadTerraformSource(
 		if err != nil {
 			return nil, err
 		}
+
+		// Only the copy-from-unit case (no terraform.source) reproduces the unit
+		// tree in the cache, so it is the only case where escaping relative paths
+		// map cleanly back to the unit dir. Rewriting the freshly copied files
+		// keeps the pass idempotent: every copy first restores their original
+		// contents.
+		if opts.UpdateSourceOutOfCache && sourceIsWorkingDir {
+			if err := RewriteRelativePathsOutOfCache(
+				l,
+				opts.FS,
+				opts.UnitDir,
+				terraformSource.WorkingDir,
+			); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	l, updatedOpts, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)

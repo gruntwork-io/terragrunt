@@ -85,6 +85,7 @@ type Options struct {
 	FailIfBucketCreationRequired bool
 	DisableBucketUpdate          bool
 	SourceUpdate                 bool
+	UpdateSourceOutOfCache       bool
 	ForwardTFStdout              bool
 	LogShowAbsPaths              bool
 	LogDisableErrorSummary       bool
