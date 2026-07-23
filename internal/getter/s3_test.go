@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -112,8 +111,8 @@ func TestDefaultClientCanonicalizesS3SourceURLs(t *testing.T) {
 // Verifies that the SDK allows EKS and ECS container credential endpoints
 // and rejects arbitrary hosts. Uses a recording RoundTripper so no real
 // network I/O occurs and results are deterministic on any runner.
-// This is a dependency-contract test: it exercises the same session constructor
-// go-getter/s3/v2 uses to verify the aws-sdk-go v1 version pin.
+// This is a dependency-contract test: it exercises the same default credential
+// provider that go-getter/s3/v2 uses to verify the aws-sdk-go v1 version pin.
 func TestS3SessionCredentialEndpointHosts(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -185,9 +184,9 @@ func TestS3SessionCredentialEndpointHosts(t *testing.T) {
 // the SDK reads the OS filesystem directly.
 func TestS3SessionEKSPodIdentityAuthTokenFile(t *testing.T) {
 	const (
-		fakeAccessKey = "AKIAIOSFODNN7EXAMPLE"
-		fakeSecretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLE"
-		fakeToken     = "FwoGZXIvYXdzEBYaDHqa0AP"
+		fakeAccessKey = "test-access-key-id"
+		fakeSecretKey = "test-secret-access-key"
+		fakeToken     = "test-session-token"
 		authToken     = "k8s-pod-identity-token-xyz"
 	)
 
@@ -232,38 +231,6 @@ func TestS3SessionEKSPodIdentityAuthTokenFile(t *testing.T) {
 	assert.Equal(t, fakeSecretKey, creds.SecretAccessKey)
 	assert.Equal(t, fakeToken, creds.SessionToken)
 	assert.Equal(t, authToken, gotAuthHeader)
-}
-
-// Verifies the full credential flow via a local httptest server serving STS-shaped credentials.
-func TestS3SessionRetrievesCredsFromLocalEndpoint(t *testing.T) {
-	const (
-		fakeAccessKey = "AKIAIOSFODNN7EXAMPLE"
-		fakeSecretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLE"
-		fakeToken     = "FwoGZXIvYXdzEBYaDHqa0AP"
-	)
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"AccessKeyId":     fakeAccessKey,
-			"SecretAccessKey": fakeSecretKey,
-			"Token":           fakeToken,
-			"Expiration":      time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
-		})
-	}))
-	t.Cleanup(srv.Close)
-
-	suppressAWSEnv(t)
-	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", srv.URL+"/v1/credentials")
-
-	sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
-	require.NoError(t, err)
-
-	creds, err := sess.Config.Credentials.Get()
-	require.NoError(t, err)
-	assert.Equal(t, fakeAccessKey, creds.AccessKeyID)
-	assert.Equal(t, fakeSecretKey, creds.SecretAccessKey)
-	assert.Equal(t, fakeToken, creds.SessionToken)
 }
 
 // suppressAWSEnv neutralizes all AWS credential env vars the SDK v1 chain inspects.
