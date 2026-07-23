@@ -2580,6 +2580,9 @@ func TestAwsStackDependencyMockOutputsFromRemoteState(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	// NOTE: This probably shouldn't be necessary. Needs investigation for clean-up.
+	createS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackMockRemoteState)
