@@ -921,7 +921,11 @@ func collectStackUnitOutputs(
 				continue
 			}
 
-			l.Warnf("Stack unit %s has no remote state at %s yet, skipping", unit.Name, unitConfigPath)
+			l.Warnf(
+				"Stack unit %s has no remote state at %s yet, skipping",
+				unit.Name,
+				unitConfigPath,
+			)
 
 			continue
 		}
@@ -1010,7 +1014,14 @@ func tryGetStackOutput(
 		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units, dependencyConfig)
+	unitOutputs, err := collectStackUnitOutputs(
+		ctx,
+		pctx,
+		l,
+		stackDir,
+		stackConfig.Units,
+		dependencyConfig,
+	)
 	if err != nil {
 		return nil, true, fmt.Errorf(
 			"failed to collect stack unit outputs for %s: %w",
