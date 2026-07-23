@@ -284,7 +284,13 @@ func decodeAndRetrieveOutputs(
 		}
 	}
 
-	if err := checkForDependencyBlockCycles(ctx, pctx, l, pctx.TerragruntConfigPath, decodedDependency); err != nil {
+	if err := checkForDependencyBlockCycles(
+		ctx,
+		pctx,
+		l,
+		pctx.TerragruntConfigPath,
+		decodedDependency,
+	); err != nil {
 		return nil, err
 	}
 
@@ -506,7 +512,14 @@ func checkForDependencyBlockCycles(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(
+			ctx,
+			dependencyContext,
+			l,
+			dependencyPath,
+			&visitedPaths,
+			&currentTraversalPaths,
+		); err != nil {
 			return err
 		}
 	}
@@ -554,7 +567,14 @@ func checkForDependencyBlockCyclesUsingDFS(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(
+			ctx,
+			dependencyContext,
+			l,
+			dependencyPath,
+			visitedPaths,
+			currentTraversalPaths,
+		); err != nil {
 			return err
 		}
 	}
@@ -645,7 +665,10 @@ func dependencyBlocksToCtyValue(
 				// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
 				// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
 				// to unknown rather than producing an "Unsupported attribute" error.
-				l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+				l.Debugf(
+					"Setting outputs for dependency %s to DynamicVal (output resolution skipped)",
+					dependencyConfig.Name,
+				)
 
 				dependencyEncodingMap["outputs"] = cty.DynamicVal
 			}
@@ -653,7 +676,10 @@ func dependencyBlocksToCtyValue(
 			if dependencyConfig.Inputs != nil {
 				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
 			} else if pctx.SkipOutput {
-				l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+				l.Debugf(
+					"Setting inputs for dependency %s to DynamicVal (output resolution skipped)",
+					dependencyConfig.Name,
+				)
 
 				dependencyEncodingMap["inputs"] = cty.DynamicVal
 			}
@@ -816,7 +842,7 @@ func getTerragruntOutput(
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
 	if err != nil {
-		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) {
+		if !shouldFallBackToMockOutputs(pctx, err) {
 			return nil, true, err
 		}
 
@@ -857,6 +883,7 @@ func collectStackUnitOutputs(
 	l log.Logger,
 	stackDir string,
 	units []*Unit,
+	dependencyConfig *Dependency,
 ) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
 
@@ -872,7 +899,22 @@ func collectStackUnitOutputs(
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			return nil, fmt.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
+			if !shouldFallBackToMockOutputs(pctx, err) {
+				return nil, fmt.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
+			}
+
+			if mock, ok := unitMockOutput(dependencyConfig, unit.Name, pctx); ok {
+				unitOutputs[unit.Name] = mock
+				continue
+			}
+
+			l.Warnf(
+				"Stack unit %s has no remote state at %s yet, skipping",
+				unit.Name,
+				unitConfigPath,
+			)
+
+			continue
 		}
 
 		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
@@ -894,6 +936,25 @@ func collectStackUnitOutputs(
 	}
 
 	return unitOutputs, nil
+}
+
+// unitMockOutput returns the mock output for a named stack unit from the dependency's mock_outputs,
+// when mocks are allowed for the current command and the unit has a mock declared. It lets a
+// partially applied stack resolve: applied units contribute real outputs while unapplied ones fall
+// back to their mock.
+//
+// ok is false when mocks are disallowed, absent, or not keyed by unit name.
+func unitMockOutput(dep *Dependency, unitName string, pctx *ParsingContext) (cty.Value, bool) {
+	if dep.MockOutputs == nil || !dep.shouldReturnMockOutputs(pctx) {
+		return cty.NilVal, false
+	}
+
+	mock := *dep.MockOutputs
+	if mock.IsNull() || !mock.Type().IsObjectType() || !mock.Type().HasAttribute(unitName) {
+		return cty.NilVal, false
+	}
+
+	return mock.GetAttr(unitName), true
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
@@ -940,7 +1001,14 @@ func tryGetStackOutput(
 		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	unitOutputs, err := collectStackUnitOutputs(
+		ctx,
+		pctx,
+		l,
+		stackDir,
+		stackConfig.Units,
+		dependencyConfig,
+	)
 	if err != nil {
 		return nil, true, fmt.Errorf(
 			"failed to collect stack unit outputs for %s: %w",
@@ -985,6 +1053,13 @@ func isAwsS3NoSuchKey(err error) bool {
 	}
 
 	return false
+}
+
+// shouldFallBackToMockOutputs reports whether a failed dependency output fetch should fall back to
+// mock outputs instead of being fatal: either the target's remote state doesn't exist yet (an S3
+// NoSuchKey), or the command is a render, which tolerates unresolved outputs.
+func shouldFallBackToMockOutputs(pctx *ParsingContext, err error) bool {
+	return isAwsS3NoSuchKey(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
@@ -1572,7 +1647,13 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
-	if err := CopyLockFile(l, pctx.RootWorkingDir, pctx.LogShowAbsPaths, terragruntDir, tempWorkDir); err != nil {
+	if err := CopyLockFile(
+		l,
+		pctx.RootWorkingDir,
+		pctx.LogShowAbsPaths,
+		terragruntDir,
+		tempWorkDir,
+	); err != nil {
 		return nil, err
 	}
 
@@ -1896,7 +1977,14 @@ func runTerraformInitForDependencyOutput(
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, initV, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(
+		bareCtx,
+		l,
+		initV,
+		initRunOpts,
+		tf.CommandNameInit,
+		"-get=false",
+	); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())
