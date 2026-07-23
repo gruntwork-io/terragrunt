@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Dependency `mock_outputs` apply when the state bucket doesn't exist yet
+
+When reading a dependency's outputs directly from remote state (`--dependency-fetch-output-from-state`), Terragrunt fell back to `mock_outputs` only when the state object was missing, not when the S3 bucket itself didn't exist. A `dependency` on an environment that hadn't been bootstrapped yet would fail instead of using its mocks.
+
+A missing bucket is now treated the same as a missing state object, so commands like `plan` and `validate` can resolve mocks before the dependency's backend has been created.
