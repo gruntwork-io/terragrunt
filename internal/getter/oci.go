@@ -2,6 +2,7 @@ package getter
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -280,12 +281,25 @@ func ociRefFromURL(u *url.URL) string {
 }
 
 // extractTarLayer decompresses and untars rc into dst.
-// Gzip detection is based on the layer's mediaType.
+// Gzip detection first checks the media type; if that is inconclusive it
+// peeks the first two bytes for the gzip magic number (0x1f 0x8b). This
+// handles media types like "application/vnd.terraform.module.v1+tar" whose
+// name omits "+gzip" but whose bytes are gzip-compressed in practice.
 func extractTarLayer(mediaType string, rc io.Reader, dst string) error {
-	reader := rc
+	br := bufio.NewReaderSize(rc, 2) //nolint:mnd
 
-	if isGzipMediaType(mediaType) {
-		gz, err := gzip.NewReader(rc)
+	var reader io.Reader = br
+
+	useGzip := isGzipMediaType(mediaType)
+	if !useGzip {
+		magic, err := br.Peek(2)
+		if err == nil && len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b { //nolint:mnd
+			useGzip = true
+		}
+	}
+
+	if useGzip {
+		gz, err := gzip.NewReader(br)
 		if err != nil {
 			return fmt.Errorf("oci: decompressing gzip layer: %w", err)
 		}
