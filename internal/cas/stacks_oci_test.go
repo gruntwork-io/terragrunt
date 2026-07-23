@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testMainTF = "main.tf"
+
 // stubbedOCIFetch returns a cas.OCIFetchFunc whose extracted directory is
 // populated from files, mimicking a real OCI artifact download.
 func stubbedOCIFetch(files map[string]string, digest string) cas.OCIFetchFunc {
@@ -42,7 +44,9 @@ func stubbedOCIFetch(files map[string]string, digest string) cas.OCIFetchFunc {
 
 			if _, err := fmt.Fprint(f, content); err != nil {
 				_ = f.Close()
+
 				cleanup()
+
 				return "", "", nil, err
 			}
 
@@ -67,7 +71,7 @@ func TestProcessStackComponent_OCISourceExtractsFiles(t *testing.T) {
 	c, err := cas.New(
 		cas.WithStorePath(storePath),
 		cas.WithOCIFetch(stubbedOCIFetch(map[string]string{
-			"main.tf": `resource "null_resource" "a" {}`,
+			testMainTF: `resource "null_resource" "a" {}`,
 		}, "sha256:deadbeef00000000000000000000000000000000000000000000000000000000")),
 	)
 	require.NoError(t, err)
@@ -86,7 +90,7 @@ func TestProcessStackComponent_OCISourceExtractsFiles(t *testing.T) {
 
 	defer result.Cleanup()
 
-	require.FileExists(t, filepath.Join(result.ContentDir, "main.tf"))
+	require.FileExists(t, filepath.Join(result.ContentDir, testMainTF))
 }
 
 // ---------------------------------------------------------------------------
@@ -119,8 +123,8 @@ func TestProcessStackComponent_OCISourceSubdir(t *testing.T) {
 
 	defer result.Cleanup()
 
-	require.FileExists(t, filepath.Join(result.ContentDir, "main.tf"))
-	require.NoFileExists(t, filepath.Join(result.ContentDir, "modules", "other", "main.tf"),
+	require.FileExists(t, filepath.Join(result.ContentDir, testMainTF))
+	require.NoFileExists(t, filepath.Join(result.ContentDir, "modules", "other", testMainTF),
 		"sibling directories must not be present when a subdir is selected")
 }
 
@@ -157,7 +161,7 @@ func TestProcessStackComponent_OCIDeterministicOutput(t *testing.T) {
 	digest := "sha256:aabbccdd00000000000000000000000000000000000000000000000000000000"
 
 	files := map[string]string{
-		"main.tf": `resource "null_resource" "a" {}`,
+		testMainTF: `resource "null_resource" "a" {}`,
 	}
 
 	// Both runs share the same CAS store — the second should not fail even
@@ -181,7 +185,7 @@ func TestProcessStackComponent_OCIDeterministicOutput(t *testing.T) {
 		)
 		require.NoError(t, err, "run %d", i)
 
-		require.FileExists(t, filepath.Join(result.ContentDir, "main.tf"), "run %d", i)
+		require.FileExists(t, filepath.Join(result.ContentDir, testMainTF), "run %d", i)
 		result.Cleanup()
 	}
 }

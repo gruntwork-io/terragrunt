@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testMainTF = "main.tf"
+
 // ---------------------------------------------------------------------------
 // Detect
 // ---------------------------------------------------------------------------
@@ -100,7 +102,7 @@ func TestOCIGetter_GetExtractsModuleFiles(t *testing.T) {
 	t.Parallel()
 
 	srv, _ := newOCITestServer(t, map[string]string{
-		"main.tf":      `resource "null_resource" "a" {}`,
+		testMainTF:     `resource "null_resource" "a" {}`,
 		"variables.tf": "variable \"name\" {}",
 	})
 
@@ -116,7 +118,7 @@ func TestOCIGetter_GetExtractsModuleFiles(t *testing.T) {
 		GetMode: gogetter.ModeDir,
 	})
 	require.NoError(t, err)
-	require.FileExists(t, filepath.Join(dst, "main.tf"))
+	require.FileExists(t, filepath.Join(dst, testMainTF))
 	require.FileExists(t, filepath.Join(dst, "variables.tf"))
 }
 
@@ -144,9 +146,9 @@ func TestOCIGetter_GetExtractsSubdir(t *testing.T) {
 		GetMode: gogetter.ModeDir,
 	})
 	require.NoError(t, err)
-	require.FileExists(t, filepath.Join(dst, "main.tf"),
+	require.FileExists(t, filepath.Join(dst, testMainTF),
 		"subdir files must be rooted at the destination")
-	require.NoFileExists(t, filepath.Join(dst, "modules", "other", "main.tf"),
+	require.NoFileExists(t, filepath.Join(dst, "modules", "other", testMainTF),
 		"sibling directories must not be present when a subdir is selected")
 }
 
@@ -158,7 +160,7 @@ func TestOCIGetter_ClientGetPipeline(t *testing.T) {
 	t.Parallel()
 
 	srv, _ := newOCITestServer(t, map[string]string{
-		"main.tf": "# module root",
+		testMainTF: "# module root",
 	})
 
 	ref := srv.Listener.Addr().String() + "/org/module:v1.0.0"
@@ -174,7 +176,7 @@ func TestOCIGetter_ClientGetPipeline(t *testing.T) {
 		GetMode: gogetter.ModeDir,
 	})
 	require.NoError(t, err)
-	require.FileExists(t, filepath.Join(dst, "main.tf"))
+	require.FileExists(t, filepath.Join(dst, testMainTF))
 }
 
 // ---------------------------------------------------------------------------
@@ -185,7 +187,7 @@ func TestOCIGetter_CASCachesSecondRun(t *testing.T) {
 	t.Parallel()
 
 	srv, state := newOCITestServer(t, map[string]string{
-		"main.tf":   `resource "null_resource" "a" {}`,
+		testMainTF:  `resource "null_resource" "a" {}`,
 		"README.md": "hello",
 	})
 
@@ -219,7 +221,7 @@ func TestOCIGetter_CASCachesSecondRun(t *testing.T) {
 			GetMode: gogetter.ModeAny,
 		})
 		require.NoError(t, err)
-		require.FileExists(t, filepath.Join(dst, "main.tf"))
+		require.FileExists(t, filepath.Join(dst, testMainTF))
 	}
 
 	runGet(t) // first run: populates CAS

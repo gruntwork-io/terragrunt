@@ -1,0 +1,61 @@
+---
+version: "v1.1.2"
+category: "new-features"
+---
+
+#### OCI registry support for module sources, stack units, and stack CAS processing
+
+Terragrunt now supports `oci://` as a source scheme for fetching OpenTofu/Terraform modules, stack `unit {}` sources, and stack `stack {}` sources from any OCI-compliant registry (e.g. GitHub Container Registry, Amazon ECR, Docker Hub, self-hosted registries).
+
+**Supported source locations:**
+
+- `terraform { source }` in unit `terragrunt.hcl` files
+- `unit { source }` blocks in `terragrunt.stack.hcl`
+- `stack { source }` blocks in `terragrunt.stack.hcl`
+- CAS (`update_source_with_cas = true`) stack processing
+
+**URL format:**
+
+```
+oci://<registry>/<repository>:<tag-or-digest>[//<subdir>]
+```
+
+Examples:
+
+```hcl
+# Unit source — fetch a module from GHCR
+terraform {
+  source = "oci://ghcr.io/my-org/terraform-modules:v1.2.3"
+}
+
+# With subdir selector
+terraform {
+  source = "oci://ghcr.io/my-org/terraform-modules:v1.2.3//modules/vpc"
+}
+
+# Stack unit block
+unit {
+  source = "oci://registry.example.com/infra/vpc-module:v2.0.0"
+  path   = "vpc"
+}
+```
+
+**Authentication:**
+
+Credentials are resolved in priority order:
+
+1. `TG_OCI_TOKEN` environment variable (Bearer token)
+2. `TG_OCI_USERNAME` + `TG_OCI_PASSWORD` environment variables (Basic auth)
+3. Docker credential store (`~/.docker/config.json`)
+4. Unauthenticated (public registries)
+
+**Pushing modules to an OCI registry:**
+
+Use [ORAS](https://oras.land/) to package and push module archives:
+
+```bash
+tar czf module.tar.gz -C /path/to/module .
+oras push ghcr.io/my-org/terraform-modules:v1.2.3 \
+  --artifact-type application/vnd.terraform.module.v1+tar \
+  module.tar.gz:application/vnd.terraform.module.v1+tar
+```

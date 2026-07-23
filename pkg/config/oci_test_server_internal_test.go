@@ -1,6 +1,6 @@
 package config
 
-// Minimal OCI Distribution Spec v2 server for config-package tests.
+// Minimal OCI Distribution Spec v2 server for config-package internal tests.
 // Mirrors internal/getter/oci_test_server_test.go but lives here to avoid
 // exposing test helpers across package boundaries.
 
@@ -15,15 +15,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-type configOCIManifest struct {
-	SchemaVersion int                  `json:"schemaVersion"`
-	MediaType     string               `json:"mediaType"`
-	Config        configOCIDescriptor  `json:"config"`
+type configOCIManifest struct { //nolint:govet
+	SchemaVersion int                   `json:"schemaVersion"`
+	MediaType     string                `json:"mediaType"`
+	Config        configOCIDescriptor   `json:"config"`
 	Layers        []configOCIDescriptor `json:"layers"`
 }
 
@@ -54,7 +55,7 @@ func newConfigOCITestServer(t *testing.T, files map[string]string) (*httptest.Se
 	configDigest := "sha256:" + configHexSHA256(configBytes)
 
 	m := configOCIManifest{
-		SchemaVersion: 2,
+		SchemaVersion: 2, //nolint:mnd
 		MediaType:     "application/vnd.oci.image.manifest.v1+json",
 		Config: configOCIDescriptor{
 			MediaType: "application/vnd.oci.image.config.v1+json",
@@ -71,8 +72,10 @@ func newConfigOCITestServer(t *testing.T, files map[string]string) (*httptest.Se
 	}
 
 	var err error
+
 	state.manifestBytes, err = json.Marshal(m)
 	require.NoError(t, err)
+
 	state.manifestDigest = "sha256:" + configHexSHA256(state.manifestBytes)
 
 	srv := httptest.NewServer(state)
@@ -93,7 +96,7 @@ func (s *configOCITestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	if configManifestRE.MatchString(r.URL.Path) {
 		w.Header().Set("Content-Type", "application/vnd.oci.image.manifest.v1+json")
 		w.Header().Set("Docker-Content-Digest", s.manifestDigest)
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(s.manifestBytes)))
+		w.Header().Set("Content-Length", strconv.Itoa(len(s.manifestBytes)))
 		w.WriteHeader(http.StatusOK)
 
 		if r.Method != http.MethodHead {
@@ -106,7 +109,7 @@ func (s *configOCITestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	if m := configBlobRE.FindStringSubmatch(r.URL.Path); m != nil {
 		if m[2] == s.layerDigest {
 			w.Header().Set("Content-Type", "application/octet-stream")
-			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(s.layerBytes)))
+			w.Header().Set("Content-Length", strconv.Itoa(len(s.layerBytes)))
 			w.WriteHeader(http.StatusOK)
 
 			if r.Method != http.MethodHead {
@@ -124,6 +127,7 @@ func configMakeTarGz(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 
 	var buf bytes.Buffer
+
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 
@@ -135,7 +139,9 @@ func configMakeTarGz(t *testing.T, files map[string]string) []byte {
 			Size:     int64(len(body)),
 			Typeflag: tar.TypeReg,
 		}
+
 		require.NoError(t, tw.WriteHeader(hdr))
+
 		_, err := tw.Write(body)
 		require.NoError(t, err)
 	}
@@ -148,5 +154,6 @@ func configMakeTarGz(t *testing.T, files map[string]string) []byte {
 
 func configHexSHA256(b []byte) string {
 	sum := sha256.Sum256(b)
+
 	return hex.EncodeToString(sum[:])
 }

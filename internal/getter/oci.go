@@ -58,13 +58,13 @@ var ociMediaTypes = []string{
 //  4. Unauthenticated (public registries)
 type OCIGetter struct {
 	HTTPClient *http.Client
+	Logger     log.Logger
+	FS         vfs.FS
 	// PlainHTTP forces plain HTTP for all requests to the registry. When false
 	// (the default), HTTPS is used for all non-loopback registries; loopback
 	// addresses (localhost, 127.0.0.1, ::1) use HTTP automatically to support
 	// local development registries (kind, k3d, airgap mirrors).
 	PlainHTTP bool
-	Logger    log.Logger
-	FS        vfs.FS
 }
 
 // NewOCIGetter returns an [OCIGetter] configured with sensible defaults.
@@ -119,7 +119,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return fmt.Errorf("oci: resolving %s: %w", ref, err)
 	}
 
-	layer, err := g.resolveLayer(ctx, repo, descriptor)
+	layer, err := g.resolveLayer(ctx, repo, &descriptor)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,11 @@ func (g *OCIGetter) GetFile(_ context.Context, _ *getter.Request) error {
 
 // resolveLayer picks the best content layer from the manifest at desc.
 // It handles OCI Image Manifests and falls back gracefully to the first layer.
-func (g *OCIGetter) resolveLayer(ctx context.Context, repo *remote.Repository, desc ocispec.Descriptor) (ocispec.Descriptor, error) {
+func (g *OCIGetter) resolveLayer(
+	ctx context.Context,
+	repo *remote.Repository,
+	desc *ocispec.Descriptor,
+) (ocispec.Descriptor, error) {
 	_, manifestBytes, err := oras.FetchBytes(ctx, repo, desc.Digest.String(), oras.DefaultFetchBytesOptions)
 	if err != nil {
 		return ocispec.Descriptor{}, fmt.Errorf("oci: fetching manifest: %w", err)
@@ -205,7 +209,6 @@ func (g *OCIGetter) extractSubdir(mediaType string, rc io.ReadCloser, dst, subDi
 		return fmt.Errorf("oci: clearing destination %s: %w", dst, err)
 	}
 
-	const dirPerms = 0755
 	if err := g.FS.MkdirAll(dst, dirPerms); err != nil {
 		return fmt.Errorf("oci: creating destination %s: %w", dst, err)
 	}
@@ -280,20 +283,33 @@ func ociRefFromURL(u *url.URL) string {
 	return u.Host + u.Path
 }
 
+const (
+	// gzipPeekBytes is the number of bytes to peek to detect gzip magic.
+	gzipPeekBytes = 2
+	// gzipMagic0 and gzipMagic1 are the two-byte gzip magic number (RFC 1952).
+	gzipMagic0 = 0x1f
+	gzipMagic1 = 0x8b
+
+	// dirPerms is the permission mask used when creating directories during extraction.
+	dirPerms = 0755
+	// filePerms is the default permission mask for extracted regular files.
+	filePerms = 0644
+)
+
 // extractTarLayer decompresses and untars rc into dst.
 // Gzip detection first checks the media type; if that is inconclusive it
 // peeks the first two bytes for the gzip magic number (0x1f 0x8b). This
 // handles media types like "application/vnd.terraform.module.v1+tar" whose
 // name omits "+gzip" but whose bytes are gzip-compressed in practice.
 func extractTarLayer(mediaType string, rc io.Reader, dst string) error {
-	br := bufio.NewReaderSize(rc, 2) //nolint:mnd
+	br := bufio.NewReaderSize(rc, gzipPeekBytes)
 
 	var reader io.Reader = br
 
 	useGzip := isGzipMediaType(mediaType)
 	if !useGzip {
-		magic, err := br.Peek(2)
-		if err == nil && len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b { //nolint:mnd
+		magic, err := br.Peek(gzipPeekBytes)
+		if err == nil && len(magic) == gzipPeekBytes && magic[0] == gzipMagic0 && magic[1] == gzipMagic1 {
 			useGzip = true
 		}
 	}
@@ -311,7 +327,6 @@ func extractTarLayer(mediaType string, rc io.Reader, dst string) error {
 
 	tr := tar.NewReader(reader)
 
-	const dirPerms = 0755
 	if err := os.MkdirAll(dst, dirPerms); err != nil {
 		return fmt.Errorf("oci: creating destination %s: %w", dst, err)
 	}
@@ -346,11 +361,6 @@ func isGzipMediaType(mediaType string) bool {
 func extractTarEntry(r io.Reader, hdr *tar.Header, dst string) error {
 	// filepath.Join cleans the path; the leading "/" ensures Clean never escapes dst.
 	target := filepath.Join(dst, filepath.Clean("/"+hdr.Name)) //nolint:gosec
-
-	const (
-		dirPerms  = 0755
-		filePerms = 0644
-	)
 
 	switch hdr.Typeflag {
 	case tar.TypeDir:
@@ -470,7 +480,7 @@ func copyDir(src, dst, skipFile string) error {
 		target := filepath.Join(dst, rel)
 
 		if d.IsDir() {
-			return os.MkdirAll(target, 0755)
+			return os.MkdirAll(target, dirPerms)
 		}
 
 		if filepath.Base(target) == skipFile {

@@ -50,6 +50,28 @@ The `terraform` block supports the following arguments:
     [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
     use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
 
+  - The `source` parameter can also pull modules from any OCI-compliant registry (e.g., GitHub Container Registry,
+    Amazon ECR, Docker Hub, self-hosted registries) using the `oci://` scheme. The format is:
+    `oci://<registry>/<repository>:<tag-or-digest>[//<subdir>]`. For example:
+    ```hcl
+    # Pull a module from GHCR
+    source = "oci://ghcr.io/my-org/terraform-modules:v1.2.3"
+
+    # Pull a submodule using the // subdir selector
+    source = "oci://ghcr.io/my-org/terraform-modules:v1.2.3//modules/vpc"
+    ```
+    OCI artifacts must be packaged as a gzip-compressed tar archive. Use [ORAS](https://oras.land/) to push:
+    ```bash
+    tar czf module.tar.gz -C /path/to/module .
+    oras push ghcr.io/my-org/terraform-modules:v1.2.3 \
+      --artifact-type application/vnd.terraform.module.v1+tar \
+      module.tar.gz:application/vnd.terraform.module.v1+tar
+    ```
+    Credentials are resolved in order: `TG_OCI_TOKEN` (Bearer token),
+    `TG_OCI_USERNAME`+`TG_OCI_PASSWORD` (Basic auth), Docker credential store (`~/.docker/config.json`),
+    then unauthenticated (public registries). The `oci://` scheme is also supported in `unit {}` and
+    `stack {}` source blocks in `terragrunt.stack.hcl`, including when `update_source_with_cas = true` is set.
+
 - `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied from the same directory containing `terragrunt.hcl` into the
   OpenTofu/Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
   Terragrunt will download the code specified at source into a scratch folder (`.terragrunt-cache`, by default), copy

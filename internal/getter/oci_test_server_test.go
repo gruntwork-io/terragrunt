@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -15,14 +16,14 @@ import (
 )
 
 // ociManifest is a minimal OCI Image Manifest for test use.
-type ociManifest struct {
+type ociManifest struct { //nolint:govet
 	SchemaVersion int             `json:"schemaVersion"`
 	MediaType     string          `json:"mediaType"`
 	Config        ociDescriptor   `json:"config"`
 	Layers        []ociDescriptor `json:"layers"`
 }
 
-type ociDescriptor struct {
+type ociDescriptor struct { //nolint:govet
 	MediaType string `json:"mediaType"`
 	Digest    string `json:"digest"`
 	Size      int64  `json:"size"`
@@ -31,14 +32,13 @@ type ociDescriptor struct {
 // ociTestServer is a minimal OCI Distribution Spec v2 server for tests.
 // It serves a single artifact whose content is determined by the files map
 // passed to newOCITestServer. All requests succeed without auth challenges.
-type ociTestServer struct {
+type ociTestServer struct { //nolint:govet
+	manifestGets   atomic.Int32
+	blobGets       atomic.Int32
 	manifestDigest string
 	manifestBytes  []byte
 	layerDigest    string
 	layerBytes     []byte
-
-	manifestGets atomic.Int32
-	blobGets     atomic.Int32
 }
 
 // newOCITestServer builds an in-memory tar.gz layer from files, constructs
@@ -110,7 +110,7 @@ func (s *ociTestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.manifestGets.Add(1)
 		w.Header().Set("Content-Type", "application/vnd.oci.image.manifest.v1+json")
 		w.Header().Set("Docker-Content-Digest", s.manifestDigest)
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(s.manifestBytes)))
+		w.Header().Set("Content-Length", strconv.Itoa(len(s.manifestBytes)))
 		w.WriteHeader(http.StatusOK)
 
 		if r.Method != http.MethodHead {
@@ -126,7 +126,7 @@ func (s *ociTestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if requestedDigest == s.layerDigest {
 			s.blobGets.Add(1)
 			w.Header().Set("Content-Type", "application/octet-stream")
-			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(s.layerBytes)))
+			w.Header().Set("Content-Length", strconv.Itoa(len(s.layerBytes)))
 			w.WriteHeader(http.StatusOK)
 
 			if r.Method != http.MethodHead {
