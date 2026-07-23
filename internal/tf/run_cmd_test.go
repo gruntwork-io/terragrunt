@@ -26,9 +26,8 @@ import (
 )
 
 var (
-	FullOutput = []string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"}
-	Stdout     = []string{"stdout1", "stdout2"}
-	Stderr     = []string{"stderr1", "stderr2", "stderr3"}
+	Stdout = []string{"stdout1", "stdout2"}
+	Stderr = []string{"stderr1", "stderr2", "stderr3"}
 )
 
 func TestCommandOutputPrefix(t *testing.T) {
@@ -37,12 +36,16 @@ func TestCommandOutputPrefix(t *testing.T) {
 	prefix := "."
 	terraformPath := "testdata/test_outputs.sh"
 
-	prefixedOutput := make([]string, 0, len(FullOutput))
-	for _, line := range FullOutput {
-		prefixedOutput = append(
-			prefixedOutput,
-			fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line),
-		)
+	prefixed := func(lines []string) []string {
+		out := make([]string, 0, len(lines))
+		for _, line := range lines {
+			out = append(
+				out,
+				fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line),
+			)
+		}
+
+		return out
 	}
 
 	logFormatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
@@ -53,7 +56,8 @@ func TestCommandOutputPrefix(t *testing.T) {
 		l.SetOptions(log.WithFormatter(logFormatter))
 		return l.WithField(placeholders.WorkDirKeyName, prefix)
 	}, assertOutputs(t,
-		prefixedOutput,
+		prefixed(Stdout),
+		prefixed(Stderr),
 		Stdout,
 		Stderr,
 	))
@@ -104,7 +108,8 @@ func testCommandOutput(
 
 func assertOutputs(
 	t *testing.T,
-	expectedAllOutputs []string,
+	expectedMergedStdout []string,
+	expectedMergedStderr []string,
 	expectedStdOutputs []string,
 	expectedStdErrs []string,
 ) func(string, *util.CmdOutput) {
@@ -112,11 +117,11 @@ func assertOutputs(
 
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		assert.Len(t, allOutputs, len(expectedAllOutputs))
+		assert.Len(t, allOutputs, len(expectedMergedStdout)+len(expectedMergedStderr))
 
-		for i := range allOutputs {
-			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
-		}
+		// Cross-stream arrival order in the merged buffer is scheduler-dependent, so only per-stream order is asserted.
+		assertContainsInOrder(t, allOutputs, expectedMergedStdout)
+		assertContainsInOrder(t, allOutputs, expectedMergedStderr)
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout.String()), "\n")
 		assert.Equal(t, expectedStdOutputs, stdOutputs)
@@ -124,6 +129,21 @@ func assertOutputs(
 		stdErrs := strings.Split(strings.TrimSpace(out.Stderr.String()), "\n")
 		assert.Equal(t, expectedStdErrs, stdErrs)
 	}
+}
+
+// assertContainsInOrder asserts that each expected entry matches a merged output line in the given relative order.
+func assertContainsInOrder(t *testing.T, lines []string, expected []string) {
+	t.Helper()
+
+	matched := 0
+
+	for _, line := range lines {
+		if matched < len(expected) && strings.Contains(line, expected[matched]) {
+			matched++
+		}
+	}
+
+	assert.Equal(t, len(expected), matched, "merged output must contain %v in per-stream order", expected)
 }
 
 // A goroutine-safe bytes.Buffer

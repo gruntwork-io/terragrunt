@@ -10,11 +10,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go"
@@ -833,11 +835,23 @@ func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 	assert.NotErrorIs(t, err, getter.OCIUnsupportedQueryParamError{Param: "bogus"})
 }
 
-func TestDefaultGenericFetchersExcludeOCI(t *testing.T) {
+func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
 	t.Parallel()
 
 	_, found := getter.DefaultGenericFetchers()[getter.SchemeOCI]
-	assert.False(t, found, "generic dispatch must never route oci sources")
+	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")
+
+	v := venvtest.New()
+	fetchers := getter.DefaultGenericFetchers(getter.WithOCIConfig(logger.CreateLogger(), v, v.FS))
+
+	g, found := fetchers[getter.SchemeOCI]
+	require.True(t, found, "oci fetcher must be present with WithOCIConfig")
+
+	ociGetter, castOK := g.(*getter.OCIGetter)
+	require.True(t, castOK, "oci fetcher must be an OCIGetter")
+	assert.NotNil(t, ociGetter.NewStore, "oci fetcher must carry the default store")
+	assert.NotNil(t, ociGetter.Logger, "oci fetcher must carry the configured logger")
+	assert.NotNil(t, ociGetter.FS, "oci fetcher must carry the extraction filesystem")
 }
 
 // errRenameFailed is the injected fault renameFailFS returns.
@@ -867,6 +881,7 @@ type fakeStore struct {
 	manifestDesc  ociv1.Descriptor
 	manifestBytes []byte
 	gotRefs       []string
+	mu            sync.Mutex
 }
 
 func newFakeStore(
@@ -883,6 +898,9 @@ func newFakeStore(
 }
 
 func (s *fakeStore) Resolve(_ context.Context, ref string) (ociv1.Descriptor, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.gotRefs = append(s.gotRefs, ref)
 
 	return s.manifestDesc, nil

@@ -540,9 +540,11 @@ func tryCASDownload(
 	opts *Options,
 	mutable bool,
 ) (bool, error) {
-	// The CAS matcher cannot claim oci:// sources yet, so skip the attempt
-	// instead of logging a guaranteed fallback on every oci download.
-	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI {
+	ociEnabled := opts.Experiments.Evaluate(experiment.OCI)
+
+	// Without the oci experiment the CAS maps carry no oci entries, so skip
+	// the attempt instead of logging a guaranteed fallback on every download.
+	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI && !ociEnabled {
 		return false, nil
 	}
 
@@ -593,6 +595,10 @@ func tryCASDownload(
 
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithTFRConfig(l, opts.TofuImplementation, v.FS),
+	}
+
+	if ociEnabled {
+		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, v, v.FS))
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	gcs "github.com/hashicorp/go-getter/gcs/v2"
@@ -30,11 +31,29 @@ const (
 type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
-	tfrLogger  log.Logger
-	tfrFS      vfs.FS
-	httpExtra  http.Header
-	httpsExtra http.Header
-	tfrImpl    tfimpl.Type
+	tfrLogger   log.Logger
+	tfrFS       vfs.FS
+	ociLogger   log.Logger
+	ociFS       vfs.FS
+	ociNewStore OCINewStoreFunc
+	httpExtra   http.Header
+	httpsExtra  http.Header
+	tfrImpl     tfimpl.Type
+}
+
+// WithOCIConfig registers the dependencies the oci:// fetcher and resolver
+// need for CAS dispatch. When unset, oci is omitted from the generic maps so
+// CASGetter never claims oci:// sources. The store seam is built once here so
+// the fetcher and the resolver share one credential discovery and auth cache;
+// fs is the extraction filesystem, mirroring [WithTFRConfig].
+func WithOCIConfig(l log.Logger, v venv.Venv, fs vfs.FS) GenericFetcherOption {
+	newStore := NewOCIRepositoryStore(l, v)
+
+	return func(c *genericFetcherConfig) {
+		c.ociLogger = l
+		c.ociFS = fs
+		c.ociNewStore = newStore
+	}
 }
 
 // WithHTTPExtraHeaders attaches header to the bare http getter so
@@ -87,6 +106,14 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 			cfg.tfrLogger,
 			cfg.tfrFS,
 		).WithTofuImplementation(cfg.tfrImpl)
+	}
+
+	if cfg.ociLogger != nil {
+		m[SchemeOCI] = &OCIGetter{
+			NewStore: cfg.ociNewStore,
+			Logger:   cfg.ociLogger,
+			FS:       cfg.ociFS,
+		}
 	}
 
 	return m
