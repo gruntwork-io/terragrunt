@@ -284,7 +284,13 @@ func decodeAndRetrieveOutputs(
 		}
 	}
 
-	if err := checkForDependencyBlockCycles(ctx, pctx, l, pctx.TerragruntConfigPath, decodedDependency); err != nil {
+	if err := checkForDependencyBlockCycles(
+		ctx,
+		pctx,
+		l,
+		pctx.TerragruntConfigPath,
+		decodedDependency,
+	); err != nil {
 		return nil, err
 	}
 
@@ -506,7 +512,14 @@ func checkForDependencyBlockCycles(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(
+			ctx,
+			dependencyContext,
+			l,
+			dependencyPath,
+			&visitedPaths,
+			&currentTraversalPaths,
+		); err != nil {
 			return err
 		}
 	}
@@ -554,7 +567,14 @@ func checkForDependencyBlockCyclesUsingDFS(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(
+			ctx,
+			dependencyContext,
+			l,
+			dependencyPath,
+			visitedPaths,
+			currentTraversalPaths,
+		); err != nil {
 			return err
 		}
 	}
@@ -645,7 +665,10 @@ func dependencyBlocksToCtyValue(
 				// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
 				// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
 				// to unknown rather than producing an "Unsupported attribute" error.
-				l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+				l.Debugf(
+					"Setting outputs for dependency %s to DynamicVal (output resolution skipped)",
+					dependencyConfig.Name,
+				)
 
 				dependencyEncodingMap["outputs"] = cty.DynamicVal
 			}
@@ -653,7 +676,10 @@ func dependencyBlocksToCtyValue(
 			if dependencyConfig.Inputs != nil {
 				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
 			} else if pctx.SkipOutput {
-				l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+				l.Debugf(
+					"Setting inputs for dependency %s to DynamicVal (output resolution skipped)",
+					dependencyConfig.Name,
+				)
 
 				dependencyEncodingMap["inputs"] = cty.DynamicVal
 			}
@@ -882,7 +908,11 @@ func collectStackUnitOutputs(
 				continue
 			}
 
-			l.Warnf("Stack unit %s has no remote state at %s yet, skipping", unit.Name, unitConfigPath)
+			l.Warnf(
+				"Stack unit %s has no remote state at %s yet, skipping",
+				unit.Name,
+				unitConfigPath,
+			)
 
 			continue
 		}
@@ -971,7 +1001,14 @@ func tryGetStackOutput(
 		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units, dependencyConfig)
+	unitOutputs, err := collectStackUnitOutputs(
+		ctx,
+		pctx,
+		l,
+		stackDir,
+		stackConfig.Units,
+		dependencyConfig,
+	)
 	if err != nil {
 		return nil, true, fmt.Errorf(
 			"failed to collect stack unit outputs for %s: %w",
@@ -1610,7 +1647,13 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
-	if err := CopyLockFile(l, pctx.RootWorkingDir, pctx.LogShowAbsPaths, terragruntDir, tempWorkDir); err != nil {
+	if err := CopyLockFile(
+		l,
+		pctx.RootWorkingDir,
+		pctx.LogShowAbsPaths,
+		terragruntDir,
+		tempWorkDir,
+	); err != nil {
 		return nil, err
 	}
 
@@ -1934,7 +1977,14 @@ func runTerraformInitForDependencyOutput(
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, initV, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(
+		bareCtx,
+		l,
+		initV,
+		initRunOpts,
+		tf.CommandNameInit,
+		"-get=false",
+	); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())
