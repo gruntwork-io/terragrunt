@@ -275,7 +275,7 @@ func (p *RelationshipPhase) dependencyToDiscover(
 
 	dep, created := interTransientComponents.EnsureComponent(newUnit)
 
-	if discovery.discoveryContext != nil {
+	if created && discovery.discoveryContext != nil {
 		discoveryCtx := discovery.discoveryContext.Copy()
 		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
 		dep.SetDiscoveryContext(discoveryCtx)
