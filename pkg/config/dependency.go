@@ -1046,20 +1046,29 @@ func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool)
 	}
 }
 
-func isAwsS3NoSuchKey(err error) bool {
-	if err != nil {
-		errStr := err.Error()
-		return strings.Contains(errStr, "NoSuchKey") || strings.Contains(errStr, "NotFound")
+// isAwsS3StateMissing reports whether err means the dependency's S3 remote state isn't there yet:
+// the state object (NoSuchKey / NotFound) or the whole bucket (NoSuchBucket). Both are the "not
+// applied yet" signal that lets a dependency fall back to mock outputs, the latter covering a
+// dependency on an environment whose state bucket hasn't been bootstrapped. A permissions or
+// connectivity failure is not this, and stays fatal.
+func isAwsS3StateMissing(err error) bool {
+	if err == nil {
+		return false
 	}
 
-	return false
+	errStr := err.Error()
+
+	return strings.Contains(errStr, "NoSuchKey") ||
+		strings.Contains(errStr, "NoSuchBucket") ||
+		strings.Contains(errStr, "NotFound")
 }
 
 // shouldFallBackToMockOutputs reports whether a failed dependency output fetch should fall back to
-// mock outputs instead of being fatal: either the target's remote state doesn't exist yet (an S3
-// NoSuchKey), or the command is a render, which tolerates unresolved outputs.
+// mock outputs instead of being fatal: either the target's remote state doesn't exist yet (a
+// missing S3 state object or bucket), or the command is a render, which tolerates unresolved
+// outputs.
 func shouldFallBackToMockOutputs(pctx *ParsingContext, err error) bool {
-	return isAwsS3NoSuchKey(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
+	return isAwsS3StateMissing(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
