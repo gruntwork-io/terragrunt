@@ -15,6 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testMainTF is a shared filename constant for OCI test file maps.
+// Centralised here to satisfy the goconst linter across the getter_test package.
+const testMainTF = "main.tf"
+
 // ociManifest is a minimal OCI Image Manifest for test use.
 type ociManifest struct { //nolint:govet
 	SchemaVersion int             `json:"schemaVersion"`

@@ -30,6 +30,8 @@ import (
 // ociMediaTypes is the ordered preference list of layer media types that contain
 // module content. The first match in a manifest's layer list wins.
 var ociMediaTypes = []string{
+	// application/vnd.opentofu.modulepkg is proposed in the OpenTofu OCI module
+	// packaging draft (https://github.com/opentofu/opentofu/issues/2138).
 	"application/vnd.opentofu.modulepkg",
 	"application/vnd.terraform.module.v1+tar",
 	ocispec.MediaTypeImageLayerGzip,
@@ -99,7 +101,7 @@ func (g *OCIGetter) Detect(req *getter.Request) (bool, error) {
 func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 	// go-getter's Client strips //subdir from Src before calling Get; direct
 	// callers (e.g. unit tests) may still carry it, so always strip here.
-	baseSrc, subDir := SourceDirSubdir(req.Src)
+	baseSrc, _ := SourceDirSubdir(req.Src)
 
 	srcURL, err := url.Parse(baseSrc)
 	if err != nil {
@@ -119,7 +121,21 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return fmt.Errorf("oci: resolving %s: %w", ref, err)
 	}
 
-	layer, err := g.resolveLayer(ctx, repo, &descriptor)
+	return g.getWithDescriptor(ctx, repo, &descriptor, req.Src, req.Dst)
+}
+
+// getWithDescriptor fetches and extracts the artifact using a pre-resolved descriptor,
+// avoiding a second Resolve() call for callers (e.g. NewCASFetchFunc) that have
+// already resolved the manifest digest.
+func (g *OCIGetter) getWithDescriptor(
+	ctx context.Context,
+	repo *remote.Repository,
+	desc *ocispec.Descriptor,
+	src, dst string,
+) error {
+	_, subDir := SourceDirSubdir(src)
+
+	layer, err := g.resolveLayer(ctx, repo, desc)
 	if err != nil {
 		return err
 	}
@@ -134,10 +150,10 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 	defer rc.Close() //nolint:errcheck
 
 	if subDir == "" {
-		return extractTarLayer(layer.MediaType, rc, req.Dst)
+		return extractTarLayer(layer.MediaType, rc, dst)
 	}
 
-	return g.extractSubdir(layer.MediaType, rc, req.Dst, subDir)
+	return g.extractSubdir(layer.MediaType, rc, dst, subDir)
 }
 
 // GetFile is not supported for OCI sources.
@@ -290,6 +306,11 @@ const (
 	gzipMagic0 = 0x1f
 	gzipMagic1 = 0x8b
 
+	// bufioReadSize is the internal buffer size for the buffered reader used
+	// in extractTarLayer. Kept separate from gzipPeekBytes since the two are
+	// independent concerns: peek depth vs. I/O throughput.
+	bufioReadSize = 4096
+
 	// dirPerms is the permission mask used when creating directories during extraction.
 	dirPerms = 0755
 	// filePerms is the default permission mask for extracted regular files.
@@ -302,7 +323,7 @@ const (
 // handles media types like "application/vnd.terraform.module.v1+tar" whose
 // name omits "+gzip" but whose bytes are gzip-compressed in practice.
 func extractTarLayer(mediaType string, rc io.Reader, dst string) error {
-	br := bufio.NewReaderSize(rc, gzipPeekBytes)
+	br := bufio.NewReaderSize(rc, bufioReadSize)
 
 	var reader io.Reader = br
 
@@ -381,10 +402,14 @@ func extractTarEntry(r io.Reader, hdr *tar.Header, dst string) error {
 			return fmt.Errorf("oci: creating %s: %w", target, err)
 		}
 
-		defer f.Close() //nolint:errcheck
-
 		if _, err := io.Copy(f, r); err != nil { //nolint:gosec
+			_ = f.Close()
+
 			return fmt.Errorf("oci: writing %s: %w", target, err)
+		}
+
+		if err := f.Close(); err != nil {
+			return fmt.Errorf("oci: closing %s: %w", target, err)
 		}
 
 	case tar.TypeLink:
@@ -408,12 +433,14 @@ func extractTarEntry(r io.Reader, hdr *tar.Header, dst string) error {
 // Wire this into [cas.New] via [cas.WithOCIFetch] to enable oci:// sources in
 // stack unit/stack CAS processing (ProcessStackComponent). The returned function:
 //
-//  1. Resolves the manifest digest (deterministic cache key for buildSyntheticTree).
-//  2. Extracts the artifact into a fresh temporary directory.
+//  1. Resolves the manifest digest once (deterministic cache key for buildSyntheticTree).
+//  2. Extracts the artifact into a fresh temporary directory using the pre-resolved descriptor,
+//     avoiding a second round-trip to the registry.
 //  3. Returns the directory path, the raw digest string, and a cleanup func.
-func NewCASFetchFunc(l log.Logger) cas.OCIFetchFunc {
-	return func(ctx context.Context, _ log.Logger, fs vfs.FS, src string) (string, string, func(), error) {
-		// Strip any //subdir suffix — fetch the whole artifact.
+func NewCASFetchFunc() cas.OCIFetchFunc {
+	return func(ctx context.Context, l log.Logger, fs vfs.FS, src string) (string, string, func(), error) {
+		// Strip any //subdir suffix — fetch the whole artifact; subdir is applied
+		// by processOCIStackComponent after extraction.
 		baseSrc, _ := SourceDirSubdir(src)
 
 		srcURL, err := url.Parse(baseSrc)
@@ -429,6 +456,8 @@ func NewCASFetchFunc(l log.Logger) cas.OCIFetchFunc {
 			return "", "", nil, fmt.Errorf("oci: building repository client for %s: %w", ref, err)
 		}
 
+		// Resolve once; pass the descriptor to getWithDescriptor to avoid a
+		// second manifest round-trip against the registry.
 		desc, err := repo.Resolve(ctx, repo.Reference.Reference)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("oci: resolving %s: %w", ref, err)
@@ -447,11 +476,7 @@ func NewCASFetchFunc(l log.Logger) cas.OCIFetchFunc {
 			}
 		}
 
-		if err := g.Get(ctx, &getter.Request{
-			Src:     src,
-			Dst:     tmpDir,
-			GetMode: getter.ModeDir,
-		}); err != nil {
+		if err := g.getWithDescriptor(ctx, repo, &desc, src, tmpDir); err != nil {
 			cleanup()
 
 			return "", "", nil, fmt.Errorf("oci: extracting %q: %w", src, err)

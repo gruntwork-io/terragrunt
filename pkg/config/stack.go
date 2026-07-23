@@ -338,7 +338,7 @@ func setupCAS(l log.Logger, enabled bool, cloneDepth int) (casSetup, error) {
 
 	c, err := cas.New(
 		cas.WithCloneDepth(cloneDepth),
-		cas.WithOCIFetch(getter.NewCASFetchFunc(l)),
+		cas.WithOCIFetch(getter.NewCASFetchFunc()),
 	)
 	if err != nil {
 		l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", err)

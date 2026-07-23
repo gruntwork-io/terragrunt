@@ -65,7 +65,7 @@ The `terraform` block supports the following arguments:
     tar czf module.tar.gz -C /path/to/module .
     oras push ghcr.io/my-org/terraform-modules:v1.2.3 \
       --artifact-type application/vnd.terraform.module.v1+tar \
-      module.tar.gz:application/vnd.terraform.module.v1+tar
+      module.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip
     ```
     Credentials are resolved in order: `TG_OCI_TOKEN` (Bearer token),
     `TG_OCI_USERNAME`+`TG_OCI_PASSWORD` (Basic auth), Docker credential store (`~/.docker/config.json`),

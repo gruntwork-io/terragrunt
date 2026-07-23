@@ -22,7 +22,7 @@ func TestOCIResolver_SchemeReturnsOCI(t *testing.T) {
 func TestOCIResolver_ProbeReturnsDigestKey(t *testing.T) {
 	t.Parallel()
 
-	srv, state := newOCITestServer(t, map[string]string{"main.tf": "ok"})
+	srv, state := newOCITestServer(t, map[string]string{testMainTF: "ok"})
 
 	ociRef := srv.Listener.Addr().String() + "/org/module:v1.0.0"
 	key, err := getter.NewOCIResolver().Probe(t.Context(), "oci://"+ociRef)
@@ -40,7 +40,7 @@ func TestOCIResolver_ProbeReturnsDigestKey(t *testing.T) {
 func TestOCIResolver_ProbeIsStable(t *testing.T) {
 	t.Parallel()
 
-	srv, _ := newOCITestServer(t, map[string]string{"main.tf": "ok"})
+	srv, _ := newOCITestServer(t, map[string]string{testMainTF: "ok"})
 
 	ref := "oci://" + srv.Listener.Addr().String() + "/org/module:v1.0.0"
 	r := getter.NewOCIResolver()

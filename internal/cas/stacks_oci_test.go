@@ -100,7 +100,9 @@ func TestProcessStackComponent_OCISourceExtractsFiles(t *testing.T) {
 func TestProcessStackComponent_OCISourceSubdir(t *testing.T) {
 	t.Parallel()
 
-	digest := "sha256:" + fmt.Sprintf("%064x", 1) //nolint:mnd
+	const digestHexLen = 64
+
+	digest := "sha256:" + fmt.Sprintf("%0*x", digestHexLen, 1)
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "cas")
 	c, err := cas.New(
 		cas.WithStorePath(storePath),

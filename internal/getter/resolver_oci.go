@@ -2,14 +2,17 @@ package getter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
+	"oras.land/oras-go/v2/registry/remote/errcode"
 )
 
 // ociResolverTimeout caps the registry probe so a slow registry can't stall
@@ -29,6 +32,8 @@ type OCIResolver struct {
 	// is used. Set this to inject a custom transport (e.g. a TLS-configured
 	// client for a test server).
 	HTTPClient *http.Client
+	// Logger is used for debug messages. When nil, messages are suppressed.
+	Logger log.Logger
 	// PlainHTTP forces plain HTTP for all resolver requests. Loopback registries
 	// (localhost, 127.0.0.1, ::1) use plain HTTP automatically regardless of
 	// this setting.
@@ -75,6 +80,21 @@ func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 
 	desc, err := repo.Resolve(ctx, repo.Reference.Reference)
 	if err != nil {
+		// Propagate auth failures (401/403) — degrading silently would waste
+		// a full download and hide a misconfigured credential from the user.
+		var ec *errcode.ErrorResponse
+		if errors.As(err, &ec) {
+			if ec.StatusCode == http.StatusUnauthorized || ec.StatusCode == http.StatusForbidden {
+				return "", fmt.Errorf("oci: resolving %s: %w", ref, err)
+			}
+		}
+
+		// All other failures (404, 5xx, network errors) degrade gracefully:
+		// CAS falls back to download + content-hash.
+		if r.Logger != nil {
+			r.Logger.Debugf("OCI resolver: probe failed for %s, falling back to content-hash: %v", ref, err)
+		}
+
 		return "", cas.ErrNoVersionMetadata
 	}
 
