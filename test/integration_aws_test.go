@@ -52,6 +52,7 @@ const (
 	testFixtureAssumeRoleDuration                = "fixtures/assume-role/duration"
 	testFixtureReadIamRole                       = "fixtures/read-config/iam_role_in_file"
 	testFixtureOutputFromRemoteState             = "fixtures/output-from-remote-state"
+	testFixtureStackDepsStackMockRemoteState     = "fixtures/stacks/stack-deps-stack-mock-remote-state"
 	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"
 	testFixtureS3Backend                         = "fixtures/s3-backend"
 	testFixtureS3BackendDualLocking              = "fixtures/s3-backend/dual-locking"
@@ -2570,6 +2571,71 @@ func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 
 	assert.Contains(t, stderr, "Failed to read outputs")
 	assert.Contains(t, stderr, "fallback to mock outputs")
+}
+
+// TestAwsStackDependencyMockOutputsFromRemoteState pins that a dependency on a stack directory
+// falls back to mock_outputs when a unit in that stack has no remote state yet, instead of
+// hard-failing on the S3 NoSuchKey. The single-unit dependency path already had this fallback.
+func TestAwsStackDependencyMockOutputsFromRemoteState(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackMockRemoteState)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackMockRemoteState)
+
+	rootConfigPath := filepath.Join(gitPath, "root.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootConfigPath,
+		rootConfigPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
+
+	// The networking stack sources its units via get_repo_root(), so the fixture copy must be a git repo.
+	helpers.CreateGitRepo(t, gitPath)
+
+	rootPath := filepath.Join(gitPath, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	appPath := filepath.Join(rootPath, ".terragrunt-stack", "app")
+	vpcPath := filepath.Join(rootPath, ".terragrunt-stack", "networking", ".terragrunt-stack", "vpc")
+
+	planApp := func() (string, string) {
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt plan --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir "+appPath,
+		)
+		require.NoError(
+			t,
+			err,
+			"planning the app unit must not fail on a missing stack-unit state; stderr=%s",
+			stderr,
+		)
+
+		assert.NotContains(t, stderr, "output fetch failed")
+
+		return stdout, stderr
+	}
+
+	// Nothing is applied yet, so no unit has an S3 state key.
+	stdout, _ := planApp()
+	assert.Contains(t, stdout, "mock-vpc-id", "an unapplied unit must resolve to its mock output")
+	assert.Contains(t, stdout, "mock-subnet-id", "an unapplied unit must resolve to its mock output")
+
+	// Apply only the vpc unit so the stack is partially applied.
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply --backend-bootstrap --auto-approve --non-interactive --working-dir "+vpcPath,
+	)
+
+	stdout, _ = planApp()
+	assert.Contains(t, stdout, "real-vpc-id", "an applied unit must resolve to its real output")
+	assert.Contains(t, stdout, "mock-subnet-id", "the unapplied unit must still resolve to its mock output")
 }
 
 func TestAwsParallelStateInit(t *testing.T) {
