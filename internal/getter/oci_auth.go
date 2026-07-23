@@ -26,14 +26,6 @@ import (
 	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
-// Interim, undocumented static-credential env vars (unscoped without TG_TMP_OCI_REGISTRY).
-const (
-	EnvOCIUsername = "TG_TMP_OCI_USERNAME"
-	EnvOCIPassword = "TG_TMP_OCI_PASSWORD"
-	EnvOCIToken    = "TG_TMP_OCI_TOKEN"
-	EnvOCIRegistry = "TG_TMP_OCI_REGISTRY"
-)
-
 // ociDockerHubKey is the lookup key every Docker Hub spelling folds onto.
 const ociDockerHubKey = "docker.io"
 
@@ -45,12 +37,6 @@ var ociDockerHubRegistries = []string{
 	"index.docker.io",
 	"registry-1.docker.io",
 }
-
-// ErrOCIStaticCredentialConflict reports both a token and a username or password set.
-var ErrOCIStaticCredentialConflict = errors.New("cannot set both a token and a username or password for oci sources")
-
-// ErrOCIStaticCredentialIncomplete reports a username without a password, or the reverse.
-var ErrOCIStaticCredentialIncomplete = errors.New("oci static credentials require both a username and a password")
 
 // ErrOCIHelperMalformedOutput reports a credential helper whose output is not valid JSON.
 var ErrOCIHelperMalformedOutput = errors.New("oci credential helper returned malformed output")
@@ -157,12 +143,6 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 // blocks (Tier-3), then ambient Docker/containers discovery and its helpers
 // (Tier-2 / Tier-1b).
 func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) {
-	staticCred, found, err := ociStaticCredential(v)
-	if err != nil {
-		return nil, err
-	}
-
-	staticApplies := ociStaticCredentialScope(v, found)
 	tofu := loadOCITofuCredentials(l, v)
 	ambient := ociAmbientCredentialFunc(l, v)
 
@@ -170,10 +150,6 @@ func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) 
 		ambientFn := ambient(repositoryName)
 
 		return func(ctx context.Context, hostport string) (auth.Credential, error) {
-			if staticApplies(hostport) {
-				return staticCred, nil
-			}
-
 			// Tier-3: per-registry oci_credentials blocks are the most specific
 			// configured source, so they win over ambient discovery.
 			if cred, err := tofu.repoCredential(ctx, v, hostport, repositoryName); err != nil || cred != auth.EmptyCredential {
@@ -200,52 +176,6 @@ func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) 
 			return auth.EmptyCredential, nil
 		}
 	}, nil
-}
-
-// ociStaticCredentialScope reports, for each host, whether the static
-// credential applies: never when none is set, every host when unscoped, and
-// only the canonicalized scoped registry otherwise.
-func ociStaticCredentialScope(v venv.Venv, found bool) func(hostport string) bool {
-	if !found {
-		return func(string) bool { return false }
-	}
-
-	if v.Env[EnvOCIRegistry] == "" {
-		return func(string) bool { return true }
-	}
-
-	// The env value is canonicalized like ambient keys so spellings such as
-	// https://ghcr.io or a trailing slash match the requested host.
-	scopedRegistry := ociCanonicalAuthKey(v.Env[EnvOCIRegistry])
-
-	return func(hostport string) bool {
-		return ociCanonicalAuthKey(hostport) == scopedRegistry
-	}
-}
-
-// ociStaticCredential reads a token or a username plus password from v.Env.
-func ociStaticCredential(v venv.Venv) (auth.Credential, bool, error) {
-	username := v.Env[EnvOCIUsername]
-	password := v.Env[EnvOCIPassword]
-	token := v.Env[EnvOCIToken]
-
-	if token != "" && (username != "" || password != "") {
-		return auth.EmptyCredential, false, ErrOCIStaticCredentialConflict
-	}
-
-	if token != "" {
-		return auth.Credential{AccessToken: token}, true, nil
-	}
-
-	if username != "" && password != "" {
-		return auth.Credential{Username: username, Password: password}, true, nil
-	}
-
-	if username != "" || password != "" {
-		return auth.EmptyCredential, false, ErrOCIStaticCredentialIncomplete
-	}
-
-	return auth.EmptyCredential, false, nil
 }
 
 // ociHelperEntry is a resolved credential helper: its binary suffix, the server

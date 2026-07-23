@@ -157,24 +157,6 @@ oci_credentials "registry.example.com" {
 	assert.Equal(t, want, credentialFor(t, store, testRegistry))
 }
 
-// TestOCITofuCredentialsStaticEnvBeatsTofu: an explicit static env credential wins over tofu config.
-func TestOCITofuCredentialsStaticEnvBeatsTofu(t *testing.T) {
-	t.Parallel()
-
-	home := testHome
-	env := map[string]string{getter.EnvOCIToken: "static-token"}
-	v := credentialVenv(home, env)
-	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
-oci_credentials "registry.example.com" {
-  username = "tofu"
-  password = "fake-secret-tofu"
-}
-`)
-
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.Credential{AccessToken: "static-token"}, credentialFor(t, store, testRegistry))
-}
-
 // TestOCITofuCredentialsConfigFileOverride: TF_CLI_CONFIG_FILE selects the config path.
 func TestOCITofuCredentialsConfigFileOverride(t *testing.T) {
 	t.Parallel()
