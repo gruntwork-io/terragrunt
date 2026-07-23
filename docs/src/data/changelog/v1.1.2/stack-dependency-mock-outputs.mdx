@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Stack dependencies honor `mock_outputs` with `--dependency-fetch-output-from-state`
+
+A `dependency` block that reads outputs from a stack (its `config_path` points at a `terragrunt.stack.hcl` directory) used to fail when a unit in that stack had no state yet, even when the dependency declared `mock_outputs`. This blocked commands like `plan` and `validate` against a stack that hadn't been applied.
+
+Such a dependency now falls back to `mock_outputs` for the units that have no state yet. In a partially applied stack, applied units resolve to their real outputs while the rest use their mocks.
