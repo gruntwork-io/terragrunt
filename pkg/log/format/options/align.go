@@ -43,7 +43,15 @@ func (option *AlignOption) Format(_ *Data, val any) (any, error) {
 		rightSpaces := (spaces - spaces%2) / twoSides
 		leftSpaces := spaces - rightSpaces
 
-		return strings.Repeat(" ", leftSpaces) + strings.TrimSpace(str) + strings.Repeat(" ", rightSpaces), nil
+		return strings.Repeat(
+			" ",
+			leftSpaces,
+		) + strings.TrimSpace(
+			str,
+		) + strings.Repeat(
+			" ",
+			rightSpaces,
+		), nil
 	case NoneAlign:
 	}
 

@@ -13,7 +13,11 @@ import (
 )
 
 // RunWithExitCode executes the CLI and returns the process exit code; em and reporter must be non-nil.
-func (app *App) RunWithExitCode(args []string, em *tf.DetailedExitCodeMap, reporter *panicreport.Reporter) int {
+func (app *App) RunWithExitCode(
+	args []string,
+	em *tf.DetailedExitCodeMap,
+	reporter *panicreport.Reporter,
+) int {
 	ctx := log.ContextWithLogger(context.Background(), app.l)
 	ctx = tf.ContextWithDetailedExitCode(ctx, em)
 
@@ -24,7 +28,14 @@ func (app *App) RunWithExitCode(args []string, em *tf.DetailedExitCodeMap, repor
 }
 
 // ExitCodeFor maps a CLI run result to a process exit code; reporter must be non-nil.
-func ExitCodeFor(l log.Logger, args []string, version string, err error, success int, reporter *panicreport.Reporter) int {
+func ExitCodeFor(
+	l log.Logger,
+	args []string,
+	version string,
+	err error,
+	success int,
+	reporter *panicreport.Reporter,
+) int {
 	if err == nil {
 		return success
 	}
@@ -49,7 +60,13 @@ func ExitCodeFor(l log.Logger, args []string, version string, err error, success
 }
 
 // logRunError emits the output a user sees when a run error occurs.
-func logRunError(l log.Logger, args []string, version string, err error, reporter *panicreport.Reporter) {
+func logRunError(
+	l log.Logger,
+	args []string,
+	version string,
+	err error,
+	reporter *panicreport.Reporter,
+) {
 	if panicreport.IsPanic(err) {
 		msg, stack := panicreport.PanicDetails(err)
 		reporter.ReportPanic(l, version, msg, stack, args)

@@ -34,7 +34,13 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
 	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
-	if _, err := creds.ObtainCredsForParsing(ctx, l, v, opts.AuthProviderCmd, shellOpts); err != nil {
+	if _, err := creds.ObtainCredsForParsing(
+		ctx,
+		l,
+		v,
+		opts.AuthProviderCmd,
+		shellOpts,
+	); err != nil {
 		return err
 	}
 

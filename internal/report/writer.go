@@ -403,7 +403,11 @@ func writeFileAtomic(fsys vfs.FS, path string, write func(w io.Writer) error) er
 	tmpName := tmpFile.Name()
 
 	if err := write(tmpFile); err != nil {
-		return errors.Join(fmt.Errorf("failed to write report: %w", err), tmpFile.Close(), fsys.Remove(tmpName))
+		return errors.Join(
+			fmt.Errorf("failed to write report: %w", err),
+			tmpFile.Close(),
+			fsys.Remove(tmpName),
+		)
 	}
 
 	if err := tmpFile.Close(); err != nil {

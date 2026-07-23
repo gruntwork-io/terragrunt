@@ -28,7 +28,12 @@ const bareIncludeKey = ""
 var fieldsCopyLocks = util.NewKeyLocks()
 
 // Parse the config of the given include, if one is specified
-func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
+func parseIncludedConfig(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	includedConfig *IncludeConfig,
+) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, IncludedConfigMissingPathError(pctx.TerragruntConfigPath)
 	}
@@ -117,9 +122,17 @@ func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
-func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
+func handleInclude(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	config *TerragruntConfig,
+	isPartial bool,
+) (*TerragruntConfig, error) {
 	if pctx.TrackInclude == nil {
-		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message.Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
+		return nil, errors.New(
+			"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message.Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG",
+		)
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
@@ -156,9 +169,17 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 		// TODO: Remove lint suppression
 		switch mergeStrategy { //nolint:exhaustive
 		case NoMerge:
-			l.Debugf("%sIncluded config %s has strategy no merge: not merging config in.", logPrefix, includeConfig.Path)
+			l.Debugf(
+				"%sIncluded config %s has strategy no merge: not merging config in.",
+				logPrefix,
+				includeConfig.Path,
+			)
 		case ShallowMerge:
-			l.Debugf("%sIncluded config %s has strategy shallow merge: merging config in (shallow).", logPrefix, includeConfig.Path)
+			l.Debugf(
+				"%sIncluded config %s has strategy shallow merge: merging config in (shallow).",
+				logPrefix,
+				includeConfig.Path,
+			)
 
 			if err := parsedIncludeConfig.Merge(l, baseConfig); err != nil {
 				return nil, err
@@ -166,7 +187,11 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 
 			baseConfig = parsedIncludeConfig
 		case DeepMerge:
-			l.Debugf("%sIncluded config %s has strategy deep merge: merging config in (deep).", logPrefix, includeConfig.Path)
+			l.Debugf(
+				"%sIncluded config %s has strategy deep merge: merging config in (deep).",
+				logPrefix,
+				includeConfig.Path,
+			)
 
 			if err := parsedIncludeConfig.DeepMerge(l, baseConfig); err != nil {
 				return nil, err
@@ -174,7 +199,10 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 
 			baseConfig = parsedIncludeConfig
 		default:
-			return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+			return nil, fmt.Errorf(
+				"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s",
+				mergeStrategy,
+			)
 		}
 	}
 
@@ -185,9 +213,16 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 // dependency block configurations between the included config and the child config. This allows us to merge the two
 // dependencies prior to retrieving the outputs, allowing you to have partial configuration that is overridden by a
 // child.
-func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log.Logger, childDecodedDependency TerragruntDependency) (*TerragruntDependency, error) {
+func handleIncludeForDependency(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	childDecodedDependency TerragruntDependency,
+) (*TerragruntDependency, error) {
 	if pctx.TrackInclude == nil {
-		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
+		return nil, errors.New(
+			"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG",
+		)
 	}
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
@@ -203,7 +238,11 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 		}
 
 		includedPartialParse, err := partialParseIncludedConfig(
-			ctx, pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock), l, &includeConfig)
+			ctx,
+			pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock),
+			l,
+			&includeConfig,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -229,7 +268,10 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 				),
 			)
 
-			mergedDependencyBlock := mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
+			mergedDependencyBlock := mergeDependencyBlocks(
+				includedPartialParse.TerragruntDependencies,
+				baseDependencyBlock,
+			)
 			baseDependencyBlock = mergedDependencyBlock
 		case DeepMerge:
 			l.Debugf(
@@ -241,7 +283,10 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 				),
 			)
 
-			mergedDependencyBlock, err := deepMergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
+			mergedDependencyBlock, err := deepMergeDependencyBlocks(
+				includedPartialParse.TerragruntDependencies,
+				baseDependencyBlock,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -348,7 +393,10 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 	}
 
 	// Dependency blocks are shallow merged by name
-	cfg.TerragruntDependencies = mergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+	cfg.TerragruntDependencies = mergeDependencyBlocks(
+		cfg.TerragruntDependencies,
+		sourceConfig.TerragruntDependencies,
+	)
 
 	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
 
@@ -486,17 +534,25 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 				}
 
 				if addPath {
-					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, dependencyPath)
+					resultModuleDependencies.Paths = append(
+						resultModuleDependencies.Paths,
+						dependencyPath,
+					)
 				}
 			}
 		}
 
-		resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, sourceConfig.Dependencies.Paths...)
+		resultModuleDependencies.Paths = append(
+			resultModuleDependencies.Paths,
+			sourceConfig.Dependencies.Paths...)
 		cfg.Dependencies = resultModuleDependencies
 	}
 
 	// Dependency blocks are deep merged by name
-	mergedDeps, err := deepMergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+	mergedDeps, err := deepMergeDependencyBlocks(
+		cfg.TerragruntDependencies,
+		sourceConfig.TerragruntDependencies,
+	)
 	if err != nil {
 		return err
 	}
@@ -630,7 +686,10 @@ func mergeFeatureFlags(targetFlags []*FeatureFlag, sourceFlags []*FeatureFlag) [
 
 // Merge dependency blocks shallowly. If the source list has the same name as the target, it will override the
 // dependency block in the target. Otherwise, the blocks are appended.
-func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies []Dependency) []Dependency {
+func mergeDependencyBlocks(
+	targetDependencies []Dependency,
+	sourceDependencies []Dependency,
+) []Dependency {
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
@@ -661,7 +720,10 @@ func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies [
 
 // Merge dependency blocks deeply. This works almost the same as mergeDependencyBlocks, except it will recursively merge
 // attributes of the dependency struct if they share the same name.
-func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies []Dependency) ([]Dependency, error) {
+func deepMergeDependencyBlocks(
+	targetDependencies []Dependency,
+	sourceDependencies []Dependency,
+) ([]Dependency, error) {
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
@@ -707,7 +769,11 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 // extra_arguments on the terraform cli.
 // Therefore, if .tfvar files from both the parent and child contain a variable
 // with the same name, the value from the child will win.
-func mergeExtraArgs(l log.Logger, childExtraArgs []TerraformExtraArguments, parentExtraArgs *[]TerraformExtraArguments) {
+func mergeExtraArgs(
+	l log.Logger,
+	childExtraArgs []TerraformExtraArguments,
+	parentExtraArgs *[]TerraformExtraArguments,
+) {
 	result := *parentExtraArgs
 	for _, child := range childExtraArgs {
 		parentExtraArgsWithSameName := getIndexOfExtraArgsWithName(result, child.Name)
@@ -737,7 +803,10 @@ func mergeInputs(childInputs map[string]any, parentInputs map[string]any) map[st
 	return out
 }
 
-func deepMergeInputs(childInputs map[string]any, parentInputs map[string]any) (map[string]any, error) {
+func deepMergeInputs(
+	childInputs map[string]any,
+	parentInputs map[string]any,
+) (map[string]any, error) {
 	out := map[string]any{}
 	maps.Copy(out, parentInputs)
 
@@ -800,7 +869,11 @@ func mergeErrorHooks(l log.Logger, childHooks []ErrorHook, parentHooks *[]ErrorH
 //
 // Each include's Path is normalized to an absolute path here, resolved against the directory of the current config
 // file. Downstream consumers can rely on IncludeConfig.Path being absolute and need not redo this resolution.
-func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, includeFromChild *IncludeConfig) (*TrackInclude, error) {
+func getTrackInclude(
+	ctx *ParsingContext,
+	terragruntIncludeList IncludeConfigs,
+	includeFromChild *IncludeConfig,
+) (*TrackInclude, error) {
 	configDir := filepath.Dir(ctx.TerragruntConfigPath)
 
 	normalizedList := make(IncludeConfigs, len(terragruntIncludeList))
@@ -1033,7 +1106,10 @@ func CopyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *Terragrunt
 }
 
 // validateGenerateConfigs Validate if exists duplicate generate configs.
-func validateGenerateConfigs(sourceConfig *map[string]codegen.GenerateConfig, targetConfig *map[string]codegen.GenerateConfig) error {
+func validateGenerateConfigs(
+	sourceConfig *map[string]codegen.GenerateConfig,
+	targetConfig *map[string]codegen.GenerateConfig,
+) error {
 	var duplicatedNames []string
 
 	for key := range *targetConfig {

@@ -91,12 +91,13 @@ func ProcessHooks(ctx context.Context, l log.Logger, v venv.Venv, p ProcessHooks
 		}
 
 		if shouldRunHook(curHook, p.Opts, allPreviousErrors) {
-			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "hook_"+curHook.Name, map[string]any{
-				"hook": curHook.Name,
-				"dir":  curHook.WorkingDir,
-			}, func(ctx context.Context, l log.Logger) error {
-				return runHook(ctx, l, v, p.Opts, p.Cfg, curHook, p.HookType)
-			})
+			err := telemetry.TelemeterFromContext(ctx).
+				Collect(ctx, l, "hook_"+curHook.Name, map[string]any{
+					"hook": curHook.Name,
+					"dir":  curHook.WorkingDir,
+				}, func(ctx context.Context, l log.Logger) error {
+					return runHook(ctx, l, v, p.Opts, p.Cfg, curHook, p.HookType)
+				})
 			if err != nil {
 				allPreviousErrors = append(allPreviousErrors, err)
 			}
@@ -136,7 +137,11 @@ func ProcessErrorHooks(
 		// Process execution errors carry stdout that hook patterns need to match against.
 		// https://github.com/gruntwork-io/terragrunt/issues/2045
 		if processError, ok := errors.AsType[util.ProcessExecutionError](e); ok {
-			errorMessage = fmt.Sprintf("%s\n%s", processError.Error(), processError.Output.Stdout.String())
+			errorMessage = fmt.Sprintf(
+				"%s\n%s",
+				processError.Error(),
+				processError.Output.Stdout.String(),
+			)
 		}
 
 		errorMessages = append(errorMessages, errorMessage)
@@ -145,40 +150,42 @@ func ProcessErrorHooks(
 	errorMessage := strings.Join(errorMessages, "\n")
 
 	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, errorMessage) && slices.Contains(curHook.Commands, opts.TerraformCommand) {
-			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "error_hook_"+curHook.Name, map[string]any{
-				"hook": curHook.Name,
-				"dir":  curHook.WorkingDir,
-			}, func(ctx context.Context, l log.Logger) error {
-				l.Infof("Executing hook: %s", curHook.Name)
+		if util.MatchesAny(curHook.OnErrors, errorMessage) &&
+			slices.Contains(curHook.Commands, opts.TerraformCommand) {
+			err := telemetry.TelemeterFromContext(ctx).
+				Collect(ctx, l, "error_hook_"+curHook.Name, map[string]any{
+					"hook": curHook.Name,
+					"dir":  curHook.WorkingDir,
+				}, func(ctx context.Context, l log.Logger) error {
+					l.Infof("Executing hook: %s", curHook.Name)
 
-				actionToExecute := curHook.Execute[0]
-				actionParams := curHook.Execute[1:]
+					actionToExecute := curHook.Execute[0]
+					actionParams := curHook.Execute[1:]
 
-				env, hookEnvErr := hookEnv(v.Env, opts, cfg, curHook.Name, HookTypeError)
-				if hookEnvErr != nil {
-					return hookEnvErr
-				}
+					env, hookEnvErr := hookEnv(v.Env, opts, cfg, curHook.Name, HookTypeError)
+					if hookEnvErr != nil {
+						return hookEnvErr
+					}
 
-				hookV := v.WithEnv(env)
+					hookV := v.WithEnv(env)
 
-				_, possibleError := shell.RunCommandWithOutput(
-					ctx,
-					l,
-					hookV,
-					opts.shellRunOptions(),
-					curHook.WorkingDir,
-					curHook.SuppressStdout,
-					false,
-					actionToExecute, actionParams...,
-				)
-				if possibleError != nil {
-					l.Errorf("%s", hookErrorMessage(curHook.Name, possibleError))
-					return possibleError
-				}
+					_, possibleError := shell.RunCommandWithOutput(
+						ctx,
+						l,
+						hookV,
+						opts.shellRunOptions(),
+						curHook.WorkingDir,
+						curHook.SuppressStdout,
+						false,
+						actionToExecute, actionParams...,
+					)
+					if possibleError != nil {
+						l.Errorf("%s", hookErrorMessage(curHook.Name, possibleError))
+						return possibleError
+					}
 
-				return nil
-			})
+					return nil
+				})
 			if err != nil {
 				errorsOccured = append(errorsOccured, err)
 			}
@@ -209,10 +216,21 @@ func hookErrorMessage(hookName string, err error) string {
 	}
 
 	if output != "" {
-		return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d:\n%s", hookName, cmd, exitCode, output)
+		return fmt.Sprintf(
+			"Hook %q (command: %s) exited with non-zero exit code %d:\n%s",
+			hookName,
+			cmd,
+			exitCode,
+			output,
+		)
 	}
 
-	return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d", hookName, cmd, exitCode)
+	return fmt.Sprintf(
+		"Hook %q (command: %s) exited with non-zero exit code %d",
+		hookName,
+		cmd,
+		exitCode,
+	)
 }
 
 func shouldRunHook(
@@ -306,7 +324,13 @@ func executeTFLint(
 // mutations during hook execution don't leak back to the run-wide
 // environment. When the hook-context-env experiment is enabled it also injects
 // the TG_CTX_* variables for the hook type, source, and Terragrunt directory.
-func hookEnv(env map[string]string, opts *Options, cfg *runcfg.RunConfig, hookName string, hookType HookType) (map[string]string, error) {
+func hookEnv(
+	env map[string]string,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+	hookName string,
+	hookType HookType,
+) (map[string]string, error) {
 	cloned := cloner.Clone(env)
 	cloned[HookCtxTFPathEnvName] = opts.TFPath
 	cloned[HookCtxCommandEnvName] = opts.TerraformCommand
@@ -318,7 +342,12 @@ func hookEnv(env map[string]string, opts *Options, cfg *runcfg.RunConfig, hookNa
 			return nil, fmt.Errorf("unknown hook type: %d", hookType)
 		}
 
-		source, err := runcfg.GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, cfg)
+		source, err := runcfg.GetTerraformSourceURL(
+			opts.Source,
+			opts.SourceMap,
+			opts.OriginalTerragruntConfigPath,
+			cfg,
+		)
 		if err != nil {
 			return nil, err
 		}

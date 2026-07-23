@@ -83,9 +83,10 @@ func TestEvaluate_PathFilter(t *testing.T) {
 				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
 				}),
-				component.NewUnit("./apps/subdir/nested").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				component.NewUnit("./apps/subdir/nested").
+					WithDiscoveryContext(&component.DiscoveryContext{
+						WorkingDir: ".",
+					}),
 			},
 		},
 		{
@@ -221,7 +222,8 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				component.NewUnit("./apps/app4").
+					WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
 			},
 		},
 		{
@@ -236,7 +238,8 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
 				component.NewUnit("./libs/db").WithReading("database.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				component.NewUnit("./apps/app4").
+					WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
 			},
 		},
 		{
@@ -245,7 +248,8 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				component.NewUnit("./apps/app4").
+					WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
 			},
 		},
 		{
@@ -613,9 +617,10 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
 				}),
-				component.NewUnit("./special/unit").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				component.NewUnit("./special/unit").
+					WithDiscoveryContext(&component.DiscoveryContext{
+						WorkingDir: ".",
+					}),
 			},
 		},
 		{
@@ -624,7 +629,10 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				Left: &filter.InfixExpression{
 					Left:     mustPath(t, "./apps/*"),
 					Operator: "|",
-					Right:    &filter.PrefixExpression{Operator: "!", Right: mustAttr(t, "name", "legacy")},
+					Right: &filter.PrefixExpression{
+						Operator: "!",
+						Right:    mustAttr(t, "name", "legacy"),
+					},
 				},
 				Operator: "|",
 				Right:    mustAttr(t, "name", "app1"),
@@ -1246,7 +1254,11 @@ func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
 		// Should include: targetA, targetB, intermediate (1 hop from A),
 		// shared (2 hops from A, 1 from B), deep1 (2 hops from B)
 		// Should NOT include: deep2 (3 hops from B, too deep)
-		assert.ElementsMatch(t, []component.Component{targetA, targetB, intermediate, shared, deep1}, result)
+		assert.ElementsMatch(
+			t,
+			[]component.Component{targetA, targetB, intermediate, shared, deep1},
+			result,
+		)
 	})
 }
 

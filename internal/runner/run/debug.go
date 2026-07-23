@@ -19,7 +19,12 @@ const defaultPermissions = int(0600)
 
 // WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the tofu/terraform module in the same way
 // that terragrunt invokes the module, so that users can debug issues with the terragrunt config.
-func WriteTerragruntDebugFile(l log.Logger, env map[string]string, opts *Options, cfg *runcfg.RunConfig) error {
+func WriteTerragruntDebugFile(
+	l log.Logger,
+	env map[string]string,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+) error {
 	l.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,
@@ -96,7 +101,8 @@ func terragruntDebugFileContents(
 		case varIsInEnv:
 			l.Debugf(
 				"WARN: The variable %s was omitted from the debug file because the env var %s is already set.",
-				varName, nameAsEnvVar,
+				varName,
+				nameAsEnvVar,
 			)
 		case !varIsDefined:
 			l.Debugf(

@@ -5,14 +5,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
@@ -138,7 +140,12 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 			req := &gogetter.Request{Src: tt.src}
 
 			ok, _ := g.Detect(req)
-			assert.False(t, ok, "URL-scheme claim must not match %s; require <scheme>:: forced prefix instead", tt.src)
+			assert.False(
+				t,
+				ok,
+				"URL-scheme claim must not match %s; require <scheme>:: forced prefix instead",
+				tt.src,
+			)
 		})
 	}
 }
@@ -204,7 +211,12 @@ func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 			ok, err := g.Detect(req)
 			require.NoError(t, err)
 			require.True(t, ok, "detector should claim %s", tt.src)
-			assert.Equal(t, getter.SchemeS3, req.Forced, "AWS S3 host must route through the s3 fetcher")
+			assert.Equal(
+				t,
+				getter.SchemeS3,
+				req.Forced,
+				"AWS S3 host must route through the s3 fetcher",
+			)
 
 			u, parseErr := url.Parse(req.Src)
 			require.NoError(t, parseErr)
@@ -215,7 +227,12 @@ func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 			q.Del("archive")
 			u.RawQuery = q.Encode()
 
-			assert.Equal(t, tt.wantSrc, u.String(), "Src must be canonicalized to the bare s3 getter's accepted form")
+			assert.Equal(
+				t,
+				tt.wantSrc,
+				u.String(),
+				"Src must be canonicalized to the bare s3 getter's accepted form",
+			)
 		})
 	}
 }
@@ -267,7 +284,12 @@ func TestCASGetterDetect_NonS3AmazonAWSHostFallsThroughToHTTPS(t *testing.T) {
 			ok, err := g.Detect(req)
 			require.NoError(t, err)
 			require.True(t, ok)
-			assert.Equal(t, getter.SchemeHTTPS, req.Forced, "non-S3 amazonaws.com hosts must route through HTTPS, not s3")
+			assert.Equal(
+				t,
+				getter.SchemeHTTPS,
+				req.Forced,
+				"non-S3 amazonaws.com hosts must route through HTTPS, not s3",
+			)
 		})
 	}
 }
@@ -328,8 +350,7 @@ func TestCASGetterDetect_SchemeNotInRegistryFallsThrough(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	// No generic dispatch wired: only the git+file paths are active.
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
@@ -355,25 +376,25 @@ func TestNewCASGetter_PanicsOnNilVenvFS(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	require.PanicsWithValue(t, tgcas.ErrVenvFSUnset, func() {
-		getter.NewCASGetter(logger.CreateLogger(), c, tgcas.Venv{}, &tgcas.CloneOptions{})
+	require.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
+		getter.NewCASGetter(logger.CreateLogger(), c, venv.Venv{}, &tgcas.CloneOptions{})
 	})
 }
 
-// TestNewCASGetter_PanicsOnNilVenvGit pins the constructor-time
-// rejection of a Venv with FS set but Git missing. CASGetter routes
-// through git for any git source, so a missing runner would otherwise
-// nil-deref deep inside the clone path.
-func TestNewCASGetter_PanicsOnNilVenvGit(t *testing.T) {
+// TestNewCASGetter_PanicsOnNilVenvExec pins the constructor-time
+// rejection of a Venv with FS set but Exec missing. CASGetter derives
+// a git runner from Exec for any git source, so a missing executor
+// would otherwise nil-deref deep inside the clone path.
+func TestNewCASGetter_PanicsOnNilVenvExec(t *testing.T) {
 	t.Parallel()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := tgcas.Venv{FS: vfs.NewOSFS()}
+	v := venv.Venv{FS: vfs.NewOSFS()}
 
-	require.PanicsWithValue(t, tgcas.ErrVenvGitUnset, func() {
+	require.PanicsWithValue(t, venv.ErrVenvExecUnset, func() {
 		getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
 	})
 }
@@ -392,11 +413,11 @@ func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
 		CAS:       c,
 		Logger:    logger.CreateLogger(),
 		Opts:      &tgcas.CloneOptions{},
-		Venv:      tgcas.Venv{},
+		Venv:      venv.Venv{},
 		Detectors: []getter.Detector{new(getter.FileDetector)},
 	}
 
-	require.PanicsWithValue(t, tgcas.ErrVenvFSUnset, func() {
+	require.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
 		_, _ = g.Detect(&gogetter.Request{Src: "./some/local/path", Pwd: t.TempDir()})
 	})
 }
@@ -414,8 +435,16 @@ func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
 		src  string
 		want string
 	}{
-		{name: "preserve archive=true", src: "https://example.com/mod.tar.gz?archive=true", want: "true"},
-		{name: "preserve archive=false", src: "https://example.com/mod.tar.gz?archive=false", want: "false"},
+		{
+			name: "preserve archive=true",
+			src:  "https://example.com/mod.tar.gz?archive=true",
+			want: "true",
+		},
+		{
+			name: "preserve archive=false",
+			src:  "https://example.com/mod.tar.gz?archive=false",
+			want: "false",
+		},
 	}
 
 	for _, tt := range tests {
@@ -444,8 +473,13 @@ func newCASGetterForDetect(t *testing.T) *getter.CASGetter {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
-	return getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+	return getter.NewCASGetter(
+		logger.CreateLogger(),
+		c,
+		v,
+		&tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(),
+	)
 }

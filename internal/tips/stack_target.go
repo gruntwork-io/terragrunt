@@ -18,7 +18,13 @@ import (
 // Filters that already mention a `type=` attribute are skipped, since the
 // user has chosen explicitly. Glob path expressions are skipped so the
 // suggested rewrite can be pasted verbatim.
-func GiveStackTargetTip(l log.Logger, fs vfs.FS, workingDir string, filters filter.Filters, allTips Tips) {
+func GiveStackTargetTip(
+	l log.Logger,
+	fs vfs.FS,
+	workingDir string,
+	filters filter.Filters,
+	allTips Tips,
+) {
 	if len(filters) == 0 || allTips == nil {
 		return
 	}

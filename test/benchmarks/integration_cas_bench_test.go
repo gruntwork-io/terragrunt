@@ -22,7 +22,14 @@ func BenchmarkCASInit(b *testing.B) {
 		require.NoError(b, err)
 
 		// Write the config to our test directory
-		require.NoError(b, os.WriteFile(remoteTerragruntConfigPath, originalConfig, helpers.DefaultFilePermissions))
+		require.NoError(
+			b,
+			os.WriteFile(
+				remoteTerragruntConfigPath,
+				originalConfig,
+				helpers.DefaultFilePermissions,
+			),
+		)
 
 		// Run initial init to avoid noise from the first iteration being slower
 		helpers.RunTerragruntCommand(
@@ -94,7 +101,14 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 			require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
 			unitTerragruntConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
-			require.NoError(b, os.WriteFile(unitTerragruntConfigPath, originalConfig, helpers.DefaultFilePermissions))
+			require.NoError(
+				b,
+				os.WriteFile(
+					unitTerragruntConfigPath,
+					originalConfig,
+					helpers.DefaultFilePermissions,
+				),
+			)
 		}
 
 		// Run initial init to avoid noise from the first iteration being slower

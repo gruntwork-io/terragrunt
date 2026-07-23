@@ -57,7 +57,17 @@ func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 	detail := " " + err.Message
 
 	if useColor {
-		fmt.Fprintf(&sb, "%s%s%s%s%s%s%s\n", indent, spaces, ansiBold, ansiRed, caret, ansiReset, detail)
+		fmt.Fprintf(
+			&sb,
+			"%s%s%s%s%s%s%s\n",
+			indent,
+			spaces,
+			ansiBold,
+			ansiRed,
+			caret,
+			ansiReset,
+			detail,
+		)
 	} else {
 		fmt.Fprintf(&sb, "%s%s%s%s\n", indent, spaces, caret, detail)
 	}

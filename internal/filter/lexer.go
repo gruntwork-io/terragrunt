@@ -260,7 +260,10 @@ func (l *Lexer) containsSlashBeforeSpecialChar() bool {
 
 // isSpecialChar returns true if the character is a special operator or delimiter.
 func isSpecialChar(ch byte) bool {
-	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == '[' || ch == ']' || ch == '^' || ch == 0
+	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == '[' ||
+		ch == ']' ||
+		ch == '^' ||
+		ch == 0
 }
 
 // isPathSeparator returns true if the character is a path separator.

@@ -107,7 +107,9 @@ terraform {
 				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
 			}
 
-			terraformBackendRegexp := regexp.MustCompile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, tc.backendType))
+			terraformBackendRegexp := regexp.MustCompile(
+				fmt.Sprintf(`backend[[:blank:]]+"%s"`, tc.backendType),
+			)
 
 			hasBackend, err := util.RegexFoundInTFFiles(tmpDir, terraformBackendRegexp)
 			require.NoError(t, err)

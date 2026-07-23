@@ -110,7 +110,10 @@ func (c *GitHubAPIClient) setDefaultHeaders(req *http.Request) {
 
 // GetLatestRelease fetches the latest release for a given repository.
 // The repository should be in the format "owner/repo".
-func (c *GitHubAPIClient) GetLatestRelease(ctx context.Context, repository string) (*Release, error) {
+func (c *GitHubAPIClient) GetLatestRelease(
+	ctx context.Context,
+	repository string,
+) (*Release, error) {
 	if repository == "" {
 		return nil, errors.New("repository cannot be empty")
 	}
@@ -169,7 +172,10 @@ func (c *GitHubAPIClient) GetLatestRelease(ctx context.Context, repository strin
 
 // GetLatestReleaseTag is a convenience method that returns just the tag name
 // of the latest release for a repository.
-func (c *GitHubAPIClient) GetLatestReleaseTag(ctx context.Context, repository string) (string, error) {
+func (c *GitHubAPIClient) GetLatestReleaseTag(
+	ctx context.Context,
+	repository string,
+) (string, error) {
 	release, err := c.GetLatestRelease(ctx, repository)
 	if err != nil {
 		return "", err
@@ -210,7 +216,9 @@ func WithLogger(logger log.Logger) GitHubReleasesDownloadClientOption {
 }
 
 // NewGitHubReleasesDownloadClient creates a new GitHub releases download client.
-func NewGitHubReleasesDownloadClient(opts ...GitHubReleasesDownloadClientOption) *GitHubReleasesDownloadClient {
+func NewGitHubReleasesDownloadClient(
+	opts ...GitHubReleasesDownloadClientOption,
+) *GitHubReleasesDownloadClient {
 	client := &GitHubReleasesDownloadClient{}
 
 	for _, opt := range opts {

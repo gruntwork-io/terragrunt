@@ -11,6 +11,7 @@ import (
 
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -147,8 +148,7 @@ func TestCASGetterDoesNotClaimOCIWithoutFetcher(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
 
@@ -268,8 +268,7 @@ func newOCICASHarness(
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithGenericFetchers(map[string]gogetter.Getter{

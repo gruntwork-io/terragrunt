@@ -103,7 +103,11 @@ func TestHookErrorMessage_NonProcessError(t *testing.T) {
 	err := errors.New("exec: \"tflint\": executable file not found in $PATH")
 
 	msg := hookErrorMessage("my-hook", err)
-	assert.Equal(t, `Hook "my-hook" failed to execute: exec: "tflint": executable file not found in $PATH`, msg)
+	assert.Equal(
+		t,
+		`Hook "my-hook" failed to execute: exec: "tflint": executable file not found in $PATH`,
+		msg,
+	)
 }
 
 // FuzzHookErrorMessage pins the formatter against arbitrary inputs. The
@@ -119,10 +123,24 @@ func FuzzHookErrorMessage(f *testing.F) {
 	}
 
 	seeds := []seed{
-		{hookName: "lint", command: "tflint", args: []string{"--config", ".tflint.hcl"}, exitCode: 2, stderr: "3 issues", wrap: true},
+		{
+			hookName: "lint",
+			command:  "tflint",
+			args:     []string{"--config", ".tflint.hcl"},
+			exitCode: 2,
+			stderr:   "3 issues",
+			wrap:     true,
+		},
 		{hookName: "", command: "", args: nil, exitCode: 0, wrap: true},
 		{hookName: "x", errMsg: "raw error", wrap: false},
-		{hookName: "long", command: "go", args: []string{strings.Repeat("a", 1024)}, exitCode: 137, stdout: "out\nput", wrap: true},
+		{
+			hookName: "long",
+			command:  "go",
+			args:     []string{strings.Repeat("a", 1024)},
+			exitCode: 137,
+			stdout:   "out\nput",
+			wrap:     true,
+		},
 		{hookName: "neg", command: "x", exitCode: -1, wrap: true},
 	}
 

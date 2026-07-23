@@ -32,7 +32,14 @@ func TestNewGitServer(t *testing.T) {
 	}
 
 	for _, branch := range helpers.TerragruntMirrorBranches {
-		assert.Contains(t, refs, "refs/heads/"+branch, "branch %s missing from refs:\n%s", branch, refs)
+		assert.Contains(
+			t,
+			refs,
+			"refs/heads/"+branch,
+			"branch %s missing from refs:\n%s",
+			branch,
+			refs,
+		)
 	}
 }
 
@@ -44,7 +51,8 @@ func TestGitServerCloneSubpath(t *testing.T) {
 
 	dst := t.TempDir()
 
-	out, err := exec.CommandContext(t.Context(), "git", "clone", "--single-branch", "--branch=v0.93.2", s.URL, dst).CombinedOutput()
+	out, err := exec.CommandContext(t.Context(), "git", "clone", "--single-branch", "--branch=v0.93.2", s.URL, dst).
+		CombinedOutput()
 	require.NoError(t, err, "git clone: %s", out)
 
 	helloWorldMain := filepath.Join(dst, "test", "fixtures", "download", "hello-world", "main.tf")
@@ -67,7 +75,8 @@ func TestGitServerCommitsOnlyRequestedFixtures(t *testing.T) {
 
 	dst := t.TempDir()
 
-	out, err := exec.CommandContext(t.Context(), "git", "clone", "--single-branch", "--branch=main", s.URL, dst).CombinedOutput()
+	out, err := exec.CommandContext(t.Context(), "git", "clone", "--single-branch", "--branch=main", s.URL, dst).
+		CombinedOutput()
 	require.NoError(t, err, "git clone: %s", out)
 
 	// hello-world is requested; hello-world-no-remote comes along as a

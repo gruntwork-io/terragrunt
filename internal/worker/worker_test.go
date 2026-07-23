@@ -87,7 +87,13 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 
 	unwrapper, ok := errs.(interface{ Unwrap() []error })
 	require.True(t, ok, "expected joined error, got %T", errs)
-	require.Len(t, unwrapper.Unwrap(), 5, "expected exactly 5 errors, got %d", len(unwrapper.Unwrap()))
+	require.Len(
+		t,
+		unwrapper.Unwrap(),
+		5,
+		"expected exactly 5 errors, got %d",
+		len(unwrapper.Unwrap()),
+	)
 
 	if atomic.LoadInt32(&successCount) != 5 {
 		t.Errorf("expected successCount to be 5, got %d", successCount)

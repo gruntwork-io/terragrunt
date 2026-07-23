@@ -273,7 +273,12 @@ func TestProcessErrorHooks_NoopWhenNoPriorErrors(t *testing.T) {
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.ErrorHook{
-		{Name: "on-anything", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "x"}},
+		{
+			Name:     "on-anything",
+			Commands: []string{"plan"},
+			OnErrors: []string{".*"},
+			Execute:  []string{"echo", "x"},
+		},
 	}
 
 	require.NoError(
@@ -301,7 +306,12 @@ func TestProcessErrorHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
 	opts.NoHooks = true
 
 	hooks := []runcfg.ErrorHook{
-		{Name: "disabled", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "skip-me"}},
+		{
+			Name:     "disabled",
+			Commands: []string{"plan"},
+			OnErrors: []string{".*"},
+			Execute:  []string{"echo", "skip-me"},
+		},
 	}
 
 	require.NoError(

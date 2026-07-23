@@ -6,12 +6,14 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 const osWindows = "windows"
@@ -97,7 +99,12 @@ func TestComputeLocalRootHash_IgnoresAbsolutePath(t *testing.T) {
 	hashB, err := c.ComputeLocalRootHash(v, dirB, cas.HashSHA256)
 	require.NoError(t, err)
 
-	assert.Equal(t, hashA, hashB, "identical contents at different absolute paths must hash identically")
+	assert.Equal(
+		t,
+		hashA,
+		hashB,
+		"identical contents at different absolute paths must hash identically",
+	)
 }
 
 // TestStoreLocalDirectoryConcurrentWithRacing pins the blob-then-tree
@@ -280,16 +287,15 @@ func writeLocalFixture(t *testing.T, files map[string]string) string {
 }
 
 // newCAS constructs a CAS instance backed by a fresh per-test store directory
-// along with a production [cas.Venv].
-func newCAS(t *testing.T) (*cas.CAS, cas.Venv) {
+// along with a production [venv.Venv].
+func newCAS(t *testing.T) (*cas.CAS, venv.Venv) {
 	t.Helper()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	return c, v
 }

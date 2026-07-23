@@ -29,14 +29,21 @@ var (
 	}
 )
 
-func NewShortcutsCommands(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.Commands {
+func NewShortcutsCommands(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v venv.Venv,
+) clihelper.Commands {
 	var (
 		runCmd = run.NewCommand(l, opts, v)
 		cmds   = make(clihelper.Commands, 0, len(runCmd.Subcommands))
 	)
 
 	for _, runSubCmd := range runCmd.Subcommands {
-		if isNotShortcutCmd := !slices.Contains(shortcutCommandNames, runSubCmd.Name); isNotShortcutCmd {
+		if isNotShortcutCmd := !slices.Contains(
+			shortcutCommandNames,
+			runSubCmd.Name,
+		); isNotShortcutCmd {
 			continue
 		}
 

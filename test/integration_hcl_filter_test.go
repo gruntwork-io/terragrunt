@@ -65,7 +65,10 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 			filterArgs:  []string{"./stacks/**"},
 			expectError: true,
 			errorAs: format.FileNeedsFormattingError{
-				Path: filepath.Join(rootPath, "stacks/needs-formatting/stack1/terragrunt.stack.hcl"),
+				Path: filepath.Join(
+					rootPath,
+					"stacks/needs-formatting/stack1/terragrunt.stack.hcl",
+				),
 			},
 		},
 
@@ -75,7 +78,10 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 			filterArgs:  []string{"!./needs-formatting/**"},
 			expectError: true,
 			errorAs: format.FileNeedsFormattingError{
-				Path: filepath.Join(rootPath, "stacks/needs-formatting/stack1/terragrunt.stack.hcl"),
+				Path: filepath.Join(
+					rootPath,
+					"stacks/needs-formatting/stack1/terragrunt.stack.hcl",
+				),
 			},
 		},
 		{
@@ -140,7 +146,9 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 			name:        "error: intersection with type filter",
 			filterArgs:  []string{"./needs-formatting/** | type=unit"},
 			expectError: true,
-			errorAs:     filter.FilterQueryRequiresDiscoveryError{Query: "./needs-formatting/** | type=unit"},
+			errorAs: filter.FilterQueryRequiresDiscoveryError{
+				Query: "./needs-formatting/** | type=unit",
+			},
 		},
 	}
 
@@ -273,11 +281,34 @@ func TestHCLValidateWithFilter(t *testing.T) {
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectErrors {
-				require.Error(t, err, "Expected validation to find errors for test case: %s", tc.name)
-				assert.NotEmpty(t, stdout, "Expected validation errors in output for test case: %s", tc.name)
+				require.Error(
+					t,
+					err,
+					"Expected validation to find errors for test case: %s",
+					tc.name,
+				)
+				assert.NotEmpty(
+					t,
+					stdout,
+					"Expected validation errors in output for test case: %s",
+					tc.name,
+				)
 			} else {
-				require.NoError(t, err, "Expected validation to succeed but got error for test case: %s\nstdout: %s\nstderr: %s", tc.name, stdout, stderr)
-				assert.Empty(t, stderr, "Expected no errors but got stderr for test case: %s\nstderr: %s", tc.name, stderr)
+				require.NoError(
+					t,
+					err,
+					"Expected validation to succeed but got error for test case: %s\nstdout: %s\nstderr: %s",
+					tc.name,
+					stdout,
+					stderr,
+				)
+				assert.Empty(
+					t,
+					stderr,
+					"Expected no errors but got stderr for test case: %s\nstderr: %s",
+					tc.name,
+					stderr,
+				)
 			}
 		})
 	}
@@ -290,7 +321,10 @@ func TestHCLFormatFilterIntegration(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "fmt")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --json --filter './needs-formatting/**' --working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --json --filter './needs-formatting/**' --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 

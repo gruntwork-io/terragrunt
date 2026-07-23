@@ -139,7 +139,13 @@ func TestFilterFlagWithFind(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
 				assert.Empty(t, stderr, "Unexpected error message in stderr")
-				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter query: %s", tc.filterQuery)
+				assert.Equal(
+					t,
+					tc.expectedOutput,
+					stdout,
+					"Output mismatch for filter query: %s",
+					tc.filterQuery,
+				)
 			}
 		})
 	}
@@ -204,7 +210,13 @@ func TestFilterFlagWithFindJSON(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
 				assert.Empty(t, stderr, "Unexpected error message in stderr")
-				assert.JSONEq(t, tc.expectedOutput, stdout, "JSON output mismatch for filter query: %s", tc.filterQuery)
+				assert.JSONEq(
+					t,
+					tc.expectedOutput,
+					stdout,
+					"JSON output mismatch for filter query: %s",
+					tc.filterQuery,
+				)
 			}
 		})
 	}
@@ -303,7 +315,13 @@ func TestFilterFlagWithList(t *testing.T) {
 			require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
 
 			results := strings.Fields(stdout)
-			assert.ElementsMatch(t, tc.expectedResults, results, "Output mismatch for filter query: %s", tc.filterQuery)
+			assert.ElementsMatch(
+				t,
+				tc.expectedResults,
+				results,
+				"Output mismatch for filter query: %s",
+				tc.filterQuery,
+			)
 		})
 	}
 }
@@ -363,7 +381,13 @@ func TestFilterFlagWithListLong(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
 				assert.Empty(t, stderr, "Unexpected error message in stderr")
-				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter query: %s", tc.filterQuery)
+				assert.Equal(
+					t,
+					tc.expectedOutput,
+					stdout,
+					"Output mismatch for filter query: %s",
+					tc.filterQuery,
+				)
 			}
 		})
 	}
@@ -424,7 +448,13 @@ func TestFilterFlagWithListTree(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
 				assert.Empty(t, stderr, "Unexpected error message in stderr")
-				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter query: %s", tc.filterQuery)
+				assert.Equal(
+					t,
+					tc.expectedOutput,
+					stdout,
+					"Output mismatch for filter query: %s",
+					tc.filterQuery,
+				)
 			}
 		})
 	}
@@ -495,7 +525,13 @@ func TestFilterFlagWithDAG(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
 				assert.Empty(t, stderr, "Unexpected error message in stderr")
-				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter query: %s", tc.filterQuery)
+				assert.Equal(
+					t,
+					tc.expectedOutput,
+					stdout,
+					"Output mismatch for filter query: %s",
+					tc.filterQuery,
+				)
 			}
 		})
 	}
@@ -556,7 +592,13 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 				require.Error(t, err, "Expected error for filter queries: %v", tc.filterQueries)
 			} else {
 				require.NoError(t, err, "Unexpected error for filter queries: %v", tc.filterQueries)
-				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter queries: %v", tc.filterQueries)
+				assert.Equal(
+					t,
+					tc.expectedOutput,
+					stdout,
+					"Output mismatch for filter queries: %v",
+					tc.filterQueries,
+				)
 			}
 		})
 	}
@@ -607,7 +649,13 @@ func TestFilterFlagEdgeCases(t *testing.T) {
 				require.Error(t, err, "Expected error for filter query: %s", tc.filterQuery)
 			} else {
 				require.NoError(t, err, "Unexpected error for filter query: %s", tc.filterQuery)
-				assert.Equal(t, tc.expectedOutput, stdout, "Output mismatch for filter query: %s", tc.filterQuery)
+				assert.Equal(
+					t,
+					tc.expectedOutput,
+					stdout,
+					"Output mismatch for filter query: %s",
+					tc.filterQuery,
+				)
 			}
 		})
 	}
@@ -705,7 +753,13 @@ func TestFilterFlagWithSource(t *testing.T) {
 				// Sort both outputs for comparison since order may vary
 				expectedLines := strings.Fields(tc.expectedOutput)
 				actualLines := strings.Fields(stdout)
-				assert.ElementsMatch(t, expectedLines, actualLines, "Output mismatch for filter query: %s", tc.filterQuery)
+				assert.ElementsMatch(
+					t,
+					expectedLines,
+					actualLines,
+					"Output mismatch for filter query: %s",
+					tc.filterQuery,
+				)
 			}
 		})
 	}
@@ -771,7 +825,11 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	err = os.MkdirAll(unitToBeCreatedDir, 0755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(unitToBeCreatedDir, "terragrunt.hcl"), []byte(`# Unit created`), 0644)
+	err = os.WriteFile(
+		filepath.Join(unitToBeCreatedDir, "terragrunt.hcl"),
+		[]byte(`# Unit created`),
+		0644,
+	)
 	require.NoError(t, err)
 
 	// Do nothing to the unit to be untouched
@@ -791,14 +849,22 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 		expectError           bool
 	}{
 		{
-			name:          "standard git filter",
-			filterQuery:   "[HEAD~1...HEAD]",
-			expectedUnits: []string{"unit-to-be-created", "unit-to-be-modified", "unit-to-be-removed"},
-			expectError:   false,
+			name:        "standard git filter",
+			filterQuery: "[HEAD~1...HEAD]",
+			expectedUnits: []string{
+				"unit-to-be-created",
+				"unit-to-be-modified",
+				"unit-to-be-removed",
+			},
+			expectError: false,
 		},
 		{
-			name:                  "filter-affected flag",
-			expectedUnits:         []string{"unit-to-be-created", "unit-to-be-modified", "unit-to-be-removed"},
+			name: "filter-affected flag",
+			expectedUnits: []string{
+				"unit-to-be-created",
+				"unit-to-be-modified",
+				"unit-to-be-removed",
+			},
 			useFilterAffectedFlag: true,
 			expectError:           false,
 		},
@@ -921,11 +987,15 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 			name:               "git filter with --filter-allow-destroy includes removed unit",
 			filterQuery:        "[HEAD~1...HEAD]",
 			filterAllowDestroy: true,
-			expectedUnits:      []string{"unit-to-be-created", "unit-to-be-modified", "unit-to-be-removed"},
-			ignoredUnits:       []string{"unit-to-be-untouched"},
-			expectedExcluded:   []string{},
-			expectError:        false,
-			description:        "Git filter with --filter-allow-destroy should include removed unit for destroy operations",
+			expectedUnits: []string{
+				"unit-to-be-created",
+				"unit-to-be-modified",
+				"unit-to-be-removed",
+			},
+			ignoredUnits:     []string{"unit-to-be-untouched"},
+			expectedExcluded: []string{},
+			expectError:      false,
+			description:      "Git filter with --filter-allow-destroy should include removed unit for destroy operations",
 		},
 	}
 
@@ -942,7 +1012,11 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 			unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
 			unitToBeUntouchedDir := filepath.Join(tmpDir, "unit-to-be-untouched")
 
-			unitToBeModifiedHCLPath := createTestUnit(t, unitToBeModifiedDir, `# Unit to be modified`)
+			unitToBeModifiedHCLPath := createTestUnit(
+				t,
+				unitToBeModifiedDir,
+				`# Unit to be modified`,
+			)
 			_ = createTestUnit(t, unitToBeRemovedDir, `# Unit to be removed`)
 			_ = createTestUnit(t, unitToBeUntouchedDir, `# Unit to be untouched`)
 
@@ -993,7 +1067,14 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 					// Let's check if the error is about terraform init or similar
 					if !strings.Contains(stderr, "terraform") && !strings.Contains(stderr, "tofu") {
 						// Unexpected error
-						require.NoError(t, err, "Unexpected error for filter query: %s\nstdout: %s\nstderr: %s", tc.filterQuery, stdout, stderr)
+						require.NoError(
+							t,
+							err,
+							"Unexpected error for filter query: %s\nstdout: %s\nstderr: %s",
+							tc.filterQuery,
+							stdout,
+							stderr,
+						)
 					}
 				}
 
@@ -1041,8 +1122,20 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 						}
 					}
 
-					require.True(t, found, "Expected unit '%s' should be in report. Found units: %v", expectedUnit, getJSONRunNames(recordsByUnit))
-					assert.NotEqual(t, "excluded", run.Result, "Expected unit '%s' should not be excluded", expectedUnit)
+					require.True(
+						t,
+						found,
+						"Expected unit '%s' should be in report. Found units: %v",
+						expectedUnit,
+						getJSONRunNames(recordsByUnit),
+					)
+					assert.NotEqual(
+						t,
+						"excluded",
+						run.Result,
+						"Expected unit '%s' should not be excluded",
+						expectedUnit,
+					)
 				}
 
 				// Verify excluded units are NOT in the report
@@ -1056,7 +1149,12 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 						}
 					}
 
-					assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+					assert.False(
+						t,
+						found,
+						"Excluded unit '%s' should NOT be in report",
+						excludedUnit,
+					)
 				}
 
 				// Verify expected excluded units are in the report but marked as excluded
@@ -1074,8 +1172,19 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 						}
 					}
 
-					require.True(t, found, "Expected excluded unit '%s' should be in report", excludedUnit)
-					assert.Equal(t, "excluded", run.Result, "Unit '%s' should be marked as excluded", excludedUnit)
+					require.True(
+						t,
+						found,
+						"Expected excluded unit '%s' should be in report",
+						excludedUnit,
+					)
+					assert.Equal(
+						t,
+						"excluded",
+						run.Result,
+						"Unit '%s' should be marked as excluded",
+						excludedUnit,
+					)
 				}
 			}
 		})
@@ -1098,7 +1207,11 @@ terraform {
   source = "."
 }
 `
-	err = os.WriteFile(filepath.Join(unitToBeRemovedDir, "terragrunt.hcl"), []byte(terragruntHCL), 0644)
+	err = os.WriteFile(
+		filepath.Join(unitToBeRemovedDir, "terragrunt.hcl"),
+		[]byte(terragruntHCL),
+		0644,
+	)
 	require.NoError(t, err)
 
 	mainTF := `resource "null_resource" "test" {
@@ -1160,9 +1273,14 @@ terraform {
 		strings.Contains(combinedOutput, "No objects need to be destroyed") ||
 		strings.Contains(combinedOutput, "will be destroyed")
 
-	assert.True(t, hasDestroyFlag,
+	assert.True(
+		t,
+		hasDestroyFlag,
 		"Removed unit should be planned with -destroy flag. Output should contain 'to destroy', 'No objects need to be destroyed', or 'will be destroyed'. "+
-			"Current output:\nstdout: %s\nstderr: %s", stdout, stderr)
+			"Current output:\nstdout: %s\nstderr: %s",
+		stdout,
+		stderr,
+	)
 }
 
 func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
@@ -1242,12 +1360,25 @@ func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
 			// Check for the warning in stderr
 			// The warning message should contain this unique substring
 			warningMessage := "do not have a remote_state configuration"
-			hasWarning := strings.Contains(stderr, warningMessage) && strings.Contains(stderr, "Git-based filter expressions")
+			hasWarning := strings.Contains(stderr, warningMessage) &&
+				strings.Contains(stderr, "Git-based filter expressions")
 
 			if tc.expectWarning {
-				assert.True(t, hasWarning, "Expected warning message in stderr. stderr: %s\nstdout: %s", stderr, stdout)
+				assert.True(
+					t,
+					hasWarning,
+					"Expected warning message in stderr. stderr: %s\nstdout: %s",
+					stderr,
+					stdout,
+				)
 			} else {
-				assert.False(t, hasWarning, "Did not expect warning message in stderr. stderr: %s\nstdout: %s", stderr, stdout)
+				assert.False(
+					t,
+					hasWarning,
+					"Did not expect warning message in stderr. stderr: %s\nstdout: %s",
+					stderr,
+					stdout,
+				)
 			}
 
 			// The command may fail due to the backend not being bootstrapped, but that's okay.
@@ -1360,13 +1491,25 @@ unit "unit-to-be-removed-from-stack" {
 `
 
 			// Write initial stack files
-			err = os.WriteFile(filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"), []byte(initialStackContent), 0644)
+			err = os.WriteFile(
+				filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"),
+				[]byte(initialStackContent),
+				0644,
+			)
 			require.NoError(t, err)
 
-			err = os.WriteFile(filepath.Join(stackToBeRemovedDir, "terragrunt.stack.hcl"), []byte(initialStackContent), 0644)
+			err = os.WriteFile(
+				filepath.Join(stackToBeRemovedDir, "terragrunt.stack.hcl"),
+				[]byte(initialStackContent),
+				0644,
+			)
 			require.NoError(t, err)
 
-			err = os.WriteFile(filepath.Join(stackToBeUntouchedDir, "terragrunt.stack.hcl"), []byte(untouchedStackContent), 0644)
+			err = os.WriteFile(
+				filepath.Join(stackToBeUntouchedDir, "terragrunt.stack.hcl"),
+				[]byte(untouchedStackContent),
+				0644,
+			)
 			require.NoError(t, err)
 
 			// Initial commit
@@ -1384,7 +1527,11 @@ unit "unit-to-be-modified" {
 	path   = "unit-to-be-modified"
 }
 `
-			err = os.WriteFile(filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"), []byte(modifiedStackContent), 0644)
+			err = os.WriteFile(
+				filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"),
+				[]byte(modifiedStackContent),
+				0644,
+			)
 			require.NoError(t, err)
 
 			// Remove the stack-to-be-removed
@@ -1406,7 +1553,11 @@ unit "unit-to-be-created-2" {
 	path   = "unit-to-be-created-2"
 }
 `
-			err = os.WriteFile(filepath.Join(stackToBeCreatedDir, "terragrunt.stack.hcl"), []byte(newStackContent), 0644)
+			err = os.WriteFile(
+				filepath.Join(stackToBeCreatedDir, "terragrunt.stack.hcl"),
+				[]byte(newStackContent),
+				0644,
+			)
 			require.NoError(t, err)
 
 			// Leave stack-to-be-untouched unchanged
@@ -1438,7 +1589,14 @@ unit "unit-to-be-created-2" {
 					// Let's check if the error is about terraform init or similar
 					if !strings.Contains(stderr, "terraform") && !strings.Contains(stderr, "tofu") {
 						// Unexpected error
-						require.NoError(t, err, "Unexpected error for filter query: %s\nstdout: %s\nstderr: %s", tc.filterQuery, stdout, stderr)
+						require.NoError(
+							t,
+							err,
+							"Unexpected error for filter query: %s\nstdout: %s\nstderr: %s",
+							tc.filterQuery,
+							stdout,
+							stderr,
+						)
 					}
 				}
 
@@ -1487,8 +1645,20 @@ unit "unit-to-be-created-2" {
 						}
 					}
 
-					require.True(t, found, "Expected unit '%s' should be in report. Found units: %v", expectedUnit, getJSONRunNames(recordsByUnit))
-					assert.NotEqual(t, "excluded", run.Result, "Expected unit '%s' should not be excluded", expectedUnit)
+					require.True(
+						t,
+						found,
+						"Expected unit '%s' should be in report. Found units: %v",
+						expectedUnit,
+						getJSONRunNames(recordsByUnit),
+					)
+					assert.NotEqual(
+						t,
+						"excluded",
+						run.Result,
+						"Expected unit '%s' should not be excluded",
+						expectedUnit,
+					)
 				}
 
 				// Verify excluded units are NOT in the report
@@ -1502,7 +1672,12 @@ unit "unit-to-be-created-2" {
 						}
 					}
 
-					assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
+					assert.False(
+						t,
+						found,
+						"Excluded unit '%s' should NOT be in report",
+						excludedUnit,
+					)
 				}
 
 				// Verify expected excluded units are in the report but marked as excluded
@@ -1520,8 +1695,19 @@ unit "unit-to-be-created-2" {
 						}
 					}
 
-					require.True(t, found, "Expected excluded unit '%s' should be in report", excludedUnit)
-					assert.Equal(t, "excluded", run.Result, "Unit '%s' should be marked as excluded", excludedUnit)
+					require.True(
+						t,
+						found,
+						"Expected excluded unit '%s' should be in report",
+						excludedUnit,
+					)
+					assert.Equal(
+						t,
+						"excluded",
+						run.Result,
+						"Unit '%s' should be marked as excluded",
+						excludedUnit,
+					)
 				}
 			}
 		})
@@ -1654,7 +1840,9 @@ func TestFiltersFileFlag(t *testing.T) {
 				cmd += " " + tc.cmdFlags
 			}
 			// For custom filter files (not .terragrunt-filters), add --filters-file flag
-			if filterFilePath != "" && filepath.Base(filterFilePath) != ".terragrunt-filters" && !strings.Contains(tc.cmdFlags, "--filters-file") && !strings.Contains(tc.cmdFlags, "--no-filters-file") {
+			if filterFilePath != "" && filepath.Base(filterFilePath) != ".terragrunt-filters" &&
+				!strings.Contains(tc.cmdFlags, "--filters-file") &&
+				!strings.Contains(tc.cmdFlags, "--no-filters-file") {
 				cmd += " --filters-file " + filterFilePath
 			}
 
@@ -1667,7 +1855,14 @@ func TestFiltersFileFlag(t *testing.T) {
 				return
 			}
 
-			require.NoError(t, err, "Unexpected error for test case: %s\nstdout: %s\nstderr: %s", tc.name, stdout, stderr)
+			require.NoError(
+				t,
+				err,
+				"Unexpected error for test case: %s\nstdout: %s\nstderr: %s",
+				tc.name,
+				stdout,
+				stderr,
+			)
 			// Parse output into unit names (split by newlines and filter empty strings)
 			results := strings.Split(strings.TrimSpace(stdout), "\n")
 			// Filter out empty strings and extract basename from each path
@@ -1682,7 +1877,13 @@ func TestFiltersFileFlag(t *testing.T) {
 			}
 			// For .terragrunt-filters auto-detection test: the file contains "type=unit"
 			// and we expect only "unit" in output, proving the file WAS automatically read
-			assert.ElementsMatch(t, tc.expectedUnits, actualUnits, "Output mismatch for test case: %s", tc.name)
+			assert.ElementsMatch(
+				t,
+				tc.expectedUnits,
+				actualUnits,
+				"Output mismatch for test case: %s",
+				tc.name,
+			)
 		})
 	}
 }
@@ -1865,7 +2066,12 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		require.Error(t, err)
-		assert.Contains(t, stderr, "excluded-unit-1", "excluded-unit-1 must be parsed because it is the graph target")
+		assert.Contains(
+			t,
+			stderr,
+			"excluded-unit-1",
+			"excluded-unit-1 must be parsed because it is the graph target",
+		)
 		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
 		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
 	})
@@ -1887,8 +2093,18 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify no errors from land-mine units in stderr
-		assert.NotContains(t, stderr, "landmine-unit-1", "landmine-unit-1 should not be parsed during destroy")
-		assert.NotContains(t, stderr, "landmine-unit-2", "landmine-unit-2 should not be parsed during destroy")
+		assert.NotContains(
+			t,
+			stderr,
+			"landmine-unit-1",
+			"landmine-unit-1 should not be parsed during destroy",
+		)
+		assert.NotContains(
+			t,
+			stderr,
+			"landmine-unit-2",
+			"landmine-unit-2 should not be parsed during destroy",
+		)
 
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
@@ -1928,8 +2144,18 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify no errors from land-mine units in stderr
-		assert.NotContains(t, stderr, "landmine-unit-1", "landmine-unit-1 should not be parsed during destroy with graph filter")
-		assert.NotContains(t, stderr, "landmine-unit-2", "landmine-unit-2 should not be parsed during destroy with graph filter")
+		assert.NotContains(
+			t,
+			stderr,
+			"landmine-unit-1",
+			"landmine-unit-1 should not be parsed during destroy with graph filter",
+		)
+		assert.NotContains(
+			t,
+			stderr,
+			"landmine-unit-2",
+			"landmine-unit-2 should not be parsed during destroy with graph filter",
+		)
 
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
@@ -1961,9 +2187,14 @@ func TestFilterFlagAutoEnablesAll(t *testing.T) {
 		expectedUnits []string
 	}{
 		{
-			name:          "filter flag without --all processes multiple units",
-			cmd:           "terragrunt run --no-color --filter './**' --report-file " + helpers.ReportFile + " plan",
-			expectedUnits: []string{"a-dependent", "b-dependency", "c-mixed-deps", "d-dependencies-only"},
+			name: "filter flag without --all processes multiple units",
+			cmd:  "terragrunt run --no-color --filter './**' --report-file " + helpers.ReportFile + " plan",
+			expectedUnits: []string{
+				"a-dependent",
+				"b-dependency",
+				"c-mixed-deps",
+				"d-dependencies-only",
+			},
 		},
 	}
 
@@ -2175,7 +2406,11 @@ func TestDestroyWithOutDirGitFilterDependentsWithRacing(t *testing.T) {
 
 	runner := helpers.InitTestGitRunner(t, tmpDir)
 
-	err := os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte(".terragrunt-cache/\n.terraform/\n.terraform.lock.hcl\n"), 0644)
+	err := os.WriteFile(
+		filepath.Join(tmpDir, ".gitignore"),
+		[]byte(".terragrunt-cache/\n.terraform/\n.terraform.lock.hcl\n"),
+		0644,
+	)
 	require.NoError(t, err)
 
 	// create unit to destroy
@@ -2272,7 +2507,12 @@ func TestFilterExcludeByDefault(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "No units discovered", "Filter should discover units, not result in empty discovery")
+	assert.NotContains(
+		t,
+		stderr,
+		"No units discovered",
+		"Filter should discover units, not result in empty discovery",
+	)
 }
 
 func TestFilterFlagWithMarkAsRead(t *testing.T) {
@@ -2346,10 +2586,22 @@ func TestFilterFlagWithMarkAsRead(t *testing.T) {
 				return
 			}
 
-			require.NoError(t, err, "Unexpected error for filter query: %s\nstderr: %s", tc.filterQuery, stderr)
+			require.NoError(
+				t,
+				err,
+				"Unexpected error for filter query: %s\nstderr: %s",
+				tc.filterQuery,
+				stderr,
+			)
 
 			results := strings.Fields(stdout)
-			assert.ElementsMatch(t, tc.expectedUnits, results, "Output mismatch for filter query: %s", tc.filterQuery)
+			assert.ElementsMatch(
+				t,
+				tc.expectedUnits,
+				results,
+				"Output mismatch for filter query: %s",
+				tc.filterQuery,
+			)
 		})
 	}
 }
@@ -2377,14 +2629,23 @@ func TestFilterFlagWithGitFilterMarkGlobAsRead(t *testing.T) {
 	for name, contents := range units {
 		dir := filepath.Join(tmpDir, name)
 		require.NoError(t, os.MkdirAll(dir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(contents), 0644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(contents), 0644),
+		)
 	}
 
 	// Baseline config files. shared-added is intentionally empty so the file lands as an addition later.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "shared-removed"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "shared-removed", "old.yml"), []byte("a: 1\n"), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(tmpDir, "shared-removed", "old.yml"), []byte("a: 1\n"), 0644),
+	)
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "shared-untouched"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "shared-untouched", "keep.yml"), []byte("b: 2\n"), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(tmpDir, "shared-untouched", "keep.yml"), []byte("b: 2\n"), 0644),
+	)
 
 	require.NoError(t, runner.Add(t.Context(), "."))
 	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
@@ -2397,7 +2658,10 @@ func TestFilterFlagWithGitFilterMarkGlobAsRead(t *testing.T) {
 
 	// Add a file the glob matches, and delete an existing one the glob matched.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "shared-added"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "shared-added", "new.yml"), []byte("c: 3\n"), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(tmpDir, "shared-added", "new.yml"), []byte("c: 3\n"), 0644),
+	)
 	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "shared-removed")))
 
 	require.NoError(t, runner.Add(t.Context(), "."))
@@ -2440,7 +2704,14 @@ func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 			name: "modified tracked file",
 			setupChange: func(t *testing.T, configDir string) {
 				t.Helper()
-				require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: modified\n"), 0644))
+				require.NoError(
+					t,
+					os.WriteFile(
+						filepath.Join(configDir, "item-a.yml"),
+						[]byte("a: modified\n"),
+						0644,
+					),
+				)
 			},
 			description: "modifying a tracked file must select the reading unit",
 		},
@@ -2448,7 +2719,10 @@ func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 			name: "added tracked file",
 			setupChange: func(t *testing.T, configDir string) {
 				t.Helper()
-				require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-c.yml"), []byte("c: 3\n"), 0644))
+				require.NoError(
+					t,
+					os.WriteFile(filepath.Join(configDir, "item-c.yml"), []byte("c: 3\n"), 0644),
+				)
 			},
 			description: "adding a tracked file must select the reading unit",
 		},
@@ -2457,7 +2731,14 @@ func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 			setupChange: func(t *testing.T, configDir string) {
 				t.Helper()
 				require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
-				require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: modified\n"), 0644))
+				require.NoError(
+					t,
+					os.WriteFile(
+						filepath.Join(configDir, "item-b.yml"),
+						[]byte("b: modified\n"),
+						0644,
+					),
+				)
 			},
 			description: "deleting a tracked file alongside another change must still select the reading unit",
 		},
@@ -2466,7 +2747,10 @@ func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 			setupChange: func(t *testing.T, configDir string) {
 				t.Helper()
 				require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
-				require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-c.yml"), []byte("c: 3\n"), 0644))
+				require.NoError(
+					t,
+					os.WriteFile(filepath.Join(configDir, "item-c.yml"), []byte("c: 3\n"), 0644),
+				)
 			},
 			description: "deleting a tracked file alongside an addition must still select the reading unit",
 		},
@@ -2486,12 +2770,21 @@ func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 				[]byte(`locals {
   config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
 }`), 0644))
-			require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte("# minimal"), 0644))
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte("# minimal"), 0644),
+			)
 
 			configDir := filepath.Join(tmpDir, "config")
 			require.NoError(t, os.MkdirAll(configDir, 0755))
-			require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0644))
-			require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0644))
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0644),
+			)
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0644),
+			)
 
 			require.NoError(t, runner.Add(t.Context(), "."))
 			require.NoError(t, runner.Commit(t.Context(), "Baseline unit and tracked config files"))
@@ -2510,7 +2803,8 @@ func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			// A missing backend or IaC binary may fail the plan itself, but discovery and the report
 			// still run; only an unrelated failure is unexpected.
-			if err != nil && !strings.Contains(stderr, "terraform") && !strings.Contains(stderr, "tofu") {
+			if err != nil && !strings.Contains(stderr, "terraform") &&
+				!strings.Contains(stderr, "tofu") {
 				require.NoError(t, err, "Unexpected error\nstdout: %s\nstderr: %s", stdout, stderr)
 			}
 
@@ -2537,8 +2831,13 @@ func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 					"HEAD-side reading unit should not be excluded: %s", tc.description)
 			}
 
-			assert.True(t, found,
-				"HEAD-side reading unit should be in the report (got: %v): %s", runNames, tc.description)
+			assert.True(
+				t,
+				found,
+				"HEAD-side reading unit should be in the report (got: %v): %s",
+				runNames,
+				tc.description,
+			)
 		})
 	}
 }

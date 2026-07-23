@@ -12,11 +12,13 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestProcessStackComponent_LocalSource_RewritesStackSources(t *testing.T) {
@@ -29,8 +31,7 @@ func TestProcessStackComponent_LocalSource_RewritesStackSources(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -47,9 +48,19 @@ func TestProcessStackComponent_LocalSource_RewritesStackSources(t *testing.T) {
 
 	contentStr := string(content)
 
-	assert.Contains(t, contentStr, "cas::sha256:", "service unit source should be rewritten to a SHA-256 CAS ref")
+	assert.Contains(
+		t,
+		contentStr,
+		"cas::sha256:",
+		"service unit source should be rewritten to a SHA-256 CAS ref",
+	)
 	assert.Contains(t, contentStr, "update_source_with_cas", "flag should be preserved")
-	assert.Contains(t, contentStr, `"../../units/plain-service"`, "plain unit source should be unchanged")
+	assert.Contains(
+		t,
+		contentStr,
+		`"../../units/plain-service"`,
+		"plain unit source should be unchanged",
+	)
 }
 
 func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
@@ -62,8 +73,7 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -82,11 +92,21 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 
 	contentStr := string(content)
 
-	assert.Contains(t, contentStr, "cas::sha256:", "unit terraform source should be rewritten to a SHA-256 CAS ref")
+	assert.Contains(
+		t,
+		contentStr,
+		"cas::sha256:",
+		"unit terraform source should be rewritten to a SHA-256 CAS ref",
+	)
 	// The terraform.source uses "//", so the rewritten CAS ref must preserve
 	// the "//subdir" tail. The synthetic tree is rooted at the resolved base
 	// directory so sibling files stay reachable from the materialized unit.
-	assert.Contains(t, contentStr, "//modules/vpc", "rewritten CAS ref should preserve the //subdir tail")
+	assert.Contains(
+		t,
+		contentStr,
+		"//modules/vpc",
+		"rewritten CAS ref should preserve the //subdir tail",
+	)
 }
 
 func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {
@@ -101,8 +121,7 @@ func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -121,8 +140,7 @@ func TestProcessStackComponent_LocalSource_DeterministicOutput(t *testing.T) {
 	root := buildLocalStackFixture(t)
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	readStackFile := func() string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
@@ -145,7 +163,12 @@ func TestProcessStackComponent_LocalSource_DeterministicOutput(t *testing.T) {
 	first := readStackFile()
 	second := readStackFile()
 
-	assert.Equal(t, first, second, "processing the same local source twice should produce identical output")
+	assert.Equal(
+		t,
+		first,
+		second,
+		"processing the same local source twice should produce identical output",
+	)
 }
 
 func TestProcessStackComponent_LocalSource_ContentAddressedCacheKey(t *testing.T) {
@@ -167,8 +190,7 @@ func TestProcessStackComponent_LocalSource_ContentAddressedCacheKey(t *testing.T
 
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	runAndExtractServiceRef := func(root string) string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
@@ -209,7 +231,12 @@ func TestProcessStackComponent_LocalSource_ContentAddressedCacheKey(t *testing.T
 	// And identical content at a fresh path must re-hash to the same ref.
 	rootC := buildLocalStackFixture(t)
 	refC := runAndExtractServiceRef(rootC)
-	assert.Equal(t, refA, refC, "identical content at a different absolute path must hash identically")
+	assert.Equal(
+		t,
+		refA,
+		refC,
+		"identical content at a different absolute path must hash identically",
+	)
 }
 
 func TestProcessStackComponent_LocalSource_NonExistentPath(t *testing.T) {
@@ -342,13 +369,16 @@ func TestProcessStackComponent_GitForcerRoutesRemote(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := "git::" + repoURL + "//stacks/my-stack?ref=main"
 
 	result, err := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
-	require.NoError(t, err, "git:: forcer must route through the remote flow and succeed against the test server")
+	require.NoError(
+		t,
+		err,
+		"git:: forcer must route through the remote flow and succeed against the test server",
+	)
 
 	defer result.Cleanup()
 
@@ -372,9 +402,20 @@ func TestProcessStackComponent_SSHShorthandRoutesRemote(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
 		defer cancel()
 
-		_, err := c.ProcessStackComponent(ctx, l, v, "git@unreachable.invalid:owner/repo.git", "stack")
+		_, err := c.ProcessStackComponent(
+			ctx,
+			l,
+			v,
+			"git@unreachable.invalid:owner/repo.git",
+			"stack",
+		)
 		require.Error(t, err, "SSH shorthand must route through the remote flow and fail there")
-		assert.NotContains(t, err.Error(), "local source", "error must come from the remote pipeline")
+		assert.NotContains(
+			t,
+			err.Error(),
+			"local source",
+			"error must come from the remote pipeline",
+		)
 	})
 }
 
@@ -389,8 +430,7 @@ func TestProcessStackComponent_LocalSource_MaterializeSynthTree(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -634,8 +674,7 @@ func TestProcessStackComponent_LocalSource_SharedUnitTemplate(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -657,8 +696,16 @@ func TestProcessStackComponent_LocalSource_SharedUnitTemplate(t *testing.T) {
 
 	require.Contains(t, sources, "first")
 	require.Contains(t, sources, "second")
-	assert.True(t, strings.HasPrefix(sources["first"], "cas::sha256:"), "first unit must be rewritten to cas:: ref")
-	assert.True(t, strings.HasPrefix(sources["second"], "cas::sha256:"), "second unit must be rewritten to cas:: ref")
+	assert.True(
+		t,
+		strings.HasPrefix(sources["first"], "cas::sha256:"),
+		"first unit must be rewritten to cas:: ref",
+	)
+	assert.True(
+		t,
+		strings.HasPrefix(sources["second"], "cas::sha256:"),
+		"second unit must be rewritten to cas:: ref",
+	)
 	assert.Equal(t, sources["first"], sources["second"],
 		"two blocks sharing one template must resolve to the same synthetic tree")
 }
@@ -679,8 +726,7 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := root + "//stacks/parent"
 
@@ -702,8 +748,20 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 
 	require.Contains(t, sources, "alpha")
 	require.Contains(t, sources, "beta")
-	assert.True(t, strings.HasPrefix(sources["alpha"], "cas::sha256:"), "alpha stack must be rewritten to cas:: ref")
-	assert.True(t, strings.HasPrefix(sources["beta"], "cas::sha256:"), "beta stack must be rewritten to cas:: ref")
-	assert.Equal(t, sources["alpha"], sources["beta"],
-		"two stack blocks sharing one nested-stack template must resolve to the same synthetic tree")
+	assert.True(
+		t,
+		strings.HasPrefix(sources["alpha"], "cas::sha256:"),
+		"alpha stack must be rewritten to cas:: ref",
+	)
+	assert.True(
+		t,
+		strings.HasPrefix(sources["beta"], "cas::sha256:"),
+		"beta stack must be rewritten to cas:: ref",
+	)
+	assert.Equal(
+		t,
+		sources["alpha"],
+		sources["beta"],
+		"two stack blocks sharing one nested-stack template must resolve to the same synthetic tree",
+	)
 }

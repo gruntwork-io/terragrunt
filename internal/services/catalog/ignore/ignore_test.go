@@ -127,7 +127,10 @@ func TestLoad_ReadsFile(t *testing.T) {
 
 	fsys := vfs.NewMemMapFS()
 	dir := "/repo"
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(dir, ignore.FileName), []byte("examples\n"), 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(dir, ignore.FileName), []byte("examples\n"), 0o644),
+	)
 
 	m, err := ignore.Load(fsys, dir)
 	require.NoError(t, err)

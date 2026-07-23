@@ -3,14 +3,15 @@
 //
 // A [Venv] bundles the side-effect handles every layer below the CLI needs
 // to do its work: [vfs.FS] for filesystem reads and writes, [vexec.Exec]
-// for spawning subprocesses, the shell environment variables and platform
-// handles read at startup, and the stdout/stderr writers. Production code
+// for spawning subprocesses, [vsops.Decrypter] for SOPS decryption, the
+// shell environment variables and platform handles read at startup, and
+// the stdout/stderr writers. Production code
 // constructs the real bundle once at the top via [OSVenv]; tests construct
 // an in-memory bundle and drive the full CLI through it.
 //
 // This is the one Venv type threaded through the codebase. A package may
 // define its own local Venv only when its handle set genuinely differs
-// (for example internal/cas, which carries a filesystem and a Git runner).
+// from what this bundle carries.
 package venv
 
 import (
@@ -23,6 +24,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
 
@@ -32,13 +34,17 @@ import (
 var ErrVenvEnvUnset = errors.New("venv.Venv.Env is required but unset")
 
 // ErrVenvFSUnset is the panic value [Venv.RequireFS] raises when FS is nil.
+// Production callers build the Venv through [OSVenv], so it points at a test
+// that forgot to set FS rather than a runtime condition.
 var ErrVenvFSUnset = errors.New("venv.Venv.FS is required but unset")
+
+// ErrVenvExecUnset is the panic value [Venv.RequireExec] raises when Exec is
+// nil. Production callers build the Venv through [OSVenv], so it points at a
+// test that forgot to set Exec rather than a runtime condition.
+var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
 
 // ErrVenvGOOSUnset is the panic value [Venv.RequireGOOS] raises when GOOS is empty.
 var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset")
-
-// ErrVenvExecUnset is the panic value [Venv.RequireExec] raises when Exec is nil.
-var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
 
 // ErrVenvUserHomeDirUnset is the panic value [Venv.RequireUserHomeDir] raises
 // when UserHomeDir is nil.
@@ -51,12 +57,14 @@ type Platform struct {
 }
 
 // Venv is the root virtualized environment. It carries the filesystem,
-// process-execution, environment-variable, platform, and writer handles that
-// every Terragrunt operation needs. Env is shared by reference across the run
-// and mutated in place as provider-cache, hook, and inputs contributions resolve.
+// process-execution, SOPS-decryption, environment-variable, platform, and
+// writer handles that every Terragrunt operation needs. Env is shared by
+// reference across the run and mutated in place as provider-cache, hook, and
+// inputs contributions resolve.
 type Venv struct {
 	FS       vfs.FS
 	Exec     vexec.Exec
+	Sops     vsops.Decrypter
 	Env      map[string]string
 	Platform *Platform
 	Writers  *writer.Writers
@@ -99,6 +107,13 @@ func (v Venv) WithExec(exec vexec.Exec) Venv {
 // by h, for the in-memory test bundles this package serves.
 func (v Venv) WithHandler(h vexec.Handler) Venv {
 	v.Exec = vexec.NewMemExec(h)
+
+	return v
+}
+
+// WithSops returns a copy of v whose SOPS decrypter is d.
+func (v Venv) WithSops(d vsops.Decrypter) Venv {
+	v.Sops = d
 
 	return v
 }
@@ -164,10 +179,23 @@ func (v Venv) RequireEnv() {
 	}
 }
 
-// RequireFS panics with [ErrVenvFSUnset] when FS is nil.
+// RequireFS panics with [ErrVenvFSUnset] when FS is nil. Functions that
+// touch the filesystem call this as their first statement so a missing
+// handle panics at the offending call site instead of inside an unrelated
+// stack frame.
 func (v Venv) RequireFS() {
 	if v.FS == nil {
 		panic(ErrVenvFSUnset)
+	}
+}
+
+// RequireExec panics with [ErrVenvExecUnset] when Exec is nil. Functions
+// that spawn subprocesses call this as their first statement so a missing
+// handle panics at the offending call site instead of inside an unrelated
+// stack frame.
+func (v Venv) RequireExec() {
+	if v.Exec == nil {
+		panic(ErrVenvExecUnset)
 	}
 }
 
@@ -175,14 +203,6 @@ func (v Venv) RequireFS() {
 func (v Venv) RequireGOOS() {
 	if v.Platform == nil || v.Platform.GOOS == "" {
 		panic(ErrVenvGOOSUnset)
-	}
-}
-
-// RequireExec panics with [ErrVenvExecUnset] when Exec is nil, guarding
-// functions that dispatch external processes.
-func (v Venv) RequireExec() {
-	if v.Exec == nil {
-		panic(ErrVenvExecUnset)
 	}
 }
 
@@ -199,6 +219,7 @@ func OSVenv() Venv {
 	return Venv{
 		FS:   vfs.NewOSFS(),
 		Exec: vexec.NewOSExec(),
+		Sops: vsops.NewOSDecrypter(),
 		Env:  ParseEnviron(os.Environ()),
 		Platform: &Platform{
 			UserHomeDir: os.UserHomeDir,

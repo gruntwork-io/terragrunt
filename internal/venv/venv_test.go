@@ -6,9 +6,12 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 func TestParseEnviron(t *testing.T) {
@@ -53,6 +56,34 @@ func TestParseEnviron(t *testing.T) {
 			assert.Equal(t, tc.want, venv.ParseEnviron(tc.environ))
 		})
 	}
+}
+
+// TestVenvRequireFS pins the FS contract: the zero Venv panics with the
+// sentinel, a populated Venv passes.
+func TestVenvRequireFS(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
+		venv.Venv{}.RequireFS()
+	})
+
+	assert.NotPanics(t, func() {
+		venv.Venv{FS: vfs.NewOSFS()}.RequireFS()
+	})
+}
+
+// TestVenvRequireExec pins the Exec contract. A Venv with FS but no Exec
+// must still panic; only a populated Exec satisfies the check.
+func TestVenvRequireExec(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvExecUnset, func() {
+		venv.Venv{FS: vfs.NewOSFS()}.RequireExec()
+	})
+
+	assert.NotPanics(t, func() {
+		venv.Venv{Exec: vexec.NewOSExec()}.RequireExec()
+	})
 }
 
 func TestWithEnvClonedIsolatesMutations(t *testing.T) {

@@ -36,46 +36,101 @@ func TestPathRelativeToInclude(t *testing.T) {
 		params       []string
 	}{
 		{
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: ".",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "child",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "child",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../../..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("../../..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				"sub-sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "child/sub-child/sub-sub-child",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				"sub-sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "child/sub-child/sub-sub-child",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {
+					Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath),
+				},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "../child/sub-child",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join("..", "child", "sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				"..",
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "child/sub-child",
 		},
 		{
 			include: map[string]config.IncludeConfig{
-				"root":  {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
-				"child": {Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath)},
+				"root": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
+				"child": {
+					Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath),
+				},
 			},
-			params:       []string{"child"},
-			configPath:   filepath.Join("..", "child", "sub-child", config.DefaultTerragruntConfigPath),
+			params: []string{"child"},
+			configPath: filepath.Join(
+				"..",
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "../child/sub-child",
 		},
 	}
@@ -86,8 +141,22 @@ func TestPathRelativeToInclude(t *testing.T) {
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeToInclude(ctx, pctx, l, tc.params)
-		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		require.NoError(
+			t,
+			actualErr,
+			"For include %v and configPath %v, unexpected error: %v",
+			tc.include,
+			tc.configPath,
+			actualErr,
+		)
+		assert.Equal(
+			t,
+			tc.expectedPath,
+			actualPath,
+			"For include %v and configPath %v",
+			tc.include,
+			tc.configPath,
+		)
 	}
 }
 
@@ -101,46 +170,101 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		params       []string
 	}{
 		{
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: ".",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "..",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "..",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../../..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("../../..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				"sub-sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "../../..",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				"sub-sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "../../..",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {
+					Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath),
+				},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "../../other-child",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join("..", "child", "sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				"..",
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "../..",
 		},
 		{
 			include: map[string]config.IncludeConfig{
-				"root":  {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
-				"child": {Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath)},
+				"root": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
+				"child": {
+					Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath),
+				},
 			},
-			params:       []string{"child"},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", config.DefaultTerragruntConfigPath),
+			params: []string{"child"},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "../../other-child",
 		},
 	}
@@ -151,8 +275,22 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
-		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		require.NoError(
+			t,
+			actualErr,
+			"For include %v and configPath %v, unexpected error: %v",
+			tc.include,
+			tc.configPath,
+			actualErr,
+		)
+		assert.Equal(
+			t,
+			tc.expectedPath,
+			actualPath,
+			"For include %v and configPath %v",
+			tc.include,
+			tc.configPath,
+		)
 	}
 }
 
@@ -186,58 +324,182 @@ func TestFindInParentFolders(t *testing.T) {
 		maxFoldersToCheck int
 	}{
 		{
-			name:         "simple-lookup",
-			params:       []string{"root.hcl"},
-			configPath:   absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "terragrunt-in-root", "child", config.DefaultTerragruntConfigPath)),
-			expectedPath: absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
+			name:   "simple-lookup",
+			params: []string{"root.hcl"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"terragrunt-in-root",
+					"child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				"../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl",
+			),
 		},
 		{
-			name:         "nested-lookup",
-			params:       []string{"root.hcl"},
-			configPath:   absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "terragrunt-in-root", "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath)),
-			expectedPath: absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
+			name:   "nested-lookup",
+			params: []string{"root.hcl"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"terragrunt-in-root",
+					"child",
+					"sub-child",
+					"sub-sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				"../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl",
+			),
 		},
 		{
-			name:              "lookup-with-max-folders",
-			params:            []string{"root.hcl"},
-			configPath:        absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "no-terragrunt-in-root", "child", "sub-child", config.DefaultTerragruntConfigPath)),
+			name:   "lookup-with-max-folders",
+			params: []string{"root.hcl"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"no-terragrunt-in-root",
+					"child",
+					"sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
 			maxFoldersToCheck: 3,
 			expectErr:         expectParentFileNotFound,
 		},
 		{
-			name:         "multiple-terragrunt-in-parents",
-			params:       []string{"root.hcl"},
-			configPath:   absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "multiple-terragrunt-in-parents", "child", config.DefaultTerragruntConfigPath)),
-			expectedPath: absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/root.hcl"),
+			name:   "multiple-terragrunt-in-parents",
+			params: []string{"root.hcl"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				"../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/root.hcl",
+			),
 		},
 		{
-			name:         "multiple-terragrunt-in-parents-under-child",
-			params:       []string{"root.hcl"},
-			configPath:   absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "multiple-terragrunt-in-parents", "child", "sub-child", config.DefaultTerragruntConfigPath)),
-			expectedPath: absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/root.hcl"),
+			name:   "multiple-terragrunt-in-parents-under-child",
+			params: []string{"root.hcl"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"child",
+					"sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				"../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/root.hcl",
+			),
 		},
 		{
-			name:         "multiple-terragrunt-in-parents-under-sub-child",
-			params:       []string{"root.hcl"},
-			configPath:   absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "multiple-terragrunt-in-parents", "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath)),
-			expectedPath: absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/root.hcl"),
+			name:   "multiple-terragrunt-in-parents-under-sub-child",
+			params: []string{"root.hcl"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"child",
+					"sub-child",
+					"sub-sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				"../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/root.hcl",
+			),
 		},
 		{
-			name:         "parent-file-that-isnt-terragrunt",
-			params:       []string{"foo.txt"},
-			configPath:   absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "other-file-names", "child", config.DefaultTerragruntConfigPath)),
+			name:   "parent-file-that-isnt-terragrunt",
+			params: []string{"foo.txt"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"other-file-names",
+					"child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
 			expectedPath: absPath(t, "../../test/fixtures/parent-folders/other-file-names/foo.txt"),
 		},
 		{
-			name:         "parent-file-that-isnt-terragrunt-in-another-subfolder",
-			params:       []string{"common/foo.txt"},
-			configPath:   absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "in-another-subfolder", "live", config.DefaultTerragruntConfigPath)),
-			expectedPath: absPath(t, "../../test/fixtures/parent-folders/in-another-subfolder/common/foo.txt"),
+			name:   "parent-file-that-isnt-terragrunt-in-another-subfolder",
+			params: []string{"common/foo.txt"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"in-another-subfolder",
+					"live",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				"../../test/fixtures/parent-folders/in-another-subfolder/common/foo.txt",
+			),
 		},
 		{
-			name:         "parent-file-that-isnt-terragrunt-in-another-subfolder-with-params",
-			params:       []string{"tfwork"},
-			configPath:   absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "with-params", "tfwork", "tg", config.DefaultTerragruntConfigPath)),
+			name:   "parent-file-that-isnt-terragrunt-in-another-subfolder-with-params",
+			params: []string{"tfwork"},
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"with-params",
+					"tfwork",
+					"tg",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
 			expectedPath: absPath(t, "../../test/fixtures/parent-folders/with-params/tfwork"),
 		},
 		{
@@ -342,25 +604,66 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			expectedOut: ".",
 		},
 		{
-			str:         "terraform { source = path_relative_to_include() }",
-			include:     &config.IncludeConfig{Path: filepath.Join("..", config.DefaultTerragruntConfigPath)},
+			str: "terraform { source = path_relative_to_include() }",
+			include: &config.IncludeConfig{
+				Path: filepath.Join("..", config.DefaultTerragruntConfigPath),
+			},
 			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
 			expectedOut: "child",
 		},
 		{
-			str:         "terraform { source = find_in_parent_folders(\"root.hcl\") }",
-			configPath:  absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "terragrunt-in-root", "child", "sub-child", config.DefaultTerragruntConfigPath)),
-			expectedOut: absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
+			str: "terraform { source = find_in_parent_folders(\"root.hcl\") }",
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"terragrunt-in-root",
+					"child",
+					"sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedOut: absPath(
+				t,
+				"../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl",
+			),
 		},
 		{
-			str:               "terraform { source = find_in_parent_folders(\"root.hcl\") }",
-			configPath:        absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "terragrunt-in-root", "child", "sub-child", config.DefaultTerragruntConfigPath)),
+			str: "terraform { source = find_in_parent_folders(\"root.hcl\") }",
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"terragrunt-in-root",
+					"child",
+					"sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
 			expectedErr:       "ParentFileNotFoundError",
 			maxFoldersToCheck: 1,
 		},
 		{
-			str:               "terraform { source = find_in_parent_folders(\"root.hcl\") }",
-			configPath:        absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "no-terragrunt-in-root", "child", "sub-child", config.DefaultTerragruntConfigPath)),
+			str: "terraform { source = find_in_parent_folders(\"root.hcl\") }",
+			configPath: absPath(
+				t,
+				filepath.Join(
+					"../..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"no-terragrunt-in-root",
+					"child",
+					"sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
 			expectedErr:       "ParentFileNotFoundError",
 			maxFoldersToCheck: 3,
 		},
@@ -379,7 +682,14 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 				pctx.MaxFoldersToCheck = tc.maxFoldersToCheck
 			}
 
-			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
+			actualOut, actualErr := config.ParseConfigString(
+				ctx,
+				pctx,
+				l,
+				"mock-path-for-test.hcl",
+				tc.str,
+				tc.include,
+			)
 			if tc.expectedErr != "" {
 				require.Error(t, actualErr)
 				assert.Contains(t, actualErr.Error(), tc.expectedErr)
@@ -469,7 +779,14 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 				pctx.Venv.Env = tc.env
 			}
 
-			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
+			actualOut, actualErr := config.ParseConfigString(
+				ctx,
+				pctx,
+				l,
+				"mock-path-for-test.hcl",
+				tc.str,
+				tc.include,
+			)
 			if tc.expectedErr != "" {
 				require.Error(t, actualErr)
 				assert.Contains(t, actualErr.Error(), tc.expectedErr)
@@ -515,8 +832,23 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 
 			l := logger.CreateLogger()
 			ctx, pctx := newTestParsingContext(t, tc.configPath)
-			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
-			require.NoError(t, actualErr, "For string '%s' include %v and configPath %v, unexpected error: %v", tc.str, tc.include, tc.configPath, actualErr)
+			actualOut, actualErr := config.ParseConfigString(
+				ctx,
+				pctx,
+				l,
+				"mock-path-for-test.hcl",
+				tc.str,
+				tc.include,
+			)
+			require.NoError(
+				t,
+				actualErr,
+				"For string '%s' include %v and configPath %v, unexpected error: %v",
+				tc.str,
+				tc.include,
+				tc.configPath,
+				actualErr,
+			)
 
 			assert.NotNil(t, actualOut)
 
@@ -528,7 +860,15 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 
 			fooSlice := toStringSlice(t, foo)
 
-			assert.Equal(t, tc.expectedFooInput, fooSlice, "For string '%s' include %v and configPath %v", tc.str, tc.include, tc.configPath)
+			assert.Equal(
+				t,
+				tc.expectedFooInput,
+				fooSlice,
+				"For string '%s' include %v and configPath %v",
+				tc.str,
+				tc.include,
+				tc.configPath,
+			)
 		})
 	}
 }
@@ -552,7 +892,14 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 			pctx.TerraformCliArgs = iacargs.New(cliArgs...)
 
-			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", str, nil)
+			actualOut, actualErr := config.ParseConfigString(
+				ctx,
+				pctx,
+				l,
+				"mock-path-for-test.hcl",
+				str,
+				nil,
+			)
 			require.NoError(t, actualErr, "For string '%s', unexpected error: %v", str, actualErr)
 
 			assert.NotNil(t, actualOut)
@@ -622,11 +969,18 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 
 // newTestParsingContext creates a ParsingContext with sensible test defaults.
 // Replicates NewTerragruntOptionsForTest + configbridge.populateFromOpts.
-func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *config.ParsingContext) {
+func newTestParsingContext(
+	tb testing.TB,
+	configPath string,
+) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(tb.Context(), l, config.WithStrictControls(controls.New()))
+	ctx, pctx := config.NewParsingContext(
+		tb.Context(),
+		l,
+		config.WithStrictControls(controls.New()),
+	)
 
 	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(configPath)
 
@@ -665,46 +1019,101 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		params       []string
 	}{
 		{
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: filepath.Join(helpers.RootFolder, "child"),
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: helpers.RootFolder,
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: helpers.RootFolder,
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../../..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("../../..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				"sub-sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: helpers.RootFolder,
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join(helpers.RootFolder, config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				"sub-sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: helpers.RootFolder,
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {
+					Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath),
+				},
+			},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: filepath.VolumeName(parentDir) + "/other-child",
 		},
 		{
-			include:      map[string]config.IncludeConfig{"": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)}},
-			configPath:   filepath.Join("..", "child", "sub-child", config.DefaultTerragruntConfigPath),
+			include: map[string]config.IncludeConfig{
+				"": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
+			},
+			configPath: filepath.Join(
+				"..",
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: "..",
 		},
 		{
 			include: map[string]config.IncludeConfig{
-				"root":  {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
-				"child": {Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath)},
+				"root": {Path: filepath.Join("../..", config.DefaultTerragruntConfigPath)},
+				"child": {
+					Path: filepath.Join("../..", "other-child", config.DefaultTerragruntConfigPath),
+				},
 			},
-			params:       []string{"child"},
-			configPath:   filepath.Join(helpers.RootFolder, "child", "sub-child", config.DefaultTerragruntConfigPath),
+			params: []string{"child"},
+			configPath: filepath.Join(
+				helpers.RootFolder,
+				"child",
+				"sub-child",
+				config.DefaultTerragruntConfigPath,
+			),
 			expectedPath: filepath.VolumeName(parentDir) + "/other-child",
 		},
 	}
@@ -715,8 +1124,22 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.GetParentTerragruntDir(ctx, pctx, l, tc.params)
-		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		require.NoError(
+			t,
+			actualErr,
+			"For include %v and configPath %v, unexpected error: %v",
+			tc.include,
+			tc.configPath,
+			actualErr,
+		)
+		assert.Equal(
+			t,
+			tc.expectedPath,
+			actualPath,
+			"For include %v and configPath %v",
+			tc.include,
+			tc.configPath,
+		)
 	}
 }
 
@@ -756,8 +1179,12 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			expected: "content",
 		},
 		{
-			input:    `zipmap(["one", "two", "three"], [1, 2, 3])`,
-			expected: map[string]any{"one": json.Number("1"), "two": json.Number("2"), "three": json.Number("3")},
+			input: `zipmap(["one", "two", "three"], [1, 2, 3])`,
+			expected: map[string]any{
+				"one":   json.Number("1"),
+				"two":   json.Number("2"),
+				"three": json.Number("3"),
+			},
 		},
 	}
 
@@ -765,7 +1192,13 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 
-			cfgPath := filepath.Join("../..", "test", "fixtures", "config-terraform-functions", config.DefaultTerragruntConfigPath)
+			cfgPath := filepath.Join(
+				"../..",
+				"test",
+				"fixtures",
+				"config-terraform-functions",
+				config.DefaultTerragruntConfigPath,
+			)
 			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
 			l := logger.CreateLogger()
 			ctx, pctx := newTestParsingContext(t, cfgPath)
@@ -939,13 +1372,19 @@ func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 
 	require.Error(t, err)
-	require.ErrorContains(t, err, `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
+	require.ErrorContains(
+		t,
+		err,
+		`Call to function "deep_merge" failed: Expected param of type map or object but got string.`,
+	)
 }
 
 func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
 	t.Parallel()
 
-	cfgPath, err := filepath.Abs("../../test/fixtures/deep-merge-fileset/" + config.DefaultTerragruntConfigPath)
+	cfgPath, err := filepath.Abs(
+		"../../test/fixtures/deep-merge-fileset/" + config.DefaultTerragruntConfigPath,
+	)
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
@@ -995,12 +1434,18 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 			expected: map[string]cty.Value{"number": cty.NumberIntVal(42)},
 		},
 		{
-			input:    `{"list_string": {"sensitive": false, "type": ["list", "string"], "value": ["4", "2"]}}`,
-			expected: map[string]cty.Value{"list_string": cty.ListVal([]cty.Value{cty.StringVal("4"), cty.StringVal("2")})},
+			input: `{"list_string": {"sensitive": false, "type": ["list", "string"], "value": ["4", "2"]}}`,
+			expected: map[string]cty.Value{
+				"list_string": cty.ListVal([]cty.Value{cty.StringVal("4"), cty.StringVal("2")}),
+			},
 		},
 		{
-			input:    `{"map_string": {"sensitive": false, "type": ["map", "string"], "value": {"x": "foo", "y": "bar"}}}`,
-			expected: map[string]cty.Value{"map_string": cty.MapVal(map[string]cty.Value{"x": cty.StringVal("foo"), "y": cty.StringVal("bar")})},
+			input: `{"map_string": {"sensitive": false, "type": ["map", "string"], "value": {"x": "foo", "y": "bar"}}}`,
+			expected: map[string]cty.Value{
+				"map_string": cty.MapVal(
+					map[string]cty.Value{"x": cty.StringVal("foo"), "y": cty.StringVal("bar")},
+				),
+			},
 		},
 		{
 			input: `{"map_list_number": {"sensitive": false, "type": ["map", ["list", "number"]], "value": {"x": [4, 2]}}}`,
@@ -1035,7 +1480,10 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 
 	mockTargetConfig := config.DefaultTerragruntConfigPath
 	for _, tc := range testCases {
-		converted, err := config.TerraformOutputJSONToCtyValueMap(mockTargetConfig, []byte(tc.input))
+		converted, err := config.TerraformOutputJSONToCtyValueMap(
+			mockTargetConfig,
+			[]byte(tc.input),
+		)
 		require.NoError(t, err)
 		assert.Equal(t, getKeys(converted), getKeys(tc.expected))
 
@@ -1050,7 +1498,13 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/inputs/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(
+		ctx,
+		pctx,
+		l,
+		"../../test/fixtures/inputs/terragrunt.hcl",
+		nil,
+	)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1062,11 +1516,23 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	assert.Equal(t, json.Number("42"), inputsMap["number"].(json.Number))
 	assert.True(t, inputsMap["bool"].(bool))
 	assert.Equal(t, []any{"a", "b", "c"}, inputsMap["list_string"].([]any))
-	assert.Equal(t, []any{json.Number("1"), json.Number("2"), json.Number("3")}, inputsMap["list_number"].([]any))
+	assert.Equal(
+		t,
+		[]any{json.Number("1"), json.Number("2"), json.Number("3")},
+		inputsMap["list_number"].([]any),
+	)
 	assert.Equal(t, []any{true, false}, inputsMap["list_bool"].([]any))
 	assert.Equal(t, map[string]any{"foo": "bar"}, inputsMap["map_string"].(map[string]any))
-	assert.Equal(t, map[string]any{"foo": json.Number("42"), "bar": json.Number("12345")}, inputsMap["map_number"].(map[string]any))
-	assert.Equal(t, map[string]any{"foo": true, "bar": false, "baz": true}, inputsMap["map_bool"].(map[string]any))
+	assert.Equal(
+		t,
+		map[string]any{"foo": json.Number("42"), "bar": json.Number("12345")},
+		inputsMap["map_number"].(map[string]any),
+	)
+	assert.Equal(
+		t,
+		map[string]any{"foo": true, "bar": false, "baz": true},
+		inputsMap["map_bool"].(map[string]any),
+	)
 
 	assert.Equal(
 		t,
@@ -1087,7 +1553,13 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/terragrunt/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(
+		ctx,
+		pctx,
+		l,
+		"../../test/fixtures/terragrunt/terragrunt.hcl",
+		nil,
+	)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1110,7 +1582,10 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		map[string]any{"owner": "terragrunt integration test", "name": "Terraform access log storage"},
+		map[string]any{
+			"owner": "terragrunt integration test",
+			"name":  "Terraform access log storage",
+		},
 		configMap["accesslogging_bucket_tags"].(map[string]any),
 	)
 }
@@ -1120,7 +1595,13 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/hooks/before-after-and-on-error/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(
+		ctx,
+		pctx,
+		l,
+		"../../test/fixtures/hooks/before-after-and-on-error/terragrunt.hcl",
+		nil,
+	)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1164,7 +1645,13 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/locals/canonical/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(
+		ctx,
+		pctx,
+		l,
+		"../../test/fixtures/locals/canonical/terragrunt.hcl",
+		nil,
+	)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1181,7 +1668,15 @@ func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.
 	t.Parallel()
 
 	unitFilename, err := filepath.Abs(
-		filepath.Join("..", "..", "test", "fixtures", "hcl-validate-original-dir", "unit", "terragrunt.hcl"),
+		filepath.Join(
+			"..",
+			"..",
+			"test",
+			"fixtures",
+			"hcl-validate-original-dir",
+			"unit",
+			"terragrunt.hcl",
+		),
 	)
 	require.NoError(t, err)
 
@@ -1196,7 +1691,10 @@ func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.
 	assert.Equal(t, "hello from original terragrunt dir", cfg.Inputs["input"])
 
 	// wrong original path (pre-fix): the relative read escapes the fixture and fails
-	parentFilename := filepath.Join(filepath.Dir(filepath.Dir(unitFilename)), config.DefaultTerragruntConfigPath)
+	parentFilename := filepath.Join(
+		filepath.Dir(filepath.Dir(unitFilename)),
+		config.DefaultTerragruntConfigPath,
+	)
 
 	ctxWrong, pctxWrong := newTestParsingContext(t, unitFilename)
 	pctxWrong.OriginalTerragruntConfigPath = parentFilename
@@ -1216,21 +1714,61 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 	}{
 		{config: mockConfigWithSource(""), source: "", expected: ""},
 		{config: mockConfigWithSource(""), source: "/source/modules", expected: ""},
-		{config: mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"), source: "/source/modules", expected: "/source/modules//foo/bar"},
-		{config: mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1"), source: "/source/modules", expected: "/source/modules//foo/bar"},
-		{config: mockConfigWithSource("git::git@github.com:acme/emr_cluster.git?ref=feature/fix_bugs"), source: "/source/modules", expected: "/source/modules//emr_cluster"},
-		{config: mockConfigWithSource("git::ssh://git@ghe.ourcorp.com/OurOrg/some-module.git"), source: "/source/modules", expected: "/source/modules//some-module"},
-		{config: mockConfigWithSource("github.com/hashicorp/example"), source: "/source/modules", expected: "/source/modules//example"},
-		{config: mockConfigWithSource("github.com/hashicorp/example//subdir"), source: "/source/modules", expected: "/source/modules//subdir"},
-		{config: mockConfigWithSource("git@github.com:hashicorp/example.git//subdir"), source: "/source/modules", expected: "/source/modules//subdir"},
-		{config: mockConfigWithSource("./some/path//to/modulename"), source: "/source/modules", expected: "/source/modules//to/modulename"},
+		{
+			config:   mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"),
+			source:   "/source/modules",
+			expected: "/source/modules//foo/bar",
+		},
+		{
+			config: mockConfigWithSource(
+				"git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1",
+			),
+			source:   "/source/modules",
+			expected: "/source/modules//foo/bar",
+		},
+		{
+			config: mockConfigWithSource(
+				"git::git@github.com:acme/emr_cluster.git?ref=feature/fix_bugs",
+			),
+			source:   "/source/modules",
+			expected: "/source/modules//emr_cluster",
+		},
+		{
+			config:   mockConfigWithSource("git::ssh://git@ghe.ourcorp.com/OurOrg/some-module.git"),
+			source:   "/source/modules",
+			expected: "/source/modules//some-module",
+		},
+		{
+			config:   mockConfigWithSource("github.com/hashicorp/example"),
+			source:   "/source/modules",
+			expected: "/source/modules//example",
+		},
+		{
+			config:   mockConfigWithSource("github.com/hashicorp/example//subdir"),
+			source:   "/source/modules",
+			expected: "/source/modules//subdir",
+		},
+		{
+			config:   mockConfigWithSource("git@github.com:hashicorp/example.git//subdir"),
+			source:   "/source/modules",
+			expected: "/source/modules//subdir",
+		},
+		{
+			config:   mockConfigWithSource("./some/path//to/modulename"),
+			source:   "/source/modules",
+			expected: "/source/modules//to/modulename",
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%v-%s", *tc.config.Terraform.Source, tc.source), func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := config.GetTerragruntSourceForModule(tc.source, "mock-for-test", tc.config)
+			actual, err := config.GetTerragruntSourceForModule(
+				tc.source,
+				"mock-for-test",
+				tc.config,
+			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -1404,7 +1942,13 @@ func TestReadTFVarsFiles(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/read-tf-vars/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(
+		ctx,
+		pctx,
+		l,
+		"../../test/fixtures/read-tf-vars/terragrunt.hcl",
+		nil,
+	)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1441,7 +1985,11 @@ func getKeys(valueMap map[string]cty.Value) map[string]bool {
 
 // getTrackIncludeFromTestData mirrors getTrackInclude: include paths are resolved to absolute against the directory of
 // configPath so production callers can rely on IncludeConfig.Path being absolute.
-func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, params []string, configPath string) *config.TrackInclude {
+func getTrackIncludeFromTestData(
+	includeMap map[string]config.IncludeConfig,
+	params []string,
+	configPath string,
+) *config.TrackInclude {
 	if len(includeMap) == 0 {
 		return nil
 	}
@@ -1503,20 +2051,23 @@ func TestConstraintCheck(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("constraint_check(%#v, %#v)", tc.args[0], tc.args[1]), func(t *testing.T) {
-			t.Parallel()
+		t.Run(
+			fmt.Sprintf("constraint_check(%#v, %#v)", tc.args[0], tc.args[1]),
+			func(t *testing.T) {
+				t.Parallel()
 
-			ctx, pctx := newTestParsingContext(t, "")
+				ctx, pctx := newTestParsingContext(t, "")
 
-			actual, err := config.ConstraintCheck(ctx, pctx, tc.args)
-			if tc.err != "" {
-				require.EqualError(t, err, tc.err)
-			} else {
-				require.NoError(t, err)
-			}
+				actual, err := config.ConstraintCheck(ctx, pctx, tc.args)
+				if tc.err != "" {
+					require.EqualError(t, err, tc.err)
+				} else {
+					require.NoError(t, err)
+				}
 
-			assert.Equal(t, tc.value, actual)
-		})
+				assert.Equal(t, tc.value, actual)
+			},
+		)
 	}
 }
 
@@ -1615,8 +2166,14 @@ func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 		{name: "single quiet flag", params: []string{"--terragrunt-quiet"}},
 		{name: "single no-cache flag", params: []string{"--terragrunt-no-cache"}},
 		{name: "single global-cache flag", params: []string{"--terragrunt-global-cache"}},
-		{name: "two compatible flags", params: []string{"--terragrunt-quiet", "--terragrunt-no-cache"}},
-		{name: "two compatible flags reversed", params: []string{"--terragrunt-no-cache", "--terragrunt-quiet"}},
+		{
+			name:   "two compatible flags",
+			params: []string{"--terragrunt-quiet", "--terragrunt-no-cache"},
+		},
+		{
+			name:   "two compatible flags reversed",
+			params: []string{"--terragrunt-no-cache", "--terragrunt-quiet"},
+		},
 		{name: "duplicate quiet", params: []string{"--terragrunt-quiet", "--terragrunt-quiet"}},
 	}
 
@@ -1629,7 +2186,12 @@ func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 
 			require.NotPanics(t, func() {
 				_, err := config.RunCommand(ctx, pctx, l, tc.params)
-				require.Error(t, err, "must return error when only option flags are supplied (%v)", tc.params)
+				require.Error(
+					t,
+					err,
+					"must return error when only option flags are supplied (%v)",
+					tc.params,
+				)
 				require.ErrorAs(t, err, new(config.EmptyStringNotAllowedError))
 			}, "run_cmd with options-only %v must not panic", tc.params)
 		})

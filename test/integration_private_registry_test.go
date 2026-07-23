@@ -42,9 +42,14 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 		t.Fatal("REGISTRY_URL is invalid")
 	}
 
-	helpers.CopyAndFillMapPlaceholders(t, filepath.Join(privateRegistryFixturePath, "terragrunt.hcl"), filepath.Join(rootPath, "terragrunt.hcl"), map[string]string{
-		"__registry_url__": registryURL,
-	})
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		filepath.Join(privateRegistryFixturePath, "terragrunt.hcl"),
+		filepath.Join(rootPath, "terragrunt.hcl"),
+		map[string]string{
+			"__registry_url__": registryURL,
+		},
+	)
 
 	return rootPath, URL.Hostname(), registryToken
 }
@@ -52,14 +57,22 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 func TestPrivateRegistryWithConfgFileToken(t *testing.T) {
 	rootPath, host, token := setupPrivateRegistryTest(t)
 
-	helpers.CopyAndFillMapPlaceholders(t, filepath.Join(privateRegistryFixturePath, "env.tfrc"), filepath.Join(rootPath, "env.tfrc"), map[string]string{
-		"__registry_token__": token,
-		"__registry_host__":  host,
-	})
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		filepath.Join(privateRegistryFixturePath, "env.tfrc"),
+		filepath.Join(rootPath, "env.tfrc"),
+		map[string]string{
+			"__registry_token__": token,
+			"__registry_host__":  host,
+		},
+	)
 
 	t.Setenv("TF_CLI_CONFIG_FILE", filepath.Join(rootPath, "env.tfrc"))
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --log-level=trace --working-dir="+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt init --non-interactive --log-level=trace --working-dir="+rootPath,
+	)
 
 	// the hashicorp/null provider errors on install, but that indicates that the private tfr module was downloaded
 	require.Contains(t, err.Error(), "hashicorp/null", "Error accessing the private registry")
@@ -74,7 +87,10 @@ func TestPrivateRegistryWithEnvToken(t *testing.T) {
 
 	t.Setenv("TF_TOKEN_"+host, token)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --log-level=trace --working-dir="+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt init --non-interactive --log-level=trace --working-dir="+rootPath,
+	)
 
 	// The main test is for authentication against the private registry, so if the null provider fails then we know
 	// that terragrunt authenticated and downloaded the module.

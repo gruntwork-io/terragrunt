@@ -135,7 +135,11 @@ func TestTipsDisableTipInvalidName(t *testing.T) {
 
 	var invalidErr *tips.InvalidTipNameError
 	require.ErrorAs(t, err, &invalidErr)
-	assert.Contains(t, err.Error(), "invalid tip suppression requested for `--no-tip`: 'invalid-tip-name'")
+	assert.Contains(
+		t,
+		err.Error(),
+		"invalid tip suppression requested for `--no-tip`: 'invalid-tip-name'",
+	)
 	assert.Contains(t, err.Error(), "valid tip(s) for suppression:")
 	assert.Contains(t, err.Error(), tips.DebuggingDocs)
 }
@@ -199,7 +203,11 @@ func TestTipsDisableAllEmpty(t *testing.T) {
 func newTestLogger() (log.Logger, *bytes.Buffer) {
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 	output := new(bytes.Buffer)
-	logger := log.New(log.WithOutput(output), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter))
+	logger := log.New(
+		log.WithOutput(output),
+		log.WithLevel(log.InfoLevel),
+		log.WithFormatter(formatter),
+	)
 
 	return logger, output
 }

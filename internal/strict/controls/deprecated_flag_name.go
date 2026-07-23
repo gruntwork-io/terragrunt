@@ -25,7 +25,10 @@ type DeprecatedFlagName struct {
 // NewDeprecatedFlagName returns a new `DeprecatedFlagName` instance.
 // Since we don't know which names can be used at the time of definition,
 // we take the first name from the list `Names()` for the name and description to display it in `info strict`.
-func NewDeprecatedFlagName(deprecatedFlag, newFlag clihelper.Flag, newValue string) *DeprecatedFlagName {
+func NewDeprecatedFlagName(
+	deprecatedFlag, newFlag clihelper.Flag,
+	newValue string,
+) *DeprecatedFlagName {
 	var (
 		deprecatedName = util.FirstNonEmpty(deprecatedFlag.Names())
 		newName        = util.FirstNonEmpty(newFlag.Names())
@@ -56,7 +59,8 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 		flagName  string
 	)
 
-	if valueName == "" || !ctrl.deprecatedFlag.Value().IsArgSet() || !slices.Contains(ctrl.deprecatedFlag.Names(), valueName) {
+	if valueName == "" || !ctrl.deprecatedFlag.Value().IsArgSet() ||
+		!slices.Contains(ctrl.deprecatedFlag.Names(), valueName) {
 		return nil
 	}
 
@@ -82,7 +86,10 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 		return fmt.Errorf(ctrl.ErrorFmt, valueName, flagName)
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.isSuppressed() {
+	if logger := log.LoggerFromContext(
+		ctx,
+	); logger != nil && ctrl.WarningFmt != "" &&
+		!ctrl.isSuppressed() {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warnf(ctrl.WarningFmt, valueName, flagName)
 		})

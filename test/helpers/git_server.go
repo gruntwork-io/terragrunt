@@ -223,7 +223,12 @@ func (s *GitServer) RenderFixture(fixturePath string, includeInCopy ...string) s
 
 	s.AddFixtures(refs...)
 
-	require.NoError(s.t, substituteTree(dir, s.URL, s.SSHURL, s.headSHA), "render placeholders in %s", dir)
+	require.NoError(
+		s.t,
+		substituteTree(dir, s.URL, s.SSHURL, s.headSHA),
+		"render placeholders in %s",
+		dir,
+	)
 
 	return dir
 }
@@ -291,7 +296,13 @@ func (s *GitServer) add(subpaths []string) error {
 	}
 
 	if s.sshLive {
-		if err := populateBareRepo(s.fixturesDir, s.committedDirsLocked(), s.bareDir, s.URL, s.SSHURL); err != nil {
+		if err := populateBareRepo(
+			s.fixturesDir,
+			s.committedDirsLocked(),
+			s.bareDir,
+			s.URL,
+			s.SSHURL,
+		); err != nil {
 			return fmt.Errorf("refresh ssh bare repo: %w", err)
 		}
 	}
@@ -450,7 +461,10 @@ func isFixtureSubstFile(ext string) bool {
 // sshURL. scanDir must be root or a directory beneath it; reporting paths
 // relative to root lets a scoped walk of one fixture subtree still
 // produce its full `test/fixtures/...` repo path.
-func walkFixturesRooted(root, scanDir, httpURL, sshURL string, fn func(rel string, data []byte) error) error {
+func walkFixturesRooted(
+	root, scanDir, httpURL, sshURL string,
+	fn func(rel string, data []byte) error,
+) error {
 	return filepath.WalkDir(scanDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -507,7 +521,13 @@ func locateFixturesDir() (string, error) {
 // commitDirs writes the files of each repo-relative fixture directory in
 // dirs into srv's working tree, substituting [MirrorURLPlaceholder] with
 // mirrorURL, then creates a single commit. Passing an empty dirs is a no-op.
-func commitDirs(ctx context.Context, srv *git.Server, fixturesDir string, dirs []string, mirrorURL string) error {
+func commitDirs(
+	ctx context.Context,
+	srv *git.Server,
+	fixturesDir string,
+	dirs []string,
+	mirrorURL string,
+) error {
 	if len(dirs) == 0 {
 		return nil
 	}
@@ -516,10 +536,16 @@ func commitDirs(ctx context.Context, srv *git.Server, fixturesDir string, dirs [
 	files := make(map[string][]byte)
 
 	for _, dir := range dirs {
-		walkErr := walkFixturesRooted(repoRoot, filepath.Join(repoRoot, dir), mirrorURL, "", func(rel string, data []byte) error {
-			files[rel] = data
-			return nil
-		})
+		walkErr := walkFixturesRooted(
+			repoRoot,
+			filepath.Join(repoRoot, dir),
+			mirrorURL,
+			"",
+			func(rel string, data []byte) error {
+				files[rel] = data
+				return nil
+			},
+		)
 		if walkErr != nil {
 			return walkErr
 		}

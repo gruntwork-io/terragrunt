@@ -219,7 +219,13 @@ func TestExcludeBlockBehavior(t *testing.T) {
 
 			for unitName, expected := range tc.expectedUnits {
 				run := runs.FindByName(unitName)
-				require.NotNil(t, run, "unit %s not found in report. Found: %v", unitName, runs.Names())
+				require.NotNil(
+					t,
+					run,
+					"unit %s not found in report. Found: %v",
+					unitName,
+					runs.Names(),
+				)
 				assert.Equal(
 					t,
 					expected.result,
@@ -327,7 +333,11 @@ func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
 	// when parsing the dependency's exclude block that uses feature flags
 	assert.NotContains(t, stderr, "Attempt to get attribute from null value",
 		"Feature flag defaults should be available when parsing dependency configs")
-	require.NoError(t, err, "terragrunt plan should succeed when dependency has feature flags in exclude block")
+	require.NoError(
+		t,
+		err,
+		"terragrunt plan should succeed when dependency has feature flags in exclude block",
+	)
 }
 
 // TestExcludeBlockFeatureFlagDefaultRunAll tests the run-all scenario where
@@ -351,5 +361,9 @@ func TestExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	assert.NotContains(t, stderr, "Attempt to get attribute from null value",
 		"Feature flag defaults should be available when parsing configs in run-all mode")
-	require.NoError(t, err, "terragrunt run-all plan should succeed with feature flags in exclude blocks")
+	require.NoError(
+		t,
+		err,
+		"terragrunt run-all plan should succeed with feature flags in exclude blocks",
+	)
 }

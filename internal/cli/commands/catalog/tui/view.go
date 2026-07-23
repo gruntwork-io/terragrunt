@@ -91,7 +91,14 @@ func (m Model) footerView() string {
 
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
-	pagerKeys := infoHelp.Render(lipgloss.JoinVertical(lipgloss.Left, m.buttonBar.View().Content, "\n", m.pagerKeys.HelpModel.View(m.pagerKeys)))
+	pagerKeys := infoHelp.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			m.buttonBar.View().Content,
+			"\n",
+			m.pagerKeys.HelpModel.View(m.pagerKeys),
+		),
+	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, info, pagerKeys)
 }

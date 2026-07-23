@@ -98,8 +98,16 @@ func TestHgResolver_PassesRevAsArg(t *testing.T) {
 	_, err := r.Probe(t.Context(), "https://example.com/repo?rev=feature-x")
 	require.NoError(t, err)
 
-	assert.Equal(t,
-		[]string{"identify", "--template", "{node}\n", "--rev=feature-x", "--", "https://example.com/repo"},
+	assert.Equal(
+		t,
+		[]string{
+			"identify",
+			"--template",
+			"{node}\n",
+			"--rev=feature-x",
+			"--",
+			"https://example.com/repo",
+		},
 		gotArgs,
 	)
 }
@@ -182,7 +190,10 @@ func TestHgResolver_AcceptsRevWithShellMetacharacters(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: vexec.NewMemExec(handler)}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned"))
+	_, err := r.Probe(
+		t.Context(),
+		"https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned"),
+	)
 	require.NoError(t, err)
 	assert.Contains(t, gotArgs, "--rev=tip ; echo pwned",
 		"shell metacharacters must reach hg as part of a single argv element")
@@ -192,7 +203,8 @@ func TestHgResolver_AcceptsRevWithShellMetacharacters(t *testing.T) {
 // actual hg binary when it is installed. It uses a freshly-initialized
 // repository on disk so the test does not reach the network. The
 // assertion pins the resolver's key against a ContentKey derived
-// from the full 40-char node hash; this regresses if the resolver
+// from the full 40-char node hash reported by the stable
+// `hg log -T {node}` template API; this regresses if the resolver
 // reverts to `--id`'s 12-char short form.
 func TestHgResolver_AgainstRealHg(t *testing.T) {
 	t.Parallel()
@@ -203,30 +215,27 @@ func TestHgResolver_AgainstRealHg(t *testing.T) {
 
 	repoDir := t.TempDir()
 
-	hg := func(args ...string) {
+	hg := func(args ...string) string {
 		cmd := exec.CommandContext(t.Context(), "hg", args...)
 		cmd.Dir = repoDir
 
 		out, err := cmd.CombinedOutput()
 		require.NoErrorf(t, err, "hg %v failed: %s", args, string(out))
+
+		return string(out)
 	}
 
 	hg("init", ".")
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "main.tf"), []byte("hello\n"), 0o644))
 	hg("--config", "ui.username=test <test@test>", "commit", "-A", "-m", "initial")
 
-	// Independently query the full 40-char node hash so the assertion
-	// reflects what the resolver should be folding into the key.
-	nodeCmd := exec.CommandContext(t.Context(), "hg", "identify", "--template", "{node}\n", repoDir)
-	out, err := nodeCmd.Output()
-	require.NoError(t, err)
-
-	fullNode := strings.TrimSpace(string(out))
-	require.Len(t, fullNode, 40, "hg must emit a 40-char node hash with --template '{node}'")
+	// The template API is a stable hg contract, unlike debug output text.
+	fullNode := strings.TrimSpace(hg("log", "-r", "tip", "-T", "{node}"))
+	require.Len(t, fullNode, 40, "hg log -T {node} must report a full 40-char node hash")
 
 	r := getter.NewHgResolver()
 
-	got, err := r.Probe(t.Context(), repoDir)
+	got, err := r.Probe(t.Context(), repoDir+"?rev=tip")
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("hg-node", fullNode), got)
 }

@@ -36,7 +36,11 @@ func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 	if written, err := util.Copy(ctx, dst, reader); err != nil {
 		return err
 	} else if resp.ContentLength != -1 && written != resp.ContentLength {
-		return fmt.Errorf("incorrect response size: expected %d bytes, but got %d bytes", resp.ContentLength, written)
+		return fmt.Errorf(
+			"incorrect response size: expected %d bytes, but got %d bytes",
+			resp.ContentLength,
+			written,
+		)
 	}
 
 	return nil

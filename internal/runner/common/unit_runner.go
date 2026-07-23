@@ -53,7 +53,10 @@ func (runner *UnitRunner) runTerragrunt(
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
 ) error {
-	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths))
+	l.Debugf(
+		"Running %s",
+		util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths),
+	)
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
@@ -175,7 +178,15 @@ func (runner *UnitRunner) Run(
 		jsonV := v.WithWriter(&stdout)
 
 		runOpts := configbridge.NewRunOptions(jsonOptions)
-		if err := run.Run(ctx, jsonLogger, jsonV, runOpts, adhocReport, cfg, credsGetter); err != nil {
+		if err := run.Run(
+			ctx,
+			jsonLogger,
+			jsonV,
+			runOpts,
+			adhocReport,
+			cfg,
+			credsGetter,
+		); err != nil {
 			return err
 		}
 
