@@ -51,21 +51,28 @@ The `terraform` block supports the following arguments:
     use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
 
   - The `source` parameter can also pull modules from any OCI-compliant registry (e.g., GitHub Container Registry,
-    Amazon ECR, Docker Hub, self-hosted registries) using the `oci://` scheme. The format is:
-    `oci://<registry>/<repository>:<tag-or-digest>[//<subdir>]`. For example:
+    Amazon ECR, Docker Hub, self-hosted registries) using the `oci://` scheme. Two URL notations are supported:
+    the standard OCI image reference (`oci://registry/repo:tag`) and the OpenTofu-style query parameter syntax
+    (`oci://registry/repo?tag=TAG`). For example:
     ```hcl
-    # Pull a module from GHCR
+    # OpenTofu module packaging spec notation (recommended for cross-tool compatibility)
+    source = "oci://ghcr.io/my-org/terraform-modules?tag=v1.2.3"
+
+    # Standard OCI image reference notation
     source = "oci://ghcr.io/my-org/terraform-modules:v1.2.3"
 
-    # Pull a submodule using the // subdir selector
+    # With subdir selector
     source = "oci://ghcr.io/my-org/terraform-modules:v1.2.3//modules/vpc"
     ```
-    OCI artifacts must be packaged as a gzip-compressed tar archive. Use [ORAS](https://oras.land/) to push:
+    Supported archive formats: ZIP (`archive/zip`, per the OpenTofu module packaging spec), gzip-compressed
+    tar (`application/vnd.oci.image.layer.v1.tar+gzip`), and legacy Terraform tar format
+    (`application/vnd.terraform.module.v1+tar`). Use [ORAS](https://oras.land/) to push:
     ```bash
-    tar czf module.tar.gz -C /path/to/module .
+    # OpenTofu module packaging spec (zip, recommended)
+    zip -r module.zip /path/to/module
     oras push ghcr.io/my-org/terraform-modules:v1.2.3 \
-      --artifact-type application/vnd.terraform.module.v1+tar \
-      module.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip
+      --artifact-type application/vnd.opentofu.modulepkg \
+      module.zip:archive/zip
     ```
     Credentials are resolved in order: `TG_OCI_TOKEN` (Bearer token),
     `TG_OCI_USERNAME`+`TG_OCI_PASSWORD` (Basic auth), Docker credential store (`~/.docker/config.json`),

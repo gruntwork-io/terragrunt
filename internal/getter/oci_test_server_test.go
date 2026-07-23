@@ -1,6 +1,8 @@
 package getter_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -18,6 +20,9 @@ import (
 // testMainTF is a shared filename constant for OCI test file maps.
 // Centralised here to satisfy the goconst linter across the getter_test package.
 const testMainTF = "main.tf"
+
+// testNullResource is a minimal Terraform null_resource body used as test module content.
+const testNullResource = `resource "null_resource" "a" {}`
 
 // ociManifest is a minimal OCI Image Manifest for test use.
 type ociManifest struct { //nolint:govet
@@ -147,4 +152,77 @@ func (s *ociTestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func hexSHA256(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// newOCITestServerWithMediaType is like newOCITestServer but lets the caller
+// specify the layer media type. Use "archive/zip" to test OpenTofu module
+// packaging spec artifacts; the layer bytes are built accordingly.
+func newOCITestServerWithMediaType(
+	t *testing.T, files map[string]string, layerMediaType string,
+) (*httptest.Server, *ociTestServer) {
+	t.Helper()
+
+	state := &ociTestServer{}
+
+	switch layerMediaType {
+	case "archive/zip":
+		state.layerBytes = makeZip(t, files)
+	default:
+		state.layerBytes = makeTarGz(t, files)
+	}
+
+	state.layerDigest = "sha256:" + hexSHA256(state.layerBytes)
+
+	configBytes := []byte("{}")
+	configDigest := "sha256:" + hexSHA256(configBytes)
+
+	m := ociManifest{
+		SchemaVersion: 2, //nolint:mnd
+		MediaType:     "application/vnd.oci.image.manifest.v1+json",
+		Config: ociDescriptor{
+			MediaType: "application/vnd.oci.image.config.v1+json",
+			Digest:    configDigest,
+			Size:      int64(len(configBytes)),
+		},
+		Layers: []ociDescriptor{
+			{
+				MediaType: layerMediaType,
+				Digest:    state.layerDigest,
+				Size:      int64(len(state.layerBytes)),
+			},
+		},
+	}
+
+	var err error
+
+	state.manifestBytes, err = json.Marshal(m)
+	require.NoError(t, err)
+
+	state.manifestDigest = "sha256:" + hexSHA256(state.manifestBytes)
+
+	srv := httptest.NewServer(state)
+	t.Cleanup(srv.Close)
+
+	return srv, state
+}
+
+// makeZip builds an in-memory zip archive from a files map.
+func makeZip(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	zw := zip.NewWriter(&buf)
+
+	for name, content := range files {
+		w, err := zw.Create(name)
+		require.NoError(t, err)
+
+		_, err = fmt.Fprint(w, content)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, zw.Close())
+
+	return buf.Bytes()
 }

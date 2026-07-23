@@ -17,13 +17,24 @@ Terragrunt now supports `oci://` as a source scheme for fetching OpenTofu/Terraf
 **URL format:**
 
 ```
-oci://<registry>/<repository>:<tag-or-digest>[//<subdir>]
+# Standard OCI image reference notation
+oci://<registry>/<repository>:<tag>[//<subdir>]
+oci://<registry>/<repository>@<digest>[//<subdir>]
+
+# OpenTofu-compatible query parameter notation
+oci://<registry>/<repository>[//<subdir>]?tag=<tag>
+oci://<registry>/<repository>[//<subdir>]?digest=<digest>
 ```
 
 Examples:
 
 ```hcl
-# Unit source — fetch a module from GHCR
+# Unit source — OpenTofu module packaging spec (zip archive)
+terraform {
+  source = "oci://ghcr.io/my-org/terraform-modules?tag=v1.2.3"
+}
+
+# Standard image reference notation
 terraform {
   source = "oci://ghcr.io/my-org/terraform-modules:v1.2.3"
 }
@@ -40,6 +51,15 @@ unit {
 }
 ```
 
+**Supported archive formats:**
+
+| Layer media type | Format | Notes |
+|---|---|---|
+| `archive/zip` | ZIP | OpenTofu module packaging spec (preferred) |
+| `application/vnd.oci.image.layer.v1.tar+gzip` | tar.gz | Standard OCI image layer |
+| `application/vnd.terraform.module.v1+tar` | tar.gz | Legacy Terraform module format |
+| `application/octet-stream` | tar or tar.gz | Auto-detected by magic bytes |
+
 **Authentication:**
 
 Credentials are resolved in priority order:
@@ -51,9 +71,16 @@ Credentials are resolved in priority order:
 
 **Pushing modules to an OCI registry:**
 
-Use [ORAS](https://oras.land/) to package and push module archives:
+Use [ORAS](https://oras.land/) to package and push modules. For compatibility with OpenTofu's native OCI module support, use the OpenTofu module packaging spec (zip + `application/vnd.opentofu.modulepkg` artifact type):
 
 ```bash
+# OpenTofu module packaging spec (zip archive)
+zip -r module.zip /path/to/module
+oras push ghcr.io/my-org/terraform-modules:v1.2.3 \
+  --artifact-type application/vnd.opentofu.modulepkg \
+  module.zip:archive/zip
+
+# Alternative: standard OCI image layer (tar.gz)
 tar czf module.tar.gz -C /path/to/module .
 oras push ghcr.io/my-org/terraform-modules:v1.2.3 \
   --artifact-type application/vnd.terraform.module.v1+tar \

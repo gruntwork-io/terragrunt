@@ -18,6 +18,8 @@ import (
 
 const testMainTF = "main.tf"
 
+const testNullResource = `resource "null_resource" "a" {}`
+
 // stubbedOCIFetch returns a cas.OCIFetchFunc whose extracted directory is
 // populated from files, mimicking a real OCI artifact download.
 func stubbedOCIFetch(files map[string]string, digest string) cas.OCIFetchFunc {
@@ -71,7 +73,7 @@ func TestProcessStackComponent_OCISourceExtractsFiles(t *testing.T) {
 	c, err := cas.New(
 		cas.WithStorePath(storePath),
 		cas.WithOCIFetch(stubbedOCIFetch(map[string]string{
-			testMainTF: `resource "null_resource" "a" {}`,
+			testMainTF: testNullResource,
 		}, "sha256:deadbeef00000000000000000000000000000000000000000000000000000000")),
 	)
 	require.NoError(t, err)
@@ -163,7 +165,7 @@ func TestProcessStackComponent_OCIDeterministicOutput(t *testing.T) {
 	digest := "sha256:aabbccdd00000000000000000000000000000000000000000000000000000000"
 
 	files := map[string]string{
-		testMainTF: `resource "null_resource" "a" {}`,
+		testMainTF: testNullResource,
 	}
 
 	// Both runs share the same CAS store — the second should not fail even

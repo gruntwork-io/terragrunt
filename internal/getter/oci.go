@@ -2,7 +2,9 @@ package getter
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -30,8 +32,12 @@ import (
 // ociMediaTypes is the ordered preference list of layer media types that contain
 // module content. The first match in a manifest's layer list wins.
 var ociMediaTypes = []string{
-	// application/vnd.opentofu.modulepkg is proposed in the OpenTofu OCI module
-	// packaging draft (https://github.com/opentofu/opentofu/issues/2138).
+	// archive/zip is the OpenTofu OCI module packaging spec layer format.
+	// See: https://github.com/opentofu/opentofu/blob/main/rfc/20241206-oci-registries/5-modules.md
+	"archive/zip",
+	// application/vnd.opentofu.modulepkg is used by OpenTofu's OCI module packaging
+	// spec as the image manifest artifactType; when it appears as a layer mediaType
+	// in older or alternative toolchains, treat it as a zip-based layer.
 	"application/vnd.opentofu.modulepkg",
 	"application/vnd.terraform.module.v1+tar",
 	ocispec.MediaTypeImageLayerGzip,
@@ -44,10 +50,13 @@ var ociMediaTypes = []string{
 // Source URLs take the form:
 //
 //	oci://REGISTRY/REPOSITORY[:<tag>|@<digest>][//<subdir>]
+//	oci://REGISTRY/REPOSITORY[//<subdir>][?tag=TAG]      (OpenTofu-style query params)
+//	oci://REGISTRY/REPOSITORY[//<subdir>][?digest=DIGEST]
 //
 // Examples:
 //
 //	oci://ghcr.io/org/terraform-aws-vpc:v1.0.0
+//	oci://ghcr.io/org/terraform-aws-vpc?tag=v1.0.0        (OpenTofu module syntax)
 //	oci://123456789.dkr.ecr.us-east-1.amazonaws.com/modules/vpc:v1.0.0
 //	oci://ghcr.io/org/modules:v1.0.0//vpc
 //
@@ -150,7 +159,7 @@ func (g *OCIGetter) getWithDescriptor(
 	defer rc.Close() //nolint:errcheck
 
 	if subDir == "" {
-		return extractTarLayer(layer.MediaType, rc, dst)
+		return extractLayer(layer.MediaType, rc, dst)
 	}
 
 	return g.extractSubdir(layer.MediaType, rc, dst, subDir)
@@ -208,7 +217,7 @@ func (g *OCIGetter) extractSubdir(mediaType string, rc io.ReadCloser, dst, subDi
 
 	tmpDir := filepath.Join(tmpParent, "extract")
 
-	if err := extractTarLayer(mediaType, rc, tmpDir); err != nil {
+	if err := extractLayer(mediaType, rc, tmpDir); err != nil {
 		return err
 	}
 
@@ -293,10 +302,25 @@ func ociCredentialFunc(registry string, l log.Logger) auth.CredentialFunc {
 }
 
 // ociRefFromURL reconstructs the OCI reference string from the parsed URL.
+// It supports both the standard container image `:tag` / `@digest` notation
+// and the OpenTofu-style `?tag=` / `?digest=` query parameter notation.
 //
-//	oci://ghcr.io/org/repo:v1.0.0  →  ghcr.io/org/repo:v1.0.0
+//	oci://ghcr.io/org/repo:v1.0.0          →  ghcr.io/org/repo:v1.0.0
+//	oci://ghcr.io/org/repo?tag=v1.0.0      →  ghcr.io/org/repo:v1.0.0
+//	oci://ghcr.io/org/repo?digest=sha256:… →  ghcr.io/org/repo@sha256:…
 func ociRefFromURL(u *url.URL) string {
-	return u.Host + u.Path
+	base := u.Host + u.Path
+
+	// Query params take precedence and are converted to standard OCI ref notation.
+	if tag := u.Query().Get("tag"); tag != "" {
+		return base + ":" + tag
+	}
+
+	if digest := u.Query().Get("digest"); digest != "" {
+		return base + "@" + digest
+	}
+
+	return base
 }
 
 const (
@@ -316,6 +340,90 @@ const (
 	// filePerms is the default permission mask for extracted regular files.
 	filePerms = 0644
 )
+
+// extractLayer dispatches to the correct extractor based on media type and
+// magic bytes. ZIP archives (OpenTofu module spec, media type "archive/zip")
+// are handled separately from tar/tar.gz archives.
+func extractLayer(mediaType string, rc io.Reader, dst string) error {
+	if isZipMediaType(mediaType) {
+		return extractZipLayer(rc, dst)
+	}
+
+	return extractTarLayer(mediaType, rc, dst)
+}
+
+// isZipMediaType returns true for media types that indicate a zip archive.
+func isZipMediaType(mediaType string) bool {
+	return mediaType == "archive/zip" ||
+		mediaType == "application/zip" ||
+		mediaType == "application/vnd.opentofu.modulepkg"
+}
+
+// extractZipLayer reads a zip archive from rc into dst.
+// rc is buffered in memory first because archive/zip requires an io.ReaderAt.
+func extractZipLayer(rc io.Reader, dst string) error {
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return fmt.Errorf("oci: reading zip layer: %w", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return fmt.Errorf("oci: opening zip archive: %w", err)
+	}
+
+	if err := os.MkdirAll(dst, dirPerms); err != nil {
+		return fmt.Errorf("oci: creating destination %s: %w", dst, err)
+	}
+
+	for _, f := range zr.File {
+		target := filepath.Join(dst, filepath.Clean("/"+f.Name)) //nolint:gosec
+
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(target, dirPerms); err != nil {
+				return fmt.Errorf("oci: creating directory %s: %w", target, err)
+			}
+
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(target), dirPerms); err != nil {
+			return fmt.Errorf("oci: creating parent for %s: %w", target, err)
+		}
+
+		perm := f.Mode()
+		if perm == 0 {
+			perm = filePerms
+		}
+
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+		if err != nil {
+			return fmt.Errorf("oci: creating %s: %w", target, err)
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			_ = out.Close()
+
+			return fmt.Errorf("oci: opening zip entry %s: %w", f.Name, err)
+		}
+
+		if _, err := io.Copy(out, rc); err != nil { //nolint:gosec
+			_ = rc.Close()
+			_ = out.Close()
+
+			return fmt.Errorf("oci: writing %s: %w", target, err)
+		}
+
+		_ = rc.Close()
+
+		if err := out.Close(); err != nil {
+			return fmt.Errorf("oci: closing %s: %w", target, err)
+		}
+	}
+
+	return nil
+}
 
 // extractTarLayer decompresses and untars rc into dst.
 // Gzip detection first checks the media type; if that is inconclusive it

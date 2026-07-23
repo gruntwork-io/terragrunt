@@ -100,7 +100,7 @@ func TestOCIGetter_GetExtractsModuleFiles(t *testing.T) {
 	t.Parallel()
 
 	srv, _ := newOCITestServer(t, map[string]string{
-		testMainTF:     `resource "null_resource" "a" {}`,
+		testMainTF:     testNullResource,
 		"variables.tf": "variable \"name\" {}",
 	})
 
@@ -185,7 +185,7 @@ func TestOCIGetter_CASCachesSecondRun(t *testing.T) {
 	t.Parallel()
 
 	srv, state := newOCITestServer(t, map[string]string{
-		testMainTF:  `resource "null_resource" "a" {}`,
+		testMainTF:  testNullResource,
 		"README.md": "hello",
 	})
 
@@ -231,4 +231,58 @@ func TestOCIGetter_CASCachesSecondRun(t *testing.T) {
 
 	assert.Equal(t, firstBlobs, state.blobGets.Load(),
 		"second run must hit the CAS via the digest probe and skip the blob GET")
+}
+
+// ---------------------------------------------------------------------------
+// Get — OpenTofu ?tag= query parameter syntax
+// ---------------------------------------------------------------------------
+
+func TestOCIGetter_GetQueryParamTagSyntax(t *testing.T) {
+	t.Parallel()
+
+	srv, _ := newOCITestServer(t, map[string]string{
+		testMainTF: testNullResource,
+	})
+
+	// ?tag= is the OpenTofu module source syntax; ociRefFromURL converts it
+	// to standard OCI :tag notation before passing to oras-go.
+	ref := srv.Listener.Addr().String() + "/org/module"
+	dst := helpers.TmpDirWOSymlinks(t)
+
+	g := getter.NewOCIGetter(logger.CreateLogger(), vfs.NewOSFS())
+
+	err := g.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://" + ref + "?tag=v1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(dst, testMainTF))
+}
+
+// ---------------------------------------------------------------------------
+// Get — ZIP layer extraction (OpenTofu module packaging spec)
+// ---------------------------------------------------------------------------
+
+func TestOCIGetter_GetExtractsZipLayer(t *testing.T) {
+	t.Parallel()
+
+	srv, _ := newOCITestServerWithMediaType(t, map[string]string{
+		testMainTF:   testNullResource,
+		"outputs.tf": "output \"id\" { value = null_resource.a.id }",
+	}, "archive/zip")
+
+	ref := srv.Listener.Addr().String() + "/org/module:v1.0.0"
+	dst := helpers.TmpDirWOSymlinks(t)
+
+	g := getter.NewOCIGetter(logger.CreateLogger(), vfs.NewOSFS())
+
+	err := g.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://" + ref,
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(dst, testMainTF))
+	require.FileExists(t, filepath.Join(dst, "outputs.tf"))
 }
