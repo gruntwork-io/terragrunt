@@ -483,7 +483,9 @@ func (repo *Repo) performClone(
 		return ErrRemoteCloneFSNotOS
 	}
 
-	var clientOpts []getter.Option
+	clientOpts := []getter.Option{
+		getter.WithHTTP(v.HTTP),
+	}
 
 	if repo.allowCAS {
 		cloneDepth := repo.casCloneDepth
@@ -512,7 +514,6 @@ func (repo *Repo) performClone(
 		clientOpts = append(
 			clientOpts,
 			getter.WithCAS(casStore, v, &cloneOpts),
-			getter.WithHTTP(v.HTTP),
 		)
 	}
 

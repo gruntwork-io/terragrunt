@@ -107,8 +107,8 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 	m := map[string]getter.Getter{
 		SchemeS3:    new(S3Getter),
 		SchemeGCS:   new(gcs.Getter),
-		SchemeHTTP:  &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpExtra), Scheme: SchemeHTTP},
-		SchemeHTTPS: &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpsExtra), Scheme: SchemeHTTPS},
+		SchemeHTTP:  &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpExtra), Scheme: SchemeHTTP},
+		SchemeHTTPS: &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpsExtra), Scheme: SchemeHTTPS},
 		SchemeHg:    new(getter.HgGetter),
 		SchemeSMB:   new(getter.SmbClientGetter),
 	}
@@ -169,8 +169,8 @@ func buildGetters(b *builder) []Getter {
 
 	gitGetter = NewGitGetter()
 
-	httpGetter = &HTTPSchemeGetter{Inner: newHTTPGetter(b.httpExtraHeader), Scheme: SchemeHTTP}
-	httpsGetter = &HTTPSchemeGetter{Inner: newHTTPGetter(b.httpsExtraHeader), Scheme: SchemeHTTPS}
+	httpGetter = &HTTPSchemeGetter{Inner: newHTTPGetter(b.httpClient, b.httpExtraHeader), Scheme: SchemeHTTP}
+	httpsGetter = &HTTPSchemeGetter{Inner: newHTTPGetter(b.httpClient, b.httpsExtraHeader), Scheme: SchemeHTTPS}
 
 	hgGetter := new(getter.HgGetter)
 	smbClientGetter := new(getter.SmbClientGetter)
@@ -245,8 +245,12 @@ func buildGetters(b *builder) []Getter {
 // default getter; pass a non-nil header set to inject auth (used by
 // WithHTTPAuth and WithHTTPSAuth for GitHub release downloads).
 //
+// c is the venv HTTP client so http(s) fetches stay on the venv rather
+// than escaping to go-getter's default client; a nil c preserves that
+// default.
+//
 // XTerraformGet is left enabled (the default) so X-Terraform-Get
 // redirects continue to work.
-func newHTTPGetter(extra http.Header) *getter.HttpGetter {
-	return &getter.HttpGetter{Netrc: true, Header: extra}
+func newHTTPGetter(c vhttp.Client, extra http.Header) *getter.HttpGetter {
+	return &getter.HttpGetter{Netrc: true, Header: extra, Client: c}
 }

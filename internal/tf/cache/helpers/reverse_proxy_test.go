@@ -23,7 +23,6 @@ func TestReverseProxyNewRequestNilTransportPanics(t *testing.T) {
 	target := &url.URL{Scheme: "https", Host: "example.test"}
 
 	assert.Panics(t, func() {
-		err := proxy.NewRequest(ctx, target)
-		t.Errorf("NewRequest returned %v instead of panicking", err)
+		_ = proxy.NewRequest(ctx, target)
 	})
 }

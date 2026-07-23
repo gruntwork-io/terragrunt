@@ -670,6 +670,7 @@ func BuildDownloadClient(
 
 	clientOpts := []getter.Option{
 		getter.WithLogger(l),
+		getter.WithHTTP(v.HTTP),
 		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
