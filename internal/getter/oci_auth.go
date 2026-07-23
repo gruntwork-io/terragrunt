@@ -97,11 +97,10 @@ func ociUserAgent() string {
 // most specific ambient entry depends on the repository being pulled.
 type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
 
-// NewOCIRepositoryStore returns the default [OCINewStoreFunc]: static
-// environment credentials when set, otherwise ambient discovery of Docker and
-// containers auth files, and finally the Docker credential helpers those files
-// configure. Helpers are re-minted per run, so registries with expiring tokens
-// (e.g. Amazon ECR via ecr-login) work without a baked-in login.
+// NewOCIRepositoryStore returns the default [OCINewStoreFunc]: the OpenTofu
+// oci_credentials CLI-config blocks, then ambient discovery of Docker and
+// containers auth files and the credential helpers they configure (e.g. Amazon
+// ECR via ecr-login).
 func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	v.RequireFS()
 	v.RequireEnv()
@@ -138,10 +137,9 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	}
 }
 
-// ociCredentialFunc resolves credentials in precedence order: static
-// environment credentials (Tier-1), then OpenTofu CLI-config oci_credentials
-// blocks (Tier-3), then ambient Docker/containers discovery and its helpers
-// (Tier-2 / Tier-1b).
+// ociCredentialFunc resolves credentials in precedence order: OpenTofu
+// CLI-config oci_credentials blocks, then ambient Docker/containers discovery
+// and its helpers, then the oci_default_credentials helper.
 func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) {
 	tofu := loadOCITofuCredentials(l, v)
 	ambient := ociAmbientCredentialFunc(l, v)

@@ -24,19 +24,16 @@ terraform {
 ```
 
 Specify either `tag` or `digest`; omitting both selects the `latest` tag.
-`//subdir` selectors are supported. Authentication covers static credentials
-via the interim `TG_TMP_OCI_*` environment variables and read-only ambient
-discovery of Docker and containers auth files, following the containers-auth
-search order OpenTofu uses. Static credentials can be limited to one registry with
-`TG_TMP_OCI_REGISTRY`; other registries then fall back to ambient discovery.
-Without it, the static credentials may be offered to any registry the process
-contacts, so scope them or avoid setting them when talking to unrelated or
-untrusted registries. Credential helpers configured in the Docker config (`credHelpers` and
-`credsStore`, such as `ecr-login`) are invoked and re-minted on every run, so
-ECR and other helper-backed registries work without a baked-in login.
-Configured credentials from OpenTofu's CLI config (`oci_credentials` and
-`oci_default_credentials` in `.tofurc` / `.terraformrc`) are honored too, and
-take precedence over ambient discovery, so one configuration serves both tools.
+`//subdir` selectors are supported. Authentication is file-based, matching OpenTofu: configured credentials come
+from OpenTofu's CLI config (`oci_credentials` and `oci_default_credentials`
+blocks in `.tofurc` / `.terraformrc`), and Terragrunt also reads ambient Docker
+and containers auth files (`~/.docker/config.json` and containers `auth.json`),
+following the containers-auth search order OpenTofu uses. A per-registry
+`oci_credentials` block takes precedence over ambient discovery; credential
+helpers configured in either place (`credHelpers` / `credsStore` or a block's
+`docker_credentials_helper`, such as `ecr-login`) are invoked whenever the
+registry needs authentication, so ECR and other helper-backed registries work
+without a baked-in login.
 When the experiment is disabled, `oci://` sources remain unsupported.
 
 ### `oci` - How to enable it
