@@ -169,6 +169,9 @@ type Discovery struct {
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
 
+	// parseStackConfigs determines whether to parse discovered stack config files.
+	parseStackConfigs bool
+
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
 

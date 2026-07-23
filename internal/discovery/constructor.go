@@ -19,6 +19,7 @@ type DiscoveryCommandOptions struct {
 	Exclude           bool
 	Include           bool
 	Reading           bool
+	ParseStackConfigs bool
 	WithRequiresParse bool
 	WithRelationships bool
 }
@@ -63,6 +64,10 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 
 	if opts.Reading {
 		d = d.WithReadFiles()
+	}
+
+	if opts.ParseStackConfigs {
+		d = d.WithParseStackConfigs()
 	}
 
 	if opts.QueueConstructAs != "" {

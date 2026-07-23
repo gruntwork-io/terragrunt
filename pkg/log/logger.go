@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -340,14 +341,30 @@ func (logger *logger) setEntry(entry *logrus.Entry) *logger {
 func (logger *logger) clone() *logger {
 	newLogger := *logger
 
-	parentLogger := newLogger.Logger
+	parentLogger := logger.Logger
 
-	newLogger.Logger = logrus.New()
-	newLogger.Logger.SetOutput(parentLogger.Out)
-	newLogger.Logger.SetLevel(parentLogger.Level)
-	newLogger.Logger.SetFormatter(parentLogger.Formatter)
-	newLogger.Logger.ReplaceHooks(parentLogger.Hooks)
-	newLogger.Entry = newLogger.Dup()
+	// The new logrus logger is assembled first and only attached to a
+	// duplicated entry: assigning via the promoted newLogger.Logger field would
+	// write through the still-shared *logrus.Entry and redirect the parent onto
+	// the new logger.
+	newLogrusLogger := logrus.New()
+	newLogrusLogger.SetOutput(parentLogger.Out)
+	newLogrusLogger.SetLevel(parentLogger.GetLevel())
+	newLogrusLogger.SetFormatter(parentLogger.Formatter)
+
+	// The hook registry is copied bucket by bucket so that hooks added to the
+	// clone (e.g. via WithOptions) don't mutate the parent's registry through
+	// the shared map.
+	hooks := make(logrus.LevelHooks, len(parentLogger.Hooks))
+	for level, levelHooks := range parentLogger.Hooks {
+		hooks[level] = slices.Clone(levelHooks)
+	}
+
+	newLogrusLogger.ReplaceHooks(hooks)
+
+	entry := logger.Dup()
+	entry.Logger = newLogrusLogger
+	newLogger.Entry = entry
 
 	return &newLogger
 }

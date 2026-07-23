@@ -103,6 +103,14 @@ func (d *Discovery) WithParseIncludes() *Discovery {
 	return d
 }
 
+// WithParseStackConfigs enables parsing of discovered stack config files, populating
+// each stack component's config. Parsing is best-effort: a stack whose config fails
+// to parse is left without one.
+func (d *Discovery) WithParseStackConfigs() *Discovery {
+	d.parseStackConfigs = true
+	return d
+}
+
 // WithReadFiles enables parsing for file reading information.
 func (d *Discovery) WithReadFiles() *Discovery {
 	d.readFiles = true

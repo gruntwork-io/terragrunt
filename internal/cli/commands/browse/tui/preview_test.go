@@ -1,0 +1,151 @@
+package tui_test
+
+import (
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestFilePreviewRendersSelectedFile(t *testing.T) {
+	t.Parallel()
+
+	const content = "inputs = {}\n"
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte(content), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorDisabled)
+	m = press(t, m, 'l') // into the unit, selecting terragrunt.hcl
+
+	sel := m.Selected()
+	require.NotNil(t, sel)
+	assert.Equal(t, "terragrunt.hcl", sel.Name())
+	assert.Equal(t, content, sel.Preview())
+}
+
+func TestFilePreviewColorHighlights(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorEnabled)
+	m = press(t, m, 'l')
+
+	assert.Contains(t, m.Selected().Preview(), "\x1b[", "expected ANSI escapes in highlighted preview")
+}
+
+func TestFilePreviewBinary(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/blob", []byte("a\x00b"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorDisabled)
+	m = press(t, m, 'l') // into the unit; "blob" sorts before "terragrunt.hcl"
+
+	sel := m.Selected()
+	require.NotNil(t, sel)
+	assert.Equal(t, "blob", sel.Name())
+	assert.Contains(t, sel.Preview(), "binary")
+}
+
+func TestFilePreviewTreatsNulPastSniffWindowAsText(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/log.txt", []byte("ok\x00"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorDisabled, tui.WithBinarySniffLen(2))
+	m = press(t, m, 'l')
+
+	sel := m.Selected()
+	require.Equal(t, "log.txt", sel.Name())
+	assert.Contains(t, sel.Preview(), "ok")
+	assert.NotContains(t, sel.Preview(), "binary")
+}
+
+func TestFilePreviewReadsAtMostTheByteLimit(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/big.txt", []byte("HEADtail"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorDisabled, tui.WithPreviewByteLimit(4))
+	m = press(t, m, 'l')
+
+	sel := m.Selected()
+	require.Equal(t, "big.txt", sel.Name())
+	assert.Equal(t, "HEAD", sel.Preview())
+}
+
+func TestMarkdownPreviewIsStyled(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/README.md", []byte("# Heading\n\nBody text.\n"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorEnabled)
+	m = press(t, m, 'l')
+
+	sel := m.Selected()
+	require.Equal(t, "README.md", sel.Name())
+	assert.Contains(t, sel.Preview(), "Heading")
+	assert.Contains(t, sel.Preview(), "\x1b[", "markdown should be rendered with styling")
+}
+
+func TestFilePreviewStripsTerminalControlSequences(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/evil.txt", []byte("before\x1b]0;pwned\x07after\r\nnext"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorDisabled)
+	m = press(t, m, 'l')
+
+	sel := m.Selected()
+	require.Equal(t, "evil.txt", sel.Name())
+
+	preview := sel.Preview()
+	assert.NotContains(t, preview, "\x1b", "escape bytes must not pass through to the terminal")
+	assert.NotContains(t, preview, "\x07")
+	assert.Contains(t, preview, "before")
+	assert.Contains(t, preview, "after\nnext", "CRLF should render as a plain newline")
+}
+
+func TestFilePreviewLexesByContentWithoutExtension(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/bootstrap", []byte("#!/bin/bash\necho hello\n"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorEnabled)
+	m = press(t, m, 'l')
+
+	sel := m.Selected()
+	require.Equal(t, "bootstrap", sel.Name())
+	assert.Contains(t, sel.Preview(), "\x1b[", "a shebang should select a lexer by content and highlight it")
+}

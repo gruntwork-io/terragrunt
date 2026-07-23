@@ -182,6 +182,44 @@ func TestReadFile(t *testing.T) {
 	})
 }
 
+func TestReadFileLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads only the prefix of a longer file", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fs, "/test.txt", []byte("0123456789"), 0644))
+
+		data, err := vfs.ReadFileLimit(fs, "/test.txt", 4)
+
+		require.NoError(t, err)
+		assert.Equal(t, []byte("0123"), data)
+	})
+
+	t.Run("reads the whole file when it is under the limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fs, "/test.txt", []byte("short"), 0644))
+
+		data, err := vfs.ReadFileLimit(fs, "/test.txt", 4096)
+
+		require.NoError(t, err)
+		assert.Equal(t, []byte("short"), data)
+	})
+
+	t.Run("errors on a non-existent file", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+
+		_, err := vfs.ReadFileLimit(fs, "/nonexistent.txt", 4096)
+
+		require.Error(t, err)
+	})
+}
+
 func TestSymlink(t *testing.T) {
 	t.Parallel()
 

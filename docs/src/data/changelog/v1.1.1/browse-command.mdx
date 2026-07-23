@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "experiments-added"
+---
+
+#### `browse` — Interactive browser for your estate
+
+The new `browse-tui` experiment adds the [`terragrunt browse`](/reference/cli/commands/browse) command. With the experiment enabled, `terragrunt browse` opens a three-column Terminal User Interface (TUI) browser of your infrastructure estate: the parent directory on the left, the current directory in the middle, and a detail pane on the right showing metadata for the highlighted unit, stack, or directory. The browser opens immediately and fills in metadata as discovery completes in the background.
+
+Enable it with `--experiment browse-tui` or `TG_EXPERIMENT=browse-tui`. See the [experiment documentation](/reference/experiments/active#browse-tui) for the keybindings, search, and the criteria for stabilization.

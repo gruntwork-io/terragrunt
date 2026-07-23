@@ -86,6 +86,8 @@ const (
 	// records through the configured logs exporter and correlating them with
 	// traces via the active span.
 	OtelLogs = "otel-logs"
+	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
+	BrowseTUI = "browse-tui"
 )
 
 const (
@@ -182,6 +184,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OtelLogs,
+		},
+		{
+			Name: BrowseTUI,
 		},
 	}
 }

@@ -15,14 +15,13 @@ import (
 
 	"charm.land/lipgloss/v2/tree"
 	"github.com/charmbracelet/x/term"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
-	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
-	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -43,31 +42,13 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 		return err
 	}
 
-	// We do worktree generation here instead of in the discovery constructor
-	// so that we can defer cleanup in the same context.
-	gitFilters := opts.Filters.UniqueGitFilters()
+	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, opts.TerragruntOptions, d)
 
-	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
-		WorkingDir:     opts.WorkingDir,
-		GitExpressions: gitFilters,
-		Experiments:    opts.Experiments,
-	})
-	if worktreeErr != nil {
-		return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
-	}
+	defer cleanupWorktrees(ctx)
 
-	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l)
-		if cleanupErr != nil {
-			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
-		}
-	}()
-
-	if err := generate.WorktreeStacks(ctx, l, v, opts.TerragruntOptions, worktrees); err != nil {
+	if err != nil {
 		return err
 	}
-
-	d = d.WithWorktrees(worktrees)
 
 	var (
 		components  component.Components
@@ -234,21 +215,16 @@ func discoveredToListed(
 
 // outputText outputs the discovered components in text format.
 func outputText(l log.Logger, w io.Writer, components dag.ListedComponents) error {
-	colorizer := dag.NewColorizer(shouldColor(l))
+	colorizer := dag.NewColorizer(stdout.ShouldColor(l))
 
 	return renderTabular(w, components, colorizer)
 }
 
 // outputLong outputs the discovered components in long format.
 func outputLong(l log.Logger, w io.Writer, opts *Options, components dag.ListedComponents) error {
-	colorizer := dag.NewColorizer(shouldColor(l))
+	colorizer := dag.NewColorizer(stdout.ShouldColor(l))
 
 	return renderLong(w, opts, components, colorizer)
-}
-
-// shouldColor returns true if the output should be colored.
-func shouldColor(l log.Logger) bool {
-	return !l.Formatter().DisabledColors() && !stdout.IsRedirected()
 }
 
 // renderLong renders the components in a long format.
@@ -350,7 +326,7 @@ func outputTree(
 	components dag.ListedComponents,
 	sort string,
 ) error {
-	s := dag.NewTreeStyler(shouldColor(l))
+	s := dag.NewTreeStyler(stdout.ShouldColor(l))
 
 	return renderTree(w, opts, components, s, sort)
 }

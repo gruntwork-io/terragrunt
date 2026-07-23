@@ -1,0 +1,27 @@
+---
+name: browse-tui
+status: active
+since: "1.1.1"
+---
+
+Adds the `terragrunt browse` command, which browses the discovered infrastructure estate in an interactive terminal user interface (TUI).
+
+### `browse-tui` - What it does
+
+With the experiment enabled, `terragrunt browse` opens a [yazi](https://yazi-rs.github.io/)-style, three-column browser of the discovered estate. See the [`browse` command documentation](/reference/cli/commands/browse) for usage and keybindings.
+
+Running `terragrunt browse` without the experiment enabled is an error.
+
+### `browse-tui` - How to provide feedback
+
+TODO: Add a link to the relevant GitHub discussion or issue.
+
+### `browse-tui` - Criteria for stabilization
+
+To transition the `browse-tui` feature to a stable release, the following must be addressed:
+
+- [ ] The browser renders large estates without noticeable latency.
+- [ ] Actions for running commands against a highlighted unit or stack are implemented.
+- [ ] The same TUI is shared with the `catalog` scaffolding experience.
+- [ ] Positive feedback from users browsing real infrastructure estates.
+- [ ] Integration tests covering the core browsing workflow.

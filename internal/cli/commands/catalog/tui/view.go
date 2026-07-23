@@ -45,7 +45,7 @@ func (m Model) View() tea.View {
 		s = ""
 	}
 
-	v := tea.NewView(s)
+	v := tea.NewView(m.toasts.Overlay(s, m.width, m.height))
 	v.AltScreen = true
 
 	return v

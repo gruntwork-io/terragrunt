@@ -306,6 +306,53 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	return depPaths, nil
 }
 
+// storeStackConfigs parses each discovered stack's config file and stores the
+// result on the stack component. The parse phase only stores unit configs, so
+// this runs as a separate pass over the final component set. Parsing is
+// best-effort: a stack that fails to parse is left without config and
+// consumers simply omit those details.
+func storeStackConfigs(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	components component.Components,
+) {
+	for _, c := range components {
+		if ctx.Err() != nil {
+			return
+		}
+
+		stack, ok := c.(*component.Stack)
+		if !ok {
+			continue
+		}
+
+		stackDir := stack.Path()
+		stackFile := filepath.Join(stackDir, stack.ConfigFile())
+
+		// A fresh context per stack scopes it to that stack's file and values, so
+		// a config referencing values.* parses instead of failing on missing
+		// values (and shows its definitions in consumers like browse).
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+		values, err := config.ReadValues(ctx, pctx, l, stackDir)
+		if err != nil {
+			l.Debugf("Skipping stack config %s: %v", stackFile, err)
+
+			continue
+		}
+
+		cfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackFile, values)
+		if err != nil {
+			l.Debugf("Skipping stack config %s: %v", stackFile, err)
+
+			continue
+		}
+
+		stack.StoreConfig(cfg)
+	}
+}
+
 // stackDependencyPaths expands stack directory dependency paths into their constituent unit paths.
 // Autoinclude-declared dependencies are already folded into the parsed config by the partial-parse
 // merge (which honors enabled/disabled and same-name override), so they arrive via depPaths here.

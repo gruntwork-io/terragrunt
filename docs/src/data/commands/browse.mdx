@@ -1,0 +1,71 @@
+---
+name: browse
+path: browse
+category: discovery
+sidebar:
+  order: 850
+description: Browse Terragrunt configurations in an interactive TUI.
+experiment:
+  control: browse-tui
+  name: Experimental
+usage: |
+  The `browse` command opens an interactive Terminal User Interface (TUI) for exploring the Terragrunt configurations discovered in your codebase.
+
+  It presents a three-column browser inspired by yazi: the parent directory on the left, the current directory in the middle, and a detail pane on the right showing metadata for the highlighted entry.
+examples:
+  - description: |
+      Browse the configurations discovered in the current directory.
+    code: |
+      terragrunt browse
+  - description: |
+      Browse the configurations discovered in a different directory.
+    code: |
+      terragrunt browse --working-dir /path/to/working/dir
+---
+
+## Keybindings
+
+| Key(s)              | Action                                             |
+| ------------------- | -------------------------------------------------- |
+| `j` / `↓`           | Move the cursor down                               |
+| `k` / `↑`           | Move the cursor up                                 |
+| `gg` / `home`       | Jump to the first entry in the directory           |
+| `G` / `end`         | Jump to the last entry in the directory            |
+| `pgup` / `pgdn`     | Move the cursor up or down a page                  |
+| `l` / `→` / `enter` | Descend into the highlighted directory             |
+| `h` / `←`           | Return to the parent directory                     |
+| `/`                 | Search the current directory                       |
+| `n`                 | Jump to the next search match                      |
+| `N`                 | Jump to the previous search match                  |
+| `esc`               | Clear the search; quit when no search is active    |
+| `q` / `ctrl+c`      | Quit                                               |
+
+While the search input is open, keys edit the query instead; `ctrl+c` still quits.
+
+## Navigation
+
+The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
+
+![browse navigation](../../assets/img/screenshots/browse-navigation.gif)
+
+## Search
+
+A search matches entries in the current directory. As you type, matching entries are marked, the cursor jumps to the first match, and a match count appears along the bottom. Pressing `enter` keeps the search applied, leaving the marks in place so you can cycle through the matches. The search also clears on its own when you move into another directory.
+
+![browse search](../../assets/img/screenshots/browse-search.gif)
+
+## Detail Pane
+
+The detail pane shows metadata for the highlighted entry: its kind, path, module source, and its dependencies, dependents, and the files it reads (shown relative to the unit). Plain directories show a count of the units and stacks they contain.
+
+![browse detail pane](../../assets/img/screenshots/browse-detail-pane.gif)
+
+## Discovery
+
+The browser opens immediately, reading the filesystem to fill the columns, while discovery runs in the background.
+
+Warnings raised during discovery (a dependency cycle, for example) appear briefly as a toast in the top-right corner. A discovery failure surfaces the same way, and the browser keeps showing whatever partial results discovery produced.
+
+![browse discovery toast](../../assets/img/screenshots/browse-discovery.gif)
+
+`browse` reuses the same discovery the other discovery commands rely on, so the configurations it shows match what `find` and `list` discover.
