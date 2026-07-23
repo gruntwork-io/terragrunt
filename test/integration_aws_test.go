@@ -2642,14 +2642,13 @@ func TestAwsStackDependencyMockOutputsFromRemoteState(t *testing.T) {
 }
 
 // TestAwsMockOutputsFromRemoteStateMissingBucket pins that a dependency read falls back to
-// mock_outputs when the state bucket itself doesn't exist yet (NoSuchBucket), not just when the
-// state object is missing (NoSuchKey). This lets a unit be planned before its dependency's
-// environment has been bootstrapped.
+// mock_outputs when the state bucket itself doesn't exist yet (NoSuchBucket), not only when the
+// state object is missing (NoSuchKey).
 func TestAwsMockOutputsFromRemoteStateMissingBucket(t *testing.T) { //nolint: paralleltest
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
-	// The bucket is intentionally never pre-created, so the dependency reads hit a missing bucket.
-	// The unit's own --backend-bootstrap creates it during init, so clean up regardless.
+	// Never pre-created, so the dependency reads hit a missing bucket; init bootstraps it, so clean
+	// up regardless.
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteState)
@@ -2670,8 +2669,6 @@ func TestAwsMockOutputsFromRemoteStateMissingBucket(t *testing.T) { //nolint: pa
 
 	environmentPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteState, "env1")
 
-	// Nothing is applied, so the state bucket has never been created. app2's dependencies (app1 and
-	// app3) must fall back to their mock_outputs rather than failing on the missing bucket.
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(

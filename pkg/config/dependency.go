@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -1046,21 +1048,22 @@ func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool)
 	}
 }
 
-// isAwsS3StateMissing reports whether err means the dependency's S3 remote state isn't there yet:
-// the state object (NoSuchKey / NotFound) or the whole bucket (NoSuchBucket). Both are the "not
-// applied yet" signal that lets a dependency fall back to mock outputs, the latter covering a
-// dependency on an environment whose state bucket hasn't been bootstrapped. A permissions or
-// connectivity failure is not this, and stays fatal.
+// isAwsS3StateMissing reports whether err means the dependency's S3 state object or bucket doesn't
+// exist yet, the signal to fall back to mock outputs. It matches on the error code because GetObject
+// returns NoSuchBucket as a generic API error, not a *s3types.NoSuchBucket that errors.As could
+// match; AWS SDK v2 exposes no constants for the codes.
 func isAwsS3StateMissing(err error) bool {
-	if err == nil {
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) {
 		return false
 	}
 
-	errStr := err.Error()
-
-	return strings.Contains(errStr, "NoSuchKey") ||
-		strings.Contains(errStr, "NoSuchBucket") ||
-		strings.Contains(errStr, "NotFound")
+	switch apiErr.ErrorCode() {
+	case "NoSuchKey", "NoSuchBucket", "NotFound":
+		return true
+	default:
+		return false
+	}
 }
 
 // shouldFallBackToMockOutputs reports whether a failed dependency output fetch should fall back to
