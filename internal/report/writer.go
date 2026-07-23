@@ -452,7 +452,10 @@ func nameOfPath(path string, workingDir string) string {
 		return filepath.Base(path)
 	}
 
-	prefix := workingDir + string(os.PathSeparator)
+	prefix := workingDir
+	if !strings.HasSuffix(prefix, string(os.PathSeparator)) {
+		prefix += string(os.PathSeparator)
+	}
 
 	if !strings.HasPrefix(path, prefix) {
 		return path

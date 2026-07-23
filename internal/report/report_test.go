@@ -1518,8 +1518,8 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 	// - Worktree path: /tmp/terragrunt-worktree-xxx/original/repo
 	// - Unit path in worktree: /tmp/terragrunt-worktree-xxx/original/repo/module/unit
 
-	originalRepoDir := "/original-repo"
-	worktreeDir := "/worktree"
+	originalRepoDir := filepath.FromSlash("/original-repo")
+	worktreeDir := filepath.FromSlash("/worktree")
 	unitPath := filepath.Join(worktreeDir, "module", "unit")
 
 	// Create a report with the original repo as working dir (simulating non-worktree scenario)
@@ -1552,7 +1552,7 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 
 	// The name should be relative to the worktree dir, not the original repo dir
 	// Without the fix, this would be the full absolute path since unitPath doesn't start with originalRepoDir
-	assert.Equal(t, "module/unit", runs[0].Name,
+	assert.Equal(t, filepath.FromSlash("module/unit"), runs[0].Name,
 		"Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
 }
 
@@ -1562,8 +1562,8 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	originalRepoDir := "/original-repo"
-	worktreeDir := "/worktree"
+	originalRepoDir := filepath.FromSlash("/original-repo")
+	worktreeDir := filepath.FromSlash("/worktree")
 	unitPath := filepath.Join(worktreeDir, "module", "unit")
 
 	// Create a report with the original repo as working dir
@@ -1589,8 +1589,41 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 	require.Len(t, records, 2) // header + 1 data row
 
 	// The name (first column) should be relative to worktree dir
-	assert.Equal(t, "module/unit", records[1][0],
+	assert.Equal(t, filepath.FromSlash("module/unit"), records[1][0],
 		"Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
+}
+
+// TestWriteJSONWithRootWorkingDir verifies that a root working directory, which already
+// ends in a separator, still trims to a relative name rather than falling back to the
+// absolute path.
+func TestWriteJSONWithRootWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	rootDir := string(os.PathSeparator)
+	unitPath := filepath.Join(rootDir, "module", "unit")
+
+	r := report.NewReport().WithWorkingDir(rootDir)
+
+	run := newRun(t, unitPath)
+	r.AddRun(l, run)
+	r.EndRun(l, unitPath, report.WithResult(report.ResultSucceeded))
+
+	var buf bytes.Buffer
+
+	err := r.WriteJSON(&buf)
+	require.NoError(t, err)
+
+	var runs []report.JSONRun
+
+	err = json.Unmarshal(buf.Bytes(), &runs)
+	require.NoError(t, err)
+
+	require.Len(t, runs, 1)
+
+	assert.Equal(t, filepath.FromSlash("module/unit"), runs[0].Name,
+		"Run name should be relative to the root working dir, not the absolute path")
 }
 
 // TestParseJSONRuns verifies that JSON report data can be parsed from bytes.
