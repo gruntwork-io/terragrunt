@@ -135,6 +135,8 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		return err
 	}
 
+	fs := pctx.Venv.FS
+
 	genOpts := generateOpts{
 		rootWorkingDir:  pctx.RootWorkingDir,
 		logShowAbsPaths: pctx.LogShowAbsPaths,
@@ -150,9 +152,8 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		casInstance:     cs.Instance,
 		casVenv:         cs.Venv,
 		strictControls:  pctx.StrictControls,
+		fs:              fs,
 	}
-
-	fs := pctx.Venv.FS
 
 	if err := generateUnits(ctx, l, fs, &genOpts, pool, stackFile.Units); err != nil {
 		return err
@@ -335,7 +336,10 @@ func setupCAS(l log.Logger, enabled bool, cloneDepth int) (casSetup, error) {
 		return casSetup{}, err
 	}
 
-	c, err := cas.New(cas.WithCloneDepth(cloneDepth))
+	c, err := cas.New(
+		cas.WithCloneDepth(cloneDepth),
+		cas.WithOCIFetch(getter.NewCASFetchFunc(l)),
+	)
 	if err != nil {
 		l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", err)
 		return casSetup{}, nil
@@ -366,6 +370,7 @@ type generateOpts struct {
 	logShowAbsPaths bool
 	noStackValidate bool
 	casEnabled      bool
+	fs              vfs.FS
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -667,7 +672,7 @@ func fetchComponentSource(
 		})
 	}
 
-	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
+	if err := copyFiles(ctx, l, opts.fs, cmp.name, cmp.sourceDir, source, dest); err != nil {
 		return fmt.Errorf(
 			"failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
@@ -759,13 +764,13 @@ func isCASProtocol(source string) bool {
 // The function checks if the source is local or remote. If local, it copies the
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
-func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
+func copyFiles(ctx context.Context, l log.Logger, fs vfs.FS, identifier, sourceDir, src, dest string) error {
 	if !isLocal(l, sourceDir, src) {
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
 			return fmt.Errorf("failed to create directory %s for %s %w", dest, identifier, err)
 		}
 
-		if _, err := getter.GetAny(ctx, dest, src); err != nil {
+		if _, err := getter.GetAny(ctx, dest, src, getter.WithOCIRegistry(getter.NewOCIGetter(l, fs))); err != nil {
 			return fmt.Errorf("failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
 

@@ -87,6 +87,10 @@ func (c *CAS) ProcessStackComponent(
 		return c.processLocalStackComponent(ctx, l, v, repoURL, subdir)
 	}
 
+	if strings.HasPrefix(repoURL, "oci://") {
+		return c.processOCIStackComponent(ctx, l, v, repoURL, subdir)
+	}
+
 	v.RequireGit()
 
 	detectedURL, err := DetectRemoteSource(repoURL)
@@ -547,6 +551,96 @@ func isLocalPath(fs vfs.FS, source string) bool {
 	}
 
 	return info.IsDir()
+}
+
+// processOCIStackComponent handles oci:// sources in ProcessStackComponent.
+//
+// It calls the injected OCIFetchFunc to extract the artifact into a temporary
+// directory, then runs the same processDirectory pipeline as the remote git
+// clone path to rewrite nested sources to cas:: references. The manifest digest
+// is used as the deterministic root hash for buildSyntheticTree.
+//
+// Requires c.ociFetch to be set via [cas.WithOCIFetch]; returns an error with
+// clear instructions otherwise.
+func (c *CAS) processOCIStackComponent(
+	ctx context.Context,
+	l log.Logger,
+	v Venv,
+	repoURL, subdir string,
+) (*StackCASResult, error) {
+	if c.ociFetch == nil {
+		return nil, fmt.Errorf(
+			"oci:// stack sources require OCI support; pass cas.WithOCIFetch when constructing the CAS instance (source: %q)",
+			repoURL,
+		)
+	}
+
+	fetchDir, digest, fetchCleanup, err := c.ociFetch(ctx, l, v.FS, repoURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch OCI artifact %q: %w", repoURL, err)
+	}
+
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-oci-")
+	if err != nil {
+		if fetchCleanup != nil {
+			fetchCleanup()
+		}
+
+		return nil, fmt.Errorf("failed to create temp dir: %w", err)
+	}
+
+	cleanup := func() {
+		if fetchCleanup != nil {
+			fetchCleanup()
+		}
+
+		if rmErr := v.FS.RemoveAll(tempDir); rmErr != nil {
+			l.Warnf("cleanup error for %s: %v", tempDir, rmErr)
+		}
+	}
+
+	// Copy into a mutable temp dir so processDirectory can rewrite files
+	// without modifying the OCIFetchFunc's extracted tree.
+	repoRoot := filepath.Join(tempDir, "repo")
+
+	if err := c.copyTree(v, fetchDir, repoRoot); err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("failed to copy OCI content into working dir: %w", err)
+	}
+
+	contentDir := repoRoot
+
+	if subdir != "" {
+		if filepath.IsAbs(subdir) {
+			cleanup()
+
+			return nil, fmt.Errorf("%w: %q", ErrAbsoluteSource, subdir)
+		}
+
+		contentDir = filepath.Clean(filepath.Join(repoRoot, subdir))
+
+		rel, err := filepath.Rel(repoRoot, contentDir)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			cleanup()
+
+			return nil, fmt.Errorf("%w: %q", ErrSourceEscapesRepo, subdir)
+		}
+	}
+
+	if _, err := v.FS.Stat(contentDir); err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("subdir %q not found in OCI artifact: %w", subdir, err)
+	}
+
+	if err := c.processDirectory(ctx, l, v, repoRoot, contentDir, digest, HashSHA256); err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("failed to process OCI directory for CAS: %w", err)
+	}
+
+	return &StackCASResult{ContentDir: contentDir, Cleanup: cleanup}, nil
 }
 
 // processLocalStackComponent is the local-path analogue of the remote clone

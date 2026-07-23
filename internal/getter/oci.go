@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
@@ -376,6 +377,64 @@ func extractTarEntry(r io.Reader, hdr *tar.Header, dst string) error {
 	}
 
 	return nil
+}
+
+// NewCASFetchFunc returns a [cas.OCIFetchFunc] backed by an [OCIGetter].
+//
+// Wire this into [cas.New] via [cas.WithOCIFetch] to enable oci:// sources in
+// stack unit/stack CAS processing (ProcessStackComponent). The returned function:
+//
+//  1. Resolves the manifest digest (deterministic cache key for buildSyntheticTree).
+//  2. Extracts the artifact into a fresh temporary directory.
+//  3. Returns the directory path, the raw digest string, and a cleanup func.
+func NewCASFetchFunc(l log.Logger) cas.OCIFetchFunc {
+	return func(ctx context.Context, _ log.Logger, fs vfs.FS, src string) (string, string, func(), error) {
+		// Strip any //subdir suffix — fetch the whole artifact.
+		baseSrc, _ := SourceDirSubdir(src)
+
+		srcURL, err := url.Parse(baseSrc)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("oci: parsing source URL %q: %w", baseSrc, err)
+		}
+
+		ref := ociRefFromURL(srcURL)
+		g := NewOCIGetter(l, fs)
+
+		repo, err := g.newRepository(ref)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("oci: building repository client for %s: %w", ref, err)
+		}
+
+		desc, err := repo.Resolve(ctx, repo.Reference.Reference)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("oci: resolving %s: %w", ref, err)
+		}
+
+		digest := desc.Digest.String() // e.g. "sha256:abc123..."
+
+		tmpDir, err := vfs.MkdirTemp(fs, "", "terragrunt-oci-cas-fetch-")
+		if err != nil {
+			return "", "", nil, fmt.Errorf("oci: creating temp dir: %w", err)
+		}
+
+		cleanup := func() {
+			if rmErr := fs.RemoveAll(tmpDir); rmErr != nil {
+				l.Warnf("OCI CAS fetch cleanup: %v", rmErr)
+			}
+		}
+
+		if err := g.Get(ctx, &getter.Request{
+			Src:     src,
+			Dst:     tmpDir,
+			GetMode: getter.ModeDir,
+		}); err != nil {
+			cleanup()
+
+			return "", "", nil, fmt.Errorf("oci: extracting %q: %w", src, err)
+		}
+
+		return tmpDir, digest, cleanup, nil
+	}
 }
 
 // copyDir walks src and copies all files into dst, skipping skipFile.

@@ -92,6 +92,12 @@ func WithMutable(mutable bool) CloneOption {
 	return func(o *CloneOptions) { o.Mutable = mutable }
 }
 
+// OCIFetchFunc fetches an OCI artifact and returns the extracted directory,
+// the manifest digest (e.g. "sha256:abc…"), a cleanup function, and any error.
+// It is injected via [WithOCIFetch] to avoid an import cycle between this
+// package and internal/getter (which imports cas for CASGetter).
+type OCIFetchFunc func(ctx context.Context, l log.Logger, fs vfs.FS, src string) (dir, digest string, cleanup func(), err error)
+
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
 	blobStore  *Store
@@ -100,6 +106,7 @@ type CAS struct {
 	gitStore   *GitStore
 	storePath  string
 	cloneDepth int
+	ociFetch   OCIFetchFunc
 }
 
 // WithStorePath specifies a custom path for the content store.
@@ -110,6 +117,13 @@ func WithStorePath(path string) Option {
 	return func(c *CAS) {
 		c.storePath = path
 	}
+}
+
+// WithOCIFetch wires an OCIFetchFunc into CAS so that oci:// sources in stack
+// unit/stack blocks are handled without a git clone. Callers in internal/getter
+// supply the implementation via getter.NewCASFetchFunc.
+func WithOCIFetch(f OCIFetchFunc) Option {
+	return func(c *CAS) { c.ociFetch = f }
 }
 
 // WithCloneDepth sets git clone --depth for CAS. Positive values request a
