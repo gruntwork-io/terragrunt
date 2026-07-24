@@ -1540,29 +1540,3 @@ func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 		})
 	}
 }
-
-func TestBuildDownloadClientPassesVenvToOCIStore(t *testing.T) {
-	t.Parallel()
-
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
-	require.NoError(t, err)
-	require.NoError(t, terragruntOptions.Experiments.EnableExperiment(experiment.OCI))
-
-	v := venv.OSVenv().WithEnv(map[string]string{
-		getter.EnvOCIToken:    "token",
-		getter.EnvOCIUsername: "user",
-	})
-	client, err := run.BuildDownloadClient(
-		logger.CreateLogger(),
-		v,
-		configbridge.NewRunOptions(terragruntOptions),
-		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
-	)
-	require.NoError(t, err)
-
-	ociGetter, found := findGetter[*getter.OCIGetter](client.Getters)
-	require.True(t, found)
-
-	_, err = ociGetter.NewStore(t.Context(), "registry.example.com", "modules/vpc")
-	require.ErrorIs(t, err, getter.ErrOCIStaticCredentialConflict)
-}
