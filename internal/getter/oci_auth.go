@@ -50,6 +50,10 @@ const (
 	ociHelperCredentialsNotFound = "credentials not found in native keychain"
 	// ociCredentialHelperTimeout bounds a helper subprocess so it cannot wedge a run.
 	ociCredentialHelperTimeout = 30 * time.Second
+	// ociCredentialHelperWaitDelay bounds the post-cancel drain of a helper's output pipes.
+	ociCredentialHelperWaitDelay = 5 * time.Second
+	// ociHelperStderrMax caps the helper stderr captured for diagnostics.
+	ociHelperStderrMax = 2048
 	// ociDockerHubIndexServer is the server address helpers store Docker Hub creds under.
 	ociDockerHubIndexServer = "https://index.docker.io/v1/"
 )
@@ -60,9 +64,14 @@ type OCICredentialHelperError struct {
 	Err      error
 	Helper   string
 	Registry string
+	Stderr   string
 }
 
 func (err OCICredentialHelperError) Error() string {
+	if err.Stderr != "" {
+		return fmt.Sprintf("oci credential helper %q for %s: %v: %s", err.Helper, err.Registry, err.Err, err.Stderr)
+	}
+
 	return fmt.Sprintf("oci credential helper %q for %s: %v", err.Helper, err.Registry, err.Err)
 }
 
@@ -166,7 +175,7 @@ func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) 
 			if tofu.defaultHelper != "" {
 				return ociCredentialFromHelper(ctx, v, ociHelperEntry{
 					suffix:        tofu.defaultHelper,
-					serverAddress: hostport,
+					serverAddress: ociTofuHelperServerAddress(hostport),
 					explicit:      true,
 				})
 			}
@@ -262,6 +271,17 @@ func ociHelperServerAddress(hostport string) string {
 	return hostport
 }
 
+// ociTofuHelperServerAddress builds the server address OpenTofu hands its
+// CLI-config credential helpers: https:// plus the host, folding Docker Hub to
+// the index server helpers store Hub credentials under.
+func ociTofuHelperServerAddress(hostport string) string {
+	if ociCanonicalAuthKey(hostport) == ociDockerHubKey {
+		return ociDockerHubIndexServer
+	}
+
+	return "https://" + hostport
+}
+
 // ociAmbientCredentialFunc consults ambient files in order. Each file is read
 // only through v.FS, and only the selected entry is decoded, so one malformed
 // entry cannot hide valid credentials elsewhere in the same file.
@@ -319,6 +339,10 @@ func ociCredentialFromHelper(ctx context.Context, v venv.Venv, entry ociHelperEn
 	cmd := v.Exec.Command(ctx, bin, "get")
 	cmd.SetStdin(strings.NewReader(entry.serverAddress))
 	cmd.SetEnv(ociEnvSlice(v.Env))
+	cmd.SetWaitDelay(ociCredentialHelperWaitDelay)
+
+	stderr := &boundedWriter{max: ociHelperStderrMax}
+	cmd.SetStderr(stderr)
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -328,11 +352,41 @@ func ociCredentialFromHelper(ctx context.Context, v venv.Venv, entry ociHelperEn
 			return auth.EmptyCredential, nil
 		}
 
-		return auth.EmptyCredential, OCICredentialHelperError{Helper: entry.suffix, Registry: entry.serverAddress, Err: err}
+		return auth.EmptyCredential, OCICredentialHelperError{
+			Helper:   entry.suffix,
+			Registry: entry.serverAddress,
+			Err:      err,
+			Stderr:   strings.TrimSpace(stderr.String()),
+		}
 	}
 
 	return ociCredentialFromHelperOutput(entry, out)
 }
+
+// boundedWriter accumulates at most max bytes and discards the rest.
+type boundedWriter struct {
+	buf strings.Builder
+	max int
+}
+
+func (w *boundedWriter) Write(p []byte) (int, error) {
+	n := len(p)
+
+	remaining := w.max - w.buf.Len()
+	if remaining <= 0 {
+		return n, nil
+	}
+
+	if remaining < len(p) {
+		p = p[:remaining]
+	}
+
+	w.buf.Write(p)
+
+	return n, nil
+}
+
+func (w *boundedWriter) String() string { return w.buf.String() }
 
 // ociEnvSlice renders env as a deterministic KEY=VALUE slice for a subprocess.
 func ociEnvSlice(env map[string]string) []string {

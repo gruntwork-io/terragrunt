@@ -756,9 +756,9 @@ func TestOCIHelperCredentialReceivesVenvEnv(t *testing.T) {
 	home := testHome
 	// v.Env carries assumed-role AWS variables, as run.go populates before download.
 	env := map[string]string{
-		"AWS_ACCESS_KEY_ID":     "AKIA-assumed",
-		"AWS_SECRET_ACCESS_KEY": "assumed-secret",
-		"AWS_SESSION_TOKEN":     "assumed-session",
+		"AWS_ACCESS_KEY_ID":     "fake-access-key-id",
+		"AWS_SECRET_ACCESS_KEY": "fake-secret-access-key",
+		"AWS_SESSION_TOKEN":     "fake-session-token",
 	}
 	v := credentialVenv(home, env).WithExec(exec)
 	writeHelperConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"),
@@ -771,8 +771,8 @@ func TestOCIHelperCredentialReceivesVenvEnv(t *testing.T) {
 
 	credentialFor(t, store, testRegistry)
 
-	assert.Contains(t, gotEnv, "AWS_ACCESS_KEY_ID=AKIA-assumed", "the helper must see Terragrunt's assumed-role AWS env")
-	assert.Contains(t, gotEnv, "AWS_SESSION_TOKEN=assumed-session")
+	assert.Contains(t, gotEnv, "AWS_ACCESS_KEY_ID=fake-access-key-id", "the helper must receive the run's AWS env")
+	assert.Contains(t, gotEnv, "AWS_SESSION_TOKEN=fake-session-token")
 }
 
 // credentialVenv builds a hermetic Linux Venv with home and extra env set.

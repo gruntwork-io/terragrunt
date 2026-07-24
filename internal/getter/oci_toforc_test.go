@@ -73,7 +73,66 @@ oci_credentials "registry.example.com/team" {
 	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
 	want := auth.Credential{Username: "AWS", Password: "fake-secret-minted"}
 	assert.Equal(t, want, credentialFor(t, store, testRegistry))
-	assert.Equal(t, testRegistry, stdin)
+	assert.Equal(t, "https://"+testRegistry, stdin, "tofu helpers receive OpenTofu's https:// server address")
+}
+
+// TestOCITofuCredentialsHelperDockerHubFold: a tofu helper for Docker Hub receives the index-server address.
+func TestOCITofuCredentialsHelperDockerHubFold(t *testing.T) {
+	t.Parallel()
+
+	var stdin string
+
+	exec := stubHelperExec(t, "desktop", func(in string) vexec.Result {
+		stdin = in
+		return vexec.Result{Stdout: []byte(`{"Username":"hub","Secret":"fake-secret-hub"}`)}
+	}, nil)
+
+	home := testHome
+	v := credentialVenv(home, nil).WithExec(exec)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  docker_credentials_helper = "desktop"
+}
+`)
+
+	store := newStoreForRepo(t, v, "registry-1.docker.io", "library/alpine")
+	want := auth.Credential{Username: "hub", Password: "fake-secret-hub"}
+	assert.Equal(t, want, credentialFor(t, store, "registry-1.docker.io"))
+	assert.Equal(t, "https://index.docker.io/v1/", stdin, "Docker Hub folds to the index server for tofu helpers")
+}
+
+// TestOCITofuCredentialsSchemePrefixedLabel: a scheme-prefixed label still matches the bare host.
+func TestOCITofuCredentialsSchemePrefixedLabel(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_credentials "https://registry.example.com/team" {
+  username = "scheme-user"
+  password = "fake-secret-scheme"
+}
+`)
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	want := auth.Credential{Username: "scheme-user", Password: "fake-secret-scheme"}
+	assert.Equal(t, want, credentialFor(t, store, testRegistry))
+}
+
+// TestOCITofuCredentialsIncompleteBasicSkipped: a username without a password is skipped, not used.
+func TestOCITofuCredentialsIncompleteBasicSkipped(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_credentials "registry.example.com" {
+  username = "no-password"
+}
+`)
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
 }
 
 // TestOCITofuCredentialsDefaultHelper: oci_default_credentials supplies a fallback helper.

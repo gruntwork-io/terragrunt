@@ -74,7 +74,7 @@ func (c ociTofuCredentials) repoCredential(
 		if repo.helper != "" {
 			return ociCredentialFromHelper(ctx, v, ociHelperEntry{
 				suffix:        repo.helper,
-				serverAddress: hostport,
+				serverAddress: ociTofuHelperServerAddress(hostport),
 				explicit:      true,
 			})
 		}
@@ -92,6 +92,9 @@ var errOCIInvalidHelperName = errors.New("credential helper name must not be emp
 // errOCIMultipleCredentialStyles reports an oci_credentials block configuring
 // more than one of basic auth, OAuth, or a helper.
 var errOCIMultipleCredentialStyles = errors.New("oci_credentials block must configure at most one credential style")
+
+// errOCIIncompleteBasicCredential reports an oci_credentials block missing a username or password.
+var errOCIIncompleteBasicCredential = errors.New("oci_credentials basic auth requires both a username and a password")
 
 // ociValidHelperName reports whether name is a safe docker-credential suffix:
 // non-empty and free of path separators, matching OpenTofu's validation.
@@ -191,8 +194,18 @@ func decodeOCITofuCredentials(l log.Logger, data []byte, path string) (ociTofuCr
 		discoverAmbient: true,
 	}
 
+	seenDefault := false
+
 	for _, block := range content.Blocks {
 		if block.Type == "oci_default_credentials" {
+			if seenDefault {
+				l.Warnf("Ignoring duplicate oci_default_credentials block in %s; at most one is allowed", path)
+
+				continue
+			}
+
+			seenDefault = true
+
 			helper, discoverAmbient, err := decodeOCITofuDefaultHelper(block.Body)
 			if err != nil {
 				l.Warnf("Skipping invalid oci_default_credentials block in %s: %v", path, err)
@@ -258,9 +271,14 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 		return ociTofuRepoCredential{}, diags
 	}
 
-	basic := decoded.Username != nil || decoded.Password != nil
+	basic := decoded.Username != nil && decoded.Password != nil
 	oauth := decoded.AccessToken != nil || decoded.RefreshToken != nil
 	helper := decoded.Helper != nil
+
+	// Reject a username without a password, or the reverse, matching OpenTofu.
+	if (decoded.Username != nil) != (decoded.Password != nil) {
+		return ociTofuRepoCredential{}, errOCIIncompleteBasicCredential
+	}
 
 	if trueCount(basic, oauth, helper) > 1 {
 		return ociTofuRepoCredential{}, errOCIMultipleCredentialStyles
@@ -311,9 +329,15 @@ func trueCount(bools ...bool) int {
 }
 
 // ociSplitRepositoryPrefix splits a "registry[/repo/path]" label into its
-// registry domain and repository-path prefix.
+// registry domain and repository-path prefix, stripping any URL scheme and
+// trailing slash first so a "https://ghcr.io/acme" label still matches ghcr.io.
 func ociSplitRepositoryPrefix(label string) (registryDomain, repositoryPrefix string) {
-	registryDomain, repositoryPrefix, _ = strings.Cut(label, "/")
+	cleaned := strings.TrimPrefix(label, "https://")
+	cleaned = strings.TrimPrefix(cleaned, "http://")
+	cleaned = strings.TrimRight(cleaned, "/")
+
+	registryDomain, repositoryPrefix, _ = strings.Cut(cleaned, "/")
+
 	return registryDomain, repositoryPrefix
 }
 
