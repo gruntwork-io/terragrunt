@@ -17,7 +17,7 @@ When enabled, Terragrunt allows collecting runtime profiles using CLI flags (or 
 Example:
 
 ```bash
-terragrunt --experiment profiling --profile-dir /tmp/profiles run --all -- plan
+terragrunt --experiment=profiling --profile-dir /tmp/profiles run --all -- plan
 ```
 
 This is primarily intended for performance investigation and debugging of Terragrunt itself.

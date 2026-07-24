@@ -10,13 +10,13 @@ Enable the new [`profiling`](/reference/experiments/active#profiling) experiment
 Example:
 
 ```bash
-terragrunt --experiment profiling --profile-cpu cpu.prof --profile-mem mem.prof --profile-goroutine goroutine.prof run -- plan
+terragrunt --experiment=profiling --profile-cpu cpu.prof --profile-mem mem.prof --profile-goroutine goroutine.prof run -- plan
 ```
 
 Use `--profile-dir` to collect all profiles into a single directory with conventional names (`terragrunt_cpu.prof`, `terragrunt_mem.prof`, `terragrunt_goroutine.prof`):
 
 ```bash
-terragrunt --experiment profiling --profile-dir /tmp/profiles run --all -- plan
+terragrunt --experiment=profiling --profile-dir /tmp/profiles run --all -- plan
 ```
 
 The same behavior is available via environment variables when the `profiling` experiment is enabled:

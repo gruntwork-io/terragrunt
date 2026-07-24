@@ -23,7 +23,7 @@ In addition, each unit's downstream OpenTofu process writes its own CPU profile 
 Example:
 
 ```bash
-terragrunt --experiment profiling --profile-dir /tmp/profiles run --all -- plan
+terragrunt --experiment=profiling --profile-dir /tmp/profiles run --all -- plan
 ```
 
 This is the recommended way to collect profiles when using `run --all`, because unit-specific subdirectories prevent parallel OpenTofu processes from writing to the same file.
