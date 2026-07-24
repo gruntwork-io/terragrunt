@@ -2,6 +2,7 @@ package getter
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -31,28 +32,69 @@ const (
 type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
-	tfrLogger   log.Logger
-	tfrFS       vfs.FS
-	ociLogger   log.Logger
-	ociFS       vfs.FS
-	ociNewStore OCINewStoreFunc
-	httpExtra   http.Header
-	httpsExtra  http.Header
-	tfrImpl     tfimpl.Type
+	logger     log.Logger
+	fs         vfs.FS
+	ociHolder  *ociStoreHolder
+	httpExtra  http.Header
+	httpsExtra http.Header
+	tfrImpl    tfimpl.Type
+	tfrEnabled bool
 }
 
-// WithOCIConfig registers the dependencies the oci:// fetcher and resolver
-// need for CAS dispatch. When unset, oci is omitted from the generic maps so
-// CASGetter never claims oci:// sources. The store seam is built once here so
-// the fetcher and the resolver share one credential discovery and auth cache;
-// fs is the extraction filesystem, mirroring [WithTFRConfig].
-func WithOCIConfig(l log.Logger, v venv.Venv, fs vfs.FS) GenericFetcherOption {
-	newStore := NewOCIRepositoryStore(l, v)
+// ociStoreHolder builds one store seam shared by the oci fetcher and resolver.
+type ociStoreHolder struct {
+	fn   OCINewStoreFunc
+	v    venv.Venv
+	once sync.Once
+}
+
+func (h *ociStoreHolder) store(l log.Logger) OCINewStoreFunc {
+	h.once.Do(func() {
+		h.fn = NewOCIRepositoryStore(l, h.v)
+	})
+
+	return h.fn
+}
+
+// requireLoggerFS panics when logger or fs is unset for a scheme that needs them.
+func requireLoggerFS(c *genericFetcherConfig, scheme string) {
+	if c.logger == nil {
+		panic("getter: " + scheme + " requires WithDispatchLogger")
+	}
+
+	if c.fs == nil {
+		panic("getter: " + scheme + " requires WithDispatchFS")
+	}
+}
+
+// WithDispatchLogger sets the shared logger for tfr and oci dispatch entries.
+func WithDispatchLogger(l log.Logger) GenericFetcherOption {
+	return func(c *genericFetcherConfig) {
+		if l == nil {
+			panic("getter: WithDispatchLogger requires a non-nil logger")
+		}
+
+		c.logger = l
+	}
+}
+
+// WithDispatchFS sets the shared filesystem for tfr and oci dispatch entries.
+func WithDispatchFS(fs vfs.FS) GenericFetcherOption {
+	return func(c *genericFetcherConfig) {
+		if fs == nil {
+			panic("getter: WithDispatchFS requires a non-nil filesystem")
+		}
+
+		c.fs = fs
+	}
+}
+
+// WithOCIConfig enables oci:// registration; callers must also pass [WithDispatchLogger] and [WithDispatchFS].
+func WithOCIConfig(v venv.Venv) GenericFetcherOption {
+	holder := &ociStoreHolder{v: v}
 
 	return func(c *genericFetcherConfig) {
-		c.ociLogger = l
-		c.ociFS = fs
-		c.ociNewStore = newStore
+		c.ociHolder = holder
 	}
 }
 
@@ -69,16 +111,11 @@ func WithHTTPSExtraHeaders(header http.Header) GenericFetcherOption {
 	return func(c *genericFetcherConfig) { c.httpsExtra = header }
 }
 
-// WithTFRConfig registers the dependencies the tfr:// fetcher and
-// resolver need. When unset, tfr is omitted from the generic-dispatch
-// maps so [CASGetter] cannot route tfr:// through CAS. The standard
-// (non-CAS) client registers its own [RegistryGetter] via
-// [WithTFRegistry] and is unaffected.
-func WithTFRConfig(l log.Logger, impl tfimpl.Type, fs vfs.FS) GenericFetcherOption {
+// WithTFRConfig enables tfr:// registration; callers must also pass [WithDispatchLogger] and [WithDispatchFS].
+func WithTFRConfig(impl tfimpl.Type) GenericFetcherOption {
 	return func(c *genericFetcherConfig) {
-		c.tfrLogger = l
 		c.tfrImpl = impl
-		c.tfrFS = fs
+		c.tfrEnabled = true
 	}
 }
 
@@ -101,18 +138,20 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 		SchemeSMB:   new(getter.SmbClientGetter),
 	}
 
-	if cfg.tfrLogger != nil {
+	if cfg.tfrEnabled {
+		requireLoggerFS(&cfg, SchemeTFR)
 		m[SchemeTFR] = NewRegistryGetter(
-			cfg.tfrLogger,
-			cfg.tfrFS,
+			cfg.logger,
+			cfg.fs,
 		).WithTofuImplementation(cfg.tfrImpl)
 	}
 
-	if cfg.ociLogger != nil {
+	if cfg.ociHolder != nil {
+		requireLoggerFS(&cfg, SchemeOCI)
 		m[SchemeOCI] = &OCIGetter{
-			NewStore: cfg.ociNewStore,
-			Logger:   cfg.ociLogger,
-			FS:       cfg.ociFS,
+			NewStore: cfg.ociHolder.store(cfg.logger),
+			Logger:   cfg.logger,
+			FS:       cfg.fs,
 		}
 	}
 
@@ -185,7 +224,9 @@ func buildGetters(b *builder) []Getter {
 			fetchers[SchemeTFR] = b.tfRegistry
 			resolverOpts = append(
 				resolverOpts,
-				WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS),
+				WithDispatchLogger(b.logger),
+				WithDispatchFS(b.tfRegistry.FS),
+				WithTFRConfig(b.tfRegistry.TofuImplementation),
 			)
 		}
 
