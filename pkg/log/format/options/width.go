@@ -22,13 +22,13 @@ func (option *WidthOption) Format(_ *Data, val any) (any, error) {
 		return str, nil
 	}
 
-	strLen := len(log.RemoveAllASCISeq(str))
+	visibleLen := log.VisibleLength(str)
 
-	if width < strLen {
-		return str[:width], nil
+	if width < visibleLen {
+		return log.TruncateVisible(str, width), nil
 	}
 
-	return str + strings.Repeat(" ", width-strLen), nil
+	return str + strings.Repeat(" ", width-visibleLen), nil
 }
 
 // Width creates the option to set the column width.
