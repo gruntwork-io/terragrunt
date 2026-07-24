@@ -29,3 +29,6 @@ comparison-report.*
 rsrc.syso
 resource.syso
 *.syso
+
+# pprof profiles from the --profile-* flags and go test -*profile
+*.prof

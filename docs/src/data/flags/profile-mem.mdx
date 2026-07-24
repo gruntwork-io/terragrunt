@@ -1,0 +1,25 @@
+---
+name: profile-mem
+description: Write a memory (heap) profile to the given path. Requires the profiling experiment.
+type: string
+env:
+  - TG_PROFILE_MEM
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`profiling`](/reference/experiments/active#profiling) experiment. Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
+
+Write a memory (heap) profile of the Terragrunt process at the end of the run (after forcing garbage collection). Forcing garbage collection pauses Terragrunt briefly, so enabling memory profiling can degrade performance at the end of the run.
+
+This profiles the Terragrunt process only. There is no equivalent for downstream OpenTofu/Terraform.
+
+Analyze with:
+
+```shell
+go tool pprof terragrunt_mem.prof
+```
+
+When using `--profile-dir`, the file is written as `terragrunt_mem.prof` inside the directory. An explicit `--profile-mem` path is used as-is and is not placed inside the directory.

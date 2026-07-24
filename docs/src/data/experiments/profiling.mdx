@@ -1,0 +1,39 @@
+---
+name: profiling
+since: "1.1.2"
+---
+
+Collect CPU profiles, memory (heap) profiles, and goroutine profiles for Terragrunt.
+
+### `profiling` - What it does
+
+When enabled, Terragrunt allows collecting runtime profiles using CLI flags (or the corresponding `TG_PROFILE_*` environment variables):
+
+- `--profile-cpu` / `TG_PROFILE_CPU`: write a CPU profile
+- `--profile-mem` / `TG_PROFILE_MEM`: write a heap memory profile
+- `--profile-goroutine` / `TG_PROFILE_GOROUTINE`: write a goroutine profile (stack traces of all goroutines)
+- `--profile-dir` / `TG_PROFILE_DIR`: collect all of the above into a single directory using conventional filenames
+
+Example:
+
+```bash
+terragrunt --experiment=profiling --profile-dir /tmp/profiles run --all -- plan
+```
+
+This is primarily intended for performance investigation and debugging of Terragrunt itself.
+
+The experiment can also be enabled with `TG_EXPERIMENT=profiling`, which is convenient when driving profiling entirely through environment variables.
+
+### `profiling` - How to provide feedback
+
+Provide feedback on the [Terragrunt GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) or by opening an issue.
+
+### `profiling` - Criteria for stabilization
+
+To transition the `profiling` experiment to a stable release, the following should be addressed:
+
+- [ ] Validate that profiling reliably covers Terragrunt runs across different invocation styles.
+- [ ] Ensure documentation (CLI flags + env vars) is complete and accurate.
+- [ ] Gather feedback on the chosen flag names (`--profile-*`).
+- [ ] Decide whether additional profile types (block, mutex, etc.) should be exposed.
+- [ ] Confirm the interaction with `--experiment-mode` and `TG_EXPERIMENT` is ergonomic.

@@ -75,6 +75,8 @@ const (
 	EnvNameTFCLIArgs     = "TF_CLI_ARGS"
 	EnvNameTFCLIArgsInit = "TF_CLI_ARGS_init"
 
+	EnvNameTofuCPUProfile = "TOFU_CPU_PROFILE"
+
 	DefaultTFDataDir  = ".terraform"
 	TerraformLockFile = ".terraform.lock.hcl"
 

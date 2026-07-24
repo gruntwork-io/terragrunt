@@ -77,6 +77,8 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
+	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
+	Profiling = "profiling"
 	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
 	OCI = "oci"
 	// VersionAttribute gates resolving a tfr:// registry module from a version
@@ -173,6 +175,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalHooks,
+		},
+		{
+			Name: Profiling,
 		},
 		{
 			Name: OCI,
