@@ -86,6 +86,9 @@ const (
 	// records through the configured logs exporter and correlating them with
 	// traces via the active span.
 	OtelLogs = "otel-logs"
+	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
+	// all dependency output resolution during a run.
+	OptionalDependencyOutputs = "optional-dependency-outputs"
 )
 
 const (
@@ -182,6 +185,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OtelLogs,
+		},
+		{
+			Name: OptionalDependencyOutputs,
 		},
 	}
 }

@@ -27,6 +27,7 @@ const (
 	NoEngineFlagName                         = "no-engine"
 	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
 	NoHooksFlagName                          = "no-hooks"
+	NoDependencyOutputsFlagName              = "no-dependency-outputs"
 	TFForwardStdoutFlagName                  = "tf-forward-stdout"
 	UnitsThatIncludeFlagName                 = "units-that-include"
 	DependencyFetchOutputFromStateFlagName   = "dependency-fetch-output-from-state"
@@ -88,6 +89,10 @@ const (
 
 var ErrNoHooksRequiresExperiment = errors.New(
 	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
+)
+
+var ErrNoDependencyOutputsRequiresExperiment = errors.New(
+	"--no-dependency-outputs requires the 'optional-dependency-outputs' experiment to be enabled (e.g., --experiment=optional-dependency-outputs)",
 )
 
 // NewFlags creates and returns global flags.
@@ -202,6 +207,24 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				}
 
 				return ErrNoHooksRequiresExperiment
+			},
+		}),
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:        NoDependencyOutputsFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoDependencyOutputsFlagName),
+			Destination: &opts.SkipOutput,
+			Usage:       "Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output. Requires the 'optional-dependency-outputs' experiment.",
+			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
+				if !value {
+					return nil
+				}
+
+				if opts.Experiments.Evaluate(experiment.OptionalDependencyOutputs) {
+					return nil
+				}
+
+				return ErrNoDependencyOutputsRequiresExperiment
 			},
 		}),
 
