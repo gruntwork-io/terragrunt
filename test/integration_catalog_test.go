@@ -368,16 +368,21 @@ func TestCatalogDiscoveryWithIgnoreFiles(t *testing.T) {
 
 	seedFakeGit(t, repoDir)
 
-	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), venv.OSVenv(), &module.RepoOpts{
-		CloneURL:       repoDir,
-		Path:           repoDir,
-		RootWorkingDir: repoDir,
-	})
+	repo, err := module.NewRepo(
+		t.Context(),
+		logger.CreateLogger(),
+		venv.OSVenv(),
+		&module.RepoOpts{
+			CloneURL:       repoDir,
+			Path:           repoDir,
+			RootWorkingDir: repoDir,
+		},
+	)
 	require.NoError(t, err)
 
 	components, err := tui.NewComponentDiscovery().
 		WithExtraIgnoreFile(extraIgnore).
-		Discover(repo)
+		Discover(vfs.NewOSFS(), repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}

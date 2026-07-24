@@ -125,7 +125,7 @@ func FormatCASRefWithSubdir(hash, subdir string) string {
 func (c *CAS) MaterializeTree(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	hash string,
 	dest string,
 	opts ...LinkTreeOption,

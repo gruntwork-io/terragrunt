@@ -82,7 +82,7 @@ var sourceChangeLocks = sync.Map{}
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -222,7 +222,11 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 	} else if cfg.RemoteState.Config != nil {
 		// We use else if here because we don't need to check the backend configuration is defined when the remote state
 		// block has a `generate` attribute configured.
-		if err := checkTerraformCodeDefinesBackend(fs, opts, cfg.RemoteState.BackendName); err != nil {
+		if err := checkTerraformCodeDefinesBackend(
+			fs,
+			opts,
+			cfg.RemoteState.BackendName,
+		); err != nil {
 			return err
 		}
 	}
@@ -238,7 +242,7 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 func runTerragruntWithConfig(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -285,7 +289,9 @@ func runTerragruntWithConfig(
 
 	defer func() {
 		if nullVarsFile != "" {
-			if removeErr := os.Remove(nullVarsFile); removeErr != nil &&
+			if removeErr := os.Remove(
+				nullVarsFile,
+			); removeErr != nil &&
 				!errors.Is(removeErr, os.ErrNotExist) {
 				l.Debugf("Failed to remove null values file %s: %v", nullVarsFile, removeErr)
 			}
@@ -381,7 +387,7 @@ func ShouldCopyLockFile(args *iacargs.IacArgs, terraformConfig *runcfg.Terraform
 func RunActionWithHooks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	description string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -419,7 +425,15 @@ func RunActionWithHooks(
 		allErrors = append(allErrors, postHookErrors)
 	}
 
-	if errorHookErrors := ProcessErrorHooks(ctx, l, v, cfg.Terraform.ErrorHooks, cfg, opts, allErrors); errorHookErrors != nil {
+	if errorHookErrors := ProcessErrorHooks(
+		ctx,
+		l,
+		v,
+		cfg.Terraform.ErrorHooks,
+		cfg,
+		opts,
+		allErrors,
+	); errorHookErrors != nil {
 		allErrors = append(allErrors, errorHookErrors)
 	}
 
@@ -582,7 +596,7 @@ func modulesNeedInit(opts *Options, env map[string]string) (bool, error) {
 func remoteStateNeedsInit(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	remoteState *remotestate.RemoteState,
 	opts *Options,
 ) (bool, error) {
@@ -695,7 +709,7 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(
 func prepareInitCommandRunCfg(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) error {
@@ -723,7 +737,7 @@ func prepareInitCommandRunCfg(
 func PrepareNonInitCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -747,7 +761,7 @@ func PrepareNonInitCommand(
 func needsInitRunCfg(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) (bool, error) {
@@ -785,7 +799,7 @@ func needsInitRunCfg(
 func runTerraformInitRunCfg(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -809,7 +823,15 @@ func runTerraformInitRunCfg(
 		initV = initV.WithWriter(io.Discard)
 	}
 
-	if err := runTerragruntWithConfig(ctx, l, initV, originalOpts, initOptions, cfg, r); err != nil {
+	if err := runTerragruntWithConfig(
+		ctx,
+		l,
+		initV,
+		originalOpts,
+		initOptions,
+		cfg,
+		r,
+	); err != nil {
 		return err
 	}
 
@@ -869,7 +891,11 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 
 	const ownerReadWritePermissions = 0600
 
-	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
+	if err := os.WriteFile(
+		varFile,
+		jsonContents,
+		os.FileMode(ownerReadWritePermissions),
+	); err != nil {
 		return "", err
 	}
 

@@ -48,7 +48,9 @@ type SourceResolver interface {
 // produced none. Fetchers that learn the canonical key only after
 // downloading (the git rev-parse path) may ignore it and return the
 // canonical key instead.
-type SourceFetcher func(ctx context.Context, l log.Logger, v venv.Venv, suggestedKey string) (treeKey string, err error)
+type SourceFetcher func(
+	ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string,
+) (treeKey string, err error)
 
 // SourceRequest is the input to CAS.FetchSource.
 type SourceRequest struct {
@@ -81,7 +83,7 @@ type SourceRequest struct {
 func (c *CAS) FetchSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *CloneOptions,
 	src SourceRequest,
 ) error {
@@ -165,7 +167,7 @@ func OpaqueKey(scheme, url, token string) string {
 // share the same temp-dir layout.
 //
 // Requires v.FS.
-func (c *CAS) MakeFetchTempDir(l log.Logger, v venv.Venv) (string, func(), error) {
+func (c *CAS) MakeFetchTempDir(l log.Logger, v *venv.Venv) (string, func(), error) {
 	v.RequireFS()
 
 	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fetch-")
@@ -191,7 +193,7 @@ func (c *CAS) MakeFetchTempDir(l log.Logger, v venv.Venv) (string, func(), error
 // Requires v.FS.
 func (c *CAS) IngestDirectory(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	sourceDir, suggestedKey string,
 ) (string, error) {
 	v.RequireFS()
@@ -265,7 +267,7 @@ func recordFetchOutcome(ctx context.Context, cacheHit bool) {
 // linkStoredTree materializes the tree at key into opts.Dir.
 func (c *CAS) linkStoredTree(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *CloneOptions,
 	key string,
 ) error {
@@ -303,7 +305,7 @@ func (c *CAS) linkStoredTree(
 // content hash from buildLocalTree.
 func (c *CAS) storeFetchedContent(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	sourceDir, treeKey string,
 	treeData []byte,
 	alg HashAlgorithm,

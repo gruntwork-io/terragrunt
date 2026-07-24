@@ -78,7 +78,7 @@ type StackCASResult struct {
 func (c *CAS) ProcessStackComponent(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	source, kind string,
 ) (*StackCASResult, error) {
 	v.RequireFS()
@@ -240,7 +240,7 @@ func ResolveInRepoSource(repoRoot, dirPath, source string) (string, error) {
 // through a runner derived from v.Exec, so callers control the vexec binding.
 func detectRepoHashAlgorithm(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	repoDir string,
 ) (HashAlgorithm, error) {
 	runner, err := git.NewGitRunner(v.Exec)
@@ -259,7 +259,7 @@ func detectRepoHashAlgorithm(
 // processDirectory recursively processes a stack or unit directory, rewriting
 // sources and creating synthetic CAS entries.
 func (c *CAS) processDirectory(
-	ctx context.Context, l log.Logger, v venv.Venv,
+	ctx context.Context, l log.Logger, v *venv.Venv,
 	repoRoot, dirPath, refHash string, hashAlg HashAlgorithm,
 ) error {
 	stackFile := filepath.Join(dirPath, "terragrunt.stack.hcl")
@@ -279,7 +279,7 @@ func (c *CAS) processDirectory(
 // processStackFile processes a terragrunt.stack.hcl file, rewriting sources
 // for blocks that have update_source_with_cas = true.
 func (c *CAS) processStackFile(
-	ctx context.Context, l log.Logger, v venv.Venv,
+	ctx context.Context, l log.Logger, v *venv.Venv,
 	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm,
 ) error {
 	content, err := vfs.ReadFile(v.FS, stackFile)
@@ -374,7 +374,7 @@ func (c *CAS) processStackFile(
 // shallow tree of just the leaf module and a CAS reference with no subdir.
 func (c *CAS) processUnitFile(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	repoRoot, dirPath, unitFile, refHash string,
 	hashAlg HashAlgorithm,
 ) error {
@@ -454,7 +454,7 @@ func (c *CAS) processUnitFile(
 // CAS protocol getter materializes synthetic trees into a self-contained
 // destination directory and any escape would dangle.
 func (c *CAS) buildSyntheticTree(
-	l log.Logger, v venv.Venv, dirPath, refHash, repoRoot string, hashAlg HashAlgorithm,
+	l log.Logger, v *venv.Venv, dirPath, refHash, repoRoot string, hashAlg HashAlgorithm,
 ) (string, error) {
 	var treeData []byte
 
@@ -594,7 +594,7 @@ func isLocalPath(fs vfs.FS, source string) bool {
 // mutate the caller's working tree, computes a content-addressed root hash,
 // and dispatches through the same processDirectory pipeline as the remote case.
 func (c *CAS) processLocalStackComponent(
-	ctx context.Context, l log.Logger, v venv.Venv, sourceDir, subdir string,
+	ctx context.Context, l log.Logger, v *venv.Venv, sourceDir, subdir string,
 ) (*StackCASResult, error) {
 	absSource, err := filepath.Abs(sourceDir)
 	if err != nil {
@@ -684,7 +684,7 @@ func (c *CAS) processLocalStackComponent(
 // copyTree copies the directory tree rooted at src into dst using v.FS for all
 // reads and writes, preserving file permissions. Regular files, directories,
 // and symlinks are copied; other special files are skipped.
-func (c *CAS) copyTree(v venv.Venv, src, dst string) error {
+func (c *CAS) copyTree(v *venv.Venv, src, dst string) error {
 	return vfs.WalkDir(v.FS, src, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -733,7 +733,7 @@ func (c *CAS) copyTree(v venv.Venv, src, dst string) error {
 
 // copyFileInFS copies a single regular file from srcPath to dstPath through
 // v.FS, creating any missing parent directories with DefaultDirPerms.
-func (c *CAS) copyFileInFS(v venv.Venv, srcPath, dstPath string, perm fs.FileMode) error {
+func (c *CAS) copyFileInFS(v *venv.Venv, srcPath, dstPath string, perm fs.FileMode) error {
 	if err := v.FS.MkdirAll(filepath.Dir(dstPath), DefaultDirPerms); err != nil {
 		return err
 	}

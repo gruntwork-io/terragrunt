@@ -41,8 +41,8 @@ type ParsingContext struct {
 	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
 	// It also carries the shell environment and stdout/stderr writers.
 	// Defaults to the OS-backed environment when [NewParsingContext] is
-	// called; callers with a threaded root Venv set it before parsing.
-	Venv venv.Venv
+	// called; callers with a threaded root Venv override via [WithVenv].
+	Venv *venv.Venv
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
@@ -135,13 +135,24 @@ func NewParsingContext(
 }
 
 // Clone returns a copy of the ParsingContext.
-// Maps are deep-copied so that mutations (e.g. credential injection into the
-// shell environment) on a clone do not affect the original or other clones.
+// Maps and the embedded Venv (including its Writers pointer and Env map)
+// are deep-copied so that mutations on a clone — credential injection,
+// writer redirection, etc. — do not affect the original or other clones.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
 
-	if ctx.Venv.Env != nil {
-		clone.Venv.Env = maps.Clone(ctx.Venv.Env)
+	if ctx.Venv != nil {
+		v := *ctx.Venv
+		if v.Env != nil {
+			v.Env = maps.Clone(v.Env)
+		}
+
+		if v.Writers != nil {
+			w := *v.Writers
+			v.Writers = &w
+		}
+
+		clone.Venv = &v
 	}
 
 	if ctx.SourceMap != nil {
@@ -161,13 +172,6 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	c := ctx.Clone()
 	c.PartialParseDecodeList = decodeList
-
-	return c
-}
-
-func (ctx *ParsingContext) WithVenv(v venv.Venv) *ParsingContext {
-	c := ctx.Clone()
-	c.Venv = v
 
 	return c
 }
@@ -204,6 +208,16 @@ func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *Parsing
 func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
 	c := ctx.Clone()
 	c.ParserOptions = parserOptions
+
+	return c
+}
+
+// WithVenv returns a new ParsingContext that uses the supplied virtualized
+// environment for HCL helpers that shell out (e.g. get_repo_root) and for
+// dependency-output evaluation.
+func (ctx *ParsingContext) WithVenv(v *venv.Venv) *ParsingContext {
+	c := ctx.Clone()
+	c.Venv = v
 
 	return c
 }

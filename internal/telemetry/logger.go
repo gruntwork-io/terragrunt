@@ -31,7 +31,12 @@ type Logger struct {
 
 // NewLogger creates and configures the logs collection. It returns nil when no
 // logs exporter is configured, matching the behaviour of [NewMeter] and [NewTracer].
-func NewLogger(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Logger, error) {
+func NewLogger(
+	ctx context.Context,
+	appName, appVersion string,
+	writer io.Writer,
+	opts *Options,
+) (*Logger, error) {
 	exporter, err := NewLogsExporter(ctx, writer, opts)
 	if err != nil {
 		return nil, err
@@ -90,7 +95,11 @@ func NewLogsExporter(ctx context.Context, writer io.Writer, opts *Options) (log.
 }
 
 // newLogsProvider creates a new logs provider with the terragrunt resource attributes.
-func newLogsProvider(ctx context.Context, exp log.Exporter, appName, appVersion string) (*log.LoggerProvider, error) {
+func newLogsProvider(
+	ctx context.Context,
+	exp log.Exporter,
+	appName, appVersion string,
+) (*log.LoggerProvider, error) {
 	r, err := resource.New(ctx,
 		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithAttributes(

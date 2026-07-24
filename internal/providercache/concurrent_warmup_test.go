@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -125,6 +126,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	// the fake upstream over plain HTTP, without DNS lookups.
 	directHandler := handlers.NewDirectProviderHandler(
 		l,
+		vhttp.NewOSClient(),
 		new(cliconfig.ProviderInstallationDirect),
 		nil,
 	)
@@ -138,7 +140,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		cache.WithToken(token),
 		cache.WithProviderService(providerService),
 		cache.WithProviderHandlers(directHandler),
-		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, nil)),
+		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)),
 		cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode),
 		cache.WithLogger(l),
 	)

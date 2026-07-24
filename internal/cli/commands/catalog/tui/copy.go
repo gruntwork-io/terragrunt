@@ -70,8 +70,8 @@ func NewCopyCmd(l log.Logger, opts *options.TerragruntOptions, c *Component) *Co
 	return &CopyCmd{component: c, opts: opts, logger: l}
 }
 
-// WithFS overrides the filesystem used for source reads and destination writes.
-// When unset, Run uses vfs.NewOSFS().
+// WithFS sets the filesystem used for source reads and destination writes.
+// Required: Run panics on a nil filesystem.
 func (c *CopyCmd) WithFS(fsys vfs.FS) *CopyCmd {
 	c.fsys = fsys
 	return c
@@ -92,7 +92,7 @@ func (c *CopyCmd) WithValues(values map[string]string) *CopyCmd {
 func (c *CopyCmd) Run() error {
 	fsys := c.fsys
 	if fsys == nil {
-		fsys = vfs.NewOSFS()
+		panic("tui.CopyCmd: nil filesystem; wire the venv FS at construction")
 	}
 
 	src, dst, err := c.resolvePaths()

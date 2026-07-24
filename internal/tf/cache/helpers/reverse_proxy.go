@@ -15,6 +15,13 @@ type ReverseProxy struct {
 	ServerURL   *url.URL
 	CredsSource *cliconfig.CredentialsSource
 
+	// Transport carries the injected vhttp client's RoundTripper so the
+	// proxied data path honors the same virtualization and pooling as the
+	// discovery requests. Required: NewRequest panics on nil rather than
+	// letting httputil.ReverseProxy silently fall back to
+	// http.DefaultTransport and reach the real network un-injected.
+	Transport http.RoundTripper
+
 	Rewrite        func(*httputil.ProxyRequest)
 	ModifyResponse func(resp *http.Response) error
 	ErrorHandler   func(http.ResponseWriter, *http.Request, error)
@@ -30,7 +37,14 @@ func (reverseProxy ReverseProxy) WithModifyResponse(
 }
 
 func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.URL) (er error) {
+	if reverseProxy.Transport == nil {
+		panic(
+			"helpers.ReverseProxy: nil Transport; wire the vhttp client's transport at construction",
+		)
+	}
+
 	proxy := &httputil.ReverseProxy{
+		Transport: reverseProxy.Transport,
 		Rewrite: func(req *httputil.ProxyRequest) {
 			req.Out.Host = targetURL.Host
 			req.Out.URL = targetURL

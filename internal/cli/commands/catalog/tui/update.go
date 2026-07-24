@@ -658,7 +658,7 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 func discoverFormCmd(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	c *Component,
 ) tea.Cmd {
@@ -684,7 +684,7 @@ func discoverFormCmd(
 func discoverModuleFields(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	c *Component,
 ) tea.Msg {
@@ -803,7 +803,7 @@ func copyComponentWithValuesCmd(
 	c *Component,
 	values map[string]string,
 ) tea.Cmd {
-	cmd := NewCopyCmd(l, m.terragruntOptions, c).WithValues(values)
+	cmd := NewCopyCmd(l, m.terragruntOptions, c).WithFS(m.venv.FS).WithValues(values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
 		return CopyFinishedMsg{Err: err, Result: cmd.Result(), Interactive: true}

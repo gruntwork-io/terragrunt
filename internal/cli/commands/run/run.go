@@ -25,7 +25,7 @@ import (
 )
 
 // Run runs the run command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) error {
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCommand == tf.CommandNameDestroy {
@@ -162,7 +162,7 @@ func runVersionCommand(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	v venv.Venv,
+	v *venv.Venv,
 ) error {
 	if !opts.TFPathExplicitlySet {
 		if tfPath, err := getTFPathFromConfig(ctx, l, v, opts); err != nil {
@@ -183,7 +183,7 @@ func runVersionCommand(
 func getTFPathFromConfig(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (string, error) {
 	if !util.FileExists(opts.TerragruntConfigPath) {
@@ -210,7 +210,7 @@ func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	v venv.Venv,
+	v *venv.Venv,
 ) (log.Logger, error) {
 	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, v, opts)
 	if err != nil {
@@ -277,7 +277,7 @@ func checkVersionConstraints(
 func getTerragruntConfig(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*config.TerragruntConfig, error) {
 	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
@@ -299,7 +299,7 @@ func getTerragruntConfig(
 func confirmActionWithDependentUnits(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) bool {
@@ -341,7 +341,7 @@ func confirmActionWithDependentUnits(
 func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []string {

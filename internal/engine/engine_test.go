@@ -34,7 +34,7 @@ func TestConvertMetaToProtobuf(t *testing.T) {
 func TestReadEngineOutput(t *testing.T) {
 	t.Parallel()
 
-	v := venv.Venv{
+	v := &venv.Venv{
 		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 

@@ -219,7 +219,7 @@ func TestGitStoreRejectsNonOSFilesystem(t *testing.T) {
 	})
 }
 
-func newTestGitStore(t *testing.T) (*cas.GitStore, venv.Venv, string) {
+func newTestGitStore(t *testing.T) (*cas.GitStore, *venv.Venv, string) {
 	t.Helper()
 
 	root := filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore")

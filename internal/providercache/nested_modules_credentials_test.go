@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -102,9 +103,17 @@ func TestNestedModuleCredentials(t *testing.T) {
 
 	l := logger.CreateLogger()
 	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
-	proxyProviderHandler := handlers.NewProxyProviderHandler(l, credsSource)
+	proxyProviderHandler := handlers.NewProxyProviderHandler(
+		l,
+		vhttp.NewNoNetworkClient(),
+		credsSource,
+	)
+	// The module proxy's data path rides the injected client's transport, so
+	// hand it the httptest server's client; the provider handler keeps the
+	// no-network client since this test never exercises provider traffic.
 	proxyModuleHandler := handlers.NewProxyModuleHandler(
 		l,
+		upstream.Client(),
 		credsSource,
 		discoverer,
 		[]string{registryName},

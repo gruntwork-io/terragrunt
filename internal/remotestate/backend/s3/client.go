@@ -83,7 +83,7 @@ type Client struct {
 func NewClient(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	config *ExtendedRemoteStateConfigS3,
 	opts *backend.Options,
 ) (*Client, error) {
@@ -133,7 +133,7 @@ func NewClient(
 func (client *Client) CreateS3BucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	bucketName string,
 	opts *backend.Options,
 ) error {
@@ -214,7 +214,7 @@ func (client *Client) CreateS3BucketIfNecessary(
 func (client *Client) UpdateS3BucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	bucketName string,
 	opts *backend.Options,
 ) error {
@@ -369,7 +369,7 @@ func (client *Client) UpdateS3BucketIfNecessary(
 func (client *Client) configureAccessLogBucket(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *backend.Options,
 ) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
@@ -619,7 +619,7 @@ func (client *Client) CheckIfVersioningEnabled(
 func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *backend.Options,
 ) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
@@ -727,7 +727,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
 func (client *Client) CreateLogsS3BucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	logsBucketName string,
 	opts *backend.Options,
 ) error {

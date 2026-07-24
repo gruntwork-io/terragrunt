@@ -34,7 +34,7 @@ type Client struct {
 // NewClient inits GCS client.
 func NewClient(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	config *ExtendedRemoteStateConfigGCS,
 	opts *backend.Options,
 ) (*Client, error) {
@@ -59,7 +59,7 @@ func NewClient(
 func (client *Client) CreateGCSBucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	bucketName string,
 	opts *backend.Options,
 ) error {

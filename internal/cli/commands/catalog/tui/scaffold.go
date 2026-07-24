@@ -22,12 +22,12 @@ type scaffoldCmd struct {
 	logger    log.Logger
 	plan      *scaffold.Plan
 	values    map[string]string
-	venv      venv.Venv
+	venv      *venv.Venv
 }
 
 func newScaffoldCmd(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	c *Component,
 ) *scaffoldCmd {

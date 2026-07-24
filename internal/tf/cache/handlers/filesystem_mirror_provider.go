@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -22,11 +23,12 @@ type FilesystemMirrorProviderHandler struct {
 }
 
 func NewFilesystemMirrorProviderHandler(
-	logger log.Logger,
+	l log.Logger,
+	c vhttp.Client,
 	method *cliconfig.ProviderInstallationFilesystemMirror,
 ) *FilesystemMirrorProviderHandler {
 	return &FilesystemMirrorProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(logger, method.Include, method.Exclude),
+		CommonProviderHandler: NewCommonProviderHandler(l, c, method.Include, method.Exclude),
 		filesystemMirrorPath:  method.Path,
 	}
 }

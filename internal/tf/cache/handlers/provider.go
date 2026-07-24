@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -30,9 +31,14 @@ var availablePlatforms []*models.Platform = []*models.Platform{
 // ProviderHandlers is a slice of ProviderHandler.
 type ProviderHandlers []ProviderHandler
 
+// NewProviderHandlers constructs the slice of [ProviderHandler]s described by
+// cliCfg's provider_installation block. c is threaded into every
+// handler that issues outbound HTTP (direct, network mirror, proxy, and the
+// service-discovery cache shared by all of them).
 func NewProviderHandlers(
 	cliCfg *cliconfig.Config,
-	logger log.Logger,
+	l log.Logger,
+	c vhttp.Client,
 	registryNames []string,
 ) (ProviderHandlers, error) {
 	var (
@@ -50,11 +56,12 @@ func NewProviderHandlers(
 		case *cliconfig.ProviderInstallationFilesystemMirror:
 			providerHandlers = append(
 				providerHandlers,
-				NewFilesystemMirrorProviderHandler(logger, method),
+				NewFilesystemMirrorProviderHandler(l, c, method),
 			)
 		case *cliconfig.ProviderInstallationNetworkMirror:
 			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(
-				logger,
+				l,
+				c,
 				method,
 				cliCfg.CredentialsSource(),
 			)
@@ -66,7 +73,7 @@ func NewProviderHandlers(
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(
 				providerHandlers,
-				NewDirectProviderHandler(logger, method, cliCfg.CredentialsSource()),
+				NewDirectProviderHandler(l, c, method, cliCfg.CredentialsSource()),
 			)
 			directIsDefined = true
 		}
@@ -79,7 +86,8 @@ func NewProviderHandlers(
 		providerHandlers = append(
 			providerHandlers,
 			NewDirectProviderHandler(
-				logger,
+				l,
+				c,
 				new(cliconfig.ProviderInstallationDirect),
 				cliCfg.CredentialsSource(),
 			),

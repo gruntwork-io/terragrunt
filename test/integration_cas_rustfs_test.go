@@ -52,7 +52,7 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 
 	v := venv.OSVenv()
 
-	resolvers := tggetter.DefaultSourceResolvers()
+	resolvers := tggetter.DefaultSourceResolvers(v.HTTP)
 	resolvers[tggetter.SchemeS3] = newRustFSS3Resolver(t, endpoint)
 
 	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},

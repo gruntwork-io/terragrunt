@@ -574,7 +574,8 @@ func TestUnzipSymlinkLimits(t *testing.T) {
 		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("x"), "link", "target.txt")
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(2)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(2)).
+			Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		var limitErr vfs.ZipDecompressedSizeLimitError
 		require.ErrorAs(t, err, &limitErr)
@@ -587,7 +588,13 @@ func TestUnzipSymlinkLimits(t *testing.T) {
 		t.Parallel()
 
 		fs := vfs.NewMemMapFS()
-		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("x"), "link", strings.Repeat("a", 5000))
+		zipData := createZipArchiveWithSymlink(
+			t,
+			"target.txt",
+			[]byte("x"),
+			"link",
+			strings.Repeat("a", 5000),
+		)
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
 		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)

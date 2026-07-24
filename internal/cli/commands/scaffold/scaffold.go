@@ -180,7 +180,7 @@ func (p *Plan) Cleanup() {
 func Prepare(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) (*Plan, error) {
@@ -250,15 +250,16 @@ func Prepare(
 
 	l.Debugf("Scaffolding a new Terragrunt module %s to %s", resolvedURL, outputDir)
 
-	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "scaffold_get_module", map[string]any{
-		"module_url": resolvedURL,
-	}, func(ctx context.Context, l log.Logger) error {
-		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
-			return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
-		}
+	if err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "scaffold_get_module", map[string]any{
+			"module_url": resolvedURL,
+		}, func(ctx context.Context, l log.Logger) error {
+			if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
+				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
+			}
 
-		return nil
-	}); err != nil {
+			return nil
+		}); err != nil {
 		return nil, err
 	}
 
@@ -299,7 +300,7 @@ func Prepare(
 func (p *Plan) Generate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	values map[string]string,
 ) error {
@@ -405,7 +406,7 @@ func applyUserValues(vars []*config.ParsedVariable, values map[string]string) {
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) error {
@@ -479,7 +480,7 @@ func splitURLQuery(rawURL string) (string, string) {
 func applyCatalogConfigToScaffold(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
@@ -544,7 +545,7 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 func downloadTemplate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -578,15 +579,20 @@ func downloadTemplate(
 	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
 	// Downloading baseURL to support boilerplate dependencies and partials.
 	// Go-getter discards all but specified folder if one is provided.
-	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "scaffold_get_template", map[string]any{
-		"template_url": baseURL.String(),
-	}, func(ctx context.Context, l log.Logger) error {
-		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
-			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
-		}
+	if err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "scaffold_get_template", map[string]any{
+			"template_url": baseURL.String(),
+		}, func(ctx context.Context, l log.Logger) error {
+			if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+				return fmt.Errorf(
+					"downloading scaffold template from %s: %w",
+					baseURL.String(),
+					getErr,
+				)
+			}
 
-		return nil
-	}); err != nil {
+			return nil
+		}); err != nil {
 		return "", err
 	}
 
@@ -611,7 +617,7 @@ func downloadTemplate(
 func prepareBoilerplateFiles(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -706,7 +712,7 @@ func parseVariables(
 func parseModuleURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	vars map[string]any,
 	moduleURL string,
@@ -790,7 +796,7 @@ func rewriteModuleURL(
 func rewriteTemplateURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedTemplateURL *url.URL,
 ) (*url.URL, error) {
@@ -830,7 +836,7 @@ func rewriteTemplateURL(
 func addRefToModuleURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedModuleURL *url.URL,
 	vars map[string]any,
