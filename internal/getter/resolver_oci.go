@@ -27,10 +27,12 @@ type OCIResolver struct {
 	NewStore OCINewStoreFunc
 }
 
-// NewOCIResolver returns an [OCIResolver] probing through newStore, so
-// resolution shares the getter's credential path. l is used only to debug-log
-// probe failures the resolver otherwise swallows.
+// NewOCIResolver returns an [OCIResolver] probing through newStore, so resolution shares the getter's credential path.
 func NewOCIResolver(l log.Logger, newStore OCINewStoreFunc) *OCIResolver {
+	if l == nil {
+		panic("getter: NewOCIResolver requires a non-nil logger")
+	}
+
 	return &OCIResolver{Logger: l, NewStore: newStore}
 }
 
@@ -44,9 +46,7 @@ func (r *OCIResolver) Scheme() string { return SchemeOCI }
 func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) {
 	digestValue, err := r.ResolveDigest(ctx, rawURL)
 	if err != nil {
-		// Return the bare sentinel so CAS falls through to content hashing;
-		// the real fetch resurfaces this error, but debug-log it here so the
-		// probe failure is not entirely invisible.
+		// Bare sentinel so CAS content-hashes; debug-log the probe cause.
 		r.Logger.Debugf("OCI probe of %q fell back to content hashing: %v", rawURL, err)
 
 		return "", cas.ErrNoVersionMetadata

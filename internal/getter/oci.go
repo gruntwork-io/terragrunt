@@ -379,30 +379,26 @@ type ociSourceCoordinates struct {
 	ref            string
 }
 
-// parseOCISource splits an oci source URL into registry coordinates, the
-// subdir selector, and the validated reference to resolve.
+// parseOCISource splits an oci source URL into registry coordinates, the subdir selector, and the validated reference.
 func parseOCISource(srcURL *url.URL) (ociSourceCoordinates, error) {
-	registryDomain := srcURL.Host
-	if registryDomain == "" {
-		return ociSourceCoordinates{}, ErrOCIMissingRegistryDomain
+	coords := ociSourceCoordinates{registryDomain: srcURL.Host}
+	if coords.registryDomain == "" {
+		return coords, ErrOCIMissingRegistryDomain
 	}
 
-	repositoryName, subDir := SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
-	if repositoryName == "" {
-		return ociSourceCoordinates{}, ErrOCIMissingRepositoryName
+	coords.repositoryName, coords.subDir = SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
+	if coords.repositoryName == "" {
+		return coords, ErrOCIMissingRepositoryName
 	}
 
 	ref, err := ociRefFromQuery(srcURL.Query())
 	if err != nil {
-		return ociSourceCoordinates{}, err
+		return coords, err
 	}
 
-	return ociSourceCoordinates{
-		registryDomain: registryDomain,
-		repositoryName: repositoryName,
-		subDir:         subDir,
-		ref:            ref,
-	}, nil
+	coords.ref = ref
+
+	return coords, nil
 }
 
 // ociRefFromQuery validates the source query and returns the reference to

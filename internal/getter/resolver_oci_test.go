@@ -245,7 +245,11 @@ func TestDefaultSourceResolversOCIConfig(t *testing.T) {
 	assert.False(t, found, "oci resolver must be absent without WithOCIConfig")
 
 	v := venvtest.New()
-	resolvers := getter.DefaultSourceResolvers(getter.WithOCIConfig(logger.CreateLogger(), v, v.FS))
+	resolvers := getter.DefaultSourceResolvers(
+		getter.WithDispatchLogger(logger.CreateLogger()),
+		getter.WithDispatchFS(v.FS),
+		getter.WithOCIConfig(v),
+	)
 
 	r, found := resolvers[getter.SchemeOCI]
 	require.True(t, found, "oci resolver must be present with WithOCIConfig")

@@ -842,7 +842,11 @@ func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
 	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")
 
 	v := venvtest.New()
-	fetchers := getter.DefaultGenericFetchers(getter.WithOCIConfig(logger.CreateLogger(), v, v.FS))
+	fetchers := getter.DefaultGenericFetchers(
+		getter.WithDispatchLogger(logger.CreateLogger()),
+		getter.WithDispatchFS(v.FS),
+		getter.WithOCIConfig(v),
+	)
 
 	g, found := fetchers[getter.SchemeOCI]
 	require.True(t, found, "oci fetcher must be present with WithOCIConfig")
