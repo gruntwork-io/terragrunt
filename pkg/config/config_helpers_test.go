@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -585,6 +587,96 @@ unit "test" {
 	region, exists := stackConfig.Locals["region"]
 	require.True(t, exists, "Expected 'region' local to be parsed")
 	require.Equal(t, "us-east-1", region)
+}
+
+func TestFindInParentFoldersSharedRunContext(t *testing.T) {
+	t.Parallel()
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	rootHclPath := filepath.Join(tempDir, "root.hcl")
+	require.NoError(t, os.WriteFile(rootHclPath, nil, 0644))
+
+	first := filepath.Join(tempDir, "region", "unit-a", config.DefaultTerragruntConfigPath)
+	second := filepath.Join(tempDir, "region", "unit-b", config.DefaultTerragruntConfigPath)
+
+	for _, configPath := range []string{first, second} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0755))
+	}
+
+	l := logger.CreateLogger()
+	baseCtx, pctx := newTestParsingContext(t, first)
+	ctx := config.WithConfigValues(baseCtx)
+
+	firstPath, err := config.FindInParentFolders(ctx, pctx, l, []string{"root.hcl"})
+	require.NoError(t, err)
+	assert.Equal(t, rootHclPath, firstPath)
+
+	// The sibling shares every ancestor with the first unit, so it reads the
+	// probes the first unit recorded rather than re-running them.
+	pctx.TerragruntConfigPath = second
+
+	secondPath, err := config.FindInParentFolders(ctx, pctx, l, []string{"root.hcl"})
+	require.NoError(t, err)
+	assert.Equal(t, rootHclPath, secondPath)
+
+	// A nearer root.hcl appearing after the ancestor was probed is picked up by
+	// the next run, since the probes live only as long as one run's context.
+	nearerPath := filepath.Join(tempDir, "region", "root.hcl")
+	require.NoError(t, os.WriteFile(nearerPath, nil, 0644))
+
+	nextRunPath, err := config.FindInParentFolders(
+		config.WithConfigValues(baseCtx),
+		pctx,
+		l,
+		[]string{"root.hcl"},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, nearerPath, nextRunPath)
+}
+
+func TestFindInParentFoldersSharedRunContextWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	rootHclPath := filepath.Join(tempDir, "root.hcl")
+	require.NoError(t, os.WriteFile(rootHclPath, nil, 0644))
+
+	const units = 32
+
+	configPaths := make([]string, units)
+
+	for i := range units {
+		unitDir := filepath.Join(tempDir, "account", "region", "unit-"+strconv.Itoa(i))
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+
+		configPaths[i] = filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	}
+
+	l := logger.CreateLogger()
+	baseCtx, basePctx := newTestParsingContext(t, configPaths[0])
+	ctx := config.WithConfigValues(baseCtx)
+
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	for _, configPath := range configPaths {
+		group.Go(func() error {
+			pctx := basePctx.Clone()
+			pctx.TerragruntConfigPath = configPath
+
+			found, err := config.FindInParentFolders(groupCtx, pctx, l, []string{"root.hcl"})
+			if err != nil {
+				return err
+			}
+
+			if found != rootHclPath {
+				return fmt.Errorf("got %q, want %q", found, rootHclPath)
+			}
+
+			return nil
+		})
+	}
+
+	require.NoError(t, group.Wait())
 }
 
 func TestResolveTerragruntInterpolation(t *testing.T) {
