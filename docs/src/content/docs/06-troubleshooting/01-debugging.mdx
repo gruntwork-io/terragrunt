@@ -218,16 +218,21 @@ TG_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
 
 Resulting layout (example):
 
-```
-/tmp/profiles/
-|-- terragrunt_cpu.prof          # Main Terragrunt process
-|-- terragrunt_mem.prof
-|-- terragrunt_goroutine.prof
-|-- modules/vpc/
-|   `-- tofu_cpu_plan.prof       # One OpenTofu process per command per unit
-`-- live/prod/app/
-    `-- tofu_cpu_plan.prof
-```
+<FileTree>
+
+- /tmp/profiles
+  - terragrunt_cpu.prof Main Terragrunt process
+  - terragrunt_mem.prof
+  - terragrunt_goroutine.prof
+  - modules
+    - vpc
+      - tofu_cpu_plan.prof One OpenTofu process per command per unit
+  - live
+    - prod
+      - app
+        - tofu_cpu_plan.prof
+
+</FileTree>
 
 For more details on profiling and performance analysis, see the [Performance documentation](/troubleshooting/performance/#runtime-cpu-profiling-with-tg_profile_cpu).
 
