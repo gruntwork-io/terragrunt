@@ -1759,7 +1759,29 @@ func runTerragruntOutputJSON(
 		return nil, err
 	}
 
-	// Build run.Options directly from ParsingContext fields.
+	runOpts := runOptionsFromPctx(pctx)
+
+	err = run.Run(ctx, l, pctx.Venv, runOpts, report.NewReport(), runCfg, credsGetter)
+	if err != nil {
+		return nil, err
+	}
+
+	err = stdoutBufferWriter.Flush()
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := strings.TrimSpace(stdoutBuffer.String())
+	jsonBytes := []byte(jsonString)
+
+	l.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
+
+	return jsonBytes, nil
+}
+
+// runOptionsFromPctx builds run.Options directly from ParsingContext fields.
+// The cloned ParsingContext carries the dependency-output writer in pctx.Venv.
+func runOptionsFromPctx(pctx *ParsingContext) *run.Options {
 	runOpts := run.NewOptions()
 	runOpts.LogShowAbsPaths = pctx.LogShowAbsPaths
 	runOpts.LogDisableErrorSummary = pctx.LogDisableErrorSummary
@@ -1783,30 +1805,20 @@ func runTerragruntOutputJSON(
 	runOpts.EngineOptions = pctx.EngineOptions
 	runOpts.TFPath = pctx.TFPath
 	runOpts.TofuImplementation = pctx.TofuImplementation
+	runOpts.ForwardTFStdout = pctx.ForwardTFStdout
+	runOpts.JSONLogFormat = pctx.JSONLogFormat
 	runOpts.Headless = pctx.Headless
 	runOpts.Debug = pctx.Debug
 	runOpts.AutoInit = pctx.AutoInit
+	runOpts.AutoRetry = pctx.AutoRetry
 	runOpts.BackendBootstrap = pctx.BackendBootstrap
 	runOpts.Telemetry = pctx.Telemetry
 	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
+	runOpts.MaxFoldersToCheck = pctx.MaxFoldersToCheck
 	runOpts.CASCloneDepth = pctx.CASCloneDepth
+	runOpts.NoCAS = pctx.NoCAS
 
-	err = run.Run(ctx, l, pctx.Venv, runOpts, report.NewReport(), runCfg, credsGetter)
-	if err != nil {
-		return nil, err
-	}
-
-	err = stdoutBufferWriter.Flush()
-	if err != nil {
-		return nil, err
-	}
-
-	jsonString := strings.TrimSpace(stdoutBuffer.String())
-	jsonBytes := []byte(jsonString)
-
-	l.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
-
-	return jsonBytes, nil
+	return runOpts
 }
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
