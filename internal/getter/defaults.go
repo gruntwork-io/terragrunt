@@ -30,7 +30,7 @@ const (
 // by DefaultGenericFetchers and DefaultSourceResolvers.
 type GenericFetcherOption func(*genericFetcherConfig)
 
-// Shared logger/fs because the tfr and oci options must pass identical handles and the last applied wins.
+// genericFetcherConfig holds shared logger/fs; WithTFRConfig and WithOCIConfig must pass the same handles.
 type genericFetcherConfig struct {
 	logger      log.Logger
 	fs          vfs.FS
@@ -39,6 +39,20 @@ type genericFetcherConfig struct {
 	httpsExtra  http.Header
 	tfrImpl     tfimpl.Type
 	tfrEnabled  bool
+}
+
+// setSharedLoggerFS records logger and fs, panicking if a prior set differs.
+func setSharedLoggerFS(c *genericFetcherConfig, l log.Logger, fs vfs.FS) {
+	if c.logger != nil && c.logger != l {
+		panic("getter: WithTFRConfig and WithOCIConfig must share the same logger")
+	}
+
+	if c.fs != nil && c.fs != fs {
+		panic("getter: WithTFRConfig and WithOCIConfig must share the same filesystem")
+	}
+
+	c.logger = l
+	c.fs = fs
 }
 
 // WithOCIConfig registers the dependencies the oci:// fetcher and resolver
@@ -50,8 +64,7 @@ func WithOCIConfig(l log.Logger, v venv.Venv, fs vfs.FS) GenericFetcherOption {
 	newStore := NewOCIRepositoryStore(l, v)
 
 	return func(c *genericFetcherConfig) {
-		c.logger = l
-		c.fs = fs
+		setSharedLoggerFS(c, l, fs)
 		c.ociNewStore = newStore
 	}
 }
@@ -76,9 +89,8 @@ func WithHTTPSExtraHeaders(header http.Header) GenericFetcherOption {
 // [WithTFRegistry] and is unaffected.
 func WithTFRConfig(l log.Logger, impl tfimpl.Type, fs vfs.FS) GenericFetcherOption {
 	return func(c *genericFetcherConfig) {
-		c.logger = l
+		setSharedLoggerFS(c, l, fs)
 		c.tfrImpl = impl
-		c.fs = fs
 		c.tfrEnabled = true
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -225,29 +226,20 @@ func ociStaticCredential(v venv.Venv) (auth.Credential, bool, error) {
 	return auth.EmptyCredential, false, nil
 }
 
-// ociHelperEntry is a resolved credential helper: its binary suffix, the server
-// address to hand it (the spelling that stored the credentials), and whether it
-// was chosen explicitly per-registry.
+// ociHelperEntry is a resolved credential helper (suffix, server address, explicit).
 type ociHelperEntry struct {
 	suffix        string
 	serverAddress string
-	// explicit is true for a per-registry credHelpers entry, false for the
-	// global credsStore whose failures must not break unrelated pulls.
-	explicit bool
+	explicit      bool
 }
 
-// ociAmbientStore keeps one Venv-read auth file and its canonical key index.
+// ociAmbientStore is one Venv-read auth file and its canonical key index.
 type ociAmbientStore struct {
-	auths map[string]json.RawMessage
-	// declared maps a lookup key to every spelling the file uses for it. Only
-	// keys present here are ever requested, because a hostname-only lookup can
-	// return an arbitrary repository-scoped entry when no exact key exists.
-	declared map[string][]string
-	// credHelpers maps a canonical registry key to its per-registry helper.
+	auths       map[string]json.RawMessage
+	declared    map[string][]string
 	credHelpers map[string]ociHelperEntry
-	// credsStore is the default helper suffix for hosts without a credHelpers entry.
-	credsStore string
-	path       string
+	credsStore  string
+	path        string
 }
 
 // Ambient credential specificity: repository-path beats domain, which beats global credsStore.
@@ -333,7 +325,7 @@ func ociExecuteCredentialCandidate(
 		return best.static, nil
 	}
 
-	cred, err := ociCredentialFromHelper(ctx, v, *best.helper)
+	cred, err := ociCredentialFromHelper(ctx, v, *best.helper, ociCredentialHelperTimeout)
 	if err != nil {
 		if best.helper.explicit {
 			return auth.EmptyCredential, err
@@ -372,23 +364,29 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 	}
 }
 
-// ociCredentialFromHelper runs docker-credential-<helper> get for the entry's
-// server address, under v.Env so process-scoped credentials (e.g. an assumed
-// AWS role for ecr-login) reach the helper. A not-in-keychain result is empty,
-// not an error. The helper's secret output is never placed in a returned error.
-func ociCredentialFromHelper(ctx context.Context, v venv.Venv, entry ociHelperEntry) (auth.Credential, error) {
+// ociCredentialFromHelper runs docker-credential-<helper> get under v.Env; timeout <= 0 uses the default cap.
+func ociCredentialFromHelper(
+	ctx context.Context,
+	v venv.Venv,
+	entry ociHelperEntry,
+	timeout time.Duration,
+) (auth.Credential, error) {
 	bin := ociCredentialHelperPrefix + entry.suffix
 
 	if _, err := v.Exec.LookPath(bin); err != nil {
 		return auth.EmptyCredential, OCICredentialHelperError{Helper: entry.suffix, Registry: entry.serverAddress, Err: err}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, ociCredentialHelperTimeout)
+	if timeout <= 0 {
+		timeout = ociCredentialHelperTimeout
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	cmd := v.Exec.Command(ctx, bin, "get")
 	cmd.SetStdin(strings.NewReader(entry.serverAddress))
-	cmd.SetEnv(ociEnvSlice(v.Env))
+	cmd.SetEnv(ociEnvSlice(ctx, v.Env))
 	cmd.SetWaitDelay(ociCredentialHelperWaitDelay)
 
 	stderr := &boundedWriter{max: ociHelperStderrMax}
@@ -413,11 +411,29 @@ func ociCredentialFromHelper(ctx context.Context, v venv.Venv, entry ociHelperEn
 	return ociCredentialFromHelperOutput(entry, out)
 }
 
-// ociEnvSlice renders env as a deterministic KEY=VALUE slice, staying non-nil so exec does not inherit the host env.
-func ociEnvSlice(env map[string]string) []string {
-	out := make([]string, 0, len(env))
+// ociEnvSlice renders env as a non-nil KEY=VALUE slice and injects TRACEPARENT from ctx when present.
+func ociEnvSlice(ctx context.Context, env map[string]string) []string {
+	n := len(env)
+	traceParent := telemetry.TraceParentFromContext(ctx, nil)
+
+	if traceParent != "" {
+		if _, ok := env[telemetry.TraceParentEnv]; !ok {
+			n++
+		}
+	}
+
+	out := make([]string, 0, n)
+
 	for _, key := range slices.Sorted(maps.Keys(env)) {
+		if key == telemetry.TraceParentEnv && traceParent != "" {
+			continue
+		}
+
 		out = append(out, key+"="+env[key])
+	}
+
+	if traceParent != "" {
+		out = append(out, telemetry.TraceParentEnv+"="+traceParent)
 	}
 
 	return out

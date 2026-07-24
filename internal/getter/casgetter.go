@@ -513,9 +513,7 @@ func (g *CASGetter) pinOCIDigest(ctx context.Context, scheme, rawURL, suggestedK
 	digestValue, err := resolver.ResolveDigest(ctx, rawURL)
 	if err != nil {
 		// Unresolvable right now: content-hash instead of trusting the probe key.
-		if g.Logger != nil {
-			g.Logger.Debugf("OCI digest pin of %q failed, content-hashing instead: %v", rawURL, err)
-		}
+		g.Logger.Debugf("OCI digest pin of %q failed, content-hashing instead: %v", rawURL, err)
 
 		return rawURL, ""
 	}

@@ -10,13 +10,16 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"oras.land/oras-go/v2/registry/remote/auth"
 
 	"github.com/stretchr/testify/assert"
@@ -717,8 +720,6 @@ func TestOCIHelperCredentialMintedPerResolution(t *testing.T) {
 	assert.EqualValues(t, 2, calls.Load(), "the helper must re-mint on every resolution")
 }
 
-// TestOCIHelperCredentialHelperBeatsInline: a configured helper wins over a
-// stale inline login for the same registry, matching Docker precedence.
 // TestOCIHelperCredentialRepoInlineBeatsHelper: a repo-scoped inline auth outranks a domain helper, which never runs.
 func TestOCIHelperCredentialRepoInlineBeatsHelper(t *testing.T) {
 	t.Parallel()
@@ -1098,6 +1099,94 @@ func TestOCIHelperCredentialEmptyEnvStaysNonNil(t *testing.T) {
 
 	require.NotNil(t, gotEnv, "an empty v.Env must produce a non-nil helper env, not host inheritance")
 	assert.Empty(t, gotEnv, "an empty v.Env must not leak host variables to the helper")
+}
+
+// TestOCIHelperCredentialReceivesTraceParent: a valid span injects TRACEPARENT into the helper env.
+func TestOCIHelperCredentialReceivesTraceParent(t *testing.T) {
+	t.Parallel()
+
+	var gotEnv []string
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		gotEnv = inv.Env
+		return vexec.Result{Stdout: []byte(`{"Username":"AWS","Secret":"fake-secret-hub"}`)}
+	}, vexec.WithLookPath(func(file string) (string, error) { return "/usr/local/bin/" + file, nil }))
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	tp := trace.NewTracerProvider()
+
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	ctx, span := tp.Tracer("getter-test").Start(t.Context(), "oci-helper")
+	defer span.End()
+
+	want := telemetry.TraceParentFromContext(ctx, nil)
+	require.NotEmpty(t, want, "test span must yield a W3C traceparent")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(ctx, testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	remoteStore, castOK := store.(getter.OCIRemoteStore)
+	require.True(t, castOK)
+
+	client, castOK := remoteStore.Repo.Client.(*auth.Client)
+	require.True(t, castOK)
+
+	_, err = client.Credential(ctx, testRegistry)
+	require.NoError(t, err)
+
+	assert.Contains(t, gotEnv, telemetry.TraceParentEnv+"="+want)
+}
+
+// TestOCIHelperCredentialTimeoutHonorsParentDeadline: a slow helper fails when the parent context expires.
+func TestOCIHelperCredentialTimeoutHonorsParentDeadline(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+
+	exec := vexec.NewMemExec(func(ctx context.Context, _ vexec.Invocation) vexec.Result {
+		close(started)
+		<-ctx.Done()
+
+		return vexec.Result{Err: ctx.Err(), ExitCode: -1}
+	}, vexec.WithLookPath(func(file string) (string, error) { return "/usr/local/bin/" + file, nil }))
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(ctx, testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	remoteStore, castOK := store.(getter.OCIRemoteStore)
+	require.True(t, castOK)
+
+	client, castOK := remoteStore.Repo.Client.(*auth.Client)
+	require.True(t, castOK)
+
+	_, err = client.Credential(ctx, testRegistry)
+	require.Error(t, err)
+
+	var helperErr getter.OCICredentialHelperError
+
+	require.ErrorAs(t, err, &helperErr)
+	require.ErrorIs(t, helperErr.Err, context.DeadlineExceeded)
+
+	select {
+	case <-started:
+	default:
+		t.Fatal("helper never started")
+	}
 }
 
 // TestOCIHelperCredentialSurfacesStderr: a failing helper surfaces its stderr diagnostic without leaking stdout.

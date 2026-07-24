@@ -47,9 +47,7 @@ func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		// Return the bare sentinel so CAS falls through to content hashing;
 		// the real fetch resurfaces this error, but debug-log it here so the
 		// probe failure is not entirely invisible.
-		if r.Logger != nil {
-			r.Logger.Debugf("OCI probe of %q fell back to content hashing: %v", rawURL, err)
-		}
+		r.Logger.Debugf("OCI probe of %q fell back to content hashing: %v", rawURL, err)
 
 		return "", cas.ErrNoVersionMetadata
 	}

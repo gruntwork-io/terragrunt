@@ -31,10 +31,16 @@ search order OpenTofu uses. Static credentials can be limited to one registry wi
 `TG_TMP_OCI_REGISTRY`; other registries then fall back to ambient discovery.
 Without it, the static credentials may be offered to any registry the process
 contacts, so scope them or avoid setting them when talking to unrelated or
-untrusted registries. Credential helpers configured in the Docker config (`credHelpers` and
-`credsStore`, such as `ecr-login`) are invoked whenever the registry requires
-authentication, so ECR and other helper-backed registries work without a
-baked-in login. When the experiment is disabled, `oci://` sources remain unsupported.
+untrusted registries. [Credential helpers](https://docs.docker.com/reference/cli/docker/login/#credential-helpers)
+configured in the Docker config
+([`credHelpers`](https://docs.docker.com/reference/cli/docker/login/#credential-helpers)
+and
+[`credsStore`](https://docs.docker.com/reference/cli/docker/login/#credential-stores),
+such as
+[`ecr-login`](https://github.com/awslabs/amazon-ecr-credential-helper))
+are invoked when configured and selected as the credential source, so ECR and
+other helper-backed registries work without a baked-in login. When the
+experiment is disabled, `oci://` sources remain unsupported.
 
 ### `oci` - How to enable it
 
