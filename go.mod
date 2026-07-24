@@ -3,7 +3,7 @@ module github.com/gruntwork-io/terragrunt
 go 1.26
 
 require (
-	cloud.google.com/go/storage v1.63.0
+	cloud.google.com/go/storage v1.63.1
 	dario.cat/mergo v1.0.2
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/aws/aws-sdk-go-v2 v1.42.1
@@ -30,7 +30,7 @@ require (
 	github.com/hashicorp/terraform-svchost v0.2.1
 	github.com/huandu/go-clone v1.7.3
 	github.com/labstack/echo/v4 v4.15.4
-	github.com/mattn/go-isatty v0.0.22
+	github.com/mattn/go-isatty v0.0.23
 	github.com/mattn/go-zglob v0.0.6
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -72,7 +72,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.8
 	charm.land/glamour/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.5
-	github.com/aws/aws-sdk-go v1.55.6
+	github.com/aws/aws-sdk-go v1.55.8
 	github.com/aws/aws-sdk-go-v2/config v1.32.30
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.29
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.60.1
@@ -118,7 +118,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.11.0 // indirect
 	cloud.google.com/go/kms v1.31.0 // indirect
-	cloud.google.com/go/longrunning v1.0.0 // indirect
+	cloud.google.com/go/longrunning v1.2.0 // indirect
 	cloud.google.com/go/monitoring v1.29.0 // indirect
 	filippo.io/age v1.3.1 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
