@@ -72,7 +72,9 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	switch {
 	case !value.IsKnown():
-		return cty.StringVal(""), nil
+		unmarked, marks := value.Unmark()
+
+		return unknownDefault(unmarked.Type()).WithMarks(marks), nil
 	case value.IsNull():
 		return value, nil
 	case value.Type().IsMapType(), value.Type().IsObjectType():
@@ -104,6 +106,25 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 		if len(sliceVals) > 0 {
 			updatedValue = sliceVals
 		}
+
+	case value.Type().IsSetType():
+		unmarked, marks := value.Unmark()
+
+		setVals := unmarked.AsValueSlice()
+		for key, val := range setVals {
+			val, err := UpdateUnknownCtyValValues(val)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			setVals[key] = val
+		}
+
+		if len(setVals) == 0 {
+			return cty.SetValEmpty(value.Type().ElementType()).WithMarks(marks), nil
+		}
+
+		return cty.SetVal(setVals).WithMarks(marks), nil
 	}
 
 	if updatedValue == nil {
@@ -116,4 +137,21 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	}
 
 	return value, nil
+}
+
+func unknownDefault(ty cty.Type) cty.Value {
+	switch {
+	case ty.Equals(cty.String):
+		return cty.StringVal("")
+	case ty.Equals(cty.Number):
+		return cty.NumberIntVal(0)
+	case ty.Equals(cty.Bool):
+		return cty.False
+	case ty == cty.DynamicPseudoType:
+		// Unresolved dependency outputs arrive with an unknown dynamic type. Keep them
+		// serializing as an empty string so rendered inputs stay backwards compatible.
+		return cty.StringVal("")
+	default:
+		return cty.NullVal(ty)
+	}
 }
