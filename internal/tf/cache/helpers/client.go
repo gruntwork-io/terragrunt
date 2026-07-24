@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -51,7 +52,7 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
-	bodyBytes, err := decodeResponse(resp)
+	bodyBytes, err := DecodeResponse(resp)
 	if err != nil {
 		return err
 	}
@@ -73,9 +74,14 @@ func unmarshalBody(data []byte, value any) error {
 	return nil
 }
 
-func decodeResponse(resp *http.Response) ([]byte, error) {
+// DecodeResponse reads an HTTP response body, returning an error for non-200 status codes.
+func DecodeResponse(resp *http.Response) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil
+		if resp.StatusCode == http.StatusTooManyRequests {
+			return nil, fmt.Errorf("received HTTP 429 Too Many Requests from %s (rate limited by registry)", resp.Request.URL)
+		}
+
+		return nil, fmt.Errorf("received HTTP %d %s from %s", resp.StatusCode, http.StatusText(resp.StatusCode), resp.Request.URL)
 	}
 
 	buffer, err := ResponseBuffer(resp)
