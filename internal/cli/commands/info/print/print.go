@@ -16,14 +16,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	// If --all flag is set, use discovery to find all units and print info for each one
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
@@ -32,13 +32,18 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	return runPrint(ctx, l, v, opts)
 }
 
-func runPrint(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func runPrint(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if printErr := printTerragruntContext(l, opts); printErr != nil {
+		if printErr := printTerragruntContext(l, v, opts); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
@@ -46,25 +51,32 @@ func runPrint(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terra
 	}
 
 	// Download source
-	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, report.NewReport())
+	updatedOpts, err := prepare.PrepareSource(
+		ctx,
+		l,
+		v,
+		prepared.Opts,
+		prepared.Cfg,
+		report.NewReport(),
+	)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if printErr := printTerragruntContext(l, opts); printErr != nil {
+		if printErr := printTerragruntContext(l, v, opts); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
 		return nil
 	}
 
-	return printTerragruntContext(l, updatedOpts)
+	return printTerragruntContext(l, v, updatedOpts)
 }
 
-func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
-	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
+func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}
@@ -84,7 +96,9 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragr
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		if err := runPrint(ctx, l, v, unitOpts); err != nil {
+		// Preparation writes obtained credentials into the env, so each
+		// unit gets its own clone to keep them from leaking to siblings.
+		if err := runPrint(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -112,7 +126,7 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error {
+func printTerragruntContext(l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
@@ -128,7 +142,7 @@ func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error
 		return err
 	}
 
-	if _, err := fmt.Fprintf(opts.Writers.Writer, "%s\n", b); err != nil {
+	if _, err := fmt.Fprintf(v.Writers.Writer, "%s\n", b); err != nil {
 		return err
 	}
 

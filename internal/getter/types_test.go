@@ -5,12 +5,14 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestRegistryGetterMode pins ModeDir for tfr sources, the only mode
@@ -49,7 +51,11 @@ func TestRegistryGetterDetect(t *testing.T) {
 		want bool
 	}{
 		{name: "forced tfr", req: &getter.Request{Forced: "tfr", Src: "anything"}, want: true},
-		{name: "tfr scheme", req: &getter.Request{Src: "tfr://example.com/foo/bar/baz?version=1"}, want: true},
+		{
+			name: "tfr scheme",
+			req:  &getter.Request{Src: "tfr://example.com/foo/bar/baz?version=1"},
+			want: true,
+		},
 		{name: "https scheme", req: &getter.Request{Src: "https://example.com/foo"}, want: false},
 		{name: "no scheme", req: &getter.Request{Src: "github.com/foo/bar"}, want: false},
 	}
@@ -69,7 +75,7 @@ func TestRegistryGetterDetect(t *testing.T) {
 func TestCASProtocolGetterMode(t *testing.T) {
 	t.Parallel()
 
-	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, cas.Venv{FS: vfs.NewOSFS()})
+	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, venvtest.New())
 
 	mode, err := g.Mode(t.Context(), &url.URL{Scheme: "cas"})
 	require.NoError(t, err)
@@ -81,7 +87,7 @@ func TestCASProtocolGetterMode(t *testing.T) {
 func TestCASProtocolGetterGetFile(t *testing.T) {
 	t.Parallel()
 
-	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, cas.Venv{FS: vfs.NewOSFS()})
+	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, venvtest.New())
 
 	err := g.GetFile(t.Context(), &getter.Request{})
 	require.ErrorIs(t, err, cas.ErrGetFileNotSupported)
@@ -111,8 +117,17 @@ func TestGitGetterForcesEnableSymlinks(t *testing.T) {
 			req := &getter.Request{DisableSymlinks: tc.callerValue}
 			require.NoError(t, g.Get(t.Context(), req))
 
-			assert.False(t, stub.observedDisableSymlinks, "GitGetter must enable symlinks for the inner Get")
-			assert.Equal(t, tc.callerValue, req.DisableSymlinks, "GitGetter must restore the caller's flag")
+			assert.False(
+				t,
+				stub.observedDisableSymlinks,
+				"GitGetter must enable symlinks for the inner Get",
+			)
+			assert.Equal(
+				t,
+				tc.callerValue,
+				req.DisableSymlinks,
+				"GitGetter must restore the caller's flag",
+			)
 		})
 	}
 }

@@ -24,9 +24,22 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 		notExpectedModules []string
 	}{
 		{
-			path:               "eks",
-			expectedModules:    []string{"services/eks-service-3-v3", "services/eks-service-3-v2", "services/eks-service-3", "services/eks-service-4", "services/eks-service-5", "services/eks-service-2-v2", "services/eks-service-2", "services/eks-service-1"},
-			notExpectedModules: []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
+			path: "eks",
+			expectedModules: []string{
+				"services/eks-service-3-v3",
+				"services/eks-service-3-v2",
+				"services/eks-service-3",
+				"services/eks-service-4",
+				"services/eks-service-5",
+				"services/eks-service-2-v2",
+				"services/eks-service-2",
+				"services/eks-service-1",
+			},
+			notExpectedModules: []string{
+				"lambda",
+				"services/lambda-service-1",
+				"services/lambda-service-2",
+			},
 		},
 		{
 			path:               "services/lambda-service-1",
@@ -34,8 +47,12 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			notExpectedModules: []string{"lambda"},
 		},
 		{
-			path:               "services/eks-service-3",
-			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-4", "services/eks-service-3-v3"},
+			path: "services/eks-service-3",
+			expectedModules: []string{
+				"services/eks-service-3-v2",
+				"services/eks-service-4",
+				"services/eks-service-3-v3",
+			},
 			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2"},
 		},
 		{
@@ -53,7 +70,14 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			fixturePath := filepath.Join(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := filepath.Join(fixturePath, tc.path)
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --report-file report.json --working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath))
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				fmt.Sprintf(
+					"terragrunt run --graph destroy --non-interactive --report-file report.json --working-dir %s --graph-root %s",
+					tmpModulePath,
+					tmpEnvPath,
+				),
+			)
 			require.NoError(t, err)
 
 			runs := helpers.ReadReport(t, tmpModulePath, "report.json")
@@ -64,7 +88,12 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
-				assert.NotNil(t, runs.FindByName(relPath), "Expected module %s to be in report", relPath)
+				assert.NotNil(
+					t,
+					runs.FindByName(relPath),
+					"Expected module %s to be in report",
+					relPath,
+				)
 			}
 
 			for _, modulePath := range tc.notExpectedModules {
@@ -73,7 +102,12 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
-				assert.Nil(t, runs.FindByName(relPath), "Expected module %s to not be in report", relPath)
+				assert.Nil(
+					t,
+					runs.FindByName(relPath),
+					"Expected module %s to not be in report",
+					relPath,
+				)
 			}
 		})
 	}
@@ -89,16 +123,31 @@ func TestTerragruntApplyGraph(t *testing.T) {
 		notExpectedModules []string
 	}{
 		{
-			args:               "run --graph apply --non-interactive --working-dir %s --graph-root %s",
-			path:               "lambda",
-			expectedModules:    []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
-			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
+			args: "run --graph apply --non-interactive --working-dir %s --graph-root %s",
+			path: "lambda",
+			expectedModules: []string{
+				"lambda",
+				"services/lambda-service-1",
+				"services/lambda-service-2",
+			},
+			notExpectedModules: []string{
+				"eks",
+				"services/eks-service-1",
+				"services/eks-service-2",
+				"services/eks-service-3",
+			},
 		},
 		{
-			args:               "run apply --graph --non-interactive --working-dir %s --graph-root %s",
-			path:               "services/eks-service-5",
-			expectedModules:    []string{"services/eks-service-5"},
-			notExpectedModules: []string{"eks", "lambda", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
+			args:            "run apply --graph --non-interactive --working-dir %s --graph-root %s",
+			path:            "services/eks-service-5",
+			expectedModules: []string{"services/eks-service-5"},
+			notExpectedModules: []string{
+				"eks",
+				"lambda",
+				"services/eks-service-1",
+				"services/eks-service-2",
+				"services/eks-service-3",
+			},
 		},
 	}
 
@@ -110,7 +159,14 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			fixturePath := filepath.Join(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := filepath.Join(fixturePath, tc.path)
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args+" --report-file report.json", tmpModulePath, tmpEnvPath))
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				fmt.Sprintf(
+					"terragrunt "+tc.args+" --report-file report.json",
+					tmpModulePath,
+					tmpEnvPath,
+				),
+			)
 			require.NoError(t, err)
 
 			runs := helpers.ReadReport(t, tmpModulePath, "report.json")
@@ -121,7 +177,12 @@ func TestTerragruntApplyGraph(t *testing.T) {
 				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
-				assert.NotNil(t, runs.FindByName(relPath), "Expected module %s to be in report", relPath)
+				assert.NotNil(
+					t,
+					runs.FindByName(relPath),
+					"Expected module %s to be in report",
+					relPath,
+				)
 			}
 
 			for _, modulePath := range tc.notExpectedModules {
@@ -130,7 +191,12 @@ func TestTerragruntApplyGraph(t *testing.T) {
 				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
-				assert.Nil(t, runs.FindByName(relPath), "Expected module %s to not be in report", relPath)
+				assert.Nil(
+					t,
+					runs.FindByName(relPath),
+					"Expected module %s to not be in report",
+					relPath,
+				)
 			}
 		})
 	}
@@ -145,7 +211,12 @@ func prepareGraphFixture(t *testing.T) string {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+testPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	return tmpEnvPath

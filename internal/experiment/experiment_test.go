@@ -22,7 +22,11 @@ const (
 func newTestLogger() (log.Logger, *bytes.Buffer) {
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 	output := new(bytes.Buffer)
-	logger := log.New(log.WithOutput(output), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter))
+	logger := log.New(
+		log.WithOutput(output),
+		log.WithLevel(log.InfoLevel),
+		log.WithFormatter(formatter),
+	)
 
 	return logger, output
 }
@@ -45,6 +49,19 @@ func TestOptionalHooksIsOngoing(t *testing.T) {
 	require.NotNil(t, got, "optional-hooks experiment must be registered in NewExperiments()")
 	assert.Equal(t, experiment.StatusOngoing, got.Status, "optional-hooks must be ongoing")
 	assert.False(t, got.Evaluate(), "optional-hooks must be disabled by default")
+}
+
+func TestVersionAttributeIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.VersionAttribute)
+	require.NotNil(t, got, "version-attribute experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "version-attribute must be ongoing")
+	assert.False(t, got.Evaluate(), "version-attribute must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.VersionAttribute))
+	assert.True(t, got.Evaluate(), "version-attribute must be enabled once explicitly requested")
 }
 
 func TestEvaluate(t *testing.T) {

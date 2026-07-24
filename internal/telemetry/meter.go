@@ -43,7 +43,12 @@ type Meter struct {
 }
 
 // NewMeter creates and configures the metrics collection.
-func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Meter, error) {
+func NewMeter(
+	ctx context.Context,
+	appName, appVersion string,
+	writer io.Writer,
+	opts *Options,
+) (*Meter, error) {
 	exporter, err := NewMetricsExporter(ctx, writer, opts)
 	if err != nil {
 		return nil, err
@@ -87,7 +92,11 @@ func (meter *Meter) Time(
 	startTime := time.Now()
 	err = fn(ctx)
 
-	histogram.Record(ctx, time.Since(startTime).Milliseconds(), otelmetric.WithAttributes(metricAttrs...))
+	histogram.Record(
+		ctx,
+		time.Since(startTime).Milliseconds(),
+		otelmetric.WithAttributes(metricAttrs...),
+	)
 
 	if err != nil {
 		// count errors
@@ -115,7 +124,15 @@ func (meter *Meter) Count(ctx context.Context, name string, value int64) {
 }
 
 // NewMetricsExporter - create a new exporter based on the telemetry options.
-func NewMetricsExporter(ctx context.Context, writer io.Writer, opts *Options) (metric.Exporter, error) {
+// The structure mirrors NewLogsExporter and NewTraceExporter; the per-signal
+// OTLP option types prevent sharing a single implementation.
+//
+//nolint:dupl
+func NewMetricsExporter(
+	ctx context.Context,
+	writer io.Writer,
+	opts *Options,
+) (metric.Exporter, error) {
 	exporterType := metricsExporterType(opts.MetricExporter)
 	if exporterType == "" {
 		exporterType = noneMetricsExporterType

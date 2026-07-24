@@ -15,13 +15,19 @@ func (err MissingCommand) Error() string {
 type WrongTerraformCommand string
 
 func (name WrongTerraformCommand) Error() string {
-	return fmt.Sprintf("Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help", string(name))
+	return fmt.Sprintf(
+		"Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help",
+		string(name),
+	)
 }
 
 type WrongTofuCommand string
 
 func (name WrongTofuCommand) Error() string {
-	return fmt.Sprintf("OpenTofu has no command named %q. To see all of OpenTofu's top-level commands, run: tofu -help", string(name))
+	return fmt.Sprintf(
+		"OpenTofu has no command named %q. To see all of OpenTofu's top-level commands, run: tofu -help",
+		string(name),
+	)
 }
 
 type BackendNotDefined struct {
@@ -31,7 +37,12 @@ type BackendNotDefined struct {
 }
 
 func (err BackendNotDefined) Error() string {
-	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n", err.ConfigPath, err.WorkingDir, err.BackendType)
+	return fmt.Sprintf(
+		"Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n",
+		err.ConfigPath,
+		err.WorkingDir,
+		err.BackendType,
+	)
 }
 
 type NoTerraformFilesFound string
@@ -45,7 +56,10 @@ type ModuleIsProtected struct {
 }
 
 func (err ModuleIsProtected) Error() string {
-	return fmt.Sprintf("Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.", err.ConfigPath)
+	return fmt.Sprintf(
+		"Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.",
+		err.ConfigPath,
+	)
 }
 
 // Legacy retry error removed in favor of error handling via options.Errors

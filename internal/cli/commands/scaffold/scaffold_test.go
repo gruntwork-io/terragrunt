@@ -81,10 +81,18 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	err = os.Mkdir(outputDir, 0755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(templateDir, "terragrunt.hcl"), []byte(scaffold.DefaultTerragruntTemplate), 0644)
+	err = os.WriteFile(
+		filepath.Join(templateDir, "terragrunt.hcl"),
+		[]byte(scaffold.DefaultTerragruntTemplate),
+		0644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(scaffold.DefaultBoilerplateConfig), 0644)
+	err = os.WriteFile(
+		filepath.Join(templateDir, "boilerplate.yml"),
+		[]byte(scaffold.DefaultBoilerplateConfig),
+		0644,
+	)
 	require.NoError(t, err)
 
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
@@ -105,7 +113,12 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	require.NoError(t, err)
 
 	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
-	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
+	cfg, err := config.ReadTerragruntConfig(
+		t.Context(),
+		l,
+		pctx,
+		config.DefaultParserOptions(l, opts.StrictControls),
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
 	assert.Len(t, cfg.Inputs, 1)
@@ -207,7 +220,12 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	require.NoError(t, err)
 
 	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
-	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
+	cfg, err := config.ReadTerragruntConfig(
+		t.Context(),
+		l,
+		pctx,
+		config.DefaultParserOptions(l, opts.StrictControls),
+	)
 	require.NoError(t, err)
 
 	assert.Contains(t, cfg.Inputs, "vpc_cidr")
@@ -443,15 +461,35 @@ catalog {
 
 			// Verify config parsing based on whether attributes are present in the config
 			if strings.Contains(tc.terragruntConfig, "no_shell") {
-				assert.NotNil(t, catalogCfg.NoShell, "NoShell should not be nil when specified in config: %s", tc.description)
+				assert.NotNil(
+					t,
+					catalogCfg.NoShell,
+					"NoShell should not be nil when specified in config: %s",
+					tc.description,
+				)
 			} else {
-				assert.Nil(t, catalogCfg.NoShell, "NoShell should be nil when omitted from config: %s", tc.description)
+				assert.Nil(
+					t,
+					catalogCfg.NoShell,
+					"NoShell should be nil when omitted from config: %s",
+					tc.description,
+				)
 			}
 
 			if strings.Contains(tc.terragruntConfig, "no_hooks") {
-				assert.NotNil(t, catalogCfg.NoHooks, "NoHooks should not be nil when specified in config: %s", tc.description)
+				assert.NotNil(
+					t,
+					catalogCfg.NoHooks,
+					"NoHooks should not be nil when specified in config: %s",
+					tc.description,
+				)
 			} else {
-				assert.Nil(t, catalogCfg.NoHooks, "NoHooks should be nil when omitted from config: %s", tc.description)
+				assert.Nil(
+					t,
+					catalogCfg.NoHooks,
+					"NoHooks should be nil when omitted from config: %s",
+					tc.description,
+				)
 			}
 
 			// Apply catalog config settings to options (simulating scaffold.Run behavior)
@@ -465,8 +503,20 @@ catalog {
 			}
 
 			// Verify final option values match expected (after config application + CLI override)
-			assert.Equal(t, tc.expectedNoShell, opts.NoShell, "Final NoShell value should match expected: %s", tc.description)
-			assert.Equal(t, tc.expectedNoHooks, opts.NoHooks, "Final NoHooks value should match expected: %s", tc.description)
+			assert.Equal(
+				t,
+				tc.expectedNoShell,
+				opts.NoShell,
+				"Final NoShell value should match expected: %s",
+				tc.description,
+			)
+			assert.Equal(
+				t,
+				tc.expectedNoHooks,
+				opts.NoHooks,
+				"Final NoHooks value should match expected: %s",
+				tc.description,
+			)
 		})
 	}
 }
@@ -571,7 +621,11 @@ variables:
     type: string
     default: "test-value"
 `
-	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(
+		filepath.Join(templateDir, "boilerplate.yml"),
+		[]byte(boilerplateConfig),
+		0644,
+	)
 	require.NoError(t, err)
 
 	// Create template file with shell template function
@@ -584,7 +638,13 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoShell=true
-	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, false)
+	boilerplateOpts := newTestBoilerplateOptions(
+		templateDir,
+		outputDir,
+		map[string]any{},
+		true,
+		false,
+	)
 
 	// Process the template
 	l := logger.CreateLogger()
@@ -605,7 +665,12 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	// When shell is disabled, the shell function should remain unprocessed
 	// Note: The exact behavior depends on how boilerplate handles disabled shell functions
 	// It might either leave the template as-is or throw an error
-	assert.NotContains(t, content, "SHELL_EXECUTED", "Shell function should not execute when NoShell=true")
+	assert.NotContains(
+		t,
+		content,
+		"SHELL_EXECUTED",
+		"Shell function should not execute when NoShell=true",
+	)
 }
 
 // TestBoilerplateShellTemplateFunctionEnabled tests that NoShell=false allows shell template functions
@@ -630,7 +695,11 @@ variables:
     type: string
     default: "test-value"
 `
-	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(
+		filepath.Join(templateDir, "boilerplate.yml"),
+		[]byte(boilerplateConfig),
+		0644,
+	)
 	require.NoError(t, err)
 
 	// Create template file with shell template function
@@ -643,7 +712,13 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoShell=false
-	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
+	boilerplateOpts := newTestBoilerplateOptions(
+		templateDir,
+		outputDir,
+		map[string]any{},
+		false,
+		false,
+	)
 
 	// Process the template
 	l := logger.CreateLogger()
@@ -662,7 +737,12 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	assert.Contains(t, content, "test-value", "Template variable should be processed")
 
 	// When shell is enabled, the shell function should execute and output should be present
-	assert.Contains(t, content, "SHELL_EXECUTED", "Shell function should execute when NoShell=false")
+	assert.Contains(
+		t,
+		content,
+		"SHELL_EXECUTED",
+		"Shell function should execute when NoShell=false",
+	)
 }
 
 // TestBoilerplateHooksDisabled tests that NoHooks=true disables hooks
@@ -699,7 +779,11 @@ hooks:
         - ` + outputDir + `/after_hook_not_executed.txt
       description: "Test hook that should NOT execute"
 `
-	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(
+		filepath.Join(templateDir, "boilerplate.yml"),
+		[]byte(boilerplateConfig),
+		0644,
+	)
 	require.NoError(t, err)
 
 	// Create simple template file
@@ -710,7 +794,13 @@ test_var = "{{ .TestVar }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoHooks=true
-	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, true)
+	boilerplateOpts := newTestBoilerplateOptions(
+		templateDir,
+		outputDir,
+		map[string]any{},
+		false,
+		true,
+	)
 
 	// Process the template
 	l := logger.CreateLogger()
@@ -768,7 +858,11 @@ hooks:
         - ` + outputDir + `/after_hook_executed.txt
       description: "Test hook that SHOULD execute"
 `
-	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(
+		filepath.Join(templateDir, "boilerplate.yml"),
+		[]byte(boilerplateConfig),
+		0644,
+	)
 	require.NoError(t, err)
 
 	// Create simple template file
@@ -779,7 +873,13 @@ test_var = "{{ .TestVar }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with NoHooks=false
-	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
+	boilerplateOpts := newTestBoilerplateOptions(
+		templateDir,
+		outputDir,
+		map[string]any{},
+		false,
+		false,
+	)
 
 	// Process the template
 	l := logger.CreateLogger()
@@ -830,7 +930,11 @@ hooks:
     - command: echo "HOOK_EXECUTED" > ` + outputDir + `/hook_output.txt
       description: "Test hook that should NOT execute"
 `
-	err = os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"), []byte(boilerplateConfig), 0644)
+	err = os.WriteFile(
+		filepath.Join(templateDir, "boilerplate.yml"),
+		[]byte(boilerplateConfig),
+		0644,
+	)
 	require.NoError(t, err)
 
 	// Create template file with shell template function
@@ -842,7 +946,13 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	require.NoError(t, err)
 
 	// Create BoilerplateOptions with both NoShell=true and NoHooks=true
-	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, true)
+	boilerplateOpts := newTestBoilerplateOptions(
+		templateDir,
+		outputDir,
+		map[string]any{},
+		true,
+		true,
+	)
 
 	// Process the template
 	l := logger.CreateLogger()
@@ -861,7 +971,12 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	assert.Contains(t, content, "test-value", "Template variable should be processed")
 
 	// Verify that shell function did NOT execute
-	assert.NotContains(t, content, "SHELL_EXECUTED", "Shell function should not execute when NoShell=true")
+	assert.NotContains(
+		t,
+		content,
+		"SHELL_EXECUTED",
+		"Shell function should not execute when NoShell=true",
+	)
 
 	// Verify that hooks did NOT execute
 	hookOutputFile := filepath.Join(outputDir, "hook_output.txt")

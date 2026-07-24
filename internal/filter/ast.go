@@ -59,7 +59,8 @@ func (p *PathExpression) String() string                        { return p.Value
 func (p *PathExpression) RequiresDiscovery() (Expression, bool) { return p, false }
 func (p *PathExpression) RequiresParse() (Expression, bool)     { return p, false }
 func (p *PathExpression) IsRestrictedToStacks() bool            { return false }
-func (p *PathExpression) Negated() Expression                   { return NewPrefixExpression("!", p) }
+
+func (p *PathExpression) Negated() Expression { return NewPrefixExpression("!", p) }
 
 // AttributeExpression represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeExpression struct {
@@ -108,7 +109,8 @@ func (a *AttributeExpression) supportsGlob() bool {
 	return a.Key == AttributeReading || a.Key == AttributeName || a.Key == AttributeSource
 }
 
-func (a *AttributeExpression) expressionNode()                       {}
+func (a *AttributeExpression) expressionNode() {}
+
 func (a *AttributeExpression) String() string                        { return a.Key + "=" + a.Value }
 func (a *AttributeExpression) RequiresDiscovery() (Expression, bool) { return a, true }
 func (a *AttributeExpression) RequiresParse() (Expression, bool) {

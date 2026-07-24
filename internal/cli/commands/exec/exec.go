@@ -24,9 +24,7 @@ func Run(
 	cmdOpts *Options,
 	args clihelper.Args,
 ) error {
-	rv := run.FromRoot(v)
-
-	prepared, err := prepare.PrepareConfig(ctx, l, rv, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}
@@ -34,7 +32,7 @@ func Run(
 	r := report.NewReport()
 
 	// Download source
-	updatedOpts, err := prepare.PrepareSource(ctx, l, rv, prepared.Opts, prepared.Cfg, r)
+	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
@@ -42,20 +40,20 @@ func Run(
 	runCfg := prepared.Cfg.ToRunConfig(l)
 
 	// Generate config
-	if err := prepare.PrepareGenerate(l, rv, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(l, v, updatedOpts, runCfg); err != nil {
 		return err
 	}
 
 	if cmdOpts.InDownloadDir {
 		// Run terraform init
-		if err := prepare.PrepareInit(ctx, l, rv, opts, updatedOpts, runCfg, r); err != nil {
+		if err := prepare.PrepareInit(ctx, l, v, opts, updatedOpts, runCfg, r); err != nil {
 			return err
 		}
 	} else {
 		// Just set inputs as env vars, skip init
 		updatedOpts.AutoInit = false
 
-		if err := prepare.PrepareInputsAsEnvVars(l, updatedOpts, runCfg); err != nil {
+		if err := prepare.PrepareInputsAsEnvVars(l, v, updatedOpts, runCfg); err != nil {
 			return err
 		}
 	}
@@ -84,16 +82,32 @@ func runTargetCommand(
 	}
 
 	runOpts := configbridge.NewRunOptions(opts)
-	rv := run.FromRoot(v)
 
-	return run.RunActionWithHooks(ctx, l, rv, command, runOpts, cfg, r, func(ctx context.Context) error {
-		_, err := shell.RunCommandWithOutput(
-			ctx, l, v.Exec, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to run command in directory %s: %w", dir, err)
-		}
+	return run.RunActionWithHooks(
+		ctx,
+		l,
+		v,
+		command,
+		runOpts,
+		cfg,
+		r,
+		func(ctx context.Context) error {
+			_, err := shell.RunCommandWithOutput(
+				ctx,
+				l,
+				v,
+				configbridge.ShellRunOptsFromOpts(opts),
+				dir,
+				false,
+				false,
+				command,
+				cmdArgs...,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to run command in directory %s: %w", dir, err)
+			}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }

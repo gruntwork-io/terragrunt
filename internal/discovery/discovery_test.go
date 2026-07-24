@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -102,12 +103,32 @@ func TestCandidacyClassifier_Analyze(t *testing.T) {
 
 			classifier := filter.NewClassifier(filters)
 
-			assert.Equal(t, tt.expectHasPositive, classifier.HasPositiveFilters(), "HasPositiveFilters mismatch")
-			assert.Equal(t, tt.expectHasParseRequired, classifier.HasParseRequiredFilters(), "HasParseRequiredFilters mismatch")
-			assert.Equal(t, tt.expectHasGraphFilters, classifier.HasGraphFilters(), "HasGraphFilters mismatch")
+			assert.Equal(
+				t,
+				tt.expectHasPositive,
+				classifier.HasPositiveFilters(),
+				"HasPositiveFilters mismatch",
+			)
+			assert.Equal(
+				t,
+				tt.expectHasParseRequired,
+				classifier.HasParseRequiredFilters(),
+				"HasParseRequiredFilters mismatch",
+			)
+			assert.Equal(
+				t,
+				tt.expectHasGraphFilters,
+				classifier.HasGraphFilters(),
+				"HasGraphFilters mismatch",
+			)
 
 			if tt.expectGraphExprCount > 0 {
-				assert.Len(t, classifier.GraphExpressions(), tt.expectGraphExprCount, "GraphExpressions count mismatch")
+				assert.Len(
+					t,
+					classifier.GraphExpressions(),
+					tt.expectGraphExprCount,
+					"GraphExpressions count mismatch",
+				)
 			}
 		})
 	}
@@ -246,7 +267,7 @@ func TestDiscovery_SimpleFilesystem(t *testing.T) {
 		WorkingDir: tmpDir,
 	})
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 3, "should discover 3 components")
 }
@@ -286,7 +307,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components in apps/")
 }
@@ -326,7 +347,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (excluding bar)")
 
@@ -371,7 +392,7 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (apps/* minus baz)")
 
@@ -492,7 +513,7 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithReadFiles()
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Find the app component
@@ -543,7 +564,7 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	_, err := d.Discover(t.Context(), l, opts)
+	_, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.Error(t, err)
 
 	var coexistErr discovery.CoexistenceError
@@ -574,7 +595,7 @@ func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(t.Context(), l, opts)
+	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 1)
 	assert.Equal(t, component.UnitKind, components[0].Kind())

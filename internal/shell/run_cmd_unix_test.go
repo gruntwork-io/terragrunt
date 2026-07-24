@@ -4,6 +4,8 @@ package shell_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
@@ -13,7 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -30,11 +32,12 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	l := logger.CreateLogger()
 
 	errCh := make(chan error)
-	expectedWait := 2
+	expectedWait := 1
 
 	ctx, cancel := context.WithCancelCause(t.Context())
 
 	cmdPath := "testdata/test_sigint_wait.sh"
+	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
 
 	shellOpts := configbridge.ShellRunOptsFromOpts(terragruntOptions)
 	// Forward the interrupt near-immediately instead of waiting the production
@@ -45,20 +48,26 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 		_, err := shell.RunCommandWithOutput(
 			ctx,
 			l,
-			vexec.NewOSExec(),
+			venv.OSVenv(),
 			shellOpts,
 			"",
 			false,
 			false,
 			cmdPath,
 			strconv.Itoa(expectedWait),
+			readyPath,
 		)
 		errCh <- err
 	}()
 
-	time.AfterFunc(time.Second, func() {
-		cancel(signal.NewContextCanceledError(syscall.SIGINT))
-	})
+	// Cancel only once the child confirms its INT trap is installed, instead of guessing with a timer.
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(readyPath)
+
+		return err == nil
+	}, 10*time.Second, 10*time.Millisecond, "child never wrote the trap-ready marker")
+
+	cancel(signal.NewContextCanceledError(syscall.SIGINT))
 
 	actualErr := <-errCh
 	require.Error(t, actualErr, "Expected an error but got none")

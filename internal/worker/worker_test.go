@@ -1,13 +1,14 @@
 package worker_test
 
 import (
+	"errors"
 	"sync/atomic"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 
-	"errors"
-
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -86,7 +87,13 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 
 	unwrapper, ok := errs.(interface{ Unwrap() []error })
 	require.True(t, ok, "expected joined error, got %T", errs)
-	require.Len(t, unwrapper.Unwrap(), 5, "expected exactly 5 errors, got %d", len(unwrapper.Unwrap()))
+	require.Len(
+		t,
+		unwrapper.Unwrap(),
+		5,
+		"expected exactly 5 errors, got %d",
+		len(unwrapper.Unwrap()),
+	)
 
 	if atomic.LoadInt32(&successCount) != 5 {
 		t.Errorf("expected successCount to be 5, got %d", successCount)
@@ -134,6 +141,26 @@ func TestStopAndRestart(t *testing.T) {
 	finalCountAfterRestart := atomic.LoadInt32(&counter)
 	require.Equal(t, int32(8), finalCountAfterRestart, "expected counter to be 8")
 }
+
+func TestPanicTaskReturnsReportableError(t *testing.T) {
+	t.Parallel()
+
+	wp := worker.NewWorkerPool(1)
+	defer wp.Stop()
+
+	wp.Submit(func() error {
+		panic("worker panic")
+	})
+
+	err := wp.Wait()
+	require.Error(t, err)
+	assert.True(t, panicreport.IsPanic(err), "returned error should be classified as a panic")
+
+	msg, stack := panicreport.PanicDetails(err)
+	assert.Equal(t, "worker panic", msg)
+	assert.Contains(t, string(stack), "worker_test.go")
+}
+
 func TestParallelSubmitsAndWaits(t *testing.T) {
 	t.Parallel()
 

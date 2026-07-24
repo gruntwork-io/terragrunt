@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	logformat "github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func BenchmarkFormat(b *testing.B) {
@@ -41,12 +42,15 @@ func BenchmarkFormat(b *testing.B) {
 
 			tgOptions.WorkingDir = tmpBase
 			tgOptions.HclExclude = excludeList
-			tgOptions.Writers.Writer = io.Discard
-			tgOptions.Writers.ErrWriter = io.Discard
+			v := venvtest.New()
 
 			formatter := logformat.NewFormatter(logformat.NewKeyValueFormatPlaceholders())
 			formatter.SetDisabledColors(true)
-			l := log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel), log.WithFormatter(formatter))
+			l := log.New(
+				log.WithOutput(io.Discard),
+				log.WithLevel(log.ErrorLevel),
+				log.WithFormatter(formatter),
+			)
 			ctx := context.Background()
 
 			b.ResetTimer()
@@ -60,7 +64,7 @@ func BenchmarkFormat(b *testing.B) {
 
 				b.StartTimer()
 
-				if err := format.Run(ctx, l, tgOptions); err != nil {
+				if err := format.Run(ctx, l, v, tgOptions); err != nil {
 					b.Fatalf("format.Run failed: %v", err)
 				}
 			}

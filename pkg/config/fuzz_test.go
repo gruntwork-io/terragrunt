@@ -2,16 +2,14 @@ package config_test
 
 import (
 	"context"
-	"io"
 	"strings"
 	"sync/atomic"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -126,9 +124,7 @@ func FuzzHCLRunCommand(f *testing.F) {
 		})
 
 		ctx, pctx := newTestParsingContext(t, "")
-		pctx.Writers.Writer = io.Discard
-		pctx.Writers.ErrWriter = io.Discard
-		pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: memExec}
+		pctx.Venv = venvtest.New().WithExec(memExec)
 
 		l := logger.CreateLogger()
 		out, err := config.RunCommand(ctx, pctx, l, argsForCall)
@@ -149,7 +145,13 @@ func FuzzHCLRunCommand(f *testing.F) {
 			require.Equal(t, int32(0), calls.Load(),
 				"exec must not run on the empty-args path (got %d calls)", calls.Load())
 		default:
-			require.NoError(t, err, "expected mock-success for stripped %v from raw %q", stripped, raw)
+			require.NoError(
+				t,
+				err,
+				"expected mock-success for stripped %v from raw %q",
+				stripped,
+				raw,
+			)
 			require.Equal(t, strings.TrimSuffix(mockOutput, "\n"), out,
 				"expected trimmed mock output for stripped %v", stripped)
 			require.Equal(t, int32(1), calls.Load(),

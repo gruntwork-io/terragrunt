@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ func TestProcessHooks_FiresHooksInDeclarationOrder(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := newHookVenv(rec.handler(vexec.Result{}))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -63,7 +64,7 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 		return vexec.Result{}
 	}
 
-	v := newHookVenv(h)
+	v := venvtest.New().WithHandler(h)
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -71,7 +72,13 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 		// Default RunOnError=false: should NOT run because first hook failed.
 		{Name: "second", Commands: []string{"plan"}, Execute: []string{"second-cmd"}, If: true},
 		// RunOnError=true: SHOULD run despite the prior failure.
-		{Name: "third", Commands: []string{"plan"}, Execute: []string{"third-cmd"}, If: true, RunOnError: true},
+		{
+			Name:       "third",
+			Commands:   []string{"plan"},
+			Execute:    []string{"third-cmd"},
+			If:         true,
+			RunOnError: true,
+		},
 	}
 
 	err := run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
@@ -88,8 +95,12 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 		names = append(names, c.Name)
 	}
 
-	assert.Equal(t, []string{"failure", "third-cmd"}, names,
-		"second-cmd must be skipped after prior failure (default RunOnError=false); third-cmd must run with RunOnError=true")
+	assert.Equal(
+		t,
+		[]string{"failure", "third-cmd"},
+		names,
+		"second-cmd must be skipped after prior failure (default RunOnError=false); third-cmd must run with RunOnError=true",
+	)
 }
 
 // TestProcessHooks_PropagatesWorkingDir pins that the hook's WorkingDir
@@ -100,7 +111,7 @@ func TestProcessHooks_PropagatesWorkingDir(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := newHookVenv(rec.handler(vexec.Result{}))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	opts := newHookOpts()
@@ -124,7 +135,12 @@ func TestProcessHooks_PropagatesWorkingDir(t *testing.T) {
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 1)
-	assert.Equal(t, "/work/unit/scripts", calls[0].Dir, "hook WorkingDir must be the subprocess CWD")
+	assert.Equal(
+		t,
+		"/work/unit/scripts",
+		calls[0].Dir,
+		"hook WorkingDir must be the subprocess CWD",
+	)
 }
 
 // TestProcessErrorHooks_FiresAllMatchingHooks pins the contract that
@@ -160,7 +176,18 @@ func TestProcessErrorHooks_FiresAllMatchingHooks(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
+	require.NoError(
+		t,
+		run.ProcessErrorHooks(
+			t.Context(),
+			l,
+			venvtest.New().WithExec(exec),
+			hooks,
+			&runcfg.RunConfig{},
+			newHookOpts(),
+			priorErrs,
+		),
+	)
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 2, "both matching error_hooks must fire")
@@ -188,11 +215,34 @@ func TestProcessErrorHooks_AccumulatesFailures(t *testing.T) {
 	priorErrs := []error{errors.New("triggering error")}
 
 	hooks := []runcfg.ErrorHook{
-		{Name: "fail-1", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"failing-hook"}},
-		{Name: "succeed", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"ok"}},
-		{Name: "fail-2", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"failing-hook"}},
+		{
+			Name:     "fail-1",
+			Commands: []string{"plan"},
+			OnErrors: []string{".*"},
+			Execute:  []string{"failing-hook"},
+		},
+		{
+			Name:     "succeed",
+			Commands: []string{"plan"},
+			OnErrors: []string{".*"},
+			Execute:  []string{"ok"},
+		},
+		{
+			Name:     "fail-2",
+			Commands: []string{"plan"},
+			OnErrors: []string{".*"},
+			Execute:  []string{"failing-hook"},
+		},
 	}
 
-	err := run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs)
+	err := run.ProcessErrorHooks(
+		t.Context(),
+		l,
+		venvtest.New().WithExec(exec),
+		hooks,
+		&runcfg.RunConfig{},
+		newHookOpts(),
+		priorErrs,
+	)
 	require.Error(t, err, "any failing error_hook must surface as a returned error")
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -29,8 +29,14 @@ const (
 )
 
 // doWithTelemetry is a small helper to standardize telemetry collection calls.
-func doWithTelemetry(ctx context.Context, name string, fields map[string]any, fn func(context.Context) error) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, name, fields, fn)
+func doWithTelemetry(
+	ctx context.Context,
+	l log.Logger,
+	name string,
+	fields map[string]any,
+	fn func(context.Context, log.Logger) error,
+) error {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, name, fields, fn)
 }
 
 // resolveWorkingDir determines the canonical working directory for discovery.
@@ -120,6 +126,7 @@ func prepareDiscovery(
 func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (component.Components, error) {
@@ -128,13 +135,13 @@ func discoverWithRetry(
 
 	var discovered component.Components
 
-	err := doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
+	err := doWithTelemetry(ctx, l, telemetryDiscovery, map[string]any{
 		"working_dir":       opts.WorkingDir,
 		"terraform_command": opts.TerraformCommand,
-	}, func(childCtx context.Context) error {
+	}, func(childCtx context.Context, l log.Logger) error {
 		var discoveryErr error
 
-		discovered, discoveryErr = d.Discover(childCtx, l, opts)
+		discovered, discoveryErr = d.Discover(childCtx, l, v, opts)
 		if discoveryErr == nil {
 			l.Debugf("Runner pool discovery found %d configs", len(discovered))
 		}
@@ -158,10 +165,10 @@ func createRunner(
 ) (common.StackRunner, error) {
 	var rnr common.StackRunner
 
-	err := doWithTelemetry(ctx, telemetryCreation, map[string]any{
+	err := doWithTelemetry(ctx, l, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
 		"terraform_command":  opts.TerraformCommand,
-	}, func(childCtx context.Context) error {
+	}, func(childCtx context.Context, l log.Logger) error {
 		var err2 error
 
 		rnr, err2 = NewRunnerPoolStack(childCtx, l, opts, comps, runnerOpts...)
@@ -180,7 +187,7 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -200,7 +207,7 @@ func checkVersionConstraints(
 			return checkUnitVersionConstraints(
 				checkCtx,
 				l,
-				exec,
+				v,
 				unitOpts,
 				unitLogger,
 				unit,
@@ -216,7 +223,7 @@ func checkVersionConstraints(
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -226,7 +233,10 @@ func checkUnitVersionConstraints(
 	// This is almost definitely already parsed, but we'll check just in case.
 	if unitConfig == nil {
 		configCtx, pctx := configbridge.NewParsingContext(ctx, l, unitOpts)
-		pctx = pctx.WithDecodeList(config.TerragruntVersionConstraints)
+		pctx = pctx.WithVenv(v).WithDecodeList(
+			config.TerragruntVersionConstraints,
+			config.FeatureFlagsBlock,
+		)
 
 		var err error
 
@@ -250,13 +260,17 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, exec, run.PopulateTFVersionInput{
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(unitOpts),
 		WorkingDir:   unitOpts.WorkingDir,
 		VersionFiles: unitOpts.VersionManagerFileName,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
+		return fmt.Errorf(
+			"failed to populate Terraform version for unit %s: %w",
+			unit.DisplayPath(),
+			err,
+		)
 	}
 
 	unitOpts.TerraformVersion = ver
@@ -276,7 +290,11 @@ func checkUnitVersionConstraints(
 			unitOpts.TerragruntVersion,
 			unitConfig.TerragruntVersionConstraint,
 		); err != nil {
-			return fmt.Errorf("terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
+			return fmt.Errorf(
+				"terragrunt version check failed for unit %s: %w",
+				unit.DisplayPath(),
+				err,
+			)
 		}
 	}
 

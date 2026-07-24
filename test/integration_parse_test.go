@@ -40,6 +40,8 @@ var knownBadFiles = []string{
 	"fixtures/scaffold/with-shell-and-hooks/.boilerplate/terragrunt.hcl",
 	"fixtures/scaffold/with-shell-commands/.boilerplate/terragrunt.hcl",
 	"fixtures/stacks/errors/unknown-value/units/bad-unit/terragrunt.hcl",
+	"fixtures/regressions/terraform-source-references-dependency/live/module-b/terragrunt.hcl",
+	"fixtures/find/source-references-dependency/app/terragrunt.hcl",
 	// Files that require AWS credentials (will fail/timeout without them)
 	"fixtures/assume-role/external-id-with-comma/terragrunt.hcl",
 	"fixtures/assume-role/external-id/terragrunt.hcl",
@@ -195,9 +197,19 @@ func TestParseFindListAllComponentsWithDAG(t *testing.T) {
 			// d-dependencies-only (depends on b) should come after b
 			// c-mixed-deps (depends on a and d) should come last
 			assert.Greater(t, aDepLine, bDepLine, "a-dependent should come after b-dependency")
-			assert.Greater(t, dDepsLine, bDepLine, "d-dependencies-only should come after b-dependency")
+			assert.Greater(
+				t,
+				dDepsLine,
+				bDepLine,
+				"d-dependencies-only should come after b-dependency",
+			)
 			assert.Greater(t, cMixedLine, aDepLine, "c-mixed-deps should come after a-dependent")
-			assert.Greater(t, cMixedLine, dDepsLine, "c-mixed-deps should come after d-dependencies-only")
+			assert.Greater(
+				t,
+				cMixedLine,
+				dDepsLine,
+				"c-mixed-deps should come after d-dependencies-only",
+			)
 		})
 	}
 }
@@ -255,12 +267,27 @@ func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 			}
 
 			if dDepsLine >= 0 && bDepLine >= 0 {
-				assert.Greater(t, dDepsLine, bDepLine, "d-dependencies-only should come after b-dependency")
+				assert.Greater(
+					t,
+					dDepsLine,
+					bDepLine,
+					"d-dependencies-only should come after b-dependency",
+				)
 			}
 
 			if cMixedLine >= 0 && aDepLine >= 0 && dDepsLine >= 0 {
-				assert.Greater(t, cMixedLine, aDepLine, "c-mixed-deps should come after a-dependent")
-				assert.Greater(t, cMixedLine, dDepsLine, "c-mixed-deps should come after d-dependencies-only")
+				assert.Greater(
+					t,
+					cMixedLine,
+					aDepLine,
+					"c-mixed-deps should come after a-dependent",
+				)
+				assert.Greater(
+					t,
+					cMixedLine,
+					dDepsLine,
+					"c-mixed-deps should come after d-dependencies-only",
+				)
 			}
 		})
 	}

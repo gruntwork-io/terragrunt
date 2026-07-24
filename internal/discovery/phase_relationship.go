@@ -8,7 +8,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -57,10 +57,15 @@ func (p *RelationshipPhase) Kind() PhaseKind {
 }
 
 // Run executes the relationship discovery phase.
-func (p *RelationshipPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
+func (p *RelationshipPhase) Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	input *PhaseInput,
+) (*PhaseResults, error) {
 	results := NewPhaseResults()
 
-	err := p.runRelationshipDiscovery(ctx, l, input, results)
+	err := p.runRelationshipDiscovery(ctx, l, v, input, results)
 
 	return results, err
 }
@@ -69,6 +74,7 @@ func (p *RelationshipPhase) Run(ctx context.Context, l log.Logger, input *PhaseI
 func (p *RelationshipPhase) runRelationshipDiscovery(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	input *PhaseInput,
 	_ *PhaseResults,
 ) error {
@@ -97,18 +103,20 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 	for _, c := range input.Components {
 		// terminalTracker tracks components that, if encountered, indicate we can stop
 		// traversal, as they are terminal components in the dependency graph.
-		terminalTracker := newTerminalTracker(slices.Collect(func(yield func(component.Component) bool) {
-			for _, rc := range input.Components {
-				if rc != nil && rc != c {
-					if !yield(rc) {
-						return
+		terminalTracker := newTerminalTracker(
+			slices.Collect(func(yield func(component.Component) bool) {
+				for _, rc := range input.Components {
+					if rc != nil && rc != c {
+						if !yield(rc) {
+							return
+						}
 					}
 				}
-			}
-		}))
+			}),
+		)
 
 		g.Go(func() error {
-			err := p.discoverRelationships(ctx, l, state, c, terminalTracker, p.maxDepth)
+			err := p.discoverRelationships(ctx, l, v, state, c, terminalTracker, p.maxDepth)
 			if err != nil {
 				errMu.Lock()
 
@@ -136,6 +144,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 func (p *RelationshipPhase) discoverRelationships(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *relationshipTraversalState,
 	c component.Component,
 	tracker *terminalTracker,
@@ -156,7 +165,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagRelationship)
 
-	if err := ensureParsed(ctx, l, c, state.opts, state.discovery); err != nil {
+	if err := ensureParsed(ctx, l, v, c, state.opts, state.discovery); err != nil {
 		return err
 	}
 
@@ -167,7 +176,7 @@ func (p *RelationshipPhase) discoverRelationships(
 		return err
 	}
 
-	paths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, paths)
+	paths, err = stackDependencyPaths(ctx, l, v, state.opts, paths)
 	if err != nil {
 		return err
 	}
@@ -179,7 +188,13 @@ func (p *RelationshipPhase) discoverRelationships(
 	depsToDiscover := make(component.Components, 0, len(paths))
 
 	for _, path := range paths {
-		dep, created := p.dependencyToDiscover(c, path, state.allComponents, state.interTransientComponents, state.discovery)
+		dep, created := p.dependencyToDiscover(
+			c,
+			path,
+			state.allComponents,
+			state.interTransientComponents,
+			state.discovery,
+		)
 
 		tracker.remove(dep.Path())
 
@@ -209,6 +224,7 @@ func (p *RelationshipPhase) discoverRelationships(
 			err := p.discoverRelationships(
 				contextWithIncrementedParseDepth(ctx),
 				l,
+				v,
 				state,
 				dep,
 				tracker,
@@ -259,7 +275,7 @@ func (p *RelationshipPhase) dependencyToDiscover(
 
 	dep, created := interTransientComponents.EnsureComponent(newUnit)
 
-	if discovery.discoveryContext != nil {
+	if created && discovery.discoveryContext != nil {
 		discoveryCtx := discovery.discoveryContext.Copy()
 		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
 		dep.SetDiscoveryContext(discoveryCtx)

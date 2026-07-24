@@ -38,7 +38,14 @@ dependencies {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -68,11 +75,25 @@ prevent_destroy = false
 	l := logger.CreateLogger()
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
-	_, err = config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err = config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	assert.Error(t, err)
 }
 
@@ -92,7 +113,14 @@ skip = true
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.TerragruntFlags)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -115,7 +143,14 @@ func TestPartialParseOmittedItems(t *testing.T) {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.TerragruntFlags)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, "", nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		"",
+		nil,
+	)
 
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
@@ -130,7 +165,17 @@ func TestPartialParseOmittedItems(t *testing.T) {
 func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	t.Parallel()
 
-	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "ignore-bad-block-in-parent", "child", config.DefaultTerragruntConfigPath))
+	configPath, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"partial-parse",
+			"ignore-bad-block-in-parent",
+			"child",
+			config.DefaultTerragruntConfigPath,
+		),
+	)
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
@@ -299,7 +344,11 @@ include "grandparent" {
 			pctx = pctx.WithDecodeList(config.TerragruntFlags)
 
 			_, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
-			require.Error(t, err, "expected malformed fixture to surface an error rather than silently succeed")
+			require.Error(
+				t,
+				err,
+				"expected malformed fixture to surface an error rather than silently succeed",
+			)
 		})
 	}
 }
@@ -307,7 +356,17 @@ include "grandparent" {
 func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	t.Parallel()
 
-	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "partial-inheritance", "child", config.DefaultTerragruntConfigPath))
+	configPath, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"partial-parse",
+			"partial-inheritance",
+			"child",
+			config.DefaultTerragruntConfigPath,
+		),
+	)
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
@@ -329,7 +388,17 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	t.Parallel()
 
-	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "partial-inheritance", "child", config.DefaultTerragruntConfigPath))
+	configPath, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"partial-parse",
+			"partial-inheritance",
+			"child",
+			config.DefaultTerragruntConfigPath,
+		),
+	)
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
@@ -365,7 +434,14 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -392,7 +468,14 @@ dependency "sql" {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -421,7 +504,14 @@ dependency "sql" {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -451,7 +541,14 @@ dependency "sql" {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -481,7 +578,14 @@ dependency "sql" {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.DependenciesBlock)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -511,7 +615,14 @@ dependency "sql" {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.DependenciesBlock)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -541,7 +652,14 @@ terraform {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.TerraformSource)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -567,7 +685,14 @@ dependency "ec2" {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 }
@@ -585,7 +710,11 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 	fileInfo, err := os.Stat(configPath)
 	require.NoError(t, err)
 
-	expectedCacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	expectedCacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v",
+		configPath,
+		fileInfo.ModTime().UnixMicro(),
+	)
 
 	// Setup cache and context
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
@@ -658,7 +787,11 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	fileInfo, err := os.Stat(configPath)
 	require.NoError(t, err)
 
-	originalCacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	originalCacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v",
+		configPath,
+		fileInfo.ModTime().UnixMicro(),
+	)
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
 	l := logger.CreateLogger()
@@ -690,7 +823,11 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	fileInfo, err = os.Stat(configPath)
 	require.NoError(t, err)
 
-	newCacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	newCacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v",
+		configPath,
+		fileInfo.ModTime().UnixMicro(),
+	)
 
 	// Verify new file is cached with different content
 	newCachedFile, found := hclCache.Get(ctx, newCacheKey)
@@ -738,7 +875,11 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	fileInfo, err := os.Stat(configPath)
 	require.NoError(t, err)
 
-	expectedCacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	expectedCacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v",
+		configPath,
+		fileInfo.ModTime().UnixMicro(),
+	)
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
 	l := logger.CreateLogger()
@@ -750,9 +891,19 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify cache key format matches the expected pattern
-	assert.Regexp(t, `^configPath-.*-modTime-\d+$`, expectedCacheKey, "cache key should match expected format")
+	assert.Regexp(
+		t,
+		`^configPath-.*-modTime-\d+$`,
+		expectedCacheKey,
+		"cache key should match expected format",
+	)
 	assert.Contains(t, expectedCacheKey, configPath, "cache key should contain config path")
-	assert.Contains(t, expectedCacheKey, strconv.FormatInt(fileInfo.ModTime().UnixMicro(), 10), "cache key should contain mod time")
+	assert.Contains(
+		t,
+		expectedCacheKey,
+		strconv.FormatInt(fileInfo.ModTime().UnixMicro(), 10),
+		"cache key should contain mod time",
+	)
 
 	// Verify we can retrieve using the expected key
 	_, found := hclCache.Get(ctx, expectedCacheKey)
@@ -838,7 +989,12 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	configCache.Mutex.RLock()
 	cacheLen := len(configCache.Cache)
 	configCache.Mutex.RUnlock()
-	assert.Equal(t, 2, cacheLen, "config cache should have 2 entries (one per calling module), not 1")
+	assert.Equal(
+		t,
+		2,
+		cacheLen,
+		"config cache should have 2 entries (one per calling module), not 1",
+	)
 
 	// Both should return valid results.
 	assert.Equal(t, []string{"../app1"}, configA.Dependencies.Paths)
@@ -867,14 +1023,25 @@ exclude {
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
 
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err, "parsing feature flag default in exclude block should not fail")
 
 	// Feature flag default is false, so the exclude block should have if=false
 	assert.NotNil(t, terragruntConfig.Exclude)
 
 	if terragruntConfig.Exclude != nil {
-		assert.False(t, terragruntConfig.Exclude.If, "exclude.if should be false when feature default is false")
+		assert.False(
+			t,
+			terragruntConfig.Exclude.If,
+			"exclude.if should be false when feature default is false",
+		)
 	}
 }
 
@@ -900,8 +1067,19 @@ exclude {
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.TerragruntFlags)
 
-	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
-	require.NoError(t, err, "parsing with TerragruntFlags decode list should not fail when feature flags and exclude blocks are present")
+	_, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+	require.NoError(
+		t,
+		err,
+		"parsing with TerragruntFlags decode list should not fail when feature flags and exclude blocks are present",
+	)
 }
 
 // TestPartialParseFeatureFlagDefaultTrueInExcludeBlock tests that when the feature
@@ -925,13 +1103,24 @@ exclude {
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
 
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err, "parsing feature flag default in exclude block should not fail")
 
 	assert.NotNil(t, terragruntConfig.Exclude)
 
 	if terragruntConfig.Exclude != nil {
-		assert.True(t, terragruntConfig.Exclude.If, "exclude.if should be true when feature default is true")
+		assert.True(
+			t,
+			terragruntConfig.Exclude.If,
+			"exclude.if should be true when feature default is true",
+		)
 	}
 }
 
@@ -955,7 +1144,14 @@ terraform {
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.TerraformExtraArgs)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -966,7 +1162,11 @@ terraform {
 	require.Len(t, terragruntConfig.Terraform.ExtraArgs, 1)
 	assert.Equal(t, "secrets", terragruntConfig.Terraform.ExtraArgs[0].Name)
 	require.NotNil(t, terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
-	assert.Equal(t, map[string]string{"TF_WORKSPACE": "custom"}, *terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
+	assert.Equal(
+		t,
+		map[string]string{"TF_WORKSPACE": "custom"},
+		*terragruntConfig.Terraform.ExtraArgs[0].EnvVars,
+	)
 }
 
 func TestPartialParseTerraformExtraArgsIgnoresHooksReferencingDependency(t *testing.T) {
@@ -1004,9 +1204,21 @@ dependency "upstream" {
 	l := logger.CreateLogger()
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	pctx = pctx.WithDecodeList(config.DependencyBlock, config.TerraformExtraArgs).WithDiagnosticsSuppressed(l)
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
-	require.NoError(t, err, "hooks referencing a dependency must not be evaluated during the narrow terraform decode")
+	pctx = pctx.WithDecodeList(config.DependencyBlock, config.TerraformExtraArgs).
+		WithDiagnosticsSuppressed(l)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+	require.NoError(
+		t,
+		err,
+		"hooks referencing a dependency must not be evaluated during the narrow terraform decode",
+	)
 
 	require.NotNil(t, terragruntConfig.Terraform)
 	require.NotNil(t, terragruntConfig.Terraform.Source)
@@ -1014,7 +1226,11 @@ dependency "upstream" {
 
 	require.Len(t, terragruntConfig.Terraform.ExtraArgs, 1)
 	require.NotNil(t, terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
-	assert.Equal(t, map[string]string{"TF_WORKSPACE": "custom"}, *terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
+	assert.Equal(
+		t,
+		map[string]string{"TF_WORKSPACE": "custom"},
+		*terragruntConfig.Terraform.ExtraArgs[0].EnvVars,
+	)
 
 	// hooks are intentionally left undecoded so their dependency references are never evaluated
 	assert.Empty(t, terragruntConfig.Terraform.BeforeHooks)
@@ -1023,6 +1239,119 @@ dependency "upstream" {
 	// the dependency block itself is still decoded for downstream resolution
 	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
 	assert.Equal(t, "upstream", terragruntConfig.TerragruntDependencies[0].Name)
+}
+
+func TestPartialParseTerraformSourceReferencingDependencyReturnsClearError(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = "./module-${dependency.upstream.outputs.cluster_id}"
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	pctx = pctx.WithDecodeList(config.TerraformSource)
+
+	_, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.ErrorAs(
+		t,
+		err,
+		&srcErr,
+		"source referencing a dependency should return a clear typed error, not a cryptic decode error",
+	)
+}
+
+// TestPartialParseTerraformSourceDependencyInUntakenBranchIsRejected covers a source whose dependency reference sits
+// in an untaken conditional branch. The source is consumed during discovery and queue construction, before any
+// dependency output exists, so the reference is rejected outright even though the branch never evaluates.
+func TestPartialParseTerraformSourceDependencyInUntakenBranchIsRejected(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = true ? "./module" : dependency.upstream.outputs.source
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.TerraformSource)
+
+	_, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.ErrorAs(
+		t,
+		err,
+		&srcErr,
+		"a dependency reference anywhere in the source, even an untaken branch, must be rejected",
+	)
+}
+
+// TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded guards against over-eager rebranding: a source
+// that does not reference the dependency namespace but fails to decode for another reason must keep its own precise
+// diagnostic rather than surfacing TerraformSourceReferencesDependencyError. Here the source is a tuple, so it fails
+// to decode into a string.
+func TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = [1, 2, 3]
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.TerraformSource)
+	_, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+
+	require.Error(t, err)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.NotErrorAs(
+		t,
+		err,
+		&srcErr,
+		"an unrelated source decode error must not be rebranded as a dependency reference error",
+	)
 }
 
 // TestPartialParseFeatureFlagDefaultsFromIncludes verifies included feature defaults are available during partial parsing.

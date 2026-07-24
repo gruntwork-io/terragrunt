@@ -2,7 +2,6 @@ package run_test
 
 import (
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,8 +20,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +59,7 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{Exec: exec, FS: vfs.NewOSFS()}
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
@@ -90,19 +89,30 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	s := setupRunE2EScaffold(t)
 
 	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		return vexec.Result{ExitCode: 1, Stderr: []byte("Error: state lock acquired by another process\n")}
+		return vexec.Result{
+			ExitCode: 1,
+			Stderr:   []byte("Error: state lock acquired by another process\n"),
+		}
 	})
 
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{Exec: exec, FS: vfs.NewOSFS()}
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
 	opts.AutoRetry = false
 
-	err := run.Run(t.Context(), l, v, opts, report.NewReport(), &runcfg.RunConfig{}, creds.NewGetter())
+	err := run.Run(
+		t.Context(),
+		l,
+		v,
+		opts,
+		report.NewReport(),
+		&runcfg.RunConfig{},
+		creds.NewGetter(),
+	)
 	require.Error(t, err, "non-zero terraform exit must surface from run.Run")
 }
 
@@ -136,17 +146,27 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{Exec: exec, FS: vfs.NewOSFS()}
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
 			BeforeHooks: []runcfg.Hook{
-				{Name: "before-plan", Commands: []string{"plan"}, Execute: []string{"step-before"}, If: true},
+				{
+					Name:     "before-plan",
+					Commands: []string{"plan"},
+					Execute:  []string{"step-before"},
+					If:       true,
+				},
 			},
 			AfterHooks: []runcfg.Hook{
-				{Name: "after-plan", Commands: []string{"plan"}, Execute: []string{"step-after"}, If: true},
+				{
+					Name:     "after-plan",
+					Commands: []string{"plan"},
+					Execute:  []string{"step-after"},
+					If:       true,
+				},
 			},
 		},
 	}
@@ -197,7 +217,12 @@ func setupRunE2EScaffold(t *testing.T) runE2EScaffold {
 	return runE2EScaffold{dir: dir, configPath: configPath}
 }
 
-func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...string) *run.Options {
+func newRunE2EOpts(
+	t *testing.T,
+	s runE2EScaffold,
+	command string,
+	extraArgs ...string,
+) *run.Options {
 	t.Helper()
 
 	args := iacargs.New(append([]string{command}, extraArgs...)...)
@@ -213,12 +238,10 @@ func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...
 		TerraformCommand:             command,
 		TerraformCliArgs:             args,
 		TFPath:                       "tofu",
-		Env:                          map[string]string{},
 		SourceMap:                    map[string]string{},
 		Experiments:                  experiment.NewExperiments(),
 		StrictControls:               controls.New(),
 		MaxFoldersToCheck:            5,
-		Writers:                      writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 		Telemetry:                    &telemetry.Options{},
 		OriginalIAMRoleOptions:       iam.RoleOptions{},
 		IAMRoleOptions:               iam.RoleOptions{},

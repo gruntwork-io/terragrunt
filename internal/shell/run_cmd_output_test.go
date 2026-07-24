@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,8 @@ func TestCommandOutputOrder(t *testing.T) {
 	t.Run("withPtty", func(t *testing.T) {
 		t.Parallel()
 		testCommandOutputOrder(t, true,
-			[]string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"},
+			[]string{"stdout1", "stdout2"},
+			[]string{"stderr1", "stderr2", "stderr3"},
 			[]string{"stdout1", "stdout2"},
 			[]string{"stderr1", "stderr2", "stderr3"},
 		)
@@ -34,6 +36,7 @@ func TestCommandOutputOrder(t *testing.T) {
 	t.Run("withoutPtty", func(t *testing.T) {
 		t.Parallel()
 		testCommandOutputOrder(t, false,
+			nil,
 			[]string{"stderr1", "stderr2", "stderr3"},
 			[]string{"stdout1", "stdout2"},
 			[]string{"stderr1", "stderr2", "stderr3"},
@@ -43,13 +46,30 @@ func TestCommandOutputOrder(t *testing.T) {
 
 func noop[T any](t T) {}
 
-func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
+func testCommandOutputOrder(
+	t *testing.T,
+	withPtty bool,
+	mergedStdout []string,
+	mergedStderr []string,
+	stdout []string,
+	stderr []string,
+) {
 	t.Helper()
 
-	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
+	testCommandOutput(
+		t,
+		noop[*options.TerragruntOptions],
+		assertOutputs(t, mergedStdout, mergedStderr, stdout, stderr),
+		withPtty,
+	)
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool) {
+func testCommandOutput(
+	t *testing.T,
+	withOptions func(*options.TerragruntOptions),
+	assertResults func(string, *util.CmdOutput),
+	allocateStdout bool,
+) {
 	t.Helper()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -59,16 +79,28 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// order
 	var allOutputBuffer BufferWithLocking
 
-	terragruntOptions.Writers.Writer = &allOutputBuffer
-	terragruntOptions.Writers.ErrWriter = &allOutputBuffer
-
 	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 
 	withOptions(terragruntOptions)
 
 	l := logger.CreateLogger()
 
-	out, err := shell.RunCommandWithOutput(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	v := venvtest.New().
+		WithExec(vexec.NewOSExec()).
+		WithWriter(&allOutputBuffer).
+		WithErrWriter(&allOutputBuffer)
+
+	out, err := shell.RunCommandWithOutput(
+		t.Context(),
+		l,
+		v,
+		configbridge.ShellRunOptsFromOpts(terragruntOptions),
+		"",
+		!allocateStdout,
+		false,
+		"testdata/test_outputs.sh",
+		"same",
+	)
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
@@ -79,7 +111,8 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 func assertOutputs(
 	t *testing.T,
-	expectedAllOutputs []string,
+	expectedMergedStdout []string,
+	expectedMergedStderr []string,
 	expectedStdOutputs []string,
 	expectedStdErrs []string,
 ) func(string, *util.CmdOutput) {
@@ -87,11 +120,11 @@ func assertOutputs(
 
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		assert.Len(t, allOutputs, len(expectedAllOutputs))
+		assert.Len(t, allOutputs, len(expectedMergedStdout)+len(expectedMergedStderr))
 
-		for i := range allOutputs {
-			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
-		}
+		// Cross-stream arrival order in the merged buffer is scheduler-dependent, so only per-stream order is asserted.
+		assertContainsInOrder(t, allOutputs, expectedMergedStdout)
+		assertContainsInOrder(t, allOutputs, expectedMergedStderr)
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout.String()), "\n")
 		assert.Equal(t, expectedStdOutputs, stdOutputs)
@@ -99,6 +132,21 @@ func assertOutputs(
 		stdErrs := strings.Split(strings.TrimSpace(out.Stderr.String()), "\n")
 		assert.Equal(t, expectedStdErrs, stdErrs)
 	}
+}
+
+// assertContainsInOrder asserts that each expected entry matches a merged output line in the given relative order.
+func assertContainsInOrder(t *testing.T, lines []string, expected []string) {
+	t.Helper()
+
+	matched := 0
+
+	for _, line := range lines {
+		if matched < len(expected) && strings.Contains(line, expected[matched]) {
+			matched++
+		}
+	}
+
+	assert.Equal(t, len(expected), matched, "merged output must contain %v in per-stream order", expected)
 }
 
 // A goroutine-safe bytes.Buffer

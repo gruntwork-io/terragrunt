@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestMaterializeTree_FromSynthStore(t *testing.T) {
@@ -26,8 +28,7 @@ func TestMaterializeTree_FromSynthStore(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -72,8 +73,7 @@ func TestMaterializeTree_FromGitTreeStore(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -111,8 +111,7 @@ func TestMaterializeTree_NotFound(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	destDir := helpers.TmpDirWOSymlinks(t)
 	l := logger.CreateLogger()
@@ -135,8 +134,7 @@ func TestMaterializeTree_SynthTakesPrecedence(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -204,8 +202,7 @@ func TestCASProtocolGetterGet(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -260,8 +257,7 @@ func TestCASProtocolGetterGet_Mutable(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -313,8 +309,7 @@ func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 	g := getter.NewCASProtocolGetter(l, c, v)

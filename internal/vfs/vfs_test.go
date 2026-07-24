@@ -562,6 +562,54 @@ func TestUnzip(t *testing.T) {
 	})
 }
 
+func TestUnzipSymlinkLimits(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	t.Run("symlink target counts toward the size limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("x"), "link", "target.txt")
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(2)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
+		assert.Equal(t, "link", limitErr.Name)
+		assert.Equal(t, uint64(len("target.txt")), limitErr.Size)
+		assert.Equal(t, int64(2), limitErr.Limit)
+	})
+
+	t.Run("symlink target above the hard cap is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("x"), "link", strings.Repeat("a", 5000))
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+		require.ErrorContains(t, err, "target exceeds")
+	})
+}
+
+func TestUnzipRootUmask(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	fs := vfs.NewMemMapFS()
+	zipData := createZipArchive(t, map[string][]byte{"file.txt": []byte("content")})
+	require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+	require.NoError(t, vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0077))
+
+	info, err := fs.Stat("/dst")
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0700), info.Mode().Perm())
+}
+
 func TestUnzipWithSymlinks(t *testing.T) {
 	t.Parallel()
 
@@ -571,7 +619,13 @@ func TestUnzipWithSymlinks(t *testing.T) {
 	zipPath := filepath.Join(tempDir, "archive.zip")
 	dstPath := filepath.Join(tempDir, "dst")
 
-	zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "link.txt", "target.txt")
+	zipData := createZipArchiveWithSymlink(
+		t,
+		"target.txt",
+		[]byte("target content"),
+		"link.txt",
+		"target.txt",
+	)
 	require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
 	err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
@@ -731,7 +785,8 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(1000)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(1000)).
+			Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 
@@ -749,7 +804,8 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).
+			Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 
@@ -763,15 +819,20 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 
 		fs := vfs.NewMemMapFS()
 		// Create content that exceeds 10 bytes
+		content := []byte("this content is definitely more than 10 bytes")
 		zipData := createZipArchive(t, map[string][]byte{
-			"large.txt": []byte("this content is definitely more than 10 bytes"),
+			"large.txt": content,
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).
+			Unzip(l, fs, "/dst", "/archive.zip", 0)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds limit")
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
+		assert.Equal(t, "large.txt", limitErr.Name)
+		assert.Equal(t, uint64(len(content)), limitErr.Size)
+		assert.Equal(t, int64(10), limitErr.Limit)
 	})
 
 	t.Run("cumulative size limit across files", func(t *testing.T) {
@@ -786,10 +847,14 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(25)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(25)).
+			Unzip(l, fs, "/dst", "/archive.zip", 0)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds limit")
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
+		assert.Equal(t, uint64(10), limitErr.Size, "the breaching entry itself is only 10 bytes")
+		assert.Equal(t, int64(25), limitErr.Limit)
+		assert.Contains(t, limitErr.Error(), "breached the total decompressed size limit of 25")
 	})
 
 	t.Run("no limit when FileSizeLimit is zero", func(t *testing.T) {
@@ -820,7 +885,13 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 		zipPath := filepath.Join(tempDir, "archive.zip")
 		dstPath := filepath.Join(tempDir, "dst")
 
-		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "link.txt", "target.txt")
+		zipData := createZipArchiveWithSymlink(
+			t,
+			"target.txt",
+			[]byte("target content"),
+			"link.txt",
+			"target.txt",
+		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
 		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
@@ -841,7 +912,13 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 		dstPath := filepath.Join(tempDir, "dst")
 
 		// Create symlink pointing to absolute path outside destination
-		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "evil_link.txt", "/etc/passwd")
+		zipData := createZipArchiveWithSymlink(
+			t,
+			"target.txt",
+			[]byte("target content"),
+			"evil_link.txt",
+			"/etc/passwd",
+		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
 		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
@@ -935,7 +1012,11 @@ func TestWalkDir(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"}, paths)
+		assert.Equal(
+			t,
+			[]string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"},
+			paths,
+		)
 	})
 
 	t.Run("empty directory", func(t *testing.T) {
@@ -994,10 +1075,14 @@ func TestWalkDir(t *testing.T) {
 
 		var callbackErr error
 
-		err := vfs.WalkDir(memFs, "/nonexistent", func(path string, d fs.DirEntry, err error) error {
-			callbackErr = err
-			return err
-		})
+		err := vfs.WalkDir(
+			memFs,
+			"/nonexistent",
+			func(path string, d fs.DirEntry, err error) error {
+				callbackErr = err
+				return err
+			},
+		)
 
 		require.Error(t, err)
 		require.Error(t, callbackErr)
@@ -1488,15 +1573,19 @@ func TestWalkDirParallel(t *testing.T) {
 
 		var names []string
 
-		err := vfs.WalkDirParallel(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
+		err := vfs.WalkDirParallel(
+			memFs,
+			"/root",
+			func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
 
-			names = append(names, d.Name())
+				names = append(names, d.Name())
 
-			return nil
-		})
+				return nil
+			},
+		)
 
 		require.NoError(t, err)
 		// Non-OS FS keeps the deterministic lexical ordering from WalkDir.
@@ -1511,7 +1600,10 @@ func TestWalkDirParallel(t *testing.T) {
 
 		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "dir"), 0o755))
 		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "a.txt"), []byte("a"), 0o644))
-		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "dir", "nested.txt"), []byte("n"), 0o644))
+		require.NoError(
+			t,
+			vfs.WriteFile(osFs, filepath.Join(root, "dir", "nested.txt"), []byte("n"), 0o644),
+		)
 
 		var mu sync.Mutex
 
@@ -1548,8 +1640,14 @@ func TestWalkDirParallel(t *testing.T) {
 
 		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "keep"), 0o755))
 		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "skip"), 0o755))
-		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "keep", "a.txt"), []byte("a"), 0o644))
-		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "skip", "b.txt"), []byte("b"), 0o644))
+		require.NoError(
+			t,
+			vfs.WriteFile(osFs, filepath.Join(root, "keep", "a.txt"), []byte("a"), 0o644),
+		)
+		require.NoError(
+			t,
+			vfs.WriteFile(osFs, filepath.Join(root, "skip", "b.txt"), []byte("b"), 0o644),
+		)
 
 		var mu sync.Mutex
 
@@ -1624,8 +1722,18 @@ func TestCreateTemp(t *testing.T) {
 		// The underlying afero.TempFile splits on the last "*" and inserts the
 		// random component there, so the star is a pattern marker, not literal.
 		base := filepath.Base(f.Name())
-		assert.True(t, strings.HasPrefix(base, "pre"), "expected base %q to keep the pre-star text", base)
-		assert.True(t, strings.HasSuffix(base, "-suf"), "expected base %q to keep the post-star text", base)
+		assert.True(
+			t,
+			strings.HasPrefix(base, "pre"),
+			"expected base %q to keep the pre-star text",
+			base,
+		)
+		assert.True(
+			t,
+			strings.HasSuffix(base, "-suf"),
+			"expected base %q to keep the post-star text",
+			base,
+		)
 		assert.NotContains(t, base, "*")
 	})
 }

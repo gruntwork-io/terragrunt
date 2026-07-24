@@ -19,7 +19,12 @@ const defaultPermissions = int(0600)
 
 // WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the tofu/terraform module in the same way
 // that terragrunt invokes the module, so that users can debug issues with the terragrunt config.
-func WriteTerragruntDebugFile(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
+func WriteTerragruntDebugFile(
+	l log.Logger,
+	env map[string]string,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+) error {
 	l.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,
@@ -41,7 +46,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *Options, cfg *runcfg.RunConfig
 	l.Debugf("The following variables were detected in the %s module:", tofuImpl)
 	l.Debugf("%v", variables)
 
-	fileContents, err := terragruntDebugFileContents(l, opts, cfg, variables)
+	fileContents, err := terragruntDebugFileContents(l, env, cfg, variables)
 	if err != nil {
 		return err
 	}
@@ -71,13 +76,13 @@ func WriteTerragruntDebugFile(l log.Logger, opts *Options, cfg *runcfg.RunConfig
 // values of variables that are actually defined in the module.
 func terragruntDebugFileContents(
 	l log.Logger,
-	opts *Options,
+	env map[string]string,
 	cfg *runcfg.RunConfig,
 	moduleVariables []string,
 ) ([]byte, error) {
 	envVars := map[string]string{}
-	if opts.Env != nil {
-		envVars = opts.Env
+	if env != nil {
+		envVars = env
 	}
 
 	jsonValuesByKey := make(map[string]any)
@@ -96,7 +101,8 @@ func terragruntDebugFileContents(
 		case varIsInEnv:
 			l.Debugf(
 				"WARN: The variable %s was omitted from the debug file because the env var %s is already set.",
-				varName, nameAsEnvVar,
+				varName,
+				nameAsEnvVar,
 			)
 		case !varIsDefined:
 			l.Debugf(

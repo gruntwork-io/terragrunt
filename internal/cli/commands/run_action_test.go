@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -41,4 +42,23 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venv.OSVenv(), action))
 	assert.True(t, hasRunCmd, "RunCmdCacheContextKey missing from action context")
 	assert.True(t, hasRepoRoots, "RepoRootCacheContextKey missing from action context")
+}
+
+func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
+	t.Parallel()
+
+	action := func(_ context.Context, _ *clihelper.Context) error {
+		panic("action panic")
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.NoAutoProviderCacheDir = true
+
+	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venv.OSVenv(), action)
+	require.Error(t, err)
+	assert.True(t, panicreport.IsPanic(err), "returned error should be classified as a panic")
+
+	msg, stack := panicreport.PanicDetails(err)
+	assert.Equal(t, "action panic", msg)
+	assert.Contains(t, string(stack), "run_action_test.go")
 }

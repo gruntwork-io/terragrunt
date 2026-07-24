@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -99,7 +100,7 @@ dependency "vpc" {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			components, err := d.Discover(ctx, l, opts)
+			components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 			require.NoError(t, err)
 
 			units := components.Filter(component.UnitKind).Paths()
@@ -181,7 +182,7 @@ dependency "vpc" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
-		configs, err := d.Discover(ctx, l, opts)
+		configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 
 		units := configs.Filter(component.UnitKind).Paths()
@@ -240,7 +241,7 @@ dependency "db" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
-		configs, err := d.Discover(ctx, l, opts)
+		configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 
 		units := configs.Filter(component.UnitKind).Paths()
@@ -305,7 +306,7 @@ dependency "vpc" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
-		configs, err := d.Discover(ctx, l, opts)
+		configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 
 		units := configs.Filter(component.UnitKind).Paths()
@@ -490,7 +491,7 @@ locals {
 				WithFilters(filters).
 				WithReadFiles()
 
-			configs, err := d.Discover(ctx, l, opts)
+			configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 			require.NoError(t, err)
 
 			units := configs.Filter(component.UnitKind).Paths()
@@ -542,12 +543,17 @@ locals {
 		WithFilters(filters).
 		WithReadFiles()
 
-	configs, err := d.Discover(ctx, l, opts)
+	configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should find the app component when filtering by absolute path
 	units := configs.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{appDir}, units, "Should find component by absolute path to read file")
+	assert.ElementsMatch(
+		t,
+		[]string{appDir},
+		units,
+		"Should find component by absolute path to read file",
+	)
 }
 
 // TestDiscovery_ReadingAttributeFiltersErrorHandling tests error handling for invalid reading filters.
@@ -744,7 +750,7 @@ unit "test" {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			configs, err := d.Discover(ctx, l, opts)
+			configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 			require.NoError(t, err)
 
 			units := configs.Filter(component.UnitKind).Paths()
@@ -838,7 +844,7 @@ func TestDiscovery_FilterEdgeCases(t *testing.T) {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			configs, err := d.Discover(ctx, l, opts)
+			configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 			require.NoError(t, err)
 
 			units := configs.Filter(component.UnitKind).Paths()
@@ -925,7 +931,7 @@ func TestDiscovery_FilterErrorHandling(t *testing.T) {
 				WithFilters(filters)
 
 			// Attempt discovery - errors should occur during evaluation
-			_, err = d.Discover(ctx, l, opts)
+			_, err = d.Discover(ctx, l, venv.OSVenv(), opts)
 			if tt.errorExpected {
 				require.Error(t, err, "Expected error for filter: %v", tt.filterQueries)
 			} else {
@@ -992,7 +998,7 @@ dependency "external" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithFilters(filters)
 
-		components, err := d.Discover(ctx, l, opts)
+		components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 
 		units := components.Filter(component.UnitKind).Paths()
@@ -1009,7 +1015,7 @@ dependency "external" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithFilters(filters)
 
-		components, err := d.Discover(ctx, l, opts)
+		components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 
 		units := components.Filter(component.UnitKind).Paths()
@@ -1080,7 +1086,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should include vpc (target) and db (direct dependent) and app (transitive dependent)
@@ -1145,12 +1151,17 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should include only app (dependent), not vpc (target is excluded)
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{appDir}, units, "...^vpc should find only dependents, not the target")
+	assert.ElementsMatch(
+		t,
+		[]string{appDir},
+		units,
+		"...^vpc should find only dependents, not the target",
+	)
 	assert.NotContains(t, units, vpcDir, "vpc should be excluded as the target")
 }
 
@@ -1217,12 +1228,17 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should include only db and vpc (dependencies), not app (target is excluded)
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{dbDir, vpcDir}, units, "^app... should find only dependencies, not the target")
+	assert.ElementsMatch(
+		t,
+		[]string{dbDir, vpcDir},
+		units,
+		"^app... should find only dependencies, not the target",
+	)
 	assert.NotContains(t, units, appDir, "app should be excluded as the target")
 }
 
@@ -1287,7 +1303,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should include: app (dependent), db (target), vpc (dependency)
@@ -1367,13 +1383,18 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: appDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should include vpc (target) and consumer (dependent outside working dir)
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Contains(t, units, vpcDir, "vpc should be discovered as the target")
-	assert.Contains(t, units, consumerDir, "consumer should be discovered even though it's outside working dir")
+	assert.Contains(
+		t,
+		units,
+		consumerDir,
+		"consumer should be discovered even though it's outside working dir",
+	)
 	assert.ElementsMatch(t,
 		[]string{vpcDir, consumerDir}, units,
 		"...vpc should find vpc and consumer (outside working dir)")
@@ -1457,14 +1478,24 @@ dependency "api" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: infraDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should include vpc (target), api (direct dependent), and frontend (transitive dependent)
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Contains(t, units, vpcDir, "vpc should be discovered as the target")
-	assert.Contains(t, units, apiDir, "api should be discovered (direct dependent outside working dir)")
-	assert.Contains(t, units, frontendDir, "frontend should be discovered (transitive dependent outside working dir)")
+	assert.Contains(
+		t,
+		units,
+		apiDir,
+		"api should be discovered (direct dependent outside working dir)",
+	)
+	assert.Contains(
+		t,
+		units,
+		frontendDir,
+		"frontend should be discovered (transitive dependent outside working dir)",
+	)
 	assert.ElementsMatch(t, []string{vpcDir, apiDir, frontendDir}, units)
 }
 
@@ -1533,13 +1564,18 @@ dependency "db" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should include db (target), api (dependent), web (dependent)
 	// Should NOT include unrelated
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{dbDir, apiDir, webDir}, units, "...db should find db and all its dependents")
+	assert.ElementsMatch(
+		t,
+		[]string{dbDir, apiDir, webDir},
+		units,
+		"...db should find db and all its dependents",
+	)
 	assert.NotContains(t, units, unrelatedDir, "unrelated should not be included")
 }
 
@@ -1642,7 +1678,7 @@ dependency "vpc" {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			components, err := d.Discover(ctx, l, opts)
+			components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 			require.NoError(t, err)
 
 			paths := components.Filter(component.UnitKind).Paths()

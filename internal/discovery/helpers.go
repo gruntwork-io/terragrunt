@@ -15,7 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -84,7 +84,13 @@ func (s *stringSet) Load(key string) bool {
 func RelPathOrAbs(l log.Logger, base, target, desc string) string {
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
-		l.Warnf("could not make %q relative to %q (%s): %v; emitting as-is", target, base, desc, err)
+		l.Warnf(
+			"could not make %q relative to %q (%s): %v; emitting as-is",
+			target,
+			base,
+			desc,
+			err,
+		)
 
 		return target
 	}
@@ -124,7 +130,10 @@ func isExternal(workingDir string, componentPath string) bool {
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.
-func componentFromDependencyPath(path string, components *component.ThreadSafeComponents) component.Component {
+func componentFromDependencyPath(
+	path string,
+	components *component.ThreadSafeComponents,
+) component.Component {
 	if existing := components.FindByPath(path); existing != nil {
 		return existing
 	}
@@ -303,16 +312,19 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
-	fs vfs.FS,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx = pctx.WithVenv(v)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
-	funcsFor := inthclparse.StackFuncFactory(func(stackDir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
-	})
+	funcsFor := inthclparse.StackFuncFactory(
+		func(stackDir string) (map[string]function.Function, error) {
+			return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+		},
+	)
 
 	// Expand stack dependency paths to individual unit paths.
 	expanded := make([]string, 0, len(depPaths))
@@ -321,7 +333,7 @@ func stackDependencyPaths(
 		// Stat upfront so a non-directory dep path (e.g. another-name.hcl) is preserved instead of
 		// being passed to the parser, which would reject it as ENOTDIR. The duplication of work is
 		// intentional.
-		info, statErr := fs.Stat(depPath)
+		info, statErr := v.FS.Stat(depPath)
 		// Real I/O errors (permission denied, etc.) must surface so a malformed DAG isn't silently
 		// produced; only ENOENT is treated as "keep the raw path".
 		if statErr != nil && !errors.Is(statErr, iofs.ErrNotExist) {
@@ -333,7 +345,7 @@ func stackDependencyPaths(
 			continue
 		}
 
-		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath, funcsFor)
+		unitPaths, err := inthclparse.UnitPathsFromStackDir(v.FS, depPath, funcsFor)
 		if err != nil {
 			return nil, NewStackDependencyExpansionError(depPath, err)
 		}

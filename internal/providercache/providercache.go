@@ -30,7 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -70,7 +70,13 @@ var (
 	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
 	//    │ Locked
 	//    ╵
-	httpStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(CacheProviderHTTPStatusCode) + `.*` + http.StatusText(CacheProviderHTTPStatusCode))
+	httpStatusCacheProviderReg = regexp.MustCompile(
+		`(?smi)` + strconv.Itoa(
+			CacheProviderHTTPStatusCode,
+		) + `.*` + http.StatusText(
+			CacheProviderHTTPStatusCode,
+		),
+	)
 
 	// registryTimeoutPatterns matches transient network errors that should trigger retries
 	registryTimeoutPatterns = []*regexp.Regexp{
@@ -112,7 +118,11 @@ func (pc *ProviderCache) FS() vfs.FS {
 
 // Init initializes the ProviderCache with the given logger and options.
 // Call this after configuring the ProviderCache with builder methods.
-func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) error {
+func (pc *ProviderCache) Init(
+	l log.Logger,
+	pcOpts *pcoptions.ProviderCacheOptions,
+	rootWorkingDir string,
+) error {
 	pc.opts = pcOpts
 
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
@@ -151,7 +161,13 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 		return err
 	}
 
-	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()))
+	providerService := services.NewProviderService(
+		pcOpts.Dir,
+		userProviderDir,
+		cliCfg.CredentialsSource(),
+		l,
+		services.WithFS(pc.FS()),
+	)
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, cliCfg.CredentialsSource())
 
 	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — FilterRegistriesByImplementation
@@ -168,7 +184,12 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	// This avoids .well-known/terraform.json lookups for registries that don't support it.
 	populateCustomHostDiscoveryCache(cliCfg.Hosts, providerHandlers)
 
-	proxyModuleHandler := handlers.NewProxyModuleHandler(l, cliCfg.CredentialsSource(), providerHandlers, registryNamesForHandlers)
+	proxyModuleHandler := handlers.NewProxyModuleHandler(
+		l,
+		cliCfg.CredentialsSource(),
+		providerHandlers,
+		registryNamesForHandlers,
+	)
 
 	cacheServer := cache.NewServer(
 		cache.WithHostname(pcOpts.Hostname),
@@ -191,7 +212,11 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 
 // InitServer creates and initializes a new ProviderCache with the given logger and options.
 // This is a convenience function that combines NewProviderCache() and Init().
-func InitServer(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) (*ProviderCache, error) {
+func InitServer(
+	l log.Logger,
+	pcOpts *pcoptions.ProviderCacheOptions,
+	rootWorkingDir string,
+) (*ProviderCache, error) {
 	pc := NewProviderCache()
 	if err := pc.Init(l, pcOpts, rootWorkingDir); err != nil {
 		return nil, err
@@ -207,6 +232,7 @@ func InitServer(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkin
 func (pc *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
@@ -236,15 +262,23 @@ func (pc *ProviderCache) TerraformCommandHook(
 		}
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), tfOpts, args...)
+		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
 	}
 
-	env := pc.providerCacheEnvironment(tfOpts.ShellOptions.Env, tfOpts.TofuImplementation, cliConfigFilename)
+	v = v.WithEnv(pc.providerCacheEnvironment(v.Env, tfOpts.TofuImplementation, cliConfigFilename))
 
-	lockfileReadonly := LockfileReadonlyRequested(args, env)
+	lockfileReadonly := LockfileReadonlyRequested(args, v.Env)
 
-	output, err := pc.warmUpCache(ctx, l, tfOpts, cliConfigFilename, args, env, lockfileExists, lockfileReadonly)
-	if err != nil {
+	if output, err := pc.warmUpCache(
+		ctx,
+		l,
+		v,
+		tfOpts,
+		cliConfigFilename,
+		args,
+		lockfileExists,
+		lockfileReadonly,
+	); err != nil {
 		return output, err
 	}
 
@@ -252,16 +286,16 @@ func (pc *ProviderCache) TerraformCommandHook(
 		return &util.CmdOutput{}, nil
 	}
 
-	return pc.runTerraformWithCache(ctx, l, tfOpts, cliConfigFilename, args, env)
+	return pc.runTerraformWithCache(ctx, l, v, tfOpts, cliConfigFilename, args)
 }
 
 func (pc *ProviderCache) warmUpCache(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
-	env map[string]string,
 	lockfileExists bool,
 	lockfileReadonly bool,
 ) (*util.CmdOutput, error) {
@@ -271,7 +305,12 @@ func (pc *ProviderCache) warmUpCache(
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
-	if err := pc.createLocalCLIConfig(ctx, tfOpts.TofuImplementation, cliConfigFilename, cacheRequestID); err != nil {
+	if err := pc.createLocalCLIConfig(
+		ctx,
+		tfOpts.TofuImplementation,
+		cliConfigFilename,
+		cacheRequestID,
+	); err != nil {
 		return nil, err
 	}
 
@@ -281,7 +320,7 @@ func (pc *ProviderCache) warmUpCache(
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 
 	for _, args := range commandsArgs {
-		if output, err := pc.runTerraformCommand(ctx, l, tfOpts, args, env); err != nil {
+		if output, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args); err != nil {
 			return output, err
 		}
 	}
@@ -291,9 +330,16 @@ func (pc *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	providerConstraints, err := getproviders.ParseProviderConstraints(tfOpts.TofuImplementation, filepath.Dir(tfOpts.TerragruntConfigPath))
+	providerConstraints, err := getproviders.ParseProviderConstraints(
+		tfOpts.TofuImplementation,
+		filepath.Dir(tfOpts.TerragruntConfigPath),
+	)
 	if err != nil {
-		l.Debugf("Failed to parse provider constraints from %s: %v", filepath.Dir(tfOpts.TerragruntConfigPath), err)
+		l.Debugf(
+			"Failed to parse provider constraints from %s: %v",
+			filepath.Dir(tfOpts.TerragruntConfigPath),
+			err,
+		)
 
 		providerConstraints = make(getproviders.ProviderConstraints)
 	}
@@ -305,9 +351,14 @@ func (pc *ProviderCache) warmUpCache(
 	// wrote the lock file here, that check would always pass, silently defeating the
 	// flag. Leave the lock file untouched and let OpenTofu/Terraform enforce it.
 	if lockfileReadonly {
-		l.Warnf("`%s=%s` is set, so Terragrunt will not generate or update %s in %s. "+
-			"OpenTofu/Terraform will fail if the lock file is missing or incomplete.",
-			tf.FlagNameLockfile, tf.LockfileModeReadonly, tf.TerraformLockFile, tfOpts.ShellOptions.WorkingDir)
+		l.Warnf(
+			"`%s=%s` is set, so Terragrunt will not generate or update %s in %s. "+
+				"OpenTofu/Terraform will fail if the lock file is missing or incomplete.",
+			tf.FlagNameLockfile,
+			tf.LockfileModeReadonly,
+			tf.TerraformLockFile,
+			tfOpts.ShellOptions.WorkingDir,
+		)
 
 		return nil, nil
 	}
@@ -315,8 +366,10 @@ func (pc *ProviderCache) warmUpCache(
 	// If a lock file already existed before this run, skip writing to it — let
 	// OpenTofu/Terraform verify and manage the lock file during the actual init.
 	if lockfileExists && !isUpgrade {
-		l.Debugf("Skipping lock file update: %s already exists, letting OpenTofu/Terraform manage it",
-			filepath.Join(tfOpts.ShellOptions.WorkingDir, tf.TerraformLockFile))
+		l.Debugf(
+			"Skipping lock file update: %s already exists, letting OpenTofu/Terraform manage it",
+			filepath.Join(tfOpts.ShellOptions.WorkingDir, tf.TerraformLockFile),
+		)
 
 		return nil, nil
 	}
@@ -341,9 +394,15 @@ func (pc *ProviderCache) warmUpCache(
 	// For upgrade scenarios where no providers were newly cached, we still need to update
 	// the lock file if module constraints have changed. This only happens during upgrades.
 	if len(caches) == 0 && len(providerConstraints) > 0 && isUpgrade {
-		l.Debugf("No new providers cached, but constraints exist. Updating lock file constraints for upgrade scenario.")
+		l.Debugf(
+			"No new providers cached, but constraints exist. Updating lock file constraints for upgrade scenario.",
+		)
 
-		err = getproviders.UpdateLockfileConstraints(ctx, tfOpts.ShellOptions.WorkingDir, providerConstraints)
+		err = getproviders.UpdateLockfileConstraints(
+			ctx,
+			tfOpts.ShellOptions.WorkingDir,
+			providerConstraints,
+		)
 	}
 
 	return nil, err
@@ -352,18 +411,22 @@ func (pc *ProviderCache) warmUpCache(
 func (pc *ProviderCache) runTerraformWithCache(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
-	env map[string]string,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
-	if err := pc.createLocalCLIConfig(ctx, tfOpts.TofuImplementation, cliConfigFilename, ""); err != nil {
+	if err := pc.createLocalCLIConfig(
+		ctx,
+		tfOpts.TofuImplementation,
+		cliConfigFilename,
+		"",
+	); err != nil {
 		return nil, err
 	}
 
 	shellOpts := *tfOpts.ShellOptions // shallow copy
-	shellOpts.Env = env
 
 	newTFOpts := &tf.TFOptions{
 		JSONLogFormat:                tfOpts.JSONLogFormat,
@@ -374,7 +437,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 		ShellOptions:                 &shellOpts,
 	}
 
-	return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, args...)
+	return tf.RunCommandWithOutput(ctx, l, v, newTFOpts, args...)
 }
 
 // LockfileReadonlyRequested reports whether the user asked OpenTofu/Terraform to treat
@@ -448,21 +511,35 @@ func argsRequestReadonlyLockfile(args []string) bool {
 // It creates two types of configuration depending on the `cacheRequestID` variable set.
 // 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
 // 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
-func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementation tfimpl.Type, filename string, cacheRequestID string) error {
+func (pc *ProviderCache) createLocalCLIConfig(
+	ctx context.Context,
+	implementation tfimpl.Type,
+	filename string,
+	cacheRequestID string,
+) error {
 	cfg := pc.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
 	filteredRegistryNames := FilterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
 	filteredRegistryNames = AppendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
 
-	providerInstallationIncludes, err := pc.configureRegistryHosts(ctx, cfg, filteredRegistryNames, cacheRequestID)
+	providerInstallationIncludes, err := pc.configureRegistryHosts(
+		ctx,
+		cfg,
+		filteredRegistryNames,
+		cacheRequestID,
+	)
 	if err != nil {
 		return err
 	}
 
 	if cacheRequestID == "" {
 		cfg.AddProviderInstallationMethods(
-			cliconfig.NewProviderInstallationFilesystemMirror(pc.opts.Dir, providerInstallationIncludes, nil),
+			cliconfig.NewProviderInstallationFilesystemMirror(
+				pc.opts.Dir,
+				providerInstallationIncludes,
+				nil,
+			),
 		)
 	} else {
 		cfg.ProviderInstallation = nil
@@ -495,14 +572,23 @@ func (pc *ProviderCache) configureRegistryHosts(
 		}
 
 		hostServices := map[string]string{
-			serviceProvidersV1: fmt.Sprintf("%s/%s/%s/", pc.ProviderController.URL(), cacheRequestID, registryName),
+			serviceProvidersV1: fmt.Sprintf(
+				"%s/%s/%s/",
+				pc.ProviderController.URL(),
+				cacheRequestID,
+				registryName,
+			),
 		}
 
 		if hasModules {
 			// Route modules through the cache server so it can swap the cache
 			// server's API key (which TF_TOKEN_<host> is forced to) back out for
 			// the user's real upstream credentials before forwarding upstream.
-			hostServices[serviceModulesV1] = fmt.Sprintf("%s/%s/", pc.ModuleController.URL(), registryName)
+			hostServices[serviceModulesV1] = fmt.Sprintf(
+				"%s/%s/",
+				pc.ModuleController.URL(),
+				registryName,
+			)
 		}
 
 		cfg.AddHost(registryName, hostServices)
@@ -514,7 +600,10 @@ func (pc *ProviderCache) configureRegistryHosts(
 // registrySupportsModules reports whether the registry advertises a modules.v1
 // endpoint. For custom hosts it consults the host block; for standard registries
 // it performs discovery (using the populated discovery cache where available).
-func (pc *ProviderCache) registrySupportsModules(ctx context.Context, registryName string) (bool, error) {
+func (pc *ProviderCache) registrySupportsModules(
+	ctx context.Context,
+	registryName string,
+) (bool, error) {
 	for _, host := range pc.cliCfg.Hosts {
 		if host.Name == registryName {
 			return host.Services[serviceModulesV1] != "", nil
@@ -555,7 +644,13 @@ func isRegistryTimeoutError(output []byte) bool {
 	})
 }
 
-func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
+func (pc *ProviderCache) runTerraformCommand(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	tfOpts *tf.TFOptions,
+	args []string,
+) (*util.CmdOutput, error) {
 	// add -no-color flag to args if it was set in Terragrunt arguments
 	if tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains(tf.FlagNameNoColor) &&
 		!slices.Contains(args, tf.FlagNameNoColor) {
@@ -563,8 +658,6 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 	}
 
 	shellOpts := *tfOpts.ShellOptions // shallow copy
-	shellOpts.Writers.Writer = io.Discard
-	shellOpts.Env = envs
 
 	newCliArgs := iacargs.New(args...)
 
@@ -587,10 +680,16 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 		l,
 		log.DebugLevel,
 		func(ctx context.Context) error {
-			errWriter := util.NewTrapWriter(tfOpts.ShellOptions.Writers.ErrWriter)
-			shellOpts.Writers.ErrWriter = errWriter
+			errWriter := util.NewTrapWriter(v.Writers.ErrWriter)
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, newCliArgs.Slice()...)
+			cmdV := v.WithWriter(io.Discard).WithErrWriter(errWriter)
+
+			output, cmdErr := tf.RunCommandWithOutput(
+				ctx,
+				l,
+				cmdV,
+				newTFOpts,
+				newCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),
@@ -632,7 +731,11 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 }
 
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
-func (pc *ProviderCache) providerCacheEnvironment(env map[string]string, implementation tfimpl.Type, cliConfigFile string) map[string]string {
+func (pc *ProviderCache) providerCacheEnvironment(
+	env map[string]string,
+	implementation tfimpl.Type,
+	cliConfigFile string,
+) map[string]string {
 	// make copy + ensure non-nil
 	envs := make(map[string]string, len(env))
 	maps.Copy(envs, env)
@@ -725,7 +828,10 @@ func AppendCustomHostRegistries(hosts []cliconfig.ConfigHost, registryNames []st
 
 // populateCustomHostDiscoveryCache pre-populates the discovery URL cache for custom hosts
 // using service URLs from user config, avoiding .well-known/terraform.json lookups.
-func populateCustomHostDiscoveryCache(hosts []cliconfig.ConfigHost, providerHandlers handlers.ProviderHandlers) {
+func populateCustomHostDiscoveryCache(
+	hosts []cliconfig.ConfigHost,
+	providerHandlers handlers.ProviderHandlers,
+) {
 	for _, host := range hosts {
 		providersURL, hasProviders := host.Services[serviceProvidersV1]
 		if !hasProviders {

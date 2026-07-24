@@ -1,10 +1,5 @@
 //go:build awsoidc
 
-// These tests aren't hooked up to CI right now, as
-// we'll soon be moving to a new CI system (GitHub Actions)
-// and we don't want to add complexity to the migration by handling
-// both CircleCI and GitHub Actions at the same time.
-
 package test_test
 
 import (
@@ -53,7 +48,10 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAssumeRoleWebIdentityFile)
 
-	originalTerragruntConfigPath := filepath.Join(testFixtureAssumeRoleWebIdentityFile, "terragrunt.hcl")
+	originalTerragruntConfigPath := filepath.Join(
+		testFixtureAssumeRoleWebIdentityFile,
+		"terragrunt.hcl",
+	)
 	tmpTerragruntConfigFile := filepath.Join(testPath, "terragrunt.hcl")
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
@@ -73,17 +71,27 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 		)
 	}()
 
-	helpers.CopyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
-		"__FILL_IN_BUCKET_NAME__":              s3BucketName,
-		"__FILL_IN_REGION__":                   helpers.TerraformRemoteStateS3Region,
-		"__FILL_IN_ASSUME_ROLE__":              role,
-		"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenFile,
-	})
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		originalTerragruntConfigPath,
+		tmpTerragruntConfigFile,
+		map[string]string{
+			"__FILL_IN_BUCKET_NAME__":              s3BucketName,
+			"__FILL_IN_REGION__":                   helpers.TerraformRemoteStateS3Region,
+			"__FILL_IN_ASSUME_ROLE__":              role,
+			"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenFile,
+		},
+	)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --backend-bootstrap --working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --backend-bootstrap --working-dir "+testPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
@@ -113,7 +121,10 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	roleARN := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
 	require.NotEmpty(t, roleARN)
 
-	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --working-dir "+tmp+" --iam-assume-role "+roleARN+" --iam-assume-role-web-identity-token "+token)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply --non-interactive --working-dir "+tmp+" --iam-assume-role "+roleARN+" --iam-assume-role-web-identity-token "+token,
+	)
 }
 
 func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
@@ -130,7 +141,14 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 
 	helpers.ValidateAuthProviderScript(t, oidcPath, mockAuthCmd)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`, oidcPath, mockAuthCmd))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`,
+			oidcPath,
+			mockAuthCmd,
+		),
+	)
 }
 
 func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
@@ -148,7 +166,11 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	t.Setenv("OIDC_TOKEN", token)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	remoteStateOIDCPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-w-oidc")
+	remoteStateOIDCPath := filepath.Join(
+		tmpEnvPath,
+		testFixtureAuthProviderCmd,
+		"remote-state-w-oidc",
+	)
 	helpers.CleanupTerraformFolder(t, remoteStateOIDCPath)
 	mockAuthCmd := filepath.Join(remoteStateOIDCPath, "mock-auth-cmd.sh")
 
@@ -171,16 +193,104 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 		)
 	}()
 
-	helpers.CopyAndFillMapPlaceholders(t, tmpTerragruntConfigFile, tmpTerragruntConfigFile, map[string]string{
-		"__FILL_IN_BUCKET_NAME__": s3BucketName,
-		"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
-	})
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		tmpTerragruntConfigFile,
+		tmpTerragruntConfigFile,
+		map[string]string{
+			"__FILL_IN_BUCKET_NAME__": s3BucketName,
+			"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
+		},
+	)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
 			"terragrunt apply --working-dir %s --auth-provider-cmd %s --non-interactive --backend-bootstrap --log-level trace",
 			remoteStateOIDCPath,
+			mockAuthCmd,
+		),
+	)
+	require.NoError(t, err)
+}
+
+// TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole verifies chained role assumption
+// for the backend: --auth-provider-cmd returns a role assumed via OIDC web identity (the source
+// role), and the assume_role attribute of the remote_state block names a second role (the target
+// role) whose trust policy only allows the source role to assume it. Terragrunt must chain the
+// two assumptions to bootstrap the backend. Ambient AWS credentials are blanked so the chain can
+// only succeed through the auth provider.
+//
+// The test expects two dedicated roles:
+//   - AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN: trusts the GitHub Actions OIDC provider and has
+//     permission to assume the target role, but no S3 permissions.
+//   - AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN: trusts the source role and has the S3 permissions
+//     required to bootstrap the backend.
+func TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T) {
+	// t.Parallel() cannot be used together with t.Setenv()
+	// t.Parallel()
+	if isTerraform(t.Context()) {
+		t.Skip("Nested assume_role config for the s3 backend is not supported by Terraform 1.5.x")
+		return
+	}
+
+	token := fetchGitHubOIDCToken(t)
+
+	sourceRole := os.Getenv("AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN")
+	require.NotEmpty(t, sourceRole)
+
+	targetRole := os.Getenv("AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN")
+	require.NotEmpty(t, targetRole)
+
+	// These tests need to be run without the static key + secret
+	// used by most AWS tests here. Capture them first so the deferred
+	// bucket cleanup can use them: neither chain role can delete the
+	// bucket on its own (the source role has no S3 permissions and the
+	// target role is only reachable through the source role).
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
+
+	t.Setenv("OIDC_TOKEN", token)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-assume-role")
+	helpers.CleanupTerraformFolder(t, rootPath)
+	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
+
+	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+
+	tmpTerragruntConfigFile := filepath.Join(rootPath, "terragrunt.hcl")
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	defer func() {
+		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint: usetesting
+		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint: usetesting
+
+		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	}()
+
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		tmpTerragruntConfigFile,
+		tmpTerragruntConfigFile,
+		map[string]string{
+			"__FILL_IN_BUCKET_NAME__": s3BucketName,
+			"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
+			"__FILL_IN_ASSUME_ROLE__": targetRole,
+		},
+	)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --working-dir %s --auth-provider-cmd %s "+
+				"--non-interactive --backend-bootstrap --log-level trace",
+			rootPath,
 			mockAuthCmd,
 		),
 	)
@@ -199,17 +309,26 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 	t.Helper()
 
 	if os.Getenv(githubActionsEnvVar) != "true" {
-		t.Skipf("Skipping test because it's not running in a GitHub Actions environment (expected %s=true)", githubActionsEnvVar)
+		t.Skipf(
+			"Skipping test because it's not running in a GitHub Actions environment (expected %s=true)",
+			githubActionsEnvVar,
+		)
 	}
 
 	requestURL := os.Getenv(actionsIDTokenRequestURLEnvVar)
 	if requestURL == "" {
-		t.Skipf("Skipping test: Environment variable %s must be set in GitHub Actions to fetch OIDC token.", actionsIDTokenRequestURLEnvVar)
+		t.Skipf(
+			"Skipping test: Environment variable %s must be set in GitHub Actions to fetch OIDC token.",
+			actionsIDTokenRequestURLEnvVar,
+		)
 	}
 
 	requestToken := os.Getenv(actionsIDTokenRequestTokenEnvVar)
 	if requestToken == "" {
-		t.Skipf("Skipping test: Environment variable %s must be set in GitHub Actions to fetch OIDC token.", actionsIDTokenRequestTokenEnvVar)
+		t.Skipf(
+			"Skipping test: Environment variable %s must be set in GitHub Actions to fetch OIDC token.",
+			actionsIDTokenRequestTokenEnvVar,
+		)
 	}
 
 	client := &http.Client{}
@@ -229,10 +348,20 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
-			t.Fatalf("OIDC token request to %s failed with status %s. Additionally, failed to read response body: %v", requestURL, resp.Status, readErr)
+			t.Fatalf(
+				"OIDC token request to %s failed with status %s. Additionally, failed to read response body: %v",
+				requestURL,
+				resp.Status,
+				readErr,
+			)
 		}
 
-		t.Fatalf("OIDC token request to %s failed with status %s. Response: %s", requestURL, resp.Status, string(bodyBytes))
+		t.Fatalf(
+			"OIDC token request to %s failed with status %s. Response: %s",
+			requestURL,
+			resp.Status,
+			string(bodyBytes),
+		)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -241,9 +370,21 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 	var tokenResp oidcTokenResponse
 
 	err = json.Unmarshal(body, &tokenResp)
-	require.NoError(t, err, "Failed to unmarshal OIDC token response JSON from %s. Response: %s", requestURL, string(body))
+	require.NoError(
+		t,
+		err,
+		"Failed to unmarshal OIDC token response JSON from %s. Response: %s",
+		requestURL,
+		string(body),
+	)
 
-	require.NotEmpty(t, tokenResp.Value, "OIDC token 'value' field is empty in response from %s. Response: %s", requestURL, string(body))
+	require.NotEmpty(
+		t,
+		tokenResp.Value,
+		"OIDC token 'value' field is empty in response from %s. Response: %s",
+		requestURL,
+		string(body),
+	)
 
 	return tokenResp.Value
 }

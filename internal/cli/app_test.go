@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -124,8 +125,19 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{doubleDashed(global.NonInteractiveFlagName)},
-			expectedOptions: mockOptions(t, "", "", nil, true, "", false, false, defaultLogLevel, false),
+			args: []string{doubleDashed(global.NonInteractiveFlagName)},
+			expectedOptions: mockOptions(
+				t,
+				"",
+				"",
+				nil,
+				true,
+				"",
+				false,
+				false,
+				defaultLogLevel,
+				false,
+			),
 		},
 
 		{
@@ -460,7 +472,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 // We can't do a direct comparison between TerragruntOptions objects because we can't compare Logger or RunTerragrunt
 // instances. Therefore, we have to manually check everything else.
-func assertOptionsEqual(t *testing.T, expected *options.TerragruntOptions, actual *options.TerragruntOptions, msgAndArgs ...any) {
+func assertOptionsEqual(
+	t *testing.T,
+	expected *options.TerragruntOptions,
+	actual *options.TerragruntOptions,
+	msgAndArgs ...any,
+) {
 	t.Helper()
 
 	assert.Equal(t, expected.TerragruntConfigPath, actual.TerragruntConfigPath, msgAndArgs...)
@@ -475,7 +492,18 @@ func assertOptionsEqual(t *testing.T, expected *options.TerragruntOptions, actua
 	assert.Equal(t, expected.SourceMap, actual.SourceMap, msgAndArgs...)
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, _ log.Level, debug bool) *options.TerragruntOptions {
+func mockOptions(
+	t *testing.T,
+	terragruntConfigPath string,
+	workingDir string,
+	terraformCliArgs []string,
+	nonInteractive bool,
+	terragruntSource string,
+	ignoreDependencyErrors bool,
+	includeExternalDependencies bool,
+	_ log.Level,
+	debug bool,
+) *options.TerragruntOptions {
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
@@ -493,50 +521,147 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	return opts
 }
 
-func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamRole string) *options.TerragruntOptions {
+func mockOptionsWithIamRole(
+	t *testing.T,
+	terragruntConfigPath string,
+	workingDir string,
+	terraformCliArgs []string,
+	nonInteractive bool,
+	terragruntSource string,
+	ignoreDependencyErrors bool,
+	iamRole string,
+) *options.TerragruntOptions {
 	t.Helper()
 
-	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts := mockOptions(
+		t,
+		terragruntConfigPath,
+		workingDir,
+		terraformCliArgs,
+		nonInteractive,
+		terragruntSource,
+		ignoreDependencyErrors,
+		false,
+		defaultLogLevel,
+		false,
+	)
 	opts.OriginalIAMRoleOptions.RoleARN = iamRole
 	opts.IAMRoleOptions.RoleARN = iamRole
 
 	return opts
 }
 
-func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamAssumeRoleDuration int64) *options.TerragruntOptions {
+func mockOptionsWithIamAssumeRoleDuration(
+	t *testing.T,
+	terragruntConfigPath string,
+	workingDir string,
+	terraformCliArgs []string,
+	nonInteractive bool,
+	terragruntSource string,
+	ignoreDependencyErrors bool,
+	iamAssumeRoleDuration int64,
+) *options.TerragruntOptions {
 	t.Helper()
 
-	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts := mockOptions(
+		t,
+		terragruntConfigPath,
+		workingDir,
+		terraformCliArgs,
+		nonInteractive,
+		terragruntSource,
+		ignoreDependencyErrors,
+		false,
+		defaultLogLevel,
+		false,
+	)
 	opts.OriginalIAMRoleOptions.AssumeRoleDuration = iamAssumeRoleDuration
 	opts.IAMRoleOptions.AssumeRoleDuration = iamAssumeRoleDuration
 
 	return opts
 }
 
-func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamAssumeRoleSessionName string) *options.TerragruntOptions {
+func mockOptionsWithIamAssumeRoleSessionName(
+	t *testing.T,
+	terragruntConfigPath string,
+	workingDir string,
+	terraformCliArgs []string,
+	nonInteractive bool,
+	terragruntSource string,
+	ignoreDependencyErrors bool,
+	iamAssumeRoleSessionName string,
+) *options.TerragruntOptions {
 	t.Helper()
 
-	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts := mockOptions(
+		t,
+		terragruntConfigPath,
+		workingDir,
+		terraformCliArgs,
+		nonInteractive,
+		terragruntSource,
+		ignoreDependencyErrors,
+		false,
+		defaultLogLevel,
+		false,
+	)
 	opts.OriginalIAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
 	opts.IAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
 
 	return opts
 }
 
-func mockOptionsWithIamWebIdentityToken(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, webIdentityToken string) *options.TerragruntOptions {
+func mockOptionsWithIamWebIdentityToken(
+	t *testing.T,
+	terragruntConfigPath string,
+	workingDir string,
+	terraformCliArgs []string,
+	nonInteractive bool,
+	terragruntSource string,
+	ignoreDependencyErrors bool,
+	webIdentityToken string,
+) *options.TerragruntOptions {
 	t.Helper()
 
-	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts := mockOptions(
+		t,
+		terragruntConfigPath,
+		workingDir,
+		terraformCliArgs,
+		nonInteractive,
+		terragruntSource,
+		ignoreDependencyErrors,
+		false,
+		defaultLogLevel,
+		false,
+	)
 	opts.OriginalIAMRoleOptions.WebIdentityToken = webIdentityToken
 	opts.IAMRoleOptions.WebIdentityToken = webIdentityToken
 
 	return opts
 }
 
-func mockOptionsWithSourceMap(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, sourceMap map[string]string) *options.TerragruntOptions {
+func mockOptionsWithSourceMap(
+	t *testing.T,
+	terragruntConfigPath string,
+	workingDir string,
+	terraformCliArgs []string,
+	sourceMap map[string]string,
+) *options.TerragruntOptions {
 	t.Helper()
 
-	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, defaultLogLevel, false)
+	opts := mockOptions(
+		t,
+		terragruntConfigPath,
+		workingDir,
+		terraformCliArgs,
+		false,
+		"",
+		false,
+		false,
+		defaultLogLevel,
+		false,
+	)
 	opts.SourceMap = sourceMap
 
 	return opts
@@ -558,7 +683,11 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			expected: []string{"plan", "-bar"},
 		},
 		{
-			args:     []string{"plan", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath},
+			args: []string{
+				"plan",
+				doubleDashed(run.ConfigFlagName),
+				"/some/path/" + config.DefaultTerragruntConfigPath,
+			},
 			expected: []string{"plan"},
 		},
 		{
@@ -604,7 +733,13 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			)
 			actualOptions, err := runAppTest(l, tc.args, opts)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actualOptions.TerraformCliArgs.Slice(), "For args %v", tc.args)
+			assert.Equal(
+				t,
+				tc.expected,
+				actualOptions.TerraformCliArgs.Slice(),
+				"For args %v",
+				tc.args,
+			)
 		})
 	}
 }
@@ -631,12 +766,33 @@ func TestParseMultiStringArg(t *testing.T) {
 			expectedVals: []string{"registry.terraform.io", "registry.opentofu.org"},
 		},
 		{
-			args:         []string{"run", "--all", "plan", flagName, "bar1", flagName, "bar2", "--", "--test", "value"},
+			args: []string{
+				"run",
+				"--all",
+				"plan",
+				flagName,
+				"bar1",
+				flagName,
+				"bar2",
+				"--",
+				"--test",
+				"value",
+			},
 			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
 			expectedVals: []string{"bar1", "bar2"},
 		},
 		{
-			args:         []string{"run", "--all", "plan", flagName, "bar1", flagName, "--", "--test", "value"},
+			args: []string{
+				"run",
+				"--all",
+				"plan",
+				flagName,
+				"bar1",
+				flagName,
+				"--",
+				"--test",
+				"value",
+			},
 			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
 			expectedErr:  argMissingValueError(run.ProviderCacheRegistryNamesFlagName),
 		},
@@ -658,7 +814,13 @@ func TestParseMultiStringArg(t *testing.T) {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedVals, actualOptions.ProviderCacheOptions.RegistryNames, "For args %q", tc.args)
+				assert.Equal(
+					t,
+					tc.expectedVals,
+					actualOptions.ProviderCacheOptions.RegistryNames,
+					"For args %q",
+					tc.args,
+				)
 			}
 		})
 	}
@@ -694,14 +856,25 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 			expectedVals: map[string]string{"key": "value"},
 		},
 		{
-			args:         []string{awsproviderpatch.CommandName, flagName, "key1=value1", flagName, "key2=value2", flagName, "key3=value3"},
+			args: []string{
+				awsproviderpatch.CommandName,
+				flagName,
+				"key1=value1",
+				flagName,
+				"key2=value2",
+				flagName,
+				"key3=value3",
+			},
 			defaultValue: map[string]string{"default": "value"},
 			expectedVals: map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"},
 		},
 		{
 			args:         []string{awsproviderpatch.CommandName, flagName, "invalidvalue"},
 			defaultValue: map[string]string{"default": "value"},
-			expectedErr:  clihelper.NewInvalidKeyValueError(clihelper.MapFlagKeyValSep, "invalidvalue"),
+			expectedErr: clihelper.NewInvalidKeyValueError(
+				clihelper.MapFlagKeyValSep,
+				"invalidvalue",
+			),
 		},
 	}
 
@@ -719,7 +892,13 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 			assert.ErrorContains(t, actualErr, tc.expectedErr.Error())
 		} else {
 			require.NoError(t, actualErr)
-			assert.Equal(t, tc.expectedVals, actualOptions.AwsProviderPatchOverrides, "For args %v", tc.args)
+			assert.Equal(
+				t,
+				tc.expectedVals,
+				actualOptions.AwsProviderPatchOverrides,
+				"For args %v",
+				tc.args,
+			)
 		}
 	}
 }
@@ -739,8 +918,13 @@ func TestTerragruntVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+		opts := options.NewTerragruntOptions()
+
+		testV := venv.OSVenv()
+
+		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 		app.Version = version
 
 		err := app.Run(tc.args)
@@ -794,8 +978,13 @@ func TestTerragruntHelp(t *testing.T) {
 			t.Parallel()
 
 			output := &bytes.Buffer{}
-			opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-			app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+			opts := options.NewTerragruntOptions()
+
+			testV := venv.OSVenv()
+
+			testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+			app := cli.NewApp(logger.CreateLogger(), opts, testV)
 			err := app.Run(tc.args)
 			require.NoError(t, err, tc)
 
@@ -815,15 +1004,29 @@ func TestTerraformHelp(t *testing.T) {
 		expected string
 		args     []string
 	}{
-		{args: []string{"terragrunt", tf.CommandNamePlan, "--help"}, expected: "(?s)Usage: terragrunt \\[global options\\] plan.*-detailed-exitcode"},
-		{args: []string{"terragrunt", tf.CommandNameApply, "-help"}, expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy"},
-		{args: []string{"terragrunt", tf.CommandNameApply, "-h"}, expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy"},
+		{
+			args:     []string{"terragrunt", tf.CommandNamePlan, "--help"},
+			expected: "(?s)Usage: terragrunt \\[global options\\] plan.*-detailed-exitcode",
+		},
+		{
+			args:     []string{"terragrunt", tf.CommandNameApply, "-help"},
+			expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy",
+		},
+		{
+			args:     []string{"terragrunt", tf.CommandNameApply, "-h"},
+			expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy",
+		},
 	}
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+		opts := options.NewTerragruntOptions()
+
+		testV := venv.OSVenv()
+
+		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 		err := app.Run(tc.args)
 		require.NoError(t, err)
 
@@ -836,8 +1039,13 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 	output := &bytes.Buffer{}
 
-	opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-	app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+	opts := options.NewTerragruntOptions()
+
+	testV := venv.OSVenv()
+
+	testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+	app := cli.NewApp(logger.CreateLogger(), opts, testV)
 
 	err := app.Run([]string{"terragrunt", "plan", "help"})
 	require.Error(t, err)
@@ -850,7 +1058,11 @@ func setCommandAction(action clihelper.ActionFunc, cmds ...*clihelper.Command) {
 	}
 }
 
-func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
+func runAppTest(
+	l log.Logger,
+	args []string,
+	opts *options.TerragruntOptions,
+) (*options.TerragruntOptions, error) {
 	emptyAction := func(ctx context.Context, cliCtx *clihelper.Context) error { return nil }
 
 	terragruntCommands := commands.New(l, opts, venv.OSVenv())
@@ -921,8 +1133,13 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 		t.Setenv("COMP_LINE", "terragrunt "+tc.compLine)
 
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+		opts := options.NewTerragruntOptions()
+
+		testV := venv.OSVenv()
+
+		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
+
+		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 
 		app.Commands = app.Commands.FilterByNames([]string{"hcl", "render", "run"})
 

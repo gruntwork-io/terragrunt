@@ -77,6 +77,15 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
+	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
+	OCI = "oci"
+	// VersionAttribute gates resolving a tfr:// registry module from a version
+	// constraint expressed through the version attribute on the terraform block.
+	VersionAttribute = "version-attribute"
+	// OtelLogs enables the OpenTelemetry logs signal, exporting Terragrunt's log
+	// records through the configured logs exporter and correlating them with
+	// traces via the active span.
+	OtelLogs = "otel-logs"
 )
 
 const (
@@ -164,6 +173,15 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalHooks,
+		},
+		{
+			Name: OCI,
+		},
+		{
+			Name: VersionAttribute,
+		},
+		{
+			Name: OtelLogs,
 		},
 	}
 }

@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### `hcl validate` resolves `get_original_terragrunt_dir()` to the discovered unit
+
+`terragrunt hcl validate` and `terragrunt hcl validate --inputs` now resolve `get_original_terragrunt_dir()` to each discovered unit's own directory instead of the directory the command was launched from. Previously, when the command ran from a parent directory that discovered units in subdirectories, any `read_terragrunt_config()` call that built a path relative to `get_original_terragrunt_dir()` resolved against the wrong directory and failed with "You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file", even though `plan`, `apply`, and `run validate` worked on the same configuration.
+
+Both commands now set the original config path per discovered unit before parsing, matching the behavior of `run` and `backend bootstrap`, so relative paths resolve against the unit that owns them.

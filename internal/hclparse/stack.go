@@ -209,7 +209,11 @@ type StackFuncFactory func(stackDir string) (map[string]function.Function, error
 // are expanded recursively so a stack composed of sub-stacks yields the sub-stacks' units.
 // funcsFor builds the dir-scoped HCL function map for each stack directory visited; it
 // must be non-nil and must return a non-nil map.
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory) ([]string, error) {
+func UnitPathsFromStackDir(
+	fs vfs.FS,
+	stackDir string,
+	funcsFor StackFuncFactory,
+) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
 	}
@@ -219,7 +223,9 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 	}
 
 	if funcsFor == nil {
-		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcsFor is nil (stackDir=%q)", stackDir))
+		panic(
+			fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcsFor is nil (stackDir=%q)", stackDir),
+		)
 	}
 
 	return unitPathsFromStackDir(fs, stackDir, funcsFor, make(map[string]struct{}), 0)
@@ -230,7 +236,11 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 // no_dot_terragrunt_stack. It does not recurse into nested stacks; an absent stack
 // file yields empty slices and a nil error. funcsFor must be non-nil and return a
 // non-nil map.
-func DirectComponentPaths(fs vfs.FS, stackDir string, funcsFor StackFuncFactory) (unitPaths, stackPaths []string, err error) {
+func DirectComponentPaths(
+	fs vfs.FS,
+	stackDir string,
+	funcsFor StackFuncFactory,
+) (unitPaths, stackPaths []string, err error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.DirectComponentPaths: fs is nil (stackDir=%q)", stackDir))
 	}
@@ -252,7 +262,12 @@ func DirectComponentPaths(fs vfs.FS, stackDir string, funcsFor StackFuncFactory)
 	}
 
 	if funcs == nil {
-		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor returned a nil map (stackDir=%q)", stackDir))
+		panic(
+			fmt.Sprintf(
+				"hclparse.DirectComponentPaths: funcsFor returned a nil map (stackDir=%q)",
+				stackDir,
+			),
+		)
 	}
 
 	units, stacks, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
@@ -275,9 +290,18 @@ func DirectComponentPaths(fs vfs.FS, stackDir string, funcsFor StackFuncFactory)
 // visited skips any stack dir already expanded on this traversal (catches "." / ".." and
 // ancestor symlink loops), and depth caps the chain length (backstop for symlink cycles
 // EvalSymlinks reports as errors and therefore cannot collapse to a seen path).
-func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory, visited map[string]struct{}, depth int) ([]string, error) {
+func unitPathsFromStackDir(
+	fs vfs.FS,
+	stackDir string,
+	funcsFor StackFuncFactory,
+	visited map[string]struct{},
+	depth int,
+) ([]string, error) {
 	if depth > maxStackRecursionDepth {
-		return nil, StackRecursionDepthExceededError{MaxDepth: maxStackRecursionDepth, StackDir: stackDir}
+		return nil, StackRecursionDepthExceededError{
+			MaxDepth: maxStackRecursionDepth,
+			StackDir: stackDir,
+		}
 	}
 
 	stackDir = util.ResolvePath(stackDir)
@@ -297,7 +321,12 @@ func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 	}
 
 	if funcs == nil {
-		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir=%q)", stackDir))
+		panic(
+			fmt.Sprintf(
+				"hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir=%q)",
+				stackDir,
+			),
+		)
 	}
 
 	units, stacks, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
@@ -317,7 +346,11 @@ func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 
 	// Recurse into nested stacks so a stack composed of sub-stacks expands to the units they generate.
 	for _, stack := range stacks {
-		nestedDir := GeneratedComponentPath(stackDir, stack.Path, stack.NoStack != nil && *stack.NoStack)
+		nestedDir := GeneratedComponentPath(
+			stackDir,
+			stack.Path,
+			stack.NoStack != nil && *stack.NoStack,
+		)
 
 		nestedPaths, nestedErr := unitPathsFromStackDir(fs, nestedDir, funcsFor, visited, depth+1)
 		if nestedErr != nil {
@@ -334,7 +367,11 @@ func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 //
 // funcs is the function map injected into the discovery eval context; callers
 // must supply a non-nil map (validated at the public entrypoint).
-func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]function.Function) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
+func decodeDiscovery(
+	fs vfs.FS,
+	stackDir, stackFile string,
+	funcs map[string]function.Function,
+) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
 		if errors.Is(err, iofs.ErrNotExist) {
@@ -395,8 +432,12 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 	// Publish the base unit.<name>.path / stack.<name>.path refs before decoding the autoinclude, so a sibling
 	// autoinclude block whose path references them resolves during discovery exactly as it does in the full
 	// stack parse (injectStackComponentRefs). Without this, discovery would reject a config the full parse accepts.
-	evalCtx.Variables[VarUnit] = BuildComponentRefMap(buildDiscoveryUnitRefs(decoded.Units, stackDir))
-	evalCtx.Variables[VarStack] = BuildComponentRefMap(buildDiscoveryStackRefs(decoded.Stacks, stackDir))
+	evalCtx.Variables[VarUnit] = BuildComponentRefMap(
+		buildDiscoveryUnitRefs(decoded.Units, stackDir),
+	)
+	evalCtx.Variables[VarStack] = BuildComponentRefMap(
+		buildDiscoveryStackRefs(decoded.Stacks, stackDir),
+	)
 
 	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl, overriding same-name
 	// base blocks the same way a full stack parse does. The autoinclude file's own names are validated for
@@ -423,7 +464,11 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 // funcs is the same dir-scoped function map used for the rest of discovery, so any
 // function call in a (normally literal-only, generated) values file resolves
 // against the stack directory being expanded.
-func readDiscoveryValues(fs vfs.FS, stackDir string, funcs map[string]function.Function) (*cty.Value, error) {
+func readDiscoveryValues(
+	fs vfs.FS,
+	stackDir string,
+	funcs map[string]function.Function,
+) (*cty.Value, error) {
 	valuesPath := filepath.Join(stackDir, valuesFileName)
 
 	data, err := vfs.ReadFile(fs, valuesPath)
@@ -463,7 +508,12 @@ func readDiscoveryValues(fs vfs.FS, stackDir string, funcs map[string]function.F
 // autoinclude file is a no-op. Discovery applies the same rejections as the full parse so it never adds DAG
 // edges the full parse would reject: the dependency-values backstop, and a strict decode that allows only
 // unit and stack blocks at the top level.
-func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.EvalContext, decoded *discoveryDecode) error {
+func mergeDiscoveryStackAutoInclude(
+	fs vfs.FS,
+	stackDir string,
+	evalCtx *hcl.EvalContext,
+	decoded *discoveryDecode,
+) error {
 	autoIncludePath := filepath.Join(stackDir, AutoIncludeStackFile)
 
 	data, err := vfs.ReadFile(fs, autoIncludePath)

@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,9 +77,12 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 			// not via -backend-config= CLI args.
 			name: "disable_init=true, generate=true - no backend-config args",
 			remoteStateCfg: &remotestate.Config{
-				BackendName:   "s3",
-				DisableInit:   true,
-				Generate:      &remotestate.ConfigGenerate{Path: "backend.tf", IfExists: "overwrite"},
+				BackendName: "s3",
+				DisableInit: true,
+				Generate: &remotestate.ConfigGenerate{
+					Path:     "backend.tf",
+					IfExists: "overwrite",
+				},
 				BackendConfig: s3Config,
 			},
 			backendBootstrap:  false,
@@ -100,13 +104,24 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				cfg.RemoteState = *remotestate.New(tc.remoteStateCfg)
 			}
 
-			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), opts, &cfg)
+			err := prepareInitCommandRunCfg(
+				t.Context(),
+				logger.CreateLogger(),
+				venv.OSVenv(),
+				opts,
+				&cfg,
+			)
 
 			require.NoError(t, err)
 
 			allArgs := opts.TerraformCliArgs.Slice()
 			if tc.expectBackendArgs {
-				assert.NotContains(t, allArgs, "-backend=false", "disable_init should not pass -backend=false to terraform")
+				assert.NotContains(
+					t,
+					allArgs,
+					"-backend=false",
+					"disable_init should not pass -backend=false to terraform",
+				)
 
 				hasBackendConfig := false
 
@@ -118,7 +133,12 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 					}
 				}
 
-				assert.True(t, hasBackendConfig, "expected -backend-config= flag in CLI args, got: %v", allArgs)
+				assert.True(
+					t,
+					hasBackendConfig,
+					"expected -backend-config= flag in CLI args, got: %v",
+					allArgs,
+				)
 			} else {
 				assert.Empty(t, allArgs, "expected no CLI args, got: %v", allArgs)
 			}

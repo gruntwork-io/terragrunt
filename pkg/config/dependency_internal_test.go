@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,9 +108,27 @@ func TestResolveStackFilePath(t *testing.T) {
 		wantOK bool
 	}{
 		{"stackFileDirectly", filepath.Join(tmpDir, DefaultStackFile), wantStack, wantStack, true},
-		{"explicitTerragruntHCL", filepath.Join(tmpDir, DefaultTerragruntConfigPath), filepath.Join(tmpDir, DefaultTerragruntConfigPath), "", false},
-		{"explicitTerragruntJSON", filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), "", false},
-		{"bareDirectory", tmpDir, filepath.Join(tmpDir, DefaultTerragruntConfigPath), wantStack, true},
+		{
+			"explicitTerragruntHCL",
+			filepath.Join(tmpDir, DefaultTerragruntConfigPath),
+			filepath.Join(tmpDir, DefaultTerragruntConfigPath),
+			"",
+			false,
+		},
+		{
+			"explicitTerragruntJSON",
+			filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath),
+			filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath),
+			"",
+			false,
+		},
+		{
+			"bareDirectory",
+			tmpDir,
+			filepath.Join(tmpDir, DefaultTerragruntConfigPath),
+			wantStack,
+			true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -145,11 +164,28 @@ func FuzzResolveStackFilePath(f *testing.F) {
 	f.Fuzz(func(t *testing.T, raw, target string) {
 		got, ok := resolveStackFilePath(raw, target)
 		if !ok {
-			require.Empty(t, got, "resolveStackFilePath must return empty string when ok=false (raw=%q target=%q got=%q)", raw, target, got)
+			require.Empty(
+				t,
+				got,
+				"resolveStackFilePath must return empty string when ok=false (raw=%q target=%q got=%q)",
+				raw,
+				target,
+				got,
+			)
+
 			return
 		}
 
-		require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must return a path whose base is %s when ok=true (raw=%q target=%q got=%q)", DefaultStackFile, raw, target, got)
+		require.Equal(
+			t,
+			DefaultStackFile,
+			filepath.Base(got),
+			"resolveStackFilePath must return a path whose base is %s when ok=true (raw=%q target=%q got=%q)",
+			DefaultStackFile,
+			raw,
+			target,
+			got,
+		)
 	})
 }
 
@@ -169,7 +205,11 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			initial: map[string]string{},
 			terraform: &TerraformConfig{
 				ExtraArgs: []TerraformExtraArguments{
-					{Name: "secrets", Commands: []string{"output", "plan"}, EnvVars: envVars(map[string]string{"TF_VAR_passphrase": "secret"})},
+					{
+						Name:     "secrets",
+						Commands: []string{"output", "plan"},
+						EnvVars:  envVars(map[string]string{"TF_VAR_passphrase": "secret"}),
+					},
 				},
 			},
 			want: map[string]string{"TF_VAR_passphrase": "secret"},
@@ -179,7 +219,11 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			initial: map[string]string{},
 			terraform: &TerraformConfig{
 				ExtraArgs: []TerraformExtraArguments{
-					{Name: "secrets", Commands: []string{"apply", "plan"}, EnvVars: envVars(map[string]string{"TF_VAR_passphrase": "secret"})},
+					{
+						Name:     "secrets",
+						Commands: []string{"apply", "plan"},
+						EnvVars:  envVars(map[string]string{"TF_VAR_passphrase": "secret"}),
+					},
 				},
 			},
 			want: map[string]string{},
@@ -189,7 +233,11 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			initial: map[string]string{},
 			terraform: &TerraformConfig{
 				ExtraArgs: []TerraformExtraArguments{
-					{Name: "secrets", Commands: nil, EnvVars: envVars(map[string]string{"TF_VAR_passphrase": "secret"})},
+					{
+						Name:     "secrets",
+						Commands: nil,
+						EnvVars:  envVars(map[string]string{"TF_VAR_passphrase": "secret"}),
+					},
 				},
 			},
 			want: map[string]string{},
@@ -217,22 +265,20 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			want: map[string]string{},
 		},
 		{
-			name:    "nil env map is initialized before applying",
-			initial: nil,
-			terraform: &TerraformConfig{
-				ExtraArgs: []TerraformExtraArguments{
-					{Name: "secrets", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"KEY": "value"})},
-				},
-			},
-			want: map[string]string{"KEY": "value"},
-		},
-		{
 			name:    "later block wins on overlapping keys",
 			initial: map[string]string{},
 			terraform: &TerraformConfig{
 				ExtraArgs: []TerraformExtraArguments{
-					{Name: "first", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"KEY": "first"})},
-					{Name: "second", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"KEY": "second"})},
+					{
+						Name:     "first",
+						Commands: []string{"output"},
+						EnvVars:  envVars(map[string]string{"KEY": "first"}),
+					},
+					{
+						Name:     "second",
+						Commands: []string{"output"},
+						EnvVars:  envVars(map[string]string{"KEY": "second"}),
+					},
 				},
 			},
 			want: map[string]string{"KEY": "second"},
@@ -242,7 +288,11 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			initial: map[string]string{"TF_VAR_passphrase": "old"},
 			terraform: &TerraformConfig{
 				ExtraArgs: []TerraformExtraArguments{
-					{Name: "secrets", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"TF_VAR_passphrase": "new"})},
+					{
+						Name:     "secrets",
+						Commands: []string{"output"},
+						EnvVars:  envVars(map[string]string{"TF_VAR_passphrase": "new"}),
+					},
 				},
 			},
 			want: map[string]string{"TF_VAR_passphrase": "new"},
@@ -253,9 +303,9 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			pctx := &ParsingContext{Env: tc.initial}
+			pctx := &ParsingContext{Venv: venv.OSVenv().WithEnv(tc.initial)}
 			applyExtraArgsEnvVarsForOutput(pctx, tc.terraform)
-			assert.Equal(t, tc.want, pctx.Env)
+			assert.Equal(t, tc.want, pctx.Venv.Env)
 		})
 	}
 }

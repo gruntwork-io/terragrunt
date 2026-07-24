@@ -254,7 +254,11 @@ func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error
 		separatorAdjustment = headerPadding - separatorPaddingAdjustment
 	}
 
-	separatorLine := fmt.Sprintf("%s%s", prefix, strings.Repeat("─", separatorLineLength+separatorAdjustment))
+	separatorLine := fmt.Sprintf(
+		"%s%s",
+		prefix,
+		strings.Repeat("─", separatorLineLength+separatorAdjustment),
+	)
 	if err := s.writeSummaryHeader(w, separatorLine); err != nil {
 		return err
 	}
@@ -325,7 +329,12 @@ func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error
 			})
 
 			for _, run := range runs {
-				if err := s.writeUnitDuration(w, run, colorizer, category.unitColorizer); err != nil {
+				if err := s.writeUnitDuration(
+					w,
+					run,
+					colorizer,
+					category.unitColorizer,
+				); err != nil {
 					return err
 				}
 			}

@@ -21,7 +21,11 @@ import (
 func newLogger() (log.Logger, *bytes.Buffer) {
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 	output := new(bytes.Buffer)
-	logger := log.New(log.WithOutput(output), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter))
+	logger := log.New(
+		log.WithOutput(output),
+		log.WithLevel(log.InfoLevel),
+		log.WithFormatter(formatter),
+	)
 
 	return logger, output
 }
@@ -78,11 +82,19 @@ func TestFlag_Evaluate(t *testing.T) {
 	mockStrictControls := strict.Controls{}
 
 	deprecatedFlagWarning := func() string {
-		return controls.NewDeprecatedFlagName(&clihelper.BoolFlag{}, &clihelper.BoolFlag{}, "").WarningFmt
+		return controls.NewDeprecatedFlagName(
+			&clihelper.BoolFlag{},
+			&clihelper.BoolFlag{},
+			"",
+		).WarningFmt
 	}
 
 	deprecatedEnvVarWarning := func() string {
-		return controls.NewDeprecatedEnvVar(&clihelper.BoolFlag{}, &clihelper.BoolFlag{}, "").WarningFmt
+		return controls.NewDeprecatedEnvVar(
+			&clihelper.BoolFlag{},
+			&clihelper.BoolFlag{},
+			"",
+		).WarningFmt
 	}
 
 	type testCaseFlag struct {
@@ -95,7 +107,6 @@ func TestFlag_Evaluate(t *testing.T) {
 		flags          []testCaseFlag
 		expectedOutput []string
 	}{
-
 		{
 			[]testCaseFlag{
 				{
@@ -108,7 +119,10 @@ func TestFlag_Evaluate(t *testing.T) {
 				},
 				{
 					flags.NewFlag(
-						&clihelper.BoolFlag{Name: "new-env-var-name", EnvVars: []string{"NEW_ENV_VAR_NAME"}},
+						&clihelper.BoolFlag{
+							Name:    "new-env-var-name",
+							EnvVars: []string{"NEW_ENV_VAR_NAME"},
+						},
 						flags.WithDeprecatedName("old-env-var-name", mockStrictControls),
 					),
 					"",

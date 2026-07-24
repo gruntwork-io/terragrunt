@@ -20,6 +20,7 @@ import (
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 
 	l := logger.CreateLogger()
 
-	client, err := s3backend.NewClient(t.Context(), l, extS3Cfg, mockOptions)
+	client, err := s3backend.NewClient(t.Context(), l, venvtest.New(), extS3Cfg, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return client
@@ -96,9 +97,19 @@ func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	err := client.WaitForTableToBeActiveWithRandomSleep(t.Context(), l, tableName, retries, 1*time.Millisecond, 500*time.Millisecond)
+	err := client.WaitForTableToBeActiveWithRandomSleep(
+		t.Context(),
+		l,
+		tableName,
+		retries,
+		1*time.Millisecond,
+		500*time.Millisecond,
+	)
 
-	errorMatchs := errors.Is(err, s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries})
+	errorMatchs := errors.Is(
+		err,
+		s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries},
+	)
 	assert.True(t, errorMatchs, "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
@@ -170,7 +181,12 @@ func TestAwsCreateLockTableWithTagsAtCreation(t *testing.T) {
 	assertTags(t, expectedTags, tableName, client)
 }
 
-func assertTags(t *testing.T, expectedTags map[string]string, tableName string, client *s3backend.Client) {
+func assertTags(
+	t *testing.T,
+	expectedTags map[string]string,
+	tableName string,
+	client *s3backend.Client,
+) {
 	t.Helper()
 
 	// Access the dynamodb client directly from the S3 client
@@ -192,7 +208,11 @@ func assertTags(t *testing.T, expectedTags map[string]string, tableName string, 
 	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
 }
 
-func listTagsOfResourceWithRetry(t *testing.T, client *s3backend.Client, resourceArn *string) *dynamodb.ListTagsOfResourceOutput {
+func listTagsOfResourceWithRetry(
+	t *testing.T,
+	client *s3backend.Client,
+	resourceArn *string,
+) *dynamodb.ListTagsOfResourceOutput {
 	t.Helper()
 
 	const (
@@ -249,12 +269,21 @@ func AssertCanWriteToTable(t *testing.T, tableName string, client *s3backend.Cli
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
-func WithLockTable(t *testing.T, client *s3backend.Client, action func(tableName string, client *s3backend.Client)) {
+func WithLockTable(
+	t *testing.T,
+	client *s3backend.Client,
+	action func(tableName string, client *s3backend.Client),
+) {
 	t.Helper()
 	WithLockTableTagged(t, nil, client, action)
 }
 
-func WithLockTableTagged(t *testing.T, tags map[string]string, client *s3backend.Client, action func(tableName string, client *s3backend.Client)) {
+func WithLockTableTagged(
+	t *testing.T,
+	tags map[string]string,
+	client *s3backend.Client,
+	action func(tableName string, client *s3backend.Client),
+) {
 	t.Helper()
 
 	tableName := UniqueTableNameForTest()
@@ -292,7 +321,12 @@ func TestAwsCreateS3BucketWithTagsAtCreation(t *testing.T) {
 	}
 
 	// Create bucket with tags supplied only at creation time.
-	err := client.CreateS3Bucket(t.Context(), l, bucketName, s3backend.CreateS3BucketOpts{Tags: expectedTags})
+	err := client.CreateS3Bucket(
+		t.Context(),
+		l,
+		bucketName,
+		s3backend.CreateS3BucketOpts{Tags: expectedTags},
+	)
 	require.NoError(t, err)
 
 	defer func() {
@@ -316,5 +350,10 @@ func TestAwsCreateS3BucketWithTagsAtCreation(t *testing.T) {
 		actualTags[*tag.Key] = *tag.Value
 	}
 
-	assert.Equal(t, expectedTags, actualTags, "Tags should be present from creation-time CreateBucketConfiguration.Tags")
+	assert.Equal(
+		t,
+		expectedTags,
+		actualTags,
+		"Tags should be present from creation-time CreateBucketConfiguration.Tags",
+	)
 }

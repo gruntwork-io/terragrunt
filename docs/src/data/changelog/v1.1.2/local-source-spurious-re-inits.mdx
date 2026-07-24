@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Local sources no longer re-init when uncopied files change
+
+For units with a local `source`, Terragrunt decides whether the cached copy is stale by hashing the source directory. That hash previously covered every file in the directory, including hidden files and `exclude_from_copy` matches that are never copied into the cache. Creating or touching such a file (an editor swap file, a scratch note) changed the hash, forcing a needless re-copy and auto-init on the next run.
+
+The hash now covers only the files a copy would deliver, honoring the default hidden-file rule along with `include_in_copy` and `exclude_from_copy`. Files that never reach the cache no longer trigger re-initialization.

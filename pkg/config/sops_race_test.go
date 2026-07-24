@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,13 +46,13 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 		files = append(files, secretFile)
 	}
 
-	// Mock decrypt that reads the env var (creating a read that races with
+	// Mock decrypter that reads the env var (creating a read that races with
 	// concurrent Setenv/Unsetenv if locking is broken).
-	mockDecryptFn := func(path string, _ string) ([]byte, error) {
+	mockDecrypter := vsops.NewMemDecrypter(func(path string, _ string) ([]byte, error) {
 		_ = os.Getenv(authKey) // read that would race without lock
 
 		return os.ReadFile(path)
-	}
+	})
 
 	var (
 		wg      sync.WaitGroup
@@ -71,9 +72,9 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(filePath)
-			pctx.Env = map[string]string{authKey: fmt.Sprintf("token-%d", idx)}
+			pctx.Venv.Env = map[string]string{authKey: fmt.Sprintf("token-%d", idx)}
 
-			result, err := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", mockDecryptFn)
+			result, err := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", mockDecrypter)
 			assert.NoError(t, err)
 			assert.Contains(t, result, `"value":"secret-from-unit-`)
 		}(i, f)

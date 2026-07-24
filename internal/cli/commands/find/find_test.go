@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -169,7 +170,10 @@ func TestRun(t *testing.T) {
 				// Verify each config has a valid type
 				for _, config := range configs {
 					assert.NotEmpty(t, config.Type)
-					assert.True(t, config.Type == component.UnitKind || config.Type == component.StackKind)
+					assert.True(
+						t,
+						config.Type == component.UnitKind || config.Type == component.StackKind,
+					)
 				}
 			},
 		},
@@ -512,10 +516,7 @@ locals {
 			r, w, err := os.Pipe()
 			require.NoError(t, err)
 
-			// Set the writer in options
-			opts.Writers.Writer = w
-
-			err = find.Run(t.Context(), l, opts)
+			err = find.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
@@ -577,9 +578,7 @@ dependency "target" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
-
-	err = find.Run(t.Context(), l, opts)
+	err = find.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())

@@ -62,7 +62,12 @@ func ValidateHookTraceParent(t *testing.T, hook, str string) {
 
 	traceparentValue := matches[1]
 	require.NotEmpty(t, traceparentValue, "Traceparent value should not be empty")
-	require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparentValue, "Traceparent value should match W3C traceparent format")
+	require.Regexp(
+		t,
+		`^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`,
+		traceparentValue,
+		"Traceparent value should match W3C traceparent format",
+	)
 }
 
 // CreateFile creates an empty file at the given path, creating parent directories if needed.
@@ -122,6 +127,34 @@ func CreateGitRepo(t *testing.T, path string) {
 	require.NoError(t, err, "git commit failed")
 }
 
+// InitGitRepoWithBranchRef initializes a git repo at dir, commits every file
+// already present, and creates a branch named ref pointing at the commit.
+// Callers write their fixture files into dir before calling this.
+func InitGitRepoWithBranchRef(t *testing.T, dir, ref string) {
+	t.Helper()
+
+	runGitCmd(t, dir, "init", "-b", "main")
+	runGitCmd(t, dir, "config", "user.email", "test@example.com")
+	runGitCmd(t, dir, "config", "user.name", "Terragrunt Test")
+	runGitCmd(t, dir, "config", "commit.gpgsign", "false")
+	runGitCmd(t, dir, "add", "-A")
+	runGitCmd(t, dir, "commit", "-m", "initial commit")
+	runGitCmd(t, dir, "update-ref", "refs/heads/"+ref, "HEAD")
+}
+
+func runGitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	gitPath, err := exec.LookPath("git")
+	require.NoError(t, err)
+
+	cmd := exec.CommandContext(t.Context(), gitPath, args...)
+	cmd.Dir = dir
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git %v failed: %s", args, string(out))
+}
+
 // CloneGitRepo creates an isolated git clone for parallel testing.
 // Uses git clone --local --no-hardlinks to preserve file modes, symlinks,
 // and avoid worktree race conditions when multiple tests operate on same repo.
@@ -130,7 +163,15 @@ func CloneGitRepo(t *testing.T, srcDir string) string {
 
 	dstDir := TmpDirWOSymlinks(t)
 
-	cmd := exec.CommandContext(t.Context(), "git", "clone", "--local", "--no-hardlinks", srcDir, dstDir)
+	cmd := exec.CommandContext(
+		t.Context(),
+		"git",
+		"clone",
+		"--local",
+		"--no-hardlinks",
+		srcDir,
+		dstDir,
+	)
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "git clone failed: %s", string(output))
 
@@ -138,7 +179,10 @@ func CloneGitRepo(t *testing.T, srcDir string) string {
 }
 
 // MakeDiscoveryContext creates a discovery context copy with an updated WorkingDir.
-func MakeDiscoveryContext(baseCtx *component.DiscoveryContext, dir string) *component.DiscoveryContext {
+func MakeDiscoveryContext(
+	baseCtx *component.DiscoveryContext,
+	dir string,
+) *component.DiscoveryContext {
 	return &component.DiscoveryContext{
 		WorkingDir: dir,
 		Cmd:        baseCtx.Cmd,
@@ -284,7 +328,11 @@ func ExecAndCaptureOutput(t *testing.T, dir, command string, args ...string) (st
 // ExecWithMiseAndCaptureOutput executes a command using mise and captures the stdout and stderr.
 // This is useful for commands that are being tested as installed via mise, as it doesn't depend
 // on the PATH being set correctly.
-func ExecWithMiseAndCaptureOutput(t *testing.T, dir, command string, args ...string) (string, string) {
+func ExecWithMiseAndCaptureOutput(
+	t *testing.T,
+	dir, command string,
+	args ...string,
+) (string, string) {
 	t.Helper()
 
 	tool := determineToolName(command)
@@ -421,7 +469,16 @@ func FindCachedFile(t *testing.T, unitDir, filename string) string {
 		return nil
 	})
 	require.NoError(t, err)
-	require.Lenf(t, matches, 1, "expected exactly one %s under %s, got %d: %v", filename, unitDir, len(matches), matches)
+	require.Lenf(
+		t,
+		matches,
+		1,
+		"expected exactly one %s under %s, got %d: %v",
+		filename,
+		unitDir,
+		len(matches),
+		matches,
+	)
 
 	return matches[0]
 }

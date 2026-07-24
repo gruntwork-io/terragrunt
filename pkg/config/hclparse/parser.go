@@ -91,7 +91,10 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
-func (parser *Parser) GetDiagnosticsWriter(writer io.Writer, disableColor bool) hcl.DiagnosticWriter {
+func (parser *Parser) GetDiagnosticsWriter(
+	writer io.Writer,
+	disableColor bool,
+) hcl.DiagnosticWriter {
 	termColor := !disableColor && term.IsTerminal(int(os.Stderr.Fd()))
 
 	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))

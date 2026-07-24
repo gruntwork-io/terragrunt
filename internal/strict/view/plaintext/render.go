@@ -41,8 +41,8 @@ type tabFlusher interface {
 	Flush() error
 }
 
-var newTabFlusher = func(out io.Writer) tabFlusher {
-	return tabwriter.NewWriter(out, tabMinWidth, tabWidth, tabPadding, ' ', 0)
+var newTabFlusher = func(w io.Writer) tabFlusher {
+	return tabwriter.NewWriter(w, tabMinWidth, tabWidth, tabPadding, ' ', 0)
 }
 
 type Render struct{}
@@ -93,7 +93,11 @@ func (render *Render) formatOutput(t *template.Template, data any) (string, erro
 	return out.String(), nil
 }
 
-func (render *Render) executeTemplate(templ string, data any, customFuncs map[string]any) (string, error) {
+func (render *Render) executeTemplate(
+	templ string,
+	data any,
+	customFuncs map[string]any,
+) (string, error) {
 	t := render.buildTemplate(templ, customFuncs)
 
 	return render.formatOutput(t, data)

@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,7 +25,11 @@ func TestGitRunner_LsRemote(t *testing.T) {
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
 
-		results, err := runner.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+		results, err := runner.LsRemote(
+			ctx,
+			"https://github.com/gruntwork-io/terragrunt.git",
+			"HEAD",
+		)
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		assert.Regexp(t, "^[0-9a-f]{40}$", results[0].Hash)
@@ -45,7 +50,11 @@ func TestGitRunner_LsRemote(t *testing.T) {
 	t.Run("nonexistent reference", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := runner.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "nonexistent-branch")
+		_, err := runner.LsRemote(
+			ctx,
+			"https://github.com/gruntwork-io/terragrunt.git",
+			"nonexistent-branch",
+		)
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -317,6 +326,112 @@ func TestGitRunner_FetchAndHasObject(t *testing.T) {
 	assert.True(t, has)
 }
 
+func TestGitRunner_FetchRejectsOptionInjectionRef(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	src := newCommittedRepo(t)
+
+	bareDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(bareDir)
+	require.NoError(t, runner.InitBare(ctx))
+
+	marker := filepath.Join(helpers.TmpDirWOSymlinks(t), "injected")
+
+	// A literal space is fine here since the ref is passed straight to git, not created as a branch name.
+	injectedRef := "--upload-pack=touch " + marker
+
+	err = runner.Fetch(ctx, "file://"+src, injectedRef, 1)
+	require.Error(t, err)
+
+	var wrappedErr *git.WrappedError
+	require.ErrorAs(t, err, &wrappedErr)
+	require.ErrorIs(t, wrappedErr.Err, git.ErrGitFetch)
+
+	assert.NoFileExists(t, marker)
+}
+
+func TestGitRunner_LsRemoteRejectsOptionInjectionRepo(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	marker := filepath.Join(helpers.TmpDirWOSymlinks(t), "injected")
+
+	// A repo beginning with a git option must be treated as a positional.
+	injectedRepo := "--upload-pack=touch " + marker
+
+	_, err = runner.LsRemote(ctx, injectedRepo, "HEAD")
+	require.Error(t, err)
+
+	assert.NoFileExists(t, marker)
+}
+
+func TestGitRunner_FetchInsertsOptionTerminator(t *testing.T) {
+	t.Parallel()
+
+	var got []string
+
+	runner := newArgvCapturingRunner(t, &got, nil).WithWorkDir(helpers.TmpDirWOSymlinks(t))
+
+	require.NoError(t, runner.Fetch(t.Context(), "file:///repo", "somebranch", 1))
+	assert.Equal(t,
+		[]string{"fetch", "--depth", "1", "--no-tags", "--", "file:///repo", "somebranch"},
+		got,
+	)
+}
+
+func TestGitRunner_CloneInsertsOptionTerminator(t *testing.T) {
+	t.Parallel()
+
+	var got []string
+
+	workDir := helpers.TmpDirWOSymlinks(t)
+	runner := newArgvCapturingRunner(t, &got, nil).WithWorkDir(workDir)
+
+	require.NoError(t, runner.Clone(t.Context(), "file:///repo", true, 1, "main"))
+	assert.Equal(
+		t,
+		[]string{
+			"clone",
+			"--bare",
+			"--depth",
+			"1",
+			"--single-branch",
+			"--branch",
+			"main",
+			"--",
+			"file:///repo",
+			workDir,
+		},
+		got,
+	)
+}
+
+func TestGitRunner_LsRemoteInsertsOptionTerminator(t *testing.T) {
+	t.Parallel()
+
+	var got []string
+
+	runner := newArgvCapturingRunner(
+		t,
+		&got,
+		[]byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n"),
+	)
+
+	_, err := runner.LsRemote(t.Context(), "file:///repo", "main")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ls-remote", "--", "file:///repo", "main"}, got)
+}
+
 func TestGitRunner_HasObjectSurfacesNonMissingFailures(t *testing.T) {
 	t.Parallel()
 
@@ -404,4 +519,46 @@ func TestGitRunner_AddCommitCheckoutConfig(t *testing.T) {
 	email, err := runner.Config(ctx, "user.email")
 	require.NoError(t, err)
 	assert.Equal(t, "test@example.com", email)
+}
+
+// newArgvCapturingRunner returns a runner backed by an in-memory exec that
+// records the argv passed to git into captured and replies with stdout.
+func newArgvCapturingRunner(t *testing.T, captured *[]string, stdout []byte) *git.GitRunner {
+	t.Helper()
+
+	e := vexec.NewMemExec(
+		func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			*captured = inv.Args
+			return vexec.Result{Stdout: stdout}
+		},
+		vexec.WithLookPath(func(string) (string, error) { return "git", nil }),
+	)
+
+	r, err := git.NewGitRunner(e)
+	require.NoError(t, err)
+
+	return r
+}
+
+// newCommittedRepo creates a local repo with one commit for use as a file:// remote.
+func newCommittedRepo(t *testing.T) string {
+	t.Helper()
+
+	ctx := t.Context()
+
+	dir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(dir)
+
+	require.NoError(t, runner.Init(ctx))
+	require.NoError(t, runner.ConfigSet(ctx, "user.email", "test@example.com"))
+	require.NoError(t, runner.ConfigSet(ctx, "user.name", "Terragrunt Test"))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, runner.Add(ctx, "main.tf"))
+	require.NoError(t, runner.Commit(ctx, "initial commit"))
+
+	return dir
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -23,7 +23,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, iamRoleOpts iam.RoleOptions, env map[string]string) providers.Provider {
+func NewProvider(
+	l log.Logger,
+	iamRoleOpts iam.RoleOptions,
+	env map[string]string,
+) providers.Provider {
 	return &Provider{
 		iamRoleOpts: iamRoleOpts,
 		env:         env,
@@ -35,13 +39,13 @@ func (provider *Provider) Name() string {
 	return "API calls to Amazon STS"
 }
 
-// GetCredentials implements providers.GetCredentials. exec is unused for
+// GetCredentials implements providers.GetCredentials. v is unused for
 // amazonsts because it talks to AWS via the SDK, not a subprocess; it is
 // accepted to satisfy the providers.Provider interface contract.
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	_ vexec.Exec,
+	_ venv.Venv,
 ) (*providers.Credentials, error) {
 	iamRoleOpts := provider.iamRoleOpts
 	if iamRoleOpts.RoleARN == "" {
@@ -58,11 +62,11 @@ func (provider *Provider) GetCredentials(
 
 	var resp *types.Credentials
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "creds_assume_role", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "creds_assume_role", map[string]any{
 		"role_arn":     iamRoleOpts.RoleARN,
 		"session_name": iamRoleOpts.AssumeRoleSessionName,
 		"duration":     iamRoleOpts.AssumeRoleDuration,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		var assumeErr error
 
 		resp, assumeErr = awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.env)

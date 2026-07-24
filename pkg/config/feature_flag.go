@@ -49,7 +49,10 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 }
 
 // deepMergeFeatureBlocks deep merges feature flags by name.
-func deepMergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
+func deepMergeFeatureBlocks(
+	targetFeatureFlags []*FeatureFlag,
+	sourceFeatureFlags []*FeatureFlag,
+) ([]*FeatureFlag, error) {
 	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMerge)
 }
 

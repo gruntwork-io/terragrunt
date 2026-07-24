@@ -11,6 +11,7 @@ import (
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -61,7 +62,7 @@ func WithLinkForceCopy() LinkOption {
 // the working tree freely.
 func (c *Content) Link(
 	ctx context.Context,
-	v Venv,
+	v venv.Venv,
 	hash, targetPath string,
 	gitPerm os.FileMode,
 	opts ...LinkOption,
@@ -76,12 +77,12 @@ func (c *Content) Link(
 		desired &^= WriteBitMask
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_link", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, "cas_link", map[string]any{
 		"hash":       hash,
 		"path":       targetPath,
 		"force_copy": o.forceCopy,
 		"perm":       uint32(desired),
-	}, func(childCtx context.Context) error {
+	}, func(childCtx context.Context, _ log.Logger) error {
 		sourcePath := c.getPath(hash)
 
 		// Hardlink when the stored blob's perms already match what the caller
@@ -89,7 +90,10 @@ func (c *Content) Link(
 		// leak back into the shared store and so the destination carries the
 		// requested mode.
 		if !o.forceCopy {
-			if info, statErr := v.FS.Stat(sourcePath); statErr == nil && info.Mode().Perm() == desired {
+			if info, statErr := v.FS.Stat(
+				sourcePath,
+			); statErr == nil &&
+				info.Mode().Perm() == desired {
 				if err := vfs.Link(v.FS, sourcePath, targetPath); err == nil {
 					return nil
 				}
@@ -171,7 +175,7 @@ func (c *Content) Link(
 
 // Store stores a single content item. This is typically used for trees,
 // as blobs are written directly from git cat-file stdout.
-func (c *Content) Store(l log.Logger, v Venv, hash string, data []byte) error {
+func (c *Content) Store(l log.Logger, v venv.Venv, hash string, data []byte) error {
 	lock, err := c.store.AcquireLock(v, hash)
 	if err != nil {
 		return fmt.Errorf("acquire lock for %s: %w", hash, err)
@@ -196,7 +200,7 @@ func (c *Content) Store(l log.Logger, v Venv, hash string, data []byte) error {
 }
 
 // Ensure ensures that a content item exists in the store.
-func (c *Content) Ensure(l log.Logger, v Venv, hash string, data []byte) error {
+func (c *Content) Ensure(l log.Logger, v venv.Venv, hash string, data []byte) error {
 	path := c.getPath(hash)
 	if c.store.hasContent(v, path) {
 		return nil
@@ -207,7 +211,7 @@ func (c *Content) Ensure(l log.Logger, v Venv, hash string, data []byte) error {
 
 // EnsureWithWait ensures that a content item exists in the store, with optimization
 // to wait for concurrent writes instead of doing redundant work.
-func (c *Content) EnsureWithWait(l log.Logger, v Venv, hash string, data []byte) error {
+func (c *Content) EnsureWithWait(l log.Logger, v venv.Venv, hash string, data []byte) error {
 	needsWrite, lock, err := c.store.EnsureWithWait(v, hash)
 	if err != nil {
 		return fmt.Errorf("ensure content for %s: %w", hash, err)
@@ -239,7 +243,7 @@ func (c *Content) EnsureWithWait(l log.Logger, v Venv, hash string, data []byte)
 // The stored blob is chmodded to the source file's perms with the write bits cleared,
 // so the default-link path can hardlink the blob directly without losing its
 // executable-ness or risking writes back into the shared store.
-func (c *Content) EnsureCopy(l log.Logger, v Venv, hash, src string) (err error) {
+func (c *Content) EnsureCopy(l log.Logger, v venv.Venv, hash, src string) (err error) {
 	path := c.getPath(hash)
 	if c.store.hasContent(v, path) {
 		return nil
@@ -331,7 +335,7 @@ func (c *Content) EnsureCopy(l log.Logger, v Venv, hash, src string) (err error)
 }
 
 // GetTmpHandle returns a file handle to a temporary file where content will be stored.
-func (c *Content) GetTmpHandle(v Venv, hash string) (vfs.File, error) {
+func (c *Content) GetTmpHandle(v venv.Venv, hash string) (vfs.File, error) {
 	partitionDir := c.getPartition(hash)
 	if err := v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
@@ -349,14 +353,14 @@ func (c *Content) GetTmpHandle(v Venv, hash string) (vfs.File, error) {
 }
 
 // Read retrieves content from the store by hash.
-func (c *Content) Read(v Venv, hash string) ([]byte, error) {
+func (c *Content) Read(v venv.Venv, hash string) ([]byte, error) {
 	path := c.getPath(hash)
 	return vfs.ReadFile(v.FS, path)
 }
 
 // writeContentToFile writes data to a temporary file, sets appropriate
 // permissions, and performs an atomic rename.
-func (c *Content) writeContentToFile(l log.Logger, v Venv, hash string, data []byte) error {
+func (c *Content) writeContentToFile(l log.Logger, v venv.Venv, hash string, data []byte) error {
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 

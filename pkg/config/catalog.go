@@ -38,14 +38,20 @@ var (
 )
 
 type CatalogConfig struct {
-	NoShell         *bool    `hcl:"no_shell,optional" cty:"no_shell"`
-	NoHooks         *bool    `hcl:"no_hooks,optional" cty:"no_hooks"`
+	NoShell         *bool    `hcl:"no_shell,optional"         cty:"no_shell"`
+	NoHooks         *bool    `hcl:"no_hooks,optional"         cty:"no_hooks"`
 	DefaultTemplate string   `hcl:"default_template,optional" cty:"default_template"`
-	URLs            []string `hcl:"urls,attr" cty:"urls"`
+	URLs            []string `hcl:"urls,attr"                 cty:"urls"`
 }
 
 func (cfg *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v, NoShell = %v, NoHooks = %v}", cfg.URLs, cfg.DefaultTemplate, cfg.NoShell, cfg.NoHooks)
+	return fmt.Sprintf(
+		"Catalog{URLs = %v, DefaultTemplate = %v, NoShell = %v, NoHooks = %v}",
+		cfg.URLs,
+		cfg.DefaultTemplate,
+		cfg.NoShell,
+		cfg.NoHooks,
+	)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {
@@ -79,7 +85,11 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
 // Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
-func ReadCatalogConfig(parentCtx context.Context, l log.Logger, pctx *ParsingContext) (*CatalogConfig, error) {
+func ReadCatalogConfig(
+	parentCtx context.Context,
+	l log.Logger,
+	pctx *ParsingContext,
+) (*CatalogConfig, error) {
 	configPath, configString, err := findCatalogConfig(parentCtx, l, pctx)
 	if err != nil || configPath == "" {
 		return nil, err
@@ -87,7 +97,10 @@ func ReadCatalogConfig(parentCtx context.Context, l log.Logger, pctx *ParsingCon
 
 	pctx = pctx.Clone()
 	pctx.TerragruntConfigPath = configPath
-	pctx.ParserOptions = append(pctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
+	pctx.ParserOptions = append(
+		pctx.ParserOptions,
+		hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}),
+	)
 	pctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
 	config, err := ParseConfigString(parentCtx, pctx, l, configPath, configString, nil)
@@ -98,9 +111,16 @@ func ReadCatalogConfig(parentCtx context.Context, l log.Logger, pctx *ParsingCon
 	return config.Catalog, nil
 }
 
-func findCatalogConfig(ctx context.Context, l log.Logger, outerPctx *ParsingContext) (string, string, error) {
+func findCatalogConfig(
+	ctx context.Context,
+	l log.Logger,
+	outerPctx *ParsingContext,
+) (string, string, error) {
 	var (
-		configPath        = filepath.Join(filepath.Dir(outerPctx.TerragruntConfigPath), outerPctx.ScaffoldRootFileName)
+		configPath = filepath.Join(
+			filepath.Dir(outerPctx.TerragruntConfigPath),
+			outerPctx.ScaffoldRootFileName,
+		)
 		configName        = outerPctx.ScaffoldRootFileName
 		catalogConfigPath string
 	)
@@ -115,7 +135,11 @@ func findCatalogConfig(ctx context.Context, l log.Logger, outerPctx *ParsingCont
 		}
 
 		parseCtx, pctx := NewParsingContext(ctx, l, WithStrictControls(outerPctx.StrictControls))
-		pctx.TerragruntConfigPath = filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName)
+		pctx.TerragruntConfigPath = filepath.Join(
+			filepath.Dir(configPath),
+			util.UniqueID(),
+			configName,
+		)
 		pctx.MaxFoldersToCheck = outerPctx.MaxFoldersToCheck
 
 		newConfigPath, err := FindInParentFolders(parseCtx, pctx, l, []string{configName})
@@ -158,7 +182,12 @@ func findCatalogConfig(ctx context.Context, l log.Logger, outerPctx *ParsingCont
 	return "", "", nil
 }
 
-func convertToTerragruntCatalogConfig(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntCatalogConfig(
+	ctx context.Context,
+	pctx *ParsingContext,
+	configPath string,
+	terragruntConfigFromFile *terragruntConfigFile,
+) (cfg *TerragruntConfig, err error) {
 	var (
 		terragruntConfig = &TerragruntConfig{}
 		defaultMetadata  = map[string]any{FoundInFile: configPath}

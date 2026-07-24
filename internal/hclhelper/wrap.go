@@ -12,7 +12,10 @@ import (
 func WrapMapToSingleLineHcl(m map[string]any) string {
 	var attributes = make([]string, 0, len(m))
 	for key, value := range m {
-		attributes = append(attributes, fmt.Sprintf(`%s=%s`, key, FormatValueToSingleLineHcl(value)))
+		attributes = append(
+			attributes,
+			fmt.Sprintf(`%s=%s`, key, FormatValueToSingleLineHcl(value)),
+		)
 	}
 
 	sort.Strings(attributes)

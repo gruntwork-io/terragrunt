@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/github"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
@@ -76,10 +77,8 @@ type (
 )
 
 type ExecutionOptions struct {
-	Writers           writer.Writers
 	EngineOptions     *EngineOptions
 	EngineConfig      *EngineConfig
-	Env               map[string]string
 	UnitDir           string
 	CacheDir          string
 	RootWorkingDir    string
@@ -98,6 +97,9 @@ type engineInstance struct {
 	engineClient *proto.EngineClient
 	client       *plugin.Client
 	execOptions  *ExecutionOptions
+	// v carries the env the plugin was started with so Shutdown can address
+	// the same environment long after Run returned.
+	v venv.Venv
 }
 
 // engineEntry single-flights one cache dir's engine creation: the builder writes instance and
@@ -194,13 +196,13 @@ func (c *engineClients) takeUnit(unitDir string) *engineEntry {
 	return nil
 }
 
-// Run executes the given command with the experimental engine. The provided
-// vexec.Exec is used to spawn the engine plugin subprocess and must be
-// OS-backed.
+// Run executes the given command with the experimental engine. The executor
+// on v spawns the engine plugin subprocess and must be OS-backed; v's env is
+// forwarded to the plugin.
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
@@ -210,23 +212,27 @@ func Run(
 
 	cacheDir := execOptions.CacheDir
 
-	instance, found, err := engineClients.loadOrCreate(cacheDir, execOptions, func() (*engineInstance, error) {
-		return createInstance(ctx, l, e, execOptions)
-	})
+	instance, found, err := engineClients.loadOrCreate(
+		cacheDir,
+		execOptions,
+		func() (*engineInstance, error) {
+			return createInstance(ctx, l, v, execOptions)
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	var output *util.CmdOutput
 
-	runErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_run", map[string]any{
+	runErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_run", map[string]any{
 		"command":            execOptions.Command,
 		"cache_dir":          cacheDir,
 		"engine_initialized": found,
-	}, func(runCtx context.Context) error {
+	}, func(runCtx context.Context, l log.Logger) error {
 		var invokeErr error
 
-		output, invokeErr = invoke(runCtx, l, execOptions, instance.engineClient)
+		output, invokeErr = invoke(runCtx, l, v, execOptions, instance.engineClient)
 
 		return invokeErr
 	})
@@ -243,19 +249,19 @@ func Run(
 func createInstance(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*engineInstance, error) {
 	if err := downloadEngine(ctx, l, execOptions); err != nil {
 		return nil, err
 	}
 
-	terragruntEngine, client, err := createEngine(ctx, l, e, execOptions)
+	terragruntEngine, client, err := createEngine(ctx, l, v.Exec, execOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := initialize(ctx, l, execOptions, terragruntEngine); err != nil {
+	if err := initialize(ctx, l, v, execOptions, terragruntEngine); err != nil {
 		client.Kill()
 
 		return nil, err
@@ -265,6 +271,9 @@ func createInstance(
 		engineClient: terragruntEngine,
 		client:       client,
 		execOptions:  execOptions,
+		// Snapshot the env so a later in-place mutation of the caller's venv
+		// cannot change what Shutdown addresses.
+		v: v.WithEnvCloned(),
 	}, nil
 }
 
@@ -289,10 +298,10 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		return nil
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_download", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_download", map[string]any{
 		"source":  e.Source,
 		"version": e.Version,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		// If source is empty, we cannot download the engine
 		// This indicates an engine block was configured but source was not provided
 		if e.Source == "" {
@@ -370,7 +379,8 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		checksumFile = result.ChecksumFile
 		checksumSigFile = result.ChecksumSigFile
 
-		if !execOptions.EngineOptions.SkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
+		if !execOptions.EngineOptions.SkipChecksumCheck && checksumFile != "" &&
+			checksumSigFile != "" {
 			l.Infof("Verifying checksum for %s", downloadFile)
 
 			if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
@@ -631,7 +641,12 @@ const (
 )
 
 // Shutdown shuts down the experimental engine.
-func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experiments, noEngine bool) error {
+func Shutdown(
+	ctx context.Context,
+	l log.Logger,
+	experiments experiment.Experiments,
+	noEngine bool,
+) error {
 	if !experiments.Evaluate(experiment.IacEngine) || noEngine {
 		return nil
 	}
@@ -697,7 +712,13 @@ func shutdownInstance(ctx context.Context, l log.Logger, instance *engineInstanc
 
 	l.Debugf("Shutting down engine for %s", instance.execOptions.CacheDir)
 
-	if err := shutdown(ctx, l, instance.execOptions, instance.engineClient); err != nil {
+	if err := shutdown(
+		ctx,
+		l,
+		instance.v,
+		instance.execOptions,
+		instance.engineClient,
+	); err != nil {
 		l.Errorf("Error shutting down engine: %v", err)
 	}
 
@@ -767,11 +788,11 @@ func createEngine(
 		pluginClient *plugin.Client
 	)
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_create", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_create", map[string]any{
 		"source":    execOptions.EngineConfig.Source,
 		"version":   execOptions.EngineConfig.Version,
 		"cache_dir": execOptions.CacheDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		path, err := engineDir(execOptions)
 		if err != nil {
 			return err
@@ -785,7 +806,11 @@ func createEngine(
 		skipCheck := execOptions.EngineOptions.SkipChecksumCheck
 		if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 			util.FileExists(localChecksumSigFile) {
-			if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
+			if err = verifyFile(
+				localEnginePath,
+				localChecksumFile,
+				localChecksumSigFile,
+			); err != nil {
 				return err
 			}
 		} else {
@@ -885,15 +910,16 @@ func createEngine(
 func invoke(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	runOptions *ExecutionOptions,
 	client *proto.EngineClient,
 ) (*util.CmdOutput, error) {
 	var result *util.CmdOutput
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_invoke", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_invoke", map[string]any{
 		"command":   runOptions.Command,
 		"cache_dir": runOptions.CacheDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		l = l.WithField(placeholders.TFPathKeyName, "engine")
 
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
@@ -907,7 +933,7 @@ func invoke(
 			AllocatePseudoTty: runOptions.AllocatePseudoTty,
 			WorkingDir:        runOptions.CacheDir,
 			Meta:              meta,
-			EnvVars:           runOptions.Env,
+			EnvVars:           v.Env,
 		})
 		if err != nil {
 			return err
@@ -917,13 +943,13 @@ func invoke(
 		stdoutLogLevel := log.StdoutLevel
 		stderrLogLevel := log.StderrLevel
 
-		stdoutWriter := writer.ExtractOriginalWriter(runOptions.Writers.Writer)
-		stderrWriter := writer.ExtractOriginalWriter(runOptions.Writers.ErrWriter)
+		stdoutWriter := writer.ExtractOriginalWriter(v.Writers.Writer)
+		stderrWriter := writer.ExtractOriginalWriter(v.Writers.ErrWriter)
 
 		if runOptions.Headless && !runOptions.ForwardTFStdout {
 			stdoutLogLevel = log.InfoLevel
 			stderrLogLevel = log.ErrorLevel
-			stdoutWriter = writer.ExtractOriginalWriter(runOptions.Writers.ErrWriter)
+			stdoutWriter = writer.ExtractOriginalWriter(v.Writers.ErrWriter)
 		}
 
 		var (
@@ -965,13 +991,21 @@ func invoke(
 			switch resp := responseType.(type) {
 			case *proto.RunResponse_Stdout:
 				if resp.Stdout != nil {
-					if err = processStream(resp.Stdout.GetContent(), &stdoutLineBuf, stdout); err != nil {
+					if err = processStream(
+						resp.Stdout.GetContent(),
+						&stdoutLineBuf,
+						stdout,
+					); err != nil {
 						return err
 					}
 				}
 			case *proto.RunResponse_Stderr:
 				if resp.Stderr != nil {
-					if err = processStream(resp.Stderr.GetContent(), &stderrLineBuf, stderr); err != nil {
+					if err = processStream(
+						resp.Stderr.GetContent(),
+						&stderrLineBuf,
+						stderr,
+					); err != nil {
 						return err
 					}
 				}
@@ -1055,10 +1089,16 @@ func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 var ErrEngineInitFailed = errors.New("engine init failed")
 
 // initialize engine for working directory
-func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_initialize", map[string]any{
+func initialize(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	runOptions *ExecutionOptions,
+	client *proto.EngineClient,
+) error {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_initialize", map[string]any{
 		"cache_dir": runOptions.CacheDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
 			return err
@@ -1067,7 +1107,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 		l.Debugf("Running init for engine in %s", runOptions.CacheDir)
 
 		request, err := (*client).Init(ctx, &proto.InitRequest{
-			EnvVars:    runOptions.Env,
+			EnvVars:    v.Env,
 			WorkingDir: runOptions.CacheDir,
 			Meta:       meta,
 		})
@@ -1077,7 +1117,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 
 		l.Debugf("Reading init output for engine in %s", runOptions.CacheDir)
 
-		return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
+		return ReadEngineOutput(v, true, func() (*OutputLine, error) {
 			output, err := request.Recv()
 			if err != nil {
 				return nil, err
@@ -1104,7 +1144,12 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine init failed with exit code %d", exitCode)
-						return nil, fmt.Errorf("%w with exit code %d", ErrEngineInitFailed, exitCode)
+
+						return nil, fmt.Errorf(
+							"%w with exit code %d",
+							ErrEngineInitFailed,
+							exitCode,
+						)
 					}
 				}
 			case *proto.InitResponse_Log:
@@ -1126,12 +1171,13 @@ var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 func shutdown(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	runOptions *ExecutionOptions,
 	terragruntEngine *proto.EngineClient,
 ) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_shutdown", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_shutdown", map[string]any{
 		"cache_dir": runOptions.CacheDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
 			return err
@@ -1140,7 +1186,7 @@ func shutdown(
 		request, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
 			WorkingDir: runOptions.CacheDir,
 			Meta:       meta,
-			EnvVars:    runOptions.Env,
+			EnvVars:    v.Env,
 		})
 		if err != nil {
 			return err
@@ -1148,7 +1194,7 @@ func shutdown(
 
 		l.Debugf("Reading shutdown output for engine in %s", runOptions.CacheDir)
 
-		return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
+		return ReadEngineOutput(v, true, func() (*OutputLine, error) {
 			output, err := request.Recv()
 			if err != nil {
 				return nil, err
@@ -1180,7 +1226,12 @@ func shutdown(
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine shutdown failed with exit code %d", exitCode)
-						return nil, fmt.Errorf("%w with exit code %d", ErrEngineShutdownFailed, exitCode)
+
+						return nil, fmt.Errorf(
+							"%w with exit code %d",
+							ErrEngineShutdownFailed,
+							exitCode,
+						)
 					}
 				}
 			case *proto.ShutdownResponse_Log:
@@ -1206,13 +1257,14 @@ type outputFn func() (*OutputLine, error)
 
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
-func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output outputFn) error {
-	cmdStdout := runOptions.Writers.Writer
-	cmdStderr := runOptions.Writers.ErrWriter
+func ReadEngineOutput(v venv.Venv, forceStdErr bool, output outputFn) error {
+	cmdStdout := v.Writers.Writer
+	cmdStderr := v.Writers.ErrWriter
 
 	for {
 		response, err := output()
-		if err != nil && (errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
+		if err != nil &&
+			(errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
 			return err
 		}
 

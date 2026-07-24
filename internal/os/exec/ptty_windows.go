@@ -5,14 +5,11 @@ package exec
 import (
 	"os"
 	"os/exec"
-	"strings"
 
 	"golang.org/x/sys/windows"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
-
-const InvalidHandleErrorMessage = "The handle is invalid"
 
 // PrepareConsole enables support for escape sequences on Windows.
 // Returns true if virtual terminal processing was successfully enabled on at least one output handle.
@@ -59,7 +56,10 @@ func enableVirtualTerminalInput(logger log.Logger, file *os.File) {
 		return
 	}
 
-	if err := windows.SetConsoleMode(handle, mode|windows.ENABLE_VIRTUAL_TERMINAL_INPUT); err != nil {
+	if err := windows.SetConsoleMode(
+		handle,
+		mode|windows.ENABLE_VIRTUAL_TERMINAL_INPUT,
+	); err != nil {
 		logger.Debugf("virtual terminal input not supported: %v", err)
 		// Restore original mode in case the failed call left the handle in a bad state.
 		_ = windows.SetConsoleMode(handle, mode)
@@ -78,7 +78,9 @@ func PrepareStdinForPrompt(logger log.Logger) {
 		return
 	}
 
-	required := uint32(windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT)
+	required := uint32(
+		windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT,
+	)
 	if mode&required != required {
 		if err := windows.SetConsoleMode(handle, mode|required); err != nil {
 			logger.Debugf("failed to restore stdin console mode for prompt: %v", err)
@@ -94,16 +96,15 @@ func enableVirtualTerminalProcessing(logger log.Logger, file *os.File) bool {
 
 	handle := windows.Handle(file.Fd())
 	if err := windows.GetConsoleMode(handle, &mode); err != nil {
-		if strings.Contains(err.Error(), InvalidHandleErrorMessage) {
-			logger.Debugf("failed to get console mode: %v", err)
-		} else {
-			logger.Errorf("failed to get console mode: %v", err)
-		}
+		logger.Debugf("failed to get console mode: %v", err)
 
 		return false
 	}
 
-	if err := windows.SetConsoleMode(handle, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING); err != nil {
+	if err := windows.SetConsoleMode(
+		handle,
+		mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+	); err != nil {
 		logger.Errorf("failed to set console mode: %v", err)
 		_ = windows.SetConsoleMode(handle, mode)
 

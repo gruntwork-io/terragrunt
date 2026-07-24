@@ -167,7 +167,14 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 
 			l, output := newTestLogger()
 
-			tips.GiveStackNestedGenerateTip(l, fs, emptyStackFuncFactory(), workingDir, filter.Filters{parsed}, allTips)
+			tips.GiveStackNestedGenerateTip(
+				l,
+				fs,
+				emptyStackFuncFactory(),
+				workingDir,
+				filter.Filters{parsed},
+				allTips,
+			)
 
 			if tc.expectShown {
 				assert.Contains(t, output.String(), tips.StackNestedStacksNotGenerated)
@@ -230,7 +237,14 @@ func TestGiveStackNestedGenerateTipNoOp(t *testing.T) {
 
 			l, output := newTestLogger()
 
-			tips.GiveStackNestedGenerateTip(l, vfs.NewMemMapFS(), tc.funcsFor, workingDir, tc.filters, tc.allTips)
+			tips.GiveStackNestedGenerateTip(
+				l,
+				vfs.NewMemMapFS(),
+				tc.funcsFor,
+				workingDir,
+				tc.filters,
+				tc.allTips,
+			)
 
 			assert.Empty(t, output.String())
 		})
@@ -250,7 +264,12 @@ func TestGiveStackNestedGenerateTipSkipsOnStatError(t *testing.T) {
 
 	base := vfs.NewMemMapFS()
 	writeFile(t, base, filepath.Join(stackDir, "terragrunt.stack.hcl"), stackOfStack)
-	writeFile(t, base, filepath.Join(stackDir, ".terragrunt-stack", "child", "terragrunt.stack.hcl"), stackOfUnit)
+	writeFile(
+		t,
+		base,
+		filepath.Join(stackDir, ".terragrunt-stack", "child", "terragrunt.stack.hcl"),
+		stackOfUnit,
+	)
 
 	// The nested unit's generated path does not exist; the wrapper turns that
 	// missing-path Stat into an error, exercising anyPathMissing's error branch.
@@ -261,7 +280,14 @@ func TestGiveStackNestedGenerateTipSkipsOnStatError(t *testing.T) {
 
 	l, output := newTestLogger()
 
-	tips.GiveStackNestedGenerateTip(l, fs, emptyStackFuncFactory(), workingDir, filter.Filters{parsed}, tips.NewTips())
+	tips.GiveStackNestedGenerateTip(
+		l,
+		fs,
+		emptyStackFuncFactory(),
+		workingDir,
+		filter.Filters{parsed},
+		tips.NewTips(),
+	)
 
 	assert.NotContains(t, output.String(), tips.StackNestedStacksNotGenerated)
 }

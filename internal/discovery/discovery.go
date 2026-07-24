@@ -13,17 +13,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
 	"golang.org/x/sync/errgroup"
 )
 
-// Discover performs the full discovery process.
+// Discover performs the full discovery process. The supplied [venv.Venv]
+// supplies the process executor for the git top-level probe and the
+// auth-provider-command credentials fetch during the parse phase.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
@@ -37,18 +40,23 @@ func (d *Discovery) Discover(
 
 	withWorktree := len(d.gitExpressions) > 0 && d.worktrees != nil
 
-	l.Debugf("Discovery: starting filesystem phase (workers=%d, with_worktree=%t)", d.numWorkers, withWorktree)
+	l.Debugf(
+		"Discovery: starting filesystem phase (workers=%d, with_worktree=%t)",
+		d.numWorkers,
+		withWorktree,
+	)
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_phase_filesystem", map[string]any{
-		"num_workers":   d.numWorkers,
-		"with_worktree": withWorktree,
-	}, func(childCtx context.Context) error {
-		var phaseErr error
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "discovery_phase_filesystem", map[string]any{
+			"num_workers":   d.numWorkers,
+			"with_worktree": withWorktree,
+		}, func(childCtx context.Context, l log.Logger) error {
+			var phaseErr error
 
-		results, phaseErr = d.runFilesystemPhase(childCtx, l, opts)
+			results, phaseErr = d.runFilesystemPhase(childCtx, l, v, opts)
 
-		return phaseErr
-	})
+			return phaseErr
+		})
 
 	logPhaseComplete(l, "filesystem", results, err)
 
@@ -71,21 +79,22 @@ func (d *Discovery) Discover(
 		l.Debugf("Discovery: starting parse phase (discovered=%d, candidates=%d, reasons=%s)",
 			len(discovered), len(candidates), reasonsStr)
 
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_phase_parse", map[string]any{
-			"num_workers":       d.numWorkers,
-			"discovered_in":     len(discovered),
-			"candidates_in":     len(candidates),
-			"parse_includes":    d.parseIncludes,
-			"parse_exclude":     d.parseExclude,
-			"read_files":        d.readFiles,
-			"activation_reason": reasonsStr,
-		}, func(childCtx context.Context) error {
-			var phaseErr error
+		err = telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "discovery_phase_parse", map[string]any{
+				"num_workers":       d.numWorkers,
+				"discovered_in":     len(discovered),
+				"candidates_in":     len(candidates),
+				"parse_includes":    d.parseIncludes,
+				"parse_exclude":     d.parseExclude,
+				"read_files":        d.readFiles,
+				"activation_reason": reasonsStr,
+			}, func(childCtx context.Context, l log.Logger) error {
+				var phaseErr error
 
-			results, phaseErr = d.runParsePhase(childCtx, l, opts, discovered, candidates)
+				results, phaseErr = d.runParsePhase(childCtx, l, v, opts, discovered, candidates)
 
-			return phaseErr
-		})
+				return phaseErr
+			})
 
 		logPhaseComplete(l, "parse", results, err)
 
@@ -98,28 +107,36 @@ func (d *Discovery) Discover(
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.gitRoot == "" {
-			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, d.exec, opts.Env, d.workingDir); gitErr == nil {
+			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, v, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set gitRoot for dependent discovery: %s", d.gitRoot)
 			}
 		}
 
-		l.Debugf("Discovery: starting graph phase (discovered=%d, candidates=%d, max_depth=%d, has_dependent_filters=%t)",
-			len(discovered), len(candidates), d.maxDependencyDepth, d.classifier.HasDependentFilters())
+		l.Debugf(
+			"Discovery: starting graph phase (discovered=%d, candidates=%d, max_depth=%d, has_dependent_filters=%t)",
+			len(
+				discovered,
+			),
+			len(candidates),
+			d.maxDependencyDepth,
+			d.classifier.HasDependentFilters(),
+		)
 
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_phase_graph", map[string]any{
-			"num_workers":           d.numWorkers,
-			"max_dependency_depth":  d.maxDependencyDepth,
-			"discovered_in":         len(discovered),
-			"candidates_in":         len(candidates),
-			"has_dependent_filters": d.classifier.HasDependentFilters(),
-		}, func(childCtx context.Context) error {
-			var phaseErr error
+		err = telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "discovery_phase_graph", map[string]any{
+				"num_workers":           d.numWorkers,
+				"max_dependency_depth":  d.maxDependencyDepth,
+				"discovered_in":         len(discovered),
+				"candidates_in":         len(candidates),
+				"has_dependent_filters": d.classifier.HasDependentFilters(),
+			}, func(childCtx context.Context, l log.Logger) error {
+				var phaseErr error
 
-			results, phaseErr = d.runGraphPhase(childCtx, l, opts, discovered, candidates)
+				results, phaseErr = d.runGraphPhase(childCtx, l, v, opts, discovered, candidates)
 
-			return phaseErr
-		})
+				return phaseErr
+			})
 
 		logPhaseComplete(l, "graph", results, err)
 
@@ -136,19 +153,24 @@ func (d *Discovery) Discover(
 		l.Debugf("Discovery: starting relationship phase (components=%d, max_depth=%d)",
 			len(components), d.maxDependencyDepth)
 
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_phase_relationship", map[string]any{
-			"num_workers":          d.numWorkers,
-			"max_dependency_depth": d.maxDependencyDepth,
-			"components_in":        len(components),
-		}, func(childCtx context.Context) error {
-			var phaseErr error
+		err = telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "discovery_phase_relationship", map[string]any{
+				"num_workers":          d.numWorkers,
+				"max_dependency_depth": d.maxDependencyDepth,
+				"components_in":        len(components),
+			}, func(childCtx context.Context, l log.Logger) error {
+				var phaseErr error
 
-			components, phaseErr = d.runRelationshipPhase(childCtx, l, opts, components)
+				components, phaseErr = d.runRelationshipPhase(childCtx, l, v, opts, components)
 
-			return phaseErr
-		})
+				return phaseErr
+			})
 
-		l.Debugf("Discovery: relationship phase complete (components=%d, err=%v)", len(components), err)
+		l.Debugf(
+			"Discovery: relationship phase complete (components=%d, err=%v)",
+			len(components),
+			err,
+		)
 
 		if err != nil && !d.suppressParseErrors {
 			return components, err
@@ -156,21 +178,28 @@ func (d *Discovery) Discover(
 	}
 
 	if len(d.filters) > 0 {
-		l.Debugf("Discovery: applying %d filter(s) to %d components", len(d.filters), len(components))
+		l.Debugf(
+			"Discovery: applying %d filter(s) to %d components",
+			len(d.filters),
+			len(components),
+		)
 
 		filtered, err := d.filters.Evaluate(l, components)
 		if err != nil {
 			return components, err
 		}
 
-		l.Debugf("Discovery: filter evaluation complete (in=%d, out=%d)", len(components), len(filtered))
+		l.Debugf(
+			"Discovery: filter evaluation complete (in=%d, out=%d)",
+			len(components),
+			len(filtered),
+		)
 
 		components = filtered
 	}
 
-	cycleCheckErr := telemetry.TelemeterFromContext(ctx).Collect(
-		ctx, "discovery_cycle_check", map[string]any{},
-		func(childCtx context.Context) error {
+	cycleCheckErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "discovery_cycle_check", map[string]any{},
+		func(childCtx context.Context, l log.Logger) error {
 			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
 				l.Debugf("Cycle: %v", cycleErr)
 
@@ -210,13 +239,20 @@ func logPhaseComplete(l log.Logger, name string, results *PhaseResults, err erro
 		candidates = len(results.Candidates)
 	}
 
-	l.Debugf("Discovery: %s phase complete (discovered=%d, candidates=%d, err=%v)", name, discovered, candidates, err)
+	l.Debugf(
+		"Discovery: %s phase complete (discovered=%d, candidates=%d, err=%v)",
+		name,
+		discovered,
+		candidates,
+		err,
+	)
 }
 
 // runFilesystemPhase runs the filesystem and worktree phases concurrently.
 func (d *Discovery) runFilesystemPhase(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*PhaseResults, error) {
 	var (
@@ -238,22 +274,23 @@ func (d *Discovery) runFilesystemPhase(
 
 		l.Debugf("Discovery: starting filesystem walk at %s", d.workingDir)
 
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_filesystem_walk", map[string]any{
-			"num_workers": d.numWorkers,
-			"working_dir": d.workingDir,
-		}, func(childCtx context.Context) error {
-			phase := NewFilesystemPhase(d.numWorkers)
+		err := telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "discovery_filesystem_walk", map[string]any{
+				"num_workers": d.numWorkers,
+				"working_dir": d.workingDir,
+			}, func(childCtx context.Context, l log.Logger) error {
+				phase := NewFilesystemPhase(d.numWorkers)
 
-			var phaseErr error
+				var phaseErr error
 
-			result, phaseErr = phase.Run(childCtx, l, &PhaseInput{
-				Opts:       opts,
-				Classifier: d.classifier,
-				Discovery:  d,
+				result, phaseErr = phase.Run(childCtx, l, v, &PhaseInput{
+					Opts:       opts,
+					Classifier: d.classifier,
+					Discovery:  d,
+				})
+
+				return phaseErr
 			})
-
-			return phaseErr
-		})
 
 		logPhaseComplete(l, "filesystem walk", result, err)
 
@@ -277,24 +314,28 @@ func (d *Discovery) runFilesystemPhase(
 		g.Go(func() error {
 			var result *PhaseResults
 
-			l.Debugf("Discovery: starting worktree walk (git_expressions=%d)", len(d.gitExpressions))
+			l.Debugf(
+				"Discovery: starting worktree walk (git_expressions=%d)",
+				len(d.gitExpressions),
+			)
 
-			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_worktree_walk", map[string]any{
-				"num_workers":          d.numWorkers,
-				"git_expression_count": len(d.gitExpressions),
-			}, func(childCtx context.Context) error {
-				phase := NewWorktreePhase(d.gitExpressions, d.numWorkers)
+			err := telemetry.TelemeterFromContext(ctx).
+				Collect(ctx, l, "discovery_worktree_walk", map[string]any{
+					"num_workers":          d.numWorkers,
+					"git_expression_count": len(d.gitExpressions),
+				}, func(childCtx context.Context, l log.Logger) error {
+					phase := NewWorktreePhase(d.gitExpressions, d.numWorkers)
 
-				var phaseErr error
+					var phaseErr error
 
-				result, phaseErr = phase.Run(childCtx, l, &PhaseInput{
-					Opts:       opts,
-					Classifier: d.classifier,
-					Discovery:  d,
+					result, phaseErr = phase.Run(childCtx, l, v, &PhaseInput{
+						Opts:       opts,
+						Classifier: d.classifier,
+						Discovery:  d,
+					})
+
+					return phaseErr
 				})
-
-				return phaseErr
-			})
 
 			logPhaseComplete(l, "worktree walk", result, err)
 
@@ -340,12 +381,13 @@ func (d *Discovery) runFilesystemPhase(
 func (d *Discovery) runParsePhase(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
 ) (*PhaseResults, error) {
 	phase := NewParsePhase(d.numWorkers)
-	result, err := phase.Run(ctx, l, &PhaseInput{
+	result, err := phase.Run(ctx, l, v, &PhaseInput{
 		Opts:       opts,
 		Components: resultsToComponents(discovered),
 		Candidates: candidates,
@@ -375,6 +417,7 @@ func (d *Discovery) runParsePhase(
 func (d *Discovery) runGraphPhase(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
@@ -386,9 +429,9 @@ func (d *Discovery) runGraphPhase(
 		var buildErrs []error
 
 		telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
-			ctx, "discover_dependents", map[string]any{},
-			func(childCtx context.Context) error {
-				buildErrs = d.buildDependencyGraph(childCtx, l, opts, allComponents)
+			ctx, l, "discover_dependents", map[string]any{},
+			func(childCtx context.Context, l log.Logger) error {
+				buildErrs = d.buildDependencyGraph(childCtx, l, v, opts, allComponents)
 				return errors.Join(buildErrs...)
 			})
 
@@ -408,9 +451,9 @@ func (d *Discovery) runGraphPhase(
 	)
 
 	telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
-		ctx, "discover_dependencies", map[string]any{},
-		func(childCtx context.Context) error {
-			result, err = phase.Run(childCtx, l, &PhaseInput{
+		ctx, l, "discover_dependencies", map[string]any{},
+		func(childCtx context.Context, l log.Logger) error {
+			result, err = phase.Run(childCtx, l, v, &PhaseInput{
 				Opts:       opts,
 				Components: resultsToComponents(discovered),
 				Candidates: candidates,
@@ -443,11 +486,12 @@ func (d *Discovery) runGraphPhase(
 func (d *Discovery) runRelationshipPhase(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) (component.Components, error) {
 	phase := NewRelationshipPhase(d.numWorkers, d.maxDependencyDepth)
-	_, err := phase.Run(ctx, l, &PhaseInput{
+	_, err := phase.Run(ctx, l, v, &PhaseInput{
 		Opts:       opts,
 		Components: components,
 		Discovery:  d,
@@ -462,6 +506,7 @@ func (d *Discovery) runRelationshipPhase(
 func (d *Discovery) buildDependencyGraph(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
 ) []error {
@@ -477,7 +522,7 @@ func (d *Discovery) buildDependencyGraph(
 
 	for _, c := range allComponents {
 		g.Go(func() error {
-			err := d.buildComponentDependencies(ctx, l, opts, c, threadSafeComponents)
+			err := d.buildComponentDependencies(ctx, l, v, opts, c, threadSafeComponents)
 			if err != nil {
 				mu.Lock()
 
@@ -502,6 +547,7 @@ func (d *Discovery) buildDependencyGraph(
 func (d *Discovery) buildComponentDependencies(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	c component.Component,
 	threadSafeComponents *component.ThreadSafeComponents,
@@ -513,7 +559,7 @@ func (d *Discovery) buildComponentDependencies(
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagDependencyGraph)
 
-	if err := ensureParsed(ctx, l, c, opts, d); err != nil {
+	if err := ensureParsed(ctx, l, v, c, opts, d); err != nil {
 		if d.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 			return nil
@@ -529,7 +575,7 @@ func (d *Discovery) buildComponentDependencies(
 		return err
 	}
 
-	depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), opts, depPaths)
+	depPaths, err = stackDependencyPaths(ctx, l, v, opts, depPaths)
 	if err != nil {
 		return err
 	}
@@ -546,17 +592,19 @@ func (d *Discovery) buildComponentDependencies(
 	for _, depPath := range depPaths {
 		depComponent := componentFromDependencyPath(depPath, threadSafeComponents)
 
-		if isExternal(parentCtx.WorkingDir, depPath) {
-			if ext, ok := depComponent.(*component.Unit); ok {
-				ext.SetExternal()
+		if dctx := depComponent.DiscoveryContext(); dctx == nil || dctx.WorkingDir == "" {
+			depComponent.SetDiscoveryContext(
+				parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery),
+			)
+
+			if isExternal(parentCtx.WorkingDir, depPath) {
+				if ext, ok := depComponent.(*component.Unit); ok {
+					ext.SetExternal()
+				}
 			}
 		}
 
-		addedComponent, created := threadSafeComponents.EnsureComponent(depComponent)
-		if created {
-			copiedCtx := parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-			depComponent.SetDiscoveryContext(copiedCtx)
-		}
+		addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
 
 		c.AddDependency(addedComponent)
 	}
@@ -700,7 +748,10 @@ func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[st
 // filterByAllowSet returns only the components whose path exists in the allow set.
 // Paths are resolved to handle symlinks consistently across platforms.
 // The output order matches the input order (no sorting is performed here).
-func filterByAllowSet(components component.Components, allowed map[string]struct{}) component.Components {
+func filterByAllowSet(
+	components component.Components,
+	allowed map[string]struct{},
+) component.Components {
 	filtered := make(component.Components, 0, len(components))
 
 	for _, c := range components {

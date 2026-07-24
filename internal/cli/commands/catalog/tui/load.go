@@ -4,40 +4,35 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// tempDirFormat mirrors the legacy catalog service's temp-path scheme so
-// repeated runs reuse the same clone on disk.
-const tempDirFormat = "catalog-%s"
+// CreateCatalogTempPath creates a fresh clone root under the resolved temp dir.
+// Resolving os.TempDir keeps filepath.Rel results inside the clone on systems
+// where the temp dir itself is reported through a symlink.
+func CreateCatalogTempPath(fsys vfs.FS, repoURL string) (string, error) {
+	prefix := "catalog-" + util.EncodeBase64Sha1(repoURL) + "-"
 
-// CatalogTempPath returns the local cache directory for repoURL's clone. It
-// resolves os.TempDir() through any symlinks so the subdirectories
-// [ComponentDiscovery] derives via filepath.Rel stay inside the clone. macOS
-// reports os.TempDir() as a /var/folders symlink to /private/var/folders;
-// leaving it unresolved makes Rel emit a "../" traversal that the getter package
-// rejects when scaffolding.
-func CatalogTempPath(repoURL string) string {
-	encodedRepoURL := util.EncodeBase64Sha1(repoURL)
-	return filepath.Join(util.ResolvePath(os.TempDir()), fmt.Sprintf(tempDirFormat, encodedRepoURL))
+	return vfs.MkdirTemp(fsys, util.ResolvePath(os.TempDir()), prefix)
 }
 
 // LoadURL clones repoURL via module.NewRepo, walks it with a
 // [ComponentDiscovery], resolves the latest release tag once, and emits a
-// *ComponentEntry for each discovered component on componentCh. It reuses
-// module.NewRepo for the generic git/clone plumbing.
+// *ComponentEntry for each discovered component on componentCh. Each load uses
+// a fresh temp directory and module.NewRepo for the generic git/clone plumbing.
 func LoadURL(
 	ctx context.Context,
 	l log.Logger,
 	v venv.Venv,
 	opts *options.TerragruntOptions,
+	tempDirs *TempDirTracker,
 	repoURL string,
 	componentCh chan<- *ComponentEntry,
 ) error {
@@ -50,11 +45,36 @@ func LoadURL(
 	allowCAS := !opts.NoCAS
 	slowReporting := opts.Experiments.Evaluate(experiment.SlowTaskReporting)
 
-	tempPath := CatalogTempPath(repoURL)
+	tempPath, err := CreateCatalogTempPath(v.FS, repoURL)
+	if err != nil {
+		return fmt.Errorf("failed to create catalog temporary directory for %s: %w", repoURL, err)
+	}
+
+	keepDir := false
+
+	preserveTempDir := func() {
+		if keepDir {
+			return
+		}
+
+		keepDir = true
+
+		tempDirs.Track(tempPath)
+	}
+
+	defer func() {
+		if keepDir {
+			return
+		}
+
+		if err := v.FS.RemoveAll(tempPath); err != nil {
+			l.Warnf("Failed to remove catalog temporary directory %q: %v", tempPath, err)
+		}
+	}()
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
-	repo, err := module.NewRepo(ctx, l, v.FS, &module.RepoOpts{
+	repo, err := module.NewRepo(ctx, l, v, &module.RepoOpts{
 		CloneURL:         repoURL,
 		Path:             tempPath,
 		WalkWithSymlinks: walkWithSymlinks,
@@ -99,6 +119,7 @@ func LoadURL(
 
 		select {
 		case componentCh <- entry:
+			preserveTempDir()
 		case <-ctx.Done():
 			return nil
 		}

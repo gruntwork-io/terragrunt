@@ -14,7 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +37,17 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata\\test_sigint_wait.bat"
 
 	go func() {
-		_, err := shell.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		_, err := shell.RunCommandWithOutput(
+			ctx,
+			l,
+			venv.OSVenv(),
+			configbridge.ShellRunOptsFromOpts(terragruntOptions),
+			"",
+			false,
+			false,
+			cmdPath,
+			strconv.Itoa(expectedWait),
+		)
 		errCh <- err
 	}()
 
@@ -58,7 +68,10 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	containsExitStatus5 := strings.Contains(actualErrStr, "exit status 5")
 	containsExitStatus1 := strings.Contains(actualErrStr, "exit status 1")
 	containsKilled := strings.Contains(actualErrStr, "signal: killed")
-	containsFailedExecute := strings.Contains(actualErrStr, fmt.Sprintf("Failed to execute \"%s", cmdPath))
+	containsFailedExecute := strings.Contains(
+		actualErrStr,
+		fmt.Sprintf("Failed to execute \"%s", cmdPath),
+	)
 
 	if containsKilled {
 		t.Errorf("Expected process to gracefully terminate but got\n: %s", actualErrStr)
@@ -66,7 +79,10 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 
 	// On Windows, the batch file might exit with status 1 when interrupted, or be killed by signal
 	if !containsFailedExecute || (!containsExitStatus5 && !containsExitStatus1) {
-		t.Errorf("Expected error to contain 'Failed to execute \"%s' and either 'exit status 5', or 'exit status 1', but got:\n  %s",
-			cmdPath, actualErrStr)
+		t.Errorf(
+			"Expected error to contain 'Failed to execute \"%s' and either 'exit status 5', or 'exit status 1', but got:\n  %s",
+			cmdPath,
+			actualErrStr,
+		)
 	}
 }

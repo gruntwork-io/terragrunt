@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -115,14 +116,24 @@ dependency "hitchhiker" {
 func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
-	filename, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "regressions", "multiple-dependency-load-sync", "main", "terragrunt.hcl"))
+	filename, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"regressions",
+			"multiple-dependency-load-sync",
+			"main",
+			"terragrunt.hcl",
+		),
+	)
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, filename)
 	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
-	pctx.Env = util.EnvironMap()
+	pctx.Venv.Env = venv.OSVenv().Env
 	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
@@ -177,7 +188,14 @@ dependency "enabled" {
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Only enabled dependency should be in the paths
@@ -233,7 +251,13 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	ctxB, pctxB := newTestParsingContext(t, unitBFilename)
 	pctxB.OriginalTerragruntConfigPath = unitBFilename
 
-	unitBConfig, err := config.ParseConfigFile(ctxB, pctxB, logger.CreateLogger(), unitBFilename, nil)
+	unitBConfig, err := config.ParseConfigFile(
+		ctxB,
+		pctxB,
+		logger.CreateLogger(),
+		unitBFilename,
+		nil,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, unitBConfig)
 	assert.Equal(t, "myapp", unitBConfig.Locals["app_name"])
@@ -259,7 +283,14 @@ dependency "enabled" {
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Only enabled dependency should be in the paths
@@ -272,11 +303,23 @@ dependency "enabled" {
 func TestExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
 	t.Parallel()
 
-	childPath, err := filepath.Abs(filepath.Join("..", "..", "test", "fixtures", "regressions", "exposed-include-partial-parse-error", "child", "terragrunt.hcl"))
+	childPath, err := filepath.Abs(
+		filepath.Join(
+			"..",
+			"..",
+			"test",
+			"fixtures",
+			"regressions",
+			"exposed-include-partial-parse-error",
+			"child",
+			"terragrunt.hcl",
+		),
+	)
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, childPath)
-	pctx.Env = util.EnvironMap()
+	pctx.Venv.Env = venv.OSVenv().Env
+	pctx.Venv.FS = vfs.NewOSFS()
 
 	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), childPath, nil)
 	require.Error(t, err)

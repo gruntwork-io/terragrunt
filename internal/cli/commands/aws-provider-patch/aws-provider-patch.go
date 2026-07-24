@@ -18,8 +18,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -27,7 +27,7 @@ import (
 
 const defaultKeyParts = 2
 
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
 	}
@@ -35,7 +35,12 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	return runSingle(ctx, l, v, opts)
 }
 
-func runSingle(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func runSingle(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		return err
@@ -58,13 +63,13 @@ func runSingle(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terr
 		return err
 	}
 
-	return runAwsProviderPatch(l, updatedOpts)
+	return runAwsProviderPatch(l, v.Env, updatedOpts)
 }
 
-func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
-	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
+func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}
@@ -84,7 +89,9 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragr
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		if err := runSingle(ctx, l, v, unitOpts); err != nil {
+		// Preparation writes obtained credentials into the env, so each
+		// unit gets its own clone to keep them from leaking to siblings.
+		if err := runSingle(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -102,12 +109,16 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragr
 	return nil
 }
 
-func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
+func runAwsProviderPatch(
+	l log.Logger,
+	env map[string]string,
+	opts *options.TerragruntOptions,
+) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
 		return MissingOverrideAttrError(OverrideAttrFlagName)
 	}
 
-	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)
+	terraformFilesInModules, err := findAllTerraformFilesInModules(env, opts)
 	if err != nil {
 		return err
 	}
@@ -120,7 +131,11 @@ func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
 			return err
 		}
 
-		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, opts.AwsProviderPatchOverrides)
+		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(
+			originalTerraformFileContents,
+			terraformFile,
+			opts.AwsProviderPatchOverrides,
+		)
 		if err != nil {
 			return err
 		}
@@ -128,7 +143,11 @@ func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
 		if codeWasUpdated {
 			l.Debugf("Patching AWS provider in %s", terraformFile)
 
-			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, bytes.NewBufferString(updatedTerraformFileContents)); err != nil {
+			if err := util.WriteFileWithSamePermissions(
+				terraformFile,
+				terraformFile,
+				bytes.NewBufferString(updatedTerraformFileContents),
+			); err != nil {
 				return err
 			}
 		}
@@ -154,15 +173,11 @@ type TerraformModule struct {
 //
 // NOTE: this method supports *.tf and *.tofu files. Terraform/OpenTofu code defined in *.json files is not currently
 // supported.
-func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, error) {
-	// Terraform downloads modules into the .terraform/modules folder. Unfortunately, it downloads not only the module
-	// into that folder, but the entire repo it's in, which can contain lots of other unrelated code we probably don't
-	// want to touch. To find the paths to the actual modules, we read the modules.json file in that folder, which is
-	// a manifest file Terraform uses to track where the modules are within each repo. Note that this is an internal
-	// API, so the way we parse/read this modules.json file may break in future Terraform versions. Note that we
-	// can't use the official HashiCorp code to parse this file, as it's marked internal:
-	// https://github.com/hashicorp/terraform/blob/master/internal/modsdir/manifest.go
-	modulesJSONPath := filepath.Join(opts.DataDir(), "modules", "modules.json")
+func findAllTerraformFilesInModules(
+	env map[string]string,
+	opts *options.TerragruntOptions,
+) ([]string, error) {
+	modulesJSONPath := filepath.Join(opts.DataDir(env), "modules", "modules.json")
 
 	if !util.FileExists(modulesJSONPath) {
 		return nil, nil
@@ -223,7 +238,11 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 // This is a temporary workaround for a Terraform bug (https://github.com/hashicorp/terraform/issues/13018) where
 // any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
 // temporarily hard-coding them, we can allow 'import' to work.
-func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, bool, error) {
+func PatchAwsProviderInTerraformCode(
+	terraformCode string,
+	terraformFilePath string,
+	attributesToOverride map[string]string,
+) (string, bool, error) {
 	if len(attributesToOverride) == 0 {
 		return terraformCode, false, nil
 	}

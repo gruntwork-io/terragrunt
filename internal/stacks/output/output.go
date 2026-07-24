@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -75,6 +76,7 @@ func (e UnitOutputError) Unwrap() error {
 func StackOutput(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 ) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
@@ -94,7 +96,7 @@ func StackOutput(
 	}
 
 	// Single discovery walk returns both stack files and excluded unit paths.
-	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, opts, wts)
+	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, v, opts, wts)
 	if err != nil {
 		return cty.NilVal, fmt.Errorf("failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
@@ -132,15 +134,20 @@ func StackOutput(
 		dir := filepath.Dir(path)
 
 		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		pctx = pctx.WithVenv(v)
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {
-			return cty.NilVal, waitWorkerErrors(fmt.Errorf("failed to read values from %s: %w", dir, valuesErr))
+			return cty.NilVal, waitWorkerErrors(
+				fmt.Errorf("failed to read values from %s: %w", dir, valuesErr),
+			)
 		}
 
 		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, pctx, path, values)
 		if stackErr != nil {
-			return cty.NilVal, waitWorkerErrors(fmt.Errorf("failed to read stack file %s: %w", path, stackErr))
+			return cty.NilVal, waitWorkerErrors(
+				fmt.Errorf("failed to read stack file %s: %w", path, stackErr),
+			)
 		}
 
 		parsedStackFiles[path] = stackFile
@@ -149,7 +156,11 @@ func StackOutput(
 
 		for _, stack := range stackFile.Stacks {
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
-			l.Debugf("Registered stack %s at path %s", stack.Name, filepath.Join(targetDir, stack.Path))
+			l.Debugf(
+				"Registered stack %s at path %s",
+				stack.Name,
+				filepath.Join(targetDir, stack.Path),
+			)
 		}
 
 		for _, unit := range stackFile.Units {
@@ -229,7 +240,11 @@ func StackOutput(
 
 	ctyResult, err := config.GoTypeToCty(nestedOutputs)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("failed to convert unit output to cty value: %s %w", result, err)
+		return cty.NilVal, fmt.Errorf(
+			"failed to convert unit output to cty value: %s %w",
+			result,
+			err,
+		)
 	}
 
 	return ctyResult, nil
@@ -272,7 +287,11 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 			if i == len(parts)-1 {
 				ctyValue, err := config.ConvertValuesMapToCtyVal(value)
 				if err != nil {
-					return nil, fmt.Errorf("failed to convert unit output to cty value: %s %w", flatKey, err)
+					return nil, fmt.Errorf(
+						"failed to convert unit output to cty value: %s %w",
+						flatKey,
+						err,
+					)
 				}
 
 				current[part] = ctyValue
@@ -305,11 +324,11 @@ func readUnitOutput(
 ) (map[string]cty.Value, error) {
 	var output map[string]cty.Value
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "unit_output", map[string]any{
 		"unit_name":   unit.Name,
 		"unit_source": unit.Source,
 		"unit_path":   unit.Path,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		var outputErr error
 
 		output, outputErr = unit.ReadOutputs(ctx, l, pctx, unitDir)

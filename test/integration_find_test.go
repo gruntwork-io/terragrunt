@@ -23,6 +23,7 @@ const (
 	testFixtureFindInclude                     = "fixtures/find/include"
 	testFixtureFindReadTerragruntConfig        = "fixtures/find/read-terragrunt-config"
 	testFixtureFindDynamicDependencyConfigPath = "fixtures/find/dynamic-dependency-config-path"
+	testFixtureFindSourceReferencesDependency  = "fixtures/find/source-references-dependency"
 )
 
 func TestFindBasic(t *testing.T) {
@@ -30,7 +31,10 @@ func TestFindBasic(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindBasic)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+testFixtureFindBasic)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+testFixtureFindBasic,
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -42,11 +46,18 @@ func TestFindBasicJSON(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindBasic)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+testFixtureFindBasic+" --json")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+testFixtureFindBasic+" --json",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	assert.JSONEq(t, `[{"type": "stack", "path": "stack"}, {"type": "unit", "path": "unit"}]`, stdout)
+	assert.JSONEq(
+		t,
+		`[{"type": "stack", "path": "stack"}, {"type": "unit", "path": "unit"}]`,
+		stdout,
+	)
 }
 
 func TestFindHidden(t *testing.T) {
@@ -97,8 +108,16 @@ func TestFindDAG(t *testing.T) {
 		sort     string
 		expected string
 	}{
-		{name: "alpha", sort: "alpha", expected: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n"},
-		{name: "dag", sort: "dag", expected: "b-dependency\na-dependent\nd-dependencies-only\nc-mixed-deps\n"},
+		{
+			name:     "alpha",
+			sort:     "alpha",
+			expected: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n",
+		},
+		{
+			name:     "dag",
+			sort:     "dag",
+			expected: "b-dependency\na-dependent\nd-dependencies-only\nc-mixed-deps\n",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -158,7 +177,7 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 			assert.Empty(t, stderr)
 
 			if strings.Contains(tc.args, "--json") {
-				jsonStringsEqual(t, tc.expected, stdout)
+				requireJSONEqualIgnoringArrayOrder(t, tc.expected, stdout)
 			} else {
 				assert.Equal(t, tc.expected, stdout)
 			}
@@ -166,13 +185,42 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 	}
 }
 
-// jsonStringsEqual compares two JSON strings for equivalence, ignoring the order of nested arrays.
-func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...any) bool {
+// TestFindToleratesTerraformSourceReferencingDependency covers discovery of a unit whose terraform `source` references
+// the `dependency` namespace. Such a source is rejected (it must be resolvable before dependencies are evaluated), so
+// the unit's config cannot be parsed. Discovery must still not crash: it lists the unit, and the dependency edge that
+// would come from parsing its config is simply absent rather than aborting the whole run.
+func TestFindToleratesTerraformSourceReferencingDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFindSourceReferencesDependency)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+testFixtureFindSourceReferencesDependency+" --dependencies --json",
+	)
+	require.NoError(t, err)
+
+	assert.Empty(t, stderr)
+	require.JSONEq(t, `[{"type":"unit","path":"app"},{"type":"unit","path":"upstream"}]`, stdout)
+}
+
+// requireJSONEqualIgnoringArrayOrder compares two JSON strings for equivalence, ignoring the order of array elements.
+// Use it instead of require.JSONEq only when the output's array ordering is not guaranteed (e.g. the order of a unit's
+// dependencies, or of units that share a DAG level); prefer require.JSONEq when the order is deterministic.
+func requireJSONEqualIgnoringArrayOrder(
+	t *testing.T,
+	expected, actual string,
+	msgAndArgs ...any,
+) bool {
 	t.Helper()
 
 	patch, err := jsondiff.CompareJSON([]byte(expected), []byte(actual), jsondiff.Equivalent())
 	require.NoErrorf(t, err, fmt.Sprintf("Error comparing JSON strings: %v", err), msgAndArgs...)
-	require.Emptyf(t, patch, fmt.Sprintf("JSON strings are not equal\nExpected: %s\nActual: %s", expected, actual), msgAndArgs...)
+	require.Emptyf(
+		t,
+		patch,
+		fmt.Sprintf("JSON strings are not equal\nExpected: %s\nActual: %s", expected, actual),
+		msgAndArgs...)
 
 	return true
 }
@@ -191,7 +239,11 @@ func TestFindExternalDependencies(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	assert.Equal(t, filepath.Join("..", "external", "c-dependency")+"\na-dependent\nb-dependency\n", stdout)
+	assert.Equal(
+		t,
+		filepath.Join("..", "external", "c-dependency")+"\na-dependent\nb-dependency\n",
+		stdout,
+	)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -217,9 +269,16 @@ func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	assert.Equal(t, filepath.Join("..", "external", "c-dependency")+"\na-dependent\nb-dependency\n", stdout)
+	assert.Equal(
+		t,
+		filepath.Join("..", "external", "c-dependency")+"\na-dependent\nb-dependency\n",
+		stdout,
+	)
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies")
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+internalDir+" --dependencies",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -233,11 +292,18 @@ func TestFindInclude(t *testing.T) {
 
 	workdir := testFixtureFindInclude
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+workdir+" --include --json")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+workdir+" --include --json",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	assert.JSONEq(t, `[{"type":"unit","path":"bar","include":{"cloud":"cloud.hcl"}},{"type":"unit","path":"foo"}]`, stdout)
+	assert.JSONEq(
+		t,
+		`[{"type":"unit","path":"bar","include":{"cloud":"cloud.hcl"}},{"type":"unit","path":"foo"}]`,
+		stdout,
+	)
 }
 
 func TestFindExclude(t *testing.T) {
@@ -277,7 +343,11 @@ func TestFindExclude(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindExclude)
 
-			cmd := fmt.Sprintf("terragrunt find --no-color --working-dir %s %s", testFixtureFindExclude, tc.args)
+			cmd := fmt.Sprintf(
+				"terragrunt find --no-color --working-dir %s %s",
+				testFixtureFindExclude,
+				tc.args,
+			)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 			assert.Empty(t, stderr)
@@ -363,7 +433,11 @@ func TestFindQueueConstructAs(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureQueueConstruct)
 
-			cmd := fmt.Sprintf("terragrunt find --json --no-color --working-dir %s %s", testFixtureQueueConstruct, tc.args)
+			cmd := fmt.Sprintf(
+				"terragrunt find --json --no-color --working-dir %s %s",
+				testFixtureQueueConstruct,
+				tc.args,
+			)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 			assert.Empty(t, stderr)
@@ -413,7 +487,11 @@ func TestFindWithReadTerragruntConfig(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindReadTerragruntConfig)
 
-			cmd := fmt.Sprintf("terragrunt find --no-color --working-dir %s %s", testFixtureFindReadTerragruntConfig, tc.args)
+			cmd := fmt.Sprintf(
+				"terragrunt find --no-color --working-dir %s %s",
+				testFixtureFindReadTerragruntConfig,
+				tc.args,
+			)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			// The command should succeed without errors
@@ -423,7 +501,7 @@ func TestFindWithReadTerragruntConfig(t *testing.T) {
 			assert.Empty(t, stderr, "stderr should be empty - no parse errors should occur")
 
 			// Verify the JSON output matches expected
-			jsonStringsEqual(t, tc.expected, stdout)
+			requireJSONEqualIgnoringArrayOrder(t, tc.expected, stdout)
 		})
 	}
 }
@@ -456,14 +534,18 @@ func TestFindWithDynamicDependencyConfigPath(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindDynamicDependencyConfigPath)
 
-			cmd := fmt.Sprintf("terragrunt find --no-color --working-dir %s %s", testFixtureFindDynamicDependencyConfigPath, tc.args)
+			cmd := fmt.Sprintf(
+				"terragrunt find --no-color --working-dir %s %s",
+				testFixtureFindDynamicDependencyConfigPath,
+				tc.args,
+			)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			require.NoError(t, err, "find command should not panic or fail")
 			assert.Empty(t, stderr)
 
 			if strings.Contains(tc.args, "--json") {
-				jsonStringsEqual(t, tc.expected, stdout)
+				requireJSONEqualIgnoringArrayOrder(t, tc.expected, stdout)
 			} else {
 				assert.Equal(t, tc.expected, stdout)
 			}

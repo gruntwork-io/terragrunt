@@ -2,6 +2,7 @@ package module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -13,14 +14,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gitsight/go-vcsurl"
+	"gopkg.in/ini.v1"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"gopkg.in/ini.v1"
 )
 
 const (
@@ -33,6 +36,12 @@ const (
 
 	cloneCompleteSentinel = ".catalog-clone-complete"
 )
+
+// ErrRemoteCloneFSNotOS is returned when a remote clone is attempted through
+// a non-OS filesystem. The clone runs through go-getter, which writes to the
+// real OS, so the sentinel and repo state tracked through v.FS would never
+// converge with the cloned files.
+var ErrRemoteCloneFSNotOS = errors.New("remote clone requires an OS-backed filesystem")
 
 var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
@@ -73,12 +82,13 @@ type RepoOpts struct {
 }
 
 // NewRepo constructs a Repo, cloning if needed and parsing .git metadata via
-// fsys. Pass vfs.NewOSFS() for normal operation; tests that pre-populate a
-// fake repo (with .git/config and .git/HEAD) in memory may pass
-// vfs.NewMemMapFS(). Note that performing an actual remote clone (i.e.
-// CloneURL is a URL, not a local path) requires the OS filesystem because
-// the underlying go-getter writes through the real OS.
-func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*Repo, error) {
+// v.FS. Thread the root [venv.Venv] for normal operation; tests that
+// pre-populate a fake repo (with .git/config and .git/HEAD) in memory may
+// pass an in-memory bundle. Note that performing an actual remote clone
+// (i.e. CloneURL is a URL, not a local path) requires the OS filesystem
+// because the underlying go-getter writes through the real OS; such a
+// clone returns [ErrRemoteCloneFSNotOS] on any other filesystem.
+func NewRepo(ctx context.Context, l log.Logger, v venv.Venv, opts *RepoOpts) (*Repo, error) {
 	if opts == nil {
 		opts = &RepoOpts{}
 	}
@@ -94,15 +104,15 @@ func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*R
 		rootWorkingDir:   opts.RootWorkingDir,
 	}
 
-	if err := repo.clone(ctx, l, fsys); err != nil {
+	if err := repo.clone(ctx, l, v); err != nil {
 		return nil, err
 	}
 
-	if err := repo.parseRemoteURL(l, fsys); err != nil {
+	if err := repo.parseRemoteURL(l, v.FS); err != nil {
 		return nil, err
 	}
 
-	if err := repo.parseBranchName(fsys); err != nil {
+	if err := repo.parseBranchName(v.FS); err != nil {
 		return nil, err
 	}
 
@@ -192,22 +202,58 @@ func (repo *Repo) ModuleURL(moduleDir string) string {
 	// Simple, predictable hosts
 	switch remote.Host {
 	case githubHost:
-		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
+		return fmt.Sprintf(
+			"https://%s/%s/tree/%s/%s",
+			remote.Host,
+			remote.FullName,
+			repo.BranchName,
+			moduleDir,
+		)
 	case gitlabHost:
-		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
+		return fmt.Sprintf(
+			"https://%s/%s/-/tree/%s/%s",
+			remote.Host,
+			remote.FullName,
+			repo.BranchName,
+			moduleDir,
+		)
 	case bitbucketHost:
-		return fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.BranchName)
+		return fmt.Sprintf(
+			"https://%s/%s/browse/%s?at=%s",
+			remote.Host,
+			remote.FullName,
+			moduleDir,
+			repo.BranchName,
+		)
 	case azuredevHost:
-		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.BranchName)
+		return fmt.Sprintf(
+			"https://%s/_git/%s?path=%s&version=GB%s",
+			remote.Host,
+			remote.FullName,
+			moduleDir,
+			repo.BranchName,
+		)
 	}
 
 	// // Hosts that require special handling
 	if githubEnterprisePatternReg.MatchString(string(remote.Host)) {
-		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
+		return fmt.Sprintf(
+			"https://%s/%s/tree/%s/%s",
+			remote.Host,
+			remote.FullName,
+			repo.BranchName,
+			moduleDir,
+		)
 	}
 
 	if gitlabSelfHostedPatternReg.MatchString(string(remote.Host)) {
-		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
+		return fmt.Sprintf(
+			"https://%s/%s/-/tree/%s/%s",
+			remote.Host,
+			remote.FullName,
+			repo.BranchName,
+			moduleDir,
+		)
 	}
 
 	return ""
@@ -269,12 +315,16 @@ type CloneOptions struct {
 	TargetPath string
 }
 
-func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
+func (repo *Repo) clone(ctx context.Context, l log.Logger, v venv.Venv) error {
 	cloneURL := repo.resolveCloneURL()
 
 	// Handle local directory case
-	if isDir(fsys, cloneURL) {
+	if isDir(v.FS, cloneURL) {
 		return repo.handleLocalDir(l, cloneURL)
+	}
+
+	if err := repo.prepareCloneDirectory(l, v.FS); err != nil {
+		return err
 	}
 
 	// Prepare clone options
@@ -284,17 +334,13 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
 		Context:    ctx,
 	}
 
-	if err := repo.prepareCloneDirectory(l, fsys); err != nil {
-		return err
-	}
-
-	if repo.cloneCompleted(fsys) {
+	if repo.cloneCompleted(v.FS) {
 		l.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
 
 		return nil
 	}
 
-	return repo.performClone(ctx, l, fsys, &opts)
+	return repo.performClone(ctx, l, v, &opts)
 }
 
 func (repo *Repo) resolveCloneURL() string {
@@ -322,18 +368,23 @@ func (repo *Repo) handleLocalDir(l log.Logger, repoPath string) error {
 }
 
 func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
-	if err := fsys.MkdirAll(repo.path, os.ModePerm); err != nil {
+	cloneRoot := repo.path
+
+	if err := prepareCloneRoot(fsys, cloneRoot); err != nil {
 		return err
 	}
 
 	repoName := repo.extractRepoName()
-	repo.path = filepath.Join(repo.path, repoName)
+	repo.path = filepath.Join(cloneRoot, repoName)
 
 	// Clean up incomplete clones
 	if repo.shouldCleanupIncompleteClone(fsys) {
-		l.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
+		l.Debugf(
+			"The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.",
+			cloneCompleteSentinel,
+		)
 
-		if err := fsys.RemoveAll(repo.path); err != nil {
+		if err := removeIncompleteClone(fsys, cloneRoot, repo.path); err != nil {
 			return err
 		}
 	}
@@ -341,9 +392,71 @@ func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
 	return nil
 }
 
+func prepareCloneRoot(fsys vfs.FS, cloneRoot string) error {
+	if err := validateCloneRoot(fsys, cloneRoot); err != nil {
+		return err
+	}
+
+	if err := fsys.MkdirAll(cloneRoot, os.ModePerm); err != nil {
+		return err
+	}
+
+	return validateCloneRoot(fsys, cloneRoot)
+}
+
+func validateCloneRoot(fsys vfs.FS, cloneRoot string) error {
+	if cloneRoot == "" {
+		return nil
+	}
+
+	info, err := vfs.Lstat(fsys, cloneRoot)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing to use clone root %q because it is a symlink", cloneRoot)
+	}
+
+	return nil
+}
+
+func removeIncompleteClone(fsys vfs.FS, cloneRoot, clonePath string) error {
+	if err := validateCloneRoot(fsys, cloneRoot); err != nil {
+		return err
+	}
+
+	rel, err := filepath.Rel(filepath.Clean(cloneRoot), filepath.Clean(clonePath))
+	if err != nil {
+		return err
+	}
+
+	parentHasSymlink, err := vfs.ParentPathHasSymlink(fsys, cloneRoot, rel)
+	if err != nil {
+		return err
+	}
+
+	if parentHasSymlink {
+		return fmt.Errorf(
+			"refusing to remove clone path %q outside clone root %q",
+			clonePath,
+			cloneRoot,
+		)
+	}
+
+	return fsys.RemoveAll(clonePath)
+}
+
 func (repo *Repo) extractRepoName() string {
 	repoName := "temp"
-	if match := repoNameFromCloneURLReg.FindStringSubmatch(repo.cloneURL); len(match) > 0 && match[1] != "" {
+	if match := repoNameFromCloneURLReg.FindStringSubmatch(
+		repo.cloneURL,
+	); len(match) > 0 &&
+		match[1] != "" {
 		repoName = match[1]
 	}
 
@@ -360,7 +473,16 @@ func (repo *Repo) cloneCompleted(fsys vfs.FS) bool {
 	return exists
 }
 
-func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, opts *CloneOptions) error {
+func (repo *Repo) performClone(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *CloneOptions,
+) error {
+	if !vfs.IsOSFS(v.FS) {
+		return ErrRemoteCloneFSNotOS
+	}
+
 	var clientOpts []getter.Option
 
 	if repo.allowCAS {
@@ -378,8 +500,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 			return err
 		}
 
-		venv, err := cas.OSVenv()
-		if err != nil {
+		if _, err := gitpkg.NewGitRunner(v.Exec); err != nil {
 			return err
 		}
 
@@ -388,7 +509,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		clientOpts = append(clientOpts, getter.WithCAS(c, venv, &cloneOpts))
+		clientOpts = append(clientOpts, getter.WithCAS(c, v, &cloneOpts))
 	}
 
 	client := getter.NewClient(clientOpts...)
@@ -435,7 +556,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 	}
 
 	// Create the sentinel file to indicate that the clone is complete
-	f, err := fsys.Create(filepath.Join(repo.path, cloneCompleteSentinel))
+	f, err := v.FS.Create(filepath.Join(repo.path, cloneCompleteSentinel))
 	if err != nil {
 		return err
 	}
@@ -453,7 +574,10 @@ func (repo *Repo) parseRemoteURL(l log.Logger, fsys vfs.FS) error {
 
 	gitConfigBytes, err := vfs.ReadFile(fsys, gitConfigPath)
 	if err != nil {
-		return fmt.Errorf("the specified path %q is not a git repository (no .git/config file found)", repo.path)
+		return fmt.Errorf(
+			"the specified path %q is not a git repository (no .git/config file found)",
+			repo.path,
+		)
 	}
 
 	l.Debugf("Parsing git config %q", gitConfigPath)
@@ -496,7 +620,10 @@ func (repo *Repo) gitHeadfile() string {
 func (repo *Repo) parseBranchName(fsys vfs.FS) error {
 	raw, err := vfs.ReadFile(fsys, repo.gitHeadfile())
 	if err != nil {
-		return fmt.Errorf("the specified path %q is not a git repository (no .git/HEAD file found)", repo.path)
+		return fmt.Errorf(
+			"the specified path %q is not a git repository (no .git/HEAD file found)",
+			repo.path,
+		)
 	}
 
 	if match := gitHeadBranchNameReg.FindStringSubmatch(string(raw)); len(match) > 0 {

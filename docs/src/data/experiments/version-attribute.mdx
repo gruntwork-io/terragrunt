@@ -1,0 +1,49 @@
+---
+name: version-attribute
+since: "1.1.1"
+---
+
+Support for a `version` attribute on the `terraform` block that resolves a registry module from a version constraint.
+
+### `version-attribute` - What it does
+
+When enabled, the `terraform` block accepts an optional `version` attribute holding a version constraint for a `tfr://` registry module, such as `~> 3.3` or `>= 1.0.0, < 2.0.0`:
+
+```hcl
+terraform {
+  source  = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"
+  version = "~> 3.3"
+}
+```
+
+Terragrunt resolves the constraint against the registry's list-versions endpoint before the download begins, then fetches the highest published version that satisfies it. This brings the `terraform` block to parity with the `version` argument on OpenTofu and Terraform `module` blocks, so you no longer have to pin an exact version in the source URL.
+
+The constraint lives only in the `version` attribute. By the time the module is downloaded and cached, it has been resolved to an exact version, so the `--source` override and the cache key still carry a concrete pin.
+
+### `version-attribute` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt --experiment version-attribute run -- plan
+
+# Via environment variable
+export TG_EXPERIMENT=version-attribute
+terragrunt run -- plan
+```
+
+### `version-attribute` - How to provide feedback
+
+Track and discuss this experiment in [gruntwork-io/terragrunt#1930](https://github.com/gruntwork-io/terragrunt/issues/1930). When reporting issues or providing feedback, please include:
+
+- The `tfr://` source and the `version` constraint you set.
+- The version you expected Terragrunt to resolve, and the version it resolved.
+- Whether you rely on prereleases, and how you upgrade across newly published versions.
+
+### `version-attribute` - Criteria for stabilization
+
+To transition the `version-attribute` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Decide and document the cache invalidation policy. A constraint resolves once and is cached by source URL, so a newly published match is only picked up after `--source-update`. Confirm this is the right default, or re-resolve on every run.
+- [ ] Decide and document the prerelease policy. A constraint that names a prerelease (for example `>= 1.0.0-rc1`) opts into prereleases, matching OpenTofu and Terraform.
+- [ ] Decide whether `--source` and `TG_SOURCE` should keep accepting exact pins only, or also accept constraints.
+- [ ] Community feedback on real-world usage.

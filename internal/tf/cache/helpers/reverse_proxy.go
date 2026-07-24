@@ -22,7 +22,9 @@ type ReverseProxy struct {
 	Logger log.Logger
 }
 
-func (reverseProxy ReverseProxy) WithModifyResponse(fn func(resp *http.Response) error) *ReverseProxy {
+func (reverseProxy ReverseProxy) WithModifyResponse(
+	fn func(resp *http.Response) error,
+) *ReverseProxy {
 	reverseProxy.ModifyResponse = fn
 	return &reverseProxy
 }
@@ -52,7 +54,11 @@ func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.UR
 			return nil
 		},
 		ErrorHandler: func(resp http.ResponseWriter, req *http.Request, err error) {
-			reverseProxy.Logger.Errorf("remote %s unreachable, could not forward: %v", targetURL, err)
+			reverseProxy.Logger.Errorf(
+				"remote %s unreachable, could not forward: %v",
+				targetURL,
+				err,
+			)
 			ctx.Error(echo.NewHTTPError(http.StatusServiceUnavailable))
 
 			if reverseProxy.ErrorHandler != nil {

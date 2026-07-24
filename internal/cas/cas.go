@@ -19,6 +19,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -161,7 +162,7 @@ func (c *CAS) StorePath() string { return c.storePath }
 // ensureStorePaths creates the store directory hierarchy on v.FS. Callers
 // invoke this from any top-level entry point that may write to a store, so
 // the directories appear lazily on first use rather than at construction.
-func (c *CAS) ensureStorePaths(v Venv) error {
+func (c *CAS) ensureStorePaths(v venv.Venv) error {
 	if !vfs.IsOSFS(v.FS) {
 		return ErrGitStoreFSNotOS
 	}
@@ -186,8 +187,8 @@ func (c *CAS) ensureStorePaths(v Venv) error {
 // rejects SCP form, so any encoding scheme that round-trips through
 // it silently loses the branch.
 type GitResolver struct {
-	// Venv supplies the git runner Probe shells out through. Required.
-	Venv Venv
+	// Venv supplies the executor Probe derives its git runner from. Required.
+	Venv venv.Venv
 	// Store enables an offline fast path: a full-length SHA in
 	// [GitResolver.Branch] is checked against the local store before
 	// reaching ls-remote. When nil, every Probe runs ls-remote.
@@ -215,7 +216,12 @@ func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		}
 	}
 
-	results, err := r.Venv.Git.LsRemote(ctx, rawURL, r.Branch)
+	runner, err := git.NewGitRunner(r.Venv.Exec)
+	if err != nil {
+		return "", err
+	}
+
+	results, err := runner.LsRemote(ctx, rawURL, r.Branch)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMatchingReference) {
 			return "", ErrNoVersionMetadata
@@ -238,11 +244,18 @@ func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 // [WithDir], [WithBranch], or [WithDepth]; calling Clone with no
 // options runs against the zero CloneOptions.
 //
-// Requires v.FS for store I/O and v.Git for the underlying clone.
-// Panics with [ErrVenvFSUnset] or [ErrVenvGitUnset] if either is unset.
-func (c *CAS) Clone(ctx context.Context, l log.Logger, v Venv, url string, options ...CloneOption) error {
+// Requires v.FS for store I/O and v.Exec for the git runner the
+// underlying clone derives. Panics with [venv.ErrVenvFSUnset] or
+// [venv.ErrVenvExecUnset] if either is unset.
+func (c *CAS) Clone(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	url string,
+	options ...CloneOption,
+) error {
 	v.RequireFS()
-	v.RequireGit()
+	v.RequireExec()
 
 	opts := CloneOptions{}
 	for _, opt := range options {
@@ -267,7 +280,7 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, v Venv, url string, optio
 // rev-parse against the central GitStore canonicalizes the user ref after
 // fetching.
 func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v Venv, suggestedKey string) (string, error) {
+	return func(ctx context.Context, l log.Logger, v venv.Venv, suggestedKey string) (string, error) {
 		var ref resolvedRef
 		if suggestedKey != "" {
 			ref = &symbolicRef{URL: url, Branch: opts.Branch, Hash: suggestedKey}
@@ -285,7 +298,7 @@ func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
 func (c *CAS) populateTreeFromRef(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	opts *CloneOptions,
 	ref resolvedRef,
 ) (string, error) {
@@ -320,22 +333,31 @@ func (c *CAS) populateTreeFromRef(
 func (c *CAS) populateTreeFromSymbolicRef(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	opts *CloneOptions,
 	ref *symbolicRef,
 ) error {
+	gitRunner, err := git.NewGitRunner(v.Exec)
+	if err != nil {
+		return err
+	}
+
 	depth := resolveCloneDepth(opts.Depth, c.cloneDepth)
 
 	repo, err := c.gitStore.EnsureRef(ctx, l, v, ref.URL, ref.Branch, ref.Hash, depth)
 	if err == nil {
 		defer repo.Release(l)
 
-		runner := v.Git.WithWorkDir(repo.Path)
+		runner := gitRunner.WithWorkDir(repo.Path)
 
 		return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts)
 	}
 
-	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", ref.URL, err)
+	l.Warnf(
+		"central git store unavailable for %s, falling back to temporary clone: %v",
+		ref.URL,
+		err,
+	)
 	RecordFallback(ctx, l, FallbackReasonGitStoreUnavailable, map[string]any{"url": ref.URL})
 
 	tempDir, cleanup, err := c.makeFallbackCloneDir(l, v)
@@ -345,7 +367,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 	defer cleanup()
 
-	runner := v.Git.WithWorkDir(tempDir)
+	runner := gitRunner.WithWorkDir(tempDir)
 
 	if err := runner.Clone(ctx, ref.URL, true, depth, ref.Branch); err != nil {
 		return err
@@ -361,10 +383,15 @@ func (c *CAS) populateTreeFromSymbolicRef(
 func (c *CAS) populateTreeFromCommitRef(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	opts *CloneOptions,
 	ref *commitRef,
 ) (string, error) {
+	gitRunner, err := git.NewGitRunner(v.Exec)
+	if err != nil {
+		return "", err
+	}
+
 	repo, err := c.gitStore.EnsureCommit(ctx, l, v, ref.URL, ref.RawRef, ref.Hash)
 	if err == nil {
 		defer repo.Release(l)
@@ -373,7 +400,7 @@ func (c *CAS) populateTreeFromCommitRef(
 			return repo.Hash, nil
 		}
 
-		runner := v.Git.WithWorkDir(repo.Path)
+		runner := gitRunner.WithWorkDir(repo.Path)
 
 		if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, repo.Hash, opts); err != nil {
 			return "", err
@@ -386,7 +413,11 @@ func (c *CAS) populateTreeFromCommitRef(
 		return "", err
 	}
 
-	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", ref.URL, err)
+	l.Warnf(
+		"central git store unavailable for %s, falling back to temporary clone: %v",
+		ref.URL,
+		err,
+	)
 	RecordFallback(ctx, l, FallbackReasonGitStoreUnavailable, map[string]any{"url": ref.URL})
 
 	tempDir, cleanup, err := c.makeFallbackCloneDir(l, v)
@@ -396,7 +427,7 @@ func (c *CAS) populateTreeFromCommitRef(
 
 	defer cleanup()
 
-	runner := v.Git.WithWorkDir(tempDir)
+	runner := gitRunner.WithWorkDir(tempDir)
 
 	if err := runner.Clone(ctx, ref.URL, true, 0, ""); err != nil {
 		return "", err
@@ -428,10 +459,13 @@ func (c *CAS) populateTreeFromCommitRef(
 
 // makeFallbackCloneDir creates a temporary directory for a bare clone
 // fallback and returns a cleanup function that removes it.
-func (c *CAS) makeFallbackCloneDir(l log.Logger, v Venv) (string, func(), error) {
+func (c *CAS) makeFallbackCloneDir(l log.Logger, v venv.Venv) (string, func(), error) {
 	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fallback-")
 	if err != nil {
-		return "", nil, fmt.Errorf("create fallback clone dir: %w", errors.Join(ErrFallbackCloneDir, err))
+		return "", nil, fmt.Errorf(
+			"create fallback clone dir: %w",
+			errors.Join(ErrFallbackCloneDir, err),
+		)
 	}
 
 	cleanup := func() {
@@ -513,7 +547,11 @@ func (r *commitRef) CommitHash() string { return r.RawRef }
 // SHAs skip the probe to avoid mistaking a hex-named branch tip for the
 // SHA prefix and freezing the branch at its first-fetched tip (see
 // [looksLikeFullSHA]).
-func (c *CAS) resolveReference(ctx context.Context, v Venv, url, branch string) (resolvedRef, error) {
+func (c *CAS) resolveReference(
+	ctx context.Context,
+	v venv.Venv,
+	url, branch string,
+) (resolvedRef, error) {
 	if looksLikeFullSHA(branch) {
 		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, v, url, branch); ok {
 			return &commitRef{URL: url, RawRef: branch, Hash: hash}, nil
@@ -557,7 +595,7 @@ func looksLikeFullSHA(s string) bool {
 func (c *CAS) storeRootTreeFrom(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	runner *git.GitRunner,
 	url, hash string,
 	opts *CloneOptions,
@@ -607,7 +645,9 @@ func (c *CAS) storeRootTreeFrom(
 
 		path := filepath.Join(".git", file)
 
-		data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
+		data = append(
+			data,
+			fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
 	}
 
 	return treeContent.Store(l, v, hash, data)
@@ -619,7 +659,7 @@ func (c *CAS) storeRootTreeFrom(
 func (c *CAS) storeTreeRecursive(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	runner *git.GitRunner,
 	url, hash string,
 	tree *git.Tree,
@@ -648,7 +688,12 @@ func (c *CAS) storeTreeRecursive(
 // name objects that live in another repository entirely, so only blob
 // entries are written; submodule contents arrive via
 // [CAS.storeSubmodules].
-func (c *CAS) storeBlobs(ctx context.Context, v Venv, runner *git.GitRunner, entries []git.TreeEntry) error {
+func (c *CAS) storeBlobs(
+	ctx context.Context,
+	v venv.Venv,
+	runner *git.GitRunner,
+	entries []git.TreeEntry,
+) error {
 	for _, entry := range entries {
 		if entry.Type != git.EntryTypeBlob {
 			continue
@@ -680,7 +725,7 @@ func (c *CAS) storeBlobs(ctx context.Context, v Venv, runner *git.GitRunner, ent
 func (c *CAS) storeSubmodules(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	runner *git.GitRunner,
 	url string,
 	tree *git.Tree,
@@ -705,7 +750,11 @@ func (c *CAS) storeSubmodules(
 	for _, entry := range gitlinks {
 		subURL, ok := urls[entry.Path]
 		if !ok {
-			l.Debugf("cas: gitlink %s has no .gitmodules entry, leaving an empty directory", entry.Path)
+			l.Debugf(
+				"cas: gitlink %s has no .gitmodules entry, leaving an empty directory",
+				entry.Path,
+			)
+
 			continue
 		}
 
@@ -722,7 +771,11 @@ func (c *CAS) storeSubmodules(
 
 // submoduleURLs reads the submodule path → URL table from the tree's
 // .gitmodules blob. A tree without one yields an empty table.
-func submoduleURLs(ctx context.Context, runner *git.GitRunner, tree *git.Tree) (map[string]string, error) {
+func submoduleURLs(
+	ctx context.Context,
+	runner *git.GitRunner,
+	tree *git.Tree,
+) (map[string]string, error) {
 	for _, entry := range tree.Entries() {
 		if entry.Path == git.GitmodulesPath && entry.Type == git.EntryTypeBlob {
 			return runner.SubmoduleURLs(ctx, entry.Hash)
@@ -746,7 +799,7 @@ func submoduleURLs(ctx context.Context, runner *git.GitRunner, tree *git.Tree) (
 // connection to the function's return slot.
 func (c *CAS) ensureBlob(
 	ctx context.Context,
-	v Venv,
+	v venv.Venv,
 	runner *git.GitRunner,
 	hash string,
 	gitPerm os.FileMode,

@@ -19,6 +19,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -61,7 +62,12 @@ func (p *WorktreePhase) NumWorkers() int {
 }
 
 // Run executes the worktree discovery phase.
-func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
+func (p *WorktreePhase) Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	input *PhaseInput,
+) (*PhaseResults, error) {
 	results := NewPhaseResults()
 
 	discovery := input.Discovery
@@ -97,7 +103,9 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 
 			if len(removalFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.FromWorktree, removalFilters, FromWorktreeKind)
+					components, err := p.discoverInWorktree(
+						fromToCtx, l, v, input, pair.FromWorktree, removalFilters, FromWorktreeKind,
+					)
 					if err != nil {
 						return err
 					}
@@ -115,7 +123,9 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 					finalToFilters := toFilters
 
 					if len(deletedReadFilters) > 0 {
-						translated, err := p.deletedReadingComponentsToFilters(fromToCtx, l, input, pair.FromWorktree, deletedReadFilters)
+						translated, err := p.deletedReadingComponentsToFilters(
+							fromToCtx, l, v, input, pair.FromWorktree, deletedReadFilters,
+						)
 						if err != nil {
 							return err
 						}
@@ -127,7 +137,15 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 						return nil
 					}
 
-					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.ToWorktree, finalToFilters, ToWorktreeKind)
+					components, err := p.discoverInWorktree(
+						fromToCtx,
+						l,
+						v,
+						input,
+						pair.ToWorktree,
+						finalToFilters,
+						ToWorktreeKind,
+					)
 					if err != nil {
 						return err
 					}
@@ -145,7 +163,7 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 	}
 
 	discoveryGroup.Go(func() error {
-		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, input, w)
+		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, v, input, w)
 		if err != nil {
 			return err
 		}
@@ -194,6 +212,7 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 func (p *WorktreePhase) discoverInWorktree(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	input *PhaseInput,
 	wt worktrees.Worktree,
 	filters filter.Filters,
@@ -236,7 +255,7 @@ func (p *WorktreePhase) discoverInWorktree(
 		subDiscovery = subDiscovery.WithParserOptions(discovery.parserOptions)
 	}
 
-	components, err := subDiscovery.Discover(ctx, l, input.Opts)
+	components, err := subDiscovery.Discover(ctx, l, v, input.Opts)
 	if err != nil {
 		return components, err
 	}
@@ -254,11 +273,20 @@ func (p *WorktreePhase) discoverInWorktree(
 func (p *WorktreePhase) deletedReadingComponentsToFilters(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	input *PhaseInput,
 	fromWorktree worktrees.Worktree,
 	readingFilters filter.Filters,
 ) (filter.Filters, error) {
-	affected, err := p.discoverInWorktree(ctx, l, input, fromWorktree, readingFilters, FromWorktreeKind)
+	affected, err := p.discoverInWorktree(
+		ctx,
+		l,
+		v,
+		input,
+		fromWorktree,
+		readingFilters,
+		FromWorktreeKind,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -272,12 +300,20 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 
 		relPath, err := filepath.Rel(fromWorktree.Path, c.Path())
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve relative path for reading-affected component %s: %w", c.Path(), err)
+			return nil, fmt.Errorf(
+				"failed to resolve relative path for reading-affected component %s: %w",
+				c.Path(),
+				err,
+			)
 		}
 
 		expr, err := filter.NewPathFilter(relPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create path filter for reading-affected component %s: %w", relPath, err)
+			return nil, fmt.Errorf(
+				"failed to create path filter for reading-affected component %s: %w",
+				relPath,
+				err,
+			)
 		}
 
 		toFilters = append(toFilters, filter.NewFilter(expr, expr.String()))
@@ -290,6 +326,7 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	input *PhaseInput,
 	w *worktrees.Worktrees,
 ) (component.Components, error) {
@@ -297,13 +334,25 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	stackDiff := w.Stacks()
 
-	allChanged := make([]worktrees.StackDiffChangedPair, 0, len(stackDiff.Changed)+len(stackDiff.ReadingAffected))
+	allChanged := make(
+		[]worktrees.StackDiffChangedPair,
+		0,
+		len(stackDiff.Changed)+len(stackDiff.ReadingAffected),
+	)
 	allChanged = append(allChanged, stackDiff.Changed...)
 	allChanged = append(allChanged, stackDiff.ReadingAffected...)
 
 	g, ctx := errgroup.WithContext(ctx)
 	// Cap workers to the total number of diff operations, but no more than available CPUs (at least 1).
-	g.SetLimit(max(1, min(runtime.GOMAXPROCS(0), len(stackDiff.Added)+len(stackDiff.Removed)+len(allChanged)*2)))
+	g.SetLimit(
+		max(
+			1,
+			min(
+				runtime.GOMAXPROCS(0),
+				len(stackDiff.Added)+len(stackDiff.Removed)+len(allChanged)*2,
+			),
+		),
+	)
 
 	var (
 		mu   sync.Mutex
@@ -312,7 +361,14 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	for _, changed := range allChanged {
 		g.Go(func() error {
-			components, err := p.walkChangedStack(ctx, l, input, changed.FromStack, changed.ToStack)
+			components, err := p.walkChangedStack(
+				ctx,
+				l,
+				v,
+				input,
+				changed.FromStack,
+				changed.ToStack,
+			)
 			if err != nil {
 				mu.Lock()
 
@@ -346,6 +402,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 func (p *WorktreePhase) walkChangedStack(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	input *PhaseInput,
 	fromStack *component.Stack,
 	toStack *component.Stack,
@@ -356,7 +413,10 @@ func (p *WorktreePhase) walkChangedStack(
 	fromDiscoveryContext.WorkingDir = fromStack.Path()
 	fromDiscoveryContext.Ref = fromStack.DiscoveryContext().Ref
 
-	fromDiscoveryContext, err := TranslateDiscoveryContextArgsForWorktree(fromDiscoveryContext, FromWorktreeKind)
+	fromDiscoveryContext, err := TranslateDiscoveryContextArgsForWorktree(
+		fromDiscoveryContext,
+		FromWorktreeKind,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +425,10 @@ func (p *WorktreePhase) walkChangedStack(
 	toDiscoveryContext.WorkingDir = toStack.Path()
 	toDiscoveryContext.Ref = toStack.DiscoveryContext().Ref
 
-	toDiscoveryContext, err = TranslateDiscoveryContextArgsForWorktree(toDiscoveryContext, ToWorktreeKind)
+	toDiscoveryContext, err = TranslateDiscoveryContextArgsForWorktree(
+		toDiscoveryContext,
+		ToWorktreeKind,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +454,7 @@ func (p *WorktreePhase) walkChangedStack(
 
 		var fromDiscoveryErr error
 
-		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, input.Opts)
+		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, v, input.Opts)
 		if fromDiscoveryErr != nil {
 			mu.Lock()
 
@@ -419,7 +482,7 @@ func (p *WorktreePhase) walkChangedStack(
 
 		var toDiscoveryErr error
 
-		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, input.Opts)
+		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, v, input.Opts)
 		if toDiscoveryErr != nil {
 			mu.Lock()
 
@@ -498,7 +561,8 @@ func (p *WorktreePhase) walkChangedStack(
 		}
 
 		if fromSHA != toSHA {
-			dc := pair.ToComponent.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
+			dc := pair.ToComponent.DiscoveryContext().
+				CopyWithNewOrigin(component.OriginWorktreeDiscovery)
 			pair.ToComponent.SetDiscoveryContext(dc)
 			finalComponents = append(finalComponents, pair.ToComponent)
 		}
@@ -576,7 +640,10 @@ func TranslateDiscoveryContextArgsForWorktree(
 		case discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0:
 			// Discovery commands like find or list - no args needed
 		default:
-			return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+			return discoveryContext, NewGitFilterCommandError(
+				discoveryContext.Cmd,
+				discoveryContext.Args,
+			)
 		}
 
 		return discoveryContext, nil
@@ -589,13 +656,19 @@ func TranslateDiscoveryContextArgsForWorktree(
 		case discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0:
 			// Discovery commands like find or list - no args needed
 		default:
-			return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+			return discoveryContext, NewGitFilterCommandError(
+				discoveryContext.Cmd,
+				discoveryContext.Args,
+			)
 		}
 
 		return discoveryContext, nil
 
 	default:
-		return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+		return discoveryContext, NewGitFilterCommandError(
+			discoveryContext.Cmd,
+			discoveryContext.Args,
+		)
 	}
 }
 

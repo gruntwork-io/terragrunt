@@ -6,7 +6,6 @@ import (
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -26,7 +25,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 		UsageText: "terragrunt info print",
 		Flags:     cmdFlags,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, run.FromRoot(v), opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
 		},
 	}
 

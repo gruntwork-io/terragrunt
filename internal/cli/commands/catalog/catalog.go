@@ -30,25 +30,34 @@ const urlChannelBufferSize = 10
 // loaded; otherwise source discovery walks the configuration to find catalog
 // and source URLs. As components are found, the TUI transitions to the
 // component list, or shows a welcome screen when nothing is discovered.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, repoURL string) error {
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	repoURL string,
+) error {
 	// Fail fast with a clear error when there is no terminal to attach the
 	// TUI to, instead of surfacing bubbletea's raw TTY failure.
 	if err := tui.EnsureOSTTY(l); err != nil {
 		return err
 	}
 
+	tempDirs := tui.NewTempDirTracker(v.FS)
+	defer tempDirs.Cleanup(l)
+
 	return tui.Run(
-		ctx, l, v, opts, opts.Writers.ErrWriter,
+		ctx, l, v, opts, v.Writers.ErrWriter,
 		func(
 			ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 		) error {
 			if repoURL != "" {
 				status("Loading " + repoURL + "...")
 
-				return tui.LoadURL(ctx, l, v, opts, repoURL, componentCh)
+				return tui.LoadURL(ctx, l, v, opts, tempDirs, repoURL, componentCh)
 			}
 
-			return discoverAndLoad(ctx, l, v, opts, status, componentCh)
+			return discoverAndLoad(ctx, l, v, opts, tempDirs, status, componentCh)
 		})
 }
 
@@ -56,6 +65,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 // distinct repo URL they surface into componentCh, bounded by parallelism.
 func discoverAndLoad(
 	ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions,
+	tempDirs *tui.TempDirTracker,
 	status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 ) error {
 	urlCh := make(chan string, urlChannelBufferSize)
@@ -104,7 +114,7 @@ func discoverAndLoad(
 		seen[repoURL] = struct{}{}
 
 		loaders.Go(func() error {
-			err := tui.LoadURL(loadCtx, l, v, opts, repoURL, componentCh)
+			err := tui.LoadURL(loadCtx, l, v, opts, tempDirs, repoURL, componentCh)
 			if err == nil {
 				return nil
 			}
@@ -144,7 +154,12 @@ func discoverAndLoad(
 
 // discoverCatalogConfigURLs reads catalog URLs from the root config and
 // sends each to urlCh.
-func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
+func discoverCatalogConfigURLs(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	urlCh chan<- string,
+) error {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
@@ -166,7 +181,12 @@ func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, opts *options.
 
 // discoverSourceFileURLs walks terragrunt.hcl files, extracts
 // terraform.source URLs, and sends each repo URL to urlCh.
-func discoverSourceFileURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
+func discoverSourceFileURLs(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	urlCh chan<- string,
+) error {
 	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)

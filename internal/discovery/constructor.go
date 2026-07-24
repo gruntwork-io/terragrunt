@@ -5,9 +5,7 @@ import (
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
@@ -17,7 +15,6 @@ type DiscoveryCommandOptions struct {
 	WorkingDir        string
 	QueueConstructAs  string
 	Filters           filter.Filters
-	Experiments       experiment.Experiments
 	NoHidden          bool
 	Exclude           bool
 	Include           bool
@@ -28,16 +25,14 @@ type DiscoveryCommandOptions struct {
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
 type HCLCommandOptions struct {
-	WorkingDir  string
-	Filters     filter.Filters
-	Experiments experiment.Experiments
+	WorkingDir string
+	Filters    filter.Filters
 }
 
 // StackGenerateOptions contains options for stack generate commands.
 type StackGenerateOptions struct {
-	WorkingDir  string
-	Filters     filter.Filters
-	Experiments experiment.Experiments
+	WorkingDir string
+	Filters    filter.Filters
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
@@ -124,10 +119,7 @@ func NewForStackGenerate(l log.Logger, opts StackGenerateOptions) (*Discovery, e
 	return d, nil
 }
 
-// NewDiscovery creates a new Discovery with sensible defaults. The
-// process-execution handle defaults to the OS-backed one and is overridden
-// via [Discovery.WithExec] when a caller has the threaded root virtualized
-// environment.
+// NewDiscovery creates a new Discovery with sensible defaults.
 func NewDiscovery(dir string) *Discovery {
 	// Clamp worker count between defaultDiscoveryWorkers and maxDiscoveryWorkers, bounded by available CPUs.
 	numWorkers := max(min(runtime.GOMAXPROCS(0), maxDiscoveryWorkers), defaultDiscoveryWorkers)
@@ -137,7 +129,6 @@ func NewDiscovery(dir string) *Discovery {
 		maxDependencyDepth: defaultMaxDependencyDepth,
 		workingDir:         dir,
 		configFilenames:    DefaultConfigFilenames,
-		exec:               vexec.NewOSExec(),
 		discoveryContext: &component.DiscoveryContext{
 			WorkingDir: dir,
 		},

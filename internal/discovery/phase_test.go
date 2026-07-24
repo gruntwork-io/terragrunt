@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -54,7 +55,7 @@ func TestFilesystemPhase_BasicDiscovery(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Verify phase discovered all components
@@ -81,7 +82,10 @@ func TestFilesystemPhase_SkipsIgnorableDirs(t *testing.T) {
 	for _, dir := range ignorableDirs {
 		ignorableUnit := filepath.Join(tmpDir, dir, "ignored")
 		require.NoError(t, os.MkdirAll(ignorableUnit, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(ignorableUnit, "terragrunt.hcl"), []byte(""), 0644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(ignorableUnit, "terragrunt.hcl"), []byte(""), 0644),
+		)
 	}
 
 	l := logger.CreateLogger()
@@ -94,7 +98,7 @@ func TestFilesystemPhase_SkipsIgnorableDirs(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Should only find the valid unit, not the ones in ignorable directories
@@ -131,7 +135,7 @@ func TestFilesystemPhase_WithNoHidden(t *testing.T) {
 		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-		components, err := d.Discover(ctx, l, opts)
+		components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 		assert.Len(t, components, 2, "Should find both visible and hidden")
 	})
@@ -143,7 +147,7 @@ func TestFilesystemPhase_WithNoHidden(t *testing.T) {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithNoHidden()
 
-		components, err := d.Discover(ctx, l, opts)
+		components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 		assert.Len(t, components, 1, "Should find only visible")
 		assert.Equal(t, visibleDir, components[0].Path())
@@ -190,7 +194,7 @@ locals {
 		WithFilters(filters).
 		WithReadFiles()
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	assert.Len(t, components, 1)
@@ -249,7 +253,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Graph phase should discover all dependencies
@@ -329,7 +333,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// The vpc component should always be discovered (it's the target)
@@ -380,7 +384,7 @@ dependency "db" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithRelationships()
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Verify relationships are built
@@ -492,12 +496,32 @@ func TestCandidacyClassifier_AnalyzesFiltersCorrectly(t *testing.T) {
 
 			classifier := filter.NewClassifier(filters)
 
-			assert.Equal(t, tt.expectHasPositive, classifier.HasPositiveFilters(), "HasPositiveFilters mismatch")
-			assert.Equal(t, tt.expectHasParseRequired, classifier.HasParseRequiredFilters(), "HasParseRequiredFilters mismatch")
-			assert.Equal(t, tt.expectHasGraphFilters, classifier.HasGraphFilters(), "HasGraphFilters mismatch")
+			assert.Equal(
+				t,
+				tt.expectHasPositive,
+				classifier.HasPositiveFilters(),
+				"HasPositiveFilters mismatch",
+			)
+			assert.Equal(
+				t,
+				tt.expectHasParseRequired,
+				classifier.HasParseRequiredFilters(),
+				"HasParseRequiredFilters mismatch",
+			)
+			assert.Equal(
+				t,
+				tt.expectHasGraphFilters,
+				classifier.HasGraphFilters(),
+				"HasGraphFilters mismatch",
+			)
 
 			if tt.expectGraphExprCount > 0 {
-				assert.Len(t, classifier.GraphExpressions(), tt.expectGraphExprCount, "GraphExpressions count mismatch")
+				assert.Len(
+					t,
+					classifier.GraphExpressions(),
+					tt.expectGraphExprCount,
+					"GraphExpressions count mismatch",
+				)
 			}
 		})
 	}
@@ -697,7 +721,12 @@ func TestClassifier_HasDependentFilters(t *testing.T) {
 
 			classifier := filter.NewClassifier(filters)
 
-			assert.Equal(t, tt.expectResult, classifier.HasDependentFilters(), "HasDependentFilters mismatch")
+			assert.Equal(
+				t,
+				tt.expectResult,
+				classifier.HasDependentFilters(),
+				"HasDependentFilters mismatch",
+			)
 		})
 	}
 }
@@ -755,7 +784,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// With pre-built dependency graph, dependent discovery should now find all dependents

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -37,7 +38,9 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 	var sharedConfig strings.Builder
 
 	sharedConfig.WriteString("remote_state {\n  backend = \"local\"\n")
-	sharedConfig.WriteString("  generate = { path = \"backend.tf\", if_exists = \"overwrite\" }\n  config = {\n")
+	sharedConfig.WriteString(
+		"  generate = { path = \"backend.tf\", if_exists = \"overwrite\" }\n  config = {\n",
+	)
 
 	for i := range 8000 {
 		fmt.Fprintf(&sharedConfig, "    k%d = \"v%d\"\n", i, i)
@@ -47,7 +50,10 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 
 	vpcDir := filepath.Join(tmpDir, "vpc")
 	require.NoError(t, os.MkdirAll(vpcDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(sharedConfig.String()), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(sharedConfig.String()), 0644),
+	)
 
 	const leaves = 8
 
@@ -75,7 +81,7 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
-		_, err := d.Discover(t.Context(), l, opts)
+		_, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
 		require.NoError(t, err)
 	}
 }

@@ -28,7 +28,10 @@ func TestFeatureFlagDefaults(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleFlag)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
 
 	validateOutputs(t, rootPath)
 }
@@ -40,7 +43,10 @@ func TestFeatureFlagCli(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleFlag)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --feature int_feature_flag=777 --feature bool_feature_flag=true --feature string_feature_flag=tomato --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --feature int_feature_flag=777 --feature bool_feature_flag=true --feature string_feature_flag=tomato --non-interactive --working-dir "+rootPath,
+	)
 
 	expected := expectedDefaults()
 	expected["int_feature_flag"] = 777
@@ -56,11 +62,17 @@ func TestFeatureApplied(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleFlag)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --feature bool_feature_flag=true --non-interactive --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --feature bool_feature_flag=true --non-interactive --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "running conditional bool_feature_flag")
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --feature bool_feature_flag=false --non-interactive --working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --feature bool_feature_flag=false --non-interactive --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 	assert.NotContains(t, stdout, "running conditional bool_feature_flag")
 }
@@ -72,7 +84,10 @@ func TestFeatureFlagEnv(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleFlag)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
 
 	expected := expectedDefaults()
 	expected["int_feature_flag"] = 111
@@ -88,7 +103,10 @@ func TestFeatureIncludeFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testIncludeFlag)
 	rootPath := filepath.Join(tmpEnvPath, testIncludeFlag, "app")
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
 
 	validateOutputs(t, rootPath)
 }
@@ -102,7 +120,10 @@ func TestFeatureFlagRunAll(t *testing.T) {
 	app1 := filepath.Join(tmpEnvPath, testRunAllFlag, "app1")
 	app2 := filepath.Join(tmpEnvPath, testRunAllFlag, "app2")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+	)
 
 	validateOutputs(t, app1)
 	validateOutputs(t, app2)
@@ -173,7 +194,10 @@ func TestFailOnEmptyFeatureFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testErrorEmptyFlag)
 	rootPath := filepath.Join(tmpEnvPath, testErrorEmptyFlag)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
 	require.Error(t, err)
 
 	message := err.Error()

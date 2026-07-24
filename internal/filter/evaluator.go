@@ -45,7 +45,11 @@ type EvaluationContext struct {
 
 // Evaluate evaluates an expression against a list of components and returns the filtered components.
 // If logger is provided, it will be used for logging warnings during evaluation.
-func Evaluate(l log.Logger, expr Expression, components component.Components) (component.Components, error) {
+func Evaluate(
+	l log.Logger,
+	expr Expression,
+	components component.Components,
+) (component.Components, error) {
 	if expr == nil {
 		return nil, NewEvaluationError("expression is nil")
 	}
@@ -134,7 +138,9 @@ func evaluateAttributeFilter(
 				traceFilterMiss(l, filter, c)
 			}
 		default:
-			return nil, NewEvaluationError("invalid type value: " + filter.Value + " (expected 'unit' or 'stack')")
+			return nil, NewEvaluationError(
+				"invalid type value: " + filter.Value + " (expected 'unit' or 'stack')",
+			)
 		}
 	case AttributeExternal:
 		switch filter.Value {
@@ -159,7 +165,9 @@ func evaluateAttributeFilter(
 				traceFilterMiss(l, filter, c)
 			}
 		default:
-			return nil, NewEvaluationError("invalid external value: " + filter.Value + " (expected 'true' or 'false')")
+			return nil, NewEvaluationError(
+				"invalid external value: " + filter.Value + " (expected 'true' or 'false')",
+			)
 		}
 	case AttributeReading:
 		g := filter.Glob()
@@ -186,7 +194,11 @@ func evaluateAttributeFilter(
 				rel, err := filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
 				if err != nil {
 					return nil, NewEvaluationErrorWithCause(
-						fmt.Sprintf("failed to get relative path for component %s reading: %s", c.Path(), reading),
+						fmt.Sprintf(
+							"failed to get relative path for component %s reading: %s",
+							c.Path(),
+							reading,
+						),
 						err,
 					)
 				}
@@ -378,7 +390,10 @@ func evaluateGraphExpression(
 
 // evaluateGitFilter evaluates a Git filter expression by comparing components between Git references.
 // It returns components that were added, removed, or changed between FromRef and ToRef.
-func evaluateGitFilter(filter *GitExpression, components component.Components) (component.Components, error) {
+func evaluateGitFilter(
+	filter *GitExpression,
+	components component.Components,
+) (component.Components, error) {
 	results := make(component.Components, 0, len(components))
 
 	for _, c := range components {

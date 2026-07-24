@@ -275,8 +275,17 @@ func TestFormResetUnsetsAllFieldsAndClearsErrors(t *testing.T) {
 
 	require.True(t, f.Field(1).Set)
 	require.True(t, f.Field(2).Set)
-	require.NotEmpty(t, f.Field(0).ValidationErr, "the unset required field should be flagged after a checked submit")
-	require.Contains(t, f.View(), "required field", "the status line should be visible before reset")
+	require.NotEmpty(
+		t,
+		f.Field(0).ValidationErr,
+		"the unset required field should be flagged after a checked submit",
+	)
+	require.Contains(
+		t,
+		f.View(),
+		"required field",
+		"the status line should be visible before reset",
+	)
 
 	f, _ = f.Update(pressR())
 
@@ -629,12 +638,29 @@ func TestFormCheckedSubmitReportsMissingRequiredCount(t *testing.T) {
 
 	updated, cmd := f.Update(pressS())
 
-	assert.False(t, updated.Submitted(), "checked submit must not submit while required fields are unset")
-	assert.Nil(t, drainFormCmds(cmd), "no submit message should fire when required fields are missing")
-	assert.Equal(t, 0, updated.Cursor(), "the cursor should jump to the first missing required field")
+	assert.False(
+		t,
+		updated.Submitted(),
+		"checked submit must not submit while required fields are unset",
+	)
+	assert.Nil(
+		t,
+		drainFormCmds(cmd),
+		"no submit message should fire when required fields are missing",
+	)
+	assert.Equal(
+		t,
+		0,
+		updated.Cursor(),
+		"the cursor should jump to the first missing required field",
+	)
 	assert.Contains(t, updated.View(), "2 required fields missing",
 		"the bottom status line should report the count of missing required fields")
-	assert.NotEmpty(t, updated.Field(0).ValidationErr, "each unset required field stays flagged inline")
+	assert.NotEmpty(
+		t,
+		updated.Field(0).ValidationErr,
+		"each unset required field stays flagged inline",
+	)
 	assert.NotEmpty(t, updated.Field(1).ValidationErr)
 }
 
@@ -648,7 +674,12 @@ func TestFormStatusLineClearsOnceRequiredFieldsSet(t *testing.T) {
 	f.SetSize(120, 40)
 
 	f, _ = f.Update(pressS())
-	require.Contains(t, f.View(), "required field", "the status line should appear after a blocked submit")
+	require.Contains(
+		t,
+		f.View(),
+		"required field",
+		"the status line should appear after a blocked submit",
+	)
 
 	// Fill the first required field (region): enter edit, type, blur.
 	f, _ = f.Update(pressEnter())
@@ -698,10 +729,18 @@ func TestFormErrorRowDoesNotShiftLayout(t *testing.T) {
 	// required fields above tier gain no extra height, so tier must not
 	// move down.
 	f, _ = f.Update(pressS())
-	require.NotEmpty(t, f.Field(0).ValidationErr, "the submit should have flagged the required fields")
+	require.NotEmpty(
+		t,
+		f.Field(0).ValidationErr,
+		"the submit should have flagged the required fields",
+	)
 
-	assert.Equal(t, before, lineIndexOf(f.View(), "tier"),
-		"reserving each field's error row should keep downstream fields from shifting when errors appear")
+	assert.Equal(
+		t,
+		before,
+		lineIndexOf(f.View(), "tier"),
+		"reserving each field's error row should keep downstream fields from shifting when errors appear",
+	)
 }
 
 func TestFormForceSubmitWritesDespiteMissingRequired(t *testing.T) {
@@ -722,8 +761,11 @@ func TestFormForceSubmitWritesDespiteMissingRequired(t *testing.T) {
 	sub, ok := msg.(tui.FormSubmitMsg)
 	require.True(t, ok, "expected FormSubmitMsg, got %T", msg)
 
-	assert.Empty(t, sub.Values,
-		"unset fields are omitted from the submit map; the missing required field becomes a TODO at write time")
+	assert.Empty(
+		t,
+		sub.Values,
+		"unset fields are omitted from the submit map; the missing required field becomes a TODO at write time",
+	)
 }
 
 func TestFormUnsetReshowsMissingRequiredCount(t *testing.T) {
@@ -736,7 +778,12 @@ func TestFormUnsetReshowsMissingRequiredCount(t *testing.T) {
 
 	// Blocked submit shows the line, then fill the field to clear it.
 	f, _ = f.Update(pressS())
-	require.Contains(t, f.View(), "required field", "the line should appear after the blocked submit")
+	require.Contains(
+		t,
+		f.View(),
+		"required field",
+		"the line should appear after the blocked submit",
+	)
 
 	f, _ = f.Update(pressEnter())
 
@@ -766,7 +813,11 @@ func TestFormFilterEntryReturnsFocusCmd(t *testing.T) {
 	f.SetSize(120, 40)
 
 	_, cmd := f.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
-	require.NotNil(t, cmd, "entering filter mode must return the filterInput Focus Cmd so the cursor blinks")
+	require.NotNil(
+		t,
+		cmd,
+		"entering filter mode must return the filterInput Focus Cmd so the cursor blinks",
+	)
 }
 
 func TestFormFilterEscClearsAndPreservesForm(t *testing.T) {

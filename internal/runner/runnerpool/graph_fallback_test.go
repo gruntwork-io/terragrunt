@@ -11,8 +11,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -72,7 +72,7 @@ dependency "db" {
 
 	optsOn.Filters = parsedFilters
 	// Build runner
-	runnerOn, err := runnerpool.Build(ctx, l, run.OSVenv(), optsOn)
+	runnerOn, err := runnerpool.Build(ctx, l, venv.OSVenv(), optsOn)
 	require.NoError(t, err)
 	// Collect unit paths
 	onPaths := make([]string, 0, len(runnerOn.GetStack().Units))
@@ -85,7 +85,13 @@ dependency "db" {
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option
-	runnerOff, err := runnerpool.Build(ctx, l, run.OSVenv(), optsOff, discovery.WithGraphTarget(vpcDir))
+	runnerOff, err := runnerpool.Build(
+		ctx,
+		l,
+		venv.OSVenv(),
+		optsOff,
+		discovery.WithGraphTarget(vpcDir),
+	)
 	require.NoError(t, err)
 
 	offPaths := make([]string, 0, len(runnerOff.GetStack().Units))

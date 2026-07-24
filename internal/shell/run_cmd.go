@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -36,13 +36,12 @@ import (
 // second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
-// ShellOptions contains the configuration needed to run shell commands.
+// ShellOptions contains the per-invocation configuration needed to run shell
+// commands.
 type ShellOptions struct {
-	Writers       writer.Writers
 	EngineOptions *engine.EngineOptions
 	EngineConfig  *engine.EngineConfig
 	Telemetry     *telemetry.Options
-	Env           map[string]string
 
 	RootWorkingDir         string
 	WorkingDir             string
@@ -56,18 +55,11 @@ type ShellOptions struct {
 	LogDisableErrorSummary bool
 }
 
-// NewShellOptions creates ShellOptions with sensible defaults:
-//   - Writers default to os.Stdout / os.Stderr.
-//   - Telemetry is always non-nil; TRACEPARENT is read from the environment when set.
-//
-// Use the With* methods to override any of these.
+// NewShellOptions creates ShellOptions with sensible defaults. Telemetry is
+// always non-nil; TRACEPARENT is read from the environment when set. Use the
+// With* methods to override any field.
 func NewShellOptions() *ShellOptions {
 	opts := &ShellOptions{
-		Env: make(map[string]string),
-		Writers: writer.Writers{
-			Writer:    os.Stdout,
-			ErrWriter: os.Stderr,
-		},
 		Telemetry: &telemetry.Options{},
 	}
 
@@ -88,20 +80,6 @@ func (o *ShellOptions) WithWorkingDir(dir string) *ShellOptions {
 // WithUnitDir sets the logical unit directory the command belongs to.
 func (o *ShellOptions) WithUnitDir(dir string) *ShellOptions {
 	o.UnitDir = dir
-
-	return o
-}
-
-// WithEnv sets the environment variables for command execution.
-func (o *ShellOptions) WithEnv(env map[string]string) *ShellOptions {
-	o.Env = env
-
-	return o
-}
-
-// WithWriters sets the stdout/stderr writers.
-func (o *ShellOptions) WithWriters(w writer.Writers) *ShellOptions {
-	o.Writers = w
 
 	return o
 }
@@ -127,7 +105,10 @@ func (o *ShellOptions) WithTelemetry(t *telemetry.Options) *ShellOptions {
 }
 
 // WithEngine sets the engine configuration and options.
-func (o *ShellOptions) WithEngine(cfg *engine.EngineConfig, opts *engine.EngineOptions) *ShellOptions {
+func (o *ShellOptions) WithEngine(
+	cfg *engine.EngineConfig,
+	opts *engine.EngineOptions,
+) *ShellOptions {
 	o.EngineConfig = cfg
 	o.EngineOptions = opts
 
@@ -176,32 +157,37 @@ func (o *ShellOptions) NoEngine() bool {
 	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
-// RunCommand runs the given shell command using the provided vexec.Exec.
-// Pass vexec.NewMemExec from tests and fuzzers to intercept subprocess
-// invocations so external binaries like tofu/terraform are never forked.
+// RunCommand runs the given shell command. The shell environment and process
+// executor come from v; tests can substitute a venv whose Exec is a
+// [vexec.NewMemExec] so external binaries like tofu/terraform are never forked.
+//
+// Requires a non-nil v.Env.
 func RunCommand(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v venv.Venv,
 	runOpts *ShellOptions,
 	command string,
 	args ...string,
 ) error {
-	_, err := RunCommandWithOutput(ctx, l, e, runOpts, "", false, false, command, args...)
+	_, err := RunCommandWithOutput(ctx, l, v, runOpts, "", false, false, command, args...)
 
 	return err
 }
 
-// RunCommandWithOutput runs the specified shell command using the provided
-// vexec.Exec and captures stdout/stderr in addition to streaming.
+// RunCommandWithOutput runs the specified shell command and captures
+// stdout/stderr in addition to streaming. The shell environment and process
+// executor come from v.
 //
 // Connect the command's stdin, stdout, and stderr to
 // the currently running app. The command can be executed in a custom working directory by using the parameter
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
+//
+// Requires a non-nil v.Env.
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v venv.Venv,
 	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
@@ -218,40 +204,41 @@ func RunCommandWithOutput(
 		commandDir = runOpts.WorkingDir
 	}
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+filepath.Base(command), map[string]any{
-		"binary":      filepath.Base(command),
-		"binary_path": command,
-		"args":        fmt.Sprintf("%v", args),
-		"dir":         commandDir,
-	}, func(ctx context.Context) error {
-		runErr := runCommand(ctx, l, e, runOpts, RunCommandOptions{
-			CommandDir:     commandDir,
-			SuppressStdout: suppressStdout,
-			NeedsPTY:       needsPTY,
-			Command:        command,
-			Args:           args,
-			Output:         &output,
-		})
+	err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "run_"+filepath.Base(command), map[string]any{
+			"binary":      filepath.Base(command),
+			"binary_path": command,
+			"args":        fmt.Sprintf("%v", args),
+			"dir":         commandDir,
+		}, func(ctx context.Context, l log.Logger) error {
+			runErr := runCommand(ctx, l, v, runOpts, RunCommandOptions{
+				CommandDir:     commandDir,
+				SuppressStdout: suppressStdout,
+				NeedsPTY:       needsPTY,
+				Command:        command,
+				Args:           args,
+				Output:         &output,
+			})
 
-		if span := trace.SpanFromContext(ctx); span.IsRecording() {
-			exitCode := 0
+			if span := trace.SpanFromContext(ctx); span.IsRecording() {
+				exitCode := 0
 
-			if runErr != nil {
-				exitCode = -1
-				if code, codeErr := util.GetExitCode(runErr); codeErr == nil {
-					exitCode = code
+				if runErr != nil {
+					exitCode = -1
+					if code, codeErr := util.GetExitCode(runErr); codeErr == nil {
+						exitCode = code
+					}
 				}
+
+				span.SetAttributes(
+					attribute.Int("exit_code", exitCode),
+					attribute.Int("stdout_bytes", output.Stdout.Len()),
+					attribute.Int("stderr_bytes", output.Stderr.Len()),
+				)
 			}
 
-			span.SetAttributes(
-				attribute.Int("exit_code", exitCode),
-				attribute.Int("stdout_bytes", output.Stdout.Len()),
-				attribute.Int("stderr_bytes", output.Stderr.Len()),
-			)
-		}
-
-		return runErr
-	})
+			return runErr
+		})
 
 	return &output, err
 }
@@ -269,24 +256,32 @@ type RunCommandOptions struct {
 
 // runCommand contains the actual subprocess execution logic, separated to keep
 // RunCommandWithOutput focused on telemetry framing.
+//
+// Requires v.Env: the traceparent is written into it before the child forks.
 func runCommand(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v venv.Venv,
 	runOpts *ShellOptions,
 	cmdOpts RunCommandOptions,
 ) error {
+	v.RequireEnv()
+
 	l.Debugf("Running command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
 	var (
-		cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &cmdOpts.Output.Stderr)
-		cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &cmdOpts.Output.Stdout)
+		cmdStderr = io.MultiWriter(v.Writers.ErrWriter, &cmdOpts.Output.Stderr)
+		cmdStdout = io.MultiWriter(v.Writers.Writer, &cmdOpts.Output.Stdout)
 	)
 
 	// Pass the traceparent to the child process if it is available in the context.
 	if traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry); traceParent != "" {
-		l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args))
-		runOpts.Env[telemetry.TraceParentEnv] = traceParent
+		l.Debugf(
+			"Setting trace parent=%q for command %s",
+			traceParent,
+			fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args),
+		)
+		v.Env[telemetry.TraceParentEnv] = traceParent
 	}
 
 	if cmdOpts.SuppressStdout {
@@ -297,19 +292,23 @@ func runCommand(
 
 	if cmdOpts.Command == runOpts.TFPath {
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
-			l.Debugf("Using engine to run command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
+		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) &&
+			!runOpts.NoEngine() {
+			l.Debugf(
+				"Using engine to run command: %s %s",
+				cmdOpts.Command,
+				strings.Join(cmdOpts.Args, " "),
+			)
 
-			cmdOutput, err := engine.Run(ctx, l, e, &engine.ExecutionOptions{
-				Writers: writer.Writers{
-					Writer:    writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
-					ErrWriter: writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
-				},
+			engineV := v.
+				WithWriter(writer.NewWrappedWriter(cmdStdout, v.Writers.Writer)).
+				WithErrWriter(writer.NewWrappedWriter(cmdStderr, v.Writers.ErrWriter))
+
+			cmdOutput, err := engine.Run(ctx, l, engineV, &engine.ExecutionOptions{
 				LogShowAbsPaths:        runOpts.LogShowAbsPaths,
 				LogDisableErrorSummary: runOpts.LogDisableErrorSummary,
 				EngineOptions:          runOpts.EngineOptions,
 				EngineConfig:           runOpts.EngineConfig,
-				Env:                    runOpts.Env,
 				UnitDir:                runOpts.UnitDir,
 				CacheDir:               cmdOpts.CommandDir,
 				RootWorkingDir:         runOpts.RootWorkingDir,
@@ -336,13 +335,13 @@ func runCommand(
 		forwardSignalDelay = SignalForwardingDelay
 	}
 
-	cmd := exec.Command(ctx, e, cmdOpts.Command, cmdOpts.Args...)
+	cmd := exec.Command(ctx, v.Exec, cmdOpts.Command, cmdOpts.Args...)
 	cmd.SetDir(cmdOpts.CommandDir)
 	cmd.SetStdout(cmdStdout)
 	cmd.SetStderr(cmdStderr)
 	cmd.Configure(
 		exec.WithUsePTY(cmdOpts.NeedsPTY),
-		exec.WithEnv(runOpts.Env),
+		exec.WithEnv(v.Env),
 		exec.WithForwardSignalDelay(forwardSignalDelay),
 	)
 
@@ -350,7 +349,7 @@ func runCommand(
 	savedConsole := exec.SaveConsoleState()
 	defer savedConsole.Restore()
 
-	if err := cmd.Start(l); err != nil { //nolint:contextcheck // context already passed to exec.Command
+	if err := cmd.Start(l); err != nil { //nolint:contextcheck // ctx already in exec.Command
 		err = util.ProcessExecutionError{
 			Err:             err,
 			Args:            cmdOpts.Args,

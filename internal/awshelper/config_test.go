@@ -4,6 +4,8 @@ package awshelper_test
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -98,7 +100,14 @@ func TestAwsConfigWithAuthProviderEnv(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "us-west-2", cfg.Region)
 
-	assert.NotNil(t, cfg.Credentials)
+	require.NotNil(t, cfg.Credentials)
+
+	// With no role configured, the env credentials must be used verbatim.
+	creds, err := cfg.Credentials.Retrieve(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "test-access-key", creds.AccessKeyID)
+	assert.Equal(t, "test-secret-key", creds.SecretAccessKey)
+	assert.Equal(t, "test-session-token", creds.SessionToken)
 }
 
 func TestAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
@@ -119,6 +128,67 @@ func TestAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "eu-west-1", cfg.Region)
 	assert.NotNil(t, cfg.Credentials)
+}
+
+// TestAwsConfigWithAuthProviderEnvChainsAssumeRole verifies that credentials provided via
+// env (e.g. from --auth-provider-cmd) do not short-circuit role assumption: when a role ARN is
+// configured (e.g. via the assume_role attribute of the remote_state block), the resulting
+// identity must be the assumed role, with the env credentials serving only as the source
+// identity for the STS exchange.
+func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
+	t.Parallel()
+
+	roleARN := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
+	require.NotEmpty(t, roleARN, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
+
+	// Pass the real test credentials through the builder env, simulating credentials handed
+	// over by an auth provider command.
+	env := map[string]string{
+		"AWS_ACCESS_KEY_ID":     os.Getenv("AWS_ACCESS_KEY_ID"),
+		"AWS_SECRET_ACCESS_KEY": os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		"AWS_SESSION_TOKEN":     os.Getenv("AWS_SESSION_TOKEN"),
+		"AWS_REGION":            "us-west-2",
+	}
+	require.NotEmpty(
+		t,
+		env["AWS_ACCESS_KEY_ID"],
+		"static AWS credentials are required to act as the source identity",
+	)
+	require.NotEmpty(
+		t,
+		env["AWS_SECRET_ACCESS_KEY"],
+		"static AWS credentials are required to act as the source identity",
+	)
+
+	l := logger.CreateLogger()
+
+	baseCfg, err := awshelper.NewAWSConfigBuilder().
+		WithEnv(env).
+		Build(t.Context(), l)
+	require.NoError(t, err)
+
+	baseARN, err := awshelper.GetAWSIdentityArn(t.Context(), &baseCfg)
+	require.NoError(t, err)
+
+	const sessionName = "terragrunt-chained-assume-role-test"
+
+	chainedCfg, err := awshelper.NewAWSConfigBuilder().
+		WithEnv(env).
+		WithSessionConfig(&awshelper.AwsSessionConfig{
+			RoleArn:     roleARN,
+			SessionName: sessionName,
+		}).
+		Build(t.Context(), l)
+	require.NoError(t, err)
+
+	chainedARN, err := awshelper.GetAWSIdentityArn(t.Context(), &chainedCfg)
+	require.NoError(t, err)
+
+	// The chained identity must be the assumed role, not the source credentials reused as-is.
+	roleName := roleARN[strings.LastIndex(roleARN, "/")+1:]
+
+	assert.NotEqual(t, baseARN, chainedARN)
+	assert.Contains(t, chainedARN, ":assumed-role/"+roleName+"/"+sessionName)
 }
 
 func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {

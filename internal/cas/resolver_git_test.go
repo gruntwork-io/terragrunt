@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestGitResolver_ProbeHEAD(t *testing.T) {
@@ -24,7 +26,7 @@ func TestGitResolver_ProbeHEAD(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: cas.Venv{Git: newGitRunner(t)}}
+	r := &cas.GitResolver{Venv: venv.Venv{Exec: vexec.NewOSExec()}}
 
 	// Empty Branch → resolver queries HEAD.
 	got, err := r.Probe(t.Context(), url)
@@ -45,7 +47,7 @@ func TestGitResolver_ProbeBranch(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: cas.Venv{Git: newGitRunner(t)}, Branch: "feature"}
+	r := &cas.GitResolver{Venv: venv.Venv{Exec: vexec.NewOSExec()}, Branch: "feature"}
 
 	got, err := r.Probe(t.Context(), url)
 	require.NoError(t, err)
@@ -62,7 +64,7 @@ func TestGitResolver_ProbeTag(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: cas.Venv{Git: newGitRunner(t)}, Branch: "v1.0.0"}
+	r := &cas.GitResolver{Venv: venv.Venv{Exec: vexec.NewOSExec()}, Branch: "v1.0.0"}
 
 	// Annotated-tag ls-remote returns the tag object's hash, not the
 	// commit it points to. We just assert the resolver returns a
@@ -84,7 +86,7 @@ func TestGitResolver_CommitFormRefReturnsErrNoVersionMetadata(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: cas.Venv{Git: newGitRunner(t)}, Branch: commitSHA}
+	r := &cas.GitResolver{Venv: venv.Venv{Exec: vexec.NewOSExec()}, Branch: commitSHA}
 
 	// ls-remote does not resolve raw SHAs as refs; the caller passes
 	// a commit-form ref directly. Probe must surface this as
@@ -102,7 +104,7 @@ func TestGitResolver_UnknownRefReturnsErrNoVersionMetadata(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: cas.Venv{Git: newGitRunner(t)}, Branch: "does-not-exist"}
+	r := &cas.GitResolver{Venv: venv.Venv{Exec: vexec.NewOSExec()}, Branch: "does-not-exist"}
 
 	_, err = r.Probe(t.Context(), url)
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
@@ -120,7 +122,7 @@ func TestGitResolver_TokenIsCacheKeyVerbatim(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: cas.Venv{Git: newGitRunner(t)}}
+	r := &cas.GitResolver{Venv: venv.Venv{Exec: vexec.NewOSExec()}}
 
 	got, err := r.Probe(t.Context(), url)
 	require.NoError(t, err)
@@ -176,17 +178,20 @@ func TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs(t *testing.T) {
 
 	var capturedArgs []string
 
-	runner := newStubGitRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	stub := newStubGitExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		capturedArgs = inv.Args
-		return vexec.Result{Stdout: []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n")}
+
+		return vexec.Result{
+			Stdout: []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n"),
+		}
 	})
 
-	r := &cas.GitResolver{Venv: cas.Venv{Git: runner}, Branch: "main"}
+	r := &cas.GitResolver{Venv: venv.Venv{Exec: stub}, Branch: "main"}
 
 	_, err := r.Probe(t.Context(), "git@github.com:org/repo.git")
 	require.NoError(t, err)
 	assert.Equal(t,
-		[]string{"ls-remote", "git@github.com:org/repo.git", "main"},
+		[]string{"ls-remote", "--", "git@github.com:org/repo.git", "main"},
 		capturedArgs,
 		"SCP URL must reach git as-is with branch passed as a separate ls-remote argument",
 	)
@@ -201,17 +206,20 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 
 	var capturedArgs []string
 
-	runner := newStubGitRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	stub := newStubGitExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		capturedArgs = inv.Args
-		return vexec.Result{Stdout: []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n")}
+
+		return vexec.Result{
+			Stdout: []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n"),
+		}
 	})
 
-	r := &cas.GitResolver{Venv: cas.Venv{Git: runner}, Branch: "main"}
+	r := &cas.GitResolver{Venv: venv.Venv{Exec: stub}, Branch: "main"}
 
 	_, err := r.Probe(t.Context(), "https://example.com/org/repo.git")
 	require.NoError(t, err)
 	assert.Equal(t,
-		[]string{"ls-remote", "https://example.com/org/repo.git", "main"},
+		[]string{"ls-remote", "--", "https://example.com/org/repo.git", "main"},
 		capturedArgs,
 		"HTTP URL must reach git without ?ref= glued on; branch is a separate argument",
 	)
@@ -229,18 +237,11 @@ func newGitRunner(t *testing.T) *git.GitRunner {
 	return r
 }
 
-// newStubGitRunner returns a *git.GitRunner backed by a
-// [vexec.NewMemExec] handler so tests can capture the argv passed to
-// git without spawning the binary.
-func newStubGitRunner(t *testing.T, handler vexec.Handler) *git.GitRunner {
-	t.Helper()
-
-	e := vexec.NewMemExec(handler,
+// newStubGitExec returns a [vexec.Exec] whose invocations are served by
+// handler so tests can capture the argv passed to git without spawning
+// the binary.
+func newStubGitExec(handler vexec.Handler) vexec.Exec {
+	return vexec.NewMemExec(handler,
 		vexec.WithLookPath(func(string) (string, error) { return "git", nil }),
 	)
-
-	r, err := git.NewGitRunner(e)
-	require.NoError(t, err)
-
-	return r
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -23,7 +26,7 @@ import (
 )
 
 // Run runs the find command.
-func Run(ctx context.Context, l log.Logger, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
@@ -34,7 +37,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Include:           opts.Include,
 		Reading:           opts.Reading,
 		Filters:           opts.Filters,
-		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return err
@@ -60,6 +62,10 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		}
 	}()
 
+	if err := generate.WorktreeStacks(ctx, l, v, opts.TerragruntOptions, worktrees); err != nil {
+		return err
+	}
+
 	d = d.WithWorktrees(worktrees)
 
 	var (
@@ -67,16 +73,17 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		discoverErr error
 	)
 
-	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
-		"working_dir":  opts.WorkingDir,
-		"no_hidden":    opts.NoHidden,
-		"dependencies": opts.Dependencies,
-		"mode":         opts.Mode,
-		"exclude":      opts.Exclude,
-	}, func(ctx context.Context) error {
-		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
-		return discoverErr
-	})
+	telemetryErr := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "find_discover", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"no_hidden":    opts.NoHidden,
+			"dependencies": opts.Dependencies,
+			"mode":         opts.Mode,
+			"exclude":      opts.Exclude,
+		}, func(ctx context.Context, l log.Logger) error {
+			components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
+			return discoverErr
+		})
 	if telemetryErr != nil {
 		l.Debugf("Errors encountered while discovering components:\n%s", telemetryErr)
 	}
@@ -85,10 +92,10 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	case ModeNormal:
 		components = components.Sort()
 	case ModeDAG:
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_dag", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "find_mode_dag", map[string]any{
 			"working_dir":  opts.WorkingDir,
 			"config_count": len(components),
-		}, func(ctx context.Context) error {
+		}, func(ctx context.Context, l log.Logger) error {
 			q, queueErr := queue.NewQueue(components)
 			if queueErr != nil {
 				return queueErr
@@ -109,23 +116,24 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	var foundComponents FoundComponents
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discovered_to_found", map[string]any{
-		"working_dir":  opts.WorkingDir,
-		"config_count": len(components),
-	}, func(ctx context.Context) error {
-		foundComponents = discoveredToFound(l, components, opts)
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "find_discovered_to_found", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"config_count": len(components),
+		}, func(ctx context.Context, l log.Logger) error {
+			foundComponents = discoveredToFound(l, components, opts)
 
-		return nil
-	})
+			return nil
+		})
 	if err != nil {
 		return err
 	}
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, opts, foundComponents)
+		return outputText(l, v.Writers.Writer, foundComponents)
 	case FormatJSON:
-		return outputJSON(opts, foundComponents)
+		return outputJSON(v.Writers.Writer, foundComponents)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -146,7 +154,11 @@ type FoundComponent struct {
 	Reading      []string `json:"reading,omitempty"`
 }
 
-func discoveredToFound(l log.Logger, components component.Components, opts *Options) FoundComponents {
+func discoveredToFound(
+	l log.Logger,
+	components component.Components,
+	opts *Options,
+) FoundComponents {
 	foundComponents := make(FoundComponents, 0, len(components))
 
 	for _, c := range components {
@@ -184,7 +196,12 @@ func discoveredToFound(l log.Logger, components component.Components, opts *Opti
 					foundComponent.Include = make(map[string]string, len(cfg.ProcessedIncludes))
 					for _, v := range cfg.ProcessedIncludes {
 						desc := fmt.Sprintf("include %q of unit %q", v.Name, unit.Path())
-						foundComponent.Include[v.Name] = discovery.RelPathOrAbs(l, opts.RootWorkingDir, v.Path, desc)
+						foundComponent.Include[v.Name] = discovery.RelPathOrAbs(
+							l,
+							opts.RootWorkingDir,
+							v.Path,
+							desc,
+						)
 					}
 				}
 			}
@@ -214,7 +231,12 @@ func discoveredToFound(l log.Logger, components component.Components, opts *Opti
 					depBase = dep.DiscoveryContext().WorkingDir
 				}
 
-				foundComponent.Dependencies[i] = discovery.RelPathOrAbs(l, depBase, dep.Path(), desc)
+				foundComponent.Dependencies[i] = discovery.RelPathOrAbs(
+					l,
+					depBase,
+					dep.Path(),
+					desc,
+				)
 			}
 		}
 
@@ -225,13 +247,13 @@ func discoveredToFound(l log.Logger, components component.Components, opts *Opti
 }
 
 // outputJSON outputs the discovered components in JSON format.
-func outputJSON(opts *Options, components FoundComponents) error {
+func outputJSON(w io.Writer, components FoundComponents) error {
 	jsonBytes, err := json.MarshalIndent(components, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	_, err = opts.Writers.Writer.Write(append(jsonBytes, []byte("\n")...))
+	_, err = w.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
 		return err
 	}
@@ -299,7 +321,7 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 }
 
 // outputText outputs the discovered components in text format.
-func outputText(l log.Logger, opts *Options, components FoundComponents) error {
+func outputText(l log.Logger, w io.Writer, components FoundComponents) error {
 	var buf strings.Builder
 
 	colorizer := NewColorizer(shouldColor(l))
@@ -308,7 +330,7 @@ func outputText(l log.Logger, opts *Options, components FoundComponents) error {
 		buf.WriteString(colorizer.Colorize(c) + "\n")
 	}
 
-	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
+	_, err := w.Write([]byte(buf.String()))
 
 	return err
 }

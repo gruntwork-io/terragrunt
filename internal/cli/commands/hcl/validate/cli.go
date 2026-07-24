@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -37,7 +36,10 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 				"strict-validate",             // `TG_STRICT_VALIDATE`
 				"hclvalidate-strict-validate", // `TG_HCLVALIDATE_STRICT_VALIDATE`
 			), opts.StrictControls),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-validate"), opts.StrictControls), // `TERRAGRUNT_STRICT_VALIDATE`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("strict-validate"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_STRICT_VALIDATE`
 		),
 
 		flags.NewFlag(
@@ -56,9 +58,14 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 				Usage:       "Emit a list of files with invalid configurations after validating all configurations.",
 				Destination: &opts.HCLValidateShowConfigPath,
 			},
-
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-strict-validate"), opts.StrictControls),          // `TG_HCLVALIDATE_STRICT_VALIDATE`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclvalidate-show-config-path"), opts.StrictControls), // `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH`
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclvalidate-strict-validate"),
+				opts.StrictControls,
+			), // `TG_HCLVALIDATE_STRICT_VALIDATE`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("hclvalidate-show-config-path"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH`
 		),
 
 		flags.NewFlag(
@@ -68,8 +75,14 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 				Destination: &opts.HCLValidateJSONOutput,
 				Usage:       "Format results in JSON format.",
 			},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-json"), opts.StrictControls),         // `TG_HCLVALIDATE_JSON`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclvalidate-json"), opts.StrictControls), // `TERRAGRUNT_HCLVALIDATE_JSON`
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclvalidate-json"),
+				opts.StrictControls,
+			), // `TG_HCLVALIDATE_JSON`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("hclvalidate-json"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_HCLVALIDATE_JSON`
 		),
 
 		shared.NewTFPathFlag(opts),
@@ -88,7 +101,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 		Flags:                        NewFlags(l, opts),
 		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, run.FromRoot(v), opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
 		},
 	}
 

@@ -70,7 +70,10 @@ func TestFormFieldsFromValuesReferences_StringAndComplexDefaults(t *testing.T) {
 	refs := tui.ValuesReferences{
 		Optional: []tui.OptionalValue{
 			{Name: "region", Default: cty.StringVal("us-east-1")},
-			{Name: "zones", Default: cty.TupleVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")})},
+			{
+				Name:    "zones",
+				Default: cty.TupleVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
+			},
 		},
 	}
 

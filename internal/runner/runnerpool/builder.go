@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -14,11 +14,11 @@ import (
 func Build(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (common.StackRunner, error) {
-	discovered, err := discoverWithRetry(ctx, l, opts, runnerOpts...)
+	discovered, err := discoverWithRetry(ctx, l, v, opts, runnerOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func Build(
 		return nil, err
 	}
 
-	if err := checkVersionConstraints(ctx, l, v.Exec, opts, rnr.GetStack().Units); err != nil {
+	if err := checkVersionConstraints(ctx, l, v, opts, rnr.GetStack().Units); err != nil {
 		return nil, err
 	}
 

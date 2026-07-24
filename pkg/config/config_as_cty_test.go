@@ -155,7 +155,13 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		mapKey, isConverted := terragruntConfigStructFieldToMapKey(t, field)
 		if isConverted {
 			_, hasKey := ctyMap[mapKey]
-			assert.Truef(t, hasKey, "Struct field %s (convert of map key %s) did not convert to cty val", field, mapKey)
+			assert.Truef(
+				t,
+				hasKey,
+				"Struct field %s (convert of map key %s) did not convert to cty val",
+				field,
+				mapKey,
+			)
 			checked[mapKey] = true
 		}
 	}
@@ -249,7 +255,13 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 		mapKey, isConverted := remoteStateStructFieldToMapKey(t, field)
 		if isConverted {
 			_, hasKey := ctyMap[mapKey]
-			assert.Truef(t, hasKey, "Struct field %s (convert of map key %s) did not convert to cty val", field, mapKey)
+			assert.Truef(
+				t,
+				hasKey,
+				"Struct field %s (convert of map key %s) did not convert to cty val",
+				field,
+				mapKey,
+			)
 			checked[mapKey] = true
 		}
 	}
@@ -269,6 +281,7 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	omitWhenNilFields := map[string]bool{
 		"UpdateSourceWithCAS": true,
 		"Mutable":             true,
+		"Version":             true,
 	}
 
 	var terraformConfigFields []string
@@ -293,7 +306,13 @@ func TestStackUnitCtyReading(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(
+		ctx,
+		pctx,
+		l,
+		"../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl",
+		nil,
+	)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
@@ -312,7 +331,13 @@ func TestStackLocalsCtyReading(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(
+		ctx,
+		pctx,
+		l,
+		"../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl",
+		nil,
+	)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)

@@ -9,8 +9,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func TestRunActionWithHooks_FiresBeforeActionAfterInOrder(t *testing.T) {
 
 	var order []string
 
-	v := newHookVenv(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		order = append(order, inv.Name)
 		return vexec.Result{}
 	})
@@ -34,11 +34,26 @@ func TestRunActionWithHooks_FiresBeforeActionAfterInOrder(t *testing.T) {
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
 			BeforeHooks: []runcfg.Hook{
-				{Name: "before-1", Commands: []string{"plan"}, Execute: []string{"step-before-1"}, If: true},
-				{Name: "before-2", Commands: []string{"plan"}, Execute: []string{"step-before-2"}, If: true},
+				{
+					Name:     "before-1",
+					Commands: []string{"plan"},
+					Execute:  []string{"step-before-1"},
+					If:       true,
+				},
+				{
+					Name:     "before-2",
+					Commands: []string{"plan"},
+					Execute:  []string{"step-before-2"},
+					If:       true,
+				},
 			},
 			AfterHooks: []runcfg.Hook{
-				{Name: "after-1", Commands: []string{"plan"}, Execute: []string{"step-after-1"}, If: true},
+				{
+					Name:     "after-1",
+					Commands: []string{"plan"},
+					Execute:  []string{"step-after-1"},
+					If:       true,
+				},
 			},
 		},
 	}
@@ -56,8 +71,12 @@ func TestRunActionWithHooks_FiresBeforeActionAfterInOrder(t *testing.T) {
 	))
 
 	assert.True(t, actionFired)
-	assert.Equal(t, []string{"step-before-1", "step-before-2", "ACTION", "step-after-1"}, order,
-		"hooks must fire before action, after hooks must fire after action, all in declaration order")
+	assert.Equal(
+		t,
+		[]string{"step-before-1", "step-before-2", "ACTION", "step-after-1"},
+		order,
+		"hooks must fire before action, after hooks must fire after action, all in declaration order",
+	)
 }
 
 // TestRunActionWithHooks_BeforeHookFailureSkipsAction pins the
@@ -79,13 +98,18 @@ func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.Venv{Exec: exec, FS: vfs.NewMemMapFS()}
+	v := venvtest.New().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
 			BeforeHooks: []runcfg.Hook{
-				{Name: "bad", Commands: []string{"plan"}, Execute: []string{"bad-before"}, If: true},
+				{
+					Name:     "bad",
+					Commands: []string{"plan"},
+					Execute:  []string{"bad-before"},
+					If:       true,
+				},
 			},
 			ErrorHooks: []runcfg.ErrorHook{
 				{
@@ -104,7 +128,16 @@ func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 		return nil
 	}
 
-	err := run.RunActionWithHooks(t.Context(), l, v, "plan", newHookOpts(), cfg, report.NewReport(), action)
+	err := run.RunActionWithHooks(
+		t.Context(),
+		l,
+		v,
+		"plan",
+		newHookOpts(),
+		cfg,
+		report.NewReport(),
+		action,
+	)
 	require.Error(t, err, "before-hook failure must propagate")
 	assert.False(t, actionFired, "action must be skipped when before_hooks fail")
 
@@ -128,7 +161,7 @@ func TestRunActionWithHooks_ActionFailureTriggersErrorHook(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.Venv{Exec: exec, FS: vfs.NewMemMapFS()}
+	v := venvtest.New().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -154,7 +187,16 @@ func TestRunActionWithHooks_ActionFailureTriggersErrorHook(t *testing.T) {
 		return errors.New("Failed to acquire state lock on bucket")
 	}
 
-	err := run.RunActionWithHooks(t.Context(), l, v, "plan", newHookOpts(), cfg, report.NewReport(), action)
+	err := run.RunActionWithHooks(
+		t.Context(),
+		l,
+		v,
+		"plan",
+		newHookOpts(),
+		cfg,
+		report.NewReport(),
+		action,
+	)
 	require.Error(t, err, "action failure must propagate")
 
 	require.Len(t, errorHookCalls, 1, "only the matching error_hook must fire")
@@ -175,14 +217,25 @@ func TestRunActionWithHooks_AfterHooksSkipOnActionFailure(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.Venv{Exec: exec, FS: vfs.NewMemMapFS()}
+	v := venvtest.New().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
 			AfterHooks: []runcfg.Hook{
-				{Name: "after-default", Commands: []string{"plan"}, Execute: []string{"normal-after"}, If: true},
-				{Name: "after-roe", Commands: []string{"plan"}, Execute: []string{"roe-after"}, If: true, RunOnError: true},
+				{
+					Name:     "after-default",
+					Commands: []string{"plan"},
+					Execute:  []string{"normal-after"},
+					If:       true,
+				},
+				{
+					Name:       "after-roe",
+					Commands:   []string{"plan"},
+					Execute:    []string{"roe-after"},
+					If:         true,
+					RunOnError: true,
+				},
 			},
 		},
 	}
@@ -191,7 +244,16 @@ func TestRunActionWithHooks_AfterHooksSkipOnActionFailure(t *testing.T) {
 		return errors.New("action exploded")
 	}
 
-	err := run.RunActionWithHooks(t.Context(), l, v, "plan", newHookOpts(), cfg, report.NewReport(), action)
+	err := run.RunActionWithHooks(
+		t.Context(),
+		l,
+		v,
+		"plan",
+		newHookOpts(),
+		cfg,
+		report.NewReport(),
+		action,
+	)
 	require.Error(t, err)
 
 	// normal-after is suppressed by the action failure; roe-after fires because RunOnError=true.
@@ -210,7 +272,7 @@ func TestRunActionWithHooks_NoHooksRunsActionDirectly(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.Venv{Exec: exec, FS: vfs.NewMemMapFS()}
+	v := venvtest.New().WithExec(exec)
 	l := logger.CreateLogger()
 
 	actionFired := 0

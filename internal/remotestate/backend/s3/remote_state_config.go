@@ -120,13 +120,17 @@ func (cfg *ExtendedRemoteStateConfigS3) CreateS3LoggingInput() s3.PutBucketLoggi
 	}
 
 	if cfg.AccessLoggingTargetPrefix != "" {
-		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetPrefix = aws.String(cfg.AccessLoggingTargetPrefix)
+		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetPrefix = aws.String(
+			cfg.AccessLoggingTargetPrefix,
+		)
 	}
 
 	if cfg.AccessLoggingTargetObjectPartitionDateSource != "" {
 		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetObjectKeyFormat = &s3types.TargetObjectKeyFormat{
 			PartitionedPrefix: &s3types.PartitionedPrefix{
-				PartitionDateSource: s3types.PartitionDateSource(cfg.AccessLoggingTargetObjectPartitionDateSource),
+				PartitionDateSource: s3types.PartitionDateSource(
+					cfg.AccessLoggingTargetObjectPartitionDateSource,
+				),
 			},
 		}
 	}
