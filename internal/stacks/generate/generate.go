@@ -429,7 +429,23 @@ func addNewNodesToGraph(
 	}
 }
 
-// ListStackFiles returns canonical, symlink-resolved stack-file paths under the absolute opts.WorkingDir.
+// canonicalStackFilePath returns the canonical terragrunt.stack.hcl path for a discovered
+// component directory. The directory is resolved (symlinks included) so topology keys stay
+// consistent with the canonicalised working dir, but the stack-file name is joined afterwards.
+// This keeps a symlinked terragrunt.stack.hcl anchored to the directory it lives in as its
+// source dir, rather than resolving the symlink and rewriting the source dir to the symlink
+// target's directory (which broke read_terragrunt_config and other relative reads).
+func canonicalStackFilePath(componentDir, basePath string) (string, error) {
+	canonicalDir, err := util.CanonicalResolvedPath(componentDir, basePath)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(canonicalDir, config.DefaultStackFile), nil
+}
+
+// ListStackFiles returns canonical stack-file paths under the absolute opts.WorkingDir. The
+// directory portion is symlink-resolved; a symlinked terragrunt.stack.hcl keeps its own location.
 // For worktreeStacksOnly, stack files in the working directory are skipped and only worktree stacks are returned.
 func ListStackFiles(
 	ctx context.Context,
@@ -535,10 +551,7 @@ func collectStackAndExcludedPaths(
 	for _, c := range components {
 		switch v := c.(type) {
 		case *component.Stack:
-			canonical, err := util.CanonicalResolvedPath(
-				filepath.Join(c.Path(), config.DefaultStackFile),
-				workingDir,
-			)
+			canonical, err := canonicalStackFilePath(c.Path(), workingDir)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -573,10 +586,7 @@ func appendStackFilePaths(
 			continue
 		}
 
-		canonical, err := util.CanonicalResolvedPath(
-			filepath.Join(c.Path(), config.DefaultStackFile),
-			workingDir,
-		)
+		canonical, err := canonicalStackFilePath(c.Path(), workingDir)
 		if err != nil {
 			return nil, err
 		}
