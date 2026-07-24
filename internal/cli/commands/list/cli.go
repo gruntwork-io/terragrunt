@@ -66,7 +66,8 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Hidden:  true,
 			Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
 				if value {
-					if err := opts.StrictControls.FilterByNames(controls.DeprecatedHiddenFlag).Evaluate(ctx); err != nil {
+					if err := opts.StrictControls.FilterByNames(controls.DeprecatedHiddenFlag).
+						Evaluate(ctx); err != nil {
 						return err
 					}
 				}

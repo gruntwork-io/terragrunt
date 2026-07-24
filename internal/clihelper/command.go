@@ -200,7 +200,8 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 		return nil, err
 	}
 
-	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name, errHandler)
+	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().
+		NewFlagSet(cmd.Name, errHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +242,11 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	return undefArgs, nil
 }
 
-func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Args) ([]string, error) {
+func (cmd *Command) flagSetParse(
+	ctx *Context,
+	flagSet *libflag.FlagSet,
+	args Args,
+) ([]string, error) {
 	var (
 		undefArgs []string
 		err       error
@@ -299,7 +304,9 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 	return undefArgs, err
 }
 
-func (cmd *Command) WrapAction(fn func(ctx context.Context, cliCtx *Context, action ActionFunc) error) *Command {
+func (cmd *Command) WrapAction(
+	fn func(ctx context.Context, cliCtx *Context, action ActionFunc) error,
+) *Command {
 	clone := *cmd
 
 	action := clone.Action

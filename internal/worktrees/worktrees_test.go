@@ -59,7 +59,10 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with invalid Git reference
-	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[nonexistent-branch]"})
+	filters, err := filter.ParseFilterQueries(
+		logger.CreateLogger(),
+		[]string{"[nonexistent-branch]"},
+	)
 	require.NoError(t, err) // Parsing should succeed
 
 	_, err = worktrees.NewWorktrees(
@@ -162,10 +165,14 @@ func TestExpressionExpansion(t *testing.T) {
 					"other/file.hcl",
 				},
 			},
-			expectedFrom:       1,
-			expectedTo:         5,
-			expectedToPaths:    []string{"app-added", "app-modified"},
-			expectedToReadings: []string{"app-modified/main.tf", "stack/terragrunt.stack.hcl", "other/file.hcl"},
+			expectedFrom:    1,
+			expectedTo:      5,
+			expectedToPaths: []string{"app-added", "app-modified"},
+			expectedToReadings: []string{
+				"app-modified/main.tf",
+				"stack/terragrunt.stack.hcl",
+				"other/file.hcl",
+			},
 		},
 	}
 
@@ -196,7 +203,13 @@ func TestExpressionExpansion(t *testing.T) {
 				pathExpr, ok := f.Expression().(*filter.PathExpression)
 				require.True(t, ok, "From filter %d should be a PathExpression", i)
 				expectedPath := filepath.Dir(tt.diffs.Removed[i])
-				assert.Equal(t, expectedPath, pathExpr.Value, "From filter %d should have correct path", i)
+				assert.Equal(
+					t,
+					expectedPath,
+					pathExpr.Value,
+					"From filter %d should have correct path",
+					i,
+				)
 			}
 
 			// Verify to filters
@@ -218,7 +231,12 @@ func TestExpressionExpansion(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedToPaths, toPaths, "To path filters should match")
 
 			// Verify reading filters
-			assert.ElementsMatch(t, tt.expectedToReadings, toReadings, "To reading filters should match")
+			assert.ElementsMatch(
+				t,
+				tt.expectedToReadings,
+				toReadings,
+				"To reading filters should match",
+			)
 		})
 	}
 }
@@ -319,7 +337,12 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 			}
 
 			// Verify reading filters match expected
-			assert.ElementsMatch(t, tt.expectedReadings, readings, "Reading filters should match expected paths")
+			assert.ElementsMatch(
+				t,
+				tt.expectedReadings,
+				readings,
+				"Reading filters should match expected paths",
+			)
 
 			// Verify each reading filter is properly constructed
 			for _, expectedReading := range tt.expectedReadings {
@@ -327,18 +350,34 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 				for _, f := range toFilters {
 					if attrExpr, ok := f.Expression().(*filter.AttributeExpression); ok {
-						if attrExpr.Key == filter.AttributeReading && attrExpr.Value == expectedReading {
+						if attrExpr.Key == filter.AttributeReading &&
+							attrExpr.Value == expectedReading {
 							found = true
 
-							assert.Equal(t, "reading", attrExpr.Key, "Filter should have reading key")
-							assert.Equal(t, expectedReading, attrExpr.Value, "Filter should have correct file path")
+							assert.Equal(
+								t,
+								"reading",
+								attrExpr.Key,
+								"Filter should have reading key",
+							)
+							assert.Equal(
+								t,
+								expectedReading,
+								attrExpr.Value,
+								"Filter should have correct file path",
+							)
 
 							break
 						}
 					}
 				}
 
-				assert.True(t, found, "Expected reading filter for %s should be present", expectedReading)
+				assert.True(
+					t,
+					found,
+					"Expected reading filter for %s should be present",
+					expectedReading,
+				)
 			}
 		})
 	}
@@ -481,7 +520,11 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				}
 
 				terragruntFile1 := filepath.Join(unit1Dir, "terragrunt.hcl")
-				if err := os.WriteFile(terragruntFile1, []byte("# terragrunt config"), 0644); err != nil {
+				if err := os.WriteFile(
+					terragruntFile1,
+					[]byte("# terragrunt config"),
+					0644,
+				); err != nil {
 					return err
 				}
 
@@ -492,7 +535,11 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				}
 
 				terragruntFile2 := filepath.Join(unit2Dir, "terragrunt.hcl")
-				if err := os.WriteFile(terragruntFile2, []byte("# terragrunt config"), 0644); err != nil {
+				if err := os.WriteFile(
+					terragruntFile2,
+					[]byte("# terragrunt config"),
+					0644,
+				); err != nil {
 					return err
 				}
 
@@ -546,12 +593,18 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			fromReadings := []string{}
 
 			for _, f := range fromFilters {
-				if expr, ok := f.Expression().(*filter.AttributeExpression); ok && expr.Key == filter.AttributeReading {
+				if expr, ok := f.Expression().(*filter.AttributeExpression); ok &&
+					expr.Key == filter.AttributeReading {
 					fromReadings = append(fromReadings, expr.Value)
 				}
 			}
 
-			assert.ElementsMatch(t, tt.expectedFromReadings, fromReadings, "From reading filters should match")
+			assert.ElementsMatch(
+				t,
+				tt.expectedFromReadings,
+				fromReadings,
+				"From reading filters should match",
+			)
 
 			// Extract path and reading filters from toFilters
 			toPathsMap := make(map[string]bool)
@@ -578,7 +631,12 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedToPaths, toPaths, "To path filters should match")
 
 			// Verify reading filters
-			assert.ElementsMatch(t, tt.expectedToReadings, toReadings, "To reading filters should match")
+			assert.ElementsMatch(
+				t,
+				tt.expectedToReadings,
+				toReadings,
+				"To reading filters should match",
+			)
 		})
 	}
 }
@@ -601,7 +659,10 @@ func TestWorktreeCleanup(t *testing.T) {
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
-	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[test-worktree-cleanup]"})
+	filters, err := filter.ParseFilterQueries(
+		logger.CreateLogger(),
+		[]string{"[test-worktree-cleanup]"},
+	)
 	require.NoError(t, err)
 
 	_, err = worktrees.NewWorktrees(

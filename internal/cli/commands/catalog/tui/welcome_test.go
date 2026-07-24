@@ -235,7 +235,12 @@ func TestWelcomeLoadingScreen_TransitionsToComponentListWithRacing(t *testing.T)
 		listModel, isList := finalModel.(tui.Model)
 		require.True(t, isList, "should transition to component list when components found")
 		assert.Equal(t, tui.ListState, listModel.State)
-		assert.Len(t, listModel.List().Items(), len(components), "should have all streamed components in list")
+		assert.Len(
+			t,
+			listModel.List().Items(),
+			len(components),
+			"should have all streamed components in list",
+		)
 	})
 }
 
@@ -342,7 +347,12 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocsWithRacing(t *testing.T) {
 
 		_, isWelcome := finalModel.(tui.WelcomeModel)
 		assert.True(t, isWelcome, "should remain on welcome screen after pressing h")
-		assert.Equal(t, "https://docs.terragrunt.com/features/catalog/", openedURL, "should have opened docs URL")
+		assert.Equal(
+			t,
+			"https://docs.terragrunt.com/features/catalog/",
+			openedURL,
+			"should have opened docs URL",
+		)
 	})
 }
 
@@ -386,7 +396,12 @@ func TestWelcomeStreamingComponentsWithRacing(t *testing.T) {
 
 		l := logger.CreateLogger()
 		components := makeComponents(t)
-		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components for streaming test")
+		require.GreaterOrEqual(
+			t,
+			len(components),
+			2,
+			"need at least 2 components for streaming test",
+		)
 
 		streamingLoad := func(_ context.Context, _ tui.StatusFunc, componentCh chan<- *tui.ComponentEntry) error {
 			for _, c := range components {
@@ -405,7 +420,12 @@ func TestWelcomeStreamingComponentsWithRacing(t *testing.T) {
 		listModel, isList := finalModel.(tui.Model)
 		require.True(t, isList, "should transition to component list")
 		assert.Equal(t, tui.ListState, listModel.State)
-		assert.Len(t, listModel.List().Items(), len(components), "all streamed components should appear in list")
+		assert.Len(
+			t,
+			listModel.List().Items(),
+			len(components),
+			"all streamed components should appear in list",
+		)
 
 		items := listModel.List().Items()
 		for i := 1; i < len(items); i++ {

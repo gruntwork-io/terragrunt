@@ -38,7 +38,9 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 	var sharedConfig strings.Builder
 
 	sharedConfig.WriteString("remote_state {\n  backend = \"local\"\n")
-	sharedConfig.WriteString("  generate = { path = \"backend.tf\", if_exists = \"overwrite\" }\n  config = {\n")
+	sharedConfig.WriteString(
+		"  generate = { path = \"backend.tf\", if_exists = \"overwrite\" }\n  config = {\n",
+	)
 
 	for i := range 8000 {
 		fmt.Fprintf(&sharedConfig, "    k%d = \"v%d\"\n", i, i)
@@ -48,7 +50,10 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 
 	vpcDir := filepath.Join(tmpDir, "vpc")
 	require.NoError(t, os.MkdirAll(vpcDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(sharedConfig.String()), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(sharedConfig.String()), 0644),
+	)
 
 	const leaves = 8
 

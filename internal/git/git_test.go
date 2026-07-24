@@ -25,7 +25,11 @@ func TestGitRunner_LsRemote(t *testing.T) {
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
 
-		results, err := runner.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+		results, err := runner.LsRemote(
+			ctx,
+			"https://github.com/gruntwork-io/terragrunt.git",
+			"HEAD",
+		)
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		assert.Regexp(t, "^[0-9a-f]{40}$", results[0].Hash)
@@ -46,7 +50,11 @@ func TestGitRunner_LsRemote(t *testing.T) {
 	t.Run("nonexistent reference", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := runner.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "nonexistent-branch")
+		_, err := runner.LsRemote(
+			ctx,
+			"https://github.com/gruntwork-io/terragrunt.git",
+			"nonexistent-branch",
+		)
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -390,8 +398,20 @@ func TestGitRunner_CloneInsertsOptionTerminator(t *testing.T) {
 	runner := newArgvCapturingRunner(t, &got, nil).WithWorkDir(workDir)
 
 	require.NoError(t, runner.Clone(t.Context(), "file:///repo", true, 1, "main"))
-	assert.Equal(t,
-		[]string{"clone", "--bare", "--depth", "1", "--single-branch", "--branch", "main", "--", "file:///repo", workDir},
+	assert.Equal(
+		t,
+		[]string{
+			"clone",
+			"--bare",
+			"--depth",
+			"1",
+			"--single-branch",
+			"--branch",
+			"main",
+			"--",
+			"file:///repo",
+			workDir,
+		},
 		got,
 	)
 }
@@ -401,7 +421,11 @@ func TestGitRunner_LsRemoteInsertsOptionTerminator(t *testing.T) {
 
 	var got []string
 
-	runner := newArgvCapturingRunner(t, &got, []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n"))
+	runner := newArgvCapturingRunner(
+		t,
+		&got,
+		[]byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n"),
+	)
 
 	_, err := runner.LsRemote(t.Context(), "file:///repo", "main")
 	require.NoError(t, err)

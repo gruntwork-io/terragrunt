@@ -6,12 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestSplitSourceDoubleSlash(t *testing.T) {
@@ -134,7 +136,10 @@ func TestDeterministicTreeHash(t *testing.T) {
 	hash3 := cas.DeterministicTreeHash(sha1Ref, "stacks/different")
 	assert.NotEqual(t, hash1, hash3)
 
-	hash4 := cas.DeterministicTreeHash("0000000000000000000000000000000000000000", "stacks/ec2-asg-stateful-service")
+	hash4 := cas.DeterministicTreeHash(
+		"0000000000000000000000000000000000000000",
+		"stacks/ec2-asg-stateful-service",
+	)
 	assert.NotEqual(t, hash1, hash4)
 
 	// SHA-256 length refHash (64 chars) → produces SHA-256 output (64 chars)
@@ -153,8 +158,7 @@ func TestProcessStackComponent_RewritesStackSources(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	// Source mimics what a stack generates: <repo-url>//<subdir>?ref=<branch>
 	source := repoURL + "//stacks/my-stack?ref=main"
@@ -179,7 +183,12 @@ func TestProcessStackComponent_RewritesStackSources(t *testing.T) {
 	assert.Contains(t, contentStr, "update_source_with_cas", "flag should be preserved")
 
 	// The "plain" unit had no update_source_with_cas, so its source must remain unchanged.
-	assert.Contains(t, contentStr, `"../../units/plain-service"`, "plain unit source should be unchanged")
+	assert.Contains(
+		t,
+		contentStr,
+		`"../../units/plain-service"`,
+		"plain unit source should be unchanged",
+	)
 }
 
 func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
@@ -192,8 +201,7 @@ func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -248,8 +256,7 @@ func TestProcessStackComponent_UnitSourceSyntheticTreeContainsSiblings(t *testin
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -266,7 +273,11 @@ func TestProcessStackComponent_UnitSourceSyntheticTreeContainsSiblings(t *testin
 
 	rewrittenSource, _, err := cas.ReadTerraformSourceInfo(content)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(rewrittenSource, "cas::"), "rewritten source should be a CAS ref")
+	require.True(
+		t,
+		strings.HasPrefix(rewrittenSource, "cas::"),
+		"rewritten source should be a CAS ref",
+	)
 
 	withoutPrefix := strings.TrimPrefix(rewrittenSource, "cas::")
 	baseRef, subdir, found := strings.Cut(withoutPrefix, "//")
@@ -283,7 +294,12 @@ func TestProcessStackComponent_UnitSourceSyntheticTreeContainsSiblings(t *testin
 
 	tree := string(treeData)
 	assert.Contains(t, tree, "modules/vpc/main.tf", "synthetic tree must include the target module")
-	assert.Contains(t, tree, "modules/sibling/main.tf", "synthetic tree must include siblings reachable via relative refs")
+	assert.Contains(
+		t,
+		tree,
+		"modules/sibling/main.tf",
+		"synthetic tree must include siblings reachable via relative refs",
+	)
 }
 
 // TestProcessStackComponent_UnitSourceWithoutDoubleSlash pins the shallow-tree
@@ -301,8 +317,7 @@ func TestProcessStackComponent_UnitSourceWithoutDoubleSlash(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -319,8 +334,17 @@ func TestProcessStackComponent_UnitSourceWithoutDoubleSlash(t *testing.T) {
 
 	rewrittenSource, _, err := cas.ReadTerraformSourceInfo(content)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(rewrittenSource, "cas::"), "leaf unit source should be rewritten to CAS ref")
-	assert.NotContains(t, rewrittenSource, "//modules", "leaf rewrite must not synthesize a //subdir tail")
+	require.True(
+		t,
+		strings.HasPrefix(rewrittenSource, "cas::"),
+		"leaf unit source should be rewritten to CAS ref",
+	)
+	assert.NotContains(
+		t,
+		rewrittenSource,
+		"//modules",
+		"leaf rewrite must not synthesize a //subdir tail",
+	)
 
 	hash, err := cas.ParseCASRef(strings.TrimPrefix(rewrittenSource, "cas::"))
 	require.NoError(t, err)
@@ -332,7 +356,12 @@ func TestProcessStackComponent_UnitSourceWithoutDoubleSlash(t *testing.T) {
 
 	tree := string(treeData)
 	assert.Contains(t, tree, "main.tf", "leaf tree should include the module's own files")
-	assert.NotContains(t, tree, "modules/vpc", "leaf tree should not include the surrounding repo structure")
+	assert.NotContains(
+		t,
+		tree,
+		"modules/vpc",
+		"leaf tree should not include the surrounding repo structure",
+	)
 	assert.NotContains(t, tree, "modules/sibling", "leaf tree should not pull in siblings")
 }
 
@@ -347,8 +376,7 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -376,7 +404,11 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	}
 
 	require.NotEmpty(t, serviceSource, "should find service block in rewritten stack file")
-	assert.True(t, strings.HasPrefix(serviceSource, "cas::"), "source should start with cas:: prefix")
+	assert.True(
+		t,
+		strings.HasPrefix(serviceSource, "cas::"),
+		"source should start with cas:: prefix",
+	)
 
 	// Parse the CAS ref to get the hash
 	trimmed := strings.TrimPrefix(serviceSource, "cas::")
@@ -400,8 +432,7 @@ func TestProcessStackComponent_DeterministicOutput(t *testing.T) {
 	repoURL := startStackTestServer(t)
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	readStackFile := func() string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
@@ -427,7 +458,12 @@ func TestProcessStackComponent_DeterministicOutput(t *testing.T) {
 
 	// Both runs should produce identical output. The CAS hashes are
 	// deterministic based on ref + path, so regeneration must not produce diffs.
-	assert.Equal(t, first, second, "processing the same source twice should produce identical output")
+	assert.Equal(
+		t,
+		first,
+		second,
+		"processing the same source twice should produce identical output",
+	)
 }
 
 func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
@@ -441,8 +477,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -493,8 +528,7 @@ func TestProcessStackComponent_InvalidRefFails(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := repoURL + "//stacks/my-stack?ref=nonexistent-tag"
 
@@ -512,8 +546,7 @@ func TestProcessStackComponent_InvalidSubdirFails(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := repoURL + "//nonexistent/path?ref=main"
 
@@ -532,8 +565,7 @@ func TestProcessStackComponent_BlobsStoredInCAS(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -568,8 +600,7 @@ func TestProcessStackComponent_AcceptsExplicitGitPrefix(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	source := "git::" + repoURL + "//stacks/my-stack?ref=main"
 
@@ -590,8 +621,7 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	// Bogus org so the network call fails fast. The error shape proves the
 	// shorthand was rewritten and reached `git ls-remote`.

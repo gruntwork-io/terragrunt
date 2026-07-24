@@ -5,6 +5,7 @@ approved = [
   "isc",
   "mpl-2.0",
   "mit",
+  "ofl-1.1",
 ]
 
 ignored = [

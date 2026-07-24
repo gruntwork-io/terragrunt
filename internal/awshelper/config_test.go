@@ -149,8 +149,16 @@ func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 		"AWS_SESSION_TOKEN":     os.Getenv("AWS_SESSION_TOKEN"),
 		"AWS_REGION":            "us-west-2",
 	}
-	require.NotEmpty(t, env["AWS_ACCESS_KEY_ID"], "static AWS credentials are required to act as the source identity")
-	require.NotEmpty(t, env["AWS_SECRET_ACCESS_KEY"], "static AWS credentials are required to act as the source identity")
+	require.NotEmpty(
+		t,
+		env["AWS_ACCESS_KEY_ID"],
+		"static AWS credentials are required to act as the source identity",
+	)
+	require.NotEmpty(
+		t,
+		env["AWS_SECRET_ACCESS_KEY"],
+		"static AWS credentials are required to act as the source identity",
+	)
 
 	l := logger.CreateLogger()
 

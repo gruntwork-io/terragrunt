@@ -15,7 +15,12 @@ import (
 func TestScanVariables(t *testing.T) {
 	t.Parallel()
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), vfs.NewOSFS(), controls.New(), "../../test/fixtures/inputs")
+	inputs, err := config.ParseVariables(
+		logger.CreateLogger(),
+		vfs.NewOSFS(),
+		controls.New(),
+		"../../test/fixtures/inputs",
+	)
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 
@@ -50,8 +55,24 @@ func TestParseVariablesIgnoresSubdirectories(t *testing.T) {
 	moduleDir := "/module"
 
 	require.NoError(t, fsys.MkdirAll(filepath.Join(moduleDir, "sub"), 0755))
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(moduleDir, "main.tf"), []byte(`variable "root" {}`), 0644))
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(moduleDir, "sub", "main.tf"), []byte(`variable "nested" {}`), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(
+			fsys,
+			filepath.Join(moduleDir, "main.tf"),
+			[]byte(`variable "root" {}`),
+			0644,
+		),
+	)
+	require.NoError(
+		t,
+		vfs.WriteFile(
+			fsys,
+			filepath.Join(moduleDir, "sub", "main.tf"),
+			[]byte(`variable "nested" {}`),
+			0644,
+		),
+	)
 
 	inputs, err := config.ParseVariables(logger.CreateLogger(), fsys, controls.New(), moduleDir)
 	require.NoError(t, err)
@@ -63,7 +84,12 @@ func TestParseVariablesIgnoresSubdirectories(t *testing.T) {
 func TestScanDefaultVariables(t *testing.T) {
 	t.Parallel()
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), vfs.NewOSFS(), controls.New(), "../../test/fixtures/inputs-defaults")
+	inputs, err := config.ParseVariables(
+		logger.CreateLogger(),
+		vfs.NewOSFS(),
+		controls.New(),
+		"../../test/fixtures/inputs-defaults",
+	)
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 
@@ -76,8 +102,16 @@ func TestScanDefaultVariables(t *testing.T) {
 	assert.Equal(t, "Project name", varByName["project_name"].Description)
 	assert.Equal(t, "\"\"", varByName["project_name"].DefaultValuePlaceholder)
 
-	assert.Equal(t, "(variable no_type_value_var does not define a type)", varByName["no_type_value_var"].Type)
-	assert.Equal(t, "(variable no_type_value_var did not define a description)", varByName["no_type_value_var"].Description)
+	assert.Equal(
+		t,
+		"(variable no_type_value_var does not define a type)",
+		varByName["no_type_value_var"].Type,
+	)
+	assert.Equal(
+		t,
+		"(variable no_type_value_var did not define a description)",
+		varByName["no_type_value_var"].Description,
+	)
 	assert.Equal(t, "\"\"", varByName["no_type_value_var"].DefaultValuePlaceholder)
 
 	assert.Equal(t, "number", varByName["number_default"].Type)

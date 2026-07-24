@@ -788,12 +788,32 @@ func TestParser_GraphExpressions(t *testing.T) {
 			graphExpr, ok := expr.(*filter.GraphExpression)
 			require.True(t, ok, "Expected GraphExpression, got %T", expr)
 
-			assert.Equal(t, tt.expected.(*filter.GraphExpression).IncludeDependents, graphExpr.IncludeDependents)
-			assert.Equal(t, tt.expected.(*filter.GraphExpression).IncludeDependencies, graphExpr.IncludeDependencies)
-			assert.Equal(t, tt.expected.(*filter.GraphExpression).ExcludeTarget, graphExpr.ExcludeTarget)
+			assert.Equal(
+				t,
+				tt.expected.(*filter.GraphExpression).IncludeDependents,
+				graphExpr.IncludeDependents,
+			)
+			assert.Equal(
+				t,
+				tt.expected.(*filter.GraphExpression).IncludeDependencies,
+				graphExpr.IncludeDependencies,
+			)
+			assert.Equal(
+				t,
+				tt.expected.(*filter.GraphExpression).ExcludeTarget,
+				graphExpr.ExcludeTarget,
+			)
 			assert.Equal(t, tt.expected.(*filter.GraphExpression).Target, graphExpr.Target)
-			assert.Equal(t, tt.expected.(*filter.GraphExpression).DependentDepth, graphExpr.DependentDepth)
-			assert.Equal(t, tt.expected.(*filter.GraphExpression).DependencyDepth, graphExpr.DependencyDepth)
+			assert.Equal(
+				t,
+				tt.expected.(*filter.GraphExpression).DependentDepth,
+				graphExpr.DependentDepth,
+			)
+			assert.Equal(
+				t,
+				tt.expected.(*filter.GraphExpression).DependencyDepth,
+				graphExpr.DependencyDepth,
+			)
 		})
 	}
 }
@@ -1265,9 +1285,24 @@ func TestParser_GitFilterAsGraphExpressionTarget(t *testing.T) {
 			require.True(t, ok, "Expected GraphExpression, got %T", expr)
 
 			expectedGraph := tt.expected.(*filter.GraphExpression)
-			assert.Equal(t, expectedGraph.IncludeDependents, graphExpr.IncludeDependents, "IncludeDependents mismatch")
-			assert.Equal(t, expectedGraph.IncludeDependencies, graphExpr.IncludeDependencies, "IncludeDependencies mismatch")
-			assert.Equal(t, expectedGraph.ExcludeTarget, graphExpr.ExcludeTarget, "ExcludeTarget mismatch")
+			assert.Equal(
+				t,
+				expectedGraph.IncludeDependents,
+				graphExpr.IncludeDependents,
+				"IncludeDependents mismatch",
+			)
+			assert.Equal(
+				t,
+				expectedGraph.IncludeDependencies,
+				graphExpr.IncludeDependencies,
+				"IncludeDependencies mismatch",
+			)
+			assert.Equal(
+				t,
+				expectedGraph.ExcludeTarget,
+				graphExpr.ExcludeTarget,
+				"ExcludeTarget mismatch",
+			)
 
 			gitExpr, ok := graphExpr.Target.(*filter.GitExpression)
 			require.True(t, ok, "Expected GitExpression as target, got %T", graphExpr.Target)

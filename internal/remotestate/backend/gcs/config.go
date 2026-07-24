@@ -18,7 +18,9 @@ type Config map[string]any
 func (cfg Config) GetTFInitArgs() Config {
 	filtered := cfg.FilterOutTerragruntKeys()
 
-	return Config(backend.NormalizeBoolValues(backend.Config(filtered), &ExtendedRemoteStateConfigGCS{}))
+	return Config(
+		backend.NormalizeBoolValues(backend.Config(filtered), &ExtendedRemoteStateConfigGCS{}),
+	)
 }
 
 func (cfg Config) FilterOutTerragruntKeys() Config {

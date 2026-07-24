@@ -60,7 +60,11 @@ func (c *Client) DownloadArtifact(ctx context.Context, artifactID int64, outputD
 }
 
 // DownloadTestReportArtifacts downloads all test report artifacts for a run.
-func (c *Client) DownloadTestReportArtifacts(ctx context.Context, runID int64, outputDir string) error {
+func (c *Client) DownloadTestReportArtifacts(
+	ctx context.Context,
+	runID int64,
+	outputDir string,
+) error {
 	artifacts, err := c.ListArtifacts(ctx, runID)
 	if err != nil {
 		return err
@@ -71,7 +75,10 @@ func (c *Client) DownloadTestReportArtifacts(ctx context.Context, runID int64, o
 		if strings.Contains(strings.ToLower(a.Name), "test") ||
 			strings.Contains(strings.ToLower(a.Name), "report") ||
 			strings.Contains(strings.ToLower(a.Name), "result") {
-			artifactDir := filepath.Join(outputDir, fmt.Sprintf("%d_%s", runID, sanitizeFilename(a.Name)))
+			artifactDir := filepath.Join(
+				outputDir,
+				fmt.Sprintf("%d_%s", runID, sanitizeFilename(a.Name)),
+			)
 			if err := c.DownloadArtifact(ctx, a.ID, artifactDir); err != nil {
 				// Log but continue on artifact download failure
 				fmt.Printf("Warning: failed to download artifact %s: %v\n", a.Name, err)
@@ -91,7 +98,13 @@ func (c *Client) GetWorkflowRunSummary(ctx context.Context, runID int64) (string
 	}
 
 	// List check runs for this commit
-	checkRuns, _, err := c.client.Checks.ListCheckRunsForRef(ctx, c.owner, c.repo, run.GetHeadSHA(), &github.ListCheckRunsOptions{})
+	checkRuns, _, err := c.client.Checks.ListCheckRunsForRef(
+		ctx,
+		c.owner,
+		c.repo,
+		run.GetHeadSHA(),
+		&github.ListCheckRunsOptions{},
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to list check runs: %w", err)
 	}

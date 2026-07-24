@@ -63,7 +63,10 @@ func isRunContext(ctx *clihelper.Context) bool {
 	return false
 }
 
-func findFlagInCommands(commands clihelper.Commands, undefFlag string) (clihelper.Commands, clihelper.Flag) {
+func findFlagInCommands(
+	commands clihelper.Commands,
+	undefFlag string,
+) (clihelper.Commands, clihelper.Flag) {
 	if len(commands) == 0 {
 		return nil, nil
 	}

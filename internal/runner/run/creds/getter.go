@@ -45,8 +45,12 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 
 		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {
-				l.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.",
-					creds.Name, providerName, provider.Name())
+				l.Warnf(
+					"%s credentials obtained using %s are overwritten by credentials obtained using %s.",
+					creds.Name,
+					providerName,
+					provider.Name(),
+				)
 			}
 		}
 

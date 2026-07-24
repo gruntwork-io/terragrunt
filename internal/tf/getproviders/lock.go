@@ -90,7 +90,11 @@ func updateLockfile(ctx context.Context, file *hclwrite.File, providers []Provid
 }
 
 // updateProviderBlock updates the provider block in the dependency lock file.
-func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, provider Provider) error {
+func updateProviderBlock(
+	ctx context.Context,
+	providerBlock *hclwrite.Block,
+	provider Provider,
+) error {
 	hashes, err := getExistingHashes(providerBlock, provider)
 	if err != nil {
 		return err
@@ -225,7 +229,10 @@ func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash
 
 // shouldUpdateConstraints returns true if the constraints attribute should be updated
 // based on the current lock file state and the new provider version.
-func shouldUpdateConstraints(currentConstraintsAttr *hclwrite.Attribute, providerVersion string) bool {
+func shouldUpdateConstraints(
+	currentConstraintsAttr *hclwrite.Attribute,
+	providerVersion string,
+) bool {
 	if currentConstraintsAttr == nil {
 		return true
 	}
@@ -310,7 +317,11 @@ func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
 // UpdateLockfileConstraints updates only the constraints in an existing lock file
 // This is used for upgrade scenarios where module constraints have changed
 // but no providers were newly downloaded
-func UpdateLockfileConstraints(ctx context.Context, workingDir string, constraints ProviderConstraints) error {
+func UpdateLockfileConstraints(
+	ctx context.Context,
+	workingDir string,
+	constraints ProviderConstraints,
+) error {
 	filename := filepath.Join(workingDir, tf.TerraformLockFile)
 
 	if !util.FileExists(filename) {
@@ -341,7 +352,11 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 			continue
 		}
 
-		currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
+		currentConstraintsValue := strings.ReplaceAll(
+			string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()),
+			`"`,
+			"",
+		)
 
 		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
 		if err != nil {

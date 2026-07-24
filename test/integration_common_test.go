@@ -50,12 +50,24 @@ func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string,
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terraform run --all --non-interactive --working-dir %s %s -- plan %s",
+			testPath,
+			tgArgs,
+			tfArgs,
+		),
+	)
 
 	return tmpEnvPath, stdout, stderr, err
 }
 
-func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, providerDir, token string) *url.URL {
+func runNetworkMirrorServer(
+	t *testing.T,
+	ctx context.Context,
+	urlPrefix, providerDir, token string,
+) *url.URL {
 	t.Helper()
 
 	serverTLSConf, clientTLSConf := certSetup(t)
@@ -105,7 +117,11 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 // runMockRegistryWithAbsoluteModuleURL runs a mock Terraform registry server that returns
 // an absolute URL for modules.v1 in its .well-known/terraform.json discovery response.
 // This is used to test the fix for https://github.com/gruntwork-io/terragrunt/issues/5156
-func runMockRegistryWithAbsoluteModuleURL(t *testing.T, ctx context.Context, providerDir, absoluteModulesURL string) *url.URL {
+func runMockRegistryWithAbsoluteModuleURL(
+	t *testing.T,
+	ctx context.Context,
+	providerDir, absoluteModulesURL string,
+) *url.URL {
 	t.Helper()
 
 	serverTLSConf, clientTLSConf := certSetup(t)
@@ -116,19 +132,22 @@ func runMockRegistryWithAbsoluteModuleURL(t *testing.T, ctx context.Context, pro
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/.well-known/terraform.json", func(resp http.ResponseWriter, req *http.Request) {
-		discovery := map[string]string{
-			"modules.v1":   absoluteModulesURL,
-			"providers.v1": "/v1/providers/",
-		}
+	mux.HandleFunc(
+		"/.well-known/terraform.json",
+		func(resp http.ResponseWriter, req *http.Request) {
+			discovery := map[string]string{
+				"modules.v1":   absoluteModulesURL,
+				"providers.v1": "/v1/providers/",
+			}
 
-		resp.Header().Set("Content-Type", "application/json")
+			resp.Header().Set("Content-Type", "application/json")
 
-		if err := json.NewEncoder(resp).Encode(discovery); err != nil {
-			t.Logf("Error encoding discovery response: %v", err)
-			http.Error(resp, err.Error(), http.StatusInternalServerError)
-		}
-	})
+			if err := json.NewEncoder(resp).Encode(discovery); err != nil {
+				t.Logf("Error encoding discovery response: %v", err)
+				http.Error(resp, err.Error(), http.StatusInternalServerError)
+			}
+		},
+	)
 
 	fs := http.FileServer(http.Dir(providerDir))
 	mux.Handle("/v1/providers/", http.StripPrefix("/v1/providers/", fs))
@@ -168,7 +187,13 @@ type FakeProvider struct {
 }
 
 func (provider *FakeProvider) archiveName() string {
-	return fmt.Sprintf("terraform-provider-%s_%s_%s_%s.zip", provider.Name, provider.Version, provider.PlatformOS, provider.PlatformArch)
+	return fmt.Sprintf(
+		"terraform-provider-%s_%s_%s_%s.zip",
+		provider.Name,
+		provider.Version,
+		provider.PlatformOS,
+		provider.PlatformArch,
+	)
 }
 
 func (provider *FakeProvider) filename() string {
@@ -304,10 +329,13 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			StreetAddress: []string{"Golden Gate Bridge"},
 			PostalCode:    []string{"94016"},
 		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(10, 0, 0),
-		IsCA:                  true,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().AddDate(10, 0, 0),
+		IsCA:      true,
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageClientAuth,
+			x509.ExtKeyUsageServerAuth,
+		},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
@@ -355,7 +383,13 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	certPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	require.NoError(t, err)
 
-	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, caPrivKey)
+	certBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		cert,
+		ca,
+		&certPrivKey.PublicKey,
+		caPrivKey,
+	)
 	require.NoError(t, err)
 
 	certPEM := new(bytes.Buffer)
@@ -387,7 +421,12 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	return serverTLSConf, clientTLSConf
 }
 
-func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, key string, value any) {
+func validateOutput(
+	t *testing.T,
+	outputs map[string]helpers.TerraformOutput,
+	key string,
+	value any,
+) {
 	t.Helper()
 
 	output, hasPlatform := outputs[key]

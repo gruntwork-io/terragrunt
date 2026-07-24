@@ -145,7 +145,13 @@ func FuzzHCLRunCommand(f *testing.F) {
 			require.Equal(t, int32(0), calls.Load(),
 				"exec must not run on the empty-args path (got %d calls)", calls.Load())
 		default:
-			require.NoError(t, err, "expected mock-success for stripped %v from raw %q", stripped, raw)
+			require.NoError(
+				t,
+				err,
+				"expected mock-success for stripped %v from raw %q",
+				stripped,
+				raw,
+			)
 			require.Equal(t, strings.TrimSuffix(mockOutput, "\n"), out,
 				"expected trimmed mock output for stripped %v", stripped)
 			require.Equal(t, int32(1), calls.Load(),

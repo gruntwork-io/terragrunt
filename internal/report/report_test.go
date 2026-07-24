@@ -351,14 +351,20 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 			r.AddRun(l, run)
 
 			// Set up initial options with the initial result
-			initialOptions := slices.Concat(tt.initialOptions, []report.EndOption{report.WithResult(tt.initialResult)})
+			initialOptions := slices.Concat(
+				tt.initialOptions,
+				[]report.EndOption{report.WithResult(tt.initialResult)},
+			)
 
 			// End the run with the initial state
 			err := r.EndRun(l, runName, initialOptions...)
 			require.NoError(t, err)
 
 			// Set up second options with the second result
-			secondOptions := slices.Concat(tt.secondOptions, []report.EndOption{report.WithResult(tt.secondResult)})
+			secondOptions := slices.Concat(
+				tt.secondOptions,
+				[]report.EndOption{report.WithResult(tt.secondResult)},
+			)
 
 			// Then try to end it again with a different state
 			err = r.EndRun(l, runName, secondOptions...)
@@ -482,12 +488,22 @@ func TestWriteCSV(t *testing.T) {
 				// Add failed run with reason
 				failedRun := newRun(t, filepath.Join(dir, "failed-run"))
 				r.AddRun(l, failedRun)
-				r.EndRun(l, failedRun.Path, report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
+				r.EndRun(
+					l,
+					failedRun.Path,
+					report.WithResult(report.ResultFailed),
+					report.WithReason(report.ReasonRunError),
+				)
 
 				// Add excluded run with cause
 				excludedRun := newRun(t, filepath.Join(dir, "excluded-run"))
 				r.AddRun(l, excludedRun)
-				r.EndRun(l, excludedRun.Path, report.WithResult(report.ResultExcluded), report.WithCauseRetryBlock("test-block"))
+				r.EndRun(
+					l,
+					excludedRun.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithCauseRetryBlock("test-block"),
+				)
 
 				// Add early exit run with both reason and cause
 				earlyExitRun := newRun(t, filepath.Join(dir, "early-exit-run"))
@@ -570,12 +586,22 @@ func TestWriteCSV(t *testing.T) {
 				// Verify that timestamps are in RFC3339 format
 				if record[1] != "" {
 					_, err := time.Parse(time.RFC3339, record[1])
-					require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
+					require.NoError(
+						t,
+						err,
+						"Started timestamp in record %d is not in RFC3339 format",
+						i,
+					)
 				}
 
 				if record[2] != "" {
 					_, err := time.Parse(time.RFC3339, record[2])
-					require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
+					require.NoError(
+						t,
+						err,
+						"Ended timestamp in record %d is not in RFC3339 format",
+						i,
+					)
 				}
 			}
 		})
@@ -729,21 +755,51 @@ func TestWriteJSON(t *testing.T) {
 				expectedRecord := expectedJSON[i]
 
 				// Verify name
-				assert.Equal(t, expectedRecord["Name"], actualRecord["Name"], "Name mismatch in record %d", i)
+				assert.Equal(
+					t,
+					expectedRecord["Name"],
+					actualRecord["Name"],
+					"Name mismatch in record %d",
+					i,
+				)
 
 				// Verify result
-				assert.Equal(t, expectedRecord["Result"], actualRecord["Result"], "Result mismatch in record %d", i)
+				assert.Equal(
+					t,
+					expectedRecord["Result"],
+					actualRecord["Result"],
+					"Result mismatch in record %d",
+					i,
+				)
 
 				// Verify reason if present
 				if expectedReason, ok := expectedRecord["Reason"]; ok {
-					assert.Equal(t, expectedReason, actualRecord["Reason"], "Reason mismatch in record %d", i)
+					assert.Equal(
+						t,
+						expectedReason,
+						actualRecord["Reason"],
+						"Reason mismatch in record %d",
+						i,
+					)
 				} else {
-					assert.NotContains(t, actualRecord, "Reason", "Unexpected reason in record %d", i)
+					assert.NotContains(
+						t,
+						actualRecord,
+						"Reason",
+						"Unexpected reason in record %d",
+						i,
+					)
 				}
 
 				// Verify cause if present
 				if expectedCause, ok := expectedRecord["Cause"]; ok {
-					assert.Equal(t, expectedCause, actualRecord["Cause"], "Cause mismatch in record %d", i)
+					assert.Equal(
+						t,
+						expectedCause,
+						actualRecord["Cause"],
+						"Cause mismatch in record %d",
+						i,
+					)
 				} else {
 					assert.NotContains(t, actualRecord, "Cause", "Unexpected cause in record %d", i)
 				}
@@ -751,12 +807,22 @@ func TestWriteJSON(t *testing.T) {
 				// Verify timestamps are in RFC3339 format
 				if started, ok := actualRecord["Started"].(string); ok {
 					_, err := time.Parse(time.RFC3339, started)
-					require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
+					require.NoError(
+						t,
+						err,
+						"Started timestamp in record %d is not in RFC3339 format",
+						i,
+					)
 				}
 
 				if ended, ok := actualRecord["Ended"].(string); ok {
 					_, err := time.Parse(time.RFC3339, ended)
-					require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
+					require.NoError(
+						t,
+						err,
+						"Ended timestamp in record %d is not in RFC3339 format",
+						i,
+					)
 				}
 			}
 		})

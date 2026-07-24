@@ -30,13 +30,18 @@ func TestAwsTofuStateEncryptionPBKDF2(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionPBKDF2)
 	workDir := filepath.Join(tmpEnvPath, testFixtureTofuStateEncryptionPBKDF2)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+workDir)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+workDir,
+	)
 	assert.True(t, helpers.FileIsInFolder(t, stateFile, workDir))
 	validateStateIsEncrypted(t, stateFile, workDir)
 }
 
 func TestAwsTofuStateEncryptionGCPKMS(t *testing.T) {
-	t.Skip("Skipping test as the GCP KMS key is not available. You have to setup your own GCP KMS key to run this test.")
+	t.Skip(
+		"Skipping test as the GCP KMS key is not available. You have to setup your own GCP KMS key to run this test.",
+	)
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionGCPKMS)
@@ -47,7 +52,10 @@ func TestAwsTofuStateEncryptionGCPKMS(t *testing.T) {
 		"__FILL_IN_KMS_KEY_ID__": gcpKMSKeyID,
 	})
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+workDir)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+workDir,
+	)
 	assert.True(t, helpers.FileIsInFolder(t, stateFile, workDir))
 	validateStateIsEncrypted(t, stateFile, workDir)
 }
@@ -64,7 +72,10 @@ func TestAwsTofuStateEncryptionAWSKMS(t *testing.T) {
 		"__FILL_IN_AWS_REGION__": awsKMSKeyRegion,
 	})
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+workDir)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+workDir,
+	)
 	assert.True(t, helpers.FileIsInFolder(t, stateFile, workDir))
 	validateStateIsEncrypted(t, stateFile, workDir)
 }
@@ -77,8 +88,18 @@ func TestAwsTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	mainPath := filepath.Join(workDir, "main")
 	jsonOut := filepath.Join(mainPath, "terragrunt_rendered.json")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --working-dir %s --json-out %s", mainPath, jsonOut))
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve",
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt render --json -w --non-interactive --working-dir %s --json-out %s",
+			mainPath,
+			jsonOut,
+		),
+	)
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -191,8 +212,18 @@ func TestAwsTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	mainPath := filepath.Join(workDir, "main")
 	jsonOut := filepath.Join(mainPath, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json  -w --non-interactive --working-dir %s --out %s", mainPath, jsonOut))
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve",
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt render --json  -w --non-interactive --working-dir %s --out %s",
+			mainPath,
+			jsonOut,
+		),
+	)
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)

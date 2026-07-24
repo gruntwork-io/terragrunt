@@ -8,9 +8,11 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // unixPermMask isolates the user/group/other rwx bits from a git tree mode.
@@ -42,7 +44,7 @@ func WithForceCopy() LinkTreeOption {
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
 func LinkTree(
 	ctx context.Context,
-	v Venv,
+	v venv.Venv,
 	blobStore *Store,
 	treeStore *Store,
 	t *git.Tree,
@@ -64,7 +66,7 @@ func LinkTree(
 // resolve outside the original tree even when the link sits in a subdirectory.
 func linkTree(
 	ctx context.Context,
-	v Venv,
+	v venv.Venv,
 	blobStore *Store,
 	treeStore *Store,
 	t *git.Tree,
@@ -153,7 +155,13 @@ func linkTree(
 		g.Go(func() error {
 			switch work.itemType {
 			case "link":
-				err := blobContent.Link(ctx, v, work.entry.Hash, work.path, gitFilePerm(work.entry.Mode), linkOpts...)
+				err := blobContent.Link(
+					ctx,
+					v,
+					work.entry.Hash,
+					work.path,
+					gitFilePerm(work.entry.Mode),
+					linkOpts...)
 				if err != nil {
 					return fmt.Errorf("link blob %s: %w", work.path, err)
 				}
@@ -163,7 +171,11 @@ func linkTree(
 					return fmt.Errorf("read symlink blob %s: %w", work.entry.Hash, err)
 				}
 
-				if err := vfs.ValidateSymlinkTarget(rootDir, work.path, string(target)); err != nil {
+				if err := vfs.ValidateSymlinkTarget(
+					rootDir,
+					work.path,
+					string(target),
+				); err != nil {
 					return err
 				}
 

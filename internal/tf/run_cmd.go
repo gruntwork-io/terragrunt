@@ -54,7 +54,13 @@ type TFOptions struct {
 // RunCommand runs the given Terraform command using the supplied venv.
 // Pass a venv whose Exec is a [vexec.NewMemExec] from tests and fuzzers to
 // intercept invocations so tofu/terraform are never forked.
-func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptions, args ...string) error {
+func RunCommand(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	runOpts *TFOptions,
+	args ...string,
+) error {
 	_, err := RunCommandWithOutput(ctx, l, v, runOpts, args...)
 
 	return err
@@ -63,7 +69,13 @@ func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptio
 // RunCommandWithOutput runs the given Terraform command using the supplied
 // venv, writing its stdout/stderr to the terminal AND returning
 // stdout/stderr to this method's caller.
-func RunCommandWithOutput(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
+func RunCommandWithOutput(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	runOpts *TFOptions,
+	args ...string,
+) (*util.CmdOutput, error) {
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
@@ -80,7 +92,16 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, v venv.Venv, runOpt
 		v = v.WithWriter(outWriter).WithErrWriter(errWriter)
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, v, runOpts.ShellOptions, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
+	output, err := shell.RunCommandWithOutput(
+		ctx,
+		l,
+		v,
+		runOpts.ShellOptions,
+		"",
+		false,
+		needsPTY,
+		runOpts.ShellOptions.TFPath,
+		args...)
 
 	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
 	if hasDetailedExitCode {
@@ -102,7 +123,12 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, v venv.Venv, runOpt
 	return output, err
 }
 
-func logTFOutput(l log.Logger, writers writer.Writers, runOpts *TFOptions, args clihelper.Args) (io.Writer, io.Writer) {
+func logTFOutput(
+	l log.Logger,
+	writers writer.Writers,
+	runOpts *TFOptions,
+	args clihelper.Args,
+) (io.Writer, io.Writer) {
 	var (
 		originalOutWriter           = writer.NewOriginalWriter(writers.Writer)
 		originalErrWriter           = writer.NewOriginalWriter(writers.ErrWriter)
@@ -208,7 +234,12 @@ func shouldForceForwardTFStdout(args clihelper.Args) bool {
 // stdout to the STDOUT log level.
 //
 // Also accepts any additional writer options desired.
-func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer, writerOptions ...logwriter.Option) io.Writer {
+func buildOutWriter(
+	l log.Logger,
+	headless bool,
+	outWriter, errWriter io.Writer,
+	writerOptions ...logwriter.Option,
+) io.Writer {
 	logLevel := log.StdoutLevel
 
 	if headless {
@@ -233,7 +264,12 @@ func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer,
 // stderr to the STDERR log level.
 //
 // Also accepts any additional writer options desired.
-func buildErrWriter(l log.Logger, headless bool, errWriter io.Writer, writerOptions ...logwriter.Option) io.Writer {
+func buildErrWriter(
+	l log.Logger,
+	headless bool,
+	errWriter io.Writer,
+	writerOptions ...logwriter.Option,
+) io.Writer {
 	logLevel := log.StderrLevel
 
 	if headless {

@@ -26,7 +26,11 @@ var ErrNoTerminal = errors.New("the catalog command requires an interactive term
 //
 // isTerminal and openTTY are injected so tests can simulate environments
 // without a controlling terminal; production callers use [EnsureOSTTY].
-func EnsureTTY(l log.Logger, isTerminal func() bool, openTTY func() (io.Closer, io.Closer, error)) error {
+func EnsureTTY(
+	l log.Logger,
+	isTerminal func() bool,
+	openTTY func() (io.Closer, io.Closer, error),
+) error {
 	if isTerminal() {
 		return nil
 	}

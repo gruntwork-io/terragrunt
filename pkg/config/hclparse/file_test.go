@@ -109,8 +109,12 @@ func TestRebindRendersSourceSnippet(t *testing.T) {
 	rendered := reboundBuf.String()
 
 	assert.Contains(t, rendered, fixturePath, "diagnostic must reference the file path")
-	assert.Contains(t, rendered, "dependency.bar.outputs.baz",
-		"diagnostic must render the source snippet, proving the AST was registered with the new parser")
+	assert.Contains(
+		t,
+		rendered,
+		"dependency.bar.outputs.baz",
+		"diagnostic must render the source snippet, proving the AST was registered with the new parser",
+	)
 }
 
 // TestRebindWithRacing exercises concurrent Rebind+Decode on a shared cached

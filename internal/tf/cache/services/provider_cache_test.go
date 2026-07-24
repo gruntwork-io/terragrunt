@@ -52,14 +52,23 @@ func TestRemoveStaleSymlink(t *testing.T) {
 				t.Helper()
 
 				_, err := vfs.Lstat(fs, path)
-				assert.ErrorIs(t, err, os.ErrNotExist, "expected NotExist after remove, got %v", err)
+				assert.ErrorIs(
+					t,
+					err,
+					os.ErrNotExist,
+					"expected NotExist after remove, got %v",
+					err,
+				)
 			},
 		},
 		{
 			name: "regular file returns typed error and is left in place",
 			setup: func(t *testing.T, fs vfs.FS) {
 				t.Helper()
-				require.NoError(t, fs.MkdirAll("/cache/registry.terraform.io/hashicorp/aws/5.31.0", 0o755))
+				require.NoError(
+					t,
+					fs.MkdirAll("/cache/registry.terraform.io/hashicorp/aws/5.31.0", 0o755),
+				)
 				require.NoError(t, afero.WriteFile(fs, path, []byte("user content"), 0o644))
 			},
 			assertErr: func(t *testing.T, err error) {

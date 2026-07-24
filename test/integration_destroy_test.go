@@ -43,7 +43,11 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 	reportFile := filepath.Join(rootPath, "report.json")
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		fmt.Sprintf("terragrunt run --all destroy --non-interactive --working-dir %s --report-file %s", rootPath, reportFile),
+		fmt.Sprintf(
+			"terragrunt run --all destroy --non-interactive --working-dir %s --report-file %s",
+			rootPath,
+			reportFile,
+		),
 	)
 	require.NoError(t, err)
 
@@ -65,10 +69,18 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 	require.NotNil(t, runE, "module-e should be in report")
 
 	// Module B depends on A, so B must be destroyed (start) before A
-	assert.True(t, runB.Started.Before(runA.Started), "Module B should start before Module A (B depends on A)")
+	assert.True(
+		t,
+		runB.Started.Before(runA.Started),
+		"Module B should start before Module A (B depends on A)",
+	)
 
 	// Module D depends on C, so D must be destroyed (start) before C
-	assert.True(t, runD.Started.Before(runC.Started), "Module D should start before Module C (D depends on C)")
+	assert.True(
+		t,
+		runD.Started.Before(runC.Started),
+		"Module D should start before Module C (D depends on C)",
+	)
 }
 
 func TestTerragruntApplyDestroyOrder(t *testing.T) {
@@ -112,10 +124,18 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 	require.NotNil(t, runE, "module-e should be in report")
 
 	// Module B depends on A, so B must be destroyed (start) before A
-	assert.True(t, runB.Started.Before(runA.Started), "Module B should be destroyed before Module A (B depends on A)")
+	assert.True(
+		t,
+		runB.Started.Before(runA.Started),
+		"Module B should be destroyed before Module A (B depends on A)",
+	)
 
 	// Module D depends on C, so D must be destroyed (start) before C
-	assert.True(t, runD.Started.Before(runC.Started), "Module D should be destroyed before Module C (D depends on C)")
+	assert.True(
+		t,
+		runD.Started.Before(runC.Started),
+		"Module D should be destroyed before Module C (D depends on C)",
+	)
 }
 
 // TestTerragruntDestroyOrderWithQueueIgnoreErrors tests that --queue-ignore-errors still respects dependency order.
@@ -140,7 +160,11 @@ func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 	reportFile := filepath.Join(rootPath, "report.json")
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		fmt.Sprintf("terragrunt run --all destroy --non-interactive --queue-ignore-errors --working-dir %s --report-file %s", rootPath, reportFile),
+		fmt.Sprintf(
+			"terragrunt run --all destroy --non-interactive --queue-ignore-errors --working-dir %s --report-file %s",
+			rootPath,
+			reportFile,
+		),
 	)
 	require.NoError(t, err)
 
@@ -162,10 +186,18 @@ func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 	require.NotNil(t, runE, "module-e should be in report")
 
 	// Module B depends on A, so B must be destroyed (start) before A
-	assert.True(t, runB.Started.Before(runA.Started), "Module B should start before Module A (B depends on A)")
+	assert.True(
+		t,
+		runB.Started.Before(runA.Started),
+		"Module B should start before Module A (B depends on A)",
+	)
 
 	// Module D depends on C, so D must be destroyed (start) before C
-	assert.True(t, runD.Started.Before(runC.Started), "Module D should start before Module C (D depends on C)")
+	assert.True(
+		t,
+		runD.Started.Before(runC.Started),
+		"Module D should start before Module C (D depends on C)",
+	)
 }
 
 func TestPreventDestroyOverride(t *testing.T) {
@@ -175,8 +207,24 @@ func TestPreventDestroyOverride(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyOverride)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt apply -auto-approve --working-dir "+rootPath,
+			os.Stdout,
+			os.Stderr,
+		),
+	)
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt destroy -auto-approve --working-dir "+rootPath,
+			os.Stdout,
+			os.Stderr,
+		),
+	)
 }
 
 func TestPreventDestroyNotSet(t *testing.T) {
@@ -186,8 +234,21 @@ func TestPreventDestroyNotSet(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyNotSet)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
-	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr)
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt apply -auto-approve --working-dir "+rootPath,
+			os.Stdout,
+			os.Stderr,
+		),
+	)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt destroy -auto-approve --working-dir "+rootPath,
+		os.Stdout,
+		os.Stderr,
+	)
 
 	if assert.Error(t, err) {
 		var target run.ModuleIsProtected
@@ -199,7 +260,9 @@ func TestDestroyDependentModule(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyDependentModule)
-	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDestroyDependentModule))
+	tmpEnvPath, _ := filepath.EvalSymlinks(
+		helpers.CopyEnvironment(t, testFixtureDestroyDependentModule),
+	)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyDependentModule)
 
 	runner, err := git.NewGitRunner(vexec.NewOSExec())
@@ -261,16 +324,31 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all init --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all init --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
-	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	// try to destroy vpc module and check if warning is printed in output
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy --non-interactive --destroy-dependencies-check --working-dir "+vpcPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt destroy --non-interactive --destroy-dependencies-check --working-dir "+vpcPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	output := stderr.String()
@@ -294,16 +372,31 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all init --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all init --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
-	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	// try to destroy vpc module and check if warning is not printed in output (default behavior - checks disabled)
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy --non-interactive --working-dir "+vpcPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt destroy --non-interactive --working-dir "+vpcPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	output := stderr.String()
@@ -342,12 +435,20 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	)
 
 	// Apply and destroy all modules.
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &applyAllStdout, &applyAllStderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
+		&applyAllStdout,
+		&applyAllStderr,
+	)
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
 	if err != nil {
-		t.Fatalf("run --all apply in TestPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std", err)
+		t.Fatalf(
+			"run --all apply in TestPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std",
+			err,
+		)
 	}
 
 	var (
@@ -355,7 +456,12 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		destroyAllStderr bytes.Buffer
 	)
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt run --all destroy --non-interactive --working-dir "+rootPath, &destroyAllStdout, &destroyAllStderr)
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all destroy --non-interactive --working-dir "+rootPath,
+		&destroyAllStdout,
+		&destroyAllStderr,
+	)
 	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "run --all destroy stdout")
 	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "run --all destroy stderr")
 
@@ -368,7 +474,12 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 			showStderr bytes.Buffer
 		)
 
-		err = helpers.RunTerragruntCommand(t, "terragrunt show --non-interactive --tf-forward-stdout --working-dir "+modulePath, &showStdout, &showStderr)
+		err = helpers.RunTerragruntCommand(
+			t,
+			"terragrunt show --non-interactive --tf-forward-stdout --working-dir "+modulePath,
+			&showStdout,
+			&showStderr,
+		)
 		helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
 		helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
@@ -613,7 +724,9 @@ func TestDestroyDependentModuleParseErrors(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyDependentModuleErrors)
-	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDestroyDependentModuleErrors))
+	tmpEnvPath, _ := filepath.EvalSymlinks(
+		helpers.CopyEnvironment(t, testFixtureDestroyDependentModuleErrors),
+	)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyDependentModuleErrors)
 
 	helpers.CreateGitRepo(t, rootPath)
@@ -628,7 +741,11 @@ func TestDestroyDependentModuleParseErrors(t *testing.T) {
 	// try to destroy app1 to trigger dependent units scanning
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt destroy -auto-approve --non-interactive --working-dir "+filepath.Join(rootPath, "dev", "app1"),
+		"terragrunt destroy -auto-approve --non-interactive --working-dir "+filepath.Join(
+			rootPath,
+			"dev",
+			"app1",
+		),
 	)
 	require.NoError(t, err)
 

@@ -80,7 +80,10 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 	signal.NotifierWithContext(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
 		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
-		app.l.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
+		app.l.Infof(
+			"%s signal received. Gracefully shutting down...",
+			cases.Title(language.English).String(sig.String()),
+		)
 
 		cancel(signal.NewContextCanceledError(sig))
 	}, signal.InterruptSignals...)
@@ -154,7 +157,11 @@ func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {
 				// Show a clear error pointing users to the explicit run form.
 				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
 				return clihelper.NewExitError(
-					fmt.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
+					fmt.Errorf(
+						"unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command",
+						cmdName,
+						cmdName,
+					),
 					clihelper.ExitCodeGeneralError,
 				)
 			}

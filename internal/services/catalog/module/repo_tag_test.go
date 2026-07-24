@@ -95,7 +95,11 @@ func TestResolveLatestTag_GitFailureLeavesTagEmpty(t *testing.T) {
 		repo.ResolveLatestTag(t.Context(), l, exec)
 	})
 
-	assert.Empty(t, repo.LatestTag, "a failed ls-remote must leave LatestTag empty without panicking")
+	assert.Empty(
+		t,
+		repo.LatestTag,
+		"a failed ls-remote must leave LatestTag empty without panicking",
+	)
 }
 
 // memGitExecForTags returns a vexec.Exec whose `git ls-remote` response is

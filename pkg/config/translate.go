@@ -93,7 +93,10 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.Terrafor
 }
 
 // translateExtraArgs converts []TerraformExtraArguments to []runcfg.TerraformExtraArguments.
-func translateExtraArgs(args []TerraformExtraArguments, l log.Logger) []runcfg.TerraformExtraArguments {
+func translateExtraArgs(
+	args []TerraformExtraArguments,
+	l log.Logger,
+) []runcfg.TerraformExtraArguments {
 	if args == nil {
 		return nil
 	}
@@ -137,7 +140,11 @@ func translateExtraArgs(args []TerraformExtraArguments, l log.Logger) []runcfg.T
 }
 
 // computeVarFiles returns a list of variable files, including required and optional files.
-func computeVarFiles(requiredVarFiles *[]string, optionalVarFiles *[]string, l log.Logger) []string {
+func computeVarFiles(
+	requiredVarFiles *[]string,
+	optionalVarFiles *[]string,
+	l log.Logger,
+) []string {
 	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
@@ -236,7 +243,9 @@ func translateErrorHooks(hooks []ErrorHook) []runcfg.ErrorHook {
 
 // translateGenerateConfigs converts map[string]codegen.GenerateConfig to map[string]codegen.GenerateConfig.
 // Returns an empty map if the input is nil.
-func translateGenerateConfigs(generateConfigs map[string]codegen.GenerateConfig) map[string]codegen.GenerateConfig {
+func translateGenerateConfigs(
+	generateConfigs map[string]codegen.GenerateConfig,
+) map[string]codegen.GenerateConfig {
 	if generateConfigs == nil {
 		return make(map[string]codegen.GenerateConfig)
 	}

@@ -43,7 +43,10 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 	t.Run("multiple valid filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"./apps/*", "name=db", "!legacy"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"./apps/*", "name=db", "!legacy"},
+		)
 		require.NoError(t, err)
 		assert.NotNil(t, filters)
 		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
@@ -63,7 +66,10 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 	t.Run("mixed valid and invalid filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"./apps/*", "name=", "!legacy"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"./apps/*", "name=", "!legacy"},
+		)
 		require.Error(t, err)
 		assert.NotNil(t, filters)
 		// Should have 2 valid filters parsed
@@ -238,7 +244,10 @@ func TestFilters_Evaluate(t *testing.T) {
 	t.Run("multiple negative filters applied in sequence", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"./apps/*", "!legacy", "!app2"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"./apps/*", "!legacy", "!app2"},
+		)
 		require.NoError(t, err)
 
 		l := log.New()
@@ -396,7 +405,10 @@ func TestFilters_String(t *testing.T) {
 	t.Run("multiple filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"./apps/*", "name=db", "!legacy"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"./apps/*", "name=db", "!legacy"},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, `["./apps/*","name=db","!legacy"]`, filters.String())
 	})
@@ -712,7 +724,11 @@ func TestFilters_PartitionReadingFilters(t *testing.T) {
 
 		// Only reading-attribute filters land in the reading group; a non-reading attribute
 		// filter (name=keep) must stay with the path filters in the other group.
-		assert.Equal(t, []string{"reading=config/item-a.yml", "reading=config/item-b.yml"}, readingStrs)
+		assert.Equal(
+			t,
+			[]string{"reading=config/item-a.yml", "reading=config/item-b.yml"},
+			readingStrs,
+		)
 		assert.Equal(t, []string{"removed-unit", "name=keep", "another-removed"}, otherStrs)
 	})
 }
@@ -752,7 +768,10 @@ func TestFilters_ExcludingGitFilters(t *testing.T) {
 	t.Run("mixed git and non-git", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]", "!./iac/**", "type=unit"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"[HEAD~1...HEAD]", "!./iac/**", "type=unit"},
+		)
 		require.NoError(t, err)
 		require.Len(t, filters, 3)
 
@@ -772,7 +791,10 @@ func TestFilters_ExcludingGitFilters(t *testing.T) {
 	t.Run("infix containing git expression is excluded", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD] | !./iac/**"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"[HEAD~1...HEAD] | !./iac/**"},
+		)
 		require.NoError(t, err)
 		require.Len(t, filters, 1)
 
@@ -783,7 +805,10 @@ func TestFilters_ExcludingGitFilters(t *testing.T) {
 	t.Run("does not modify original", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]", "./live/**"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"[HEAD~1...HEAD]", "./live/**"},
+		)
 		require.NoError(t, err)
 		require.Len(t, filters, 2)
 
@@ -831,7 +856,10 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 	t.Run("multiple Git filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[main...HEAD]", "[feature-branch]"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"[main...HEAD]", "[feature-branch]"},
+		)
 		require.NoError(t, err)
 
 		refs := filters.UniqueGitFilters().UniqueGitRefs()
@@ -842,7 +870,10 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 	t.Run("Git filters with deduplication", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[main...HEAD]", "[HEAD...main]"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"[main...HEAD]", "[HEAD...main]"},
+		)
 		require.NoError(t, err)
 
 		refs := filters.UniqueGitFilters().UniqueGitRefs()
@@ -853,7 +884,10 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 	t.Run("Git filter combined with other filters", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[main...HEAD]", "./apps/*", "name=db"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"[main...HEAD]", "./apps/*", "name=db"},
+		)
 		require.NoError(t, err)
 
 		refs := filters.UniqueGitFilters().UniqueGitRefs()
@@ -875,7 +909,10 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 	t.Run("Git filter with intersection", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[main...HEAD] | ./apps/*"})
+		filters, err := filter.ParseFilterQueries(
+			testLogger(),
+			[]string{"[main...HEAD] | ./apps/*"},
+		)
 		require.NoError(t, err)
 
 		refs := filters.UniqueGitFilters().UniqueGitRefs()
@@ -900,58 +937,67 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DependencyGraphExpressions extracts GitExpression target - dependencies only", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"DependencyGraphExpressions extracts GitExpression target - dependencies only",
+		func(t *testing.T) {
+			t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[main...HEAD]..."})
-		require.NoError(t, err)
+			filters, err := filter.ParseFilterQueries(testLogger(), []string{"[main...HEAD]..."})
+			require.NoError(t, err)
 
-		targets := filters.DependencyGraphExpressions()
-		require.Len(t, targets, 1, "Should have one dependency target expression")
+			targets := filters.DependencyGraphExpressions()
+			require.Len(t, targets, 1, "Should have one dependency target expression")
 
-		gitExpr, ok := targets[0].(*filter.GitExpression)
-		require.True(t, ok, "Target should be a GitExpression, got %T", targets[0])
-		assert.Equal(t, "main", gitExpr.FromRef)
-		assert.Equal(t, "HEAD", gitExpr.ToRef)
-	})
+			gitExpr, ok := targets[0].(*filter.GitExpression)
+			require.True(t, ok, "Target should be a GitExpression, got %T", targets[0])
+			assert.Equal(t, "main", gitExpr.FromRef)
+			assert.Equal(t, "HEAD", gitExpr.ToRef)
+		},
+	)
 
-	t.Run("DependentGraphExpressions extracts GitExpression target - dependents only", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"DependentGraphExpressions extracts GitExpression target - dependents only",
+		func(t *testing.T) {
+			t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"...[main...HEAD]"})
-		require.NoError(t, err)
+			filters, err := filter.ParseFilterQueries(testLogger(), []string{"...[main...HEAD]"})
+			require.NoError(t, err)
 
-		targets := filters.DependentGraphExpressions()
-		require.Len(t, targets, 1, "Should have one dependent target expression")
+			targets := filters.DependentGraphExpressions()
+			require.Len(t, targets, 1, "Should have one dependent target expression")
 
-		gitExpr, ok := targets[0].(*filter.GitExpression)
-		require.True(t, ok, "Target should be a GitExpression, got %T", targets[0])
-		assert.Equal(t, "main", gitExpr.FromRef)
-		assert.Equal(t, "HEAD", gitExpr.ToRef)
-	})
+			gitExpr, ok := targets[0].(*filter.GitExpression)
+			require.True(t, ok, "Target should be a GitExpression, got %T", targets[0])
+			assert.Equal(t, "main", gitExpr.FromRef)
+			assert.Equal(t, "HEAD", gitExpr.ToRef)
+		},
+	)
 
-	t.Run("Both graph expressions extract GitExpression target - issue #5307 pattern", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Both graph expressions extract GitExpression target - issue #5307 pattern",
+		func(t *testing.T) {
+			t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(testLogger(), []string{"...[main...HEAD]..."})
-		require.NoError(t, err)
+			filters, err := filter.ParseFilterQueries(testLogger(), []string{"...[main...HEAD]..."})
+			require.NoError(t, err)
 
-		depTargets := filters.DependencyGraphExpressions()
-		require.Len(t, depTargets, 1, "Should have one dependency target expression")
+			depTargets := filters.DependencyGraphExpressions()
+			require.Len(t, depTargets, 1, "Should have one dependency target expression")
 
-		depGitExpr, ok := depTargets[0].(*filter.GitExpression)
-		require.True(t, ok, "Dependency target should be a GitExpression")
-		assert.Equal(t, "main", depGitExpr.FromRef)
-		assert.Equal(t, "HEAD", depGitExpr.ToRef)
+			depGitExpr, ok := depTargets[0].(*filter.GitExpression)
+			require.True(t, ok, "Dependency target should be a GitExpression")
+			assert.Equal(t, "main", depGitExpr.FromRef)
+			assert.Equal(t, "HEAD", depGitExpr.ToRef)
 
-		depentTargets := filters.DependentGraphExpressions()
-		require.Len(t, depentTargets, 1, "Should have one dependent target expression")
+			depentTargets := filters.DependentGraphExpressions()
+			require.Len(t, depentTargets, 1, "Should have one dependent target expression")
 
-		depentGitExpr, ok := depentTargets[0].(*filter.GitExpression)
-		require.True(t, ok, "Dependent target should be a GitExpression")
-		assert.Equal(t, "main", depentGitExpr.FromRef)
-		assert.Equal(t, "HEAD", depentGitExpr.ToRef)
-	})
+			depentGitExpr, ok := depentTargets[0].(*filter.GitExpression)
+			require.True(t, ok, "Dependent target should be a GitExpression")
+			assert.Equal(t, "main", depentGitExpr.FromRef)
+			assert.Equal(t, "HEAD", depentGitExpr.ToRef)
+		},
+	)
 
 	t.Run("UniqueGitFilters extracts GitExpression from all graph positions", func(t *testing.T) {
 		t.Parallel()

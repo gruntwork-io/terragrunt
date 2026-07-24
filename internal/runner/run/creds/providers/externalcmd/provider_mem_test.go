@@ -55,7 +55,11 @@ func TestProviderDirectAWSCredentials(t *testing.T) {
             }
         }`)}
 	})
-	p := externalcmd.NewProvider(logger.CreateLogger(), "/usr/local/bin/auth --account prod", newRunOpts())
+	p := externalcmd.NewProvider(
+		logger.CreateLogger(),
+		"/usr/local/bin/auth --account prod",
+		newRunOpts(),
+	)
 
 	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.NoError(t, err)
@@ -64,7 +68,12 @@ func TestProviderDirectAWSCredentials(t *testing.T) {
 	assert.Equal(t, "AKIA111", creds.Envs["AWS_ACCESS_KEY_ID"])
 	assert.Equal(t, "secret-xyz", creds.Envs["AWS_SECRET_ACCESS_KEY"])
 	assert.Equal(t, "session-abc", creds.Envs["AWS_SESSION_TOKEN"])
-	assert.Equal(t, "session-abc", creds.Envs["AWS_SECURITY_TOKEN"], "AWS_SECURITY_TOKEN must mirror AWS_SESSION_TOKEN")
+	assert.Equal(
+		t,
+		"session-abc",
+		creds.Envs["AWS_SECURITY_TOKEN"],
+		"AWS_SECURITY_TOKEN must mirror AWS_SESSION_TOKEN",
+	)
 }
 
 // TestProviderArbitraryEnvs covers the envs-only branch: arbitrary
@@ -134,7 +143,11 @@ func TestProviderCommandShellwordsParsing(t *testing.T) {
 
 		return vexec.Result{Stdout: []byte(`{"envs": {}}`)}
 	})
-	p := externalcmd.NewProvider(logger.CreateLogger(), `auth --profile "with space" --region us-east-1`, newRunOpts())
+	p := externalcmd.NewProvider(
+		logger.CreateLogger(),
+		`auth --profile "with space" --region us-east-1`,
+		newRunOpts(),
+	)
 
 	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
 	require.NoError(t, err)

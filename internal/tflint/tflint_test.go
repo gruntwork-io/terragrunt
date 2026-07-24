@@ -339,7 +339,11 @@ func TestRunTflintWithOpts_HappyPath(t *testing.T) {
 	assert.Equal(t, "tflint", calls[1].Name)
 
 	// init call carries --init plus the resolved relative paths.
-	assert.Equal(t, []string{"--init", "--config", "./.tflint.hcl", "--chdir", "./unit"}, calls[0].Args)
+	assert.Equal(
+		t,
+		[]string{"--init", "--config", "./.tflint.hcl", "--chdir", "./unit"},
+		calls[0].Args,
+	)
 
 	// lint call: the fixed prefix is deterministic; --var/--var-file order is
 	// map-iteration dependent so check membership separately.
@@ -366,7 +370,11 @@ func TestRunTflintWithOpts_StripsExternalTflintFlag(t *testing.T) {
 	require.NoError(t, runWithOpts(t, fs, exec, &runcfg.Hook{
 		Name:     "tflint",
 		Commands: []string{"plan"},
-		Execute:  []string{"tflint", "--terragrunt-external-tflint", "--minimum-failure-severity=warning"},
+		Execute: []string{
+			"tflint",
+			"--terragrunt-external-tflint",
+			"--minimum-failure-severity=warning",
+		},
 	}, &runcfg.RunConfig{}))
 
 	require.Len(t, calls, 2)

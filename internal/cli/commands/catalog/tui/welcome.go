@@ -130,7 +130,14 @@ func NewWelcomeModel(
 // while discovery runs in the background, then transitions to the component
 // list if components are found. Post-exit messages are written to errWriter
 // after the tea program restores the main terminal.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, errWriter io.Writer, loadFunc LoadFunc) error {
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	errWriter io.Writer,
+	loadFunc LoadFunc,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -172,7 +179,12 @@ func sessionErr(finalModel tea.Model) error {
 
 // Init implements tea.Model. It starts the spinner and kicks off discovery.
 func (m WelcomeModel) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, m.startDiscovery(), m.listenForStatus(), m.listenForComponent())
+	return tea.Batch(
+		m.spinner.Tick,
+		m.startDiscovery(),
+		m.listenForStatus(),
+		m.listenForComponent(),
+	)
 }
 
 // Update implements tea.Model.
@@ -324,7 +336,15 @@ func (m WelcomeModel) discoveryErrorDetail() []string {
 
 func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) {
 	// First component: transition to the catalog list immediately
-	newModel := NewModelStreaming(m.ctx, m.logger, m.venv, m.opts, msg.entry, m.componentCh, m.errCh)
+	newModel := NewModelStreaming(
+		m.ctx,
+		m.logger,
+		m.venv,
+		m.opts,
+		msg.entry,
+		m.componentCh,
+		m.errCh,
+	)
 	width, height := m.width, m.height
 
 	initCmds := []tea.Cmd{newModel.Init()}

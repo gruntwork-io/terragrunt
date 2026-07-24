@@ -47,7 +47,13 @@ func TestAwsExampleLiveStacks(t *testing.T) {
 		"https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example.git",
 		repoDir,
 	)
-	helpers.ExecWithTestLogger(t, repoDir, "git", "checkout", "3649bd95c93074e6a3742bc5122e411505c24c3a")
+	helpers.ExecWithTestLogger(
+		t,
+		repoDir,
+		"git",
+		"checkout",
+		"3649bd95c93074e6a3742bc5122e411505c24c3a",
+	)
 
 	helpers.ExecWithTestLogger(t, repoDir, "mise", "trust")
 	helpers.ExecWithTestLogger(t, repoDir, "mise", "install")
@@ -59,7 +65,11 @@ func TestAwsExampleLiveStacks(t *testing.T) {
 	require.Contains(t, stdout, "OpenTofu")
 
 	region := "us-east-1"
-	stateBucketName := fmt.Sprintf("tg-test-%s-terragrunt-example-tf-state-non-prod-%s", uniqueID, region)
+	stateBucketName := fmt.Sprintf(
+		"tg-test-%s-terragrunt-example-tf-state-non-prod-%s",
+		uniqueID,
+		region,
+	)
 
 	defer helpers.DeleteS3Bucket(t, region, stateBucketName)
 
@@ -94,7 +104,13 @@ func TestAwsExampleLiveStacks(t *testing.T) {
 	)
 
 	serviceDir := filepath.Join(stackDir, ".terragrunt-stack", "service")
-	stdoutOutput, _ := helpers.ExecWithMiseAndCaptureOutput(t, serviceDir, "terragrunt", "output", "-json")
+	stdoutOutput, _ := helpers.ExecWithMiseAndCaptureOutput(
+		t,
+		serviceDir,
+		"terragrunt",
+		"output",
+		"-json",
+	)
 
 	var outputs map[string]helpers.TerraformOutput
 	require.NoError(t, json.Unmarshal([]byte(stdoutOutput), &outputs))
@@ -145,7 +161,14 @@ func TestAwsExampleLiveStacks(t *testing.T) {
 		t.Logf("GET attempt %d/%d: err=%v, retrying in %s", i+1, maxRetries, err, retryDelay)
 		time.Sleep(retryDelay)
 
-		require.Less(t, i, maxRetries-1, "Failed to reach Lambda function URL after %d retries: %v", maxRetries, err)
+		require.Less(
+			t,
+			i,
+			maxRetries-1,
+			"Failed to reach Lambda function URL after %d retries: %v",
+			maxRetries,
+			err,
+		)
 	}
 
 	t.Log("POST to increment count")
@@ -168,7 +191,12 @@ func TestAwsExampleLiveStacks(t *testing.T) {
 	postCountVal, ok := postCount.(float64)
 	require.True(t, ok, "Expected 'count' to be a number in POST response")
 
-	assert.Equal(t, int(initialCount)+1, int(postCountVal), "Expected count to increment by 1 after POST")
+	assert.Equal(
+		t,
+		int(initialCount)+1,
+		int(postCountVal),
+		"Expected count to increment by 1 after POST",
+	)
 	t.Logf("Post-increment count: %v", postCountVal)
 
 	t.Log("GET to verify persisted count")
@@ -191,6 +219,11 @@ func TestAwsExampleLiveStacks(t *testing.T) {
 	finalCountVal, ok := finalCount.(float64)
 	require.True(t, ok, "Expected 'count' to be a number in final GET response")
 
-	assert.Equal(t, int(postCountVal), int(finalCountVal), "Expected final GET count to match POST count")
+	assert.Equal(
+		t,
+		int(postCountVal),
+		int(finalCountVal),
+		"Expected final GET count to match POST count",
+	)
 	t.Logf("Final verified count: %v", finalCountVal)
 }

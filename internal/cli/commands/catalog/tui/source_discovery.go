@@ -13,8 +13,18 @@ import (
 // DiscoverSourceURLs walks the project tree starting from pctx.RootWorkingDir,
 // finds all terragrunt.hcl files, parses them to extract terraform.source URLs,
 // normalizes them to repo-level URLs, and returns a deduplicated list.
-func DiscoverSourceURLs(ctx context.Context, l log.Logger, pctx *config.ParsingContext) ([]string, error) {
-	configFiles, err := config.FindConfigFilesInPath(pctx.RootWorkingDir, pctx.Experiments, config.DefaultTerragruntConfigPath, nil, "")
+func DiscoverSourceURLs(
+	ctx context.Context,
+	l log.Logger,
+	pctx *config.ParsingContext,
+) ([]string, error) {
+	configFiles, err := config.FindConfigFilesInPath(
+		pctx.RootWorkingDir,
+		pctx.Experiments,
+		config.DefaultTerragruntConfigPath,
+		nil,
+		"",
+	)
 	if err != nil {
 		return nil, err
 	}
