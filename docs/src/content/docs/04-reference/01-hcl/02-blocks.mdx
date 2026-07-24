@@ -1660,6 +1660,8 @@ The `errors` block contains all the configurations for handling errors.
 
 It supports different nested configuration blocks like `retry` and `ignore` to define specific error-handling strategies.
 
+When multiple rules are defined, `ignore` rules are evaluated before `retry` rules, and the first rule whose patterns match determines the outcome.
+
 ### Retry Configuration
 
 The `retry` block within the `errors` block defines rules for retrying operations when specific errors occur.
@@ -1684,6 +1686,8 @@ Parameters:
 - `retryable_errors`: A list of regex patterns to match errors that are eligible to be retried.
 
   e.g. `".*Error: transient.*"` matches errors containing `Error: transient`.
+
+  Patterns are matched against the failed command's output and the underlying error. <Before version="1.1.2">Only `stderr` and the underlying error are considered.</Before><Since version="1.1.2">Both `stdout` and `stderr` are considered, so diagnostics that OpenTofu/Terraform emit on `stdout` — for example, remote/cloud-backend runs that stream the remote log to `stdout` — are matched.</Since> The command line itself — the binary and its flags — is excluded, so flag names such as `-lock-timeout` do not cause spurious matches.
 
 - `max_attempts`: The maximum number of retry attempts.
 
@@ -1722,6 +1726,7 @@ Parameters:
 - `ignorable_errors`: A list of regex patterns to define errors to ignore.
   - `"Error: safe-to-ignore.*"`: Ignores errors containing `Error: safe-to-ignore`.
   - `"!Error: critical.*"`: Ensures errors containing `Error: critical` are not ignored.
+  - Patterns are matched against the same content as `retryable_errors` (see above), excluding the command line and its flags.
 - `message` (Optional): A warning message displayed when an error is ignored.
   - Example: `"Ignoring safe-to-ignore errors"`.
 - `signals` (Optional): Key-value pairs used to emit signals to external systems.
