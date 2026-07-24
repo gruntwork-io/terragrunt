@@ -57,6 +57,7 @@ type RemoteStateConfigGCS struct {
 
 	ImpersonateServiceAccount          string   `mapstructure:"impersonate_service_account"`
 	ImpersonateServiceAccountDelegates []string `mapstructure:"impersonate_service_account_delegates"`
+	StorageCustomEndpoint              string   `mapstructure:"storage_custom_endpoint"`
 }
 
 // CacheKey returns a unique key for the given GCS config that can be used to cache the initialization.
@@ -71,5 +72,6 @@ func (cfg *ExtendedRemoteStateConfigGCS) GetGCPSessionConfig() *gcphelper.GCPSes
 		AccessToken:                        cfg.RemoteStateConfigGCS.AccessToken,
 		ImpersonateServiceAccount:          cfg.RemoteStateConfigGCS.ImpersonateServiceAccount,
 		ImpersonateServiceAccountDelegates: cfg.RemoteStateConfigGCS.ImpersonateServiceAccountDelegates,
+		StorageCustomEndpoint:              cfg.RemoteStateConfigGCS.StorageCustomEndpoint,
 	}
 }

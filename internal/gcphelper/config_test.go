@@ -221,3 +221,20 @@ func TestGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
+
+func TestCreateGcpConfigWithCustomEndpoint(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	env := map[string]string{}
+
+	gcpCfg := &gcphelper.GCPSessionConfig{
+		StorageCustomEndpoint: "https://custom-gcs.example.com",
+	}
+
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(gcpCfg).WithEnv(env).Build(ctx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, clientOpts)
+}
+
