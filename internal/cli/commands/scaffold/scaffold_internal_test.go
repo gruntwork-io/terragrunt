@@ -35,9 +35,9 @@ func TestRewriteModuleURLSkipsRegexForNonGitSSHRewrite(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 
 	testCases := []struct {
+		vars      map[string]any
 		name      string
 		moduleURL string
-		vars      map[string]any
 	}{
 		{
 			name:      "tfr scheme, default SourceUrlType",
