@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### `run --all` no longer crashes when a Git filter's diff deletes a unit another unit depends on
+
+Running `run --all` with a Git-range filter (for example `...[main...HEAD]...`) crashed the entire invocation when the diff deleted a unit's directory while another live unit still had a `dependency` block pointing at it. The error reported the deleted dependency's path ("does not contain a terragrunt.hcl file") rather than the unit referencing it, and `find`/`list` reported the same filter as healthy right before the crash, making the failure hard to diagnose in CI.
+
+Dependency discovery in a Git filter context now treats a dependency whose config was deleted in the diff the same way `find` and `list` already did: the reference is skipped instead of failing the run. The live unit runs normally (falling back to `mock_outputs` where configured), and the deleted unit still receives its destroy plan from the `from` side of the diff when `--filter-allow-destroy` is set. Outside of Git filters, a dangling `config_path` keeps failing the run as before.

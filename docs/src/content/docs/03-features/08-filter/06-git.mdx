@@ -126,6 +126,12 @@ This is a safeguard to prevent unintended destruction of infrastructure.
 
 </Aside>
 
+<Aside type="note" title="Dependencies deleted in the diff">
+
+When the diff deletes a unit's directory while a live unit still references it via a `dependency` block, the dangling reference does not fail the run. The live unit runs normally, falling back to `mock_outputs` where configured, and the deleted unit still receives its destroy plan from the `from` side of the diff when `--filter-allow-destroy` is set.
+
+</Aside>
+
 ## The `--filter-affected` flag
 
 For the common use case of comparing the default branch (typically `main`) with `HEAD`, you can use the `--filter-affected` flag as a convenient shorthand:

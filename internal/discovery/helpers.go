@@ -127,6 +127,33 @@ func isExternal(workingDir string, componentPath string) bool {
 	return relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator))
 }
 
+// inGitFilterContext reports whether this discovery evaluates Git filter expressions,
+// either directly or as a worktree sub-discovery (identified by a Git ref on its
+// discovery context).
+func (d *Discovery) inGitFilterContext() bool {
+	if len(d.gitExpressions) > 0 {
+		return true
+	}
+
+	return d.discoveryContext != nil && d.discoveryContext.Ref != ""
+}
+
+// skipMissingDependencyConfig reports whether a parse failure for a dependency reached
+// during relationship or graph traversal should be skipped instead of failing discovery.
+// Only missing-config errors qualify, and only in a Git filter context: a diff
+// legitimately deletes unit directories that live units still reference, and find/list
+// already tolerate those. Without Git filters a dangling config_path keeps failing the
+// run, as it always has.
+func (d *Discovery) skipMissingDependencyConfig(err error) bool {
+	if !d.inGitFilterContext() {
+		return false
+	}
+
+	var notFoundErr config.TerragruntConfigNotFoundError
+
+	return errors.As(err, &notFoundErr)
+}
+
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.

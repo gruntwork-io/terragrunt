@@ -286,6 +286,14 @@ func (p *GraphPhase) discoverDependencies(
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependencies)
 
 	if err := ensureParsed(ctx, l, v, c, state.opts, state.discovery); err != nil {
+		// Defensive: resolveDependency already filters missing configs before
+		// publishing, so this only fires for a traversal root deleted in the diff.
+		if state.discovery.skipMissingDependencyConfig(err) {
+			l.Debugf("Skipping dependency traversal for %s: config not found", c.Path())
+
+			return nil
+		}
+
 		return err
 	}
 
@@ -316,7 +324,7 @@ func (p *GraphPhase) discoverDependencies(
 	for _, depPath := range depPaths {
 		g.Go(func() error {
 			depComponent, err := p.resolveDependency(
-				c, depPath, state.threadSafeComponents,
+				ctx, l, v, state, c, depPath,
 			)
 			if err != nil {
 				errMu.Lock()
@@ -793,11 +801,17 @@ func (p *GraphPhase) processUpstreamCandidate(
 	return nil
 }
 
-// resolveDependency resolves a dependency path to a component.
+// resolveDependency resolves a dependency path to a component and links it to the
+// parent. It returns nil (no error) for a dependency deleted in the diff: even a
+// bare edge would resurrect it through graph-expression evaluation, so it is
+// skipped entirely.
 func (p *GraphPhase) resolveDependency(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	state *graphTraversalState,
 	parent component.Component,
 	depPath string,
-	threadSafeComponents *component.ThreadSafeComponents,
 ) (component.Component, error) {
 	parentCtx := parent.DiscoveryContext()
 	if parentCtx == nil {
@@ -808,11 +822,23 @@ func (p *GraphPhase) resolveDependency(
 		return nil, NewMissingWorkingDirectoryError(parent.Path())
 	}
 
-	depComponent := componentFromDependencyPath(depPath, threadSafeComponents)
+	depComponent := componentFromDependencyPath(depPath, state.threadSafeComponents)
+
+	// Other parse errors are deliberately not returned here; recursion into the
+	// dependency surfaces them, as before.
+	if err := ensureParsed(ctx, l, v, depComponent, state.opts, state.discovery); err != nil {
+		if state.discovery.skipMissingDependencyConfig(err) {
+			l.Debugf("Skipping dependency %s of %s: config not found", depPath, parent.Path())
+
+			return nil, nil
+		}
+
+		l.Debugf("Deferring parse error for %s to recursion: %v", depPath, err)
+	}
 
 	assignGraphDiscoveryContext(depComponent, parentCtx, depPath)
 
-	addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
+	addedComponent, _ := state.threadSafeComponents.EnsureComponent(depComponent)
 
 	parent.AddDependency(addedComponent)
 
