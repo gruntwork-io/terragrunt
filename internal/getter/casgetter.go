@@ -402,33 +402,31 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	return clone.String()
 }
 
-// GitURLParams lifts the go-getter query parameters CAS understands (ref,
-// depth) out of u via [cas.StripGitURLParams] and returns them alongside the
-// clone URL normalized by [GitCloneURL]. Both are go-getter parameters rather
-// than native git URL parameters, so they must not survive into the URL handed
-// to git: git would treat a trailing "?depth=1" as part of the repository name
-// and reject the clone (#6512). u is not mutated.
-func GitURLParams(u *url.URL) (cloneURL, ref string, depth int) {
+// GitURLParams lifts the go-getter query parameters CAS consumes (ref, depth)
+// out of u via [cas.StripGitURLParams] and returns the ref alongside the clone
+// URL normalized by [GitCloneURL]. Neither is a native git URL parameter, so
+// they must not survive into the URL handed to git: git would treat a trailing
+// "?depth=1" as part of the repository name and reject the clone (#6512). The
+// depth value is dropped rather than honored — see [cas.StripGitURLParams].
+// u is not mutated.
+func GitURLParams(u *url.URL) (cloneURL, ref string) {
 	clone := *u
-	ref, depth = cas.StripGitURLParams(&clone)
+	ref = cas.StripGitURLParams(&clone)
 
-	return GitCloneURL(clone.String()), ref, depth
+	return GitCloneURL(clone.String()), ref
 }
 
 // getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and
-// depth query parameters out of the URL (see [GitURLParams]). A depth
-// supplied on the source URL overrides the ambient clone depth.
+// depth query parameters out of the URL (see [GitURLParams]). The clone depth
+// comes from the ambient --cas-clone-depth, which as a CLI argument takes
+// precedence over any depth on the configured source URL.
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
-	cloneURL, ref, depth := GitURLParams(req.URL())
-
-	if depth == 0 {
-		depth = g.Opts.Depth
-	}
+	cloneURL, ref := GitURLParams(req.URL())
 
 	return g.CAS.Clone(ctx, g.Logger, g.Venv, cloneURL,
 		cas.WithDir(req.Dst),
 		cas.WithBranch(ref),
-		cas.WithDepth(depth),
+		cas.WithDepth(g.Opts.Depth),
 		cas.WithMutable(g.Opts.Mutable),
 		cas.WithIncludedGitFiles(g.Opts.IncludedGitFiles))
 }

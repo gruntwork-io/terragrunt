@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-getter/v2"
@@ -55,32 +54,31 @@ func DetectRemoteSource(src string) (string, error) {
 	return src, nil
 }
 
-// StripGitURLParams removes the go-getter query parameters CAS understands
-// (ref, depth) from u and returns their values. Both are go-getter parameters
-// rather than native git URL parameters, so they must not survive into the URL
-// handed to git: git would treat a trailing "?depth=1" as part of the
-// repository name and reject the clone (#6512). ref selects the revision to
-// check out; depth requests a shallow clone. depth is 0 when absent or not a
-// positive integer, matching go-getter's own git getter. u is mutated: its
-// RawQuery is rewritten with ref and depth removed.
-func StripGitURLParams(u *url.URL) (ref string, depth int) {
+// StripGitURLParams removes the go-getter query parameters CAS consumes (ref,
+// depth) from u and returns the ref. Neither is a native git URL parameter, so
+// they must not survive into the URL handed to git: git would treat a trailing
+// "?depth=1" as part of the repository name and reject the clone (#6512).
+//
+// ref selects the revision to check out. depth is dropped rather than honored:
+// clone depth is a CLI concern (--cas-clone-depth), and CLI arguments take
+// precedence over configuration throughout Terragrunt, so a depth on a
+// configured source URL never overrides the ambient depth.
+//
+// u is mutated: its RawQuery is rewritten with both parameters removed.
+func StripGitURLParams(u *url.URL) string {
 	q := u.Query()
 	if len(q) == 0 {
-		return "", 0
+		return ""
 	}
 
-	ref = q.Get("ref")
+	ref := q.Get("ref")
+
 	q.Del("ref")
-
-	if n, err := strconv.Atoi(q.Get("depth")); err == nil && n > 0 {
-		depth = n
-	}
-
 	q.Del("depth")
 
 	u.RawQuery = q.Encode()
 
-	return ref, depth
+	return ref
 }
 
 // StackCASResult holds the results of CAS processing for a stack component.
@@ -130,7 +128,7 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("failed to parse source URL %q: %w", detectedURL, err)
 	}
 
-	ref, depth := StripGitURLParams(parsedURL)
+	ref := StripGitURLParams(parsedURL)
 
 	cleanURL := strings.TrimPrefix(parsedURL.String(), "git::")
 
@@ -160,11 +158,9 @@ func (c *CAS) ProcessStackComponent(
 
 	cloneDir := filepath.Join(tempDir, "repo")
 
-	// A depth on the source URL overrides the ambient clone depth; when
-	// absent (depth == 0), resolveCloneDepth falls back to c.cloneDepth.
 	if err := c.Clone(ctx, l, v, cleanURL, WithDir(cloneDir),
 		WithBranch(ref),
-		WithDepth(depth)); err != nil {
+		WithDepth(c.cloneDepth)); err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to CAS clone %q: %w", cleanURL, err)
