@@ -27,6 +27,6 @@ When passing a negative value, use the `--cas-clone-depth=-1` form so the leadin
 
 <Since version="1.1.2">
 
-This flag sets the ambient depth for all CAS Git clones. An individual source can override it with a [`depth` query parameter](/features/caching/cas/git#source-url-parameters) on its URL (for example `...vpc.git?depth=1`); a positive URL `depth` takes precedence over this flag for that source.
+This flag sets the depth for all CAS Git clones. A [`depth` query parameter](/features/caching/cas/git#source-url-parameters) on a source URL (for example `...vpc.git?depth=1`) is stripped before `git` is invoked but does not change the depth: as a CLI argument, this flag takes precedence over the configured source URL.
 
 </Since>

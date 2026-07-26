@@ -245,16 +245,17 @@ func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
 	assert.Equal(t, "# tagged", string(content))
 }
 
-// TestCASClone_E2E_URLDepthOverridesAmbientFullHistory pins the headline
-// behavior of #6512's fix: a depth on the source URL overrides the ambient CAS
-// clone depth. Its sibling TestCASClone_E2E_DepthQueryParamWithTag leaves the
-// ambient at the CAS default of 1, where ?depth=1 is indistinguishable from no
-// depth at all — that test would pass even if depth were parsed and thrown
-// away. Here the ambient is full history (WithCloneDepth(-1)), so ?depth=1 can
-// only produce a shallow fetch if the URL value actually took effect. The
-// shallow fetch is observed via the `shallow` marker git writes into the
-// central store's bare repo on a --depth fetch.
-func TestCASClone_E2E_URLDepthOverridesAmbientFullHistory(t *testing.T) {
+// TestCASClone_E2E_AmbientDepthBeatsURLDepth pins the precedence between the
+// two depth inputs: --cas-clone-depth is a CLI argument and a source URL's
+// ?depth= comes from configuration, so the CLI value wins — the URL parameter
+// is stripped (see #6512) and discarded, never applied. Its sibling
+// TestCASClone_E2E_DepthQueryParamWithTag leaves the ambient at the CAS default
+// of 1, where ?depth=1 is indistinguishable from no depth at all. Here the
+// ambient is full history (WithCloneDepth(-1)) against ?depth=1, so the two
+// inputs disagree and only the winner is observable: full history leaves no
+// `shallow` marker in the central store's bare repo, which a --depth fetch
+// would have written.
+func TestCASClone_E2E_AmbientDepthBeatsURLDepth(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
@@ -263,11 +264,11 @@ func TestCASClone_E2E_URLDepthOverridesAmbientFullHistory(t *testing.T) {
 	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# tagged"), "tagged content"))
 	require.NoError(t, srv.Tag(t.Context(), "v1.0.0"))
 	// The tagged commit already has the README commit as its parent, so a
-	// --depth 1 fetch of the tag truncates that ancestor and git writes the
-	// `shallow` marker this test asserts on. This extra commit advances main
-	// past the tag so the tag sits behind HEAD, which is what makes the
-	// "# tagged" content assertion below discriminating: without it HEAD would
-	// equal the tag and a wrong-ref checkout could not be detected.
+	// --depth 1 fetch of the tag would truncate that ancestor and make git
+	// write the `shallow` marker this test asserts is absent. This extra commit
+	// advances main past the tag so the tag sits behind HEAD, which is what
+	// makes the "# tagged" content assertion below discriminating: without it
+	// HEAD would equal the tag and a wrong-ref checkout could not be detected.
 	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# newer"), "post-tag commit"))
 
 	repoURL, err := srv.Start(t.Context())
@@ -276,7 +277,7 @@ func TestCASClone_E2E_URLDepthOverridesAmbientFullHistory(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	// Ambient depth is full history; only a URL depth can force a shallow clone.
+	// Ambient depth is full history, standing in for --cas-clone-depth=-1.
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
@@ -299,13 +300,12 @@ func TestCASClone_E2E_URLDepthOverridesAmbientFullHistory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "# tagged", string(content))
 
-	// ...and the central store's bare repo is shallow, which can only happen
-	// if the URL's depth=1 overrode the ambient full-history setting. A
-	// strip-and-discard implementation would fetch full history and leave no
-	// `shallow` marker.
+	// ...and the central store's bare repo is not shallow: the ambient full
+	// history won. An implementation that honored the URL's depth=1 would have
+	// fetched shallowly and left a `shallow` marker behind.
 	bareRepo := singleGitStoreRepo(t, filepath.Join(storePath, "git"))
-	assert.FileExists(t, filepath.Join(bareRepo, "shallow"),
-		"URL depth=1 must force a shallow fetch even when the ambient clone depth is full history")
+	assert.NoFileExists(t, filepath.Join(bareRepo, "shallow"),
+		"the ambient clone depth must win over a URL depth=1, leaving the fetch unshallowed")
 }
 
 // singleGitStoreRepo returns the bare-repo path of the one per-URL entry in
