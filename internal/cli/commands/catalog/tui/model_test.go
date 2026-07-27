@@ -285,7 +285,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 // TestModelEnterOnPagerLaunchesInteractiveFormWithRacing asserts that once the user
 // has opened a component's README (PagerState), pressing enter on the
 // default-focused Scaffold button takes the interactive form path, the
-// same as pressing `s`. The placeholder flow stays reachable via `S`.
+// same as pressing `s`. The placeholder flow stays reachable via ctrl+d.
 func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -339,6 +339,54 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 
 		assert.Equal(t, tui.FormState, finalModel.State,
 			"enter on the pager's Scaffold button should transition to FormState")
+	})
+}
+
+// TestModelCtrlDOnPagerScaffoldsImmediatelyWithRacing asserts that ctrl+d on
+// the pager skips the form entirely: the session jumps straight to
+// ScaffoldState so the placeholder flow runs without value collection.
+func TestModelCtrlDOnPagerScaffoldsImmediatelyWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		fsys := vfs.NewMemMapFS()
+		repoDir := testRepoDir
+
+		unitBody := `locals {
+  region = values.region
+}
+` + "\n"
+		writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+
+		repo := newFakeRepo(t, fsys, repoDir)
+
+		components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+		require.NoError(t, err)
+		require.Len(t, components, 1)
+
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		opts.WorkingDir = t.TempDir()
+
+		entry := tui.NewComponentEntry(components[0]).WithSource("github.com/gruntwork-io/fake-repo")
+
+		componentCh := make(chan *tui.ComponentEntry)
+		close(componentCh)
+
+		m := tui.NewModelStreaming(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, entry, componentCh, nil)
+
+		// First enter: list → pager. Then ctrl+d: pager → immediate
+		// placeholder scaffold, no form in between.
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+			tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl},
+		}
+
+		finalModel := driveModel(t, m, 120, 40, msgs).(tui.Model)
+
+		assert.Equal(t, tui.ScaffoldState, finalModel.State,
+			"ctrl+d on the pager should skip the form and enter ScaffoldState")
 	})
 }
 

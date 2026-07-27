@@ -150,6 +150,8 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.pagerKeys.ScaffoldInteractive):
 			return enterFormState(m, m.selectedComponent, PagerState)
+		case key.Matches(msg, m.pagerKeys.ScaffoldImmediate):
+			return startPlaceholderScaffold(m, m.selectedComponent)
 		case key.Matches(msg, m.pagerKeys.ToggleWrap):
 			m.softWrap = !m.softWrap
 			m.mdRenderer = nil
@@ -233,6 +235,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.width = msg.Width
 		m.height = msg.Height
+
+		// Without a width the help line overflows and the terminal clips
+		// it mid-entry; with one, help truncates whole entries with "…".
+		m.pagerKeys.HelpModel.SetWidth(msg.Width - h)
 
 		viewportHeight := msg.Height - v - lipgloss.Height(m.footerView())
 
@@ -775,6 +781,39 @@ func (m *Model) abandonForm() {
 
 	m.form = nil
 	m.valuesRefs = nil
+}
+
+// startPlaceholderScaffold transitions straight from the pager to
+// ScaffoldState, skipping the form: module and template inputs all land as
+// `# TODO` lines, and unit/stack values stubs get the full TODO treatment.
+func startPlaceholderScaffold(m Model, c *Component) (tea.Model, tea.Cmd) {
+	m.State = ScaffoldState
+
+	if c.Kind.IsCopyable() {
+		return m, copyComponentPlaceholderCmd(m.logger, m, c)
+	}
+
+	return m, scaffoldComponentPlaceholderCmd(m.logger, m, c)
+}
+
+// scaffoldComponentPlaceholderCmd schedules a planless scaffold run, which
+// downloads the source itself and emits TODO placeholders for every input.
+func scaffoldComponentPlaceholderCmd(l log.Logger, m Model, c *Component) tea.Cmd {
+	cmd := newScaffoldCmd(l, m.venv, m.terragruntOptions, c)
+
+	return tea.Exec(cmd, func(err error) tea.Msg {
+		return ScaffoldFinishedMsg{Err: err, Interactive: false}
+	})
+}
+
+// copyComponentPlaceholderCmd schedules the unit/stack copy without any
+// user-supplied values, so the values stub falls back to TODO placeholders.
+func copyComponentPlaceholderCmd(l log.Logger, m Model, c *Component) tea.Cmd {
+	cmd := NewCopyCmd(l, m.terragruntOptions, c)
+
+	return tea.Exec(cmd, func(err error) tea.Msg {
+		return CopyFinishedMsg{Err: err, Result: cmd.Result(), Interactive: false}
+	})
 }
 
 // scaffoldComponentWithPlanCmd schedules the prepared plan's Generate
