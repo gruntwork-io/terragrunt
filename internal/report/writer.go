@@ -448,22 +448,20 @@ func WriteSchema(w io.Writer) error {
 //
 //   - Otherwise, return the path relative to the working directory, with any leading slashes removed.
 func nameOfPath(path string, workingDir string) string {
-	// If the path is the same as the working directory,
-	// return the base name of the path.
 	if path == workingDir {
 		return filepath.Base(path)
 	}
 
-	// If the path is not a subdirectory of the working directory,
-	// return the path as is.
-	if !strings.HasPrefix(path, workingDir) {
+	prefix := workingDir
+	if !strings.HasSuffix(prefix, string(os.PathSeparator)) {
+		prefix += string(os.PathSeparator)
+	}
+
+	if !strings.HasPrefix(path, prefix) {
 		return path
 	}
 
-	path = strings.TrimPrefix(path, workingDir)
-	path = strings.TrimPrefix(path, string(os.PathSeparator))
-
-	return path
+	return strings.TrimPrefix(path, prefix)
 }
 
 // effectiveWorkingDir returns the working directory to use for path computation.
