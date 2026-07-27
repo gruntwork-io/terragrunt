@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !windows && tf
 
 package test_test
 
@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCASGitSourceRefOptionInjection checks a git source ?ref= never runs a command during download.
-func TestCASGitSourceRefOptionInjection(t *testing.T) {
+// TestTFCASGitSourceRefOptionInjection checks a git source ?ref= never runs a command during download.
+func TestTFCASGitSourceRefOptionInjection(t *testing.T) {
 	t.Parallel()
 
 	marker := filepath.Join(helpers.TmpDirWOSymlinks(t), "injected")

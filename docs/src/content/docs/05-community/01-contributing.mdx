@@ -213,6 +213,14 @@ In general, we try to make sure that any test that requires a build tag is also 
 
 For example, all AWS tests are prefixed with `TestAws*`.
 
+The largest group of opt-in tests are the ones that drive a real OpenTofu or Terraform binary. They're prefixed with `TestTF*` and tagged with the `tf` build tag:
+
+```bash
+go test -tags=tf -run 'TestTF*' ./...
+```
+
+Without that tag, `go test ./...` only runs the tests that Terragrunt can satisfy on its own, so the suite stays green in an environment with no OpenTofu or Terraform installed. Add the tag whenever you touch behavior that reaches the binary.
+
 Terragrunt also includes integration tests for Google Cloud Platform (GCP). These tests are prefixed with `TestGcp*` and are tagged with the `gcp` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable, similar to AWS tests:
 
 ```bash

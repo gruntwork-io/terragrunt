@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -19,12 +21,12 @@ const (
 	testFixtureProviderCacheWeakConstraint = "fixtures/provider-cache/weak-constraint"
 )
 
-// TestTerragruntProviderCacheWeakConstraint tests that provider cache preserves
+// TestTFTerragruntProviderCacheWeakConstraint tests that provider cache preserves
 // module constraints instead of pinning exact versions in .terraform.lock.hcl files.
 // Reproduces and validates the fix for GitHub issue #4512.
 //
 //nolint:paralleltest,tparallel
-func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
+func TestTFTerragruntProviderCacheWeakConstraint(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheWeakConstraint)
