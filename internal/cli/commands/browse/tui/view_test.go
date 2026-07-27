@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -66,6 +67,27 @@ func TestTinyTerminalRendersWithoutGarbling(t *testing.T) {
 	// full-width rows from negative pane sizes.
 	content := m.View().Content
 	assert.NotContains(t, content, "dir-000/")
+}
+
+func TestNarrowTerminalClipsHeaderAndFooter(t *testing.T) {
+	t.Parallel()
+
+	const (
+		width  = 40
+		height = 20
+	)
+
+	deep := "/repo/" + strings.Repeat("a-very-long-directory-name/", 5)
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll(deep, 0o755))
+
+	m := newModel(t, fs, tui.NewRoot(deep), tui.ColorDisabled)
+	m = update(t, m, tea.WindowSizeMsg{Width: width, Height: height})
+
+	content := m.View().Content
+	assert.Equal(t, width, lipgloss.Width(content), "a long path and the help line must be clipped, not wrapped")
+	assert.Equal(t, height, lipgloss.Height(content), "wrapping the header or footer must not push the layout down")
 }
 
 func TestPageKeysMoveByAPage(t *testing.T) {

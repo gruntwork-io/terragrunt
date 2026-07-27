@@ -71,7 +71,7 @@ func (m Model) View() tea.View {
 	}
 
 	header := m.headerView()
-	footer := helpStyle.Render(m.footerView())
+	footer := m.footerView()
 
 	sideWidth, previewWidth, paneHeight := m.paneSizes(header, footer)
 
@@ -105,9 +105,9 @@ func (m Model) View() tea.View {
 // The rendered header and footer are passed in so a single View() renders them
 // once and reuses them for both measurement and display.
 func (m Model) paneSizes(header, footer string) (sideWidth, previewWidth, paneHeight int) {
-	frameH, frameV := appStyle.GetFrameSize()
+	_, frameV := appStyle.GetFrameSize()
 
-	content := max(m.width-frameH, 0)
+	content := m.contentWidth()
 	sideWidth = content / 4 //nolint:mnd
 	previewWidth = content - sideWidth*(columnCount-1)
 
@@ -116,10 +116,18 @@ func (m Model) paneSizes(header, footer string) (sideWidth, previewWidth, paneHe
 	return sideWidth, previewWidth, paneHeight
 }
 
+// contentWidth returns the horizontal space the rendered body has to fit in:
+// the terminal width less the app's own padding, clamped to zero.
+func (m Model) contentWidth() int {
+	frameH, _ := appStyle.GetFrameSize()
+
+	return max(m.width-frameH, 0)
+}
+
 // measuredPaneSizes renders the header and footer solely to measure the pane
 // height, for the Update-path callers that need sizes outside a View() render.
 func (m Model) measuredPaneSizes() (sideWidth, previewWidth, paneHeight int) {
-	return m.paneSizes(m.headerView(), helpStyle.Render(m.footerView()))
+	return m.paneSizes(m.headerView(), m.footerView())
 }
 
 // paneInterior returns the text area inside a pane of the given total size,
@@ -259,6 +267,18 @@ func (m Model) renderPreview(paneWidth, paneHeight int) string {
 	return paneStyle(paneWidth, paneHeight).Render(m.previewContent(m.Selected(), width, height))
 }
 
+// clipWidth truncates each line of s to width cells. Anything wider wraps onto
+// another line and pushes the rest of the layout down. The line count is left
+// intact, so callers measuring the result still see its true height.
+func clipWidth(s string, width int) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = ansi.Truncate(line, width, "")
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // headerView renders the path bar: the absolute path of the highlighted entry
 // (or the current directory when nothing is highlighted), with the home
 // directory abbreviated to ~.
@@ -268,7 +288,7 @@ func (m Model) headerView() string {
 		target = sel
 	}
 
-	return headerStyle.Render(abbreviatePath(m.home, target.absPath))
+	return clipWidth(headerStyle.Render(abbreviatePath(m.home, target.absPath)), m.contentWidth())
 }
 
 // abbreviatePath replaces a leading home directory with ~. An empty home or a
@@ -542,7 +562,7 @@ func (m Model) footerView() string {
 		footer += "  •  discovering…"
 	}
 
-	return footer
+	return clipWidth(helpStyle.Render(footer), m.contentWidth())
 }
 
 // searchPrompt renders the live search input, followed by a match count once

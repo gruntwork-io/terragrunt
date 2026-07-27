@@ -65,26 +65,25 @@ func (d *discovered) computeCounts(root *Node) {
 	counts := make(map[string]dirCount)
 
 	for path, c := range d.index {
-		isStack := c.Kind() == component.StackKind
+		delta := dirCount{units: 1}
+		if c.Kind() == component.StackKind {
+			delta = dirCount{stacks: 1}
+		}
 
 		// Attribute the component to its own directory and every ancestor up to
 		// the root, walking with filepath.Dir so the filesystem root is handled
 		// without the trailing-separator special case a prefix test would need.
 		for p := path; ; p = filepath.Dir(p) {
 			dc := counts[p]
-			if isStack {
-				dc.stacks++
-			} else {
-				dc.units++
-			}
-
+			dc.units += delta.units
+			dc.stacks += delta.stacks
 			counts[p] = dc
 
 			if p == root.absPath {
 				break
 			}
 
-			if parent := filepath.Dir(p); parent == p {
+			if filepath.Dir(p) == p {
 				break
 			}
 		}

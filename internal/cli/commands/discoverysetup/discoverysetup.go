@@ -34,7 +34,7 @@ func Worktrees(
 	})
 	if err != nil {
 		return d, func(context.Context) {
-			// No-op
+			// Nothing was checked out, so there is nothing to clean up.
 		}, fmt.Errorf("failed to create worktrees: %w", err)
 	}
 
