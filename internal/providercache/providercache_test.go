@@ -137,8 +137,8 @@ func TestProviderCache(t *testing.T) {
 			expectedBodyReg: regexp.MustCompile(
 				`\{.*` + regexp.QuoteMeta(
 					`"download_url":"http://127.0.0.1:`,
-				) + `\d+` + regexp.QuoteMeta(
-					`/downloads/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`,
+				) + `\d+` + `/downloads/[A-Z2-7]{26}` + regexp.QuoteMeta(
+					`/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`,
 				) + `.*\}`,
 			),
 		},
