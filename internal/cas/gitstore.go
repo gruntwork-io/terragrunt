@@ -85,7 +85,7 @@ func NewGitStore(rootPath string) *GitStore {
 func (s *GitStore) EnsureRef(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	url, ref, hash string,
 	depth int,
 ) (*GitStoreRepo, error) {
@@ -141,7 +141,7 @@ func (s *GitStore) EnsureRef(
 func (s *GitStore) EnsureCommit(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	url, rawRef, knownHash string,
 ) (*GitStoreRepo, error) {
 	session, err := s.acquire(ctx, v, l, url)
@@ -241,7 +241,7 @@ func (s *GitStore) ensureKnownCommit(
 // Panics when v.FS is not OS-backed; git only sees the real disk.
 func (s *GitStore) ProbeCachedCommit(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	url, rawRef string,
 ) (string, bool) {
 	if !vfs.IsOSFS(v.FS) {
@@ -338,7 +338,7 @@ func (s *repoSession) cleanup() {
 // entry; subsequent calls detect HEAD and skip the spawn.
 func (s *GitStore) acquire(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	l log.Logger,
 	url string,
 ) (*repoSession, error) {

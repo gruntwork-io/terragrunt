@@ -126,7 +126,7 @@ func prepareDiscovery(
 func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (component.Components, error) {
@@ -187,7 +187,7 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -223,7 +223,7 @@ func checkVersionConstraints(
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -281,7 +281,10 @@ func checkUnitVersionConstraints(
 		terraformVersionConstraint = unitConfig.TerraformVersionConstraint
 	}
 
-	if err := run.CheckTerraformVersionMeetsConstraint(unitOpts.TerraformVersion, terraformVersionConstraint); err != nil {
+	if err := run.CheckTerraformVersionMeetsConstraint(
+		unitOpts.TerraformVersion,
+		terraformVersionConstraint,
+	); err != nil {
 		return fmt.Errorf("terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
 	}
 

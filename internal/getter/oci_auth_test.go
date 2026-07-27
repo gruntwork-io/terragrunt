@@ -100,7 +100,14 @@ func TestOCIStaticCredentials(t *testing.T) {
 			home := testHome
 			v := credentialVenv(home, tc.env)
 			// Ambient file present to prove static credentials win over it.
-			writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient-user", "ambient-pass")
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(home, ".docker", "config.json"),
+				testRegistry,
+				"ambient-user",
+				"ambient-pass",
+			)
 
 			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -130,7 +137,11 @@ func TestOCIStaticCredentialsScopedToRegistry(t *testing.T) {
 
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
-	assert.Equal(t, auth.Credential{AccessToken: "scoped-token"}, credentialFor(t, store, testRegistry))
+	assert.Equal(
+		t,
+		auth.Credential{AccessToken: "scoped-token"},
+		credentialFor(t, store, testRegistry),
+	)
 
 	// The token must not be offered to a different registry.
 	other, err := newStore(t.Context(), "other.example.com", "modules/vpc")
@@ -151,14 +162,25 @@ func TestOCIStaticCredentialsScopedStillResolvesAmbient(t *testing.T) {
 		getter.EnvOCIRegistry: testRegistry,
 	}
 	v := credentialVenv(home, env)
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), otherRegistry, "ambient-user", "ambient-pass")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		otherRegistry,
+		"ambient-user",
+		"ambient-pass",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
 	// The scoped registry uses the static token.
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
-	assert.Equal(t, auth.Credential{AccessToken: "scoped-token"}, credentialFor(t, store, testRegistry))
+	assert.Equal(
+		t,
+		auth.Credential{AccessToken: "scoped-token"},
+		credentialFor(t, store, testRegistry),
+	)
 
 	// A registry the static credential declines still falls through to ambient.
 	other, err := newStore(t.Context(), otherRegistry, "modules/vpc")
@@ -180,10 +202,31 @@ func TestOCIAmbientCredentialConfigOrder(t *testing.T) {
 	env := map[string]string{"XDG_CONFIG_HOME": xdgConfig, "DOCKER_CONFIG": dockerConfigEnv}
 	v := credentialVenv(home, env)
 
-	writeAuthFile(t, v.FS, filepath.Join(xdgConfig, "containers", "auth.json"), testRegistry, "xdg-config", "pw")
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "home-docker", "pw")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(xdgConfig, "containers", "auth.json"),
+		testRegistry,
+		"xdg-config",
+		"pw",
+	)
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"home-docker",
+		"pw",
+	)
 	// DOCKER_CONFIG must be ignored: a credential here must never win.
-	writeAuthFile(t, v.FS, filepath.Join(dockerConfigEnv, "config.json"), testRegistry, "docker-config-env", "pw")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(dockerConfigEnv, "config.json"),
+		testRegistry,
+		"docker-config-env",
+		"pw",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -222,9 +265,27 @@ func TestOCIAmbientCredentialXDGRuntimeDir(t *testing.T) {
 
 			home := testHome
 			runtimeDir := testRuntimeDir
-			v := credentialVenvForGOOS(tc.goos, home, map[string]string{"XDG_RUNTIME_DIR": runtimeDir})
-			writeAuthFile(t, v.FS, filepath.Join(runtimeDir, "containers", "auth.json"), testRegistry, "xdg-runtime", "pw")
-			writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "home-docker", "pw")
+			v := credentialVenvForGOOS(
+				tc.goos,
+				home,
+				map[string]string{"XDG_RUNTIME_DIR": runtimeDir},
+			)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(runtimeDir, "containers", "auth.json"),
+				testRegistry,
+				"xdg-runtime",
+				"pw",
+			)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(home, ".docker", "config.json"),
+				testRegistry,
+				"home-docker",
+				"pw",
+			)
 
 			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 			store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -254,9 +315,27 @@ func TestOCIAmbientCredentialPlatformConfigOrder(t *testing.T) {
 
 			home := testHome
 			xdgConfig := testXDGConfig
-			v := credentialVenvForGOOS(tc.goos, home, map[string]string{"XDG_CONFIG_HOME": xdgConfig})
-			writeAuthFile(t, v.FS, filepath.Join(home, ".config", "containers", "auth.json"), testRegistry, "home-config", "pw")
-			writeAuthFile(t, v.FS, filepath.Join(xdgConfig, "containers", "auth.json"), testRegistry, "xdg-config", "pw")
+			v := credentialVenvForGOOS(
+				tc.goos,
+				home,
+				map[string]string{"XDG_CONFIG_HOME": xdgConfig},
+			)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(home, ".config", "containers", "auth.json"),
+				testRegistry,
+				"home-config",
+				"pw",
+			)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(xdgConfig, "containers", "auth.json"),
+				testRegistry,
+				"xdg-config",
+				"pw",
+			)
 
 			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 			store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -275,8 +354,22 @@ func TestOCIAmbientCredentialUsesInjectedHomeDirectory(t *testing.T) {
 		"HOME":        "/decoy-home",
 		"USERPROFILE": "/decoy-profile",
 	})
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "injected-home", "pw")
-	writeAuthFile(t, v.FS, filepath.Join("/decoy-home", ".docker", "config.json"), testRegistry, "decoy-home", "pw")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"injected-home",
+		"pw",
+	)
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join("/decoy-home", ".docker", "config.json"),
+		testRegistry,
+		"decoy-home",
+		"pw",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -291,7 +384,14 @@ func TestOCIAmbientCredentialContinuesAfterHomeLookupError(t *testing.T) {
 	xdgConfig := testXDGConfig
 	v := credentialVenv("", map[string]string{"XDG_CONFIG_HOME": xdgConfig}).
 		WithUserHomeDir(func() (string, error) { return "", errors.New("home unavailable") })
-	writeAuthFile(t, v.FS, filepath.Join(xdgConfig, "containers", "auth.json"), testRegistry, "xdg-config", "pw")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(xdgConfig, "containers", "auth.json"),
+		testRegistry,
+		"xdg-config",
+		"pw",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -305,7 +405,14 @@ func TestOCIAmbientCredentialScopedToRegistry(t *testing.T) {
 
 	home := testHome
 	v := credentialVenv(home, nil)
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "scoped-user", "scoped-pass")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"scoped-user",
+		"scoped-pass",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -338,7 +445,14 @@ func TestOCIAmbientCredentialInvalidFileSkipped(t *testing.T) {
 	badPath := filepath.Join(xdgConfig, "containers", "auth.json")
 	require.NoError(t, vfs.WriteFile(v.FS, badPath, []byte("not json"), 0o600))
 	// Lower priority: valid.
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "good-user", "good-pass")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"good-user",
+		"good-pass",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -364,7 +478,14 @@ func TestOCIAmbientCredentialMalformedEntryFallsThrough(t *testing.T) {
 		base64.StdEncoding.EncodeToString([]byte("nocolon")),
 	)
 	// Lower priority: valid.
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "good-user", "good-pass")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"good-user",
+		"good-pass",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -387,7 +508,10 @@ func TestOCIAmbientCredentialMalformedUnrelatedEntryIgnored(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".docker", "config.json"), data, 0o600))
+	require.NoError(
+		t,
+		vfs.WriteFile(v.FS, filepath.Join(home, ".docker", "config.json"), data, 0o600),
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -474,7 +598,10 @@ func TestOCIAmbientCredentialCanonicalAliasFallsThrough(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(testHome, ".docker", "config.json"), data, 0o600))
+	require.NoError(
+		t,
+		vfs.WriteFile(v.FS, filepath.Join(testHome, ".docker", "config.json"), data, 0o600),
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -506,12 +633,22 @@ func TestOCIAmbientCredentialDockerHubSpellings(t *testing.T) {
 
 			home := testHome
 			v := credentialVenv(home, nil)
-			writeAuthFileKeys(t, v.FS, filepath.Join(home, ".config", "containers", "auth.json"), map[string]string{
-				tc.authKey: "hub-user",
-			})
-			writeAuthFileKeys(t, v.FS, filepath.Join(home, ".docker", "config.json"), map[string]string{
-				tc.authKey: "hub-user",
-			})
+			writeAuthFileKeys(
+				t,
+				v.FS,
+				filepath.Join(home, ".config", "containers", "auth.json"),
+				map[string]string{
+					tc.authKey: "hub-user",
+				},
+			)
+			writeAuthFileKeys(
+				t,
+				v.FS,
+				filepath.Join(home, ".docker", "config.json"),
+				map[string]string{
+					tc.authKey: "hub-user",
+				},
+			)
 
 			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -543,12 +680,12 @@ func TestOCIAmbientCredentialLegacySchemePrefixedEntry(t *testing.T) {
 }
 
 // credentialVenv builds a hermetic Linux Venv with home and extra env set.
-func credentialVenv(home string, extra map[string]string) venv.Venv {
+func credentialVenv(home string, extra map[string]string) *venv.Venv {
 	return credentialVenvForGOOS("linux", home, extra)
 }
 
 // credentialVenvForGOOS builds a hermetic in-memory Venv for goos.
-func credentialVenvForGOOS(goos, home string, extra map[string]string) venv.Venv {
+func credentialVenvForGOOS(goos, home string, extra map[string]string) *venv.Venv {
 	env := map[string]string{}
 	for name, value := range extra {
 		env[name] = value
@@ -580,7 +717,13 @@ func credentialFor(t *testing.T, store getter.OCIRepositoryStore, registry strin
 func writeAuthFile(t *testing.T, fs vfs.FS, path, registry, user, pass string) {
 	t.Helper()
 
-	writeRawAuthFile(t, fs, path, registry, base64.StdEncoding.EncodeToString([]byte(user+":"+pass)))
+	writeRawAuthFile(
+		t,
+		fs,
+		path,
+		registry,
+		base64.StdEncoding.EncodeToString([]byte(user+":"+pass)),
+	)
 }
 
 // writeAuthFileKeys writes a credential file declaring every key in users, each

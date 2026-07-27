@@ -25,9 +25,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -157,6 +160,7 @@ func TestProviderCache(t *testing.T) {
 			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
 			providerHandler := handlers.NewDirectProviderHandler(
 				l,
+				vhttp.NewOSClient(),
 				new(cliconfig.ProviderInstallationDirect),
 				nil,
 			)
@@ -165,7 +169,7 @@ func TestProviderCache(t *testing.T) {
 			// The proxy handler below keeps its own discovery cache untouched.
 			providerHandler.SetDiscoveryURLCache("registry.terraform.io", fakeRegistryURLs)
 
-			proxyProviderHandler := handlers.NewProxyProviderHandler(l, nil)
+			proxyProviderHandler := handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)
 
 			tc.opts = append(tc.opts,
 				cache.WithProviderService(providerService),
@@ -236,9 +240,14 @@ func TestProviderCacheHomeless(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", "")
 	require.NoError(t, os.Unsetenv("XDG_CACHE_HOME"))
 
-	_, err := providercache.InitServer(logger.CreateLogger(), &pcoptions.ProviderCacheOptions{
-		Dir: cacheDir,
-	}, "")
+	_, err := providercache.InitServer(
+		logger.CreateLogger(),
+		venv.OSVenv(),
+		&pcoptions.ProviderCacheOptions{
+			Dir: cacheDir,
+		},
+		"",
+	)
 	require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
 }
 
@@ -254,9 +263,10 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		memFs := vfs.NewMemMapFS()
 		cacheDir := "/test/provider-cache"
 
-		server := providercache.NewProviderCache().WithFS(memFs)
+		server := providercache.NewProviderCache()
 		err := server.Init(
 			logger.CreateLogger(),
+			venvtest.New().WithFS(memFs),
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},
@@ -276,9 +286,10 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		memFs := vfs.NewMemMapFS()
 		cacheDir := "/vfs/provider-cache"
 
-		server := providercache.NewProviderCache().WithFS(memFs)
+		server := providercache.NewProviderCache()
 		err := server.Init(
 			logger.CreateLogger(),
+			venvtest.New().WithFS(memFs),
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},

@@ -312,7 +312,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {

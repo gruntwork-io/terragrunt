@@ -753,7 +753,10 @@ func (z *ZipDecompressor) extractRegularFile(
 	umask os.FileMode,
 	totalSize *int64,
 ) error {
-	if err := fs.MkdirAll(filepath.Dir(destPath), applyUmask(defaultZipDirMode, umask)); err != nil {
+	if err := fs.MkdirAll(
+		filepath.Dir(destPath),
+		applyUmask(defaultZipDirMode, umask),
+	); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
 
@@ -1208,7 +1211,12 @@ func ValidateSymlinkTarget(dst, linkPath, target string) error {
 
 // extractSymlink extracts a symlink from a zip file.
 func (z *ZipDecompressor) extractSymlink(
-	l log.Logger, fs FS, dst, destPath string, zipFile *zip.File, umask os.FileMode, totalSize *int64,
+	l log.Logger,
+	fs FS,
+	dst, destPath string,
+	zipFile *zip.File,
+	umask os.FileMode,
+	totalSize *int64,
 ) error {
 	if zipFile.UncompressedSize64 > maxSymlinkTargetSize {
 		return fmt.Errorf("symlink %q target exceeds %d bytes", zipFile.Name, maxSymlinkTargetSize)
@@ -1253,7 +1261,10 @@ func (z *ZipDecompressor) extractSymlink(
 		return err
 	}
 
-	if err := fs.MkdirAll(filepath.Dir(destPath), applyUmask(defaultZipDirMode, umask)); err != nil {
+	if err := fs.MkdirAll(
+		filepath.Dir(destPath),
+		applyUmask(defaultZipDirMode, umask),
+	); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
 

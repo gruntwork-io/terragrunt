@@ -33,7 +33,7 @@ const urlChannelBufferSize = 10
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	repoURL string,
 ) error {
@@ -64,7 +64,7 @@ func Run(
 // discoverAndLoad runs the two concurrent URL discoverers and loads each
 // distinct repo URL they surface into componentCh, bounded by parallelism.
 func discoverAndLoad(
-	ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions,
+	ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions,
 	tempDirs *tui.TempDirTracker,
 	status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 ) error {

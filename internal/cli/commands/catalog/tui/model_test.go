@@ -246,7 +246,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 
 		repo := newFakeRepo(t, fsys, repoDir)
 
-		components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
 		require.Equal(t, tui.ComponentKindUnit, components[0].Kind)
@@ -302,7 +302,7 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 
 		repo := newFakeRepo(t, fsys, repoDir)
 
-		components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
 		require.Equal(t, tui.ComponentKindUnit, components[0].Kind)

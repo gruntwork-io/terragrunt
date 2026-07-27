@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -993,7 +994,7 @@ func newTestParsingContext(
 	pctx.Venv.Env = map[string]string{}
 	pctx.SourceMap = map[string]string{}
 	pctx.TerraformCliArgs = iacargs.New()
-	pctx.Venv = pctx.Venv.WithWriter(os.Stdout).WithErrWriter(os.Stderr)
+	pctx.Venv.Writers = &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr}
 	pctx.MaxFoldersToCheck = 100
 	pctx.TofuImplementation = tfimpl.Unknown
 	pctx.Experiments = experiment.NewExperiments()
