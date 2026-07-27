@@ -1,0 +1,12 @@
+---
+version: "v1.1.2"
+category: "performance-improvements"
+---
+
+#### Fewer filesystem checks when resolving `find_in_parent_folders()`
+
+`find_in_parent_folders()` walks up from a unit toward the filesystem root, checking each directory for the configuration file it was asked to find. Even when the call named a file, as in `find_in_parent_folders("root.hcl")`, each directory along the way was also checked for the default configuration filenames. Units sharing a parent chain then repeated every check their siblings had already made.
+
+Terragrunt now checks only the filename the call names, and reuses what it already learned about a directory for the rest of the command. Deeply nested estates benefit most, since every level between a unit and its root configuration used to be re-checked once per unit.
+
+In [micro-benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/pkg/config/find_in_parent_folders_bench_test.go), resolving the root configuration for 100 units nested eight directories deep went from 4.8ms to 0.49ms. Across the benchmarked shapes the lookups run between 7x and 10x faster, and the time saved grows with both the number of units and how deeply they sit below their root configuration.
