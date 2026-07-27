@@ -22,7 +22,7 @@ import (
 // Run runs the browse command. It opens the browser immediately over a tree the
 // TUI fills from the filesystem, and runs discovery in the background so unit and
 // stack metadata and counts stream in without blocking the initial render.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		WithRequiresParse: true,
@@ -96,7 +96,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 func runDiscovery(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	d *discovery.Discovery,
 ) tui.DiscoveryResult {

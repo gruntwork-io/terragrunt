@@ -23,7 +23,7 @@ import (
 func Worktrees(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	d *discovery.Discovery,
 ) (*discovery.Discovery, func(context.Context), error) {
