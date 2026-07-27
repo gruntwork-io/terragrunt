@@ -24,7 +24,7 @@ func (p *stubProvider) Name() string { return p.name }
 func (p *stubProvider) GetCredentials(
 	_ context.Context,
 	_ log.Logger,
-	_ venv.Venv,
+	_ *venv.Venv,
 ) (*providers.Credentials, error) {
 	return p.creds, nil
 }

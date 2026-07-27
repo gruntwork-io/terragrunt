@@ -275,7 +275,7 @@ func TestExecGitRunner_HasObjectSurfacesNonMissingFailures(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestGitRunner_AddCommitCheckoutConfig drives the local-mutation wrappers
+// TestExecGitRunner_AddCommitCheckoutConfig drives the local-mutation wrappers
 // (ConfigSet, Add, Commit, Checkout) through a stage -> commit -> branch flow
 // against a fresh repository, and checks the state via the read helpers
 // (HasUncommittedChanges, GetCurrentBranch, Config) at each step.
@@ -311,7 +311,7 @@ func TestExecGitRunner_AddCommitCheckoutConfig(t *testing.T) {
 	assert.Equal(t, "test@example.com", email)
 }
 
-// TestGitRunner_SubmoduleURLs exercises the `git config --blob` path
+// TestExecGitRunner_SubmoduleURLs exercises the `git config --blob` path
 // against a real repository: the .gitmodules blob committed by the test
 // server is located through ls-tree and parsed by git itself.
 func TestExecGitRunner_SubmoduleURLs(t *testing.T) {
