@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -38,7 +39,9 @@ func TestDownloadRouteRequiresSecretSegment(t *testing.T) {
 		cache.WithToken(token),
 		cache.WithLogger(l),
 		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l)),
-		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, nil)),
+		cache.WithProxyProviderHandler(
+			handlers.NewProxyProviderHandler(l, vhttp.NewNoNetworkClient(), nil),
+		),
 	)
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -74,9 +77,8 @@ func TestDownloadRouteRequiresSecretSegment(t *testing.T) {
 		getStatus(t, ctx, client, base+"/downloads/"+wrongSegment+"/registry.terraform.io/provider.zip"),
 		"download route must reject an incorrect secret segment")
 
-	// The upstream host is unresolvable, so a routed request fails inside the
-	// proxy rather than 404ing. Any status but 404 proves the route matched,
-	// without depending on network access.
+	// The proxy's client refuses every request, so a routed request fails inside
+	// the proxy rather than 404ing. Any status but 404 proves the route matched.
 	require.NotEqual(t, http.StatusNotFound,
 		getStatus(t, ctx, client, base+"/downloads/"+segment+"/example.invalid/provider.zip"),
 		"correct secret segment must resolve the download route")
@@ -107,7 +109,9 @@ func TestDownloadSegmentIsRedactedFromLogs(t *testing.T) {
 		cache.WithHostname("127.0.0.1"),
 		cache.WithLogger(l),
 		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l)),
-		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, nil)),
+		cache.WithProxyProviderHandler(
+			handlers.NewProxyProviderHandler(l, vhttp.NewNoNetworkClient(), nil),
+		),
 	)
 
 	ctx, cancel := context.WithCancel(t.Context())
