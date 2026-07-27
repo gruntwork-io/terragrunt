@@ -13,7 +13,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"testing"
 
@@ -72,20 +71,19 @@ func TestProviderCache(t *testing.T) {
 	)
 
 	testCases := []struct {
-		expectedBodyReg    *regexp.Regexp
-		fullURLPath        string
-		relURLPath         string
-		expectedCachePath  string
-		opts               []cache.Option
-		expectedStatusCode int
+		fullURLPath          string
+		relURLPath           string
+		expectedBody         string
+		expectedDownloadPath string
+		expectedCachePath    string
+		opts                 []cache.Option
+		expectedStatusCode   int
 	}{
 		{
 			opts:               opts,
 			fullURLPath:        "/.well-known/terraform.json",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg: regexp.MustCompile(
-				regexp.QuoteMeta(`{"providers.v1":"/v1/providers"}`),
-			),
+			expectedBody:       `{"providers.v1":"/v1/providers"}`,
 		},
 		{
 			opts:               append(opts, cache.WithToken("")),
@@ -96,9 +94,7 @@ func TestProviderCache(t *testing.T) {
 			opts:               opts,
 			relURLPath:         "/cache/registry.terraform.io/hashicorp/aws/versions",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg: regexp.MustCompile(
-				regexp.QuoteMeta(`"version":"5.36.0","protocols":["5.0"],"platforms"`),
-			),
+			expectedBody:       `"version":"5.36.0","protocols":["5.0"],"platforms"`,
 		},
 		{
 			opts:               opts,
@@ -134,13 +130,8 @@ func TestProviderCache(t *testing.T) {
 			opts:               opts,
 			relURLPath:         "//registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg: regexp.MustCompile(
-				`\{.*` + regexp.QuoteMeta(
-					`"download_url":"http://127.0.0.1:`,
-				) + `\d+` + `/downloads/[A-Z2-7]{26}` + regexp.QuoteMeta(
-					`/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`,
-				) + `.*\}`,
-			),
+			expectedDownloadPath: "/releases.hashicorp.com/terraform-provider-aws/5.36.0/" +
+				"terraform-provider-aws_5.36.0_darwin_arm64.zip",
 		},
 	}
 
@@ -203,10 +194,21 @@ func TestProviderCache(t *testing.T) {
 
 			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
 
-			if tc.expectedBodyReg != nil {
+			if tc.expectedBody != "" || tc.expectedDownloadPath != "" {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				assert.Regexp(t, tc.expectedBodyReg, string(body))
+
+				if tc.expectedBody != "" {
+					assert.Contains(t, string(body), tc.expectedBody)
+				}
+
+				if tc.expectedDownloadPath != "" {
+					downloadURL := "http://" + ln.Addr().String() +
+						"/downloads/" + server.DownloaderController.Segment() +
+						tc.expectedDownloadPath
+
+					assert.Contains(t, string(body), `"download_url":"`+downloadURL+`"`)
+				}
 			}
 
 			// Skip WaitForCacheReady for unauthorized test cases since they don't trigger background operations,
