@@ -357,12 +357,12 @@ func TestBuildStorageAccountClient_RequiresArmFields(t *testing.T) {
 
 // isolatedEnv builds a virtualized environment from (key, value) pairs; the
 // builder never reads the process environment, so resolution stays hermetic.
-func isolatedEnv(pairs ...string) venv.Venv {
+func isolatedEnv(pairs ...string) *venv.Venv {
 	m := make(map[string]string, len(pairs)/2)
 
 	for i := 0; i+1 < len(pairs); i += 2 {
 		m[pairs[i]] = pairs[i+1]
 	}
 
-	return venv.Venv{}.WithEnv(m)
+	return (&venv.Venv{}).WithEnv(m)
 }

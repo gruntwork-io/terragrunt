@@ -349,7 +349,7 @@ func (f *fakeResolver) Probe(_ context.Context, _ string) (string, error) {
 // ingests it into CAS via IngestDirectory, and returns the resulting
 // tree key. It counts invocations for assertions.
 func fakeFetcher(c *cas.CAS, files map[string]string, calls *atomic.Int32) cas.SourceFetcher {
-	return func(_ context.Context, l log.Logger, v venv.Venv, suggestedKey string) (string, error) {
+	return func(_ context.Context, l log.Logger, v *venv.Venv, suggestedKey string) (string, error) {
 		calls.Add(1)
 
 		tempDir, cleanup, err := c.MakeFetchTempDir(l, v)

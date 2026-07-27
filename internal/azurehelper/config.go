@@ -53,14 +53,14 @@ type AzureSessionConfig struct {
 // Use NewAzureConfigBuilder to create, chain With* methods, then call Build().
 type AzureConfigBuilder struct {
 	sessionConfig *AzureSessionConfig
-	venv          venv.Venv
+	venv          *venv.Venv
 }
 
 // NewAzureConfigBuilder creates a new builder for AzureConfig.
 func NewAzureConfigBuilder() *AzureConfigBuilder {
 	return &AzureConfigBuilder{
 		sessionConfig: &AzureSessionConfig{},
-		venv:          venv.Venv{}.WithEnv(nil),
+		venv:          (&venv.Venv{}).WithEnv(map[string]string{}),
 	}
 }
 
@@ -78,8 +78,19 @@ func (b *AzureConfigBuilder) WithSessionConfig(cfg *AzureSessionConfig) *AzureCo
 // WithVenv sets the virtualized environment whose Env map feeds ARM_* /
 // AZURE_* fallback resolution; the builder never reads the process
 // environment itself.
-func (b *AzureConfigBuilder) WithVenv(v venv.Venv) *AzureConfigBuilder {
-	b.venv = v.WithEnv(v.Env)
+func (b *AzureConfigBuilder) WithVenv(v *venv.Venv) *AzureConfigBuilder {
+	if v == nil {
+		return b
+	}
+
+	// WithEnv panics on a nil map, so an unset Env resolves to no fallbacks.
+	env := v.Env
+	if env == nil {
+		env = map[string]string{}
+	}
+
+	b.venv = v.WithEnv(env)
+
 	return b
 }
 

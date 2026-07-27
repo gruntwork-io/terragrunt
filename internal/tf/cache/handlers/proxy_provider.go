@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/labstack/echo/v4"
 )
@@ -41,12 +42,17 @@ type ProxyProviderHandler struct {
 }
 
 func NewProxyProviderHandler(
-	logger log.Logger,
+	l log.Logger,
+	c vhttp.Client,
 	credsSource *cliconfig.CredentialsSource,
 ) *ProxyProviderHandler {
 	return &ProxyProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(logger, nil, nil),
-		ReverseProxy:          &helpers.ReverseProxy{CredsSource: credsSource, Logger: logger},
+		CommonProviderHandler: NewCommonProviderHandler(l, c, nil, nil),
+		ReverseProxy: &helpers.ReverseProxy{
+			CredsSource: credsSource,
+			Logger:      l,
+			Transport:   c.Transport,
+		},
 	}
 }
 

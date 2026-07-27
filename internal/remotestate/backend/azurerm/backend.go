@@ -58,7 +58,7 @@ func checkExperiment(opts *backend.Options) error {
 // azurehelper.AzureConfig (credentials + cloud).
 func resolveConfig(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	backendConfig backend.Config,
 ) (*ExtendedRemoteStateConfigAzurerm, *azurehelper.AzureConfig, error) {
 	extCfg, err := Config(backendConfig).ExtendedAzurermConfig()
@@ -99,7 +99,7 @@ func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod
 // NeedsBootstrap returns true if the storage account or container backing the
 // state does not yet exist, or (when reachable) blob versioning or soft-delete
 // configuration has drifted from what the config requests.
-func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	if err := checkExperiment(opts); err != nil {
 		return false, err
 	}
@@ -172,7 +172,7 @@ func accountNeedsBootstrap(ctx context.Context, cfg *azurehelper.AzureConfig, ex
 
 // Bootstrap creates (if necessary) the resource group, storage account, and
 // blob container backing the state, and ensures blob versioning / soft delete.
-func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}
@@ -268,6 +268,7 @@ func (b *Backend) bootstrapAccount(
 	// Serialize account-plane convergence per storage account. The lock order
 	// is always container-key then account-key, so this cannot deadlock.
 	accountMu := b.GetBucketMutex(extCfg.RemoteStateConfigAzurerm.StorageAccountName)
+
 	accountMu.Lock()
 	defer accountMu.Unlock()
 
@@ -397,7 +398,7 @@ func effectiveSoftDeleteDays(extCfg *ExtendedRemoteStateConfigAzurerm) int32 {
 // IsVersionControlEnabled returns true if blob versioning is enabled on the
 // storage account. Data-plane-only auth (SAS / access key) cannot query this
 // via ARM and returns false.
-func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	if err := checkExperiment(opts); err != nil {
 		return false, err
 	}
@@ -431,7 +432,7 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v v
 
 // Migrate copies the state blob from the source backend config to the
 // destination backend config within the same storage account.
-func (b *Backend) Migrate(ctx context.Context, l log.Logger, v venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}
@@ -474,7 +475,7 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, v venv.Venv, srcBac
 }
 
 // Delete deletes the Terraform state blob (config "key") from its container.
-func (b *Backend) Delete(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}
@@ -507,7 +508,7 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v venv.Venv, backend
 }
 
 // DeleteBucket deletes the entire blob container backing the state.
-func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}

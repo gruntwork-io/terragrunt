@@ -13,7 +13,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"testing"
 
@@ -25,9 +24,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -72,20 +74,19 @@ func TestProviderCache(t *testing.T) {
 	)
 
 	testCases := []struct {
-		expectedBodyReg    *regexp.Regexp
-		fullURLPath        string
-		relURLPath         string
-		expectedCachePath  string
-		opts               []cache.Option
-		expectedStatusCode int
+		fullURLPath          string
+		relURLPath           string
+		expectedBody         string
+		expectedDownloadPath string
+		expectedCachePath    string
+		opts                 []cache.Option
+		expectedStatusCode   int
 	}{
 		{
 			opts:               opts,
 			fullURLPath:        "/.well-known/terraform.json",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg: regexp.MustCompile(
-				regexp.QuoteMeta(`{"providers.v1":"/v1/providers"}`),
-			),
+			expectedBody:       `{"providers.v1":"/v1/providers"}`,
 		},
 		{
 			opts:               append(opts, cache.WithToken("")),
@@ -96,9 +97,7 @@ func TestProviderCache(t *testing.T) {
 			opts:               opts,
 			relURLPath:         "/cache/registry.terraform.io/hashicorp/aws/versions",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg: regexp.MustCompile(
-				regexp.QuoteMeta(`"version":"5.36.0","protocols":["5.0"],"platforms"`),
-			),
+			expectedBody:       `"version":"5.36.0","protocols":["5.0"],"platforms"`,
 		},
 		{
 			opts:               opts,
@@ -134,13 +133,8 @@ func TestProviderCache(t *testing.T) {
 			opts:               opts,
 			relURLPath:         "//registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg: regexp.MustCompile(
-				`\{.*` + regexp.QuoteMeta(
-					`"download_url":"http://127.0.0.1:`,
-				) + `\d+` + regexp.QuoteMeta(
-					`/downloads/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`,
-				) + `.*\}`,
-			),
+			expectedDownloadPath: "/releases.hashicorp.com/terraform-provider-aws/5.36.0/" +
+				"terraform-provider-aws_5.36.0_darwin_arm64.zip",
 		},
 	}
 
@@ -157,6 +151,7 @@ func TestProviderCache(t *testing.T) {
 			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
 			providerHandler := handlers.NewDirectProviderHandler(
 				l,
+				vhttp.NewOSClient(),
 				new(cliconfig.ProviderInstallationDirect),
 				nil,
 			)
@@ -165,7 +160,7 @@ func TestProviderCache(t *testing.T) {
 			// The proxy handler below keeps its own discovery cache untouched.
 			providerHandler.SetDiscoveryURLCache("registry.terraform.io", fakeRegistryURLs)
 
-			proxyProviderHandler := handlers.NewProxyProviderHandler(l, nil)
+			proxyProviderHandler := handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)
 
 			tc.opts = append(tc.opts,
 				cache.WithProviderService(providerService),
@@ -203,10 +198,21 @@ func TestProviderCache(t *testing.T) {
 
 			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
 
-			if tc.expectedBodyReg != nil {
+			if tc.expectedBody != "" || tc.expectedDownloadPath != "" {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				assert.Regexp(t, tc.expectedBodyReg, string(body))
+
+				if tc.expectedBody != "" {
+					assert.Contains(t, string(body), tc.expectedBody)
+				}
+
+				if tc.expectedDownloadPath != "" {
+					downloadURL := "http://" + ln.Addr().String() +
+						"/downloads/" + server.DownloaderController.Segment() +
+						tc.expectedDownloadPath
+
+					assert.Contains(t, string(body), `"download_url":"`+downloadURL+`"`)
+				}
 			}
 
 			// Skip WaitForCacheReady for unauthorized test cases since they don't trigger background operations,
@@ -236,9 +242,14 @@ func TestProviderCacheHomeless(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", "")
 	require.NoError(t, os.Unsetenv("XDG_CACHE_HOME"))
 
-	_, err := providercache.InitServer(logger.CreateLogger(), &pcoptions.ProviderCacheOptions{
-		Dir: cacheDir,
-	}, "")
+	_, err := providercache.InitServer(
+		logger.CreateLogger(),
+		venv.OSVenv(),
+		&pcoptions.ProviderCacheOptions{
+			Dir: cacheDir,
+		},
+		"",
+	)
 	require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
 }
 
@@ -254,9 +265,10 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		memFs := vfs.NewMemMapFS()
 		cacheDir := "/test/provider-cache"
 
-		server := providercache.NewProviderCache().WithFS(memFs)
+		server := providercache.NewProviderCache()
 		err := server.Init(
 			logger.CreateLogger(),
+			venvtest.New().WithFS(memFs),
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},
@@ -276,9 +288,10 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		memFs := vfs.NewMemMapFS()
 		cacheDir := "/vfs/provider-cache"
 
-		server := providercache.NewProviderCache().WithFS(memFs)
+		server := providercache.NewProviderCache()
 		err := server.Init(
 			logger.CreateLogger(),
+			venvtest.New().WithFS(memFs),
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},

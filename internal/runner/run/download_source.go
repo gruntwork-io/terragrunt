@@ -54,7 +54,7 @@ const (
 func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -255,7 +255,7 @@ func (e SourceVersionConstraintErr) Error() string {
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	terraformSource *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -470,7 +470,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 func downloadSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -535,7 +535,7 @@ func downloadSource(
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	mutable bool,
@@ -660,7 +660,7 @@ func tryCASDownload(
 // Exported so tests can assert the protocol set directly.
 func BuildDownloadClient(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) (*getter.Client, error) {
@@ -670,12 +670,14 @@ func BuildDownloadClient(
 
 	clientOpts := []getter.Option{
 		getter.WithLogger(l),
+		getter.WithHTTP(v.HTTP),
 		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			WithHTTPClient(v.HTTP).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
 

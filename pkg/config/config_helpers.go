@@ -775,6 +775,8 @@ func findInParentFoldersImpl(
 		fileToFindStr = fileToFindParam
 	}
 
+	probes := cache.ContextCache[bool](ctx, ParentFileProbeCacheContextKey)
+
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
 	for range pctx.MaxFoldersToCheck {
@@ -791,12 +793,9 @@ func findInParentFoldersImpl(
 			}
 		}
 
-		fileToFind := GetDefaultConfigPath(currentDir)
-		if fileToFindParam != "" {
-			fileToFind = filepath.Join(currentDir, fileToFindParam)
-		}
+		fileToFind := parentFileCandidate(currentDir, fileToFindParam)
 
-		if util.FileExists(fileToFind) {
+		if parentFileExists(ctx, probes, fileToFind) {
 			return fileToFind, nil
 		}
 
@@ -808,6 +807,38 @@ func findInParentFoldersImpl(
 		File:  fileToFindStr,
 		Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", pctx.MaxFoldersToCheck),
 	}
+}
+
+// parentFileCandidate names the file to probe in dir. An empty fileName means
+// the caller passed no argument and wants whichever default config name is
+// present, which costs a probe per known name, so [GetDefaultConfigPath] is
+// only consulted in that case.
+func parentFileCandidate(dir, fileName string) string {
+	if fileName == "" {
+		return GetDefaultConfigPath(dir)
+	}
+
+	return filepath.Join(dir, fileName)
+}
+
+// parentFileExists reports whether path exists, memoizing the answer for the
+// run. Units in the same sub-tree walk the same ancestor chain, so without this
+// the run re-stats each shared ancestor once per unit.
+//
+// Negative answers are cached too, and that is where nearly all of the saving
+// is: every level below the one holding the file is a miss. A config file
+// created in an already-probed ancestor part-way through a run is therefore not
+// observed. Nothing Terragrunt generates lands in an ancestor it has already
+// walked past, and the cache lives only as long as one run.
+func parentFileExists(ctx context.Context, probes *cache.Cache[bool], path string) bool {
+	if exists, found := probes.Get(ctx, path); found {
+		return exists
+	}
+
+	exists := util.FileExists(path)
+	probes.Put(ctx, path, exists)
+
+	return exists
 }
 
 // PathRelativeToInclude returns the relative path between the included Terragrunt configuration file
