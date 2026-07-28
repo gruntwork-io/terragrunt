@@ -920,7 +920,7 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
-func SetTofuCPUProfileEnv(l log.Logger, v venv.Venv, opts *Options) error {
+func SetTofuCPUProfileEnv(l log.Logger, v *venv.Venv, opts *Options) error {
 	if opts.ProfileDir == "" {
 		return nil
 	}
