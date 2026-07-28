@@ -35,7 +35,7 @@ var ErrProfilingRequiresExperiment = errors.New(
 func WrapWithProfiling(
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	v venv.Venv,
+	v *venv.Venv,
 ) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
 	var profilingInProgress bool
 
