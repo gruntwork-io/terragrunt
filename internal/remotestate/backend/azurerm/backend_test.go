@@ -15,9 +15,7 @@ import (
 func TestBackendName(t *testing.T) {
 	t.Parallel()
 
-	if got := azurerm.NewBackend().Name(); got != azurerm.BackendName {
-		t.Fatalf("Name() = %q, want %q", got, azurerm.BackendName)
-	}
+	assert.Equal(t, azurerm.BackendName, azurerm.NewBackend().Name())
 }
 
 // TestExperimentGate verifies that every lifecycle entry point refuses to run

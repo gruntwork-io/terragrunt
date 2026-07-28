@@ -3,8 +3,10 @@
 package azurehelper_test
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
@@ -108,21 +110,16 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 				WithSessionConfig(&tc.cfg).
 				WithVenv(isolatedEnv()).
 				Build(log.New())
-			if err != nil {
-				t.Fatalf("Build() error = %v", err)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.Method)
+
+			if tc.hasCred {
+				assert.NotNil(t, got.Credential, "method %q must resolve a credential", tc.want)
+
+				return
 			}
 
-			if got.Method != tc.want {
-				t.Errorf("Method = %q, want %q", got.Method, tc.want)
-			}
-
-			if tc.hasCred && got.Credential == nil {
-				t.Errorf("expected non-nil Credential for method %q", tc.want)
-			}
-
-			if !tc.hasCred && got.Credential != nil {
-				t.Errorf("expected nil Credential for method %q", tc.want)
-			}
+			assert.Nil(t, got.Credential, "method %q must not resolve a credential", tc.want)
 		})
 	}
 }
@@ -139,17 +136,9 @@ func TestBuild_EnvFallbacks(t *testing.T) {
 			"ARM_SUBSCRIPTION_ID", "sub-from-env",
 		)).
 		Build(log.New())
-	if err != nil {
-		t.Fatalf("Build() error = %v", err)
-	}
-
-	if cfg.Method != azurehelper.AuthMethodSasToken {
-		t.Errorf("Method = %q, want sas-token", cfg.Method)
-	}
-
-	if cfg.SasToken != "sv=test" {
-		t.Errorf("SasToken = %q, want %q", cfg.SasToken, "sv=test")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, azurehelper.AuthMethodSasToken, cfg.Method)
+	assert.Equal(t, "sv=test", cfg.SasToken)
 }
 
 func TestBuild_TrimsWhitespaceFromEnvValues(t *testing.T) {
@@ -159,13 +148,8 @@ func TestBuild_TrimsWhitespaceFromEnvValues(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{StorageAccountName: testAccount, SasToken: testSASToken}).
 		WithVenv(isolatedEnv("ARM_SUBSCRIPTION_ID", "sub-from-env\n")).
 		Build(log.New())
-	if err != nil {
-		t.Fatalf("Build() error = %v", err)
-	}
-
-	if cfg.SubscriptionID != "sub-from-env" {
-		t.Errorf("SubscriptionID = %q, want trimmed %q", cfg.SubscriptionID, "sub-from-env")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "sub-from-env", cfg.SubscriptionID, "env values must be trimmed")
 }
 
 func TestBuild_StorageAccountNameEnvFallback(t *testing.T) {
@@ -175,13 +159,8 @@ func TestBuild_StorageAccountNameEnvFallback(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{SasToken: testSASToken}).
 		WithVenv(isolatedEnv("AZURE_STORAGE_ACCOUNT", "acct-from-env")).
 		Build(log.New())
-	if err != nil {
-		t.Fatalf("Build() error = %v", err)
-	}
-
-	if cfg.AccountName != "acct-from-env" {
-		t.Errorf("AccountName = %q, want %q", cfg.AccountName, "acct-from-env")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "acct-from-env", cfg.AccountName)
 }
 
 func TestBuild_SubscriptionRequired(t *testing.T) {
@@ -193,9 +172,7 @@ func TestBuild_SubscriptionRequired(t *testing.T) {
 		}).
 		WithVenv(isolatedEnv()).
 		Build(log.New())
-	if err == nil {
-		t.Fatal("expected error when subscription_id missing for MSI auth")
-	}
+	require.ErrorIs(t, err, azurehelper.ErrSubscriptionIDRequired)
 }
 
 func TestBuild_SasTokenWithoutAccountFails(t *testing.T) {
@@ -207,9 +184,7 @@ func TestBuild_SasTokenWithoutAccountFails(t *testing.T) {
 		}).
 		WithVenv(isolatedEnv()).
 		Build(log.New())
-	if err == nil {
-		t.Fatal("expected error when storage_account_name missing for SAS auth")
-	}
+	require.ErrorIs(t, err, azurehelper.ErrStorageAccountRequired)
 }
 
 func TestBuild_AccessKeyWithoutAccountFails(t *testing.T) {
@@ -222,9 +197,7 @@ func TestBuild_AccessKeyWithoutAccountFails(t *testing.T) {
 		}).
 		WithVenv(isolatedEnv()).
 		Build(log.New())
-	if err == nil {
-		t.Fatal("expected error when storage_account_name missing for access-key auth")
-	}
+	require.ErrorIs(t, err, azurehelper.ErrStorageAccountRequired)
 }
 
 func TestBuild_CloudEnvironmentMapping(t *testing.T) {
@@ -254,14 +227,8 @@ func TestBuild_CloudEnvironmentMapping(t *testing.T) {
 				}).
 				WithVenv(isolatedEnv()).
 				Build(log.New())
-			if err != nil {
-				t.Fatalf("Build() error = %v", err)
-			}
-
-			if cfg.CloudConfig.ActiveDirectoryAuthorityHost != tc.want.ActiveDirectoryAuthorityHost {
-				t.Errorf("ActiveDirectoryAuthorityHost = %q, want %q",
-					cfg.CloudConfig.ActiveDirectoryAuthorityHost, tc.want.ActiveDirectoryAuthorityHost)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want.ActiveDirectoryAuthorityHost, cfg.CloudConfig.ActiveDirectoryAuthorityHost)
 		})
 	}
 }
@@ -272,17 +239,9 @@ func TestBuild_NilSessionConfig(t *testing.T) {
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithVenv(isolatedEnv("ARM_SUBSCRIPTION_ID", "sub")).
 		Build(log.New())
-	if err != nil {
-		t.Fatalf("Build() error = %v", err)
-	}
-
-	if cfg.SubscriptionID != "sub" {
-		t.Errorf("SubscriptionID = %q, want %q", cfg.SubscriptionID, "sub")
-	}
-
-	if cfg.Method != azurehelper.AuthMethodAzureAD {
-		t.Errorf("Method = %q, want azuread", cfg.Method)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "sub", cfg.SubscriptionID)
+	assert.Equal(t, azurehelper.AuthMethodAzureAD, cfg.Method)
 }
 
 func TestBuildBlobClient_SasToken(t *testing.T) {
@@ -295,17 +254,9 @@ func TestBuildBlobClient_SasToken(t *testing.T) {
 		}).
 		WithVenv(isolatedEnv()).
 		BuildBlobClient(log.New())
-	if err != nil {
-		t.Fatalf("BuildBlobClient: %v", err)
-	}
-
-	if bc == nil {
-		t.Fatal("BuildBlobClient returned nil client")
-	}
-
-	if bc.AccountName != testAccount {
-		t.Errorf("AccountName() = %q, want %q", bc.AccountName, testAccount)
-	}
+	require.NoError(t, err, "BuildBlobClient")
+	require.NotNil(t, bc)
+	assert.Equal(t, testAccount, bc.AccountName)
 }
 
 func TestBuildBlobClient_PropagatesBuildError(t *testing.T) {
@@ -315,9 +266,7 @@ func TestBuildBlobClient_PropagatesBuildError(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{SasToken: testSASToken}).
 		WithVenv(isolatedEnv()).
 		BuildBlobClient(log.New())
-	if err == nil {
-		t.Fatal("expected error when storage account name missing")
-	}
+	require.ErrorIs(t, err, azurehelper.ErrStorageAccountRequired)
 }
 
 func TestBuild_RejectsUnknownCloudEnvironment(t *testing.T) {
@@ -331,13 +280,8 @@ func TestBuild_RejectsUnknownCloudEnvironment(t *testing.T) {
 		}).
 		WithVenv(isolatedEnv()).
 		Build(log.New())
-	if err == nil {
-		t.Fatal("expected error for unknown cloud environment")
-	}
-
-	if !strings.Contains(err.Error(), "cloud environment") {
-		t.Errorf("error = %q, want it to mention cloud environment", err.Error())
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cloud environment")
 }
 
 func TestBuildStorageAccountClient_RequiresArmFields(t *testing.T) {
@@ -350,9 +294,7 @@ func TestBuildStorageAccountClient_RequiresArmFields(t *testing.T) {
 		}).
 		WithVenv(isolatedEnv()).
 		BuildStorageAccountClient(log.New())
-	if err == nil {
-		t.Fatal("expected error when ARM-plane fields missing for storage account client")
-	}
+	require.Error(t, err, "ARM-plane fields are required for a storage account client")
 }
 
 // isolatedEnv builds a virtualized environment from (key, value) pairs; the

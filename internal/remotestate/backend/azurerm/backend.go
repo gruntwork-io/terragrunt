@@ -44,9 +44,15 @@ func NewBackend() *Backend {
 }
 
 // checkExperiment returns ErrAzureBackendExperimentRequired unless the
-// azure-backend experiment is enabled.
+// azure-backend experiment is enabled. Every lifecycle entry point is called
+// with options built by the remote-state layer, so a nil opts is a caller bug
+// and panics with ErrBackendOptionsRequired.
 func checkExperiment(opts *backend.Options) error {
-	if opts == nil || !opts.Experiments.Evaluate(experiment.AzureBackend) {
+	if opts == nil {
+		panic(ErrBackendOptionsRequired)
+	}
+
+	if !opts.Experiments.Evaluate(experiment.AzureBackend) {
 		return ErrAzureBackendExperimentRequired
 	}
 
@@ -471,7 +477,7 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, srcBa
 
 	// Move (copy + delete source), mirroring the S3 and GCS backends: refuse to
 	// overwrite an existing destination and leave no stale state at the old key.
-	return blobClient.Container(src.ContainerName).MoveBlobIfNecessary(ctx, src.Key, blobClient.Container(dst.ContainerName), dst.Key)
+	return blobClient.Container(src.ContainerName).MoveBlobIfNecessary(ctx, l, src.Key, blobClient.Container(dst.ContainerName), dst.Key)
 }
 
 // Delete deletes the Terraform state blob (config "key") from its container.

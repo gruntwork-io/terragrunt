@@ -175,7 +175,7 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		assert.Panics(t, func() { _ = c.Container(tc[0]).CopyBlob(t.Context(), tc[1], c.Container(tc[2]), tc[3]) }, "CopyBlob%v should panic", tc)
+		assert.Panics(t, func() { _ = c.Container(tc[0]).CopyBlob(t.Context(), log.New(), tc[1], c.Container(tc[2]), tc[3]) }, "CopyBlob%v should panic", tc)
 	}
 }
 
@@ -244,7 +244,7 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	assert.Contains(t, names, key, "ListBlobs did not include %q", key)
 
 	copyKey := "roundtrip-copy.txt"
-	require.NoError(t, cc.CopyBlob(ctx, key, cc, copyKey), "CopyBlob")
+	require.NoError(t, cc.CopyBlob(ctx, log.New(), key, cc, copyKey), "CopyBlob")
 
 	if err := cc.EnsureBlobDeleted(ctx, copyKey); err != nil {
 		t.Logf("cleanup EnsureBlobDeleted(copy): %v", err)

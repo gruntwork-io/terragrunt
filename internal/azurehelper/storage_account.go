@@ -90,16 +90,18 @@ func NewStorageAccountClient(cfg *AzureConfig) (*StorageAccountClient, error) {
 		panic(ErrStorageAccountRequired)
 	}
 
+	// subscription_id, the auth method, and resource_group_name all come from
+	// user config, so a missing value is a user error rather than a caller bug.
 	if cfg.SubscriptionID == "" {
-		panic(ErrSubscriptionIDRequired)
+		return nil, ErrSubscriptionIDRequired
 	}
 
 	if cfg.Credential == nil {
-		panic(&UnsupportedAuthForOpError{Method: cfg.Method, Operation: "storage account operations"})
+		return nil, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "storage account operations"}
 	}
 
 	if cfg.ResourceGroup == "" {
-		panic(ErrResourceGroupNameRequired)
+		return nil, ErrResourceGroupNameRequired
 	}
 
 	armOpts := &arm.ClientOptions{ClientOptions: cfg.ClientOptions}
@@ -160,8 +162,9 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 		panic(fmt.Errorf("storage account resource group %q does not match client resource group %q", in.ResourceGroupName, c.resourceGroup))
 	}
 
+	// location comes from user config, so a missing value is a user error.
 	if in.Location == "" {
-		panic(fmt.Errorf("location is required to create storage account %q", c.accountName))
+		return fmt.Errorf("%w to create storage account %q", ErrLocationRequired, c.accountName)
 	}
 
 	// Operate on a copy so the caller's StorageAccountConfig is not mutated by
@@ -172,7 +175,10 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 	skuName := armstorage.SKUName(cfg.AccountTier + "_" + cfg.ReplicationType)
 	kind := armstorage.Kind(cfg.AccountKind)
 
-	accessTier := accessTierValue(cfg.AccessTier)
+	accessTier, err := accessTierValue(cfg.AccessTier)
+	if err != nil {
+		return err
+	}
 
 	params := armstorage.AccountCreateParameters{
 		Kind:     &kind,
@@ -396,19 +402,19 @@ func (in *StorageAccountConfig) withDefaults() {
 
 // accessTierValue maps a string to the SDK's AccessTier enum. An empty
 // input yields the package default (Hot); any other unrecognised value
-// panics so callers cannot silently land on an unintended tier.
-func accessTierValue(s string) *armstorage.AccessTier {
+// returns an UnknownAccessTierError, since access_tier is user supplied.
+func accessTierValue(s string) (*armstorage.AccessTier, error) {
 	switch s {
 	case "", "Hot":
-		return to.Ptr(armstorage.AccessTierHot)
+		return to.Ptr(armstorage.AccessTierHot), nil
 	case "Cool":
-		return to.Ptr(armstorage.AccessTierCool)
+		return to.Ptr(armstorage.AccessTierCool), nil
 	case "Cold":
-		return to.Ptr(armstorage.AccessTierCold)
+		return to.Ptr(armstorage.AccessTierCold), nil
 	case "Premium":
-		return to.Ptr(armstorage.AccessTierPremium)
+		return to.Ptr(armstorage.AccessTierPremium), nil
 	default:
-		panic(&UnknownAccessTierError{Tier: s})
+		return nil, &UnknownAccessTierError{Tier: s}
 	}
 }
 
@@ -419,7 +425,7 @@ func stringMapPtr(in map[string]string) map[string]*string {
 
 	out := make(map[string]*string, len(in))
 	for k, v := range in {
-		out[k] = to.Ptr(v)
+		out[k] = new(v)
 	}
 
 	return out

@@ -17,9 +17,9 @@ type SourceResolver = cas.SourceResolver
 // The tfr resolver is always registered. CASGetter only claims tfr:// URLs
 // when the matching fetcher is registered (gated on [WithTFRConfig], since
 // [RegistryGetter] requires a logger at construction), so an unused tfr
-// resolver entry is harmless. Pass [WithTFRConfig] to align its logger and
-// tofu implementation with the fetcher so the probe and the fetch resolve
-// against the same registry host.
+// resolver entry is harmless. Pass [WithDispatchLogger], [WithDispatchFS], and
+// [WithTFRConfig] to align its logger and tofu implementation with the fetcher
+// so the probe and the fetch resolve against the same registry host.
 //
 // The http, https, and tfr resolvers all probe over c. [CASGetter]
 // callers normally go through [WithDefaultGenericDispatch], which
@@ -34,8 +34,10 @@ func DefaultSourceResolvers(
 	}
 
 	tfr := NewTFRResolver().WithHTTPClient(vhttp.WithTimeout(c, tfrResolverTimeout))
-	if cfg.tfrLogger != nil {
-		tfr.WithLogger(cfg.tfrLogger)
+
+	if cfg.tfrEnabled {
+		requireLoggerFS(&cfg, SchemeTFR)
+		tfr.WithLogger(cfg.logger)
 	}
 
 	if cfg.tfrImpl != "" {
@@ -59,10 +61,9 @@ func DefaultSourceResolvers(
 		SchemeTFR:   tfr,
 	}
 
-	// Registered only alongside the oci fetcher, sharing its store seam so
-	// probe and fetch use one credential discovery and auth cache.
-	if cfg.ociLogger != nil {
-		resolvers[SchemeOCI] = NewOCIResolver(cfg.ociNewStore)
+	if cfg.ociHolder != nil {
+		requireLoggerFS(&cfg, SchemeOCI)
+		resolvers[SchemeOCI] = NewOCIResolver(cfg.logger, cfg.ociHolder.store(cfg.logger))
 	}
 
 	return resolvers

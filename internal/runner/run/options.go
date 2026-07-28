@@ -64,6 +64,7 @@ type Options struct {
 	CacheDir                     string
 	DownloadDir                  string
 	RootWorkingDir               string
+	ProfileDir                   string
 	OriginalTerraformCommand     string
 	Source                       string
 	AuthProviderCmd              string
@@ -75,6 +76,7 @@ type Options struct {
 	CASCloneDepth                int
 	NoCAS                        bool
 	NoHooks                      bool
+	TofuCPUProfileUserSet        bool
 	AutoRetry                    bool
 	Headless                     bool
 	NonInteractive               bool

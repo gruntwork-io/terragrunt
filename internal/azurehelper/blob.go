@@ -143,7 +143,8 @@ func (cc *ContainerClient) EnsureDeleted(ctx context.Context) error {
 }
 
 // GetBlob downloads a blob and returns its body as an io.ReadCloser. Caller
-// must Close the returned reader.
+// must Close the returned reader. key must be non-empty; an empty key is a
+// caller bug and panics with ErrBlobKeyRequired.
 func (cc *ContainerClient) GetBlob(ctx context.Context, key string) (io.ReadCloser, error) {
 	if key == "" {
 		panic(ErrBlobKeyRequired)
@@ -157,7 +158,9 @@ func (cc *ContainerClient) GetBlob(ctx context.Context, key string) (io.ReadClos
 	return resp.Body, nil
 }
 
-// PutBlob uploads data to a block blob, overwriting any existing blob.
+// PutBlob uploads data to a block blob, overwriting any existing blob. key
+// must be non-empty; an empty key is a caller bug and panics with
+// ErrBlobKeyRequired.
 func (cc *ContainerClient) PutBlob(ctx context.Context, key string, data []byte) error {
 	if key == "" {
 		panic(ErrBlobKeyRequired)
@@ -172,7 +175,8 @@ func (cc *ContainerClient) PutBlob(ctx context.Context, key string, data []byte)
 }
 
 // PutBlobFromReader uploads a blob by streaming from reader, avoiding loading
-// the full payload into memory.
+// the full payload into memory. key must be non-empty; an empty key is a
+// caller bug and panics with ErrBlobKeyRequired.
 func (cc *ContainerClient) PutBlobFromReader(ctx context.Context, key string, reader io.Reader) error {
 	if key == "" {
 		panic(ErrBlobKeyRequired)
@@ -187,7 +191,8 @@ func (cc *ContainerClient) PutBlobFromReader(ctx context.Context, key string, re
 }
 
 // EnsureBlobDeleted deletes the named blob. Idempotent: returns nil if the
-// blob is already gone (BlobNotFound).
+// blob is already gone (BlobNotFound). key must be non-empty; an empty key is
+// a caller bug and panics with ErrBlobKeyRequired.
 func (cc *ContainerClient) EnsureBlobDeleted(ctx context.Context, key string) error {
 	if key == "" {
 		panic(ErrBlobKeyRequired)
@@ -201,7 +206,9 @@ func (cc *ContainerClient) EnsureBlobDeleted(ctx context.Context, key string) er
 	return fmt.Errorf("deleting blob %s/%s: %w", cc.container, key, err)
 }
 
-// BlobExists reports whether the named blob exists in the container.
+// BlobExists reports whether the named blob exists in the container. key must
+// be non-empty; an empty key is a caller bug and panics with
+// ErrBlobKeyRequired.
 func (cc *ContainerClient) BlobExists(ctx context.Context, key string) (bool, error) {
 	if key == "" {
 		panic(ErrBlobKeyRequired)
@@ -225,7 +232,7 @@ func (cc *ContainerClient) BlobExists(ctx context.Context, key string) (bool, er
 // destination write carries an If-None-Match condition, so an existing
 // destination blob is never overwritten; a DestinationBlobExistsError is
 // returned instead.
-func (cc *ContainerClient) CopyBlob(ctx context.Context, srcKey string, dst *ContainerClient, dstKey string) error {
+func (cc *ContainerClient) CopyBlob(ctx context.Context, l log.Logger, srcKey string, dst *ContainerClient, dstKey string) error {
 	assertCopyBlobArgs(srcKey, dst, dstKey)
 
 	body, err := cc.GetBlob(ctx, srcKey)
@@ -233,7 +240,11 @@ func (cc *ContainerClient) CopyBlob(ctx context.Context, srcKey string, dst *Con
 		return err
 	}
 
-	defer func() { _ = body.Close() }()
+	defer func() {
+		if err := body.Close(); err != nil {
+			l.Debugf("azurehelper: closing source blob %s/%s: %v", cc.container, srcKey, err)
+		}
+	}()
 
 	blockBlob := cc.blob.Client.ServiceClient().NewContainerClient(dst.container).NewBlockBlobClient(dstKey)
 	opts := &azblobblockblob.UploadStreamOptions{
@@ -260,7 +271,7 @@ func (cc *ContainerClient) CopyBlob(ctx context.Context, srcKey string, dst *Con
 // and GCS backends: it is a no-op when the source is absent, refuses to
 // overwrite an existing destination, copies, then deletes the source. dst
 // must belong to the same storage account.
-func (cc *ContainerClient) MoveBlobIfNecessary(ctx context.Context, srcKey string, dst *ContainerClient, dstKey string) error {
+func (cc *ContainerClient) MoveBlobIfNecessary(ctx context.Context, l log.Logger, srcKey string, dst *ContainerClient, dstKey string) error {
 	srcExists, err := cc.BlobExists(ctx, srcKey)
 	if err != nil {
 		return err
@@ -270,7 +281,7 @@ func (cc *ContainerClient) MoveBlobIfNecessary(ctx context.Context, srcKey strin
 		return nil
 	}
 
-	if err := cc.CopyBlob(ctx, srcKey, dst, dstKey); err != nil {
+	if err := cc.CopyBlob(ctx, l, srcKey, dst, dstKey); err != nil {
 		return err
 	}
 
@@ -361,7 +372,11 @@ func assertCopyBlobArgs(srcKey string, dst *ContainerClient, dstKey string) {
 }
 
 // newAzblobClient dispatches azblob client construction by auth method,
-// returning the constructed *azblob.Client or a descriptive error.
+// returning the constructed *azblob.Client or a descriptive error. A
+// token-based method with no resolved credential, or an auth method the
+// builder never produces, is a caller bug: both panic (with
+// CredentialMissingError and UnsupportedAuthMethodError respectively)
+// rather than returning an error, since Build resolves both fields.
 func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
 	const errCreatingBlobClient = "creating blob client: %w"
 

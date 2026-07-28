@@ -594,11 +594,13 @@ func tryCASDownload(
 	casProtocol.Mutable = mutable
 
 	dispatchOpts := []getter.GenericFetcherOption{
-		getter.WithTFRConfig(l, opts.TofuImplementation, v.FS),
+		getter.WithDispatchLogger(l),
+		getter.WithDispatchFS(v.FS),
+		getter.WithTFRConfig(opts.TofuImplementation),
 	}
 
 	if ociEnabled {
-		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, v, v.FS))
+		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(v))
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources

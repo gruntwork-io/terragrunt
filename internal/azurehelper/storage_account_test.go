@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -24,20 +25,9 @@ import (
 func TestNewStorageAccountClient_Validation(t *testing.T) {
 	t.Parallel()
 
-	// Each field is a resolved-config invariant, so a missing one panics.
+	// A nil config or an empty account name is guaranteed by config validation
+	// upstream, so reaching here is a caller bug and panics.
 	assert.Panics(t, func() { _, _ = azurehelper.NewStorageAccountClient(nil) })
-
-	assert.Panics(t, func() {
-		_, _ = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
-			Credential: fakeCredential{}, ResourceGroup: "rg", AccountName: testAccount,
-		})
-	})
-
-	assert.Panics(t, func() {
-		_, _ = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
-			SubscriptionID: testSub, ResourceGroup: "rg", AccountName: testAccount,
-		})
-	})
 
 	assert.Panics(t, func() {
 		_, _ = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
@@ -45,11 +35,24 @@ func TestNewStorageAccountClient_Validation(t *testing.T) {
 		})
 	})
 
-	assert.Panics(t, func() {
-		_, _ = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
-			SubscriptionID: testSub, Credential: fakeCredential{}, AccountName: testAccount,
-		})
+	// subscription_id, the auth method, and resource_group_name are user
+	// supplied, so a missing value is a user error.
+	_, err := azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
+		Credential: fakeCredential{}, ResourceGroup: "rg", AccountName: testAccount,
 	})
+	require.ErrorIs(t, err, azurehelper.ErrSubscriptionIDRequired)
+
+	_, err = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
+		SubscriptionID: testSub, ResourceGroup: "rg", AccountName: testAccount,
+	})
+
+	var unsupported *azurehelper.UnsupportedAuthForOpError
+	require.ErrorAs(t, err, &unsupported)
+
+	_, err = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
+		SubscriptionID: testSub, Credential: fakeCredential{}, AccountName: testAccount,
+	})
+	require.ErrorIs(t, err, azurehelper.ErrResourceGroupNameRequired)
 }
 
 func TestStorageAccount_Exists_True(t *testing.T) {
@@ -61,18 +64,11 @@ func TestStorageAccount_Exists_True(t *testing.T) {
 	})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("NewStorageAccountClient: %v", err)
-	}
+	require.NoError(t, err, "NewStorageAccountClient")
 
 	exists, err := sc.Exists(t.Context())
-	if err != nil {
-		t.Fatalf("Exists: %v", err)
-	}
-
-	if !exists {
-		t.Error("Exists = false, want true")
-	}
+	require.NoError(t, err)
+	assert.True(t, exists)
 }
 
 func TestStorageAccount_Exists_False(t *testing.T) {
@@ -83,18 +79,11 @@ func TestStorageAccount_Exists_False(t *testing.T) {
 	})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("NewStorageAccountClient: %v", err)
-	}
+	require.NoError(t, err, "NewStorageAccountClient")
 
 	exists, err := sc.Exists(t.Context())
-	if err != nil {
-		t.Fatalf("Exists: %v", err)
-	}
-
-	if exists {
-		t.Error("Exists = true, want false for 404")
-	}
+	require.NoError(t, err)
+	assert.False(t, exists, "404 must report the account as absent")
 }
 
 func TestStorageAccount_GetKeys(t *testing.T) {
@@ -106,18 +95,11 @@ func TestStorageAccount_GetKeys(t *testing.T) {
 	)}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("NewStorageAccountClient: %v", err)
-	}
+	require.NoError(t, err, "NewStorageAccountClient")
 
 	keys, err := sc.GetKeys(t.Context())
-	if err != nil {
-		t.Fatalf("GetKeys: %v", err)
-	}
-
-	if len(keys) != 2 || keys[0] != "first-key==" || keys[1] != "second-key==" {
-		t.Errorf("GetKeys = %v", keys)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, []string{"first-key==", "second-key=="}, keys)
 }
 
 func TestStorageAccount_GetKeys_EmptyError(t *testing.T) {
@@ -128,13 +110,10 @@ func TestStorageAccount_GetKeys_EmptyError(t *testing.T) {
 	})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
-	if _, err := sc.GetKeys(t.Context()); err == nil {
-		t.Fatal("expected error when no keys returned")
-	}
+	_, err = sc.GetKeys(t.Context())
+	require.ErrorIs(t, err, azurehelper.ErrNoAccessKeysReturned)
 }
 
 func TestStorageAccount_Delete_NotFoundIsNoop(t *testing.T) {
@@ -145,13 +124,9 @@ func TestStorageAccount_Delete_NotFoundIsNoop(t *testing.T) {
 	})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
-	if err := sc.EnsureDeleted(t.Context(), log.New()); err != nil {
-		t.Errorf("Delete on missing account should be no-op, got %v", err)
-	}
+	require.NoError(t, sc.EnsureDeleted(t.Context(), log.New()), "delete on a missing account must be a no-op")
 }
 
 func TestStorageAccount_Create_RequiresLocation(t *testing.T) {
@@ -160,11 +135,10 @@ func TestStorageAccount_Create_RequiresLocation(t *testing.T) {
 	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
-	assert.Panics(t, func() { _ = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{}) })
+	// location is user supplied, so a missing value is a user error.
+	require.ErrorIs(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{}), azurehelper.ErrLocationRequired)
 }
 
 func TestStorageAccount_Create_NameMismatch(t *testing.T) {
@@ -173,9 +147,7 @@ func TestStorageAccount_Create_NameMismatch(t *testing.T) {
 	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
 	assert.Panics(t, func() {
 		_ = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
@@ -191,9 +163,7 @@ func TestStorageAccount_Create_NilConfig(t *testing.T) {
 	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
 	assert.Panics(t, func() { _ = sc.Create(t.Context(), log.New(), nil) })
 }
@@ -204,17 +174,18 @@ func TestStorageAccount_Create_RejectsUnknownAccessTier(t *testing.T) {
 	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
-	assert.PanicsWithError(t, `unknown access tier "Frozen" (want Hot, Cool, Cold, or Premium)`, func() {
-		_ = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
-			Name:       testAccount,
-			Location:   "eastus",
-			AccessTier: "Frozen",
-		})
+	// access_tier is user supplied, so an unknown value is a user error.
+	err = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:       testAccount,
+		Location:   "eastus",
+		AccessTier: "Frozen",
 	})
+
+	var unknownTier *azurehelper.UnknownAccessTierError
+	require.ErrorAs(t, err, &unknownTier)
+	assert.Equal(t, "Frozen", unknownTier.Tier)
 }
 
 func TestStorageAccount_GetKeys_FiltersEmptyValues(t *testing.T) {
@@ -226,18 +197,11 @@ func TestStorageAccount_GetKeys_FiltersEmptyValues(t *testing.T) {
 	)}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
 	keys, err := sc.GetKeys(t.Context())
-	if err != nil {
-		t.Fatalf("GetKeys: %v", err)
-	}
-
-	if len(keys) != 1 || keys[0] != "second-key==" {
-		t.Errorf("GetKeys = %v; want [second-key==]", keys)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, []string{"second-key=="}, keys)
 }
 
 func TestStorageAccount_EnableVersioning(t *testing.T) {
@@ -248,18 +212,10 @@ func TestStorageAccount_EnableVersioning(t *testing.T) {
 	})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
-	if err := sc.EnableVersioning(t.Context(), log.New()); err != nil {
-		t.Fatalf("EnableVersioning: %v", err)
-	}
-
-	body := tr.lastPutBody()
-	if !strings.Contains(body, `"isVersioningEnabled":true`) {
-		t.Errorf("PUT body %q must enable versioning", body)
-	}
+	require.NoError(t, sc.EnableVersioning(t.Context(), log.New()))
+	assert.Contains(t, tr.lastPutBody(), `"isVersioningEnabled":true`, "PUT body must enable versioning")
 }
 
 func TestStorageAccount_IsVersioningEnabled(t *testing.T) {
@@ -270,18 +226,11 @@ func TestStorageAccount_IsVersioningEnabled(t *testing.T) {
 	})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
 	on, err := sc.IsVersioningEnabled(t.Context())
-	if err != nil {
-		t.Fatalf("IsVersioningEnabled: %v", err)
-	}
-
-	if !on {
-		t.Errorf("IsVersioningEnabled = false, want true")
-	}
+	require.NoError(t, err)
+	assert.True(t, on)
 }
 
 func TestStorageAccount_SoftDeleteRetention(t *testing.T) {
@@ -297,18 +246,12 @@ func TestStorageAccount_SoftDeleteRetention(t *testing.T) {
 	})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(on))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
 	blobDays, containerDays, err := sc.SoftDeleteRetention(t.Context())
-	if err != nil {
-		t.Fatalf("SoftDeleteRetention: %v", err)
-	}
-
-	if blobDays != 30 || containerDays != 30 {
-		t.Errorf("SoftDeleteRetention = (%d, %d), want (30, 30)", blobDays, containerDays)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, int32(30), blobDays)
+	assert.Equal(t, int32(30), containerDays)
 
 	// A disabled (or absent) policy reports 0 days, i.e. soft delete is off.
 	off := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
@@ -318,18 +261,12 @@ func TestStorageAccount_SoftDeleteRetention(t *testing.T) {
 	})}
 
 	sc, err = azurehelper.NewStorageAccountClient(cfgWithTransport(off))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
 	blobDays, containerDays, err = sc.SoftDeleteRetention(t.Context())
-	if err != nil {
-		t.Fatalf("SoftDeleteRetention (off): %v", err)
-	}
-
-	if blobDays != 0 || containerDays != 0 {
-		t.Errorf("SoftDeleteRetention (off) = (%d, %d), want (0, 0)", blobDays, containerDays)
-	}
+	require.NoError(t, err, "soft delete off")
+	assert.Zero(t, blobDays, "a disabled policy reports no retention")
+	assert.Zero(t, containerDays, "a disabled policy reports no retention")
 }
 
 func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
@@ -338,25 +275,14 @@ func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
 	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
+	require.NoError(t, err, "setup")
 
-	if err := sc.EnableSoftDelete(t.Context(), log.New(), 99999); err != nil {
-		t.Fatalf("EnableSoftDelete: %v", err)
-	}
+	require.NoError(t, sc.EnableSoftDelete(t.Context(), log.New(), 99999))
+	assert.Contains(t, tr.lastPutBody(), `"days":7`, "out-of-range retention must clamp to the default")
 
-	if body := tr.lastPutBody(); !strings.Contains(body, `"days":7`) {
-		t.Errorf("PUT body %q must carry the clamped default days", body)
-	}
+	require.NoError(t, sc.EnableSoftDelete(t.Context(), log.New(), 30), "in-range retention")
 
-	if err := sc.EnableSoftDelete(t.Context(), log.New(), 30); err != nil {
-		t.Fatalf("EnableSoftDelete in-range: %v", err)
-	}
-
-	if body := tr.lastPutBody(); !strings.Contains(body, `"days":30`) {
-		t.Errorf("PUT body %q must carry the requested days", body)
-	}
+	assert.Contains(t, tr.lastPutBody(), `"days":30`, "in-range retention must reach the request")
 }
 
 // jsonBody marshals body to JSON, panicking on error since test inputs are literals.

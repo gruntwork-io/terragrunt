@@ -20,6 +20,7 @@ var (
 	ErrResourceGroupNameRequired    = errors.New("resource group name is required")
 	ErrStorageAccountConfigRequired = errors.New("storage account config is required")
 	ErrLocationRequiredForRG        = errors.New("location is required to create resource group")
+	ErrLocationRequired             = errors.New("location is required")
 	ErrNoAccessKeysReturned         = errors.New("no access keys returned for storage account")
 	ErrAllAccessKeysEmpty           = errors.New("storage account returned keys but all values were empty")
 )

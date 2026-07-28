@@ -154,12 +154,19 @@ jobs:
             run: "^TestTofu"
           - name: Exec
             os: ubuntu
-            target: ./internal/vexec/...
+            target: ./...
             tags: exec
+            run: "^TestExec"
           - name: Exec Windows
             os: windows
-            target: ./internal/vexec/...
+            target: ./...
             tags: exec
+            run: "^TestExec"
+          - name: HTTP
+            os: ubuntu
+            target: ./...
+            tags: http
+            run: "^TestHTTP"
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
@@ -283,6 +290,7 @@ jobs:
           HAS_DOCKER: ${{ runner.os == 'Linux' }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results-${{ matrix.integration.name }}
@@ -300,6 +308,7 @@ jobs:
           group_suite: "true"
 
       - name: Print Failed Tests (${{ matrix.integration.name }})
+        if: always()
         run: |
           echo "Failed Tests in ${{ matrix.integration.name }}"
           if [[ -f test_output.log ]]; then

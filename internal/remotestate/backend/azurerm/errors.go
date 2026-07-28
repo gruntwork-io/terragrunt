@@ -10,6 +10,11 @@ func (configName MissingRequiredAzurermRemoteStateConfigError) Error() string {
 	return "Missing required azurerm remote state configuration " + string(configName)
 }
 
+// ErrBackendOptionsRequired is the panic value used when a lifecycle entry
+// point is called without backend options, which the remote-state layer
+// always supplies.
+var ErrBackendOptionsRequired = errors.New("backend options are required")
+
 // ErrAzureBackendExperimentRequired is returned when an azurerm backend
 // lifecycle operation is attempted without the `azure-backend` experiment
 // enabled. Match with errors.Is.

@@ -29,12 +29,14 @@ func NewResourceGroupClient(cfg *AzureConfig) (*ResourceGroupClient, error) {
 		panic(ErrAzureConfigRequired)
 	}
 
+	// subscription_id and the auth method come from user config, so a missing
+	// value is a user error rather than a caller bug.
 	if cfg.SubscriptionID == "" {
-		panic(ErrSubscriptionIDRequired)
+		return nil, ErrSubscriptionIDRequired
 	}
 
 	if cfg.Credential == nil {
-		panic(&UnsupportedAuthForOpError{Method: cfg.Method, Operation: "resource group operations"})
+		return nil, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "resource group operations"}
 	}
 
 	client, err := armresources.NewResourceGroupsClient(cfg.SubscriptionID, cfg.Credential, &arm.ClientOptions{
@@ -85,12 +87,13 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 		return nil
 	}
 
+	// location comes from user config, so a missing value is a user error.
 	if location == "" {
-		panic(fmt.Errorf("%w %q", ErrLocationRequiredForRG, name))
+		return fmt.Errorf("%w %q", ErrLocationRequiredForRG, name)
 	}
 
 	_, err = c.client.CreateOrUpdate(ctx, name, armresources.ResourceGroup{
-		Location: &location,
+		Location: new(location),
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("creating resource group %s: %w", name, err)
