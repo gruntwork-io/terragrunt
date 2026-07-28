@@ -603,10 +603,20 @@ const defaultZipDirMode os.FileMode = 0755
 const maxSymlinkTargetSize = 4096
 
 // ZipDecompressedSizeLimitError reports an extraction exceeding its configured decompressed size limit.
-type ZipDecompressedSizeLimitError struct{}
+type ZipDecompressedSizeLimitError struct {
+	// Name is the archive entry whose extraction breached the limit.
+	Name string
+	// Size is the entry's declared uncompressed size in bytes.
+	Size uint64
+	// Limit is the configured total decompressed size limit in bytes.
+	Limit int64
+}
 
-func (ZipDecompressedSizeLimitError) Error() string {
-	return "decompressed size exceeds limit"
+func (err ZipDecompressedSizeLimitError) Error() string {
+	return fmt.Sprintf(
+		"extracting file %q breached the total decompressed size limit of %d (entry size %d)",
+		err.Name, err.Limit, err.Size,
+	)
 }
 
 // ZipDecompressor handles zip archive extraction with configurable limits.
@@ -743,7 +753,10 @@ func (z *ZipDecompressor) extractRegularFile(
 	umask os.FileMode,
 	totalSize *int64,
 ) error {
-	if err := fs.MkdirAll(filepath.Dir(destPath), applyUmask(defaultZipDirMode, umask)); err != nil {
+	if err := fs.MkdirAll(
+		filepath.Dir(destPath),
+		applyUmask(defaultZipDirMode, umask),
+	); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
 
@@ -771,6 +784,9 @@ func (z *ZipDecompressor) extractRegularFile(
 		reader = &limitedReader{
 			reader:    rc,
 			remaining: z.FileSizeLimit - *totalSize,
+			name:      zipFile.Name,
+			size:      zipFile.UncompressedSize64,
+			limit:     z.FileSizeLimit,
 		}
 	}
 
@@ -813,7 +829,10 @@ func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
 // limitedReader wraps a reader and enforces a size limit.
 type limitedReader struct {
 	reader    io.Reader
+	name      string
 	remaining int64
+	size      uint64
+	limit     int64
 }
 
 func (r *limitedReader) Read(p []byte) (int, error) {
@@ -832,7 +851,7 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 
 	n, err := r.reader.Read(probe[:])
 	if n > 0 {
-		return 0, ZipDecompressedSizeLimitError{}
+		return 0, ZipDecompressedSizeLimitError{Name: r.name, Size: r.size, Limit: r.limit}
 	}
 
 	if err == nil {
@@ -1192,7 +1211,12 @@ func ValidateSymlinkTarget(dst, linkPath, target string) error {
 
 // extractSymlink extracts a symlink from a zip file.
 func (z *ZipDecompressor) extractSymlink(
-	l log.Logger, fs FS, dst, destPath string, zipFile *zip.File, umask os.FileMode, totalSize *int64,
+	l log.Logger,
+	fs FS,
+	dst, destPath string,
+	zipFile *zip.File,
+	umask os.FileMode,
+	totalSize *int64,
 ) error {
 	if zipFile.UncompressedSize64 > maxSymlinkTargetSize {
 		return fmt.Errorf("symlink %q target exceeds %d bytes", zipFile.Name, maxSymlinkTargetSize)
@@ -1220,7 +1244,11 @@ func (z *ZipDecompressor) extractSymlink(
 
 	if z.FileSizeLimit > 0 {
 		if *totalSize+int64(len(targetBytes)) > z.FileSizeLimit {
-			return ZipDecompressedSizeLimitError{}
+			return ZipDecompressedSizeLimitError{
+				Name:  zipFile.Name,
+				Size:  uint64(len(targetBytes)),
+				Limit: z.FileSizeLimit,
+			}
 		}
 
 		*totalSize += int64(len(targetBytes))
@@ -1233,7 +1261,10 @@ func (z *ZipDecompressor) extractSymlink(
 		return err
 	}
 
-	if err := fs.MkdirAll(filepath.Dir(destPath), applyUmask(defaultZipDirMode, umask)); err != nil {
+	if err := fs.MkdirAll(
+		filepath.Dir(destPath),
+		applyUmask(defaultZipDirMode, umask),
+	); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
 

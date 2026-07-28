@@ -1,0 +1,14 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Fixed roles assuming themselves for backend operations
+
+A regression in v1.1.1 broke setups that provide static AWS credentials and configure a role via the `iam_role` attribute, the `--iam-assume-role` flag, or `TG_IAM_ASSUME_ROLE`.
+
+In those setups, Terragrunt assumes the role once at the start of a run, and every later AWS call uses that role session. In v1.1.1, backend operations like bootstrapping the state bucket started performing an extra role assumption of their own. Since the run was already using the role session at that point, the role tried to assume itself, and AWS rejected the call with an `AccessDenied` error unless the role's trust policy happened to include the role itself.
+
+Backend operations now reuse the role session from the start of the run, as they did before v1.1.1.
+
+This does not affect the `assume_role` attribute of the `remote_state` block. Roles configured there are backend-specific and are still assumed on top of the supplied credentials, so the cross-account role assumption should continue to work as expected.

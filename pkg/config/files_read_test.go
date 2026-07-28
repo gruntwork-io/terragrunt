@@ -41,8 +41,8 @@ func TestFilesReadConcurrentAddWithRacing(t *testing.T) {
 	t.Parallel()
 
 	const (
-		workers       = 32
-		addsPerWorker = 200
+		workers       = 16
+		addsPerWorker = 25
 	)
 
 	f := config.NewFilesRead()

@@ -362,7 +362,7 @@ func UnitsWithDependents(q *queue.Queue) map[string]bool {
 func (rnr *Runner) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	stackOpts *options.TerragruntOptions,
 	r *report.Report,
 ) error {

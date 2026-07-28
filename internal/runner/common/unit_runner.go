@@ -47,7 +47,7 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 func (runner *UnitRunner) runTerragrunt(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -137,7 +137,7 @@ func (runner *UnitRunner) runTerragrunt(
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,

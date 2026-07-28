@@ -12,7 +12,7 @@ import (
 
 const CommandName = "hcl"
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	return &clihelper.Command{
 		Name:        CommandName,
 		Usage:       "Interact with HCL files.",

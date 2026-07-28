@@ -54,7 +54,6 @@ const (
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
 	testFixtureStackDependencies               = "fixtures/stacks/dependencies"
 	testFixtureStackSourceMap                  = "fixtures/stacks/source-map"
-	testFixtureStackCycles                     = "fixtures/stacks/errors/cycles"
 	testFixtureNoStackNoDir                    = "fixtures/stacks/no-stack-dir"
 	testFixtureMultipleStacks                  = "fixtures/stacks/multiple-stacks"
 	testFixtureReadStack                       = "fixtures/stacks/read-stack"
@@ -1504,39 +1503,6 @@ func TestStacksApplyNoStack(t *testing.T) {
 	)
 
 	validateNoStackDirs(t, rootPath)
-}
-
-func TestStacksCyclesErrors(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureStackCycles)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCycles)
-	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCycles)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(gitPath)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	rootPath := filepath.Join(gitPath, "live")
-
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath,
-	)
-	require.Error(t, err)
-
-	// On macOS, the error that the filename is too long happens before cycles are detected.
-	if !strings.Contains(err.Error(), "Cycle detected") {
-		assert.Contains(t, err.Error(), "file name too long")
-
-		return
-	}
-
-	assert.Contains(t, err.Error(), "Cycle detected")
 }
 
 func TestStacksNoStackDirDirectoryCreated(t *testing.T) {

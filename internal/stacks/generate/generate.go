@@ -25,14 +25,34 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// DefaultMaxLevel is the default cap on nested stack-generation levels. A run
+// that reaches it is treated as a cycle between stack files. Generous on
+// purpose: real stack trees stay far below it.
+const DefaultMaxLevel = 1024
+
 // Generator owns the per-working-directory lock for in-process GenerateStacks calls.
 type Generator struct {
-	locks *util.KeyLocks
+	locks    *util.KeyLocks
+	maxLevel int
 }
 
 // NewGenerator returns a ready-to-use Generator.
 func NewGenerator() *Generator {
-	return &Generator{locks: util.NewKeyLocks()}
+	return &Generator{locks: util.NewKeyLocks(), maxLevel: DefaultMaxLevel}
+}
+
+// WithMaxLevel returns the Generator with its nested stack-generation cap set
+// to maxLevel, replacing [DefaultMaxLevel]. Tests use it to trip cycle
+// detection quickly. Non-positive values are ignored: a cap below one would
+// silently skip generation instead of detecting a cycle.
+func (g *Generator) WithMaxLevel(maxLevel int) *Generator {
+	if maxLevel < 1 {
+		return g
+	}
+
+	g.maxLevel = maxLevel
+
+	return g
 }
 
 // StackNode represents a stack file in the file system.
@@ -70,7 +90,7 @@ const (
 func WorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
@@ -91,7 +111,7 @@ func WorktreeStacks(
 func (g *Generator) GenerateStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
@@ -104,7 +124,7 @@ func (g *Generator) GenerateStacks(
 func (g *Generator) generateStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 	scope stackScope,
@@ -138,7 +158,7 @@ func (g *Generator) generateStacks(
 
 	stackTrees := BuildStackTopology(l, foundFiles, workingDir)
 
-	const maxLevel = 1024
+	maxLevel := g.maxLevel
 	for level := range maxLevel {
 		if level == maxLevel-1 {
 			return fmt.Errorf("cycle detected: maximum level (%d) exceeded", maxLevel)
@@ -203,7 +223,7 @@ func warnOnRepeatedClaims(l log.Logger, levelNodes []*StackNode, claimedBy map[s
 func generateLevel(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	level int,
 	levelNodes []*StackNode,
@@ -249,7 +269,7 @@ func generateLevel(
 func discoverAndAddNewNodes(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	workingDir string,
@@ -414,7 +434,7 @@ func addNewNodesToGraph(
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	scope stackScope,
@@ -464,7 +484,7 @@ func ListStackFiles(
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
@@ -576,7 +596,7 @@ func appendStackFilePaths(
 func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
 ) (component.Components, error) {
@@ -778,7 +798,7 @@ func worktreeStacksToGenerate(
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,

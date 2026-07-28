@@ -21,9 +21,10 @@ import (
 type Server struct {
 	*router.Router
 	*Config
-	ProviderController *controllers.ProviderController
-	ModuleController   *controllers.ModuleController
-	services           []services.Service
+	ProviderController   *controllers.ProviderController
+	ModuleController     *controllers.ModuleController
+	DownloaderController *controllers.DownloaderController
+	services             []services.Service
 }
 
 // NewServer returns a new Server instance.
@@ -32,10 +33,10 @@ func NewServer(opts ...Option) *Server {
 
 	authMiddleware := middleware.KeyAuth(cfg.token)
 
-	downloaderController := &controllers.DownloaderController{
-		ProxyProviderHandler: cfg.proxyProviderHandler,
-		ProviderService:      cfg.providerService,
-	}
+	downloaderController := controllers.NewDownloaderController(
+		cfg.providerService,
+		cfg.proxyProviderHandler,
+	)
 
 	providerController := &controllers.ProviderController{
 		AuthMiddleware:              authMiddleware,
@@ -63,7 +64,7 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	rootRouter := router.New()
-	rootRouter.Use(middleware.Logger(cfg.logger))
+	rootRouter.Use(middleware.Logger(cfg.logger, downloaderController.Segment()))
 	rootRouter.Use(middleware.Recover(cfg.logger))
 	rootRouter.Register(discoveryController, downloaderController)
 
@@ -75,11 +76,12 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	return &Server{
-		Router:             rootRouter,
-		Config:             cfg,
-		services:           []services.Service{cfg.providerService},
-		ProviderController: providerController,
-		ModuleController:   moduleController,
+		Router:               rootRouter,
+		Config:               cfg,
+		services:             []services.Service{cfg.providerService},
+		ProviderController:   providerController,
+		ModuleController:     moduleController,
+		DownloaderController: downloaderController,
 	}
 }
 

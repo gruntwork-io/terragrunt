@@ -168,6 +168,36 @@ func TestRegistryGetterWithoutVersion(t *testing.T) {
 	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
 
+// TestRegistryGetterBuildMetadataVersion pins the download path for a version
+// carrying semver build metadata. The `+` reaches the getter percent-encoded,
+// which is what the constraint resolver writes, and the registry must be asked
+// for the version as published rather than for a `+`-decoded variant.
+func TestRegistryGetterBuildMetadataVersion(t *testing.T) {
+	t.Parallel()
+
+	var requestedVersion string
+
+	server := newBuildMetadataRegistryTestServer(t, &requestedVersion)
+
+	dstPath := helpers.TmpDirWOSymlinks(t)
+	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
+	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+
+	src := "tfr://" + server.Listener.Addr().
+		String() +
+		"/cloudstoragesec/cloud-storage-security/aws?version=1.8.26%2Bcss9.10.001"
+	client := newRegistryTestClient(t, server.Client(), tfimpl.OpenTofu)
+
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     src,
+		Dst:     moduleDestPath,
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.Equal(t, "1.8.26+css9.10.001", requestedVersion)
+}
+
 // TestRegistryGetterEmptyVersion pins the typed error returned when
 // ?version= is present but empty.
 func TestRegistryGetterEmptyVersion(t *testing.T) {
@@ -207,6 +237,45 @@ func newRegistryTestClient(t *testing.T, httpClient *http.Client, impl tfimpl.Ty
 			&gogetter.HttpGetter{Client: httpClient, Netrc: true},
 		),
 	)
+}
+
+// newBuildMetadataRegistryTestServer stands up a mock registry for a module
+// published only under versions carrying build metadata, recording the version
+// segment of the download request in requestedVersion.
+func newBuildMetadataRegistryTestServer(t *testing.T, requestedVersion *string) *httptest.Server {
+	t.Helper()
+
+	zipBody := buildModuleZip(t)
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
+		assert.NoError(t, err)
+	})
+
+	mux.HandleFunc(
+		"/v1/modules/cloudstoragesec/cloud-storage-security/aws/{version}/download",
+		func(w http.ResponseWriter, r *http.Request) {
+			*requestedVersion = r.PathValue("version")
+
+			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
+			w.WriteHeader(http.StatusNoContent)
+		},
+	)
+
+	mux.HandleFunc("/download/terraform-aws-vpc.zip", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+
+		_, err := w.Write(zipBody)
+		assert.NoError(t, err)
+	})
+
+	server := httptest.NewTLSServer(mux)
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 // buildModuleZip builds an in-memory zip archive that mirrors the shape of a

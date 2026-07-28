@@ -1,3 +1,9 @@
+//go:build exec && !windows
+
+// Server drives the real git binary (init, commit, push, http-backend), so
+// its tests are exec-gated like the rest of the real-git tests in
+// git_exec_test.go, and !windows-constrained for the same reason.
+
 package git_test
 
 import (
@@ -12,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServer(t *testing.T) {
+func TestExecServer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("start and clone", func(t *testing.T) {
