@@ -37,7 +37,7 @@ func TestDiscoverComponents_WithCustomFS(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 	assert.Equal(t, "foo", components[0].Dir)
@@ -143,7 +143,7 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -241,7 +241,7 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -283,7 +283,7 @@ func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
 	require.Len(t, components, 1, "only the root template should surface")
@@ -321,7 +321,7 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -365,9 +365,8 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 	repo := newFakeRepo(t, fsys, repoDir)
 
 	components, err := tui.NewComponentDiscovery().
-		WithFS(fsys).
 		WithExtraIgnoreFile(extraPath).
-		Discover(repo)
+		Discover(fsys, repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -398,7 +397,7 @@ func TestDiscoverComponents_EmptyRepo(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	assert.Empty(t, components)
 }
@@ -461,7 +460,7 @@ func TestComponentDiscovery_WithWalkWithSymlinksIsChainable(t *testing.T) {
 	chained := cd.WithWalkWithSymlinks()
 	assert.Same(t, cd, chained, "WithWalkWithSymlinks should return the same builder for chaining")
 
-	components, err := cd.Discover(repo)
+	components, err := cd.Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 	assert.Equal(t, tui.ComponentKindModule, components[0].Kind)

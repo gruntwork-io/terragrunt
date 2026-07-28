@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Fixed `width` truncation of colored and multi-byte log content
+
+The `width` option in a custom log format sizes a column to a fixed number of visible characters. When the content held color codes or multi-byte characters and was longer than the column, truncation cut the raw bytes: it could slice through the middle of a color code, leaving color bleeding into the rest of the line, or split a multi-byte character into invalid output, and it dropped more visible text than the configured width.
+
+`width` now measures and cuts by visible characters. Color codes are preserved intact, multi-byte characters are never split, and the column keeps exactly the requested number of visible characters.

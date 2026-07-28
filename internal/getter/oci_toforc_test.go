@@ -421,7 +421,7 @@ oci_credentials "registry.example.com" {
 }
 
 // newStoreForRepo builds the default store for one registry/repository.
-func newStoreForRepo(t *testing.T, v venv.Venv, registry, repositoryName string) getter.OCIRepositoryStore {
+func newStoreForRepo(t *testing.T, v *venv.Venv, registry, repositoryName string) getter.OCIRepositoryStore {
 	t.Helper()
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)

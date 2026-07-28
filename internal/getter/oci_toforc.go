@@ -62,7 +62,7 @@ type ociTofuCredentials struct {
 // helper block with no entry) falls through to the caller's next tier.
 func (c ociTofuCredentials) repoCredential(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	hostport, repositoryName string,
 ) (auth.Credential, error) {
 	for i := range c.repos {
@@ -76,7 +76,7 @@ func (c ociTofuCredentials) repoCredential(
 				suffix:        repo.helper,
 				serverAddress: ociTofuHelperServerAddress(hostport),
 				explicit:      true,
-			})
+			}, 0)
 		}
 
 		return repo.cred, nil
@@ -105,7 +105,7 @@ func ociValidHelperName(name string) bool {
 // loadOCITofuCredentials reads and decodes the CLI config's OCI blocks. It is
 // read-only and best-effort: a missing or unparsable file yields no credentials
 // (with ambient discovery left enabled) rather than an error.
-func loadOCITofuCredentials(l log.Logger, v venv.Venv) ociTofuCredentials {
+func loadOCITofuCredentials(l log.Logger, v *venv.Venv) ociTofuCredentials {
 	empty := ociTofuCredentials{discoverAmbient: true}
 
 	path := ociTofuConfigPath(v)
@@ -144,7 +144,7 @@ func loadOCITofuCredentials(l log.Logger, v venv.Venv) ociTofuCredentials {
 // ociTofuConfigPath resolves the CLI config path OpenTofu would use: the
 // TF_CLI_CONFIG_FILE or TERRAFORM_CONFIG override, else the first of
 // ~/.tofurc, ~/.terraformrc that exists.
-func ociTofuConfigPath(v venv.Venv) string {
+func ociTofuConfigPath(v *venv.Venv) string {
 	if override := v.Env[envTFCLIConfigFile]; override != "" {
 		return override
 	}

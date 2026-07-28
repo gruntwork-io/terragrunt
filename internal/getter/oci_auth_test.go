@@ -7,15 +7,19 @@ import (
 	"errors"
 	"io"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"oras.land/oras-go/v2/registry/remote/auth"
 
 	"github.com/stretchr/testify/assert"
@@ -57,10 +61,31 @@ func TestOCIAmbientCredentialConfigOrder(t *testing.T) {
 	env := map[string]string{"XDG_CONFIG_HOME": xdgConfig, "DOCKER_CONFIG": dockerConfigEnv}
 	v := credentialVenv(home, env)
 
-	writeAuthFile(t, v.FS, filepath.Join(xdgConfig, "containers", "auth.json"), testRegistry, "xdg-config", "pw")
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "home-docker", "pw")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(xdgConfig, "containers", "auth.json"),
+		testRegistry,
+		"xdg-config",
+		"pw",
+	)
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"home-docker",
+		"pw",
+	)
 	// DOCKER_CONFIG must be ignored: a credential here must never win.
-	writeAuthFile(t, v.FS, filepath.Join(dockerConfigEnv, "config.json"), testRegistry, "docker-config-env", "pw")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(dockerConfigEnv, "config.json"),
+		testRegistry,
+		"docker-config-env",
+		"pw",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -99,9 +124,27 @@ func TestOCIAmbientCredentialXDGRuntimeDir(t *testing.T) {
 
 			home := testHome
 			runtimeDir := testRuntimeDir
-			v := credentialVenvForGOOS(tc.goos, home, map[string]string{"XDG_RUNTIME_DIR": runtimeDir})
-			writeAuthFile(t, v.FS, filepath.Join(runtimeDir, "containers", "auth.json"), testRegistry, "xdg-runtime", "pw")
-			writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "home-docker", "pw")
+			v := credentialVenvForGOOS(
+				tc.goos,
+				home,
+				map[string]string{"XDG_RUNTIME_DIR": runtimeDir},
+			)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(runtimeDir, "containers", "auth.json"),
+				testRegistry,
+				"xdg-runtime",
+				"pw",
+			)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(home, ".docker", "config.json"),
+				testRegistry,
+				"home-docker",
+				"pw",
+			)
 
 			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 			store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -131,9 +174,27 @@ func TestOCIAmbientCredentialPlatformConfigOrder(t *testing.T) {
 
 			home := testHome
 			xdgConfig := testXDGConfig
-			v := credentialVenvForGOOS(tc.goos, home, map[string]string{"XDG_CONFIG_HOME": xdgConfig})
-			writeAuthFile(t, v.FS, filepath.Join(home, ".config", "containers", "auth.json"), testRegistry, "home-config", "pw")
-			writeAuthFile(t, v.FS, filepath.Join(xdgConfig, "containers", "auth.json"), testRegistry, "xdg-config", "pw")
+			v := credentialVenvForGOOS(
+				tc.goos,
+				home,
+				map[string]string{"XDG_CONFIG_HOME": xdgConfig},
+			)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(home, ".config", "containers", "auth.json"),
+				testRegistry,
+				"home-config",
+				"pw",
+			)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(xdgConfig, "containers", "auth.json"),
+				testRegistry,
+				"xdg-config",
+				"pw",
+			)
 
 			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 			store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -152,8 +213,22 @@ func TestOCIAmbientCredentialUsesInjectedHomeDirectory(t *testing.T) {
 		"HOME":        "/decoy-home",
 		"USERPROFILE": "/decoy-profile",
 	})
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "injected-home", "pw")
-	writeAuthFile(t, v.FS, filepath.Join("/decoy-home", ".docker", "config.json"), testRegistry, "decoy-home", "pw")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"injected-home",
+		"pw",
+	)
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join("/decoy-home", ".docker", "config.json"),
+		testRegistry,
+		"decoy-home",
+		"pw",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -168,7 +243,14 @@ func TestOCIAmbientCredentialContinuesAfterHomeLookupError(t *testing.T) {
 	xdgConfig := testXDGConfig
 	v := credentialVenv("", map[string]string{"XDG_CONFIG_HOME": xdgConfig}).
 		WithUserHomeDir(func() (string, error) { return "", errors.New("home unavailable") })
-	writeAuthFile(t, v.FS, filepath.Join(xdgConfig, "containers", "auth.json"), testRegistry, "xdg-config", "pw")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(xdgConfig, "containers", "auth.json"),
+		testRegistry,
+		"xdg-config",
+		"pw",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -182,7 +264,14 @@ func TestOCIAmbientCredentialScopedToRegistry(t *testing.T) {
 
 	home := testHome
 	v := credentialVenv(home, nil)
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "scoped-user", "scoped-pass")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"scoped-user",
+		"scoped-pass",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -215,7 +304,14 @@ func TestOCIAmbientCredentialInvalidFileSkipped(t *testing.T) {
 	badPath := filepath.Join(xdgConfig, "containers", "auth.json")
 	require.NoError(t, vfs.WriteFile(v.FS, badPath, []byte("not json"), 0o600))
 	// Lower priority: valid.
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "good-user", "good-pass")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"good-user",
+		"good-pass",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -241,7 +337,14 @@ func TestOCIAmbientCredentialMalformedEntryFallsThrough(t *testing.T) {
 		base64.StdEncoding.EncodeToString([]byte("nocolon")),
 	)
 	// Lower priority: valid.
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "good-user", "good-pass")
+	writeAuthFile(
+		t,
+		v.FS,
+		filepath.Join(home, ".docker", "config.json"),
+		testRegistry,
+		"good-user",
+		"good-pass",
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -264,7 +367,10 @@ func TestOCIAmbientCredentialMalformedUnrelatedEntryIgnored(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".docker", "config.json"), data, 0o600))
+	require.NoError(
+		t,
+		vfs.WriteFile(v.FS, filepath.Join(home, ".docker", "config.json"), data, 0o600),
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -351,7 +457,10 @@ func TestOCIAmbientCredentialCanonicalAliasFallsThrough(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(testHome, ".docker", "config.json"), data, 0o600))
+	require.NoError(
+		t,
+		vfs.WriteFile(v.FS, filepath.Join(testHome, ".docker", "config.json"), data, 0o600),
+	)
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
@@ -383,12 +492,22 @@ func TestOCIAmbientCredentialDockerHubSpellings(t *testing.T) {
 
 			home := testHome
 			v := credentialVenv(home, nil)
-			writeAuthFileKeys(t, v.FS, filepath.Join(home, ".config", "containers", "auth.json"), map[string]string{
-				tc.authKey: "hub-user",
-			})
-			writeAuthFileKeys(t, v.FS, filepath.Join(home, ".docker", "config.json"), map[string]string{
-				tc.authKey: "hub-user",
-			})
+			writeAuthFileKeys(
+				t,
+				v.FS,
+				filepath.Join(home, ".config", "containers", "auth.json"),
+				map[string]string{
+					tc.authKey: "hub-user",
+				},
+			)
+			writeAuthFileKeys(
+				t,
+				v.FS,
+				filepath.Join(home, ".docker", "config.json"),
+				map[string]string{
+					tc.authKey: "hub-user",
+				},
+			)
 
 			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
@@ -589,9 +708,8 @@ func TestOCIHelperCredentialMintedPerResolution(t *testing.T) {
 	assert.EqualValues(t, 2, calls.Load(), "the helper must re-mint on every resolution")
 }
 
-// TestOCIHelperCredentialHelperBeatsInline: a configured helper wins over a
-// stale inline login for the same registry, matching Docker precedence.
-func TestOCIHelperCredentialHelperBeatsInline(t *testing.T) {
+// TestOCIHelperCredentialRepoInlineBeatsHelper: a repo-scoped inline auth outranks a domain helper, which never runs.
+func TestOCIHelperCredentialRepoInlineBeatsHelper(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
@@ -603,7 +721,35 @@ func TestOCIHelperCredentialHelperBeatsInline(t *testing.T) {
 	home := testHome
 	v := credentialVenv(home, nil).WithExec(exec)
 	path := filepath.Join(home, ".docker", "config.json")
-	// One file carrying both a stale inline login and a helper for the registry.
+	// A repository-scoped inline login alongside a domain helper for the registry.
+	writeDockerConfig(t, v.FS, path,
+		map[string]string{testRegistry + "/modules/vpc": "repo-user:fake-secret-repo"},
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	want := auth.Credential{Username: "repo-user", Password: "fake-secret-repo"}
+	assert.Equal(t, want, credentialFor(t, store, testRegistry))
+	assert.EqualValues(t, 0, calls.Load(), "the more specific inline auth must win and the helper must not run")
+}
+
+// TestOCIHelperCredentialDomainHelperBeatsDomainInline: a per-registry helper outranks a stale domain inline login.
+func TestOCIHelperCredentialDomainHelperBeatsDomainInline(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	exec := stubHelperExec(t, "ecr-login", func(string) vexec.Result {
+		return vexec.Result{Stdout: []byte(`{"Username":"AWS","Secret":"fake-secret-fresh"}`)}
+	}, &calls)
+
+	home := testHome
+	v := credentialVenv(home, nil).WithExec(exec)
+	path := filepath.Join(home, ".docker", "config.json")
+	// A stale domain-level inline login alongside a domain helper for the same registry.
 	writeDockerConfig(t, v.FS, path,
 		map[string]string{testRegistry: "stale-user:fake-secret-stale"},
 		map[string]string{testRegistry: "ecr-login"}, "")
@@ -615,23 +761,101 @@ func TestOCIHelperCredentialHelperBeatsInline(t *testing.T) {
 
 	want := auth.Credential{Username: "AWS", Password: "fake-secret-fresh"}
 	assert.Equal(t, want, credentialFor(t, store, testRegistry))
-	assert.EqualValues(t, 1, calls.Load(), "the helper must run and win over the stale inline login")
+	assert.EqualValues(t, 1, calls.Load(), "the per-registry helper must win the domain tie and remint")
+}
+
+// TestOCIHelperCredentialRepoInlineBeatsCredsStore: a repo inline auth outranks credsStore, which never runs.
+func TestOCIHelperCredentialRepoInlineBeatsCredsStore(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	exec := stubHelperExec(t, "osxkeychain", func(string) vexec.Result {
+		return vexec.Result{Stdout: []byte(`{"Username":"store","Secret":"fake-secret-store"}`)}
+	}, &calls)
+
+	home := testHome
+	v := credentialVenv(home, nil).WithExec(exec)
+	writeDockerConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"),
+		map[string]string{testRegistry + "/modules/vpc": "repo-user:fake-secret-repo"},
+		nil, "osxkeychain")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	want := auth.Credential{Username: "repo-user", Password: "fake-secret-repo"}
+	assert.Equal(t, want, credentialFor(t, store, testRegistry))
+	assert.EqualValues(t, 0, calls.Load(), "the more specific inline auth must win and credsStore must not run")
+}
+
+// TestOCIHelperCredentialDomainHelperBeatsEarlierCredsStore: a later domain helper outranks an earlier credsStore.
+func TestOCIHelperCredentialDomainHelperBeatsEarlierCredsStore(t *testing.T) {
+	t.Parallel()
+
+	var storeCalls, helperCalls atomic.Int32
+
+	handler := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		switch inv.Name {
+		case "docker-credential-ecr-login":
+			helperCalls.Add(1)
+
+			return vexec.Result{Stdout: []byte(`{"Username":"registry","Secret":"fake-secret-registry"}`)}
+		case "docker-credential-desktop":
+			storeCalls.Add(1)
+
+			return vexec.Result{Stdout: []byte(`{"Username":"store","Secret":"fake-secret-store"}`)}
+		default:
+			assert.Fail(t, "an unexpected credential helper was invoked", inv.Name)
+
+			return vexec.Result{ExitCode: 1}
+		}
+	}
+	exec := vexec.NewMemExec(handler, vexec.WithLookPath(func(file string) (string, error) {
+		return "/usr/local/bin/" + file, nil
+	}))
+
+	home := testHome
+	xdgConfig := testXDGConfig
+	v := credentialVenv(home, map[string]string{"XDG_CONFIG_HOME": xdgConfig}).WithExec(exec)
+	// Earlier file (XDG) carries only a global credsStore; the later file a domain helper.
+	writeHelperConfig(t, v.FS, filepath.Join(xdgConfig, "containers", "auth.json"), nil, "desktop")
+	writeHelperConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	want := auth.Credential{Username: "registry", Password: "fake-secret-registry"}
+	assert.Equal(t, want, credentialFor(t, store, testRegistry))
+	assert.EqualValues(t, 1, helperCalls.Load(), "the domain helper must win over the earlier global credsStore")
+	assert.EqualValues(t, 0, storeCalls.Load(), "the lower-specificity credsStore must not run")
 }
 
 // TestOCIHelperCredentialCredHelpersBeatsCredsStore: a per-registry helper wins over credsStore.
 func TestOCIHelperCredentialCredHelpersBeatsCredsStore(t *testing.T) {
 	t.Parallel()
 
-	var storeCalls atomic.Int32
+	var registryCalls, storeCalls atomic.Int32
 
 	handler := func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		if inv.Name == "docker-credential-osxkeychain" {
+		switch inv.Name {
+		case "docker-credential-ecr-login":
+			registryCalls.Add(1)
+
+			return vexec.Result{Stdout: []byte(`{"Username":"registry","Secret":"fake-secret-registry"}`)}
+		case "docker-credential-osxkeychain":
 			storeCalls.Add(1)
 
 			return vexec.Result{Stdout: []byte(`{"Username":"store","Secret":"fake-secret-store"}`)}
-		}
+		default:
+			assert.Fail(t, "an unexpected credential helper was invoked", inv.Name)
 
-		return vexec.Result{Stdout: []byte(`{"Username":"registry","Secret":"fake-secret-registry"}`)}
+			return vexec.Result{ExitCode: 1}
+		}
 	}
 	exec := vexec.NewMemExec(handler, vexec.WithLookPath(func(file string) (string, error) {
 		return "/usr/local/bin/" + file, nil
@@ -649,7 +873,42 @@ func TestOCIHelperCredentialCredHelpersBeatsCredsStore(t *testing.T) {
 
 	want := auth.Credential{Username: "registry", Password: "fake-secret-registry"}
 	assert.Equal(t, want, credentialFor(t, store, testRegistry))
+	assert.EqualValues(t, 1, registryCalls.Load(), "the per-registry ecr-login helper must be invoked once")
 	assert.EqualValues(t, 0, storeCalls.Load(), "the per-registry helper must win over credsStore")
+}
+
+// TestOCIHelperCredentialEmptyCredHelperFallsThrough: an empty credHelpers value is skipped, never run as a helper.
+func TestOCIHelperCredentialEmptyCredHelperFallsThrough(t *testing.T) {
+	t.Parallel()
+
+	handler := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		switch inv.Name {
+		case "docker-credential-osxkeychain":
+			return vexec.Result{Stdout: []byte(`{"Username":"store","Secret":"fake-secret-store"}`)}
+		default:
+			assert.Fail(t, "only the credsStore helper may run for an empty credHelpers value", inv.Name)
+
+			return vexec.Result{ExitCode: 1}
+		}
+	}
+	exec := vexec.NewMemExec(handler, vexec.WithLookPath(func(file string) (string, error) {
+		assert.NotEqual(t, "docker-credential-", file, "an empty helper name must never be looked up")
+
+		return "/usr/local/bin/" + file, nil
+	}))
+
+	home := testHome
+	v := credentialVenv(home, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"),
+		map[string]string{testRegistry: ""}, "osxkeychain")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	want := auth.Credential{Username: "store", Password: "fake-secret-store"}
+	assert.Equal(t, want, credentialFor(t, store, testRegistry))
 }
 
 // TestOCIHelperCredentialCredsStoreFailureIsNonFatal: a global credsStore whose
@@ -667,19 +926,18 @@ func TestOCIHelperCredentialCredsStoreFailureIsNonFatal(t *testing.T) {
 
 	home := testHome
 	v := credentialVenv(home, nil).WithExec(exec)
-	// credsStore set globally, plus a valid inline auth for the registry.
-	writeDockerConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"),
-		map[string]string{testRegistry: "inline-user:fake-secret-inline"}, nil, "desktop")
+	// Only a global credsStore whose helper binary is missing; no inline auth or credHelpers.
+	writeHelperConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"), nil, "desktop")
 
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
 
-	// The broken credsStore is skipped; the inline auth still resolves.
+	// The broken credsStore is skipped and the pull resolves anonymously.
 	cred, credErr := credentialForErr(t, store, testRegistry)
 	require.NoError(t, credErr, "a missing credsStore helper must not fail the fetch")
-	assert.Equal(t, auth.Credential{Username: "inline-user", Password: "fake-secret-inline"}, cred)
+	assert.Equal(t, auth.EmptyCredential, cred)
 }
 
 // TestOCIHelperCredentialFirstFileHelperWins: with two config files, the
@@ -775,13 +1033,185 @@ func TestOCIHelperCredentialReceivesVenvEnv(t *testing.T) {
 	assert.Contains(t, gotEnv, "AWS_SESSION_TOKEN=fake-session-token")
 }
 
+// TestOCIHelperCredentialEmptyEnvStaysNonNil: an empty v.Env yields a non-nil helper env, not host inheritance.
+func TestOCIHelperCredentialEmptyEnvStaysNonNil(t *testing.T) {
+	t.Parallel()
+
+	var gotEnv []string
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		gotEnv = inv.Env
+		return vexec.Result{Stdout: []byte(`{"Username":"AWS","Secret":"fake-secret-hub"}`)}
+	}, vexec.WithLookPath(func(file string) (string, error) { return "/usr/local/bin/" + file, nil }))
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	credentialFor(t, store, testRegistry)
+
+	require.NotNil(t, gotEnv, "an empty v.Env must produce a non-nil helper env, not host inheritance")
+	assert.Empty(t, gotEnv, "an empty v.Env must not leak host variables to the helper")
+}
+
+// TestOCIHelperCredentialReceivesTraceParent: a valid span injects TRACEPARENT into the helper env.
+func TestOCIHelperCredentialReceivesTraceParent(t *testing.T) {
+	t.Parallel()
+
+	var gotEnv []string
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		gotEnv = inv.Env
+		return vexec.Result{Stdout: []byte(`{"Username":"AWS","Secret":"fake-secret-hub"}`)}
+	}, vexec.WithLookPath(func(file string) (string, error) { return "/usr/local/bin/" + file, nil }))
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	tp := trace.NewTracerProvider()
+
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	ctx, span := tp.Tracer("getter-test").Start(t.Context(), "oci-helper")
+	defer span.End()
+
+	want := telemetry.TraceParentFromContext(ctx, nil)
+	require.NotEmpty(t, want, "test span must yield a W3C traceparent")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(ctx, testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	remoteStore, castOK := store.(getter.OCIRemoteStore)
+	require.True(t, castOK)
+
+	client, castOK := remoteStore.Repo.Client.(*auth.Client)
+	require.True(t, castOK)
+
+	_, err = client.Credential(ctx, testRegistry)
+	require.NoError(t, err)
+
+	assert.Contains(t, gotEnv, telemetry.TraceParentEnv+"="+want)
+}
+
+// TestOCIHelperCredentialTimeoutHonorsParentDeadline: a slow helper fails when the parent context expires.
+func TestOCIHelperCredentialTimeoutHonorsParentDeadline(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+
+	exec := vexec.NewMemExec(func(ctx context.Context, _ vexec.Invocation) vexec.Result {
+		close(started)
+		<-ctx.Done()
+
+		return vexec.Result{Err: ctx.Err(), ExitCode: -1}
+	}, vexec.WithLookPath(func(file string) (string, error) { return "/usr/local/bin/" + file, nil }))
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(ctx, testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	remoteStore, castOK := store.(getter.OCIRemoteStore)
+	require.True(t, castOK)
+
+	client, castOK := remoteStore.Repo.Client.(*auth.Client)
+	require.True(t, castOK)
+
+	_, err = client.Credential(ctx, testRegistry)
+	require.Error(t, err)
+
+	var helperErr getter.OCICredentialHelperError
+
+	require.ErrorAs(t, err, &helperErr)
+	require.ErrorIs(t, helperErr.Err, context.DeadlineExceeded)
+
+	select {
+	case <-started:
+	default:
+		t.Fatal("helper never started")
+	}
+}
+
+// TestOCIHelperCredentialSurfacesStderr: a failing helper surfaces its stderr diagnostic without leaking stdout.
+func TestOCIHelperCredentialSurfacesStderr(t *testing.T) {
+	t.Parallel()
+
+	exec := stubHelperExec(t, "ecr-login", func(string) vexec.Result {
+		return vexec.Result{
+			Stdout:   []byte("secret-on-stdout"),
+			Stderr:   []byte("could not refresh ECR token: expired"),
+			ExitCode: 1,
+		}
+	}, nil)
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	_, err = credentialForErr(t, store, testRegistry)
+	require.Error(t, err)
+
+	var helperErr getter.OCICredentialHelperError
+	require.ErrorAs(t, err, &helperErr)
+	assert.Contains(t, helperErr.Stderr, "could not refresh ECR token: expired", "the helper stderr must be captured")
+	assert.Contains(t, err.Error(), "could not refresh ECR token: expired", "stderr must surface in the error")
+	assert.NotContains(t, err.Error(), "secret-on-stdout", "the helper stdout must never leak into the error")
+}
+
+// TestOCIHelperCredentialStderrTruncated: oversized helper stderr is capped with a trailing ellipsis marker.
+func TestOCIHelperCredentialStderrTruncated(t *testing.T) {
+	t.Parallel()
+
+	huge := strings.Repeat("x", 5000)
+	exec := stubHelperExec(t, "ecr-login", func(string) vexec.Result {
+		return vexec.Result{Stdout: []byte("nope"), Stderr: []byte(huge), ExitCode: 1}
+	}, nil)
+
+	v := credentialVenv(testHome, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(testHome, ".docker", "config.json"),
+		map[string]string{testRegistry: "ecr-login"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	_, err = credentialForErr(t, store, testRegistry)
+	require.Error(t, err)
+
+	var helperErr getter.OCICredentialHelperError
+	require.ErrorAs(t, err, &helperErr)
+	assert.True(t, strings.HasSuffix(helperErr.Stderr, "..."), "capped stderr must carry a truncation marker")
+	assert.Less(t, len(helperErr.Stderr), len(huge), "stderr must be capped below the raw size")
+}
+
 // credentialVenv builds a hermetic Linux Venv with home and extra env set.
-func credentialVenv(home string, extra map[string]string) venv.Venv {
+func credentialVenv(home string, extra map[string]string) *venv.Venv {
 	return credentialVenvForGOOS("linux", home, extra)
 }
 
 // credentialVenvForGOOS builds a hermetic in-memory Venv for goos.
-func credentialVenvForGOOS(goos, home string, extra map[string]string) venv.Venv {
+func credentialVenvForGOOS(goos, home string, extra map[string]string) *venv.Venv {
 	env := map[string]string{}
 	for name, value := range extra {
 		env[name] = value
@@ -807,7 +1237,13 @@ func credentialFor(t *testing.T, store getter.OCIRepositoryStore, registry strin
 func writeAuthFile(t *testing.T, fs vfs.FS, path, registry, user, pass string) {
 	t.Helper()
 
-	writeRawAuthFile(t, fs, path, registry, base64.StdEncoding.EncodeToString([]byte(user+":"+pass)))
+	writeRawAuthFile(
+		t,
+		fs,
+		path,
+		registry,
+		base64.StdEncoding.EncodeToString([]byte(user+":"+pass)),
+	)
 }
 
 // writeAuthFileKeys writes a credential file declaring every key in users, each

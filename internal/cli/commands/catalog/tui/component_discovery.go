@@ -32,13 +32,12 @@ const (
 // walker returns fs.SkipDir so nested artifacts aren't surfaced as separate
 // components.
 type ComponentDiscovery struct {
-	fsys             vfs.FS
 	extraIgnoreFile  string
 	walkWithSymlinks bool
 }
 
 // NewComponentDiscovery returns a ComponentDiscovery with default settings:
-// no symlink following, no extra ignore file, the real OS filesystem.
+// no symlink following, no extra ignore file.
 func NewComponentDiscovery() *ComponentDiscovery {
 	return &ComponentDiscovery{}
 }
@@ -57,27 +56,16 @@ func (cd *ComponentDiscovery) WithExtraIgnoreFile(i string) *ComponentDiscovery 
 	return cd
 }
 
-// WithFS sets the filesystem used for the discovery walk and per-component
-// README reads. When unset, Discover uses vfs.NewOSFS().
-func (cd *ComponentDiscovery) WithFS(fsys vfs.FS) *ComponentDiscovery {
-	cd.fsys = fsys
-	return cd
-}
-
-// Discover runs component discovery against repo. repo must be non-nil;
-// callers obtain it from a successful module.NewRepo and check that
-// constructor's error first.
-func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
+// Discover runs component discovery against repo, walking fsys for
+// component directories and README reads. repo must be non-nil; callers
+// obtain it from a successful module.NewRepo and check that constructor's
+// error first.
+func (cd *ComponentDiscovery) Discover(fsys vfs.FS, repo *module.Repo) (Components, error) {
 	repoPath := repo.Path()
 	cloneURL := repo.CloneURL()
 
 	if repoPath == "" {
 		return nil, ErrEmptyRepoPath
-	}
-
-	fsys := cd.fsys
-	if fsys == nil {
-		fsys = vfs.NewOSFS()
 	}
 
 	walkFunc := func(root string, fn fs.WalkDirFunc) error {

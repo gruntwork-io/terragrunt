@@ -171,7 +171,10 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.Run(t.Context(), l, v, opts, report.NewReport(), cfg, creds.NewGetter()))
+	require.NoError(
+		t,
+		run.Run(t.Context(), l, v, opts, report.NewReport(), cfg, creds.NewGetter()),
+	)
 
 	mu.Lock()
 	defer mu.Unlock()

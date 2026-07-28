@@ -26,7 +26,7 @@ import (
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
@@ -198,25 +198,26 @@ func (d *Discovery) Discover(
 		components = filtered
 	}
 
-	cycleCheckErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "discovery_cycle_check", map[string]any{},
-		func(childCtx context.Context, l log.Logger) error {
-			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
-				l.Debugf("Cycle: %v", cycleErr)
+	cycleCheckErr := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "discovery_cycle_check", map[string]any{},
+			func(childCtx context.Context, l log.Logger) error {
+				if _, cycleErr := components.CycleCheck(); cycleErr != nil {
+					l.Debugf("Cycle: %v", cycleErr)
 
-				if d.breakCycles {
-					l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+					if d.breakCycles {
+						l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-					var removeErr error
+						var removeErr error
 
-					components, removeErr = removeCycles(components)
-					if removeErr != nil {
-						return removeErr
+						components, removeErr = removeCycles(components)
+						if removeErr != nil {
+							return removeErr
+						}
 					}
 				}
-			}
 
-			return nil
-		})
+				return nil
+			})
 
 	if cycleCheckErr != nil && !d.suppressParseErrors {
 		return components, cycleCheckErr
@@ -252,7 +253,7 @@ func logPhaseComplete(l log.Logger, name string, results *PhaseResults, err erro
 func (d *Discovery) runFilesystemPhase(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*PhaseResults, error) {
 	var (
@@ -381,7 +382,7 @@ func (d *Discovery) runFilesystemPhase(
 func (d *Discovery) runParsePhase(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
@@ -417,7 +418,7 @@ func (d *Discovery) runParsePhase(
 func (d *Discovery) runGraphPhase(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
@@ -486,7 +487,7 @@ func (d *Discovery) runGraphPhase(
 func (d *Discovery) runRelationshipPhase(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) (component.Components, error) {
@@ -506,7 +507,7 @@ func (d *Discovery) runRelationshipPhase(
 func (d *Discovery) buildDependencyGraph(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
 ) []error {
@@ -547,7 +548,7 @@ func (d *Discovery) buildDependencyGraph(
 func (d *Discovery) buildComponentDependencies(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	c component.Component,
 	threadSafeComponents *component.ThreadSafeComponents,

@@ -40,7 +40,7 @@ import (
 
 const splitCount = 2
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf(
@@ -71,7 +71,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 func RunValidate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
 	var diags diagnostic.Diagnostics
@@ -229,7 +229,7 @@ func RunValidate(
 
 func processDiagnostics(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	diags diagnostic.Diagnostics,
 	callErr error,
@@ -270,7 +270,7 @@ func processDiagnostics(
 
 func writeDiagnostics(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	diags diagnostic.Diagnostics,
 ) error {
@@ -291,7 +291,7 @@ func writeDiagnostics(
 func RunValidateInputs(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
 	opts = opts.Clone()

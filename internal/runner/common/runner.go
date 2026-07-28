@@ -19,7 +19,7 @@ type StackRunner interface {
 	Run(
 		ctx context.Context,
 		l log.Logger,
-		v venv.Venv,
+		v *venv.Venv,
 		opts *options.TerragruntOptions,
 		r *report.Report,
 	) error

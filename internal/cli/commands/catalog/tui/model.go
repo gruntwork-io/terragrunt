@@ -122,7 +122,7 @@ type Model struct {
 	// venv is the root virtualized environment threaded from the CLI
 	// entrypoint, so scaffold and form-discovery leaves run against the
 	// same filesystem and exec handles as the rest of Terragrunt.
-	venv venv.Venv
+	venv *venv.Venv
 	// pagerKeys are the keybindings handled while reading a README in the
 	// pager view.
 	pagerKeys PagerKeyMap
@@ -189,7 +189,7 @@ type Model struct {
 func NewModelStreaming(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	initial *ComponentEntry,
 	componentCh chan *ComponentEntry,
@@ -408,7 +408,7 @@ func isDuplicate(items []list.Item, sourcePath string) bool {
 
 func newModelWithItems(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	items []list.Item,
 	componentCh chan *ComponentEntry,

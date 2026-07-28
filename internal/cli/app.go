@@ -49,7 +49,7 @@ type App struct {
 // root virtualized environment; it is threaded through to the command
 // constructors and captured by their Action closures rather than held on
 // the App, so virtualized handlers stay function parameters.
-func NewApp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *App {
+func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
 	terragruntCommands := commands.New(l, opts, v)
 
 	app := clihelper.NewApp()
@@ -60,7 +60,9 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *App {
 	app.Writer = v.Writers.Writer
 	app.ErrWriter = v.Writers.ErrWriter
 	app.Flags = global.NewFlags(l, opts, nil)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, v))
+	app.Commands = terragruntCommands.
+		WrapAction(commands.WrapWithTelemetry(l, opts, v)).
+		WrapAction(commands.WrapWithProfiling(l, opts, v))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
