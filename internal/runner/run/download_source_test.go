@@ -1114,10 +1114,17 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 			l := logger.CreateLogger()
 			l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
 
+			// Hermetic env and home so a developer's local Docker or tofu
+			// credentials cannot change how the source authenticates.
+			hermeticHome := t.TempDir()
+			v := venv.OSVenv().
+				WithEnv(map[string]string{"HOME": hermeticHome}).
+				WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
+
 			_, err = run.DownloadTerraformSourceIfNecessary(
 				t.Context(),
 				l,
-				venv.OSVenv(),
+				v,
 				src,
 				configbridge.NewRunOptions(opts),
 				cfg,
@@ -1127,14 +1134,16 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 
 			const casAttempt = "CAS enabled: attempting to use Content Addressable Storage"
 
+			var resolutionErr getter.OCIReferenceResolutionError
+
 			if tc.enableOCI {
-				require.ErrorContains(t, err, "resolving OCI reference", "the oci getter must run when the experiment is on")
+				require.ErrorAs(t, err, &resolutionErr, "the oci getter must run when the experiment is on")
 				assert.Contains(t, logBuf.String(), casAttempt, "the oci source must enter the CAS path when the experiment is on")
 
 				return
 			}
 
-			assert.NotContains(t, err.Error(), "resolving OCI reference", "no oci getter must run when the experiment is off")
+			assert.NotErrorAs(t, err, &resolutionErr, "no oci getter must run when the experiment is off")
 			assert.NotContains(t, logBuf.String(), casAttempt, "the CAS attempt must be skipped when the experiment is off")
 		})
 	}
