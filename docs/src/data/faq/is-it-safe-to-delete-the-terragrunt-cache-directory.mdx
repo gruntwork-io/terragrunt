@@ -1,0 +1,40 @@
+---
+question: "Is it safe to delete the .terragrunt-cache directory?"
+description: "Yes. It is scratch space that Terragrunt recreates as needed, and it holds no state. If it keeps growing back, share provider downloads through a provider cache and let the Content Addressable Store deduplicate repository clones."
+order: 6
+---
+
+Yes. [`.terragrunt-cache`](/features/units/terragrunt-cache/) is scratch space. Terragrunt downloads remote OpenTofu/Terraform configurations into it and runs commands there, and it recreates whatever it needs on the next run. Your state lives in your backend, not in the cache.
+
+To clear every cache directory in a project:
+
+```bash
+# Check what you are about to delete first
+find . -type d -name ".terragrunt-cache"
+
+find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
+```
+
+On Windows, using PowerShell:
+
+```powershell
+Get-ChildItem -Path . -Filter .terragrunt-cache -Recurse -Directory
+
+Get-ChildItem -Path . -Filter .terragrunt-cache -Recurse -Directory | Remove-Item -Recurse -Force
+```
+
+## Stopping it from growing in the first place
+
+Deleting the directory reclaims the space, but it comes back on the next run. The size comes from every unit keeping its own copy of the same two things: the providers it downloads, and the repositories it clones for module sources. Share both and the directories stay small.
+
+**Share provider downloads.** On OpenTofu 1.10 and later, [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir/) is on by default and points OpenTofu at one shared cache directory, so providers are downloaded once rather than once per unit.
+
+If you use Terraform, an older OpenTofu, an NFS-mounted cache, or you are at a scale where lock contention on that directory hurts, use the [Provider Cache Server](/features/caching/provider-cache-server/) instead:
+
+```bash
+terragrunt run --all --provider-cache -- plan
+```
+
+**Deduplicate repository clones.** The [Content Addressable Store](/features/caching/cas/) stores the content of a git clone once and reuses it across every unit that sources from the same repository, rather than cloning it again per unit. It is on by default as of 1.1; on earlier versions, enable it with `--experiment cas`.
+
+See [Performance](/troubleshooting/performance/) for how these fit together.

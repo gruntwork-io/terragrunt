@@ -1,0 +1,64 @@
+---
+question: "How do I review plans across all my units?"
+description: "Save the plans with --out-dir, and add --json-out-dir to get machine-readable copies you can filter with jq. The run summary tells you which units ran; the saved plans tell you what each one would do."
+order: 8
+---
+
+`terragrunt run --all plan` streams output from every unit at once, prefixed by unit name. That is useful while it runs and awkward to read afterwards. To get an answer you can review or act on, save the plans instead of scraping the log.
+
+## Save a plan file per unit
+
+The [`--out-dir`](/reference/cli/commands/run/) flag writes a native plan file per unit, in a directory tree that mirrors your stack:
+
+```bash
+terragrunt run --all --out-dir /tmp/tfplan -- plan
+```
+
+You can then inspect any single unit's plan on its own:
+
+```bash
+cd app1
+terragrunt run -- show /tmp/tfplan/app1/tfplan.tfplan
+```
+
+Applying those exact plans, rather than re-planning, is the same flag:
+
+```bash
+terragrunt run --all --out-dir /tmp/tfplan -- apply
+```
+
+If you scoped the plan with `--filter`, pass the same `--filter` to the apply. Otherwise apply discovers units that have no saved plan and fails.
+
+## Get machine-readable plans
+
+For CI checks, gates, or a change summary, add [`--json-out-dir`](/reference/cli/commands/run/) to also emit `show -json` output per unit:
+
+```bash
+terragrunt run --all --out-dir /tmp/tfplan --json-out-dir /tmp/tfjson -- plan
+```
+
+Each unit gets a `tfplan.json` you can query. For example, to list every resource address with a change that is not a no-op:
+
+```bash
+jq -r '(.resource_changes // [])[]
+       | select(.change.actions != ["no-op"])
+       | "\(.change.actions | join(",")) \(.address)"' \
+  /tmp/tfjson/app1/tfplan.json
+```
+
+Across every unit at once:
+
+```bash
+find /tmp/tfjson -name tfplan.json -exec sh -c '
+  echo "== $1"
+  jq -r "(.resource_changes // [])[]
+         | select(.change.actions != [\"no-op\"])
+         | \"  \(.change.actions | join(\",\")) \(.address)\"" "$1"
+' _ {} \;
+```
+
+## Which units ran at all
+
+The [run summary](/features/stacks/run-report/) prints after every `run --all`, reporting how many units succeeded, failed, or were excluded. Add `--summary-per-unit` to see each unit and its duration. For a structured version of the same data, generate a [run report](/features/stacks/run-report/) as CSV or JSON.
+
+There is no built-in flag that prints a single combined diff for the whole stack. The JSON plans are the supported path to building one.
