@@ -1490,6 +1490,10 @@ func ParseConfig(
 		return nil, err
 	}
 
+	if err := ValidateExpansionExperiment(pctx.Experiments, file); err != nil {
+		return nil, err
+	}
+
 	if terraformSourceReferencesDependency(file) {
 		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}

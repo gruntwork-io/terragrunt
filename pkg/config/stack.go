@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -1058,6 +1059,10 @@ func ParseStackConfig(
 		parser = parser.WithValues(values)
 	}
 
+	if err := ValidateExpansionExperiment(parser.Experiments, file); err != nil {
+		return nil, err
+	}
+
 	if err := processLocals(ctx, l, parser, file); err != nil {
 		return nil, err
 	}
@@ -1094,6 +1099,7 @@ func ParseStackConfig(
 		stackDir,
 		evalParsingContext,
 		parser.ParserOptions,
+		parser.Experiments,
 	); err != nil {
 		return nil, err
 	}
@@ -1106,6 +1112,7 @@ func ParseStackConfig(
 		filepath.Base(file.ConfigPath),
 		evalParsingContext,
 		parser.ParserOptions,
+		parser.Experiments,
 	); err != nil {
 		return nil, err
 	}
@@ -1383,6 +1390,7 @@ func processStackConfigIncludes(
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
+	experiments experiment.Experiments,
 ) error {
 	for _, inc := range config.Includes {
 		includePath := inc.Path
@@ -1393,6 +1401,10 @@ func processStackConfigIncludes(
 		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, includePath)
 		if err != nil {
 			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
+		}
+
+		if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+			return err
 		}
 
 		included := &StackConfigFile{}
@@ -1448,6 +1460,7 @@ func mergeStackAutoIncludeFile(
 	stackDir, stackFileName string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
+	experiments experiment.Experiments,
 ) error {
 	// Never merge the autoinclude file into itself.
 	if stackFileName == inthclparse.AutoIncludeStackFile {
@@ -1482,6 +1495,10 @@ func mergeStackAutoIncludeFile(
 		filepath.Base(stackDir),
 	); typed != nil {
 		return *typed
+	}
+
+	if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+		return err
 	}
 
 	included := &StackConfigFile{}

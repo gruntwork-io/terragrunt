@@ -591,6 +591,10 @@ func PartialParseConfig(
 		return nil, err
 	}
 
+	if err := ValidateExpansionExperiment(pctx.Experiments, file); err != nil {
+		return nil, err
+	}
+
 	if includeFromChild != nil && includeFromChild.Path != "" &&
 		!filepath.IsAbs(includeFromChild.Path) {
 		includeFromChild.Path = filepath.Clean(

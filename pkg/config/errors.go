@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 )
 
 // Custom error types
@@ -462,5 +464,28 @@ func (err VersionAttributeSourceConstraintConflictError) Error() string {
 	return fmt.Sprintf(
 		"the terraform block in %s sets both the version attribute and an inline ?version= on its source; specify the version in only one place",
 		err.ConfigPath,
+	)
+}
+
+// ExpansionRequiresExperimentError is returned when a dependency, unit, or stack block
+// carries an expansion block without the block-iteration experiment enabled.
+type ExpansionRequiresExperimentError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+}
+
+func (err ExpansionRequiresExperimentError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s uses an expansion block, which requires the '%s' experiment; enable it with --experiment %s",
+		block,
+		err.ConfigPath,
+		experiment.BlockIteration,
+		experiment.BlockIteration,
 	)
 }
