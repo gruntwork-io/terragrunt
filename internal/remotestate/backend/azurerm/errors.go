@@ -1,6 +1,9 @@
 package azurerm
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // MissingRequiredAzurermRemoteStateConfigError is returned when a required
 // azurerm remote-state configuration key is absent.
@@ -8,6 +11,26 @@ type MissingRequiredAzurermRemoteStateConfigError string
 
 func (configName MissingRequiredAzurermRemoteStateConfigError) Error() string {
 	return "Missing required azurerm remote state configuration " + string(configName)
+}
+
+// CrossCloudMigrationError is returned when a state migration names the same
+// storage account in two different Azure clouds. Storage account names are
+// unique only within a cloud, and the blob client is built from the source
+// config, so the copy would land in the source account and the source key
+// would then be deleted. Match with errors.As.
+type CrossCloudMigrationError struct {
+	StorageAccount string
+	SrcEnvironment string
+	DstEnvironment string
+}
+
+func (e *CrossCloudMigrationError) Error() string {
+	return fmt.Sprintf(
+		"cross-cloud state migration for storage account %q from environment %q to %q is not supported by the azurerm backend "+
+			"(a storage account name identifies a different account in each Azure cloud); "+
+			"migrate via separate init/pull/push, or keep both units in the same environment",
+		e.StorageAccount, e.SrcEnvironment, e.DstEnvironment,
+	)
 }
 
 // ErrBackendOptionsRequired is the panic value used when a lifecycle entry

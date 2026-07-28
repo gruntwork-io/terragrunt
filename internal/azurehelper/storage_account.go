@@ -16,7 +16,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -182,12 +181,12 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 
 	params := armstorage.AccountCreateParameters{
 		Kind:     &kind,
-		Location: to.Ptr(cfg.Location),
+		Location: new(cfg.Location),
 		SKU:      &armstorage.SKU{Name: &skuName},
 		Tags:     stringMapPtr(cfg.Tags),
 		Properties: &armstorage.AccountPropertiesCreateParameters{
 			AccessTier:            accessTier,
-			AllowBlobPublicAccess: to.Ptr(cfg.AllowBlobPublicAccess),
+			AllowBlobPublicAccess: new(cfg.AllowBlobPublicAccess),
 		},
 	}
 
@@ -262,7 +261,7 @@ func (c *StorageAccountClient) EnableVersioning(ctx context.Context, l log.Logge
 	l.Debugf("azurehelper: enabling blob versioning on %q", c.accountName)
 
 	return c.updateBlobServiceProperties(ctx, func(p *armstorage.BlobServicePropertiesProperties) {
-		p.IsVersioningEnabled = to.Ptr(true)
+		p.IsVersioningEnabled = new(true)
 	})
 }
 
@@ -330,11 +329,11 @@ func (c *StorageAccountClient) EnableSoftDelete(ctx context.Context, l log.Logge
 	// Read-modify-write so we do not clobber a previously-set versioning flag.
 	return c.updateBlobServiceProperties(ctx, func(p *armstorage.BlobServicePropertiesProperties) {
 		p.DeleteRetentionPolicy = &armstorage.DeleteRetentionPolicy{
-			Enabled: to.Ptr(true),
+			Enabled: new(true),
 			Days:    &days,
 		}
 		p.ContainerDeleteRetentionPolicy = &armstorage.DeleteRetentionPolicy{
-			Enabled: to.Ptr(true),
+			Enabled: new(true),
 			Days:    &days,
 		}
 	})
@@ -406,13 +405,13 @@ func (in *StorageAccountConfig) withDefaults() {
 func accessTierValue(s string) (*armstorage.AccessTier, error) {
 	switch s {
 	case "", "Hot":
-		return to.Ptr(armstorage.AccessTierHot), nil
+		return new(armstorage.AccessTierHot), nil
 	case "Cool":
-		return to.Ptr(armstorage.AccessTierCool), nil
+		return new(armstorage.AccessTierCool), nil
 	case "Cold":
-		return to.Ptr(armstorage.AccessTierCold), nil
+		return new(armstorage.AccessTierCold), nil
 	case "Premium":
-		return to.Ptr(armstorage.AccessTierPremium), nil
+		return new(armstorage.AccessTierPremium), nil
 	default:
 		return nil, &UnknownAccessTierError{Tier: s}
 	}

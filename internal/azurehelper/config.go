@@ -155,7 +155,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 	resolved := *b.sessionConfig
 	b.applyEnvFallbacks(&resolved)
 
-	cloudCfg, err := cloudConfigForEnvironment(resolved.CloudEnvironment)
+	cloudCfg, err := CloudConfigForEnvironment(resolved.CloudEnvironment)
 	if err != nil {
 		return nil, err
 	}
@@ -424,12 +424,12 @@ func parseBool(s string) bool {
 	return v
 }
 
-// cloudConfigForEnvironment maps a cloud environment alias to an Azure SDK
+// CloudConfigForEnvironment maps a cloud environment alias to an Azure SDK
 // cloud.Configuration. An empty name resolves to cloud.AzurePublic. Any
 // non-empty value that does not match a known alias is rejected so that a
 // typo (e.g. "governmnt") does not silently route a Government or China
 // deployment at the public Azure endpoints.
-func cloudConfigForEnvironment(name string) (cloud.Configuration, error) {
+func CloudConfigForEnvironment(name string) (cloud.Configuration, error) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "", "public", "azurepublic", "azurepubliccloud":
 		return cloud.AzurePublic, nil

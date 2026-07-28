@@ -15,10 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 )
 
-func respErr(status int, code string) error {
-	return &azcore.ResponseError{StatusCode: status, ErrorCode: code}
-}
-
 func TestIsRetryable(t *testing.T) {
 	t.Parallel()
 
@@ -73,4 +69,9 @@ func TestIsNotFound(t *testing.T) {
 			assert.Equal(t, tc.want, azurehelper.IsNotFound(tc.err))
 		})
 	}
+}
+
+// respErr builds an azcore.ResponseError with the given status and error code.
+func respErr(status int, code string) error {
+	return &azcore.ResponseError{StatusCode: status, ErrorCode: code}
 }

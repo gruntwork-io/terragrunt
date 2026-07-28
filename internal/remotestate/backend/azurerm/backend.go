@@ -456,6 +456,27 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, srcBa
 	src := &srcExtCfg.RemoteStateConfigAzurerm
 	dst := &dstExtCfg.RemoteStateConfigAzurerm
 
+	// A storage account name identifies a different account in each Azure
+	// cloud, and the blob client below is built from the source config, so a
+	// cross-cloud destination would be written into the source account and the
+	// source key then deleted. An empty destination environment inherits the
+	// same resolution as the source (config value, then ARM_ENVIRONMENT /
+	// AZURE_ENVIRONMENT), so only an explicit value can differ.
+	if dst.Environment != "" {
+		dstCloud, err := azurehelper.CloudConfigForEnvironment(dst.Environment)
+		if err != nil {
+			return err
+		}
+
+		if dstCloud.ActiveDirectoryAuthorityHost != cfg.CloudConfig.ActiveDirectoryAuthorityHost {
+			return &CrossCloudMigrationError{
+				StorageAccount: src.StorageAccountName,
+				SrcEnvironment: src.Environment,
+				DstEnvironment: dst.Environment,
+			}
+		}
+	}
+
 	// The blob client is bound to a single storage account (the source), so it
 	// cannot copy across accounts. Refuse a cross-account migration loudly
 	// rather than silently writing into the source account. This same-backend

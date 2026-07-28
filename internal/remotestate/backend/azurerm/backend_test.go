@@ -122,6 +122,60 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 	assert.NotContains(t, err.Error(), "server-side", "copy is client-side streaming, not server-side")
 }
 
+// TestMigrate_CrossCloudRefused verifies the azurerm backend refuses a
+// migration whose destination names the same storage account in a different
+// Azure cloud. Storage account names are unique only within a cloud, and the
+// blob client is built from the source config, so allowing this would write
+// the state into the source account and then delete the source key.
+func TestMigrate_CrossCloudRefused(t *testing.T) {
+	t.Parallel()
+
+	b := azurerm.NewBackend()
+	opts := optsWithExperiment(t, true)
+
+	srcRaw := fullConfig()
+	srcRaw["environment"] = "public"
+
+	// Same account name, different sovereign cloud.
+	dstRaw := fullConfig()
+	dstRaw["environment"] = "usgovernment"
+
+	err := b.Migrate(
+		t.Context(), logger.CreateLogger(), &venv.Venv{},
+		backend.Config(srcRaw), backend.Config(dstRaw), opts)
+
+	require.Error(t, err)
+
+	var crossCloud *azurerm.CrossCloudMigrationError
+	require.ErrorAs(t, err, &crossCloud)
+	assert.Equal(t, "public", crossCloud.SrcEnvironment)
+	assert.Equal(t, "usgovernment", crossCloud.DstEnvironment)
+}
+
+// TestMigrate_SameCloudAliasAllowed verifies the cloud comparison is by
+// canonical cloud, not raw string: an empty destination environment inherits
+// the same cloud as the source and must not be refused.
+func TestMigrate_SameCloudAliasAllowed(t *testing.T) {
+	t.Parallel()
+
+	b := azurerm.NewBackend()
+	opts := optsWithExperiment(t, true)
+
+	srcRaw := fullConfig()
+	srcRaw["environment"] = "public"
+
+	dstRaw := fullConfig()
+	dstRaw["environment"] = "AzurePublicCloud" // alias for the same cloud
+
+	err := b.Migrate(
+		t.Context(), logger.CreateLogger(), &venv.Venv{},
+		backend.Config(srcRaw), backend.Config(dstRaw), opts)
+
+	// It must fail for some later reason (no real Azure), never for cross-cloud.
+	var crossCloud *azurerm.CrossCloudMigrationError
+	assert.NotErrorAs(t, err, &crossCloud, "an alias of the same cloud must not be treated as cross-cloud")
+}
+
 // TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork verifies a user-managed
 // account with all creation and policy work skipped needs no ARM access.
 func TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {

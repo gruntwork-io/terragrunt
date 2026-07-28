@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	azblobblob "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	azblobblockblob "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
@@ -250,7 +249,7 @@ func (cc *ContainerClient) CopyBlob(ctx context.Context, l log.Logger, srcKey st
 	opts := &azblobblockblob.UploadStreamOptions{
 		AccessConditions: &azblobblob.AccessConditions{
 			ModifiedAccessConditions: &azblobblob.ModifiedAccessConditions{
-				IfNoneMatch: to.Ptr(azcore.ETagAny),
+				IfNoneMatch: new(azcore.ETagAny),
 			},
 		},
 	}
