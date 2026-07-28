@@ -153,8 +153,10 @@ func TestMigrate_CrossCloudRefused(t *testing.T) {
 }
 
 // TestMigrate_SameCloudAliasAllowed verifies the cloud comparison is by
-// canonical cloud, not raw string: an empty destination environment inherits
-// the same cloud as the source and must not be refused.
+// canonical cloud, not raw string: "AzurePublicCloud" is an alias of "public"
+// and must not be refused as cross-cloud. The destination names a different
+// account so the call returns at the cross-account gate, which sits after the
+// cloud gate and before any client construction, keeping the test hermetic.
 func TestMigrate_SameCloudAliasAllowed(t *testing.T) {
 	t.Parallel()
 
@@ -166,14 +168,18 @@ func TestMigrate_SameCloudAliasAllowed(t *testing.T) {
 
 	dstRaw := fullConfig()
 	dstRaw["environment"] = "AzurePublicCloud" // alias for the same cloud
+	dstRaw["storage_account_name"] = "otheraccount"
 
 	err := b.Migrate(
 		t.Context(), logger.CreateLogger(), &venv.Venv{},
 		backend.Config(srcRaw), backend.Config(dstRaw), opts)
 
-	// It must fail for some later reason (no real Azure), never for cross-cloud.
 	var crossCloud *azurerm.CrossCloudMigrationError
 	assert.NotErrorAs(t, err, &crossCloud, "an alias of the same cloud must not be treated as cross-cloud")
+
+	// Reaching the cross-account gate proves the cloud gate let the alias through.
+	var crossAccount *azurerm.CrossAccountMigrationError
+	require.ErrorAs(t, err, &crossAccount)
 }
 
 // TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork verifies a user-managed

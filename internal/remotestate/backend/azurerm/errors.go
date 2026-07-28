@@ -13,6 +13,24 @@ func (configName MissingRequiredAzurermRemoteStateConfigError) Error() string {
 	return "Missing required azurerm remote state configuration " + string(configName)
 }
 
+// CrossAccountMigrationError is returned when a state migration names a
+// different storage account for the destination. The backend resolves
+// credentials only for the source account, so it cannot write to another one.
+// Match with errors.As.
+type CrossAccountMigrationError struct {
+	SrcStorageAccount string
+	DstStorageAccount string
+}
+
+func (e *CrossAccountMigrationError) Error() string {
+	return fmt.Sprintf(
+		"cross-account state migration from storage account %q to %q is not supported by the azurerm backend "+
+			"(it resolves credentials only for the source account); "+
+			"migrate via separate init/pull/push or keep both units on the same storage account",
+		e.SrcStorageAccount, e.DstStorageAccount,
+	)
+}
+
 // CrossCloudMigrationError is returned when a state migration names the same
 // storage account in two different Azure clouds. Storage account names are
 // unique only within a cloud, and the blob client is built from the source

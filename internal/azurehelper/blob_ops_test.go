@@ -362,3 +362,44 @@ func newRoutedBlobClient(t *testing.T, rt *routeTransport) *azurehelper.BlobClie
 
 	return c
 }
+
+// TestBlobClient_ListBlobs_BoundsPages verifies the pager walk is bounded. The
+// stub always reports another page (NextMarker never empties), so an unbounded
+// loop would spin forever; the injectable cap keeps the test cheap.
+func TestBlobClient_ListBlobs_BoundsPages(t *testing.T) {
+	t.Parallel()
+
+	const endlessPage = `<?xml version="1.0" encoding="utf-8"?>` +
+		`<EnumerationResults><Blobs><Blob><Name>state/a.tfstate</Name></Blob></Blobs>` +
+		`<NextMarker>more</NextMarker></EnumerationResults>`
+
+	rt := &routeTransport{routes: []stubRoute{
+		{method: http.MethodGet, pathSub: "/endless", status: http.StatusOK, body: endlessPage},
+	}}
+	c := newRoutedBlobClient(t, rt)
+
+	_, err := c.Container("endless").ListBlobs(t.Context(), log.New(), azurehelper.WithMaxPages(3))
+
+	var tooMany *azurehelper.TooManyBlobPagesError
+	require.ErrorAs(t, err, &tooMany)
+	assert.Equal(t, 3, tooMany.MaxPages)
+	assert.Equal(t, "endless", tooMany.Container)
+}
+
+// TestBlobClient_ListBlobs_IgnoresNonPositiveMaxPages verifies a bogus cap
+// falls back to the package default instead of failing on the first page.
+func TestBlobClient_ListBlobs_IgnoresNonPositiveMaxPages(t *testing.T) {
+	t.Parallel()
+
+	const onePage = `<?xml version="1.0" encoding="utf-8"?>` +
+		`<EnumerationResults><Blobs><Blob><Name>state/a.tfstate</Name></Blob></Blobs><NextMarker /></EnumerationResults>`
+
+	rt := &routeTransport{routes: []stubRoute{
+		{method: http.MethodGet, pathSub: "/okc", status: http.StatusOK, body: onePage},
+	}}
+	c := newRoutedBlobClient(t, rt)
+
+	names, err := c.Container("okc").ListBlobs(t.Context(), log.New(), azurehelper.WithMaxPages(0))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"state/a.tfstate"}, names)
+}

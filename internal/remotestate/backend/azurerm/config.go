@@ -55,6 +55,10 @@ func (cfg Config) ParseExtendedAzurermConfig() (*ExtendedRemoteStateConfigAzurer
 		return nil, err
 	}
 
+	// Normalize before anything validates or compares these values, so the raw
+	// config and the values azurehelper resolves cannot disagree.
+	extendedConfig.normalize()
+
 	return &extendedConfig, nil
 }
 

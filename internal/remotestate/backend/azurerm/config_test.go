@@ -135,10 +135,31 @@ func TestGetTFInitArgs_NormalizesSnapshotBool(t *testing.T) {
 func TestRemoteStateConfigCacheKey(t *testing.T) {
 	t.Parallel()
 
-	ext, err := fullConfig().ExtendedAzurermConfig()
-	require.NoError(t, err)
+	keyFor := func(environment string) string {
+		raw := fullConfig()
+		if environment != "" {
+			raw["environment"] = environment
+		}
 
-	assert.Equal(t, "tfstate1234/tfstate", ext.RemoteStateConfigAzurerm.CacheKey())
+		ext, err := raw.ExtendedAzurermConfig()
+		require.NoError(t, err)
+
+		return ext.RemoteStateConfigAzurerm.CacheKey()
+	}
+
+	// The account and container must both appear, so distinct containers in one
+	// account never collide.
+	assert.Contains(t, keyFor(""), "tfstate1234")
+	assert.Contains(t, keyFor(""), "tfstate")
+
+	// Aliases of one cloud share a key.
+	assert.Equal(t, keyFor(""), keyFor("public"))
+	assert.Equal(t, keyFor("public"), keyFor("AzurePublicCloud"))
+
+	// Different sovereign clouds must NOT share a key, or the second unit would
+	// skip its initialization checks against a different account entirely.
+	assert.NotEqual(t, keyFor("public"), keyFor("usgovernment"))
+	assert.NotEqual(t, keyFor("public"), keyFor("china"))
 }
 
 func TestConfigIsEqual(t *testing.T) {
@@ -174,4 +195,46 @@ func fullConfig() azurerm.Config {
 		"soft_delete_retention_days": 14,
 		"tags":                       map[string]string{"team": "platform"},
 	}
+}
+
+// TestParseExtendedAzurermConfig_TrimsWhitespace pins that config values are
+// normalized at parse time. azurehelper trims the values it resolves, so an
+// untrimmed value here would validate and then fail downstream on a mismatch
+// against the trimmed value the Azure clients are bound to.
+func TestParseExtendedAzurermConfig_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
+	cfg := azurerm.Config{
+		"storage_account_name": "  tfstate1234\n",
+		"container_name":       " tfstate ",
+		"key":                  " unit/terraform.tfstate ",
+		"resource_group_name":  "\trg\t",
+		"location":             " eastus ",
+	}
+
+	ext, err := cfg.ParseExtendedAzurermConfig()
+	require.NoError(t, err)
+
+	rs := ext.RemoteStateConfigAzurerm
+	assert.Equal(t, "tfstate1234", rs.StorageAccountName)
+	assert.Equal(t, "tfstate", rs.ContainerName)
+	assert.Equal(t, "unit/terraform.tfstate", rs.Key)
+	assert.Equal(t, "rg", rs.ResourceGroupName)
+	assert.Equal(t, "eastus", ext.Location)
+}
+
+// TestValidate_RejectsWhitespaceOnlyRequiredKeys pins that a whitespace-only
+// required value is a validation error, not a downstream panic.
+func TestValidate_RejectsWhitespaceOnlyRequiredKeys(t *testing.T) {
+	t.Parallel()
+
+	cfg := azurerm.Config{
+		"storage_account_name": "   ",
+		"container_name":       "tfstate",
+		"key":                  "unit/terraform.tfstate",
+	}
+
+	ext, err := cfg.ParseExtendedAzurermConfig()
+	require.NoError(t, err)
+	require.Error(t, ext.Validate(), "a whitespace-only storage_account_name must be rejected")
 }

@@ -485,12 +485,10 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, srcBa
 	// account. This same-backend Migrate has no automatic pull/push fallback;
 	// the user must migrate cross-account state manually (init/pull/push).
 	if !strings.EqualFold(src.StorageAccountName, dst.StorageAccountName) {
-		return fmt.Errorf(
-			"cross-account state migration from storage account %q to %q is not supported by the azurerm backend "+
-				"(it resolves credentials only for the source account); "+
-				"migrate via separate init/pull/push or keep both units on the same storage account",
-			src.StorageAccountName, dst.StorageAccountName,
-		)
+		return &CrossAccountMigrationError{
+			SrcStorageAccount: src.StorageAccountName,
+			DstStorageAccount: dst.StorageAccountName,
+		}
 	}
 
 	blobClient, err := azurehelper.NewBlobClient(cfg)

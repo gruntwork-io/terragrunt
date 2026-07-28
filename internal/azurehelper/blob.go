@@ -230,8 +230,9 @@ func (cc *ContainerClient) BlobExists(ctx context.Context, key string) (bool, er
 }
 
 // CopyBlob copies srcKey in this container to dstKey in dst by streaming the
-// blob through this authenticated client, so it works for private containers
-// under any auth method. dst must belong to the same storage account. The
+// blob through the authenticated clients, so it works for private containers
+// under any auth method. The read uses this container's client and the write
+// uses dst's own client, so dst may belong to a different storage account. The
 // destination write carries an If-None-Match condition, so an existing
 // destination blob is never overwritten; a DestinationBlobExistsError is
 // returned instead.
@@ -297,7 +298,15 @@ func (cc *ContainerClient) MoveBlobIfNecessary(ctx context.Context, l log.Logger
 type ListBlobsOption func(*listBlobsOptions)
 
 type listBlobsOptions struct {
-	prefix string
+	prefix   string
+	maxPages int
+}
+
+// WithMaxPages overrides the page bound ListBlobs walks before giving up.
+// Values below 1 are ignored, so the default cap always applies. Provided so
+// tests can exercise the bound without staging a thousand pages.
+func WithMaxPages(maxPages int) ListBlobsOption {
+	return func(o *listBlobsOptions) { o.maxPages = maxPages }
 }
 
 // WithPrefix restricts ListBlobs to blob names beginning with prefix.
@@ -310,9 +319,13 @@ func WithPrefix(prefix string) ListBlobsOption {
 // is materialised in memory, so callers should expect O(N) memory in the
 // number of blobs.
 func (cc *ContainerClient) ListBlobs(ctx context.Context, l log.Logger, opts ...ListBlobsOption) ([]string, error) {
-	o := &listBlobsOptions{}
+	o := &listBlobsOptions{maxPages: maxListBlobsPages}
 	for _, opt := range opts {
 		opt(o)
+	}
+
+	if o.maxPages < 1 {
+		o.maxPages = maxListBlobsPages
 	}
 
 	c := cc.blob.Client.ServiceClient().NewContainerClient(cc.container)
@@ -333,8 +346,8 @@ func (cc *ContainerClient) ListBlobs(ctx context.Context, l log.Logger, opts ...
 
 	for pager.More() {
 		pages++
-		if pages > maxListBlobsPages {
-			return nil, &TooManyBlobPagesError{Container: cc.container, MaxPages: maxListBlobsPages}
+		if pages > o.maxPages {
+			return nil, &TooManyBlobPagesError{Container: cc.container, MaxPages: o.maxPages}
 		}
 
 		page, err := pager.NextPage(ctx)

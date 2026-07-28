@@ -1,6 +1,8 @@
 package azurerm
 
 import (
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 )
 
@@ -78,7 +80,20 @@ type RemoteStateConfigAzurerm struct {
 // CacheKey returns a unique key identifying the bootstrapped container so that
 // repeated Bootstrap calls for the same account/container short-circuit.
 func (cfg *RemoteStateConfigAzurerm) CacheKey() string {
-	return cfg.StorageAccountName + "/" + cfg.ContainerName
+	// A storage account name identifies a different account in each Azure
+	// cloud, so the cloud is part of the identity. Without it, two units naming
+	// the same account in Public and Government would share one entry and the
+	// second would skip its initialization checks. The cloud is canonicalized so
+	// aliases ("", "public", "AzurePublicCloud") resolve to one key; an
+	// unrecognised value falls back to the raw string and is rejected later by
+	// the config builder.
+	cloud := cfg.Environment
+
+	if resolved, err := azurehelper.CloudConfigForEnvironment(cfg.Environment); err == nil {
+		cloud = resolved.ActiveDirectoryAuthorityHost
+	}
+
+	return cloud + "/" + cfg.StorageAccountName + "/" + cfg.ContainerName
 }
 
 // GetAzureSessionConfig maps the parsed backend config to the session config
@@ -123,6 +138,26 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) StorageAccountConfig() *azurehelper
 }
 
 // Validate checks that the required azurerm remote-state keys are present.
+// normalize trims surrounding whitespace from every string field.
+// azurehelper.AzureConfigBuilder trims the values it resolves, so without this
+// a padded value (common when CI injects config through naive shell
+// redirection) would satisfy Validate here and then fail downstream on a
+// mismatch against the trimmed value the Azure clients are bound to.
+func (cfg *ExtendedRemoteStateConfigAzurerm) normalize() {
+	rs := &cfg.RemoteStateConfigAzurerm
+
+	for _, field := range []*string{
+		&rs.StorageAccountName, &rs.ContainerName, &rs.Key, &rs.ResourceGroupName,
+		&rs.SubscriptionID, &rs.TenantID, &rs.ClientID, &rs.ClientSecret,
+		&rs.SasToken, &rs.AccessKey, &rs.Environment, &rs.MSIResourceID,
+		&rs.OIDCTokenFilePath,
+		&cfg.Location, &cfg.AccountTier, &cfg.AccountReplicationType,
+		&cfg.AccountKind, &cfg.AccessTier,
+	} {
+		*field = strings.TrimSpace(*field)
+	}
+}
+
 func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	rs := cfg.RemoteStateConfigAzurerm
 
