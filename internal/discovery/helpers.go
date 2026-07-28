@@ -50,7 +50,11 @@ func walkDirFunc(
 ) func(string, iofs.WalkDirFunc) error {
 	v.RequireFS()
 
-	if opts != nil && opts.Experiments.Evaluate(experiment.Symlinks) {
+	if opts == nil {
+		panic("discovery.walkDirFunc: opts is nil")
+	}
+
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
 		return func(root string, fn iofs.WalkDirFunc) error {
 			return vfs.WalkDirWithSymlinks(v.FS, root, fn)
 		}
