@@ -28,6 +28,8 @@ set -euo pipefail
 
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 COVERAGE_CHANGE_THRESHOLD="${COVERAGE_CHANGE_THRESHOLD:-3}"
+# How many test names one failure annotation lists before it says "and N more".
+ANNOTATION_NAME_LIMIT=10
 
 usage() {
 	sed -n '/^# Single entrypoint/,/^# baseline (current-only) report\.$/p' "$SELF"
@@ -83,89 +85,226 @@ cmd_failures() {
 		return 0
 	fi
 
-	# build-fail carries the package in ImportPath as "pkg [pkg.test]", and can be the only failure event.
-	local failed=""
-	failed=$(jq -r --raw-input '
-		select(length > 0)
-		| fromjson?
-		| select(.Action == "fail" or .Action == "build-fail")
-		| "\(.Package // ((.ImportPath // "") | split(" ")[0]))\t\(.Test // "")"
-	' "$events" 2>/dev/null | sort -u || true)
+	# Both lists are newline delimited; failing_tests holds "<package><TAB><test>" lines.
+	local failing_tests="" failing_packages=""
+	local package test
 
-	local failed_tests="" failed_pkgs=""
-	if [[ -n "$failed" ]]; then
-		failed_tests=$(awk -F'\t' '$2 != ""' <<<"$failed")
-		failed_pkgs=$(awk -F'\t' '$2 == "" {print $1}' <<<"$failed")
-	fi
+	while IFS=$'\t' read -r package test; do
+		if [[ -z "$package" ]]; then
+			continue
+		fi
 
-	# A package that failed with no failing test is a build error, a panic, or a timeout.
-	local bare_pkgs=""
-	if [[ -n "$failed_pkgs" ]]; then
-		bare_pkgs=$(comm -23 \
-			<(sort -u <<<"$failed_pkgs") \
-			<(awk -F'\t' '{print $1}' <<<"$failed_tests" | sort -u) || true)
-	fi
+		if [[ -z "$test" ]]; then
+			failing_packages+="$package"$'\n'
+			continue
+		fi
 
-	if [[ -z "$failed_tests" && -z "$bare_pkgs" ]]; then
+		failing_tests+="$package"$'\t'"$test"$'\n'
+	done < <(read_failure_keys "$events")
+
+	local bare_packages
+	bare_packages=$(packages_without_failing_tests "$failing_packages" "$failing_tests")
+
+	if [[ -z "$failing_tests" && -z "$bare_packages" ]]; then
 		echo "No failure events in $events; printing the tail of the stream instead."
 		print_event_tail "$events" "$max_lines"
 
 		return 0
 	fi
 
-	local test_count=0
-	if [[ -n "$failed_tests" ]]; then
-		test_count=$(awk 'END {print NR}' <<<"$failed_tests")
-	fi
+	local test_count
+	test_count=$(count_lines "$failing_tests")
 
 	echo ""
+	print_failing_tests "$failing_tests" "$test_count"
+	print_bare_packages "$bare_packages"
+	print_failure_annotation "$failing_tests" "$test_count"
 
-	if [[ -n "$failed_tests" ]]; then
-		echo "=== Failing tests: $test_count ==="
-		echo ""
-		awk -F'\t' '{printf "  %s\t%s\n", $2, $1}' <<<"$failed_tests" | column -t -s $'\t'
-	fi
-
-	if [[ -n "$bare_pkgs" ]]; then
-		echo ""
-		echo "Packages that failed without a failing test (build error, panic, or timeout):"
-		awk '{print "  " $0}' <<<"$bare_pkgs"
-	fi
-
-	# One annotation carrying the names, so the failure is readable without opening the log.
-	if [[ -n "$failed_tests" ]]; then
-		local names
-		names=$(awk -F'\t' 'NR > 1 {printf ", "} {printf "%s", $2}' <<<"$(head -n 10 <<<"$failed_tests")")
-		if [[ "$test_count" -gt 10 ]]; then
-			names="$names, and $((test_count - 10)) more"
-		fi
-		echo "::error title=Failing tests ($test_count)::$names"
-	fi
-
-	local selected="$failed_tests"
-	local omitted=0
-	if [[ "$test_count" -gt "$max_tests" ]]; then
-		selected=$(head -n "$max_tests" <<<"$failed_tests")
-		omitted=$((test_count - max_tests))
-	fi
-
-	# Package-level output is where a build error or panic explains itself.
-	if [[ -n "$bare_pkgs" ]]; then
-		selected=$(printf '%s\n' "$selected" "$(awk '{print $0 "\t"}' <<<"$bare_pkgs")" | grep -v '^$' || true)
-	fi
+	local selected
+	selected=$(select_for_replay "$failing_tests" "$bare_packages" "$max_tests")
 
 	echo ""
 	print_failure_output "$events" "$selected" "$max_lines"
 
-	if [[ "$omitted" -gt 0 ]]; then
+	if [[ "$test_count" -gt "$max_tests" ]]; then
 		echo ""
-		echo "Output shown for the first $max_tests failing tests; $omitted omitted." \
+		echo "Output shown for the first $max_tests failing tests; $((test_count - max_tests)) omitted." \
 			"Raise FAILURE_OUTPUT_TESTS, or read the full stream in the test-events.ndjson artifact."
 	fi
 
-	write_failure_step_summary "$failed_tests" "$bare_pkgs" "$test_count"
+	write_failure_step_summary "$failing_tests" "$bare_packages" "$test_count"
 
 	return 0
+}
+
+# Emit "<package><TAB><test>" per failure event, with an empty test for a package-level failure
+read_failure_keys() {
+	local events="$1"
+
+	# build-fail names the package in ImportPath as "pkg [pkg.test]", and can be its only failure event.
+	jq -r --raw-input '
+		select(length > 0)
+		| fromjson?
+		| select(.Action == "fail" or .Action == "build-fail")
+		| "\(.Package // ((.ImportPath // "") | split(" ")[0]))\t\(.Test // "")"
+	' "$events" 2>/dev/null | sort -u || true
+}
+
+# Print the packages that failed with no failing test of their own
+packages_without_failing_tests() {
+	local failing_packages="$1" failing_tests="$2"
+	local package
+
+	while IFS= read -r package; do
+		if [[ -z "$package" ]]; then
+			continue
+		fi
+
+		if owns_failing_test "$package" "$failing_tests"; then
+			continue
+		fi
+
+		echo "$package"
+	done <<<"$failing_packages"
+}
+
+# Report whether any of the failing tests belongs to the given package
+owns_failing_test() {
+	local package="$1" failing_tests="$2"
+	local candidate test
+
+	while IFS=$'\t' read -r candidate test; do
+		if [[ "$candidate" == "$package" && -n "$test" ]]; then
+			return 0
+		fi
+	done <<<"$failing_tests"
+
+	return 1
+}
+
+# Print the failing tests as an aligned "test  package" list
+print_failing_tests() {
+	local failing_tests="$1" test_count="$2"
+	local package test width=0
+
+	if [[ -z "$failing_tests" ]]; then
+		return 0
+	fi
+
+	while IFS=$'\t' read -r package test; do
+		if [[ "${#test}" -gt "$width" ]]; then
+			width="${#test}"
+		fi
+	done <<<"$failing_tests"
+
+	echo "=== Failing tests: $test_count ==="
+	echo ""
+
+	while IFS=$'\t' read -r package test; do
+		if [[ -z "$test" ]]; then
+			continue
+		fi
+
+		printf '  %-*s  %s\n' "$width" "$test" "$package"
+	done <<<"$failing_tests"
+}
+
+# Print the packages that failed without a failing test
+print_bare_packages() {
+	local bare_packages="$1"
+	local package
+
+	if [[ -z "$bare_packages" ]]; then
+		return 0
+	fi
+
+	echo ""
+	echo "Packages that failed without a failing test (build error, panic, or timeout):"
+
+	while IFS= read -r package; do
+		if [[ -z "$package" ]]; then
+			continue
+		fi
+
+		echo "  $package"
+	done <<<"$bare_packages"
+}
+
+# Emit one annotation naming the failures, so they are readable without opening the log
+print_failure_annotation() {
+	local failing_tests="$1" test_count="$2"
+	local package test names="" shown=0
+
+	if [[ -z "$failing_tests" ]]; then
+		return 0
+	fi
+
+	while IFS=$'\t' read -r package test; do
+		if [[ -z "$test" ]]; then
+			continue
+		fi
+
+		if [[ "$shown" -ge "$ANNOTATION_NAME_LIMIT" ]]; then
+			break
+		fi
+
+		if [[ -n "$names" ]]; then
+			names+=", "
+		fi
+
+		names+="$test"
+		shown=$((shown + 1))
+	done <<<"$failing_tests"
+
+	if [[ "$test_count" -gt "$shown" ]]; then
+		names+=", and $((test_count - shown)) more"
+	fi
+
+	echo "::error title=Failing tests ($test_count)::$names"
+}
+
+# Print the "<package><TAB><test>" lines whose output gets replayed, capped at max_tests
+select_for_replay() {
+	local failing_tests="$1" bare_packages="$2" max_tests="$3"
+	local package test shown=0
+
+	while IFS=$'\t' read -r package test; do
+		if [[ -z "$test" ]]; then
+			continue
+		fi
+
+		if [[ "$shown" -ge "$max_tests" ]]; then
+			break
+		fi
+
+		printf '%s\t%s\n' "$package" "$test"
+		shown=$((shown + 1))
+	done <<<"$failing_tests"
+
+	# A build error or a panic explains itself in the package-level output.
+	while IFS= read -r package; do
+		if [[ -z "$package" ]]; then
+			continue
+		fi
+
+		printf '%s\t\n' "$package"
+	done <<<"$bare_packages"
+}
+
+# Count the non-empty lines of a newline-delimited list
+count_lines() {
+	local list="$1"
+	local line count=0
+
+	while IFS= read -r line; do
+		if [[ -z "$line" ]]; then
+			continue
+		fi
+
+		count=$((count + 1))
+	done <<<"$list"
+
+	echo "$count"
 }
 
 # Replay the captured output of each selected "package<TAB>test" key
@@ -232,30 +371,64 @@ print_event_tail() {
 
 # Append the failing tests to the GitHub step summary when running in Actions
 write_failure_step_summary() {
-	local failed_tests="$1" bare_pkgs="$2" test_count="$3"
+	local failing_tests="$1" bare_packages="$2" test_count="$3"
 
 	if [[ -z "${GITHUB_STEP_SUMMARY:-}" ]]; then
 		return 0
 	fi
 
 	{
-		if [[ -n "$failed_tests" ]]; then
-			echo "### Failing tests: $test_count"
-			echo ""
-			echo "| Test | Package |"
-			echo "|------|---------|"
-			awk -F'\t' '{printf "| `%s` | `%s` |\n", $2, $1}' <<<"$failed_tests"
-			echo ""
-		fi
-		if [[ -n "$bare_pkgs" ]]; then
-			echo "Packages that failed without a failing test:"
-			echo ""
-			while IFS= read -r pkg; do
-				echo "- \`$pkg\`"
-			done <<<"$bare_pkgs"
-			echo ""
-		fi
+		write_step_summary_table "$failing_tests" "$test_count"
+		write_step_summary_packages "$bare_packages"
 	} >>"$GITHUB_STEP_SUMMARY"
+}
+
+# Write the failing tests as a Markdown table
+write_step_summary_table() {
+	local failing_tests="$1" test_count="$2"
+	local package test
+
+	if [[ -z "$failing_tests" ]]; then
+		return 0
+	fi
+
+	echo "### Failing tests: $test_count"
+	echo ""
+	echo "| Test | Package |"
+	echo "|------|---------|"
+
+	while IFS=$'\t' read -r package test; do
+		if [[ -z "$test" ]]; then
+			continue
+		fi
+
+		echo "| \`$test\` | \`$package\` |"
+	done <<<"$failing_tests"
+
+	echo ""
+}
+
+# Write the packages that failed without a failing test as a Markdown list
+write_step_summary_packages() {
+	local bare_packages="$1"
+	local package
+
+	if [[ -z "$bare_packages" ]]; then
+		return 0
+	fi
+
+	echo "Packages that failed without a failing test:"
+	echo ""
+
+	while IFS= read -r package; do
+		if [[ -z "$package" ]]; then
+			continue
+		fi
+
+		echo "- \`$package\`"
+	done <<<"$bare_packages"
+
+	echo ""
 }
 
 # Roll a cover profile into per-package coverage JSON plus an HTML report
