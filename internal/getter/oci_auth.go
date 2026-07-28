@@ -106,10 +106,10 @@ func ociUserAgent() string {
 // most specific ambient entry depends on the repository being pulled.
 type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
 
-// NewOCIRepositoryStore returns the default [OCINewStoreFunc]: static
-// environment credentials when set, otherwise the most specific ambient source
-// across Docker and containers auth files, running a configured credential
-// helper (e.g. Amazon ECR via ecr-login) only when it is the selected source.
+// NewOCIRepositoryStore returns the default [OCINewStoreFunc]: the most specific
+// source across OpenTofu CLI-config oci_credentials blocks and ambient Docker and
+// containers auth files, then the oci_default_credentials helper, running a
+// configured credential helper (e.g. Amazon ECR via ecr-login) only when selected.
 func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	v.RequireFS()
 	v.RequireEnv()
@@ -118,7 +118,7 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	v.RequireExec()
 	v.RequireHTTP()
 
-	resolveCredential := sync.OnceValues(func() (ociCredentialFactory, error) {
+	resolveCredential := sync.OnceValue(func() ociCredentialFactory {
 		return ociCredentialFunc(l, v)
 	})
 	caches := &ociCacheSet{caches: map[string]auth.Cache{}}
@@ -130,10 +130,7 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	httpClient.Transport = retry.NewTransport(httpClient.Transport)
 
 	return func(_ context.Context, registryDomain, repositoryName string) (OCIRepositoryStore, error) {
-		credentialFor, err := resolveCredential()
-		if err != nil {
-			return nil, err
-		}
+		credentialFor := resolveCredential()
 
 		reference := registryDomain + "/" + repositoryName
 
@@ -156,40 +153,40 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 // ociCredentialFunc resolves credentials in precedence order: OpenTofu
 // CLI-config oci_credentials blocks, then ambient Docker/containers discovery
 // and its helpers, then the oci_default_credentials helper.
-func ociCredentialFunc(l log.Logger, v *venv.Venv) (ociCredentialFactory, error) {
+func ociCredentialFunc(l log.Logger, v *venv.Venv) ociCredentialFactory {
 	tofu := loadOCITofuCredentials(l, v)
-	ambient := ociAmbientCredentialFunc(l, v)
+
+	var stores []ociAmbientStore
+	if tofu.discoverAmbient {
+		stores = loadOCIAmbientStores(l, v, &tofu)
+	}
 
 	return func(repositoryName string) auth.CredentialFunc {
-		ambientFn := ambient(repositoryName)
-
 		return func(ctx context.Context, hostport string) (auth.Credential, error) {
-			// Tier-3: per-registry oci_credentials blocks are the most specific
-			// configured source, so they win over ambient discovery.
-			if cred, err := tofu.repoCredential(ctx, v, hostport, repositoryName); err != nil || cred != auth.EmptyCredential {
-				return cred, err
-			}
+			best := ociSelectCredentialCandidate(ctx, l, &tofu, stores, hostport, repositoryName)
 
-			// Ambient discovery, unless the tofu config disabled it.
-			if tofu.discoverAmbient {
-				if cred, err := ambientFn(ctx, hostport); err != nil || cred != auth.EmptyCredential {
-					return cred, err
-				}
-			}
-
-			// The oci_default_credentials helper is the lowest-priority fallback,
-			// matching OpenTofu's global-helper specificity below ambient.
-			if tofu.defaultHelper != "" {
-				return ociCredentialFromHelper(ctx, v, ociHelperEntry{
-					suffix:        tofu.defaultHelper,
-					serverAddress: ociTofuHelperServerAddress(hostport),
-					explicit:      true,
-				}, 0)
-			}
-
-			return auth.EmptyCredential, nil
+			return ociExecuteCredentialCandidate(ctx, l, v, &best, hostport)
 		}
-	}, nil
+	}
+}
+
+// ociTofuCandidate ranks one CLI-config source without running its helper yet.
+func ociTofuCandidate(repo *ociTofuRepoCredential, hostport string) ociCredentialCandidate {
+	cand := ociCredentialCandidate{
+		static:        repo.cred,
+		specificity:   repo.specificity(),
+		fromCLIConfig: true,
+	}
+
+	if repo.helper != "" {
+		cand.helper = &ociHelperEntry{
+			suffix:        repo.helper,
+			serverAddress: ociTofuHelperServerAddress(hostport),
+			explicit:      true,
+		}
+	}
+
+	return cand
 }
 
 // ociHelperEntry is a resolved credential helper (suffix, server address, explicit).
@@ -219,31 +216,85 @@ func ociInlineSpecificity(key string) int {
 	return ociDomainSpecificity + strings.Count(key, "/")
 }
 
-// ociCredentialCandidate is a ranked ambient source whose helper runs only if the candidate wins selection.
+// ociCredentialCandidate is a ranked credential source whose helper runs only if the candidate wins selection.
 type ociCredentialCandidate struct {
-	helper      *ociHelperEntry
-	static      auth.Credential
-	specificity int
+	helper        *ociHelperEntry
+	static        auth.Credential
+	specificity   int
+	fromCLIConfig bool
 }
 
-// ociOutranks reports whether the candidate replaces best, a helper beating an inline auth at equal specificity.
-func ociOutranks(specificity int, isHelper bool, best *ociCredentialCandidate) bool {
-	if specificity != best.specificity {
-		return specificity > best.specificity
+// ociOutranks reports whether cand replaces best: greater specificity first,
+// then CLI config over ambient, then a per-registry helper over an inline login.
+func ociOutranks(cand, best *ociCredentialCandidate) bool {
+	if cand.specificity != best.specificity {
+		return cand.specificity > best.specificity
 	}
 
-	// A per-registry helper is authoritative over a same-registry inline login, so it wins the equal-specificity tie.
-	return isHelper && best.helper == nil && best.specificity > 0
+	if best.specificity == 0 {
+		return false
+	}
+
+	if cand.fromCLIConfig != best.fromCLIConfig {
+		return cand.fromCLIConfig
+	}
+
+	return cand.helper != nil && best.helper == nil
+}
+
+// ociResolveConfigFiles makes each configured Docker-style path absolute against
+// the directory holding the CLI config, matching OpenTofu.
+func ociResolveConfigFiles(configDir string, files []string) []string {
+	out := make([]string, 0, len(files))
+
+	for _, file := range files {
+		if !filepath.IsAbs(file) && configDir != "" {
+			file = filepath.Join(configDir, file)
+		}
+
+		out = append(out, file)
+	}
+
+	return out
 }
 
 // ociSelectCredentialCandidate returns the most specific source, ties broken by discovery order (inline first).
 func ociSelectCredentialCandidate(
 	ctx context.Context,
 	l log.Logger,
+	tofu *ociTofuCredentials,
 	stores []ociAmbientStore,
 	hostport, repositoryName string,
 ) ociCredentialCandidate {
 	var best ociCredentialCandidate
+
+	// CLI-config oci_credentials blocks rank by repository-prefix specificity.
+	for i := range tofu.repos {
+		repo := &tofu.repos[i]
+		if !repo.matches(hostport, repositoryName) {
+			continue
+		}
+
+		if cand := ociTofuCandidate(repo, hostport); ociOutranks(&cand, &best) {
+			best = cand
+		}
+	}
+
+	// The oci_default_credentials helper is a global-specificity CLI source.
+	if tofu.defaultHelper != "" {
+		// Global fallback, so a broken helper must not break unrelated pulls.
+		cand := ociCredentialCandidate{
+			helper: &ociHelperEntry{
+				suffix:        tofu.defaultHelper,
+				serverAddress: ociTofuHelperServerAddress(hostport),
+			},
+			specificity:   ociGlobalSpecificity,
+			fromCLIConfig: true,
+		}
+		if ociOutranks(&cand, &best) {
+			best = cand
+		}
+	}
 
 	for _, ambient := range stores {
 		// The most specific inline key that resolves in this file.
@@ -253,8 +304,9 @@ func ociSelectCredentialCandidate(
 				continue
 			}
 
-			if spec := ociInlineSpecificity(key); ociOutranks(spec, false, &best) {
-				best = ociCredentialCandidate{static: cred, specificity: spec}
+			cand := ociCredentialCandidate{static: cred, specificity: ociInlineSpecificity(key)}
+			if ociOutranks(&cand, &best) {
+				best = cand
 			}
 
 			break
@@ -262,16 +314,24 @@ func ociSelectCredentialCandidate(
 
 		// A per-registry credHelpers entry wins a tie with a domain inline login.
 		entry, hasHelper := ambient.credHelpers[ociCanonicalAuthKey(hostport)]
-		if hasHelper && ociOutranks(ociDomainSpecificity, true, &best) {
+		if hasHelper {
 			winner := entry
-			best = ociCredentialCandidate{helper: &winner, specificity: ociDomainSpecificity}
+			cand := ociCredentialCandidate{helper: &winner, specificity: ociDomainSpecificity}
+
+			if ociOutranks(&cand, &best) {
+				best = cand
+			}
 		}
 
 		// The global credsStore is the least specific source.
-		if ambient.credsStore != "" && ociOutranks(ociGlobalSpecificity, true, &best) {
-			best = ociCredentialCandidate{
+		if ambient.credsStore != "" {
+			cand := ociCredentialCandidate{
 				helper:      &ociHelperEntry{suffix: ambient.credsStore, serverAddress: ociHelperServerAddress(hostport)},
 				specificity: ociGlobalSpecificity,
+			}
+
+			if ociOutranks(&cand, &best) {
+				best = cand
 			}
 		}
 	}
@@ -324,21 +384,6 @@ func ociTofuHelperServerAddress(hostport string) string {
 	}
 
 	return "https://" + hostport
-}
-
-// ociAmbientCredentialFunc consults ambient files in order. Each file is read
-// only through v.FS, and only the selected entry is decoded, so one malformed
-// entry cannot hide valid credentials elsewhere in the same file.
-func ociAmbientCredentialFunc(l log.Logger, v *venv.Venv) ociCredentialFactory {
-	stores := loadOCIAmbientStores(l, v)
-
-	return func(repositoryName string) auth.CredentialFunc {
-		return func(ctx context.Context, hostport string) (auth.Credential, error) {
-			best := ociSelectCredentialCandidate(ctx, l, stores, hostport, repositoryName)
-
-			return ociExecuteCredentialCandidate(ctx, l, v, &best, hostport)
-		}
-	}
 }
 
 // ociCredentialFromHelper runs docker-credential-<helper> get under v.Env; timeout <= 0 uses the default cap.
@@ -486,8 +531,14 @@ func ociCredentialFromHelperOutput(entry ociHelperEntry, out []byte) (auth.Crede
 	return auth.Credential{Username: decoded.Username, Password: decoded.Secret}, nil
 }
 
-func loadOCIAmbientStores(l log.Logger, v *venv.Venv) []ociAmbientStore {
+func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) []ociAmbientStore {
 	candidates := ociAmbientCredentialPaths(v)
+	// An explicit docker_style_config_files list replaces the default search
+	// paths, and an explicit empty list disables Docker-style discovery.
+	if tofu != nil && tofu.configFilesSet {
+		candidates = ociResolveConfigFiles(tofu.configDir, tofu.configFiles)
+	}
+
 	stores := make([]ociAmbientStore, 0, len(candidates))
 
 	for _, candidate := range candidates {

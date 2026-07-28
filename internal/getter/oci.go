@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
@@ -286,6 +287,15 @@ type OCIGetter struct {
 }
 
 var _ getter.Getter = (*OCIGetter)(nil)
+
+// NewOCIGetter returns the oci:// getter wired to the default credential store.
+func NewOCIGetter(l log.Logger, v *venv.Venv) *OCIGetter {
+	return &OCIGetter{
+		NewStore: NewOCIRepositoryStore(l, v),
+		Logger:   l,
+		FS:       v.FS,
+	}
+}
 
 // Mode reports directory mode for all oci sources, since oci always
 // downloads a module directory.

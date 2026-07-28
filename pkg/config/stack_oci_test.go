@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"bytes"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,12 +23,12 @@ import (
 
 // ociStackFixture writes a terragrunt.stack.hcl whose single component of the
 // given kind ("unit" or "stack") is served from an oci:// registry.
-func ociStackFixture(t *testing.T, kind, registryAddr string) string {
+func ociStackFixture(t *testing.T, kind, source string) string {
 	t.Helper()
 
 	dir := t.TempDir()
 	body := kind + ` "vpc" {
-  source = "oci://` + registryAddr + `/terraform-modules/vpc?tag=1.0.0"
+  source = "` + source + `"
   path   = "vpc"
 }
 `
@@ -39,7 +41,7 @@ func ociStackFixture(t *testing.T, kind, registryAddr string) string {
 
 // generateOCIStack runs stack generation for an oci:// component, with the oci
 // experiment on or off, against a registry the test owns.
-func generateOCIStack(t *testing.T, kind string, ociEnabled bool) error {
+func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) (string, error) {
 	t.Helper()
 
 	// A TLS server the test owns: the client rejects its self-signed cert
@@ -47,7 +49,8 @@ func generateOCIStack(t *testing.T, kind string, ociEnabled bool) error {
 	registry := httptest.NewTLSServer(http.NotFoundHandler())
 	t.Cleanup(registry.Close)
 
-	stackPath := ociStackFixture(t, kind, registry.Listener.Addr().String())
+	source := sourceScheme + registry.Listener.Addr().String() + "/terraform-modules/vpc?tag=1.0.0"
+	stackPath := ociStackFixture(t, kind, source)
 
 	// Hermetic home so a developer's Docker or tofu credentials cannot
 	// influence how the source authenticates.
@@ -56,7 +59,10 @@ func generateOCIStack(t *testing.T, kind string, ociEnabled bool) error {
 		WithEnv(map[string]string{"HOME": hermeticHome}).
 		WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
 
+	var logBuf bytes.Buffer
+
 	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
 
 	_, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
 	pctx.Venv = v
@@ -81,7 +87,7 @@ func generateOCIStack(t *testing.T, kind string, ociEnabled bool) error {
 	// Components are generated on the pool, so the fetch error surfaces from Wait.
 	genErr := config.GenerateStackFile(t.Context(), l, pctx, pool, stackPath)
 
-	return errors.Join(genErr, pool.Wait())
+	return logBuf.String(), errors.Join(genErr, pool.Wait())
 }
 
 // TestGenerateStackOCIRequiresExperiment: an oci:// component is rejected up front without the experiment.
@@ -92,7 +98,7 @@ func TestGenerateStackOCIRequiresExperiment(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
 
-			err := generateOCIStack(t, kind, false)
+			_, err := generateOCIStack(t, kind, "oci://", false)
 			require.Error(t, err, "an oci:// source must not be fetched without the experiment")
 
 			var resolutionErr getter.OCIReferenceResolutionError
@@ -102,7 +108,10 @@ func TestGenerateStackOCIRequiresExperiment(t *testing.T) {
 				&resolutionErr,
 				"the oci getter must not run when the experiment is off",
 			)
-			assert.ErrorContains(t, err, "oci experiment")
+
+			var gateErr config.OCIExperimentRequiredError
+			require.ErrorAs(t, err, &gateErr, "the gate must surface a typed error")
+			assert.Equal(t, kind, gateErr.Kind)
 		})
 	}
 }
@@ -115,7 +124,7 @@ func TestGenerateStackOCIReachesGetter(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
 
-			err := generateOCIStack(t, kind, true)
+			logs, err := generateOCIStack(t, kind, "oci://", true)
 			require.Error(t, err, "the fake registry's cert is untrusted, so every fetch fails")
 
 			var resolutionErr getter.OCIReferenceResolutionError
@@ -125,6 +134,19 @@ func TestGenerateStackOCIReachesGetter(t *testing.T) {
 				&resolutionErr,
 				"the oci getter must run and surface a typed OCI error when the experiment is on",
 			)
+			assert.NotContains(t, logs, "CAS processing failed",
+				"an oci:// source must bypass the git-backed CAS path, not fail through it")
 		})
 	}
+}
+
+// TestGenerateStackOCIForcedFormGated: go-getter's oci:: forced form is gated by the experiment too.
+func TestGenerateStackOCIForcedFormGated(t *testing.T) {
+	t.Parallel()
+
+	_, err := generateOCIStack(t, "unit", "oci::https://", false)
+	require.Error(t, err, "the oci:: forced form must not bypass the experiment gate")
+
+	var gateErr config.OCIExperimentRequiredError
+	require.ErrorAs(t, err, &gateErr, "the forced form must hit the same typed gate")
 }

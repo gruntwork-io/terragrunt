@@ -1365,3 +1365,40 @@ func credentialForErr(t *testing.T, store getter.OCIRepositoryStore, registry st
 
 	return client.Credential(t.Context(), registry)
 }
+
+// TestOCIHelperCredentialRejectsPathSeparatorName: an ambient helper name with a path separator is never executed.
+func TestOCIHelperCredentialRejectsPathSeparatorName(t *testing.T) {
+	t.Parallel()
+
+	var lookedUp []string
+
+	exec := vexec.NewMemExec(
+		func(context.Context, vexec.Invocation) vexec.Result {
+			assert.Fail(t, "a helper with a path separator must never be executed")
+
+			return vexec.Result{}
+		},
+		vexec.WithLookPath(func(file string) (string, error) {
+			lookedUp = append(lookedUp, file)
+
+			return "/usr/local/bin/" + file, nil
+		}),
+	)
+
+	home := testHome
+	v := credentialVenv(home, nil).WithExec(exec)
+	writeHelperConfig(t, v.FS, filepath.Join(home, ".docker", "config.json"),
+		map[string]string{testRegistry: "../../../tmp/evil"}, "")
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+
+	_, credErr := credentialForErr(t, store, testRegistry)
+	require.Error(t, credErr, "a helper name containing a path separator must fail")
+
+	var helperErr getter.OCICredentialHelperError
+	require.ErrorAs(t, credErr, &helperErr)
+	assert.Empty(t, lookedUp, "the binary must be rejected before any PATH lookup")
+}

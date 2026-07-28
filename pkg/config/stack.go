@@ -760,11 +760,7 @@ func fetchComponentSource(
 
 	isOCI := isOCISource(source)
 	if isOCI && !opts.ociEnabled {
-		return fmt.Errorf(
-			"oci:// source on %s %q requires the oci experiment (e.g. --experiment=oci)",
-			kindStr,
-			cmp.name,
-		)
+		return OCIExperimentRequiredError{Kind: kindStr, Name: cmp.name}
 	}
 
 	if isCASProtocol(source) {
@@ -975,26 +971,37 @@ func copyFiles(
 	return nil
 }
 
-// isOCISource reports whether source is an oci:// registry reference.
+// OCIExperimentRequiredError reports an oci:// component source used without the oci experiment.
+type OCIExperimentRequiredError struct {
+	Kind string
+	Name string
+}
+
+func (err OCIExperimentRequiredError) Error() string {
+	return fmt.Sprintf(
+		"oci:// source on %s %q requires the oci experiment (e.g. --experiment=oci)",
+		err.Kind,
+		err.Name,
+	)
+}
+
+// isOCISource reports whether source is an oci registry reference, in either the
+// oci:// scheme form or go-getter's oci:: forced form.
 func isOCISource(source string) bool {
+	if strings.HasPrefix(source, getter.SchemeOCI+"::") {
+		return true
+	}
+
 	return strings.HasPrefix(source, getter.SchemeOCI+"://")
 }
 
 // stackGetterOptions builds the getter options a stack component fetch needs,
 // registering the oci:// getter only when the experiment is enabled.
 func stackGetterOptions(l log.Logger, v *venv.Venv, opts *generateOpts) []getter.Option {
-	clientOpts := []getter.Option{getter.WithLogger(l)}
+	clientOpts := []getter.Option{getter.WithLogger(l), getter.WithHTTP(v.HTTP)}
 
-	if v != nil && v.HTTP != nil {
-		clientOpts = append(clientOpts, getter.WithHTTP(v.HTTP))
-	}
-
-	if opts != nil && opts.ociEnabled {
-		clientOpts = append(clientOpts, getter.WithOCI(&getter.OCIGetter{
-			NewStore: getter.NewOCIRepositoryStore(l, v),
-			Logger:   l,
-			FS:       v.FS,
-		}))
+	if opts.ociEnabled {
+		clientOpts = append(clientOpts, getter.WithOCI(getter.NewOCIGetter(l, v)))
 	}
 
 	return clientOpts

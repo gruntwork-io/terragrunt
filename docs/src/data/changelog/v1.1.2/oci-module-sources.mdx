@@ -7,7 +7,7 @@ category: "experiments-updated"
 
 The `oci` experiment now downloads source code (including OpenTofu modules) from OCI Distribution registries. When enabled, Terragrunt accepts `oci://` source URLs in Terragrunt configurations (including `terraform.source` attributes). Specify either `tag` or `digest`; omitting both selects the `latest` tag. `//subdir` selectors are supported. Artifacts follow the same publishing contract OpenTofu 1.10 consumes natively.
 
-Authentication is file-based: configured credentials come from OpenTofu's CLI config (`oci_credentials` and `oci_default_credentials` blocks in `.tofurc` / `.terraformrc`), plus read-only ambient discovery of Docker and containers auth files (`credHelpers`, `credsStore`, and inline `auths`). A per-registry configured block takes precedence over ambient discovery, so one configuration serves both `tofu` and Terragrunt.
+Authentication is file-based: configured credentials come from OpenTofu's CLI config (`oci_credentials` and `oci_default_credentials` blocks in `.tofurc` / `.terraformrc`), plus read-only ambient discovery of Docker and containers auth files (`credHelpers`, `credsStore`, and inline `auths`). Terragrunt selects the most specific matching source across both, so one configuration serves both `tofu` and Terragrunt.
 
 When the experiment is disabled, `oci://` sources remain unsupported.
 
