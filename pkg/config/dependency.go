@@ -912,11 +912,12 @@ func collectStackUnitOutputs(
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			if !shouldFallBackToMockOutputs(pctx, err) {
+			if !shouldFallBackToMockOutputs(pctx, err) ||
+				!dependencyConfig.shouldReturnMockOutputs(pctx) {
 				return nil, fmt.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
 			}
 
-			if mock, ok := unitMockOutput(dependencyConfig, unit.Name, pctx); ok {
+			if mock, ok := unitMockOutput(dependencyConfig, unit.Name); ok {
 				unitOutputs[unit.Name] = mock
 				continue
 			}
@@ -951,23 +952,29 @@ func collectStackUnitOutputs(
 	return unitOutputs, nil
 }
 
-// unitMockOutput returns the mock output for a named stack unit from the dependency's mock_outputs,
-// when mocks are allowed for the current command and the unit has a mock declared. It lets a
-// partially applied stack resolve: applied units contribute real outputs while unapplied ones fall
-// back to their mock.
+// unitMockOutput returns the mock declared for a named stack unit in the dependency's mock_outputs.
+// It lets a partially applied stack resolve: applied units contribute real outputs while unapplied
+// ones fall back to their mock.
 //
-// ok is false when mocks are disallowed, absent, or not keyed by unit name.
-func unitMockOutput(dep *Dependency, unitName string, pctx *ParsingContext) (cty.Value, bool) {
-	if dep.MockOutputs == nil || !dep.shouldReturnMockOutputs(pctx) {
+// Callers are responsible for checking that mocks are allowed for the current command. ok is false
+// when mock_outputs is absent, isn't keyed by unit name, or isn't a map or object.
+func unitMockOutput(dep *Dependency, unitName string) (cty.Value, bool) {
+	if dep.MockOutputs == nil {
 		return cty.NilVal, false
 	}
 
 	mock := *dep.MockOutputs
-	if mock.IsNull() || !mock.Type().IsObjectType() || !mock.Type().HasAttribute(unitName) {
+	if mock.IsNull() || !mock.IsKnown() {
 		return cty.NilVal, false
 	}
 
-	return mock.GetAttr(unitName), true
+	if mockType := mock.Type(); !mockType.IsObjectType() && !mockType.IsMapType() {
+		return cty.NilVal, false
+	}
+
+	unitMock, ok := mock.AsValueMap()[unitName]
+
+	return unitMock, ok
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
