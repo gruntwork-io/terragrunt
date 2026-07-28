@@ -346,6 +346,90 @@ dependency "a" {
 	}
 }
 
+// TestExpandBlockInstanceLimit pins the expansion ceiling for both meta-args. The
+// limit is injected so the bound is exercised without decoding DefaultMaxInstances
+// instances, and the boundary itself is checked in both directions.
+func TestExpandBlockInstanceLimit(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		attr    string
+		limit   int
+		want    int
+		wantErr bool
+	}{
+		{name: "count at the limit", attr: "count = 3", limit: 3, want: 3},
+		{name: "count above the limit", attr: "count = 4", limit: 3, wantErr: true},
+		{name: "for_each at the limit", attr: "for_each = local.services", limit: 2, want: 2},
+		{name: "for_each above the limit", attr: "for_each = local.services", limit: 1, wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			instances, err := expand(t, `
+dependency "a" {
+  expansion {
+    `+tc.attr+`
+  }
+
+  path = "../x"
+}
+`, hclparse.WithMaxInstances(tc.limit))
+
+			if !tc.wantErr {
+				require.NoError(t, err)
+				assert.Len(t, instances, tc.want)
+
+				return
+			}
+
+			var typed hclparse.ExpansionLimitExceededError
+			require.ErrorAs(t, err, &typed)
+			assert.Equal(t, tc.limit, typed.Limit)
+		})
+	}
+}
+
+// TestExpandBlockDefaultInstanceLimit pins that the ceiling applies to callers that
+// pass no options. The check runs before any allocation, so asking for more than a
+// million instances costs nothing to reject.
+func TestExpandBlockDefaultInstanceLimit(t *testing.T) {
+	t.Parallel()
+
+	_, err := expand(t, `
+dependency "a" {
+  expansion {
+    count = 1000001
+  }
+
+  path = "../x"
+}
+`)
+
+	var typed hclparse.ExpansionLimitExceededError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, hclparse.DefaultMaxInstances, typed.Limit)
+}
+
+// TestExpansionLimitExceededErrorGuidesTheUser pins that the message tells the user
+// why the ceiling exists and how to ask for it to change, rather than just refusing.
+func TestExpansionLimitExceededErrorGuidesTheUser(t *testing.T) {
+	t.Parallel()
+
+	msg := hclparse.ExpansionLimitExceededError{
+		Attr:  "count",
+		Size:  2_000_000,
+		Limit: hclparse.DefaultMaxInstances,
+	}.Error()
+
+	assert.Contains(t, msg, "2000000")
+	assert.Contains(t, msg, "1000000")
+	assert.Contains(t, msg, "github.com/gruntwork-io/terragrunt/issues")
+}
+
 // TestExpandBlockNumericForEachKeys pins how a numeric each.key renders into an
 // address, since OSS-3971 builds the dependency cty map from the same string.
 func TestExpandBlockNumericForEachKeys(t *testing.T) {
@@ -435,7 +519,11 @@ dependency "a" {
 	}
 }
 
-func expand(tb testing.TB, cfg string) ([]hclparse.Instance, error) {
+func expand(
+	tb testing.TB,
+	cfg string,
+	opts ...hclparse.ExpandOption,
+) ([]hclparse.Instance, error) {
 	tb.Helper()
 
 	file, diags := hclsyntax.ParseConfig([]byte(cfg), "terragrunt.hcl", hcl.InitialPos)
@@ -473,7 +561,7 @@ func expand(tb testing.TB, cfg string) ([]hclparse.Instance, error) {
 		},
 	}
 
-	return hclparse.ExpandBlock(body.Blocks[0].AsHCLBlock(), new(testBlock), ctx)
+	return hclparse.ExpandBlock(body.Blocks[0].AsHCLBlock(), new(testBlock), ctx, opts...)
 }
 
 func keysOf(instances []hclparse.Instance) []string {

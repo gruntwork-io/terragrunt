@@ -94,6 +94,29 @@ func (err NegativeCountError) Error() string {
 	)
 }
 
+// ExpansionLimitExceededError is returned when a meta-arg asks for more instances
+// than the configured ceiling allows.
+type ExpansionLimitExceededError struct {
+	Subject *hcl.Range
+	Attr    string
+	Size    int
+	Limit   int
+}
+
+func (err ExpansionLimitExceededError) Error() string {
+	return fmt.Sprintf(
+		"%s: %s expands to %d instances, which is above the limit of %d. "+
+			"Terragrunt maintainers are not aware of a legitimate use-case for an expansion "+
+			"this large. If you have one, please open an issue at "+
+			"https://github.com/gruntwork-io/terragrunt/issues describing it, so we can consider "+
+			"raising the limit or making it configurable",
+		err.Subject,
+		err.Attr,
+		err.Size,
+		err.Limit,
+	)
+}
+
 // UnknownExpansionValueError is returned when a meta-arg evaluates to an unknown
 // value, which cannot be iterated.
 type UnknownExpansionValueError struct {

@@ -26,6 +26,26 @@ const (
 	countIndexAttrName = "index"
 )
 
+// DefaultMaxInstances bounds how many instances a single block may expand into,
+// whether through count or for_each. The ceiling exists so a runaway expression
+// cannot make Terragrunt allocate and decode without limit.
+const DefaultMaxInstances = 1_000_000
+
+type expandConfig struct {
+	maxInstances int
+}
+
+// ExpandOption adjusts how [ExpandBlock] expands a block.
+type ExpandOption func(*expandConfig)
+
+// WithMaxInstances overrides the expansion ceiling. Tests use this to exercise the
+// bound without decoding [DefaultMaxInstances] instances.
+func WithMaxInstances(maxInstances int) ExpandOption {
+	return func(cfg *expandConfig) {
+		cfg.maxInstances = maxInstances
+	}
+}
+
 // Instance is one decoded product of expanding a block. A block with no expansion
 // block yields a single Instance with both keys nil.
 type Instance struct {
@@ -63,10 +83,20 @@ func (inst Instance) Key() string {
 // read before the surrounding body is evaluated. That ordering is what lets the
 // body reference each.value at all: the references are still unevaluated here, and
 // only resolve in the per-element decode below.
-func ExpandBlock(block *hcl.Block, out any, ctx *hcl.EvalContext) ([]Instance, error) {
+func ExpandBlock(
+	block *hcl.Block,
+	out any,
+	ctx *hcl.EvalContext,
+	opts ...ExpandOption,
+) ([]Instance, error) {
 	outType := reflect.TypeOf(out)
 	if outType == nil || outType.Kind() != reflect.Pointer {
 		panic("hclparse.ExpandBlock: out must be a non-nil pointer")
+	}
+
+	cfg := expandConfig{maxInstances: DefaultMaxInstances}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
 	expansion, err := expansionBlock(block)
@@ -89,10 +119,10 @@ func ExpandBlock(block *hcl.Block, out any, ctx *hcl.EvalContext) ([]Instance, e
 	}
 
 	if count != nil {
-		return expandCount(block, outType, ctx, count)
+		return expandCount(block, outType, ctx, count, cfg.maxInstances)
 	}
 
-	return expandForEach(block, outType, ctx, forEach)
+	return expandForEach(block, outType, ctx, forEach, cfg.maxInstances)
 }
 
 // expansionBlock returns the block's expansion sub-block, or nil when it declares none.
@@ -151,6 +181,7 @@ func expandCount(
 	outType reflect.Type,
 	ctx *hcl.EvalContext,
 	count *hcl.Attribute,
+	maxInstances int,
 ) ([]Instance, error) {
 	value, diags := count.Expr.Value(ctx)
 	if diags.HasErrors() {
@@ -168,6 +199,16 @@ func expandCount(
 
 	if total < 0 {
 		return nil, NegativeCountError{Count: total, Subject: &count.Range}
+	}
+
+	// Checked before the allocation below, which is what the ceiling protects.
+	if total > maxInstances {
+		return nil, ExpansionLimitExceededError{
+			Attr:    countAttrName,
+			Size:    total,
+			Limit:   maxInstances,
+			Subject: &count.Range,
+		}
 	}
 
 	instances := make([]Instance, 0, total)
@@ -196,6 +237,7 @@ func expandForEach(
 	outType reflect.Type,
 	ctx *hcl.EvalContext,
 	forEach *hcl.Attribute,
+	maxInstances int,
 ) ([]Instance, error) {
 	collection, diags := forEach.Expr.Value(ctx)
 	if diags.HasErrors() {
@@ -217,7 +259,17 @@ func expandForEach(
 		}
 	}
 
-	instances := make([]Instance, 0, collection.LengthInt())
+	size := collection.LengthInt()
+	if size > maxInstances {
+		return nil, ExpansionLimitExceededError{
+			Attr:    forEachAttrName,
+			Size:    size,
+			Limit:   maxInstances,
+			Subject: &forEach.Range,
+		}
+	}
+
+	instances := make([]Instance, 0, size)
 
 	for it := collection.ElementIterator(); it.Next(); {
 		elementKey, elementValue := it.Element()
