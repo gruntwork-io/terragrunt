@@ -362,7 +362,12 @@ func TestExpandBlockInstanceLimit(t *testing.T) {
 		{name: "count at the limit", attr: "count = 3", limit: 3, want: 3},
 		{name: "count above the limit", attr: "count = 4", limit: 3, wantErr: true},
 		{name: "for_each at the limit", attr: "for_each = local.services", limit: 2, want: 2},
-		{name: "for_each above the limit", attr: "for_each = local.services", limit: 1, wantErr: true},
+		{
+			name:    "for_each above the limit",
+			attr:    "for_each = local.services",
+			limit:   1,
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testCases {

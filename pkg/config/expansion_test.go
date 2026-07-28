@@ -179,7 +179,10 @@ func TestValidateExpansionExperimentEnabled(t *testing.T) {
 
 			require.NoError(
 				t,
-				config.ValidateExpansionExperiment(experiments, parseHCLString(t, tc.cfg, tc.configPath)),
+				config.ValidateExpansionExperiment(
+					experiments,
+					parseHCLString(t, tc.cfg, tc.configPath),
+				),
 			)
 		})
 	}
