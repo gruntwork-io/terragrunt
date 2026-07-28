@@ -3129,6 +3129,7 @@ func TestTFReadTerragruntConfigFull(t *testing.T) {
 				"path":              "provider.tf",
 				"if_exists":         "overwrite_terragrunt",
 				"hcl_fmt":           nil,
+				"mutable":           nil,
 				"if_disabled":       "skip",
 				"comment_prefix":    "# ",
 				"disable_signature": false,

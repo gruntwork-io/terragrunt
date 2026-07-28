@@ -55,7 +55,7 @@ func runSingle(
 
 	runCfg := prepared.Cfg.ToRunConfig(l)
 
-	if err := prepare.PrepareGenerate(l, v, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {
 		return err
 	}
 

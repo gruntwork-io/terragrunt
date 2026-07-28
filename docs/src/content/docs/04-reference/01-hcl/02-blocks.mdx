@@ -1423,6 +1423,26 @@ The `generate` block supports the following arguments:
 - `contents` (attribute): The contents of the generated file.
 - `disable` (attribute): Disables this generate block.
 
+<Since version="1.1.2">
+
+- `mutable` (attribute): When `true`, the generated file is an ordinary writable file. Defaults to `false`. Optional.
+
+  <Aside type="tip" title="Experimental">
+    The `mutable` attribute is gated behind the `mutable-generate` experiment. Enable it with `--experiment mutable-generate` (or `TG_EXPERIMENT=mutable-generate`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#mutable-generate).
+  </Aside>
+
+  At the default of `false`, the generated contents are stored in the
+  [content-addressable storage (CAS)](/features/caching/cas) store, and the file written at `path` is a read-only link
+  to that stored copy. Set `mutable` to `true` when something edits the generated file in place, such as a hook that
+  patches it before `tofu`/`terraform` runs. Terragrunt regenerates the file rather than editing it, and
+  `tofu`/`terraform` only read it, so most `generate` blocks do not need it.
+
+  Because the stored copy is addressed by the hash of its contents, anything else generating identical contents links
+  to the same copy instead of writing its own. The CAS is required for this, so `--no-cas` writes generated files
+  directly and `mutable` has no effect.
+
+</Since>
+
 Example:
 
 ```hcl

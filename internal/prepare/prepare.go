@@ -194,12 +194,13 @@ func PrepareSource(
 // PrepareGenerate handles code generation configs, both generate blocks and generate attribute of remote_state.
 // It requires PrepareSource to have been called first.
 func PrepareGenerate(
+	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 ) error {
-	return run.GenerateConfig(l, v.FS, configbridge.NewRunOptions(opts), cfg)
+	return run.GenerateConfig(ctx, l, v, configbridge.NewRunOptions(opts), cfg)
 }
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.

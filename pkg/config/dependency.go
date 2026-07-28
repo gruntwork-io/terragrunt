@@ -1592,7 +1592,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		}
 	}
 
-	if err := remoteState.GenerateOpenTofuCode(l, tempWorkDir); err != nil {
+	if err := remoteState.GenerateOpenTofuCode(ctx, l, pctx.Venv, tempWorkDir); err != nil {
 		return nil, err
 	}
 

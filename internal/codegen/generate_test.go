@@ -8,8 +8,10 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -334,7 +336,7 @@ func TestFmtGeneratedFile(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			err := codegen.WriteToFile(l, "", &config)
+			err := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 			require.NoError(t, err)
 
 			assert.True(t, util.FileExists(tc.path))
@@ -389,7 +391,7 @@ func TestGenerateDisabling(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			err := codegen.WriteToFile(l, "", &config)
+			err := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 			require.NoError(t, err)
 
 			if tc.disabled {
@@ -553,7 +555,7 @@ func TestWriteToFileOverwritesReadOnlyTarget(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(l, "", &config))
+			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 
 			fileContent, err := os.ReadFile(path)
 			require.NoError(t, err)
@@ -607,7 +609,7 @@ func TestWriteToFileSkipAndErrorLeaveExistingFileIntact(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(l, "", &config)
+			writeErr := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 
 			if tc.wantErr {
 				var existsErr codegen.GenerateFileExistsError
@@ -656,7 +658,7 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(l, "", &config))
+	require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 
 	storeContentAfter, err := os.ReadFile(storePath)
 	require.NoError(t, err)
@@ -699,7 +701,7 @@ func TestWriteToFileTargetIsDirectory(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.Error(t, codegen.WriteToFile(l, "", &config))
+	require.Error(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 	assert.DirExists(t, targetPath)
 }
 
@@ -722,7 +724,7 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(l, "", &config))
+	require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 	assert.True(t, util.FileNotExists(targetPath))
 }
 
@@ -767,7 +769,7 @@ func TestWriteToFileSignatureWithoutTrailingNewline(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(l, "", &config))
+			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 
 			if tc.disable {
 				assert.True(t, util.FileNotExists(path))
@@ -834,7 +836,7 @@ func TestWriteToFileUnsignedFileWithoutTrailingNewline(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(l, "", &config)
+			writeErr := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 
 			if tc.disable {
 				var removeErr codegen.GenerateFileRemoveError
@@ -853,6 +855,159 @@ func TestWriteToFileUnsignedFileWithoutTrailingNewline(t *testing.T) {
 			assert.Equal(t, tc.contents, string(fileContent), "existing file must stay intact")
 		})
 	}
+}
+
+// TestWriteToFileWithContentStoreDeduplicates verifies that two targets
+// generated from the same contents end up sharing one read-only inode.
+func TestWriteToFileWithContentStoreDeduplicates(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+	store := newTestContentStore(t, testDir)
+	contents := "terraform {\n  required_version = \">= 1.3.0\"\n}\n"
+
+	first := filepath.Join(testDir, "unit-a", "versions.tf")
+	second := filepath.Join(testDir, "unit-b", "versions.tf")
+
+	for _, path := range []string{first, second} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+
+		config := codegen.GenerateConfig{
+			Path:             path,
+			IfExists:         codegen.ExistsOverwrite,
+			DisableSignature: true,
+			Contents:         contents,
+		}
+
+		l := logger.CreateLogger()
+		require.NoError(t, codegen.WriteToFile(
+			t.Context(), l, venv.OSVenv(), "", &config, codegen.WithContentStore(store),
+		))
+	}
+
+	firstInfo, err := os.Stat(first)
+	require.NoError(t, err)
+
+	secondInfo, err := os.Stat(second)
+	require.NoError(t, err)
+
+	assert.True(t, os.SameFile(firstInfo, secondInfo),
+		"identical generated contents must share one inode")
+	assert.Equal(t, os.FileMode(0444), firstInfo.Mode().Perm(),
+		"deduplicated files must be read-only so an edit cannot reach the store")
+
+	firstContents, err := os.ReadFile(first)
+	require.NoError(t, err)
+	assert.Equal(t, contents, string(firstContents))
+}
+
+// TestWriteToFileWithContentStoreMutableOptsOut verifies that a generate block
+// asking for mutability gets a private, writable file even when a store is
+// available.
+func TestWriteToFileWithContentStoreMutableOptsOut(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+	store := newTestContentStore(t, testDir)
+	contents := "terraform {\n  required_version = \">= 1.3.0\"\n}\n"
+
+	shared := filepath.Join(testDir, "unit-a", "versions.tf")
+	private := filepath.Join(testDir, "unit-b", "versions.tf")
+
+	for _, tc := range []struct {
+		mutable *bool
+		path    string
+	}{
+		{path: shared},
+		{path: private, mutable: new(true)},
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(tc.path), 0755))
+
+		config := codegen.GenerateConfig{
+			Path:             tc.path,
+			IfExists:         codegen.ExistsOverwrite,
+			DisableSignature: true,
+			Contents:         contents,
+			Mutable:          tc.mutable,
+		}
+
+		l := logger.CreateLogger()
+		require.NoError(t, codegen.WriteToFile(
+			t.Context(), l, venv.OSVenv(), "", &config, codegen.WithContentStore(store),
+		))
+	}
+
+	sharedInfo, err := os.Stat(shared)
+	require.NoError(t, err)
+
+	privateInfo, err := os.Stat(private)
+	require.NoError(t, err)
+
+	assert.False(t, os.SameFile(sharedInfo, privateInfo),
+		"a mutable generate block must not share an inode with the store")
+	assert.NotZero(t, privateInfo.Mode().Perm()&0200, "a mutable generate block must stay writable")
+}
+
+// TestWriteToFileWithContentStoreRegeneratesChangedContents verifies that
+// changing the contents replaces the link rather than writing through it into
+// the shared store, which every other unit on the old blob still reads.
+func TestWriteToFileWithContentStoreRegeneratesChangedContents(t *testing.T) {
+	t.Parallel()
+
+	v := venv.OSVenv()
+	testDir := helpers.TmpDirWOSymlinks(t)
+	store := newTestContentStore(t, testDir)
+	targetPath := filepath.Join(testDir, "versions.tf")
+
+	var firstGenerated []byte
+
+	for _, version := range []string{">= 1.0.0", ">= 1.3.0"} {
+		config := codegen.GenerateConfig{
+			Path:             targetPath,
+			IfExists:         codegen.ExistsOverwrite,
+			DisableSignature: true,
+			Contents:         fmt.Sprintf("terraform {\n  required_version = %q\n}\n", version),
+		}
+
+		l := logger.CreateLogger()
+		require.NoError(t, codegen.WriteToFile(
+			t.Context(), l, v, "", &config, codegen.WithContentStore(store),
+		))
+
+		if firstGenerated == nil {
+			generated, err := os.ReadFile(targetPath)
+			require.NoError(t, err)
+
+			firstGenerated = generated
+		}
+	}
+
+	targetContents, err := os.ReadFile(targetPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(targetContents), ">= 1.3.0")
+
+	storedFirst, err := store.Read(v, cas.HashSHA256.Sum(firstGenerated))
+	require.NoError(t, err)
+	assert.Equal(t, firstGenerated, storedFirst, "the superseded blob must survive intact")
+}
+
+// newTestContentStore returns a store rooted under dir so tests never touch the
+// user's real CAS.
+func newTestContentStore(t *testing.T, dir string) *cas.Content {
+	t.Helper()
+
+	c, err := cas.New(cas.WithStorePath(filepath.Join(dir, "cas")))
+	require.NoError(t, err)
+
+	return cas.NewContent(c.BlobStore())
 }
 
 // writeFileWithPerms writes contents first and tightens permissions afterwards
