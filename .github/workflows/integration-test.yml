@@ -273,6 +273,7 @@ jobs:
           HAS_DOCKER: ${{ runner.os == 'Linux' }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results-${{ matrix.integration.name }}
@@ -290,6 +291,7 @@ jobs:
           group_suite: "true"
 
       - name: Print Failed Tests (${{ matrix.integration.name }})
+        if: always()
         run: |
           echo "Failed Tests in ${{ matrix.integration.name }}"
           if [[ -f test_output.log ]]; then
