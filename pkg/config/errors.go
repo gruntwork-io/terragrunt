@@ -302,6 +302,21 @@ func (err TerragruntOutputEncodingError) Error() string {
 	)
 }
 
+// StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs
+// and has no mock to stand in for them.
+type StackUnitOutputFetchError struct {
+	Err      error
+	UnitName string
+}
+
+func (err StackUnitOutputFetchError) Error() string {
+	return fmt.Sprintf("stack unit %s output fetch failed: %s", err.UnitName, err.Err)
+}
+
+func (err StackUnitOutputFetchError) Unwrap() error {
+	return err.Err
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string
