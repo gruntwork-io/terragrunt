@@ -65,7 +65,7 @@ func (p *WorktreePhase) NumWorkers() int {
 func (p *WorktreePhase) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -212,7 +212,7 @@ func (p *WorktreePhase) Run(
 func (p *WorktreePhase) discoverInWorktree(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 	wt worktrees.Worktree,
 	filters filter.Filters,
@@ -273,7 +273,7 @@ func (p *WorktreePhase) discoverInWorktree(
 func (p *WorktreePhase) deletedReadingComponentsToFilters(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 	fromWorktree worktrees.Worktree,
 	readingFilters filter.Filters,
@@ -326,7 +326,7 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 	w *worktrees.Worktrees,
 ) (component.Components, error) {
@@ -402,7 +402,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 func (p *WorktreePhase) walkChangedStack(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 	fromStack *component.Stack,
 	toStack *component.Stack,

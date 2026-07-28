@@ -19,6 +19,7 @@ const (
 	OutputLocksContextKey            configKey = iota
 	SopsCacheContextKey              configKey = iota
 	AutoIncludeSuffixCacheContextKey configKey = iota
+	ParentFileProbeCacheContextKey   configKey = iota
 
 	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
@@ -27,6 +28,7 @@ const (
 	jsonOutputCacheName        = "jsonOutputCache"
 	sopsCacheName              = "sopsCache"
 	autoIncludeSuffixCacheName = "autoIncludeSuffixCache"
+	parentFileProbeCacheName   = "parentFileProbeCache"
 )
 
 // WithConfigValues add to context default values for configuration.
@@ -58,6 +60,11 @@ func WithConfigValues(ctx context.Context) context.Context {
 		ctx,
 		AutoIncludeSuffixCacheContextKey,
 		cache.NewCache[string](autoIncludeSuffixCacheName),
+	)
+	ctx = context.WithValue(
+		ctx,
+		ParentFileProbeCacheContextKey,
+		cache.NewCache[bool](parentFileProbeCacheName),
 	)
 
 	return ctx

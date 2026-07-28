@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -28,7 +29,7 @@ type CASGetter struct {
 	CAS         *cas.CAS
 	Logger      log.Logger
 	Opts        *cas.CloneOptions
-	Venv        venv.Venv
+	Venv        *venv.Venv
 	fetchers    map[string]getter.Getter
 	resolvers   map[string]cas.SourceResolver
 	innerClient InnerClientBuilder
@@ -85,10 +86,26 @@ func WithInnerClientBuilder(b InnerClientBuilder) CASGetterOption {
 // [WithGenericFetchers]([DefaultGenericFetchers]) and [WithGenericResolvers]
 // ([DefaultSourceResolvers]). opts are forwarded to both helpers so HTTP
 // auth headers reach the fetcher and tfr config reaches both.
+//
+// Probes and tfr fetches go through the venv's HTTP client unless
+// [WithHTTPClient] overrides it; a venv with no HTTP handle panics with
+// [venv.ErrVenvHTTPUnset] at construction.
 func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 	return func(g *CASGetter) {
-		g.fetchers = DefaultGenericFetchers(opts...)
-		g.resolvers = DefaultSourceResolvers(opts...)
+		var cfg genericFetcherConfig
+		for _, opt := range opts {
+			opt(&cfg)
+		}
+
+		c := cfg.httpClient
+		if c == nil {
+			g.Venv.RequireHTTP()
+			c = g.Venv.HTTP
+		}
+
+		g.fetchers = DefaultGenericFetchers(
+			slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
+		g.resolvers = DefaultSourceResolvers(c, opts...)
 	}
 }
 
@@ -105,7 +122,7 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 func NewCASGetter(
 	l log.Logger,
 	c *cas.CAS,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *cas.CloneOptions,
 	options ...CASGetterOption,
 ) *CASGetter {
@@ -465,7 +482,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 // their validScheme; without this the inner client falls through with a
 // generic "error downloading".
 func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) cas.SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v venv.Venv, suggestedKey string) (string, error) {
+	return func(ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string) (string, error) {
 		tempDir, cleanup, err := g.CAS.MakeFetchTempDir(l, v)
 		if err != nil {
 			return "", err

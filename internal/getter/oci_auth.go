@@ -48,10 +48,14 @@ var ociDockerHubRegistries = []string{
 }
 
 // ErrOCIStaticCredentialConflict reports both a token and a username or password set.
-var ErrOCIStaticCredentialConflict = errors.New("cannot set both a token and a username or password for oci sources")
+var ErrOCIStaticCredentialConflict = errors.New(
+	"cannot set both a token and a username or password for oci sources",
+)
 
 // ErrOCIStaticCredentialIncomplete reports a username without a password, or the reverse.
-var ErrOCIStaticCredentialIncomplete = errors.New("oci static credentials require both a username and a password")
+var ErrOCIStaticCredentialIncomplete = errors.New(
+	"oci static credentials require both a username and a password",
+)
 
 // ErrOCIHelperMalformedOutput reports a credential helper whose output is not valid JSON.
 var ErrOCIHelperMalformedOutput = errors.New("oci credential helper returned malformed output")
@@ -124,17 +128,24 @@ type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
 // environment credentials when set, otherwise the most specific ambient source
 // across Docker and containers auth files, running a configured credential
 // helper (e.g. Amazon ECR via ecr-login) only when it is the selected source.
-func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
+func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	v.RequireFS()
 	v.RequireEnv()
 	v.RequireGOOS()
 	v.RequireUserHomeDir()
 	v.RequireExec()
+	v.RequireHTTP()
 
 	resolveCredential := sync.OnceValues(func() (ociCredentialFactory, error) {
 		return ociCredentialFunc(l, v)
 	})
 	caches := &ociCacheSet{caches: map[string]auth.Cache{}}
+
+	// Registry requests ride the venv's outbound client instead of ORAS's
+	// OS-default retry.DefaultClient; wrapping the venv transport in ORAS's
+	// retry policy keeps the same transient-failure behavior.
+	httpClient := *v.HTTP
+	httpClient.Transport = retry.NewTransport(httpClient.Transport)
 
 	return func(_ context.Context, registryDomain, repositoryName string) (OCIRepositoryStore, error) {
 		credentialFor, err := resolveCredential()
@@ -150,7 +161,7 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 		}
 
 		repo.Client = &auth.Client{
-			Client:     retry.DefaultClient,
+			Client:     &httpClient,
 			Cache:      caches.get(reference),
 			Credential: credentialFor(repositoryName),
 			Header:     http.Header{"User-Agent": []string{ociUserAgent()}},
@@ -162,7 +173,7 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 
 // ociCredentialFunc resolves static environment credentials, falling back to
 // ambient discovery through the Venv.
-func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) {
+func ociCredentialFunc(l log.Logger, v *venv.Venv) (ociCredentialFactory, error) {
 	staticCred, found, err := ociStaticCredential(v)
 	if err != nil {
 		return nil, err
@@ -202,7 +213,7 @@ func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) 
 }
 
 // ociStaticCredential reads a token or a username plus password from v.Env.
-func ociStaticCredential(v venv.Venv) (auth.Credential, bool, error) {
+func ociStaticCredential(v *venv.Venv) (auth.Credential, bool, error) {
 	username := v.Env[EnvOCIUsername]
 	password := v.Env[EnvOCIPassword]
 	token := v.Env[EnvOCIToken]
@@ -317,7 +328,7 @@ func ociSelectCredentialCandidate(
 func ociExecuteCredentialCandidate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	best *ociCredentialCandidate,
 	hostport string,
 ) (auth.Credential, error) {
@@ -352,7 +363,7 @@ func ociHelperServerAddress(hostport string) string {
 // ociAmbientCredentialFunc consults ambient files in order. Each file is read
 // only through v.FS, and only the selected entry is decoded, so one malformed
 // entry cannot hide valid credentials elsewhere in the same file.
-func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
+func ociAmbientCredentialFunc(l log.Logger, v *venv.Venv) ociCredentialFactory {
 	stores := loadOCIAmbientStores(l, v)
 
 	return func(repositoryName string) auth.CredentialFunc {
@@ -367,7 +378,7 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 // ociCredentialFromHelper runs docker-credential-<helper> get under v.Env; timeout <= 0 uses the default cap.
 func ociCredentialFromHelper(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	entry ociHelperEntry,
 	timeout time.Duration,
 ) (auth.Credential, error) {
@@ -499,7 +510,7 @@ func ociCredentialFromHelperOutput(entry ociHelperEntry, out []byte) (auth.Crede
 	return auth.Credential{Username: decoded.Username, Password: decoded.Secret}, nil
 }
 
-func loadOCIAmbientStores(l log.Logger, v venv.Venv) []ociAmbientStore {
+func loadOCIAmbientStores(l log.Logger, v *venv.Venv) []ociAmbientStore {
 	candidates := ociAmbientCredentialPaths(v)
 	stores := make([]ociAmbientStore, 0, len(candidates))
 
@@ -551,7 +562,7 @@ func ociCredentialFromAmbientStore(
 // ociAmbientCredentialPaths returns OpenTofu's containers-auth candidates in
 // precedence order. The runtime file is Linux-only; macOS and Windows search
 // literal ~/.config before XDG config; DOCKER_CONFIG is intentionally ignored.
-func ociAmbientCredentialPaths(v venv.Venv) []string {
+func ociAmbientCredentialPaths(v *venv.Venv) []string {
 	var paths []string
 
 	if v.Platform.GOOS == "linux" {
@@ -631,7 +642,7 @@ func ociCanonicalAuthKey(key string) string {
 }
 
 // ociAuthFile reads an auth file through v.FS and builds its exact-key index.
-func ociAuthFile(v venv.Venv, path string) (authFile, error) {
+func ociAuthFile(v *venv.Venv, path string) (authFile, error) {
 	data, err := vfs.ReadFile(v.FS, path)
 	if err != nil {
 		return authFile{}, err
@@ -685,7 +696,10 @@ type authFile struct {
 
 // ociCredentialFromAuthConfig delegates one selected entry to ORAS's Docker
 // config decoder without letting ORAS normalize the file's real lookup key.
-func ociCredentialFromAuthConfig(ctx context.Context, raw json.RawMessage) (auth.Credential, error) {
+func ociCredentialFromAuthConfig(
+	ctx context.Context,
+	raw json.RawMessage,
+) (auth.Credential, error) {
 	const syntheticKey = "terragrunt.invalid"
 
 	data, err := json.Marshal(struct {

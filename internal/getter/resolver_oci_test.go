@@ -241,11 +241,13 @@ func TestOCIResolverProbeConcurrentWithRacing(t *testing.T) {
 func TestDefaultSourceResolversOCIConfig(t *testing.T) {
 	t.Parallel()
 
-	_, found := getter.DefaultSourceResolvers()[getter.SchemeOCI]
+	v := venvtest.New()
+
+	_, found := getter.DefaultSourceResolvers(v.HTTP)[getter.SchemeOCI]
 	assert.False(t, found, "oci resolver must be absent without WithOCIConfig")
 
-	v := venvtest.New()
 	resolvers := getter.DefaultSourceResolvers(
+		v.HTTP,
 		getter.WithDispatchLogger(logger.CreateLogger()),
 		getter.WithDispatchFS(v.FS),
 		getter.WithOCIConfig(v),

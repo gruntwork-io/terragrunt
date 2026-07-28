@@ -2,14 +2,13 @@ package getter
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-cleanhttp"
 )
 
 // tfrResolverTimeout caps the registry probe so a slow registry can't
@@ -27,30 +26,27 @@ const tfrResolverTimeout = 10 * time.Second
 // tfr:// requests share one CAS entry while a republish under the same
 // version pins to a new key.
 type TFRResolver struct {
-	HTTPClient         *http.Client
+	HTTPClient         vhttp.Client
 	Logger             log.Logger
 	TofuImplementation tfimpl.Type
 }
 
 // NewTFRResolver returns a [TFRResolver] with sensible defaults: a
-// [github.com/hashicorp/go-cleanhttp.DefaultClient] capped at
-// [tfrResolverTimeout], [log.Default] for diagnostic output, and
-// [tfimpl.OpenTofu] as the default implementation.
+// [vhttp.NewOSClientWithTimeout] capped at [tfrResolverTimeout],
+// [log.Default] for diagnostic output, and [tfimpl.OpenTofu] as the
+// default implementation.
 func NewTFRResolver() *TFRResolver {
-	client := cleanhttp.DefaultClient()
-	client.Timeout = tfrResolverTimeout
-
 	return &TFRResolver{
-		HTTPClient:         client,
+		HTTPClient:         vhttp.NewOSClientWithTimeout(tfrResolverTimeout),
 		Logger:             log.Default(),
 		TofuImplementation: tfimpl.OpenTofu,
 	}
 }
 
 // WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests routing through a
-// [net/http/httptest.Server].
-func (r *TFRResolver) WithHTTPClient(c *http.Client) *TFRResolver {
+// requests. Intended for tests that swap in a [vhttp.NewMemClient]
+// handler to synthesize registry responses.
+func (r *TFRResolver) WithHTTPClient(c vhttp.Client) *TFRResolver {
 	r.HTTPClient = c
 	return r
 }

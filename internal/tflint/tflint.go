@@ -40,7 +40,7 @@ const (
 func RunTflintWithOpts(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *TFLintOptions,
 	cfg *runcfg.RunConfig,
 	hook *runcfg.Hook,

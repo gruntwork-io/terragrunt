@@ -30,24 +30,34 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 	}
 
 	if source.Default == nil {
-		feature.Default = source.Default
-	} else {
-		updatedDefaults, err := deepMergeCtyMaps(*feature.Default, *source.Default)
-		if err != nil {
-			return err
-		}
-
-		feature.Default = updatedDefaults
+		return nil
 	}
+
+	if feature.Default == nil {
+		feature.Default = source.Default
+		return nil
+	}
+
+	updatedDefaults, err := deepMergeCtyMaps(*feature.Default, *source.Default)
+	if err != nil {
+		return err
+	}
+
+	feature.Default = updatedDefaults
 
 	return nil
 }
 
-// DeepMerge feature flags.
+// deepMergeFeatureBlocks deep merges feature flags by name.
 func deepMergeFeatureBlocks(
 	targetFeatureFlags []*FeatureFlag,
 	sourceFeatureFlags []*FeatureFlag,
 ) ([]*FeatureFlag, error) {
+	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMerge)
+}
+
+// mergeFeatureBlocks merges feature flags by name using the given merge function.
+func mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag, mergeFlag func(*FeatureFlag, *FeatureFlag) error) ([]*FeatureFlag, error) {
 	if sourceFeatureFlags == nil && targetFeatureFlags == nil {
 		return nil, nil
 	}
@@ -65,7 +75,7 @@ func deepMergeFeatureBlocks(
 		sameKeyDep, hasSameKey := featureBlocks[flag.Name]
 		if hasSameKey {
 			sameKeyFlagPtr := sameKeyDep
-			if err := sameKeyFlagPtr.DeepMerge(flag); err != nil {
+			if err := mergeFlag(sameKeyFlagPtr, flag); err != nil {
 				return nil, err
 			}
 
@@ -97,7 +107,7 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	return CtyValueAsString(*feature.Default)
 }
 
-// Convert generic flag value to cty.Value.
+// flagToCtyValue converts a generic flag value to cty.Value.
 func flagToCtyValue(name string, value any) (cty.Value, error) {
 	ctyValue, err := GoTypeToCty(value)
 	if err != nil {
@@ -112,7 +122,7 @@ func flagToCtyValue(name string, value any) (cty.Value, error) {
 	return GoTypeToCty(ctyFlag)
 }
 
-// Convert a flag to a cty.Value using the provided cty.Type.
+// flagToTypedCtyValue converts a flag to a cty.Value using the provided cty.Type.
 func flagToTypedCtyValue(name string, ctyType cty.Type, value any) (cty.Value, error) {
 	var flagValue = value
 	if ctyType == cty.Bool {

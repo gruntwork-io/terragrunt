@@ -23,7 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	// If --all flag is set, use discovery to find all units and print info for each one
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
@@ -35,7 +35,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 func runPrint(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
@@ -73,7 +73,12 @@ func runPrint(
 	return printTerragruntContext(l, v, updatedOpts)
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runAll(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts)
@@ -98,7 +103,8 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
-		if err := runPrint(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
+		unitV := v.WithEnvCloned()
+		if err := runPrint(ctx, l, unitV, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -126,7 +132,7 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func printTerragruntContext(l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func printTerragruntContext(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
