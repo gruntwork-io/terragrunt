@@ -231,7 +231,6 @@ func newRunE2EOpts(
 	args := iacargs.New(append([]string{command}, extraArgs...)...)
 
 	return &run.Options{
-		FS:                           vfs.NewOSFS(),
 		UnitDir:                      s.dir,
 		CacheDir:                     s.dir,
 		RootWorkingDir:               s.dir,

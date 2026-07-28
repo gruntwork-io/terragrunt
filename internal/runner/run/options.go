@@ -36,12 +36,9 @@ const (
 	defaultSignalsFile = "error-signals.json"
 )
 
-// NewOptions returns an Options with FS defaulted to the OS-backed
-// filesystem. Callers must construct Options through this function (or copy
-// from another Options) so paths like DownloadTerraformSource, which require
-// an OS-backed FS, work without each caller having to remember to set it.
+// NewOptions returns an empty Options.
 func NewOptions() *Options {
-	return &Options{FS: vfs.NewOSFS()}
+	return &Options{}
 }
 
 // Options contains the configuration needed by run.Run and its helpers.
@@ -53,7 +50,6 @@ type Options struct {
 	Errors                       *errorconfig.Config
 	FeatureFlags                 *xsync.Map[string, string]
 	Telemetry                    *telemetry.Options
-	FS                           vfs.FS
 	SourceMap                    map[string]string
 	TFPath                       string
 	TerraformCommand             string
@@ -257,6 +253,7 @@ func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 func (o *Options) RunWithErrorHandling(
 	ctx context.Context,
 	l log.Logger,
+	fsys vfs.FS,
 	r *report.Report,
 	operation func() error,
 ) error {
@@ -297,7 +294,7 @@ func (o *Options) RunWithErrorHandling(
 			l.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
 
 			if len(action.IgnoreSignals) > 0 {
-				if err := o.handleIgnoreSignals(l, action.IgnoreSignals); err != nil {
+				if err := o.handleIgnoreSignals(l, fsys, action.IgnoreSignals); err != nil {
 					return err
 				}
 			}
@@ -363,7 +360,7 @@ func (o *Options) RunWithErrorHandling(
 	}
 }
 
-func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
+func (o *Options) handleIgnoreSignals(l log.Logger, fsys vfs.FS, signals map[string]any) error {
 	signalsFile := filepath.Join(o.CacheDir, defaultSignalsFile)
 
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
@@ -375,7 +372,7 @@ func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) erro
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
-	if err := vfs.WriteFile(o.FS, signalsFile, signalsJSON, ownerPerms); err != nil {
+	if err := vfs.WriteFile(fsys, signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
 
