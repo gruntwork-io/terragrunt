@@ -15,11 +15,19 @@ Azure Container Registry, Google Artifact Registry, and self-hosted or
 air-gapped registries.
 
 With the experiment enabled, Terragrunt accepts `oci://` source URLs in
-`terraform { source = "..." }` blocks. For example:
+`terraform { source = "..." }` blocks, and in the `unit` and `stack` blocks of a
+`terragrunt.stack.hcl`. For example:
 
 ```hcl
 terraform {
   source = "oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0"
+}
+```
+
+```hcl
+unit "vpc" {
+  source = "oci://ghcr.io/acme/terragrunt-units/vpc?tag=1.0.0"
+  path   = "vpc"
 }
 ```
 

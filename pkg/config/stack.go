@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -169,6 +170,7 @@ func GenerateStackFile(
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      cs.Enabled,
 		casInstance:     cs.Instance,
+		ociEnabled:      pctx.Experiments.Evaluate(experiment.OCI),
 		strictControls:  pctx.StrictControls,
 	}
 
@@ -431,6 +433,7 @@ type generateOpts struct {
 	logShowAbsPaths bool
 	noStackValidate bool
 	casEnabled      bool
+	ociEnabled      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -755,6 +758,15 @@ func fetchComponentSource(
 ) error {
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.strictControls)
 
+	isOCI := isOCISource(source)
+	if isOCI && !opts.ociEnabled {
+		return fmt.Errorf(
+			"oci:// source on %s %q requires the oci experiment (e.g. --experiment=oci)",
+			kindStr,
+			cmp.name,
+		)
+	}
+
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
 			return fmt.Errorf(
@@ -793,7 +805,9 @@ func fetchComponentSource(
 		return nil
 	}
 
-	if opts.casEnabled {
+	// CAS stack processing is git-backed, so an oci:// source can never resolve
+	// through it; go straight to the getter instead of failing and warning.
+	if opts.casEnabled && !isOCI {
 		casErr := fetchViaCAS(ctx, l, v, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {
 			return nil
@@ -819,7 +833,7 @@ func fetchComponentSource(
 		})
 	}
 
-	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
+	if err := copyFiles(ctx, l, v, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
 		return fmt.Errorf(
 			"failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
@@ -919,13 +933,19 @@ func isCASProtocol(source string) bool {
 // The function checks if the source is local or remote. If local, it copies the
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
-func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
+func copyFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	identifier, sourceDir, src, dest string,
+) error {
 	if !isLocal(l, sourceDir, src) {
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
 			return fmt.Errorf("failed to create directory %s for %s %w", dest, identifier, err)
 		}
 
-		if _, err := getter.GetAny(ctx, dest, src); err != nil {
+		if _, err := getter.GetAny(ctx, dest, src, stackGetterOptions(l, v, opts)...); err != nil {
 			return fmt.Errorf("failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
 
@@ -953,6 +973,31 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 	}
 
 	return nil
+}
+
+// isOCISource reports whether source is an oci:// registry reference.
+func isOCISource(source string) bool {
+	return strings.HasPrefix(source, getter.SchemeOCI+"://")
+}
+
+// stackGetterOptions builds the getter options a stack component fetch needs,
+// registering the oci:// getter only when the experiment is enabled.
+func stackGetterOptions(l log.Logger, v *venv.Venv, opts *generateOpts) []getter.Option {
+	clientOpts := []getter.Option{getter.WithLogger(l)}
+
+	if v != nil && v.HTTP != nil {
+		clientOpts = append(clientOpts, getter.WithHTTP(v.HTTP))
+	}
+
+	if opts != nil && opts.ociEnabled {
+		clientOpts = append(clientOpts, getter.WithOCI(&getter.OCIGetter{
+			NewStore: getter.NewOCIRepositoryStore(l, v),
+			Logger:   l,
+			FS:       v.FS,
+		}))
+	}
+
+	return clientOpts
 }
 
 // isLocal determines if a given source path is local or remote.
