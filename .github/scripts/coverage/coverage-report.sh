@@ -219,7 +219,7 @@ print_bare_packages() {
 	fi
 
 	echo ""
-	echo "Packages that failed without a failing test (build error, panic, or timeout):"
+	echo "Packages that failed without a failing test (build failure, panic, or timeout):"
 
 	while IFS= read -r package; do
 		if [[ -z "$package" ]]; then
@@ -233,13 +233,13 @@ print_bare_packages() {
 # Emit one annotation naming the failures, so they are readable without opening the log
 print_failure_annotation() {
 	local failing_tests="$1" test_count="$2"
-	local package test names="" shown=0
+	local test names="" shown=0
 
 	if [[ -z "$failing_tests" ]]; then
 		return 0
 	fi
 
-	while IFS=$'\t' read -r package test; do
+	while IFS=$'\t' read -r _ test; do
 		if [[ -z "$test" ]]; then
 			continue
 		fi
@@ -260,7 +260,8 @@ print_failure_annotation() {
 		names+=", and $((test_count - shown)) more"
 	fi
 
-	echo "::error title=Failing tests ($test_count)::$names"
+	# On stderr, which the runner scans for workflow commands just as it does stdout.
+	echo "::error title=Failing tests ($test_count)::$names" >&2
 }
 
 # Print the "<package><TAB><test>" lines whose output gets replayed, capped at max_tests

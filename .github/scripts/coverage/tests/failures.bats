@@ -1,5 +1,8 @@
 #!/usr/bin/env bats
 
+# Required for `run --separate-stderr`, which pins where the annotation is written.
+bats_require_minimum_version 1.5.0
+
 setup() {
   SCRIPT="${BATS_TEST_DIRNAME}/../coverage-report.sh"
   EVENTS="${BATS_TEST_TMPDIR}/events.ndjson"
@@ -39,9 +42,10 @@ EOF
   [[ "$output" == *"example.com/b"* ]]
 }
 
-@test "emits an error annotation naming the failures" {
-  run "$SCRIPT" failures "$EVENTS"
-  [[ "$output" == *"::error title=Failing tests (1)::TestFails"* ]]
+@test "emits an error annotation naming the failures, on stderr" {
+  run --separate-stderr "$SCRIPT" failures "$EVENTS"
+  [[ "$stderr" == *"::error title=Failing tests (1)::TestFails"* ]]
+  [[ "$output" != *"::error"* ]]
 }
 
 @test "writes the failing tests to the step summary" {
