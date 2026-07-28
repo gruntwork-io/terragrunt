@@ -94,6 +94,31 @@ func (err NegativeCountError) Error() string {
 	)
 }
 
+// UnknownExpansionValueError is returned when a meta-arg evaluates to an unknown
+// value, which cannot be iterated.
+type UnknownExpansionValueError struct {
+	Subject *hcl.Range
+	Attr    string
+}
+
+func (err UnknownExpansionValueError) Error() string {
+	return fmt.Sprintf(
+		"%s: %s is not known at parse time; it must resolve to a concrete value",
+		err.Subject,
+		err.Attr,
+	)
+}
+
+// NullExpansionValueError is returned when a meta-arg evaluates to null.
+type NullExpansionValueError struct {
+	Subject *hcl.Range
+	Attr    string
+}
+
+func (err NullExpansionValueError) Error() string {
+	return fmt.Sprintf("%s: %s is null; it must resolve to a concrete value", err.Subject, err.Attr)
+}
+
 // UnsupportedForEachTypeError is returned when for_each evaluates to something other
 // than a set, map, or object.
 type UnsupportedForEachTypeError struct {

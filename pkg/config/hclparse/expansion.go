@@ -157,6 +157,10 @@ func expandCount(
 		return nil, diags
 	}
 
+	if err := requireConcrete(value, countAttrName, &count.Range); err != nil {
+		return nil, err
+	}
+
 	var total int
 	if err := gocty.FromCtyValue(value, &total); err != nil {
 		return nil, InvalidCountError{Subject: &count.Range, Err: err}
@@ -198,6 +202,12 @@ func expandForEach(
 		return nil, diags
 	}
 
+	// LengthInt and ElementIterator panic on unknown or null values, so these are
+	// rejected before the collection is touched rather than after the type check.
+	if err := requireConcrete(collection, forEachAttrName, &forEach.Range); err != nil {
+		return nil, err
+	}
+
 	collectionType := collection.Type()
 	if !collectionType.IsSetType() && !collectionType.IsMapType() &&
 		!collectionType.IsObjectType() {
@@ -234,6 +244,19 @@ func expandForEach(
 	}
 
 	return instances, nil
+}
+
+// requireConcrete rejects meta-arg values that cannot be iterated or converted.
+func requireConcrete(value cty.Value, attr string, subject *hcl.Range) error {
+	if !value.IsKnown() {
+		return UnknownExpansionValueError{Attr: attr, Subject: subject}
+	}
+
+	if value.IsNull() {
+		return NullExpansionValueError{Attr: attr, Subject: subject}
+	}
+
+	return nil
 }
 
 // expansionKey renders a for_each element key as the string used in addresses.

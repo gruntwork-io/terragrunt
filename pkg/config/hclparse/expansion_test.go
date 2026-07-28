@@ -242,6 +242,45 @@ dependency "a" {
 `,
 			target: new(hclparse.UnsupportedForEachTypeError),
 		},
+		{
+			name: "for_each element key is not a string or number",
+			cfg: `
+dependency "a" {
+  expansion {
+    for_each = local.object_set
+  }
+
+  path = "../x"
+}
+`,
+			target: new(hclparse.UnsupportedForEachKeyTypeError),
+		},
+		{
+			name: "fractional count",
+			cfg: `
+dependency "a" {
+  expansion {
+    count = 1.5
+  }
+
+  path = "../x"
+}
+`,
+			target: new(hclparse.InvalidCountError),
+		},
+		{
+			name: "non-numeric count",
+			cfg: `
+dependency "a" {
+  expansion {
+    count = "two"
+  }
+
+  path = "../x"
+}
+`,
+			target: new(hclparse.InvalidCountError),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -253,6 +292,113 @@ dependency "a" {
 			require.ErrorAs(t, err, tc.target)
 		})
 	}
+}
+
+// TestExpandBlockRejectsNonConcreteValues pins that unknown and null meta-args are
+// reported rather than crashing. cty's LengthInt and ElementIterator panic on both,
+// and a for_each fed from a dependency output can be either.
+func TestExpandBlockRejectsNonConcreteValues(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		target any
+		name   string
+		attr   string
+	}{
+		{
+			name:   "unknown for_each",
+			attr:   "for_each = local.unknown_services",
+			target: new(hclparse.UnknownExpansionValueError),
+		},
+		{
+			name:   "null for_each",
+			attr:   "for_each = local.null_services",
+			target: new(hclparse.NullExpansionValueError),
+		},
+		{
+			name:   "unknown count",
+			attr:   "count = local.unknown_count",
+			target: new(hclparse.UnknownExpansionValueError),
+		},
+		{
+			name:   "null count",
+			attr:   "count = local.null_count",
+			target: new(hclparse.NullExpansionValueError),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := expand(t, `
+dependency "a" {
+  expansion {
+    `+tc.attr+`
+  }
+
+  path = "../x"
+}
+`)
+			require.Error(t, err)
+			require.ErrorAs(t, err, tc.target)
+		})
+	}
+}
+
+// TestExpandBlockNumericForEachKeys pins how a numeric each.key renders into an
+// address, since OSS-3971 builds the dependency cty map from the same string.
+func TestExpandBlockNumericForEachKeys(t *testing.T) {
+	t.Parallel()
+
+	instances, err := expand(t, `
+dependency "a" {
+  expansion {
+    for_each = local.numeric_keys
+  }
+
+  path = "../${each.key}"
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, instances, 2)
+
+	assert.ElementsMatch(t, []string{"1", "2"}, keysOf(instances))
+}
+
+// TestExpandBlockRejectsEachUnderCount pins that the two iteration namespaces stay
+// separate: count exposes count.index only, so a stray each reference is an error
+// rather than a silently empty interpolation.
+func TestExpandBlockRejectsEachUnderCount(t *testing.T) {
+	t.Parallel()
+
+	_, err := expand(t, `
+dependency "a" {
+  expansion {
+    count = 2
+  }
+
+  path = "../${each.value}"
+}
+`)
+	require.Error(t, err)
+}
+
+// TestExpandBlockRejectsLabeledExpansionBlock pins that expansion takes no label, so
+// a stray one fails instead of being read as a differently-named block.
+func TestExpandBlockRejectsLabeledExpansionBlock(t *testing.T) {
+	t.Parallel()
+
+	_, err := expand(t, `
+dependency "a" {
+  expansion "extra" {
+    count = 2
+  }
+
+  path = "../x"
+}
+`)
+	require.Error(t, err)
 }
 
 // TestExpandBlockRejectsUnknownExpansionAttribute pins that the expansion block has
@@ -312,6 +458,17 @@ func expand(tb testing.TB, cfg string) ([]hclparse.Instance, error) {
 				}),
 				"no_services":      cty.SetValEmpty(cty.String),
 				"not_a_collection": cty.StringVal("nope"),
+				"numeric_keys": cty.SetVal([]cty.Value{
+					cty.NumberIntVal(1),
+					cty.NumberIntVal(2),
+				}),
+				"object_set": cty.SetVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("web")}),
+				}),
+				"unknown_services": cty.UnknownVal(cty.Set(cty.String)),
+				"null_services":    cty.NullVal(cty.Set(cty.String)),
+				"unknown_count":    cty.UnknownVal(cty.Number),
+				"null_count":       cty.NullVal(cty.Number),
 			}),
 		},
 	}
