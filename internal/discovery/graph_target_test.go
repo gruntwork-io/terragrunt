@@ -2,7 +2,6 @@ package discovery_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -32,21 +31,21 @@ func TestDiscoveryWithGraphTarget_RetainsTargetAndDependents(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(dbDir, 0o755))
-	require.NoError(t, os.MkdirAll(appDir, 0o755))
+	v := memGitTopLevelVenv(t, tmpDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		dbDir: `
 dependency "vpc" {
   config_path = "../vpc"
 }
-`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+`,
+		appDir: `
 dependency "db" {
   config_path = "../db"
 }
-`), 0o644))
+`,
+	})
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -62,7 +61,7 @@ dependency "db" {
 	configs, err := d.Discover(
 		t.Context(),
 		logger.CreateLogger(),
-		memGitTopLevelVenv(t, tmpDir),
+		v,
 		opts,
 	)
 	require.NoError(t, err)
@@ -82,21 +81,21 @@ func TestDiscoveryGraphTarget_ParityWithFilterQueries(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(dbDir, 0o755))
-	require.NoError(t, os.MkdirAll(appDir, 0o755))
+	v := memGitTopLevelVenv(t, tmpDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		dbDir: `
 dependency "vpc" {
   config_path = "../vpc"
 }
-`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+`,
+		appDir: `
 dependency "db" {
   config_path = "../db"
 }
-`), 0o644))
+`,
+	})
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -115,14 +114,14 @@ dependency "db" {
 	configsA, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithFilters(filters).
-		Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
+		Discover(t.Context(), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
-		Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
+		Discover(t.Context(), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(
@@ -143,13 +142,13 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(dbDir, 0o755))
-	require.NoError(t, os.MkdirAll(appDir, 0o755))
+	v := memGitTopLevelVenv(t, tmpDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(``), 0o644))
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		dbDir:  ``,
+		appDir: ``,
+	})
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -162,7 +161,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 	configs, err := d.Discover(
 		t.Context(),
 		logger.CreateLogger(),
-		memGitTopLevelVenv(t, tmpDir),
+		v,
 		opts,
 	)
 	require.NoError(t, err)
@@ -182,15 +181,16 @@ func TestDiscoveryWithOptions_GraphTarget(t *testing.T) {
 	vpcDir := filepath.Join(tmpDir, "vpc")
 	dbDir := filepath.Join(tmpDir, "db")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(dbDir, 0o755))
+	v := memGitTopLevelVenv(t, tmpDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		dbDir: `
 dependency "vpc" {
   config_path = "../vpc"
 }
-`), 0o644))
+`,
+	})
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -206,13 +206,28 @@ dependency "vpc" {
 	configs, err := d.Discover(
 		t.Context(),
 		logger.CreateLogger(),
-		memGitTopLevelVenv(t, tmpDir),
+		v,
 		opts,
 	)
 	require.NoError(t, err)
 
 	paths := configs.Filter(component.UnitKind).Paths()
 	assert.ElementsMatch(t, []string{vpcDir, dbDir}, paths)
+}
+
+// writeUnits writes a terragrunt.hcl carrying the given contents into each
+// unit directory, keyed by directory.
+func writeUnits(t *testing.T, fsys vfs.FS, units map[string]string) {
+	t.Helper()
+
+	for dir, contents := range units {
+		require.NoError(t, vfs.WriteFile(
+			fsys,
+			filepath.Join(dir, "terragrunt.hcl"),
+			[]byte(contents),
+			0o644,
+		))
+	}
 }
 
 // memGitTopLevelVenv returns a venv.Venv whose Exec answers
@@ -233,7 +248,7 @@ func memGitTopLevelVenv(t *testing.T, repoRoot string) *venv.Venv {
 		return vexec.Result{ExitCode: 1}
 	})
 
-	return venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	return venvtest.New().WithExec(exec)
 }
 
 // mockGraphTargetOption implements the GraphTarget() interface for testing.

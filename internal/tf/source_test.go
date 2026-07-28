@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -477,12 +478,12 @@ func TestEncodeSourceVersionTracksOnlyCopiedFiles(t *testing.T) {
 				src, err := tf.NewSource(l, sourceDir, t.TempDir(), sourceDir, false)
 				require.NoError(t, err)
 
-				before, err := src.EncodeSourceVersion(l, copyOpts...)
+				before, err := src.EncodeSourceVersion(l, vfs.NewOSFS(), copyOpts...)
 				require.NoError(t, err)
 
 				tc.mutate(t, sourceDir)
 
-				after, err := src.EncodeSourceVersion(l, copyOpts...)
+				after, err := src.EncodeSourceVersion(l, vfs.NewOSFS(), copyOpts...)
 				require.NoError(t, err)
 
 				if tc.wantSame {

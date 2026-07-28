@@ -428,7 +428,7 @@ func PartialParseConfigFile(
 ) (*TerragruntConfig, error) {
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
-	fileInfo, err := os.Stat(configPath)
+	fileInfo, err := pctx.Venv.FS.Stat(configPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}

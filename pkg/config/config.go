@@ -42,6 +42,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/mitchellh/mapstructure"
 )
@@ -1231,12 +1232,14 @@ func GetDefaultConfigPath(workingDir string) string {
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path.
 //
 // Parameters:
+//   - fsys: the filesystem to walk
 //   - rootPath: the root directory to search
 //   - experiments: experiment flags (for symlink support)
 //   - configPath: the terragrunt config path (to detect non-default config filenames)
 //   - env: environment variables (to resolve TF_DATA_DIR)
 //   - downloadDir: the terragrunt download directory to skip
 func FindConfigFilesInPath(
+	fsys vfs.FS,
 	rootPath string,
 	experiments experiment.Experiments,
 	configPath string,
@@ -1245,10 +1248,10 @@ func FindConfigFilesInPath(
 ) ([]string, error) {
 	configFiles := []string{}
 
-	walkFunc := filepath.WalkDir
+	walkFunc := vfs.WalkDir
 
 	if experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = vfs.WalkDirWithSymlinks
 	}
 
 	tfDataDir := tf.DefaultTFDataDir
@@ -1256,7 +1259,7 @@ func FindConfigFilesInPath(
 		tfDataDir = d
 	}
 
-	err := walkFunc(rootPath, func(path string, d fs.DirEntry, err error) error {
+	err := walkFunc(fsys, rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -1274,7 +1277,7 @@ func FindConfigFilesInPath(
 				configFile = filepath.Join(path, configFile)
 			}
 
-			if !util.IsDir(configFile) && util.FileExists(configFile) {
+			if info, statErr := fsys.Stat(configFile); statErr == nil && !info.IsDir() {
 				configFiles = append(configFiles, configFile)
 				break
 			}
@@ -1361,7 +1364,7 @@ func ParseConfigFile(
 		decodeListKey = fmt.Sprintf("%v", pctx.PartialParseDecodeList)
 	}
 
-	fileInfo, err := os.Stat(configPath)
+	fileInfo, err := pctx.Venv.FS.Stat(configPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
@@ -2190,12 +2193,12 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 		return
 	}
 
-	walkFunc := filepath.WalkDir
+	walkFunc := vfs.WalkDir
 	if pctx.Experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = vfs.WalkDirWithSymlinks
 	}
 
-	_ = walkFunc(moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
+	_ = walkFunc(pctx.Venv.FS, moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip unreadable entries rather than aborting the whole walk.
 			if d != nil && d.IsDir() {

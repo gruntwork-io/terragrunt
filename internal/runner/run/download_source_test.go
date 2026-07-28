@@ -81,7 +81,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = terraformSource.WriteVersionFile(logger.CreateLogger())
+	err = terraformSource.WriteVersionFile(logger.CreateLogger(), vfs.NewOSFS())
 	if err != nil {
 		t.Fatal(err)
 	}

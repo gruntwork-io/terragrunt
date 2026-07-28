@@ -1153,6 +1153,156 @@ func TestWalkDir_OSFS(t *testing.T) {
 	assert.Equal(t, []string{".", "a.txt", "sub", filepath.Join("sub", "b.txt")}, paths)
 }
 
+func TestWalkDirWithSymlinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("simple symlinks", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		for _, dir := range []string{"a", "d"} {
+			require.NoError(t, os.Mkdir(filepath.Join(root, dir), 0755))
+		}
+
+		require.NoError(t, os.WriteFile(filepath.Join(root, "a", "test.txt"), []byte("test"), 0644))
+
+		require.NoError(t, os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "b")))
+		require.NoError(t, os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "c")))
+		require.NoError(t, os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "d", "a")))
+
+		assert.ElementsMatch(t, []string{
+			".",
+			"a",
+			filepath.Join("a", "test.txt"),
+			"b",
+			filepath.Join("b", "test.txt"),
+			"c",
+			filepath.Join("c", "test.txt"),
+			"d",
+			filepath.Join("d", "a"),
+			filepath.Join("d", "a", "test.txt"),
+		}, walkSymlinkedPaths(t, root))
+	})
+
+	t.Run("circular symlinks", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		for _, dir := range []string{"a", "b", "c", "d"} {
+			require.NoError(t, os.Mkdir(filepath.Join(root, dir), 0755))
+		}
+
+		require.NoError(t, os.WriteFile(filepath.Join(root, "a", "test.txt"), []byte("test"), 0644))
+
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "b", "link-to-a")),
+		)
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "c", "another-link-to-a")),
+		)
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "d"), filepath.Join(root, "a", "link-to-d")),
+		)
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "d", "link-to-a")),
+		)
+
+		assert.ElementsMatch(t, []string{
+			".",
+			"a",
+			filepath.Join("a", "link-to-d"),
+			filepath.Join("a", "link-to-d", "link-to-a"),
+			filepath.Join("a", "link-to-d", "link-to-a", "link-to-d"),
+			filepath.Join("a", "link-to-d", "link-to-a", "test.txt"),
+			filepath.Join("a", "test.txt"),
+			"b",
+			filepath.Join("b", "link-to-a"),
+			filepath.Join("b", "link-to-a", "link-to-d"),
+			filepath.Join("b", "link-to-a", "test.txt"),
+			"c",
+			filepath.Join("c", "another-link-to-a"),
+			filepath.Join("c", "another-link-to-a", "link-to-d"),
+			filepath.Join("c", "another-link-to-a", "test.txt"),
+			"d",
+			filepath.Join("d", "link-to-a"),
+		}, walkSymlinkedPaths(t, root))
+	})
+
+	t.Run("missing root", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		require.Error(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			filepath.Join(root, "nonexistent"),
+			func(_ string, _ fs.DirEntry, err error) error { return err },
+		))
+	})
+
+	t.Run("broken symlink", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "nonexistent"), filepath.Join(root, "broken")),
+		)
+
+		require.Error(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(_ string, _ fs.DirEntry, err error) error { return err },
+		))
+	})
+}
+
+// evaledTempDir returns a temp dir with symlinks resolved, so paths the walk
+// reports compare equal to the ones the test builds.
+func evaledTempDir(t *testing.T) string {
+	t.Helper()
+
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	return dir
+}
+
+// walkSymlinkedPaths walks root on the OS filesystem following symlinks, and
+// returns every visited path relative to root.
+func walkSymlinkedPaths(t *testing.T, root string) []string {
+	t.Helper()
+
+	var paths []string
+
+	err := vfs.WalkDirWithSymlinks(
+		vfs.NewOSFS(),
+		root,
+		func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			rel, relErr := filepath.Rel(root, path)
+			require.NoError(t, relErr)
+
+			paths = append(paths, rel)
+
+			return nil
+		},
+	)
+	require.NoError(t, err)
+
+	return paths
+}
+
 func TestReadDirEntries(t *testing.T) {
 	t.Parallel()
 
