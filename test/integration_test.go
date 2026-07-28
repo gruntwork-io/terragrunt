@@ -933,6 +933,10 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 func TestTerragruntMutableGenerateBlockRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, so the experiment-disabled error this test pins cannot occur")
+	}
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
 	unitPath := filepath.Join(
 		tmpEnvPath,
