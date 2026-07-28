@@ -24,7 +24,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	return runRender(l, v.Writers.Writer, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts.TerragruntOptions)
@@ -66,12 +66,9 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
-		prepared, err := prepare.PrepareConfig(
-			ctx,
-			l,
-			v.WithEnvCloned(),
-			unitOpts.TerragruntOptions,
-		)
+		unitV := v.WithEnvCloned()
+
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue

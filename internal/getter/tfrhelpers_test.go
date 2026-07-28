@@ -100,6 +100,28 @@ func TestPinModuleVersion(t *testing.T) {
 	}
 }
 
+// TestPinModuleVersionBuildMetadata pins how a resolved version carrying
+// semver build metadata is written back into the source. The `+` is
+// percent-encoded so that re-parsing the pinned source yields the version the
+// registry published, rather than the `+`-as-space decoding a query string
+// would otherwise apply.
+func TestPinModuleVersionBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(t, buildMetadataVersionsBody)
+	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
+
+	pinned, err := getter.PinModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), tfimpl.OpenTofu, source, "~> 1.8.24",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, source+"?version=1.8.26%2Bcss9.10.001", pinned)
+
+	pinnedURL, err := url.Parse(pinned)
+	require.NoError(t, err)
+	assert.Equal(t, "1.8.26+css9.10.001", pinnedURL.Query().Get("version"))
+}
+
 func TestSourceHasVersionConstraint(t *testing.T) {
 	t.Parallel()
 
@@ -127,6 +149,21 @@ func TestSourceHasVersionConstraint(t *testing.T) {
 			name:   "non-tfr source",
 			source: "git::https://github.com/foo/bar.git?ref=v1.0.0",
 			want:   false,
+		},
+		{
+			name:   "exact pin with build metadata",
+			source: "tfr://registry.opentofu.org/cloudstoragesec/cloud-storage-security/aws?version=1.8.26%2Bcss9.10.001",
+			want:   false,
+		},
+		{
+			// A literal `+` in a query decodes to a space, so this hand-written
+			// pin reaches the parser as "1.8.26 css9.10.001" and fails to parse
+			// as a version. Terragrunt rejects the source rather than resolving
+			// the wrong module version. Encode the `+` as %2B, or express the
+			// version through the terraform block's version attribute.
+			name:   "unencoded build metadata pin",
+			source: "tfr://registry.opentofu.org/cloudstoragesec/cloud-storage-security/aws?version=1.8.26+css9.10.001",
+			want:   true,
 		},
 	}
 
@@ -271,6 +308,25 @@ func TestBuildRequestURLRelativePath(t *testing.T) {
 	)
 }
 
+// TestBuildRequestURLBuildMetadata pins that a version carrying build metadata
+// keeps its `+` in the download path. A `+` is a literal in a path segment, and
+// the OpenTofu registry serves the endpoint either way.
+func TestBuildRequestURLBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	requestURL, err := getter.BuildRequestURL(
+		"registry.opentofu.org",
+		"/v1/modules/",
+		"/cloudstoragesec/cloud-storage-security/aws",
+		"1.8.26+css9.10.001",
+	)
+	require.NoError(t, err)
+	assert.Equal(t,
+		"https://registry.opentofu.org/v1/modules/cloudstoragesec/cloud-storage-security/aws/1.8.26+css9.10.001/download",
+		requestURL.String(),
+	)
+}
+
 func TestGetLatestModuleVersion(t *testing.T) {
 	t.Parallel()
 
@@ -340,6 +396,92 @@ func TestGetLatestModuleVersionSkipsUnparsable(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "1.0.0", latest)
+}
+
+// buildMetadataVersionsBody mirrors the list-versions response of
+// cloudstoragesec/cloud-storage-security/aws, a module whose every published
+// version carries semver build metadata. Requesting such a module without the
+// metadata is not an option: the registry serves 1.8.26+css9.10.001 and 404s
+// on 1.8.26.
+const buildMetadataVersionsBody = `{"modules":[{"versions":[` +
+	`{"version":"1.8.26+css9.10.001"},{"version":"1.8.25+css9.10.000"},` +
+	`{"version":"1.8.24+css9.09.002"}]}]}`
+
+// TestGetLatestModuleVersionBuildMetadata pins that the latest-version path
+// preserves build metadata, so a bare tfr:// source pointed at such a module
+// requests a version the registry actually publishes.
+func TestGetLatestModuleVersionBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(t, buildMetadataVersionsBody)
+
+	latest, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "1.8.26+css9.10.001", latest)
+}
+
+// TestGetMatchingModuleVersionBuildMetadata pins constraint resolution against
+// versions carrying build metadata. Metadata does not affect precedence, so a
+// constraint written without it still selects the published version, and the
+// metadata survives into the result.
+func TestGetMatchingModuleVersionBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		constraint string
+		want       string
+	}{
+		{name: "exact without metadata", constraint: "1.8.25", want: "1.8.25+css9.10.000"},
+		{
+			name:       "exact with metadata",
+			constraint: "1.8.25+css9.10.000",
+			want:       "1.8.25+css9.10.000",
+		},
+		{name: "pessimistic patch", constraint: "~> 1.8.24", want: "1.8.26+css9.10.001"},
+		{name: "range", constraint: ">= 1.8.24, < 1.8.26", want: "1.8.25+css9.10.000"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newVersionsTestServer(t, buildMetadataVersionsBody)
+
+			got, err := getter.GetMatchingModuleVersion(
+				t.Context(), logger.CreateLogger(), server.Client(),
+				server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", tc.constraint,
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestGetMatchingModuleVersionPrereleaseBuildMetadata pins the combination of
+// both suffixes, modeled on waveaccounting/chatbot-slack-configuration/aws,
+// which publishes prereleases tagged with a commit SHA as build metadata. The
+// prerelease opt-in rule reads the constraint's prerelease and ignores its
+// metadata, so an alpha pinned without the SHA resolves to the published tag.
+func TestGetMatchingModuleVersionPrereleaseBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"1.1.0"},{"version":"1.1.0-alpha.3"},`+
+			`{"version":"1.1.0-alpha.2+a88b844"},{"version":"1.0.0"},`+
+			`{"version":"1.0.0-alpha.3+46e44c9"}]}]}`,
+	)
+
+	got, err := getter.GetMatchingModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", "1.0.0-alpha.3",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0-alpha.3+46e44c9", got)
 }
 
 // matchVersionsBody is a list-versions response spanning several minor and
@@ -501,13 +643,19 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 }
 
 // newVersionsTestServer stands up a TLS test server that responds to the
-// module list-versions endpoint with the supplied JSON body. Used by the
-// GetLatestModuleVersion tests that exercise prerelease filtering and the
-// unparsable-version skip path.
+// module list-versions endpoint with the supplied JSON body, plus the service
+// discovery endpoint so callers that resolve a source URL end to end can use it
+// too. Used by the GetLatestModuleVersion tests that exercise prerelease
+// filtering and the unparsable-version skip path.
 func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
+		assert.NoError(t, err)
+	})
 	mux.HandleFunc(
 		"/v1/modules/foo/bar/baz/versions",
 		func(w http.ResponseWriter, _ *http.Request) {

@@ -27,7 +27,7 @@ import (
 
 const defaultKeyParts = 2
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
 	}
@@ -38,7 +38,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 func runSingle(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
@@ -66,7 +66,12 @@ func runSingle(
 	return runAwsProviderPatch(l, v.Env, updatedOpts)
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runAll(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts)
@@ -91,7 +96,8 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
-		if err := runSingle(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
+		unitV := v.WithEnvCloned()
+		if err := runSingle(ctx, l, unitV, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

@@ -128,3 +128,15 @@ In addition, if you find that a certain pattern that's reliably followed in the 
         `iam-assume-role-duration` —> `TG_IAM_ASSUME_ROLE_DURATION`
    </details>
 
+10. When a setting can be provided by both a flag and configuration, resolution follows a fixed order of precedence, most specific first:
+
+    **CLI argument → environment variable → configuration → built-in default.**
+
+    An explicitly set flag always wins over a configuration value. Configuration overrides only Terragrunt's built-in default for that setting, never a value the user set explicitly on the flag (or its environment variable).
+
+    <details>
+        <summary><Badge text="Example" variant="note" /></summary>
+
+        An explicit `--download-dir` takes precedence over `download_dir` in the configuration. The `download_dir` attribute applies only when `--download-dir` is left at its default, filling in that default rather than overriding the flag.
+    </details>
+

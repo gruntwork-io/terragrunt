@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/labstack/echo/v4"
 )
@@ -35,13 +36,18 @@ type ProxyModuleHandler struct {
 // are rejected with 404 so a leaked cache-server token can't be used to proxy
 // authenticated requests to arbitrary upstream hosts.
 func NewProxyModuleHandler(
-	logger log.Logger,
+	l log.Logger,
+	c vhttp.Client,
 	credsSource *cliconfig.CredentialsSource,
 	discoverer RegistryURLDiscoverer,
 	registryNames []string,
 ) *ProxyModuleHandler {
 	return &ProxyModuleHandler{
-		ReverseProxy:  &helpers.ReverseProxy{CredsSource: credsSource, Logger: logger},
+		ReverseProxy: &helpers.ReverseProxy{
+			CredsSource: credsSource,
+			Logger:      l,
+			Transport:   c.Transport,
+		},
 		discoverer:    discoverer,
 		registryNames: slices.Clone(registryNames),
 	}

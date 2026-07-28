@@ -284,7 +284,13 @@ func decodeAndRetrieveOutputs(
 		}
 	}
 
-	if err := checkForDependencyBlockCycles(ctx, pctx, l, pctx.TerragruntConfigPath, decodedDependency); err != nil {
+	if err := checkForDependencyBlockCycles(
+		ctx,
+		pctx,
+		l,
+		pctx.TerragruntConfigPath,
+		decodedDependency,
+	); err != nil {
 		return nil, err
 	}
 
@@ -506,7 +512,14 @@ func checkForDependencyBlockCycles(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(
+			ctx,
+			dependencyContext,
+			l,
+			dependencyPath,
+			&visitedPaths,
+			&currentTraversalPaths,
+		); err != nil {
 			return err
 		}
 	}
@@ -554,7 +567,14 @@ func checkForDependencyBlockCyclesUsingDFS(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(
+			ctx,
+			dependencyContext,
+			l,
+			dependencyPath,
+			visitedPaths,
+			currentTraversalPaths,
+		); err != nil {
 			return err
 		}
 	}
@@ -645,7 +665,10 @@ func dependencyBlocksToCtyValue(
 				// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
 				// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
 				// to unknown rather than producing an "Unsupported attribute" error.
-				l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+				l.Debugf(
+					"Setting outputs for dependency %s to DynamicVal (output resolution skipped)",
+					dependencyConfig.Name,
+				)
 
 				dependencyEncodingMap["outputs"] = cty.DynamicVal
 			}
@@ -653,7 +676,10 @@ func dependencyBlocksToCtyValue(
 			if dependencyConfig.Inputs != nil {
 				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
 			} else if pctx.SkipOutput {
-				l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+				l.Debugf(
+					"Setting inputs for dependency %s to DynamicVal (output resolution skipped)",
+					dependencyConfig.Name,
+				)
 
 				dependencyEncodingMap["inputs"] = cty.DynamicVal
 			}
@@ -1572,7 +1598,13 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
-	if err := CopyLockFile(l, pctx.RootWorkingDir, pctx.LogShowAbsPaths, terragruntDir, tempWorkDir); err != nil {
+	if err := CopyLockFile(
+		l,
+		pctx.RootWorkingDir,
+		pctx.LogShowAbsPaths,
+		terragruntDir,
+		tempWorkDir,
+	); err != nil {
 		return nil, err
 	}
 
@@ -1580,7 +1612,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
 	initPctx := pctx.Clone()
-	initPctx.Venv = initPctx.Venv.WithWriter(io.Discard)
+	initPctx.Venv.Writers = initPctx.Venv.Writers.WithWriter(io.Discard)
 
 	// First run init to setup the backend configuration so that we can run output.
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
@@ -1731,7 +1763,7 @@ func runTerragruntOutputJSON(
 	pctx = pctx.Clone()
 	pctx.ForwardTFStdout = false
 	pctx.JSONLogFormat = false
-	pctx.Venv = pctx.Venv.WithWriter(stdoutBufferWriter)
+	pctx.Venv.Writers = pctx.Venv.Writers.WithWriter(stdoutBufferWriter)
 
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
@@ -1896,7 +1928,14 @@ func runTerraformInitForDependencyOutput(
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, initV, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(
+		bareCtx,
+		l,
+		initV,
+		initRunOpts,
+		tf.CommandNameInit,
+		"-get=false",
+	); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())

@@ -46,10 +46,14 @@ var ociDockerHubRegistries = []string{
 }
 
 // ErrOCIStaticCredentialConflict reports both a token and a username or password set.
-var ErrOCIStaticCredentialConflict = errors.New("cannot set both a token and a username or password for oci sources")
+var ErrOCIStaticCredentialConflict = errors.New(
+	"cannot set both a token and a username or password for oci sources",
+)
 
 // ErrOCIStaticCredentialIncomplete reports a username without a password, or the reverse.
-var ErrOCIStaticCredentialIncomplete = errors.New("oci static credentials require both a username and a password")
+var ErrOCIStaticCredentialIncomplete = errors.New(
+	"oci static credentials require both a username and a password",
+)
 
 // OCIRemoteStore adapts oras' by-value Fetch to the pointer-taking [OCIRepositoryStore] seam.
 type OCIRemoteStore struct {
@@ -83,16 +87,23 @@ type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
 // Docker and containers auth files. It never invokes credential helpers, so
 // registries needing per-run token minting (e.g. Amazon ECR) only work for the
 // lifetime of an externally obtained login in one of the ambient files.
-func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
+func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	v.RequireFS()
 	v.RequireEnv()
 	v.RequireGOOS()
 	v.RequireUserHomeDir()
+	v.RequireHTTP()
 
 	resolveCredential := sync.OnceValues(func() (ociCredentialFactory, error) {
 		return ociCredentialFunc(l, v)
 	})
 	caches := &ociCacheSet{caches: map[string]auth.Cache{}}
+
+	// Registry requests ride the venv's outbound client instead of ORAS's
+	// OS-default retry.DefaultClient; wrapping the venv transport in ORAS's
+	// retry policy keeps the same transient-failure behavior.
+	httpClient := *v.HTTP
+	httpClient.Transport = retry.NewTransport(httpClient.Transport)
 
 	return func(_ context.Context, registryDomain, repositoryName string) (OCIRepositoryStore, error) {
 		credentialFor, err := resolveCredential()
@@ -108,7 +119,7 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 		}
 
 		repo.Client = &auth.Client{
-			Client:     retry.DefaultClient,
+			Client:     &httpClient,
 			Cache:      caches.get(reference),
 			Credential: credentialFor(repositoryName),
 			Header:     http.Header{"User-Agent": []string{ociUserAgent()}},
@@ -120,7 +131,7 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 
 // ociCredentialFunc resolves static environment credentials, falling back to
 // ambient discovery through the Venv.
-func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) {
+func ociCredentialFunc(l log.Logger, v *venv.Venv) (ociCredentialFactory, error) {
 	staticCred, found, err := ociStaticCredential(v)
 	if err != nil {
 		return nil, err
@@ -164,7 +175,7 @@ func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) 
 }
 
 // ociStaticCredential reads a token or a username plus password from v.Env.
-func ociStaticCredential(v venv.Venv) (auth.Credential, bool, error) {
+func ociStaticCredential(v *venv.Venv) (auth.Credential, bool, error) {
 	username := v.Env[EnvOCIUsername]
 	password := v.Env[EnvOCIPassword]
 	token := v.Env[EnvOCIToken]
@@ -201,7 +212,7 @@ type ociAmbientStore struct {
 // ociAmbientCredentialFunc consults ambient files in order. Each file is read
 // only through v.FS, and only the selected entry is decoded, so one malformed
 // entry cannot hide valid credentials elsewhere in the same file.
-func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
+func ociAmbientCredentialFunc(l log.Logger, v *venv.Venv) ociCredentialFactory {
 	stores := loadOCIAmbientStores(l, v)
 
 	return func(repositoryName string) auth.CredentialFunc {
@@ -210,7 +221,12 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 			// registry-wide one and no other namespace's entry can answer.
 			for _, key := range ociCredentialKeys(hostport, repositoryName) {
 				for _, ambient := range stores {
-					if cred := ociCredentialFromAmbientStore(ctx, l, ambient, key); cred != auth.EmptyCredential {
+					if cred := ociCredentialFromAmbientStore(
+						ctx,
+						l,
+						ambient,
+						key,
+					); cred != auth.EmptyCredential {
 						return cred, nil
 					}
 				}
@@ -221,7 +237,7 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 	}
 }
 
-func loadOCIAmbientStores(l log.Logger, v venv.Venv) []ociAmbientStore {
+func loadOCIAmbientStores(l log.Logger, v *venv.Venv) []ociAmbientStore {
 	candidates := ociAmbientCredentialPaths(v)
 	stores := make([]ociAmbientStore, 0, len(candidates))
 
@@ -271,7 +287,7 @@ func ociCredentialFromAmbientStore(
 // ociAmbientCredentialPaths returns OpenTofu's containers-auth candidates in
 // precedence order. The runtime file is Linux-only; macOS and Windows search
 // literal ~/.config before XDG config; DOCKER_CONFIG is intentionally ignored.
-func ociAmbientCredentialPaths(v venv.Venv) []string {
+func ociAmbientCredentialPaths(v *venv.Venv) []string {
 	var paths []string
 
 	if v.Platform.GOOS == "linux" {
@@ -351,7 +367,10 @@ func ociCanonicalAuthKey(key string) string {
 }
 
 // ociAuthFile reads an auth file through v.FS and builds its exact-key index.
-func ociAuthFile(v venv.Venv, path string) (map[string]json.RawMessage, map[string][]string, error) {
+func ociAuthFile(
+	v *venv.Venv,
+	path string,
+) (map[string]json.RawMessage, map[string][]string, error) {
 	data, err := vfs.ReadFile(v.FS, path)
 	if err != nil {
 		return nil, nil, err
@@ -378,7 +397,10 @@ func ociAuthFile(v venv.Venv, path string) (map[string]json.RawMessage, map[stri
 
 // ociCredentialFromAuthConfig delegates one selected entry to ORAS's Docker
 // config decoder without letting ORAS normalize the file's real lookup key.
-func ociCredentialFromAuthConfig(ctx context.Context, raw json.RawMessage) (auth.Credential, error) {
+func ociCredentialFromAuthConfig(
+	ctx context.Context,
+	raw json.RawMessage,
+) (auth.Credential, error) {
 	const syntheticKey = "terragrunt.invalid"
 
 	data, err := json.Marshal(struct {

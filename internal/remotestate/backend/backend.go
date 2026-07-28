@@ -38,7 +38,7 @@ type Backend interface {
 	IsVersionControlEnabled(
 		ctx context.Context,
 		l log.Logger,
-		v venv.Venv,
+		v *venv.Venv,
 		config Config,
 		opts *Options,
 	) (bool, error)
@@ -47,28 +47,34 @@ type Backend interface {
 	NeedsBootstrap(
 		ctx context.Context,
 		l log.Logger,
-		v venv.Venv,
+		v *venv.Venv,
 		config Config,
 		opts *Options,
 	) (bool, error)
 
 	// Bootstrap bootstraps the remote state.
-	Bootstrap(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) error
+	Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, config Config, opts *Options) error
 
 	// Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
 	Migrate(
 		ctx context.Context,
 		l log.Logger,
-		v venv.Venv,
+		v *venv.Venv,
 		srcConfig, dstConfig Config,
 		opts *Options,
 	) error
 
 	// Delete deletes the remote state.
-	Delete(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) error
+	Delete(ctx context.Context, l log.Logger, v *venv.Venv, config Config, opts *Options) error
 
 	// DeleteBucket deletes the entire bucket.
-	DeleteBucket(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) error
+	DeleteBucket(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		config Config,
+		opts *Options,
+	) error
 
 	// GetTFInitArgs returns the config that should be passed on to `tofu -backend-config` cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user.

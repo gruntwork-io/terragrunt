@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Provider cache downloads now require a secret URL
+
+The Provider Cache Server now hardens the download endpoint that fetches provider archives on the caller's behalf. That endpoint attaches whatever registry credentials are configured for the upstream host, and it was the only one on the server that did not require the token generated for the run, so any other process on the machine could use a running cache server to pull artifacts from a private registry with the credentials of whoever started the run.
+
+The download URLs handed to OpenTofu and Terraform now carry a secret path segment, generated fresh each time the cache server starts and redacted from the server's own logs. Requests that omit the segment get a 404.
