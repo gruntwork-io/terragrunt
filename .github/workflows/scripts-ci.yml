@@ -57,7 +57,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: bats
-        run: mise x bats -- bats --print-output-on-failure .github/scripts/release/tests/
+        run: mise x bats -- bats --print-output-on-failure .github/scripts/release/tests/ .github/scripts/coverage/tests/
 
   test-js:
     name: Test JS scripts
