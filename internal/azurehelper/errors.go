@@ -25,6 +25,18 @@ var (
 	ErrAllAccessKeysEmpty           = errors.New("storage account returned keys but all values were empty")
 )
 
+// TooManyBlobPagesError is returned when a ListBlobs walk exceeds the page
+// bound, which indicates a container far larger than a state container
+// should be or a service that never stops paging. Match with errors.As.
+type TooManyBlobPagesError struct {
+	Container string
+	MaxPages  int
+}
+
+func (e *TooManyBlobPagesError) Error() string {
+	return fmt.Sprintf("listing blobs in %s exceeded %d pages", e.Container, e.MaxPages)
+}
+
 // CredentialMissingError is returned when a token-credential auth method
 // is requested but cfg.Credential is nil. Match with errors.As.
 type CredentialMissingError struct {
@@ -105,10 +117,12 @@ func (e *UnknownAccessTierError) Error() string {
 	return fmt.Sprintf("unknown access tier %q (want Hot, Cool, Cold, or Premium)", e.Tier)
 }
 
-// IsRetryable reports whether the error is one a caller may retry. This covers
-// throttling (429), transient 5xx, and network-style errors that did not yield
-// an azcore.ResponseError at all (treated as transient). Context cancellation
-// and deadline-exceeded are caller-driven and are never retryable.
+// IsRetryable reports whether the error is one a caller may retry. Only
+// recognised transient service conditions qualify: throttling (429) and 5xx
+// responses. Anything that did not come back as an azcore.ResponseError is an
+// authentication, configuration, or programming failure that a retry cannot
+// fix, and context cancellation and deadline-exceeded are caller-driven, so
+// none of those are retryable.
 func IsRetryable(err error) bool {
 	if err == nil {
 		return false
@@ -118,9 +132,11 @@ func IsRetryable(err error) bool {
 		return false
 	}
 
+	// Only classify errors we recognize. A non-response error is an auth,
+	// configuration, or programming failure that retrying cannot fix.
 	respErr, ok := errors.AsType[*azcore.ResponseError](err)
 	if !ok {
-		return true
+		return false
 	}
 
 	if respErr.StatusCode == http.StatusTooManyRequests {

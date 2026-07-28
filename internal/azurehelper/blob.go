@@ -18,6 +18,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// maxListBlobsPages bounds the ListBlobs pager walk so a misbehaving service
+// cannot spin forever. See ListBlobs for the reasoning behind the value.
+const maxListBlobsPages = 1000
+
 // BlobClient is an account-scoped handle over azblob.Client. It constructs
 // container-scoped clients (see Container); every container and blob operation
 // lives on ContainerClient. It carries no mutable state and is safe for
@@ -245,7 +249,9 @@ func (cc *ContainerClient) CopyBlob(ctx context.Context, l log.Logger, srcKey st
 		}
 	}()
 
-	blockBlob := cc.blob.Client.ServiceClient().NewContainerClient(dst.container).NewBlockBlobClient(dstKey)
+	// Build the destination client from dst's own account, not the source's, so
+	// a destination in another account is never written back into the source.
+	blockBlob := dst.blob.Client.ServiceClient().NewContainerClient(dst.container).NewBlockBlobClient(dstKey)
 	opts := &azblobblockblob.UploadStreamOptions{
 		AccessConditions: &azblobblob.AccessConditions{
 			ModifiedAccessConditions: &azblobblob.ModifiedAccessConditions{
@@ -320,7 +326,17 @@ func (cc *ContainerClient) ListBlobs(ctx context.Context, l log.Logger, opts ...
 
 	var out []string
 
+	// The pager is driven by the service, so bound the walk rather than trust
+	// it to terminate. At the SDK default of 5000 blobs per page this covers
+	// millions of blobs, far more than any state container should hold.
+	pages := 0
+
 	for pager.More() {
+		pages++
+		if pages > maxListBlobsPages {
+			return nil, &TooManyBlobPagesError{Container: cc.container, MaxPages: maxListBlobsPages}
+		}
+
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("listing blobs in %s: %w", cc.container, err)

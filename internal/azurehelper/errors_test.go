@@ -24,7 +24,8 @@ func TestIsRetryable(t *testing.T) {
 		want bool
 	}{
 		{err: nil, name: "nil", want: false},
-		{err: errors.New("dial tcp: timeout"), name: "non-azure (network)", want: true},
+		{err: errors.New("dial tcp: timeout"), name: "unclassified (non-response) error", want: false},
+		{err: errors.New("AADSTS700016: application not found"), name: "auth failure is permanent", want: false},
 		{err: context.Canceled, name: "context.Canceled", want: false},
 		{err: context.DeadlineExceeded, name: "context.DeadlineExceeded", want: false},
 		{err: fmt.Errorf("wrap: %w", context.Canceled), name: "wrapped context.Canceled", want: false},
