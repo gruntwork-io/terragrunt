@@ -1,6 +1,8 @@
 package getter_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync/atomic"
@@ -15,6 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry/remote/auth"
 )
+
+// errNoSuchHelperBinary stands in for a helper missing from PATH.
+var errNoSuchHelperBinary = errors.New("executable file not found in $PATH")
 
 // windowsTestGOOS drives the Windows CLI-config discovery branch.
 const windowsTestGOOS = "windows"
@@ -654,4 +659,166 @@ func TestOCITofuCredentialsConfigPathPrecedence(t *testing.T) {
 			assert.Equal(t, tc.wantUser, credentialFor(t, store, testRegistry).Username)
 		})
 	}
+}
+
+// TestOCITofuCredentialsEmptyBlockSkipped: an empty block must not shadow a valid ambient credential.
+func TestOCITofuCredentialsEmptyBlockSkipped(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_credentials "registry.example.com/team/vpc" {
+}
+`)
+	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "pw")
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, "ambient", credentialFor(t, store, testRegistry).Username,
+		"an empty oci_credentials block must be skipped, not ranked as a match")
+}
+
+// TestOCITofuCredentialsWindowsIgnoresHomeDotfiles: on Windows only the APPDATA pair is read.
+func TestOCITofuCredentialsWindowsIgnoresHomeDotfiles(t *testing.T) {
+	t.Parallel()
+
+	appData := "/virtual/appdata"
+	v := credentialVenvForGOOS(windowsTestGOOS, testHome, map[string]string{"APPDATA": appData})
+	// OpenTofu never reads the Unix dotfiles on Windows, so this must be ignored.
+	writeTofuConfig(t, v.FS, filepath.Join(testHome, ".tofurc"),
+		tofuBasicAuth(testRegistry, "home-dotfile", "fake-secret-home"))
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry),
+		"a Unix dotfile must not be read on Windows")
+}
+
+// TestOCITofuCredentialsNoXDGSynthesisWhenUnset: without XDG_CONFIG_HOME the XDG path is not invented.
+func TestOCITofuCredentialsNoXDGSynthesisWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	v := credentialVenv(testHome, nil)
+	// OpenTofu only consults XDG when XDG_CONFIG_HOME is set, so a file here is ignored.
+	writeTofuConfig(t, v.FS, filepath.Join(testHome, ".config", "opentofu", "tofurc"),
+		tofuBasicAuth(testRegistry, "xdg-synth", "fake-secret-synth"))
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry),
+		"the XDG path must not be synthesized when XDG_CONFIG_HOME is unset")
+}
+
+// TestOCITofuCredentialsDefaultHelperFailurePropagates: a broken configured default helper surfaces its error.
+func TestOCITofuCredentialsDefaultHelperFailurePropagates(t *testing.T) {
+	t.Parallel()
+
+	exec := vexec.NewMemExec(
+		func(context.Context, vexec.Invocation) vexec.Result { return vexec.Result{} },
+		vexec.WithLookPath(func(string) (string, error) {
+			return "", errNoSuchHelperBinary
+		}),
+	)
+
+	home := testHome
+	v := credentialVenv(home, nil).WithExec(exec)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  docker_credentials_helper = "ecr-login"
+}
+`)
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+
+	_, err := credentialForErr(t, store, testRegistry)
+	require.Error(t, err, "an explicitly configured default helper must not fail silently")
+
+	var helperErr getter.OCICredentialHelperError
+	require.ErrorAs(t, err, &helperErr)
+	assert.Equal(t, "ecr-login", helperErr.Helper)
+}
+
+// TestOCITofuCredentialsConfigDirFragment: credentials in a *.tfrc fragment are loaded.
+func TestOCITofuCredentialsConfigDirFragment(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "creds.tfrc"),
+		tofuBasicAuth(testRegistry, "fragment", "fake-secret-fragment"))
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, "fragment", credentialFor(t, store, testRegistry).Username,
+		"a *.tfrc fragment in the config directory must be loaded")
+}
+
+// TestOCITofuCredentialsConfigDirJSONFragment: a *.tfrc.json fragment is loaded too.
+func TestOCITofuCredentialsConfigDirJSONFragment(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "creds.tfrc.json"), `{
+  "oci_credentials": {
+    "registry.example.com": {
+      "username": "json-fragment",
+      "password": "fake-secret-json-fragment"
+    }
+  }
+}`)
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, "json-fragment", credentialFor(t, store, testRegistry).Username,
+		"a *.tfrc.json fragment must be loaded")
+}
+
+// TestOCITofuCredentialsOverrideSuppressesFragments: an env override skips the config directory.
+func TestOCITofuCredentialsOverrideSuppressesFragments(t *testing.T) {
+	t.Parallel()
+
+	const custom = "/virtual/custom.tofurc"
+
+	home := testHome
+	v := credentialVenv(home, map[string]string{envTFCLIConfigFileTest: custom})
+	writeTofuConfig(t, v.FS, custom, tofuBasicAuth(testRegistry, "override", "fake-secret-override"))
+	// Must be ignored: OpenTofu skips the config directory when the override is set.
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "creds.tfrc"),
+		tofuBasicAuth(testRegistry+"/team/vpc", "fragment", "fake-secret-fragment"))
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, "override", credentialFor(t, store, testRegistry).Username,
+		"an explicit config override must suppress config-directory fragments")
+}
+
+// TestOCITofuCredentialsDuplicateLabelAcrossFilesKeepsFirst: the main file wins over a fragment.
+func TestOCITofuCredentialsDuplicateLabelAcrossFilesKeepsFirst(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"),
+		tofuBasicAuth(testRegistry, "main-file", "fake-secret-main"))
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "creds.tfrc"),
+		tofuBasicAuth(testRegistry, "fragment", "fake-secret-fragment"))
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, "main-file", credentialFor(t, store, testRegistry).Username,
+		"a duplicate label in a fragment must not override the main config file")
+}
+
+// TestOCITofuCredentialsExplicitConfigFileMissingIsFatal: a named config file must not fail silently.
+func TestOCITofuCredentialsExplicitConfigFileMissingIsFatal(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  docker_style_config_files = ["/virtual/missing/auth.json"]
+}
+`)
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	_, err := newStore(t.Context(), testRegistry, "team/vpc")
+	require.Error(t, err, "an explicitly configured credential file that cannot be read must fail")
+	assert.ErrorContains(t, err, "docker_style_config_files")
 }

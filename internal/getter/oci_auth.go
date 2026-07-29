@@ -118,7 +118,7 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	v.RequireExec()
 	v.RequireHTTP()
 
-	resolveCredential := sync.OnceValue(func() ociCredentialFactory {
+	resolveCredential := sync.OnceValues(func() (ociCredentialFactory, error) {
 		return ociCredentialFunc(l, v)
 	})
 	caches := &ociCacheSet{caches: map[string]auth.Cache{}}
@@ -130,7 +130,10 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	httpClient.Transport = retry.NewTransport(httpClient.Transport)
 
 	return func(_ context.Context, registryDomain, repositoryName string) (OCIRepositoryStore, error) {
-		credentialFor := resolveCredential()
+		credentialFor, err := resolveCredential()
+		if err != nil {
+			return nil, err
+		}
 
 		reference := registryDomain + "/" + repositoryName
 
@@ -153,12 +156,18 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 // ociCredentialFunc resolves credentials in precedence order: OpenTofu
 // CLI-config oci_credentials blocks, then ambient Docker/containers discovery
 // and its helpers, then the oci_default_credentials helper.
-func ociCredentialFunc(l log.Logger, v *venv.Venv) ociCredentialFactory {
+func ociCredentialFunc(l log.Logger, v *venv.Venv) (ociCredentialFactory, error) {
 	tofu := loadOCITofuCredentials(l, v)
 
 	var stores []ociAmbientStore
+
 	if tofu.discoverAmbient {
-		stores = loadOCIAmbientStores(l, v, &tofu)
+		loaded, err := loadOCIAmbientStores(l, v, &tofu)
+		if err != nil {
+			return nil, err
+		}
+
+		stores = loaded
 	}
 
 	return func(repositoryName string) auth.CredentialFunc {
@@ -167,7 +176,7 @@ func ociCredentialFunc(l log.Logger, v *venv.Venv) ociCredentialFactory {
 
 			return ociExecuteCredentialCandidate(ctx, l, v, &best, hostport)
 		}
-	}
+	}, nil
 }
 
 // ociTofuCandidate ranks one CLI-config source without running its helper yet.
@@ -282,11 +291,13 @@ func ociSelectCredentialCandidate(
 
 	// The oci_default_credentials helper is a global-specificity CLI source.
 	if tofu.defaultHelper != "" {
-		// Global fallback, so a broken helper must not break unrelated pulls.
+		// Explicitly configured, so its failure surfaces instead of silently
+		// degrading to anonymous, matching OpenTofu's selected-source behavior.
 		cand := ociCredentialCandidate{
 			helper: &ociHelperEntry{
 				suffix:        tofu.defaultHelper,
 				serverAddress: ociTofuHelperServerAddress(hostport),
+				explicit:      true,
 			},
 			specificity:   ociGlobalSpecificity,
 			fromCLIConfig: true,
@@ -531,11 +542,12 @@ func ociCredentialFromHelperOutput(entry ociHelperEntry, out []byte) (auth.Crede
 	return auth.Credential{Username: decoded.Username, Password: decoded.Secret}, nil
 }
 
-func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) []ociAmbientStore {
+func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) ([]ociAmbientStore, error) {
 	candidates := ociAmbientCredentialPaths(v)
 	// An explicit docker_style_config_files list replaces the default search
 	// paths, and an explicit empty list disables Docker-style discovery.
-	if tofu != nil && tofu.configFilesSet {
+	explicit := tofu != nil && tofu.configFilesSet
+	if explicit {
 		candidates = ociResolveConfigFiles(tofu.configDir, tofu.configFiles)
 	}
 
@@ -544,6 +556,12 @@ func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) 
 	for _, candidate := range candidates {
 		file, err := ociAuthFile(v, candidate)
 		if err != nil {
+			// A path the user named explicitly is configuration, so a failure
+			// there is an error rather than a missed discovery probe.
+			if explicit {
+				return nil, fmt.Errorf("reading docker_style_config_files entry %s: %w", candidate, err)
+			}
+
 			if !errors.Is(err, iofs.ErrNotExist) {
 				l.Warnf("Skipping unparseable OCI credential file %s: %v", candidate, err)
 			}
@@ -560,7 +578,7 @@ func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) 
 		})
 	}
 
-	return stores
+	return stores, nil
 }
 
 func ociCredentialFromAmbientStore(

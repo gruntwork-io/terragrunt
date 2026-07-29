@@ -2,7 +2,6 @@ package getter
 
 import (
 	"errors"
-	iofs "io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -71,6 +70,7 @@ type ociTofuCredentials struct {
 	repos           []ociTofuRepoCredential
 	discoverAmbient bool
 	configFilesSet  bool
+	hasDefault      bool
 }
 
 // ociTofuDefaults is the decoded oci_default_credentials block.
@@ -84,6 +84,11 @@ type ociTofuDefaults struct {
 // errOCIInvalidHelperName reports a credential helper name that is empty or
 // contains a path separator, so it could execute a non-PATH binary.
 var errOCIInvalidHelperName = errors.New("credential helper name must not be empty or contain a path separator")
+
+// errOCIMissingCredentialStyle reports an oci_credentials block configuring no credential at all.
+var errOCIMissingCredentialStyle = errors.New(
+	"oci_credentials block must configure basic auth, OAuth tokens, or a helper",
+)
 
 // errOCIMultipleCredentialStyles reports an oci_credentials block configuring
 // more than one of basic auth, OAuth, or a helper.
@@ -103,56 +108,191 @@ func ociValidHelperName(name string) bool {
 	return name != "" && !strings.ContainsAny(name, `/\`)
 }
 
-// loadOCITofuCredentials reads and decodes the CLI config's OCI blocks. It is
-// read-only and best-effort: a missing or unparsable file yields no credentials
-// (with ambient discovery left enabled) rather than an error.
+// loadOCITofuCredentials reads and merges the CLI config's OCI blocks. It is
+// read-only and best-effort: a missing or unparsable source is skipped rather
+// than failing the download.
 func loadOCITofuCredentials(l log.Logger, v *venv.Venv) ociTofuCredentials {
-	empty := ociTofuCredentials{discoverAmbient: true}
+	merged := ociTofuCredentials{discoverAmbient: true}
+	seenRepos := make(map[string]struct{})
 
-	path := ociTofuConfigPath(v)
-	if path == "" {
-		return empty
-	}
-
-	if _, err := v.FS.Stat(path); err != nil {
-		if !errors.Is(err, iofs.ErrNotExist) {
+	for _, path := range ociTofuConfigSources(l, v) {
+		data, err := vfs.ReadFile(v.FS, path)
+		if err != nil {
 			l.Warnf("Skipping unreadable OpenTofu CLI config %s: %v", path, err)
+
+			continue
 		}
 
-		return empty
-	}
+		one, err := decodeOCITofuCredentials(l, data, path)
+		if err != nil {
+			l.Warnf("Skipping unparsable OpenTofu CLI config %s: %v", path, err)
 
-	data, err := vfs.ReadFile(v.FS, path)
-	if err != nil {
-		l.Warnf("Skipping unreadable OpenTofu CLI config %s: %v", path, err)
-		return empty
-	}
+			continue
+		}
 
-	tofu, err := decodeOCITofuCredentials(l, data, path)
-	if err != nil {
-		l.Warnf("Skipping unparsable OpenTofu CLI config %s: %v", path, err)
-		return empty
+		mergeOCITofuCredentials(l, &merged, &one, path, seenRepos)
 	}
-
-	tofu.configDir = filepath.Dir(path)
 
 	// Longest repository prefix first, so the most specific block wins.
-	slices.SortStableFunc(tofu.repos, func(a, b ociTofuRepoCredential) int {
+	slices.SortStableFunc(merged.repos, func(a, b ociTofuRepoCredential) int {
 		return len(b.repositoryPrefix) - len(a.repositoryPrefix)
 	})
 
-	return tofu
+	return merged
+}
+
+// mergeOCITofuCredentials folds one decoded source into merged, keeping the
+// first declaration of any repository label or default block, as OpenTofu
+// rejects duplicates outright.
+func mergeOCITofuCredentials(
+	l log.Logger,
+	merged, one *ociTofuCredentials,
+	path string,
+	seenRepos map[string]struct{},
+) {
+	for _, repo := range one.repos {
+		key := repo.registryDomain + "/" + repo.repositoryPrefix
+		if _, dup := seenRepos[key]; dup {
+			l.Warnf("Ignoring duplicate oci_credentials block %q from %s", key, path)
+
+			continue
+		}
+
+		seenRepos[key] = struct{}{}
+
+		merged.repos = append(merged.repos, repo)
+	}
+
+	if !one.hasDefault {
+		return
+	}
+
+	if merged.hasDefault {
+		l.Warnf("Ignoring duplicate oci_default_credentials block in %s; at most one is allowed", path)
+
+		return
+	}
+
+	merged.hasDefault = true
+	merged.defaultHelper = one.defaultHelper
+	merged.discoverAmbient = one.discoverAmbient
+	merged.configFiles = one.configFiles
+	merged.configFilesSet = one.configFilesSet
+	// Relative docker_style_config_files resolve against the declaring file.
+	merged.configDir = filepath.Dir(path)
+}
+
+// ociTofuConfigSources lists the CLI config files to read, in OpenTofu's order:
+// the selected config file, then the *.tfrc and *.tfrc.json fragments in the
+// config directory. An explicit env override suppresses the directory, matching
+// OpenTofu's "doing something special" interpretation of that variable.
+func ociTofuConfigSources(l log.Logger, v *venv.Venv) []string {
+	var sources []string
+
+	if path := ociTofuConfigPath(l, v); path != "" {
+		if _, err := v.FS.Stat(path); err == nil {
+			sources = append(sources, path)
+		}
+	}
+
+	if v.Env[envTFCLIConfigFile] != "" || v.Env[envTerraformConfig] != "" {
+		return sources
+	}
+
+	return append(sources, ociTofuConfigFragments(l, v)...)
+}
+
+// ociTofuConfigFragments returns the *.tfrc and *.tfrc.json files in OpenTofu's
+// config directory, in filename order so merging is deterministic.
+func ociTofuConfigFragments(l log.Logger, v *venv.Venv) []string {
+	dir := ociTofuConfigDir(v)
+	if dir == "" {
+		return nil
+	}
+
+	info, err := v.FS.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+
+	handle, err := v.FS.Open(dir)
+	if err != nil {
+		l.Warnf("Skipping unreadable OpenTofu CLI config directory %s: %v", dir, err)
+
+		return nil
+	}
+
+	defer handle.Close() //nolint:errcheck
+
+	names, err := handle.Readdirnames(-1)
+	if err != nil {
+		l.Warnf("Skipping unreadable OpenTofu CLI config directory %s: %v", dir, err)
+
+		return nil
+	}
+
+	slices.Sort(names)
+
+	var fragments []string
+
+	for _, name := range names {
+		if !strings.HasSuffix(name, ".tfrc") && !strings.HasSuffix(name, ".tfrc.json") {
+			continue
+		}
+
+		fragments = append(fragments, filepath.Join(dir, name))
+	}
+
+	return fragments
+}
+
+// ociTofuConfigDir resolves OpenTofu's CLI config directory for the platform.
+func ociTofuConfigDir(v *venv.Venv) string {
+	home, err := v.Platform.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+
+	if v.Platform.GOOS == windowsGOOS {
+		if appData := v.Env["APPDATA"]; appData != "" {
+			return filepath.Join(appData, "terraform.d")
+		}
+
+		return ""
+	}
+
+	if home != "" {
+		legacy := filepath.Join(home, ".terraform.d")
+		if _, statErr := v.FS.Stat(legacy); statErr == nil {
+			return legacy
+		}
+	}
+
+	if xdg := v.Env["XDG_CONFIG_HOME"]; xdg != "" {
+		return filepath.Join(xdg, "opentofu")
+	}
+
+	if home == "" {
+		return ""
+	}
+
+	return filepath.Join(home, ".terraform.d")
 }
 
 // ociTofuConfigPath resolves the CLI config path OpenTofu would use: the
 // TF_CLI_CONFIG_FILE or TERRAFORM_CONFIG override, else the first of
 // ~/.tofurc, ~/.terraformrc that exists.
-func ociTofuConfigPath(v *venv.Venv) string {
-	if override := v.Env[envTFCLIConfigFile]; override != "" {
-		return override
-	}
+func ociTofuConfigPath(l log.Logger, v *venv.Venv) string {
+	for _, name := range []string{envTFCLIConfigFile, envTerraformConfig} {
+		override := v.Env[name]
+		if override == "" {
+			continue
+		}
 
-	if override := v.Env[envTerraformConfig]; override != "" {
+		if _, err := v.FS.Stat(override); err != nil {
+			l.Warnf("OpenTofu CLI config %s set by %s cannot be read: %v", override, name, err)
+		}
+
 		return override
 	}
 
@@ -185,29 +325,30 @@ func ociTofuConfigCandidates(v *venv.Venv) []string {
 
 	var paths []string
 
-	// Windows keeps the CLI config in the roaming application-data directory.
+	// On Windows OpenTofu's home directory is the roaming application-data
+	// folder, and it looks only for tofu.rc / terraform.rc there.
 	if v.Platform.GOOS == windowsGOOS {
 		if appData := v.Env["APPDATA"]; appData != "" {
-			paths = append(paths, filepath.Join(appData, "tofu.rc"), filepath.Join(appData, "terraform.rc"))
+			return []string{
+				filepath.Join(appData, "tofu.rc"),
+				filepath.Join(appData, "terraform.rc"),
+			}
 		}
+
+		return nil
 	}
 
 	if home != "" {
 		paths = append(paths, filepath.Join(home, ".tofurc"), filepath.Join(home, ".terraformrc"))
 	}
 
-	if v.Platform.GOOS != windowsGOOS {
-		configDir := v.Env["XDG_CONFIG_HOME"]
-		if configDir == "" && home != "" {
-			configDir = filepath.Join(home, ".config")
-		}
-
-		if configDir != "" {
-			paths = append(paths, filepath.Join(configDir, "opentofu", "tofurc"))
-		}
+	// OpenTofu falls back to XDG only when XDG_CONFIG_HOME is set, so do not
+	// synthesize a ~/.config path it would never read.
+	if configDir := v.Env["XDG_CONFIG_HOME"]; configDir != "" {
+		paths = append(paths, filepath.Join(configDir, "opentofu", "tofurc"))
 	}
 
-	return slices.Compact(paths)
+	return paths
 }
 
 // decodeOCITofuCredentials extracts the oci_credentials and
@@ -263,6 +404,7 @@ func decodeOCITofuCredentials(l log.Logger, data []byte, path string) (ociTofuCr
 			tofu.defaultHelper = defaults.helper
 			tofu.configFiles = defaults.configFiles
 			tofu.configFilesSet = defaults.configFilesSet
+			tofu.hasDefault = true
 
 			continue
 		}
@@ -347,7 +489,13 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 		return ociTofuRepoCredential{}, errOCIIncompleteOAuthCredential
 	}
 
-	if trueCount(basic, oauth, helper) > 1 {
+	// OpenTofu requires exactly one style; zero would rank an empty credential
+	// as a match and shadow a valid ambient one.
+	switch trueCount(basic, oauth, helper) {
+	case 1:
+	case 0:
+		return ociTofuRepoCredential{}, errOCIMissingCredentialStyle
+	default:
 		return ociTofuRepoCredential{}, errOCIMultipleCredentialStyles
 	}
 
