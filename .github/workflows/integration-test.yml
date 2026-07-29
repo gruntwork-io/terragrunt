@@ -139,6 +139,10 @@ jobs:
                 # Optional: the resource group is looked up from the storage
                 # account when this is not set.
                 TG_AZURE_TEST_RESOURCE_GROUP,
+                # Named ARM_ACCESS_KEY because `tofu init` reads that name for
+                # the azurerm backend. Terragrunt accepts it too, so one secret
+                # authenticates both tools.
+                ARM_ACCESS_KEY,
               ]
           # - name: Windows
           # os: windows
@@ -247,6 +251,7 @@ jobs:
           TG_AZURE_TEST_STORAGE_ACCOUNT: ${{ secrets.TG_AZURE_TEST_STORAGE_ACCOUNT }}
           TG_AZURE_TEST_SUBSCRIPTION_ID: ${{ secrets.TG_AZURE_TEST_SUBSCRIPTION_ID }}
           TG_AZURE_TEST_RESOURCE_GROUP: ${{ secrets.TG_AZURE_TEST_RESOURCE_GROUP }}
+          ARM_ACCESS_KEY: ${{ secrets.ARM_ACCESS_KEY }}
         shell: bash
 
       - name: Setup

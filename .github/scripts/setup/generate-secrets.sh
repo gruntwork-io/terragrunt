@@ -72,6 +72,8 @@ for SECRET in $SECRETS; do
 		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID='%s'\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "TG_AZURE_TEST_RESOURCE_GROUP" && -n "${TG_AZURE_TEST_RESOURCE_GROUP:-}" ]]; then
 		printf "export TG_AZURE_TEST_RESOURCE_GROUP='%s'\n" "${TG_AZURE_TEST_RESOURCE_GROUP}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_ACCESS_KEY" && -n "${ARM_ACCESS_KEY:-}" ]]; then
+		printf "export ARM_ACCESS_KEY='%s'\n" "${ARM_ACCESS_KEY}" >>"$ENV_FILE"
 	fi
 done
 
