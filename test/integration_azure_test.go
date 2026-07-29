@@ -130,7 +130,15 @@ func TestAzureBackendVersioningConverges(t *testing.T) {
 
 	assertAzureContainerExists(t, ctx, account, container)
 
-	saClient, err := azurehelper.NewStorageAccountClient(azureTestConfig(ctx, t, account))
+	cfg := azureTestConfig(ctx, t, account)
+
+	// Blob versioning is an ARM management-plane property. Access-key and SAS
+	// auth cannot reach ARM at all, so there is nothing to assert under them.
+	if cfg.Method == azurehelper.AuthMethodAccessKey || cfg.Method == azurehelper.AuthMethodSasToken {
+		t.Skipf("versioning convergence needs the ARM control plane, which %s auth cannot reach", cfg.Method)
+	}
+
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
 	require.NoError(t, err)
 
 	enabled, err := saClient.IsVersioningEnabled(ctx)
@@ -181,7 +189,11 @@ func TestAzureBackendRequiresExperiment(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.Contains(t, stderr, "azure-backend", "the error must name the experiment the user needs to enable")
+
+	// The CLI routes the failure through the returned error; stderr carries only
+	// the troubleshooting tip, so assert on the error the user actually gets.
+	assert.Contains(t, err.Error()+stderr, "azure-backend",
+		"the failure must name the experiment the user needs to enable")
 }
 
 // setupAzureBackendFixture copies the fixture, fills in the live account
@@ -228,6 +240,8 @@ func azureResourceGroup(ctx context.Context, t *testing.T, account string) strin
 		}
 	}
 
+	// The lookup needs the ARM control plane. Data-plane-only auth (access key,
+	// SAS) cannot reach it, so those runs must name the group explicitly.
 	// A config with no resource group is enough to reach ARM and ask.
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{

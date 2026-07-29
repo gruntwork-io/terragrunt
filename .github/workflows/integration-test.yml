@@ -102,22 +102,25 @@ jobs:
           # GOOGLE_IDENTITY_EMAIL,
           # GOOGLE_PROJECT_ID,
           # ]
-          - name: Azure
-            os: ubuntu
-            target: ./internal/azurehelper/...
-            tags: azure
-            secrets:
-              [
-                AZURE_CLIENT_ID,
-                AZURE_CLIENT_SECRET,
-                AZURE_TENANT_ID,
-                TG_AZURE_TEST_STORAGE_ACCOUNT,
-                TG_AZURE_TEST_SUBSCRIPTION_ID,
-              ]
-          # End-to-end tests against real Azure resources. Kept separate from
-          # the hermetic `azure` job above so a green run there never implies
-          # live coverage. These fail rather than skip when credentials are
-          # absent, so a misconfigured secret shows up as a red job.
+          # TEMPORARY: the hermetic azurehelper job is folded away for the
+          # Azure-only fast loop; "Azure Integration" is the single Azure job.
+          # RESTORE BEFORE MERGE.
+          # - name: Azure
+          # os: ubuntu
+          # target: ./internal/azurehelper/...
+          # tags: azure
+          # secrets:
+          # [
+          # AZURE_CLIENT_ID,
+          # AZURE_CLIENT_SECRET,
+          # AZURE_TENANT_ID,
+          # TG_AZURE_TEST_STORAGE_ACCOUNT,
+          # TG_AZURE_TEST_SUBSCRIPTION_ID,
+          # ]
+          # # End-to-end tests against real Azure resources. Kept separate from
+          # # the hermetic `azure` job above so a green run there never implies
+          # # live coverage. These fail rather than skip when credentials are
+          # # absent, so a misconfigured secret shows up as a red job.
           - name: Azure Integration
             os: ubuntu
             target: ./test

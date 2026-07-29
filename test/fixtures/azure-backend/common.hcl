@@ -15,7 +15,6 @@ remote_state {
     container_name       = "__FILL_IN_CONTAINER__"
     resource_group_name  = "__FILL_IN_RESOURCE_GROUP__"
     subscription_id      = "__FILL_IN_SUBSCRIPTION_ID__"
-    use_azuread_auth     = true
 
     # Terragrunt-only bootstrap keys. These must be consumed by Terragrunt and
     # filtered out before `tofu init -backend-config`, which rejects unknown
