@@ -55,6 +55,58 @@ func TestScaffoldModule(t *testing.T) {
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 }
 
+// TestScaffoldModuleTFRSource verifies that `terragrunt scaffold` works
+// against a tfr:// registry source, not just git-shaped sources.
+// See https://github.com/gruntwork-io/terragrunt/issues/3677.
+func TestScaffoldModuleTFRSource(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
+
+	moduleURL := registryTestModuleSource + "?version=0.0.2"
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			moduleURL,
+		),
+	)
+	require.NoError(t, err)
+	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
+
+	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Contains(t, content, `source = "`+moduleURL+`"`)
+}
+
+// TestScaffoldModuleTFRSourceUnpinned verifies that a tfr:// source with no
+// ?version= query param gets pinned to the latest stable registry version in
+// the generated source, mirroring the ?ref= pinning git sources get from
+// their latest release tag. registryTestModuleSource has exactly two
+// published versions, 0.0.1 and 0.0.2, so the expected pin is deterministic.
+func TestScaffoldModuleTFRSourceUnpinned(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			registryTestModuleSource,
+		),
+	)
+	require.NoError(t, err)
+	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
+
+	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Contains(t, content, `source = "`+registryTestModuleSource+`?version=0.0.2"`)
+}
+
 func TestScaffoldModuleShortUrl(t *testing.T) {
 	t.Parallel()
 
