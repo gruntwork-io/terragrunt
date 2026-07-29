@@ -2171,6 +2171,73 @@ func TestBestEffortParseConfigString(t *testing.T) {
 	}
 }
 
+// TestParseConfigGenerateBlockOverwriteTerragruntOrSkipRequiresExperiment pins that the
+// overwrite_terragrunt_or_skip value for if_exists is rejected unless its experiment is
+// enabled. TG_EXPERIMENT_MODE forces every experiment on, which defeats the disabled-state
+// assertion, so skip it there.
+func TestParseConfigGenerateBlockOverwriteTerragruntOrSkipRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip(
+			"Skipping: TG_EXPERIMENT_MODE forces the overwrite-terragrunt-or-skip experiment on, so its disabled-state error can't be verified",
+		)
+	}
+
+	cfg := `generate "test" {
+  path = "test.tf"
+  if_exists = "overwrite_terragrunt_or_skip"
+  contents = "test = 1"
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+
+	_, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+
+	var typed config.IfExistsRequiresExperimentError
+
+	require.ErrorAs(t, err, &typed)
+}
+
+// TestParseConfigGenerateBlockOverwriteTerragruntOrSkip verifies that the value parses into
+// the expected enum once its experiment is enabled.
+func TestParseConfigGenerateBlockOverwriteTerragruntOrSkip(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate "test" {
+  path = "test.tf"
+  if_exists = "overwrite_terragrunt_or_skip"
+  contents = "test = 1"
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OverwriteTerragruntOrSkip))
+
+	terragruntConfig, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	assert.Equal(t, codegen.ExistsOverwriteTerragruntOrSkip, generateConfig.IfExists)
+}
+
 // TestParseConfigGenerateBlockWithHclFmt verifies that hcl_fmt is parsed from generate blocks.
 func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
 	t.Parallel()

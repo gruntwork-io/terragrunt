@@ -117,6 +117,10 @@ const (
 	TGLogin = "tg-login"
 	// Base64GzipCompat enables the base64gzip_compat HCL function.
 	Base64GzipCompat = "base64gzip-compat"
+	// OverwriteTerragruntOrSkip gates the "overwrite_terragrunt_or_skip" value for the
+	// if_exists attribute of generate blocks, which leaves a file terragrunt did not
+	// generate as-is instead of erroring out.
+	OverwriteTerragruntOrSkip = "overwrite-terragrunt-or-skip"
 )
 
 const (
@@ -240,6 +244,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: Base64GzipCompat,
+		},
+		{
+			Name: OverwriteTerragruntOrSkip,
 		},
 	}
 }
