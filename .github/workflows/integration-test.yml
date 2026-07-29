@@ -112,31 +112,16 @@ jobs:
                 TG_AZURE_TEST_STORAGE_ACCOUNT,
                 TG_AZURE_TEST_SUBSCRIPTION_ID,
               ]
-          # End-to-end tests against real Azure resources. Kept separate from
-          # the hermetic `azure` job above so a green run there never implies
-          # live coverage. These fail rather than skip when credentials are
-          # absent, so a misconfigured secret shows up as a red job.
           - name: Azure Integration
             os: ubuntu
             target: ./test
             tags: azure_integration
-            # A build tag only decides which FILES compile; every untagged test
-            # in ./test would still run without this. Scope to the Azure tests,
-            # matching how the GCP and AWS jobs pair tags with a run regex.
             run: ^TestAzure
             secrets:
               [
-                AZURE_CLIENT_ID,
-                AZURE_CLIENT_SECRET,
-                AZURE_TENANT_ID,
                 TG_AZURE_TEST_STORAGE_ACCOUNT,
                 TG_AZURE_TEST_SUBSCRIPTION_ID,
-                # Optional: the resource group is looked up from the storage
-                # account when this is not set.
                 TG_AZURE_TEST_RESOURCE_GROUP,
-                # Named ARM_ACCESS_KEY because `tofu init` reads that name for
-                # the azurerm backend. Terragrunt accepts it too, so one secret
-                # authenticates both tools.
                 ARM_ACCESS_KEY,
               ]
           - name: Windows
