@@ -19,6 +19,16 @@ import (
 // from a remote_state backend block, with environment variable fallbacks applied
 // during Build.
 type AzureSessionConfig struct {
+	// UseAzureADAuth selects the Azure AD default credential chain. A nil
+	// value means the user did not say, so an ARM_USE_* environment variable
+	// may set it; an explicit false is honored and never overridden.
+	UseAzureADAuth *bool
+	// UseMSI selects managed identity authentication. nil means unset; see
+	// UseAzureADAuth for how nil differs from an explicit false.
+	UseMSI *bool
+	// UseOIDC selects OIDC / workload identity authentication. nil means
+	// unset; see UseAzureADAuth for how nil differs from an explicit false.
+	UseOIDC *bool
 	// SubscriptionID is the Azure subscription hosting the storage account.
 	SubscriptionID string
 	// TenantID is the Azure AD tenant used by token-based auth methods.
@@ -41,12 +51,17 @@ type AzureSessionConfig struct {
 	OIDCTokenFilePath string
 	// CloudEnvironment selects the cloud: "" / "public", "usgovernment", "china".
 	CloudEnvironment string
-	// UseAzureADAuth selects the Azure AD default credential chain.
-	UseAzureADAuth bool
-	// UseMSI selects managed identity authentication.
-	UseMSI bool
-	// UseOIDC selects OIDC / workload identity authentication.
-	UseOIDC bool
+}
+
+// boolValue reports the value of a tri-state flag, treating unset as false.
+func boolValue(v *bool) bool {
+	return v != nil && *v
+}
+
+// unsetOrFalse reports whether a tri-state flag may be turned on by the
+// environment: only an unset flag may be, so an explicit false stays false.
+func unsetOrFalse(v *bool) bool {
+	return v == nil
 }
 
 // AzureConfigBuilder builds an AzureConfig using the builder pattern.
@@ -168,7 +183,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 	clientOpts := azcore.ClientOptions{Cloud: cloudCfg}
 
 	out := &AzureConfig{
-		UseAzureADAuth: resolved.UseAzureADAuth,
+		UseAzureADAuth: boolValue(resolved.UseAzureADAuth),
 		SubscriptionID: resolved.SubscriptionID,
 		TenantID:       resolved.TenantID,
 		AccountName:    resolved.StorageAccountName,
@@ -210,7 +225,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case resolved.UseMSI:
+	case boolValue(resolved.UseMSI):
 		opts := &azidentity.ManagedIdentityCredentialOptions{ClientOptions: clientOpts}
 		opts.ID = managedIdentityID(&resolved)
 
@@ -226,7 +241,28 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case resolved.UseOIDC:
+	case boolValue(resolved.UseOIDC):
+		// A request-URL flow (GitHub Actions, Azure DevOps) takes precedence
+		// over the token file, matching the native azurerm backend. Without
+		// this, a CI config that authenticates fine during `tofu init` would
+		// fail during Terragrunt's own lifecycle operations.
+		if getAssertion := b.oidcAssertionProvider(&resolved); getAssertion != nil {
+			cred, err := azidentity.NewClientAssertionCredential(
+				resolved.TenantID, resolved.ClientID, getAssertion,
+				&azidentity.ClientAssertionCredentialOptions{ClientOptions: clientOpts},
+			)
+			if err != nil {
+				return nil, fmt.Errorf("creating OIDC client assertion credential: %w", err)
+			}
+
+			out.Method = AuthMethodOIDC
+			out.Credential = cred
+
+			l.Debugf("azurehelper: using OIDC authentication via a federated token request url")
+
+			return out, validate(out, &resolved)
+		}
+
 		cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
 			ClientOptions: clientOpts,
 			TenantID:      resolved.TenantID,
@@ -244,7 +280,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case resolved.UseAzureADAuth:
+	case boolValue(resolved.UseAzureADAuth):
 		return buildAzureADConfig(out, &resolved, &clientOpts, l, "use_azuread_auth")
 
 	default:
@@ -361,16 +397,19 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 		}
 	}
 
-	if !cfg.UseMSI && parseBool(b.firstEnv("ARM_USE_MSI")) {
-		cfg.UseMSI = true
+	// Only an UNSET flag may be turned on by the environment. A user who wrote
+	// `use_msi = false` has said what they want, and a stray ARM_USE_MSI on the
+	// runner must not override it.
+	if unsetOrFalse(cfg.UseMSI) && parseBool(b.firstEnv("ARM_USE_MSI")) {
+		cfg.UseMSI = new(true)
 	}
 
-	if !cfg.UseOIDC && parseBool(b.firstEnv("ARM_USE_OIDC")) {
-		cfg.UseOIDC = true
+	if unsetOrFalse(cfg.UseOIDC) && parseBool(b.firstEnv("ARM_USE_OIDC")) {
+		cfg.UseOIDC = new(true)
 	}
 
-	if !cfg.UseAzureADAuth && parseBool(b.firstEnv("ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH")) {
-		cfg.UseAzureADAuth = true
+	if unsetOrFalse(cfg.UseAzureADAuth) && parseBool(b.firstEnv("ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH")) {
+		cfg.UseAzureADAuth = new(true)
 	}
 
 	// Presence of a federated token file implies OIDC / workload-identity auth.
@@ -378,8 +417,16 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	// without ARM_USE_OIDC, so without this the explicit OIDC tier is unreachable.
 	// Defer to an explicit higher-tier choice (MSI / Azure AD) so a stray token
 	// file in the environment does not override what the user asked for.
-	if !cfg.UseOIDC && !cfg.UseMSI && !cfg.UseAzureADAuth && cfg.OIDCTokenFilePath != "" {
-		cfg.UseOIDC = true
+	if unsetOrFalse(cfg.UseOIDC) && !boolValue(cfg.UseMSI) && !boolValue(cfg.UseAzureADAuth) && cfg.OIDCTokenFilePath != "" {
+		cfg.UseOIDC = new(true)
+	}
+
+	// A federated token request url (GitHub Actions, Azure DevOps) implies OIDC
+	// the same way a token file does. CI injects these without ARM_USE_OIDC, so
+	// without this the request-url flows would be unreachable.
+	if unsetOrFalse(cfg.UseOIDC) && !boolValue(cfg.UseMSI) && !boolValue(cfg.UseAzureADAuth) &&
+		b.firstEnv("ARM_OIDC_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_URL", "SYSTEM_OIDCREQUESTURI") != "" {
+		cfg.UseOIDC = new(true)
 	}
 }
 

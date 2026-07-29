@@ -222,7 +222,7 @@ func azureTestConfig(t *testing.T, account string) *azurehelper.AzureConfig {
 			SubscriptionID:     requireAzureEnv(t, envAzureSubscriptionID),
 			ResourceGroupName:  requireAzureEnv(t, envAzureResourceGroup),
 			StorageAccountName: account,
-			UseAzureADAuth:     true,
+			UseAzureADAuth:     new(true),
 		}).
 		WithVenv(venv.OSVenv()).
 		Build(log.New())

@@ -56,6 +56,12 @@ type ExtendedRemoteStateConfigAzurerm struct {
 // `azurerm` Terraform/OpenTofu backend. These are forwarded verbatim to
 // `tofu init -backend-config`.
 type RemoteStateConfigAzurerm struct {
+	// The auth toggles are pointers so an explicitly configured false is
+	// distinguishable from an absent key. Only an absent key may be turned on
+	// by an ARM_USE_* environment variable.
+	UseAzureADAuth     *bool  `mapstructure:"use_azuread_auth"`
+	UseMSI             *bool  `mapstructure:"use_msi"`
+	UseOIDC            *bool  `mapstructure:"use_oidc"`
 	StorageAccountName string `mapstructure:"storage_account_name"`
 	ContainerName      string `mapstructure:"container_name"`
 	Key                string `mapstructure:"key"`
@@ -69,9 +75,6 @@ type RemoteStateConfigAzurerm struct {
 	Environment        string `mapstructure:"environment"`
 	MSIResourceID      string `mapstructure:"msi_resource_id"`
 	OIDCTokenFilePath  string `mapstructure:"oidc_token_file_path"`
-	UseAzureADAuth     bool   `mapstructure:"use_azuread_auth"`
-	UseMSI             bool   `mapstructure:"use_msi"`
-	UseOIDC            bool   `mapstructure:"use_oidc"`
 	// Snapshot is a valid azurerm backend boolean argument. It is declared here
 	// (even though Terragrunt does not act on it) so NormalizeBoolValues coerces
 	// a string "true"/"false" into a real bool before forwarding to `tofu init`.

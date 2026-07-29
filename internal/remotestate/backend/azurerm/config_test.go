@@ -20,7 +20,8 @@ func TestExtendedAzurermConfig_ParsesFields(t *testing.T) {
 	assert.Equal(t, "tfstate", rs.ContainerName)
 	assert.Equal(t, "prod/terraform.tfstate", rs.Key)
 	assert.Equal(t, "rg-state", rs.ResourceGroupName)
-	assert.True(t, rs.UseAzureADAuth)
+	require.NotNil(t, rs.UseAzureADAuth)
+	assert.True(t, *rs.UseAzureADAuth)
 
 	assert.Equal(t, "eastus", ext.Location)
 	assert.Equal(t, "Standard", ext.AccountTier)
@@ -108,7 +109,8 @@ func TestGetAzureSessionConfig_Mapping(t *testing.T) {
 	assert.Equal(t, "tfstate1234", sess.StorageAccountName)
 	assert.Equal(t, "rg-state", sess.ResourceGroupName)
 	assert.Equal(t, "00000000-0000-0000-0000-000000000000", sess.SubscriptionID)
-	assert.True(t, sess.UseAzureADAuth)
+	require.NotNil(t, sess.UseAzureADAuth)
+	assert.True(t, *sess.UseAzureADAuth)
 }
 
 func TestGetTFInitArgs_EmptyConfig(t *testing.T) {

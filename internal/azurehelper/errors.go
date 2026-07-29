@@ -37,6 +37,43 @@ func (e *TooManyBlobPagesError) Error() string {
 	return fmt.Sprintf("listing blobs in %s exceeded %d pages", e.Container, e.MaxPages)
 }
 
+// OIDCRequestTokenMissingError is returned when an OIDC request URL is present
+// but the bearer token needed to call it is not. In GitHub Actions this means
+// the job is missing `permissions: id-token: write`.
+type OIDCRequestTokenMissingError struct {
+	RequestURL string
+}
+
+func (e *OIDCRequestTokenMissingError) Error() string {
+	return fmt.Sprintf(
+		"an OIDC request url (%s) was provided without a request token; "+
+			"in GitHub Actions grant the job `permissions: id-token: write`, "+
+			"in Azure DevOps expose SYSTEM_ACCESSTOKEN to the step",
+		e.RequestURL,
+	)
+}
+
+// OIDCTokenRequestFailedError is returned when the federated token endpoint
+// answers with a non-200 status.
+type OIDCTokenRequestFailedError struct {
+	Body       string
+	StatusCode int
+}
+
+func (e *OIDCTokenRequestFailedError) Error() string {
+	return fmt.Sprintf("OIDC token request failed with status %d: %s", e.StatusCode, e.Body)
+}
+
+// OIDCTokenFieldMissingError is returned when the federated token endpoint
+// answers 200 but without the expected assertion field.
+type OIDCTokenFieldMissingError struct {
+	Field string
+}
+
+func (e *OIDCTokenFieldMissingError) Error() string {
+	return fmt.Sprintf("OIDC token response did not contain a %q value", e.Field)
+}
+
 // CredentialMissingError is returned when a token-credential auth method
 // is requested but cfg.Credential is nil. Match with errors.As.
 type CredentialMissingError struct {

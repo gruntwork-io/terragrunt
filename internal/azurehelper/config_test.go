@@ -26,9 +26,9 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		cfg     azurehelper.AzureSessionConfig
 		name    string
 		want    azurehelper.AuthMethod
-		cfg     azurehelper.AzureSessionConfig
 		hasCred bool
 	}{
 		{
@@ -73,7 +73,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 			name: "msi when use_msi true",
 			cfg: azurehelper.AzureSessionConfig{
 				SubscriptionID: testSub,
-				UseMSI:         true,
+				UseMSI:         new(true),
 			},
 			want:    azurehelper.AuthMethodMSI,
 			hasCred: true,
@@ -85,8 +85,8 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 				TenantID:          "tid",
 				ClientID:          "cid",
 				OIDCTokenFilePath: "/var/run/secrets/azure/tokens/azure-identity-token",
-				UseOIDC:           true,
-				UseMSI:            true,
+				UseOIDC:           new(true),
+				UseMSI:            new(true),
 			},
 			want:    azurehelper.AuthMethodMSI,
 			hasCred: true,
@@ -95,7 +95,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 			name: "azuread default fallback",
 			cfg: azurehelper.AzureSessionConfig{
 				SubscriptionID: testSub,
-				UseAzureADAuth: true,
+				UseAzureADAuth: new(true),
 			},
 			want:    azurehelper.AuthMethodAzureAD,
 			hasCred: true,
@@ -173,7 +173,7 @@ func TestBuild_SubscriptionNotRequiredForDataPlane(t *testing.T) {
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			StorageAccountName: testAccount,
-			UseAzureADAuth:     true,
+			UseAzureADAuth:     new(true),
 		}).
 		WithVenv(isolatedEnv()).
 		Build(log.New())
@@ -190,7 +190,7 @@ func TestSubscriptionRequiredAtArmBoundary(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			StorageAccountName: testAccount,
 			ResourceGroupName:  "rg",
-			UseAzureADAuth:     true,
+			UseAzureADAuth:     new(true),
 		}).
 		WithVenv(isolatedEnv()).
 		Build(log.New())
@@ -349,7 +349,7 @@ func TestBuild_CarriesAuthorizationMode(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			SubscriptionID:     testSub,
 			StorageAccountName: testAccount,
-			UseAzureADAuth:     true,
+			UseAzureADAuth:     new(true),
 		}).
 		WithVenv(isolatedEnv()).
 		Build(log.New())

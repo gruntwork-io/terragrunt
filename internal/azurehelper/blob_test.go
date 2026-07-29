@@ -199,7 +199,7 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			SubscriptionID:     sub,
 			StorageAccountName: account,
-			UseAzureADAuth:     true,
+			UseAzureADAuth:     new(true),
 		}).
 		Build(log.New())
 	require.NoError(t, err, "Build config")
