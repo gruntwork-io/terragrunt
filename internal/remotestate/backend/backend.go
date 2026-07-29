@@ -58,9 +58,17 @@ type Backend interface {
 	Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, config Config, opts *Options) error
 
 	// Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
+	//
 	// srcV and dstV are the source and destination environments: the same
-	// variable can select different accounts or clouds on each side, so a
-	// backend must resolve destination settings from dstV, never from srcV.
+	// variable (AWS_PROFILE, ARM_ENVIRONMENT, ...) can hold a different value on
+	// each side, so destination SETTINGS must be resolved from dstV, never from
+	// srcV. Backends currently use dstV to validate that the destination is
+	// reachable by the migration they implement (for example azurerm refuses a
+	// destination in another cloud). Performing destination WRITES under
+	// destination credentials is not implemented yet: the s3, gcs, and azurerm
+	// backends still write through the source client, so a migration whose
+	// destination needs different credentials must be rejected rather than
+	// attempted.
 	Migrate(
 		ctx context.Context,
 		l log.Logger,

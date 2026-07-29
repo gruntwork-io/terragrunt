@@ -220,3 +220,37 @@ func TestValidate_RejectsWhitespaceOnlyRequiredKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Error(t, ext.Validate(), "a whitespace-only storage_account_name must be rejected")
 }
+
+// TestExtendedCacheKey_IsPolicyAware pins that the bootstrap cache identity
+// covers the policies bootstrap converges. Without this, two units naming the
+// same container with conflicting versioning or soft-delete settings would
+// share one "already initialized" entry and the second would silently inherit
+// the first unit's convergence instead of applying its own.
+func TestExtendedCacheKey_IsPolicyAware(t *testing.T) {
+	t.Parallel()
+
+	keyFor := func(mutate func(azurerm.Config)) string {
+		raw := fullConfig()
+		mutate(raw)
+
+		ext, err := raw.ExtendedAzurermConfig()
+		require.NoError(t, err)
+
+		return ext.CacheKey()
+	}
+
+	base := keyFor(func(azurerm.Config) {})
+
+	// Same config resolves to the same identity.
+	assert.Equal(t, base, keyFor(func(azurerm.Config) {}))
+
+	// Each converged policy must change the identity.
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["skip_versioning"] = true }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["enable_soft_delete"] = false }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["soft_delete_retention_days"] = 30 }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["skip_container_creation"] = true }))
+
+	// The container identity is still part of it.
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["container_name"] = "other" }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["environment"] = "usgovernment" }))
+}

@@ -43,20 +43,21 @@ func NewBackend() *Backend {
 	}
 }
 
-// checkExperiment returns ErrAzureBackendExperimentRequired unless the
-// azure-backend experiment is enabled. Every lifecycle entry point is called
-// with options built by the remote-state layer, so a nil opts is a caller bug
-// and panics with ErrBackendOptionsRequired.
-func checkExperiment(opts *backend.Options) error {
+// experimentEnabled reports whether the azure-backend experiment is on. Every
+// lifecycle entry point is called with options built by the remote-state layer,
+// so a nil opts is a caller bug and panics with ErrBackendOptionsRequired.
+//
+// Callers treat a disabled experiment as "do nothing" rather than as an error.
+// Before this backend existed, an azurerm config inherited CommonBackend's
+// no-op behavior, so a globally applied --backend-bootstrap simply continued
+// into native backend init. Gating must stop the experimental implementation
+// from running without breaking that previously working path.
+func experimentEnabled(opts *backend.Options) bool {
 	if opts == nil {
 		panic(ErrBackendOptionsRequired)
 	}
 
-	if !opts.Experiments.Evaluate(experiment.AzureBackend) {
-		return ErrAzureBackendExperimentRequired
-	}
-
-	return nil
+	return opts.Experiments.Evaluate(experiment.AzureBackend)
 }
 
 // resolveConfig parses, validates, and resolves the azure session config for
@@ -100,6 +101,17 @@ func armWorkRequested(extCfg *ExtendedRemoteStateConfigAzurerm) bool {
 // convergence was requested but cannot run under data-plane-only auth.
 func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod) {
 	l.Warnf("Cannot manage the storage account for %s backend with %s authentication; skipping account creation and versioning/soft-delete convergence.", name, method)
+}
+
+// cloudName describes a cloud for an error message. The configured value is
+// preferred, falling back to the resolved AAD authority host so a cloud that
+// came from ARM_ENVIRONMENT is still named instead of rendering empty.
+func cloudName(configured, authorityHost string) string {
+	if configured != "" {
+		return configured
+	}
+
+	return authorityHost
 }
 
 // newBlobClient builds the data-plane client, mirroring the native azurerm
@@ -154,8 +166,8 @@ func sharedKeyConfig(ctx context.Context, cfg *azurehelper.AzureConfig) (*azureh
 // state does not yet exist, or (when reachable) blob versioning or soft-delete
 // configuration has drifted from what the config requests.
 func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
-	if err := checkExperiment(opts); err != nil {
-		return false, err
+	if !experimentEnabled(opts) {
+		return false, nil
 	}
 
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
@@ -227,8 +239,8 @@ func accountNeedsBootstrap(ctx context.Context, cfg *azurehelper.AzureConfig, ex
 // Bootstrap creates (if necessary) the resource group, storage account, and
 // blob container backing the state, and ensures blob versioning / soft delete.
 func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if err := checkExperiment(opts); err != nil {
-		return err
+	if !experimentEnabled(opts) {
+		return nil
 	}
 
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
@@ -244,7 +256,7 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 	mu.Lock()
 	defer mu.Unlock()
 
-	if b.IsConfigInited(rs) {
+	if b.IsConfigInited(extCfg) {
 		l.Debugf("%s container %s has already been confirmed to be initialized, skipping initialization checks", b.Name(), rs.CacheKey())
 
 		return nil
@@ -264,7 +276,7 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 		return err
 	}
 
-	b.MarkConfigInited(rs)
+	b.MarkConfigInited(extCfg)
 
 	return nil
 }
@@ -453,8 +465,8 @@ func effectiveSoftDeleteDays(extCfg *ExtendedRemoteStateConfigAzurerm) int32 {
 // storage account. Data-plane-only auth (SAS / access key) cannot query this
 // via ARM and returns false.
 func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
-	if err := checkExperiment(opts); err != nil {
-		return false, err
+	if !experimentEnabled(opts) {
+		return false, nil
 	}
 
 	_, cfg, err := resolveConfig(l, v, backendConfig)
@@ -487,8 +499,8 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *
 // Migrate copies the state blob from the source backend config to the
 // destination backend config within the same storage account.
 func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
-	if err := checkExperiment(opts); err != nil {
-		return err
+	if !experimentEnabled(opts) {
+		return ErrAzureBackendExperimentRequired
 	}
 
 	srcExtCfg, cfg, err := resolveConfig(l, srcV, srcBackendConfig)
@@ -519,8 +531,8 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Ve
 	if dstCfg.CloudConfig.ActiveDirectoryAuthorityHost != cfg.CloudConfig.ActiveDirectoryAuthorityHost {
 		return &CrossCloudMigrationError{
 			StorageAccount: src.StorageAccountName,
-			SrcEnvironment: src.Environment,
-			DstEnvironment: dst.Environment,
+			SrcEnvironment: cloudName(src.Environment, cfg.CloudConfig.ActiveDirectoryAuthorityHost),
+			DstEnvironment: cloudName(dst.Environment, dstCfg.CloudConfig.ActiveDirectoryAuthorityHost),
 		}
 	}
 
@@ -550,8 +562,8 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Ve
 
 // Delete deletes the Terraform state blob (config "key") from its container.
 func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if err := checkExperiment(opts); err != nil {
-		return err
+	if !experimentEnabled(opts) {
+		return ErrAzureBackendExperimentRequired
 	}
 
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
@@ -583,8 +595,8 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 
 // DeleteBucket deletes the entire blob container backing the state.
 func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if err := checkExperiment(opts); err != nil {
-		return err
+	if !experimentEnabled(opts) {
+		return ErrAzureBackendExperimentRequired
 	}
 
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)

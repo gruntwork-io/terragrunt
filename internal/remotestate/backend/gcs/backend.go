@@ -162,7 +162,7 @@ func (backend *Backend) IsVersionControlEnabled(
 func (backend *Backend) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	srcV, dstV *venv.Venv,
+	srcV, _ *venv.Venv,
 	srcBackendConfig, dstBackendConfig backend.Config,
 	opts *backend.Options,
 ) error {

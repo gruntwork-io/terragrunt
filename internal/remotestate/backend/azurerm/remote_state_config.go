@@ -1,6 +1,7 @@
 package azurerm
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
@@ -137,7 +138,23 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) StorageAccountConfig() *azurehelper
 	}
 }
 
-// Validate checks that the required azurerm remote-state keys are present.
+// CacheKey identifies a bootstrap request, not just a container. It extends the
+// container identity with the policies bootstrap converges, so two units naming
+// the same container with different versioning or soft-delete settings do not
+// share one "already initialized" entry: the second must run its own checks
+// instead of inheriting the first unit's convergence.
+func (cfg *ExtendedRemoteStateConfigAzurerm) CacheKey() string {
+	return strings.Join([]string{
+		cfg.RemoteStateConfigAzurerm.CacheKey(),
+		strconv.FormatBool(cfg.SkipVersioning),
+		strconv.FormatBool(cfg.EnableSoftDelete),
+		strconv.Itoa(cfg.SoftDeleteRetentionDays),
+		strconv.FormatBool(cfg.SkipStorageAccountCreation),
+		strconv.FormatBool(cfg.SkipResourceGroupCreation),
+		strconv.FormatBool(cfg.SkipContainerCreation),
+	}, "|")
+}
+
 // normalize trims surrounding whitespace from every string field.
 // azurehelper.AzureConfigBuilder trims the values it resolves, so without this
 // a padded value (common when CI injects config through naive shell
@@ -158,6 +175,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) normalize() {
 	}
 }
 
+// Validate checks that the required azurerm remote-state keys are present.
 func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	rs := cfg.RemoteStateConfigAzurerm
 
