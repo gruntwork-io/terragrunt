@@ -164,7 +164,7 @@ jobs:
       - name: "Setup Docker"
         if: runner.os == 'Linux'
         id: set-up-docker
-        uses: docker/setup-docker-action@6d7cfa65f60a9dda7b46e5513fa982536f3c9877 # v5
+        uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
