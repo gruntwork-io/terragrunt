@@ -11,116 +11,111 @@ jobs:
       fail-fast: false
       matrix:
         integration:
-          # TEMPORARY: every non-Azure matrix entry is commented out to get a
-          # fast Azure-only signal. RESTORE BEFORE MERGE.
-          # - name: Fixtures with OpenTofu
-          # os: ubuntu
-          # target: ./test
-          # tags: tofu
-          # setup_scripts:
-          # - .github/scripts/setup/tofu-switch.sh
-          # - name: Fixtures with Latest Terraform
-          # os: ubuntu
-          # target: ./test
-          # setup_scripts:
-          # - .github/scripts/setup/terraform-switch-latest.sh
-          # - name: Independent Integration Tests
-          # os: ubuntu
-          # target: ./...
-          # setup_scripts:
-          # - .github/scripts/setup/ssh.sh
-          # - .github/scripts/setup/sops.sh
-          # - .github/scripts/setup/engine.sh
-          # - .github/scripts/setup/generate-mocks.sh
-          # tags: "ssh,sops,deprecated,mocks,engine"
-          # run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine)"
-          # secrets: [GHA_DEPLOY_KEY]
-          # - name: Tflint
-          # os: ubuntu
-          # target: ./...
-          # tags: tflint
-          # run: "^TestTflint"
-          # secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
-          # setup_scripts:
-          # - .github/scripts/setup/tflint.sh
-          # - name: GCP
-          # os: ubuntu
-          # target: ./...
-          # setup_scripts:
-          # - .github/scripts/setup/gcp.sh
-          # tags: gcp
-          # run: "^TestGcp"
-          # secrets:
-          # [
-          # GCLOUD_SERVICE_KEY,
-          # GOOGLE_CLOUD_PROJECT,
-          # GOOGLE_COMPUTE_ZONE,
-          # GOOGLE_IDENTITY_EMAIL,
-          # GOOGLE_PROJECT_ID,
-          # GCLOUD_SERVICE_KEY_IMPERSONATOR,
-          # ]
-          # - name: AWS Tofu
-          # os: ubuntu
-          # target: ./...
-          # tags: "aws,tofu"
-          # run: "^TestAws"
-          # secrets:
-          # [
-          # AWS_ACCESS_KEY_ID,
-          # AWS_SECRET_ACCESS_KEY,
-          # AWS_TEST_S3_ASSUME_ROLE,
-          # ]
-          # setup_scripts:
-          # - .github/scripts/setup/tofu-switch.sh
-          # - name: AWS with Latest Terraform
-          # os: ubuntu
-          # target: ./...
-          # tags: aws
-          # run: "^TestAws"
-          # secrets:
-          # [
-          # AWS_ACCESS_KEY_ID,
-          # AWS_SECRET_ACCESS_KEY,
-          # AWS_TEST_S3_ASSUME_ROLE,
-          # ]
-          # setup_scripts:
-          # - .github/scripts/setup/terraform-switch-latest.sh
-          # - name: AWSGCP
-          # os: ubuntu
-          # target: ./...
-          # setup_scripts:
-          # - .github/scripts/setup/gcp.sh
-          # tags: awsgcp
-          # run: "^TestAwsGcp"
-          # secrets:
-          # [
-          # AWS_ACCESS_KEY_ID,
-          # AWS_SECRET_ACCESS_KEY,
-          # GCLOUD_SERVICE_KEY,
-          # GOOGLE_CLOUD_PROJECT,
-          # GOOGLE_COMPUTE_ZONE,
-          # GOOGLE_IDENTITY_EMAIL,
-          # GOOGLE_PROJECT_ID,
-          # ]
-          # TEMPORARY: the hermetic azurehelper job is folded away for the
-          # Azure-only fast loop; "Azure Integration" is the single Azure job.
-          # RESTORE BEFORE MERGE.
-          # - name: Azure
-          # os: ubuntu
-          # target: ./internal/azurehelper/...
-          # tags: azure
-          # secrets:
-          # [
-          # AZURE_CLIENT_ID,
-          # AZURE_CLIENT_SECRET,
-          # AZURE_TENANT_ID,
-          # TG_AZURE_TEST_STORAGE_ACCOUNT,
-          # TG_AZURE_TEST_SUBSCRIPTION_ID,
-          # ]
-          # # End-to-end tests against real Azure resources. Kept separate from
-          # # the hermetic `azure` job above so a green run there never implies
-          # # live coverage. These fail rather than skip when credentials are
-          # # absent, so a misconfigured secret shows up as a red job.
+          - name: Fixtures with OpenTofu
+            os: ubuntu
+            target: ./test
+            tags: tofu
+            setup_scripts:
+              - .github/scripts/setup/tofu-switch.sh
+          - name: Fixtures with Latest Terraform
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch-latest.sh
+          - name: Independent Integration Tests
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/ssh.sh
+              - .github/scripts/setup/sops.sh
+              - .github/scripts/setup/engine.sh
+              - .github/scripts/setup/generate-mocks.sh
+            tags: "ssh,sops,deprecated,mocks,engine"
+            run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine)"
+            secrets: [GHA_DEPLOY_KEY]
+          - name: Tflint
+            os: ubuntu
+            target: ./...
+            tags: tflint
+            run: "^TestTflint"
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            setup_scripts:
+              - .github/scripts/setup/tflint.sh
+          - name: GCP
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/gcp.sh
+            tags: gcp
+            run: "^TestGcp"
+            secrets:
+              [
+                GCLOUD_SERVICE_KEY,
+                GOOGLE_CLOUD_PROJECT,
+                GOOGLE_COMPUTE_ZONE,
+                GOOGLE_IDENTITY_EMAIL,
+                GOOGLE_PROJECT_ID,
+                GCLOUD_SERVICE_KEY_IMPERSONATOR,
+              ]
+          - name: AWS Tofu
+            os: ubuntu
+            target: ./...
+            tags: "aws,tofu"
+            run: "^TestAws"
+            secrets:
+              [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
+                AWS_TEST_S3_ASSUME_ROLE,
+              ]
+            setup_scripts:
+              - .github/scripts/setup/tofu-switch.sh
+          - name: AWS with Latest Terraform
+            os: ubuntu
+            target: ./...
+            tags: aws
+            run: "^TestAws"
+            secrets:
+              [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
+                AWS_TEST_S3_ASSUME_ROLE,
+              ]
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch-latest.sh
+          - name: AWSGCP
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/gcp.sh
+            tags: awsgcp
+            run: "^TestAwsGcp"
+            secrets:
+              [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
+                GCLOUD_SERVICE_KEY,
+                GOOGLE_CLOUD_PROJECT,
+                GOOGLE_COMPUTE_ZONE,
+                GOOGLE_IDENTITY_EMAIL,
+                GOOGLE_PROJECT_ID,
+              ]
+          - name: Azure
+            os: ubuntu
+            target: ./internal/azurehelper/...
+            tags: azure
+            secrets:
+              [
+                AZURE_CLIENT_ID,
+                AZURE_CLIENT_SECRET,
+                AZURE_TENANT_ID,
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+              ]
+          # End-to-end tests against real Azure resources. Kept separate from
+          # the hermetic `azure` job above so a green run there never implies
+          # live coverage. These fail rather than skip when credentials are
+          # absent, so a misconfigured secret shows up as a red job.
           - name: Azure Integration
             os: ubuntu
             target: ./test
@@ -144,61 +139,61 @@ jobs:
                 # authenticates both tools.
                 ARM_ACCESS_KEY,
               ]
-          # - name: Windows
-          # os: windows
-          # target: ./...
-          # setup_scripts:
-          # - .github/scripts/setup/windows-setup.ps1
-          # tags: windows
-          # run: "^TestWindows"
-          # - name: Provider Cache Server with Latest Terraform
-          # os: ubuntu
-          # target: ./test
-          # setup_scripts:
-          # - .github/scripts/setup/provider-cache-server.sh
-          # - .github/scripts/setup/terraform-switch-latest.sh
-          # - name: Provider Cache Server with Tofu
-          # os: ubuntu
-          # target: ./test
-          # tags: tofu
-          # setup_scripts:
-          # - .github/scripts/setup/provider-cache-server.sh
-          # - .github/scripts/setup/tofu-switch.sh
-          # - name: Race
-          # os: ubuntu
-          # target: ./...
-          # run: ".*WithRacing"
-          # test_args: "-race"
-          # - name: Parse
-          # os: ubuntu
-          # target: ./...
-          # tags: parse
-          # run: "^TestParse"
-          # - name: Experiment mode
-          # os: ubuntu
-          # target: ./...
-          # setup_scripts:
-          # - .github/scripts/setup/experiment-mode.sh
-          # - name: OpenTofu Unit Tests
-          # os: ubuntu
-          # target: ./internal/...
-          # tags: tofu
-          # run: "^TestTofu"
-          # - name: Exec
-          # os: ubuntu
-          # target: ./...
-          # tags: exec
-          # run: "^TestExec"
-          # - name: Exec Windows
-          # os: windows
-          # target: ./...
-          # tags: exec
-          # run: "^TestExec"
-          # - name: HTTP
-          # os: ubuntu
-          # target: ./...
-          # tags: http
-          # run: "^TestHTTP"
+          - name: Windows
+            os: windows
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/windows-setup.ps1
+            tags: windows
+            run: "^TestWindows"
+          - name: Provider Cache Server with Latest Terraform
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/provider-cache-server.sh
+              - .github/scripts/setup/terraform-switch-latest.sh
+          - name: Provider Cache Server with Tofu
+            os: ubuntu
+            target: ./test
+            tags: tofu
+            setup_scripts:
+              - .github/scripts/setup/provider-cache-server.sh
+              - .github/scripts/setup/tofu-switch.sh
+          - name: Race
+            os: ubuntu
+            target: ./...
+            run: ".*WithRacing"
+            test_args: "-race"
+          - name: Parse
+            os: ubuntu
+            target: ./...
+            tags: parse
+            run: "^TestParse"
+          - name: Experiment mode
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/experiment-mode.sh
+          - name: OpenTofu Unit Tests
+            os: ubuntu
+            target: ./internal/...
+            tags: tofu
+            run: "^TestTofu"
+          - name: Exec
+            os: ubuntu
+            target: ./...
+            tags: exec
+            run: "^TestExec"
+          - name: Exec Windows
+            os: windows
+            target: ./...
+            tags: exec
+            run: "^TestExec"
+          - name: HTTP
+            os: ubuntu
+            target: ./...
+            tags: http
+            run: "^TestHTTP"
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6

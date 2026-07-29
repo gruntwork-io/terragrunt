@@ -1,9 +1,6 @@
 name: CI
 
 on:
-  # TEMPORARY: non-Azure CI jobs are commented out for a fast Azure-only
-  # signal. The lint/precommit/go_mod_tidy -> base_tests/build chain is kept
-  # because integration_tests depends on it. RESTORE BEFORE MERGE.
   push:
 
 concurrency:
@@ -11,165 +8,163 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # lint:
-  # uses: ./.github/workflows/lint.yml
-  # permissions:
-  # contents: read
-  # secrets: inherit
+  lint:
+    uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # precommit:
-  # uses: ./.github/workflows/precommit.yml
-  # permissions:
-  # contents: read
-  # secrets: inherit
+  precommit:
+    uses: ./.github/workflows/precommit.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # # codespell:
-  # # uses: ./.github/workflows/codespell.yml
-  # # permissions:
-  # # contents: read
-  # # secrets: inherit
+  codespell:
+    uses: ./.github/workflows/codespell.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # go_mod_tidy_check:
-  # uses: ./.github/workflows/go-mod-tidy-check.yml
-  # permissions:
-  # contents: read
-  # secrets: inherit
+  go_mod_tidy_check:
+    uses: ./.github/workflows/go-mod-tidy-check.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # # markdownlint:
-  # # uses: ./.github/workflows/markdownlint.yml
-  # # permissions:
-  # # contents: read
-  # # secrets: inherit
+  markdownlint:
+    uses: ./.github/workflows/markdownlint.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # # install_script_test:
-  # # uses: ./.github/workflows/install-script-test.yml
-  # # permissions:
-  # # contents: read
-  # # secrets: inherit
+  install_script_test:
+    uses: ./.github/workflows/install-script-test.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # # license_check:
-  # # uses: ./.github/workflows/license-check.yml
-  # # permissions:
-  # # contents: read
-  # # secrets: inherit
+  license_check:
+    uses: ./.github/workflows/license-check.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # # fuzz:
-  # # uses: ./.github/workflows/fuzz.yml
-  # # permissions:
-  # # contents: read
-  # # secrets: inherit
+  fuzz:
+    uses: ./.github/workflows/fuzz.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # # # Fast feedback: only gate on lint/precommit/go_mod_tidy. Other checks (codespell,
-  # # # markdownlint, license_check, install_script_test) run in parallel and are enforced
-  # # # by branch protection rules, not by job dependencies.
-  # base_tests:
-  # needs: [lint, precommit, go_mod_tidy_check]
-  # uses: ./.github/workflows/base-test.yml
-  # permissions:
-  # contents: read
-  # checks: write
-  # secrets: inherit
+  # Fast feedback: only gate on lint/precommit/go_mod_tidy. Other checks (codespell,
+  # markdownlint, license_check, install_script_test) run in parallel and are enforced
+  # by branch protection rules, not by job dependencies.
+  base_tests:
+    needs: [lint, precommit, go_mod_tidy_check]
+    uses: ./.github/workflows/base-test.yml
+    permissions:
+      contents: read
+      checks: write
+    secrets: inherit
 
-  # build:
-  # needs: [lint, precommit, go_mod_tidy_check]
-  # uses: ./.github/workflows/build.yml
-  # with:
-  # version: ${{ github.ref == 'refs/heads/main' && format('tip-{0}', github.sha) || '' }}
-  # permissions:
-  # contents: read
-  # secrets: inherit
+  build:
+    needs: [lint, precommit, go_mod_tidy_check]
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ github.ref == 'refs/heads/main' && format('tip-{0}', github.sha) || '' }}
+    permissions:
+      contents: read
+    secrets: inherit
 
-  # # tip_build:
-  # # needs: [build]
-  # # if: github.ref == 'refs/heads/main'
-  # # uses: ./.github/workflows/upload-tip-build.yml
-  # # with:
-  # # prefix: tip
-  # # permissions:
-  # # contents: read
-  # # id-token: write
-  # # actions: read
-  # # secrets:
-  # # TIP_BUILD_ROLE_ARN: ${{ secrets.TIP_BUILD_ROLE_ARN }}
-  # # TIP_BUILD_BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
-  # # SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
-  # # SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
+  tip_build:
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/upload-tip-build.yml
+    with:
+      prefix: tip
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    secrets:
+      TIP_BUILD_ROLE_ARN: ${{ secrets.TIP_BUILD_ROLE_ARN }}
+      TIP_BUILD_BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
+      SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
+      SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
 
-  # # notify_issues:
-  # # needs: [tip_build]
-  # # if: github.ref == 'refs/heads/main'
-  # # runs-on: ubuntu-slim
-  # # permissions:
-  # # contents: read
-  # # issues: write
-  # # pull-requests: read
-  # # steps:
-  # # - name: Checkout code
-  # # uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
-  # # with:
-  # # sparse-checkout: .github/scripts
+  notify_issues:
+    needs: [tip_build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          sparse-checkout: .github/scripts
 
-  # # - name: Notify issues about tip build
-  # # uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-  # # with:
-  # # script: |
-  # # const notify = require('./.github/scripts/tip-build-notify-issues.js');
-  # # await notify({ github, context, core });
+      - name: Notify issues about tip build
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const notify = require('./.github/scripts/tip-build-notify-issues.js');
+            await notify({ github, context, core });
 
-  # # build_no_proxy:
-  # # # Only run no_proxy builds on main branch to save CI time
-  # # if: github.ref == 'refs/heads/main'
-  # # needs: [lint, precommit, go_mod_tidy_check]
-  # # uses: ./.github/workflows/build-no-proxy.yml
-  # # permissions:
-  # # contents: read
-  # # secrets: inherit
+  build_no_proxy:
+    # Only run no_proxy builds on main branch to save CI time
+    if: github.ref == 'refs/heads/main'
+    needs: [lint, precommit, go_mod_tidy_check]
+    uses: ./.github/workflows/build-no-proxy.yml
+    permissions:
+      contents: read
+    secrets: inherit
 
   integration_tests:
-    # TEMPORARY: `needs: [base_tests, build]` removed so the Azure matrix starts
-    # immediately. Safe because this workflow runs `go test` directly and does
-    # not consume any build artifact. RESTORE BEFORE MERGE.
+    needs: [base_tests, build]
     uses: ./.github/workflows/integration-test.yml
     permissions:
       contents: read
       checks: write
     secrets: inherit
 
-  # oidc_integration_tests:
-  # needs: [base_tests, build]
-  # uses: ./.github/workflows/oidc-integration-test.yml
-  # permissions:
-  # id-token: write
-  # contents: read
-  # checks: write
-  # secrets: inherit
+  oidc_integration_tests:
+    needs: [base_tests, build]
+    uses: ./.github/workflows/oidc-integration-test.yml
+    permissions:
+      id-token: write
+      contents: read
+      checks: write
+    secrets: inherit
 
-  # # Process the test outputs from every job above and fail if any test defined in
-  # # the code base was never executed by any job (e.g. a build-tagged test whose
-  # # name does not match its job's -run filter).
-  # detect_never_run_tests:
-  # needs: [base_tests, integration_tests, oidc_integration_tests]
-  # runs-on: ubuntu-latest
-  # permissions:
-  # contents: read
-  # actions: read
-  # steps:
-  # - name: Checkout code
-  # uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+  # Process the test outputs from every job above and fail if any test defined in
+  # the code base was never executed by any job (e.g. a build-tagged test whose
+  # name does not match its job's -run filter).
+  detect_never_run_tests:
+    needs: [base_tests, integration_tests, oidc_integration_tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
-  # - name: Use mise to install dependencies
-  # uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
-  # with:
-  # version: 2026.5.12
-  # env:
-  # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.5.12
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # - name: Download test outputs from all jobs
-  # uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-  # with:
-  # path: test-outputs
+      - name: Download test outputs from all jobs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: test-outputs
 
-  # - name: Detect tests that never ran
-  # run: ./.github/scripts/ci/check-tests-ran.sh test-outputs ./internal/... ./pkg/...
+      - name: Detect tests that never ran
+        run: ./.github/scripts/ci/check-tests-ran.sh test-outputs ./internal/... ./pkg/...
 
 
