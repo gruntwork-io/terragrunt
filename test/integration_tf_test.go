@@ -3392,6 +3392,55 @@ func TestTFTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
 	assert.True(t, ok)
 }
 
+// TestTFTerragruntGenerateBlockOverwriteTerragruntOrSkipOverwrites verifies that
+// overwrite_terragrunt_or_skip still regenerates a file terragrunt generated earlier.
+func TestTFTerragruntGenerateBlockOverwriteTerragruntOrSkipOverwrites(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(
+		tmpEnvPath,
+		testFixtureCodegenPath,
+		"generate-block",
+		"overwrite_terragrunt_or_skip",
+	)
+	helpers.CleanupTerraformFolder(t, generateTestCase)
+	helpers.CleanupTerragruntFolder(t, generateTestCase)
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment overwrite-terragrunt-or-skip --working-dir "+generateTestCase,
+	)
+	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
+	assert.True(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, helpers.FileIsInFolder(t, "bar.tfstate", generateTestCase))
+}
+
+// TestTFTerragruntGenerateBlockOverwriteTerragruntOrSkipLeavesHandWrittenFile verifies that
+// overwrite_terragrunt_or_skip leaves a file terragrunt did not generate as-is, where
+// overwrite_terragrunt would have errored out.
+func TestTFTerragruntGenerateBlockOverwriteTerragruntOrSkipLeavesHandWrittenFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(
+		tmpEnvPath,
+		testFixtureCodegenPath,
+		"generate-block",
+		"overwrite_terragrunt_or_skip_hand_written",
+	)
+	helpers.CleanupTerraformFolder(t, generateTestCase)
+	helpers.CleanupTerragruntFolder(t, generateTestCase)
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment overwrite-terragrunt-or-skip --working-dir "+generateTestCase,
+	)
+	// The hand-written backend config survived, so the state file went to bar.tfstate.
+	assert.True(t, helpers.FileIsInFolder(t, "bar.tfstate", generateTestCase))
+	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
+}
+
 func TestTFTerragruntGenerateBlockNestedInherit(t *testing.T) {
 	t.Parallel()
 
