@@ -1,0 +1,37 @@
+---
+question: "Does Terragrunt create my state backend automatically?"
+description: "Yes, if you ask it to. Pass --backend-bootstrap on a run, set TG_BACKEND_BOOTSTRAP, or run terragrunt backend bootstrap as its own step. Terragrunt does not create backend resources unless you opt in."
+order: 5
+---
+
+Yes, if you ask it to. Terragrunt can provision the resources named in your [`remote_state`](/reference/hcl/blocks#remote_state) block, such as an S3 bucket, a DynamoDB table, or a GCS bucket, so you do not have to create them by hand before your first run.
+
+This is opt-in. `--backend-bootstrap` defaults to `false`, so an ordinary `terragrunt plan` or `terragrunt apply` never creates cloud resources as a side effect of running.
+
+## Opting in
+
+Pass the flag on a run:
+
+```bash
+terragrunt apply --backend-bootstrap
+```
+
+Set the environment variable, which is usually what you want in CI:
+
+```bash
+export TG_BACKEND_BOOTSTRAP=true
+```
+
+Or bootstrap as a separate step, which keeps provisioning out of your normal apply path:
+
+```bash
+terragrunt backend bootstrap
+```
+
+The [`backend bootstrap`](/reference/cli/commands/backend/bootstrap/) command and the `--backend-bootstrap` flag do the same work. See [State Backend](/features/units/state-backend/) for what gets created for each backend.
+
+## If it still does not run
+
+`remote_state.disable_init` blocks bootstrapping even when you have opted in. If you set it, Terragrunt skips creating backend resources regardless of the flag, while still letting OpenTofu/Terraform initialize a backend that already exists. That combination is useful for `run --all validate` in CI, where you want no resources created at all.
+
+Note that the [Azure backend](/features/units/state-backend/) is behind an experiment and Terragrunt does not bootstrap Azure resources yet.

@@ -1,0 +1,123 @@
+---
+title: Importing Existing Resources
+description: Learn how to bring infrastructure that already exists under the management of a Terragrunt unit.
+slug: features/units/importing
+sidebar:
+  order: 10
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Infrastructure often exists before the code that manages it: a bucket someone created in the console, a VPC that predates your adoption of OpenTofu/Terraform, or resources you are moving out of a [Terralith](/guides/terralith-to-terragrunt/). Importing writes those resources into state so the unit that should own them stops planning to recreate them.
+
+Importing is an OpenTofu/Terraform operation. What Terragrunt adds is that state is segmented per unit, so the unit you run the import from determines which state file the resource lands in.
+
+## Importing a single resource
+
+Run `import` from inside the unit that should own the resource:
+
+```bash
+cd live/prod/vpc
+terragrunt import aws_vpc.this vpc-0123456789abcdef0
+```
+
+`import` is one of the [OpenTofu shortcuts](/reference/cli/commands/opentofu-shortcuts/), so the command above is equivalent to:
+
+```bash
+terragrunt run -- import aws_vpc.this vpc-0123456789abcdef0
+```
+
+The resource address is resolved against the module the unit sources in its [`terraform` block](/reference/hcl/blocks#terraform), not against your `terragrunt.hcl`. If the unit sources a module that wraps the resource in a submodule, address it through that path:
+
+```bash
+terragrunt import 'module.vpc.aws_vpc.this' vpc-0123456789abcdef0
+```
+
+Quote addresses that contain square brackets so your shell does not expand them:
+
+```bash
+terragrunt import 'aws_subnet.private[0]' subnet-0123456789abcdef0
+```
+
+Terragrunt runs the underlying command in the unit's [working directory](/features/units/terragrunt-cache/), which is inside `.terragrunt-cache` rather than the directory you invoked from. Inputs, generated files, and backend configuration are all applied first, so the import sees the same configuration a `plan` would. Resource IDs are passed through untouched.
+
+<Aside type="caution">
+
+Import one unit at a time. Resource addresses and IDs are specific to a single unit's state, so there is no meaningful way to apply the same import across a stack. Run `import` from a unit directory rather than under `run --all`.
+
+</Aside>
+
+## Verifying the import
+
+A successful import is one that produces no diff:
+
+```bash
+terragrunt plan
+```
+
+If the plan still wants to create the resource, the address you imported to does not match the address in your configuration. If it wants to change or replace the resource, your configuration and the real resource disagree, and you should reconcile the configuration to match what exists before applying anything.
+
+## Importing when the unit has dependencies
+
+A unit that reads outputs from a [`dependency`](/reference/hcl/blocks#dependency) needs those outputs to resolve before any command runs, including `import`. When the dependency has already been applied this is automatic. When it has not, add `import` to the commands that are allowed to use mocks:
+
+```hcl
+# terragrunt.hcl
+
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    vpc_id = "vpc-mock"
+  }
+
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "import"]
+}
+```
+
+Without `import` in that list, Terragrunt errors out while resolving the dependency rather than while importing.
+
+## Using `import` blocks
+
+The command above is a one-off: it changes state on the machine that runs it and leaves no record. OpenTofu/Terraform [`import` blocks](https://opentofu.org/docs/language/import/) declare imports in configuration instead, so they show up in a plan, get reviewed, and run the same way in CI.
+
+If the unit sources a local module you control, add the block to the module's `.tf` files. If it sources a remote module you do not control, use a [`generate` block](/reference/hcl/blocks#generate) to write the file into the working directory:
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  source = "git::git@github.com:acme/modules.git//vpc?ref=v1.2.3"
+}
+
+generate "imports" {
+  path      = "imports.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<-EOF
+    import {
+      to = aws_vpc.this
+      id = "vpc-0123456789abcdef0"
+    }
+  EOF
+}
+```
+
+Run `terragrunt plan` to preview what will be imported, then `terragrunt apply` to perform it.
+
+An `import` block is only active while the address in `to` is absent from state, so once the import has landed the block goes inert and later runs ignore it. Terragrunt regenerating the file into each new working directory does not re-import anything. Removing the `generate` block afterwards is therefore optional: drop it to keep a hardcoded resource ID out of your configuration, or keep it as a record of where the resource came from.
+
+## Importing many resources
+
+For anything beyond a handful of resources, generate the imports rather than typing them. Both of these help:
+
+- `-generate-config-out` writes configuration for resources named in `import` blocks that have no matching resource in your code, which you then edit into shape. Give it an absolute path so the file lands next to your `terragrunt.hcl`:
+
+  ```bash
+  terragrunt run -- plan -generate-config-out=$PWD/generated.tf
+  ```
+
+  OpenTofu resolves this path against its own working directory, which is inside `.terragrunt-cache`. A bare `-generate-config-out=generated.tf` therefore writes into scratch space that you can delete at any time. `$PWD` is expanded by your shell before Terragrunt runs, so it points at the unit directory you invoked from.
+
+- Your cloud provider's CLI can list resource IDs, which you can turn into `import` blocks with a short script.
+
+Import into small units rather than one large one. A unit holding a hundred imported resources has the same problems as the Terralith you are trying to escape, and [splitting state after the fact](/guides/terralith-to-terragrunt/) is more work than importing into the right shape to begin with.
