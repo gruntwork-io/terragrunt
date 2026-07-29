@@ -3,10 +3,14 @@ name: azure-backend
 since: "1.0.5"
 ---
 
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
+
 Experimental support for the Azure Storage (`azurerm`) remote state backend.
 
 ### `azure-backend` - What it does
 
+<Before version="1.1.2">
 Terragrunt already recognizes `backend = "azurerm"` in `remote_state` blocks regardless
 of whether this experiment is enabled, and currently falls through to the native
 OpenTofu/Terraform `azurerm` backend. This experiment reserves the flag for the
@@ -23,6 +27,41 @@ In its current form (initial registration) the experiment only:
 The flag itself currently has no behavioral effect: there is no Azure SDK code,
 authentication logic, or storage account management yet, and the backend is not
 gated on the flag. Functional behavior will land in subsequent releases.
+</Before>
+
+<Since version="1.1.2">
+Enabling this experiment turns on Terragrunt-managed lifecycle operations for the
+Azure Storage (`azurerm`) remote state backend, matching what Terragrunt already
+does for S3 buckets and GCS buckets:
+
+1. Bootstrap: creates the resource group (when allowed), storage account, and blob
+   container backing the state, and converges blob versioning and optional soft
+   delete on both new and pre-existing accounts.
+2. Delete: removes state blobs or entire containers, with confirmation prompts.
+3. Migrate: moves state blobs within the same storage account (cross-account
+   migration is refused with guidance to migrate manually).
+
+Authentication supports six methods, resolved in the following order:
+
+1. SAS token
+2. Storage account access key
+3. Service principal
+4. Managed identity (MSI)
+5. OIDC / workload identity
+6. Azure AD (`use_azuread_auth` or the default credential chain, which honors `az login`)
+
+`ARM_*` and `AZURE_*` environment variable fallbacks are applied, and public, US
+Government, and China clouds are supported via the `environment` key.
+
+Without the experiment enabled, these lifecycle operations return an error naming
+the experiment; reading and writing the state itself is always handled by the
+native OpenTofu/Terraform `azurerm` backend. Direct state file reads for
+[`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state)
+are not implemented yet.
+
+See the [Azure Storage backend documentation](/features/units/state-backend#azure-storage-azurerm-backend)
+for configuration keys and known limitations.
+</Since>
 
 ### `azure-backend` - How to enable it
 
@@ -46,10 +85,11 @@ When reporting issues or providing feedback, please include:
 ### `azure-backend` - Criteria for stabilization
 To transition the `azure-backend` feature to a stable release, the following must be addressed, at a minimum:
 
-- [ ] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
-- [ ] Bootstrap of storage accounts and blob containers, including versioning and optional RBAC role assignment for `use_azuread_auth`.
-- [ ] Delete and migrate operations for state blobs and containers with confirmation prompts.
+- [x] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
+- [x] Bootstrap of storage accounts and blob containers, including versioning and soft delete convergence.
+- [ ] Optional RBAC role assignment for `use_azuread_auth` during bootstrap (the data-plane role must currently be granted manually).
+- [x] Delete and migrate operations for state blobs and containers with confirmation prompts.
 - [ ] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
-- [ ] Documentation covering authentication methods, configuration keys, and troubleshooting.
-- [ ] Integration test coverage gated behind a build tag.
+- [x] Documentation covering authentication methods, configuration keys, and troubleshooting.
+- [ ] End-to-end live coverage against a real subscription for resource group and storage account bootstrap, policy convergence, backend delete, and state migration. The existing live blob round-trip covers only the data-plane helper; hermetic unit tests ship behind the `azure` build tag.
 - [ ] Community feedback on real-world usage.
