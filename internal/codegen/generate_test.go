@@ -726,6 +726,157 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 	assert.True(t, util.FileNotExists(targetPath))
 }
 
+// requiredVersionBody is a small valid HCL body reused by the if_exists test fixtures below.
+const requiredVersionBody = "terraform {\n  required_version = \">= 1.0.0\"\n}\n"
+
+// TestWriteToFileOverwriteTerragruntOrSkip verifies that overwrite_terragrunt_or_skip behaves
+// exactly like overwrite_terragrunt, except that a file terragrunt did not generate is left
+// alone instead of producing an error.
+func TestWriteToFileOverwriteTerragruntOrSkip(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	generatedByTerragrunt := codegen.DefaultCommentPrefix + codegen.TerragruntGeneratedSignature +
+		"\n" + requiredVersionBody
+	handWritten := requiredVersionBody
+
+	testCases := []struct {
+		name string
+		// existing is the file already at the target path. Empty means no file exists yet.
+		existing string
+		// wantRegenerated is true when the new contents are expected to replace the file.
+		wantRegenerated bool
+	}{
+		{
+			name:            "no-existing-file-is-generated",
+			existing:        "",
+			wantRegenerated: true,
+		},
+		{
+			name:            "terragrunt-generated-file-is-overwritten",
+			existing:        generatedByTerragrunt,
+			wantRegenerated: true,
+		},
+		{
+			name:            "hand-written-file-is-left-alone",
+			existing:        handWritten,
+			wantRegenerated: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(testDir, tc.name+".tf")
+			if tc.existing != "" {
+				writeFileWithPerms(t, path, tc.existing, 0644)
+			}
+
+			config := codegen.GenerateConfig{
+				Path:          path,
+				IfExists:      codegen.ExistsOverwriteTerragruntOrSkip,
+				CommentPrefix: codegen.DefaultCommentPrefix,
+				Contents:      "terraform {}\n",
+			}
+
+			l := logger.CreateLogger()
+			require.NoError(t, codegen.WriteToFile(l, "", &config))
+
+			fileContent, err := os.ReadFile(path)
+			require.NoError(t, err)
+
+			if tc.wantRegenerated {
+				assert.Contains(t, string(fileContent), "terraform {}")
+			} else {
+				assert.Equal(
+					t,
+					tc.existing,
+					string(fileContent),
+					"a file terragrunt did not generate must stay intact",
+				)
+			}
+		})
+	}
+}
+
+// TestWriteToFileOverwriteTerragruntStillErrorsOnHandWrittenFile pins the behavior that
+// overwrite_terragrunt_or_skip departs from, so the two values cannot silently converge.
+func TestWriteToFileOverwriteTerragruntStillErrorsOnHandWrittenFile(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+	handWritten := requiredVersionBody
+
+	path := filepath.Join(testDir, "hand-written.tf")
+	writeFileWithPerms(t, path, handWritten, 0644)
+
+	config := codegen.GenerateConfig{
+		Path:          path,
+		IfExists:      codegen.ExistsOverwriteTerragrunt,
+		CommentPrefix: codegen.DefaultCommentPrefix,
+		Contents:      "terraform {}\n",
+	}
+
+	l := logger.CreateLogger()
+
+	var existsErr codegen.GenerateFileExistsError
+
+	require.ErrorAs(t, codegen.WriteToFile(l, "", &config), &existsErr)
+
+	fileContent, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, handWritten, string(fileContent))
+}
+
+func TestGenerateConfigExistsFromString(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected codegen.GenerateConfigExists
+		wantErr  bool
+	}{
+		{name: "error", input: codegen.ExistsErrorStr, expected: codegen.ExistsError},
+		{name: "skip", input: codegen.ExistsSkipStr, expected: codegen.ExistsSkip},
+		{name: "overwrite", input: codegen.ExistsOverwriteStr, expected: codegen.ExistsOverwrite},
+		{
+			name:     "overwrite_terragrunt",
+			input:    codegen.ExistsOverwriteTerragruntStr,
+			expected: codegen.ExistsOverwriteTerragrunt,
+		},
+		{
+			name:     "overwrite_terragrunt_or_skip",
+			input:    codegen.ExistsOverwriteTerragruntOrSkipStr,
+			expected: codegen.ExistsOverwriteTerragruntOrSkip,
+		},
+		{
+			name:     "unknown",
+			input:    "not_a_real_value",
+			expected: codegen.ExistsUnknown,
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := codegen.GenerateConfigExistsFromString(tc.input)
+
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
 // TestWriteToFileSignatureWithoutTrailingNewline verifies that a generated
 // file consisting of nothing but the signature line, with no trailing newline,
 // is still recognized as terragrunt-generated.
