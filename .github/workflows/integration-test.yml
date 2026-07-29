@@ -112,6 +112,23 @@ jobs:
                 TG_AZURE_TEST_STORAGE_ACCOUNT,
                 TG_AZURE_TEST_SUBSCRIPTION_ID,
               ]
+          # End-to-end tests against real Azure resources. Kept separate from
+          # the hermetic `azure` job above so a green run there never implies
+          # live coverage. These fail rather than skip when credentials are
+          # absent, so a misconfigured secret shows up as a red job.
+          - name: Azure Integration
+            os: ubuntu
+            target: ./test
+            tags: azure_integration
+            secrets:
+              [
+                AZURE_CLIENT_ID,
+                AZURE_CLIENT_SECRET,
+                AZURE_TENANT_ID,
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+                TG_AZURE_TEST_RESOURCE_GROUP,
+              ]
           - name: Windows
             os: windows
             target: ./...
@@ -218,6 +235,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           TG_AZURE_TEST_STORAGE_ACCOUNT: ${{ secrets.TG_AZURE_TEST_STORAGE_ACCOUNT }}
           TG_AZURE_TEST_SUBSCRIPTION_ID: ${{ secrets.TG_AZURE_TEST_SUBSCRIPTION_ID }}
+          TG_AZURE_TEST_RESOURCE_GROUP: ${{ secrets.TG_AZURE_TEST_RESOURCE_GROUP }}
         shell: bash
 
       - name: Setup

@@ -1,0 +1,284 @@
+//go:build azure_integration
+
+// Package test_test contains the Azure end-to-end backend tests.
+//
+// These tests create and destroy real Azure resources, so they are behind the
+// dedicated `azure_integration` build tag rather than the `azure` tag used by
+// the hermetic internal/azurehelper unit tests. Keeping the tags separate means
+// a green `azure` job never implies live coverage.
+//
+// Unlike the hermetic tests, these fail loudly when credentials are absent
+// instead of calling t.Skip. A silently skipped live test reports success and
+// hides the fact that nothing was verified against Azure.
+package test_test
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	testFixtureAzureBackend = "fixtures/azure-backend"
+
+	// azureTestLocation is the region the test resource group and storage
+	// account are created in.
+	azureTestLocation = "eastus"
+
+	// azureCleanupTimeout bounds the post-test teardown, which runs with a
+	// fresh context because the test context is already cancelled by then.
+	azureCleanupTimeout = 5 * time.Minute
+)
+
+// Environment variables the live tests read, most specific first. The ARM_* /
+// AZURE_* names are the ones the azurerm backend and the Azure SDK already
+// honor, so a developer who can run `tofu init` against Azure can run these
+// tests unchanged; the TG_AZURE_TEST_* names let CI scope a dedicated test
+// subscription without redirecting every Azure tool on the runner.
+var (
+	envAzureSubscriptionID = []string{"TG_AZURE_TEST_SUBSCRIPTION_ID", "ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID"}
+	envAzureResourceGroup  = []string{"TG_AZURE_TEST_RESOURCE_GROUP", "AZURE_RES_GROUP_NAME"}
+	envAzureStorageAccount = []string{"TG_AZURE_TEST_STORAGE_ACCOUNT", "ARM_STORAGE_ACCOUNT_NAME"}
+)
+
+// TestAzureBootstrapBackend verifies the three ways a unit can reach a
+// bootstrapped azurerm backend: not at all without the flag, via
+// --backend-bootstrap, and via the explicit `backend bootstrap` command.
+func TestAzureBootstrapBackend(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		checkResult func(t *testing.T, ctx context.Context, stderr string, account, container string, err error)
+		name        string
+		args        string
+	}{
+		{
+			name: "no bootstrap without flag",
+			args: "run apply",
+			checkResult: func(t *testing.T, _ context.Context, stderr string, _, _ string, err error) {
+				t.Helper()
+
+				require.Error(t, err, "a missing container must not be created without --backend-bootstrap")
+				assert.NotEmpty(t, stderr)
+			},
+		},
+		{
+			name: "bootstrap with flag",
+			args: "run apply --backend-bootstrap",
+			checkResult: func(t *testing.T, ctx context.Context, _ string, account, container string, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assertAzureContainerExists(t, ctx, account, container)
+			},
+		},
+		{
+			name: "bootstrap by backend command",
+			args: "backend bootstrap",
+			checkResult: func(t *testing.T, ctx context.Context, _ string, account, container string, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assertAzureContainerExists(t, ctx, account, container)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			account, container, rootPath := setupAzureBackendFixture(t)
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt "+tc.args+" --all --non-interactive --experiment azure-backend --log-level debug --working-dir "+rootPath,
+			)
+
+			tc.checkResult(t, ctx, stderr, account, container, err)
+		})
+	}
+}
+
+// TestAzureBackendVersioningConverges verifies that bootstrap enables blob
+// versioning on the storage account backing the state.
+func TestAzureBackendVersioningConverges(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	account, container, rootPath := setupAzureBackendFixture(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assertAzureContainerExists(t, ctx, account, container)
+
+	saClient, err := azurehelper.NewStorageAccountClient(azureTestConfig(t, account))
+	require.NoError(t, err)
+
+	enabled, err := saClient.IsVersioningEnabled(ctx)
+	require.NoError(t, err)
+	assert.True(t, enabled, "bootstrap must enable blob versioning on the state account")
+}
+
+// TestAzureDeleteBackend verifies that `backend delete` removes the state blob
+// and that the operation is idempotent.
+func TestAzureDeleteBackend(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	account, container, rootPath := setupAzureBackendFixture(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run apply --all --non-interactive --backend-bootstrap --experiment azure-backend --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assertAzureContainerExists(t, ctx, account, container)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend delete --all --non-interactive --force --experiment azure-backend --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	// Deleting again must be a no-op rather than an error.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend delete --all --non-interactive --force --experiment azure-backend --working-dir "+rootPath,
+	)
+	require.NoError(t, err, "backend delete must be idempotent")
+}
+
+// TestAzureBackendRequiresExperiment verifies the experiment gate end to end:
+// an explicit backend command refuses to run without the experiment enabled.
+func TestAzureBackendRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	_, _, rootPath := setupAzureBackendFixture(t)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend delete --all --non-interactive --force --working-dir "+rootPath,
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, stderr, "azure-backend", "the error must name the experiment the user needs to enable")
+}
+
+// setupAzureBackendFixture copies the fixture, fills in the live account
+// details, and registers cleanup of the container it will create. It returns
+// the storage account, the container name, and the working directory.
+func setupAzureBackendFixture(t *testing.T) (string, string, string) {
+	t.Helper()
+
+	subscriptionID := requireAzureEnv(t, envAzureSubscriptionID)
+	resourceGroup := requireAzureEnv(t, envAzureResourceGroup)
+	account := requireAzureEnv(t, envAzureStorageAccount)
+
+	// Container names are lowercase alphanumeric with dashes, 3-63 chars.
+	container := "tg-test-" + strings.ToLower(helpers.UniqueID())
+
+	helpers.CleanupTerraformFolder(t, testFixtureAzureBackend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureBackend)
+
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
+	helpers.CopyAndFillMapPlaceholders(t, commonConfigPath, commonConfigPath, map[string]string{
+		"__FILL_IN_STORAGE_ACCOUNT__": account,
+		"__FILL_IN_CONTAINER__":       container,
+		"__FILL_IN_RESOURCE_GROUP__":  resourceGroup,
+		"__FILL_IN_SUBSCRIPTION_ID__": subscriptionID,
+		"__FILL_IN_LOCATION__":        azureTestLocation,
+	})
+
+	t.Cleanup(func() { deleteAzureContainer(t, account, container) })
+
+	return account, container, rootPath
+}
+
+// azureTestConfig resolves an AzureConfig against the live environment for the
+// given storage account, using the same builder the backend uses.
+func azureTestConfig(t *testing.T, account string) *azurehelper.AzureConfig {
+	t.Helper()
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     requireAzureEnv(t, envAzureSubscriptionID),
+			ResourceGroupName:  requireAzureEnv(t, envAzureResourceGroup),
+			StorageAccountName: account,
+			UseAzureADAuth:     true,
+		}).
+		WithVenv(venv.OSVenv()).
+		Build(log.New())
+	require.NoError(t, err, "resolving Azure credentials")
+
+	return cfg
+}
+
+func assertAzureContainerExists(t *testing.T, ctx context.Context, account, container string) {
+	t.Helper()
+
+	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(t, account))
+	require.NoError(t, err)
+
+	exists, err := blobClient.Container(container).Exists(ctx)
+	require.NoError(t, err)
+	assert.True(t, exists, "container %s must exist in account %s", container, account)
+}
+
+// deleteAzureContainer removes the container a test created. Failures are
+// logged rather than failing the test: the assertions have already run, and a
+// leaked container should not turn a passing test red. The nightly cleanup
+// still reclaims anything left behind.
+func deleteAzureContainer(t *testing.T, account, container string) {
+	t.Helper()
+
+	// A fresh context: the test context is cancelled by the time cleanup runs.
+	ctx, cancel := context.WithTimeout(context.Background(), azureCleanupTimeout)
+	defer cancel()
+
+	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(t, account))
+	if err != nil {
+		t.Logf("cleanup: building blob client for %s: %v", account, err)
+
+		return
+	}
+
+	if err := blobClient.Container(container).EnsureDeleted(ctx); err != nil {
+		t.Logf("cleanup: deleting container %s/%s: %v", account, container, err)
+	}
+}
+
+// requireAzureEnv returns the first non-empty value among names, failing the
+// test when none is set. These tests deliberately do NOT skip: a skipped live
+// test reports a green run while proving nothing was verified against Azure.
+func requireAzureEnv(t *testing.T, names []string) string {
+	t.Helper()
+
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+
+	require.FailNowf(t, "missing Azure credentials",
+		"set one of %s to run the Azure integration tests", strings.Join(names, ", "))
+
+	return ""
+}
