@@ -79,6 +79,60 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	assert.Contains(t, calls[0].Args, "plan")
 }
 
+// TestRunPipelineEndToEndAutoInitEnvVarsDoNotLeakIntoApply pins the
+// contract that command-specific environment variables set for auto-init
+// do not overwrite those set for the requested command.
+func TestRunPipelineEndToEndAutoInitEnvVarsDoNotLeakIntoApply(t *testing.T) {
+	t.Parallel()
+
+	s := setupRunE2EScaffold(t)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(s.dir, run.ModuleInitRequiredFile),
+		nil,
+		0o600,
+	))
+
+	rec := &recorder{}
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		rec.record(&inv)
+
+		return vexec.Result{}
+	})
+
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	opts := newRunE2EOpts(t, s, "apply", "-auto-approve")
+	opts.AutoInit = true
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{
+				{
+					Name:     "apply",
+					Commands: []string{"apply"},
+					EnvVars:  map[string]string{"MARKER": "apply"},
+				},
+				{
+					Name:     "init",
+					Commands: []string{"init"},
+					EnvVars:  map[string]string{"MARKER": "init"},
+				},
+			},
+		},
+	}
+
+	require.NoError(
+		t,
+		run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter()),
+	)
+
+	calls := rec.snapshot()
+	require.Len(t, calls, 2)
+	assert.Contains(t, calls[0].Args, "init")
+	assert.Contains(t, calls[0].Env, "MARKER=init")
+	assert.Contains(t, calls[1].Args, "apply")
+	assert.Contains(t, calls[1].Env, "MARKER=apply")
+}
+
 // TestRunPipelineEndToEndPropagatesPlanFailure pins the contract that
 // a non-zero terraform exit causes run.Run to return an error. The mem
 // backend lets us trigger the failure deterministically without
