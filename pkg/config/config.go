@@ -2095,6 +2095,31 @@ func remoteStateFromAttr(attr cty.Value) (*remotestate.RemoteState, error) {
 	return remotestate.New(config), nil
 }
 
+// experimentalIfExistsValues maps if_exists values that are still gated to the experiment
+// that has to be enabled before they can be used.
+var experimentalIfExistsValues = map[string]string{
+	codegen.ExistsOverwriteTerragruntOrSkipStr: experiment.OverwriteTerragruntOrSkip,
+}
+
+// validateIfExistsExperiment returns an error when ifExists names a value that is still gated
+// behind an experiment the user has not enabled.
+func validateIfExistsExperiment(
+	experiments experiment.Experiments,
+	ifExists string,
+	configPath string,
+) error {
+	requiredExperiment, gated := experimentalIfExistsValues[ifExists]
+	if !gated || experiments.Evaluate(requiredExperiment) {
+		return nil
+	}
+
+	return IfExistsRequiresExperimentError{
+		ConfigPath: configPath,
+		Value:      ifExists,
+		Experiment: requiredExperiment,
+	}
+}
+
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
 func convertToTerragruntConfig(
 	ctx context.Context,
@@ -2122,6 +2147,12 @@ func convertToTerragruntConfig(
 			errs = append(errs, err)
 		}
 
+		if config != nil && config.Generate != nil {
+			if err := validateIfExistsExperiment(pctx.Experiments, config.Generate.IfExists, cfgPath); err != nil {
+				errs = append(errs, fmt.Errorf("remote_state generate: %w", err))
+			}
+		}
+
 		cfg.RemoteState = remotestate.New(config)
 		cfg.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
@@ -2130,6 +2161,12 @@ func convertToTerragruntConfig(
 		remoteState, err := remoteStateFromAttr(*cfgFromFile.RemoteStateAttr)
 		if err != nil {
 			return nil, err
+		}
+
+		if remoteState.Config != nil && remoteState.Generate != nil {
+			if err := validateIfExistsExperiment(pctx.Experiments, remoteState.Generate.IfExists, cfgPath); err != nil {
+				errs = append(errs, fmt.Errorf("remote_state generate: %w", err))
+			}
 		}
 
 		cfg.RemoteState = remoteState
@@ -2282,6 +2319,11 @@ func convertToTerragruntConfig(
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
 			errs = append(errs, InvalidGenerateBlockError{BlockName: block.Name, Err: err})
+			continue
+		}
+
+		if err := validateIfExistsExperiment(pctx.Experiments, block.IfExists, cfgPath); err != nil {
+			errs = append(errs, fmt.Errorf("generate block %q: %w", block.Name, err))
 			continue
 		}
 

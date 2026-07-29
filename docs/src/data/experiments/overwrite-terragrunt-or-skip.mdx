@@ -1,0 +1,46 @@
+---
+name: overwrite-terragrunt-or-skip
+since: "1.1.2"
+---
+
+Support for the `overwrite_terragrunt_or_skip` value of the `if_exists` attribute in `generate` blocks.
+
+### `overwrite-terragrunt-or-skip` - What it does
+
+`overwrite_terragrunt` already distinguishes three cases at the target path:
+
+1. No file exists, so the file is generated.
+2. A file exists and Terragrunt generated it, so it is overwritten.
+3. A file exists and Terragrunt did not generate it, so Terragrunt errors out.
+
+When enabled, this experiment adds `overwrite_terragrunt_or_skip`, which behaves identically except in case 3, where the existing file is left as-is instead of producing an error. That makes it usable when a `generate` block is inherited by many units and a few of them maintain that file by hand.
+
+`overwrite_terragrunt` is unchanged, so users relying on the error as a tripwire against unexpected conflicts keep it.
+
+```hcl
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt_or_skip"
+  contents  = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+```
+
+```bash
+terragrunt run --all --experiment overwrite-terragrunt-or-skip -- plan
+```
+
+### `overwrite-terragrunt-or-skip` - How to provide feedback
+
+Provide your feedback in [issue #6160](https://github.com/gruntwork-io/terragrunt/issues/6160).
+
+### `overwrite-terragrunt-or-skip` - Criteria for stabilization
+
+To transition the `overwrite-terragrunt-or-skip` feature to a stable release, the following must be addressed:
+
+- [ ] Confirm the value name reads clearly next to the existing `overwrite_terragrunt`.
+- [ ] Confirm that silently skipping is the behavior users want, rather than a warning-level log.
+- [ ] Positive feedback from users applying an inherited `generate` block across units that partly manage the target file by hand.
