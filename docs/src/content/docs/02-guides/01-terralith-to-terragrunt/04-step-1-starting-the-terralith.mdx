@@ -31,7 +31,9 @@ import providersTf from '../../../../fixtures/terralith-to-terragrunt/walkthroug
 
 Don't worry about that `var.aws_region` bit there. We'll define it later. When we do, we'll be defining the region in which AWS will have resources provisioned.
 
-It's best practice to tell OpenTofu what your version constraints are, so that your IaC is reliably reusable. You'll pin version `>= 1.10` of OpenTofu here, as you're going to be using an OpenTofu 1.10+ feature later on, and you'll pin version `~> 6.0` because any change that makes the `resource` definitions we define here break *should* be in a future major release of the `aws` provider.
+It's best practice to tell OpenTofu what your version constraints are, so that your IaC is reliably reusable. You'll pin version `>= 1.10` of OpenTofu here, as you're going to be using an OpenTofu 1.10+ feature later on, and you'll pin the `aws` provider to exactly `6.56.0`.
+
+A range like `~> 6.0` accepts any 6.x release, which means a provider published after you wrote your code can change what `tofu apply` does. Pinning an exact version means the only way the provider changes is when you change it. Once you run `tofu init`, OpenTofu records the resolved version and its checksums in a `.terraform.lock.hcl` file, which you commit alongside your code so that everyone, including CI, installs the same provider build.
 
 import versionsTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-1-starting-the-terralith/live/versions.tf?raw';
 
