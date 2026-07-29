@@ -122,6 +122,10 @@ jobs:
             os: ubuntu
             target: ./test
             tags: azure_integration
+            # A build tag only decides which FILES compile; every untagged test
+            # in ./test would still run without this. Scope to the Azure tests,
+            # matching how the GCP and AWS jobs pair tags with a run regex.
+            run: ^TestAzure
             secrets:
               [
                 AZURE_CLIENT_ID,
@@ -129,6 +133,8 @@ jobs:
                 AZURE_TENANT_ID,
                 TG_AZURE_TEST_STORAGE_ACCOUNT,
                 TG_AZURE_TEST_SUBSCRIPTION_ID,
+                # Optional: the resource group is looked up from the storage
+                # account when this is not set.
                 TG_AZURE_TEST_RESOURCE_GROUP,
               ]
           # - name: Windows

@@ -74,6 +74,27 @@ func (e *OIDCTokenFieldMissingError) Error() string {
 	return fmt.Sprintf("OIDC token response did not contain a %q value", e.Field)
 }
 
+// StorageAccountNotFoundError is returned when a storage account cannot be
+// found in the subscription being searched.
+type StorageAccountNotFoundError struct {
+	Account        string
+	SubscriptionID string
+}
+
+func (e *StorageAccountNotFoundError) Error() string {
+	return fmt.Sprintf("storage account %q was not found in subscription %q", e.Account, e.SubscriptionID)
+}
+
+// UnparsableResourceIDError is returned when an ARM resource id does not carry
+// the resource group segment it is expected to.
+type UnparsableResourceIDError struct {
+	ID string
+}
+
+func (e *UnparsableResourceIDError) Error() string {
+	return fmt.Sprintf("could not read a resource group from resource id %q", e.ID)
+}
+
 // CredentialMissingError is returned when a token-credential auth method
 // is requested but cfg.Credential is nil. Match with errors.As.
 type CredentialMissingError struct {

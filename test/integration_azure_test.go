@@ -38,6 +38,9 @@ const (
 	// azureCleanupTimeout bounds the post-test teardown, which runs with a
 	// fresh context because the test context is already cancelled by then.
 	azureCleanupTimeout = 5 * time.Minute
+
+	// azureLookupTimeout bounds the resource group lookup.
+	azureLookupTimeout = 2 * time.Minute
 )
 
 // Environment variables the live tests read, most specific first. The ARM_* /
@@ -127,7 +130,7 @@ func TestAzureBackendVersioningConverges(t *testing.T) {
 
 	assertAzureContainerExists(t, ctx, account, container)
 
-	saClient, err := azurehelper.NewStorageAccountClient(azureTestConfig(t, account))
+	saClient, err := azurehelper.NewStorageAccountClient(azureTestConfig(ctx, t, account))
 	require.NoError(t, err)
 
 	enabled, err := saClient.IsVersioningEnabled(ctx)
@@ -188,8 +191,8 @@ func setupAzureBackendFixture(t *testing.T) (string, string, string) {
 	t.Helper()
 
 	subscriptionID := requireAzureEnv(t, envAzureSubscriptionID)
-	resourceGroup := requireAzureEnv(t, envAzureResourceGroup)
 	account := requireAzureEnv(t, envAzureStorageAccount)
+	resourceGroup := azureResourceGroup(t.Context(), t, account)
 
 	// Container names are lowercase alphanumeric with dashes, 3-63 chars.
 	container := "tg-test-" + strings.ToLower(helpers.UniqueID())
@@ -212,15 +215,50 @@ func setupAzureBackendFixture(t *testing.T) (string, string, string) {
 	return account, container, rootPath
 }
 
+// azureResourceGroup returns the resource group holding the test storage
+// account. It is looked up from the subscription when no environment variable
+// names it, so running these tests needs only a subscription and an account:
+// the group is a property of the account, not a separate thing to configure.
+func azureResourceGroup(ctx context.Context, t *testing.T, account string) string {
+	t.Helper()
+
+	for _, name := range envAzureResourceGroup {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+
+	// A config with no resource group is enough to reach ARM and ask.
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     requireAzureEnv(t, envAzureSubscriptionID),
+			StorageAccountName: account,
+			UseAzureADAuth:     new(true),
+		}).
+		WithVenv(venv.OSVenv()).
+		Build(log.New())
+	require.NoError(t, err, "resolving Azure credentials")
+
+	lookupCtx, cancel := context.WithTimeout(ctx, azureLookupTimeout)
+	defer cancel()
+
+	group, err := azurehelper.FindResourceGroupForAccount(lookupCtx, cfg, account)
+	require.NoErrorf(t, err,
+		"could not determine the resource group for storage account %q; set %s to name it explicitly",
+		account, strings.Join(envAzureResourceGroup, " or "))
+
+	return group
+}
+
 // azureTestConfig resolves an AzureConfig against the live environment for the
 // given storage account, using the same builder the backend uses.
-func azureTestConfig(t *testing.T, account string) *azurehelper.AzureConfig {
+func azureTestConfig(ctx context.Context, t *testing.T, account string) *azurehelper.AzureConfig {
 	t.Helper()
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			SubscriptionID:     requireAzureEnv(t, envAzureSubscriptionID),
-			ResourceGroupName:  requireAzureEnv(t, envAzureResourceGroup),
+			ResourceGroupName:  azureResourceGroup(ctx, t, account),
 			StorageAccountName: account,
 			UseAzureADAuth:     new(true),
 		}).
@@ -234,7 +272,7 @@ func azureTestConfig(t *testing.T, account string) *azurehelper.AzureConfig {
 func assertAzureContainerExists(t *testing.T, ctx context.Context, account, container string) {
 	t.Helper()
 
-	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(t, account))
+	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(ctx, t, account))
 	require.NoError(t, err)
 
 	exists, err := blobClient.Container(container).Exists(ctx)
@@ -253,7 +291,7 @@ func deleteAzureContainer(t *testing.T, account, container string) {
 	ctx, cancel := context.WithTimeout(context.Background(), azureCleanupTimeout)
 	defer cancel()
 
-	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(t, account))
+	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(ctx, t, account))
 	if err != nil {
 		t.Logf("cleanup: building blob client for %s: %v", account, err)
 
