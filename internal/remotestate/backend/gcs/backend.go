@@ -162,7 +162,7 @@ func (backend *Backend) IsVersionControlEnabled(
 func (backend *Backend) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
+	srcV, dstV *venv.Venv,
 	srcBackendConfig, dstBackendConfig backend.Config,
 	opts *backend.Options,
 ) error {
@@ -184,7 +184,7 @@ func (backend *Backend) Migrate(
 		dstBucketKey  = path.Join(dstExtGCSCfg.RemoteStateConfigGCS.Prefix, defaultTfState)
 	)
 
-	client, err := NewClient(ctx, v, srcExtGCSCfg, opts)
+	client, err := NewClient(ctx, srcV, srcExtGCSCfg, opts)
 	if err != nil {
 		return err
 	}

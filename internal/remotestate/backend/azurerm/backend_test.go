@@ -60,7 +60,7 @@ func TestExperimentGate(t *testing.T) {
 
 	t.Run("Migrate", func(t *testing.T) {
 		t.Parallel()
-		require.ErrorIs(t, b.Migrate(ctx, l, &venv.Venv{}, bcfg, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
+		require.ErrorIs(t, b.Migrate(ctx, l, &venv.Venv{}, &venv.Venv{}, bcfg, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
 	})
 }
 
@@ -116,7 +116,7 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 	dstRaw["storage_account_name"] = "differentaccount"
 	dstCfg := backend.Config(dstRaw)
 
-	err := b.Migrate(ctx, l, &venv.Venv{}, srcCfg, dstCfg, opts)
+	err := b.Migrate(ctx, l, &venv.Venv{}, &venv.Venv{}, srcCfg, dstCfg, opts)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cross-account")
 	assert.NotContains(t, err.Error(), "server-side", "copy is client-side streaming, not server-side")
@@ -141,7 +141,7 @@ func TestMigrate_CrossCloudRefused(t *testing.T) {
 	dstRaw["environment"] = "usgovernment"
 
 	err := b.Migrate(
-		t.Context(), logger.CreateLogger(), &venv.Venv{},
+		t.Context(), logger.CreateLogger(), &venv.Venv{}, &venv.Venv{},
 		backend.Config(srcRaw), backend.Config(dstRaw), opts)
 
 	require.Error(t, err)
@@ -171,7 +171,7 @@ func TestMigrate_SameCloudAliasAllowed(t *testing.T) {
 	dstRaw["storage_account_name"] = "otheraccount"
 
 	err := b.Migrate(
-		t.Context(), logger.CreateLogger(), &venv.Venv{},
+		t.Context(), logger.CreateLogger(), &venv.Venv{}, &venv.Venv{},
 		backend.Config(srcRaw), backend.Config(dstRaw), opts)
 
 	var crossCloud *azurerm.CrossCloudMigrationError
@@ -243,4 +243,24 @@ func rgLessSkipAllConfig() azurerm.Config {
 	cfg["skip_container_creation"] = true
 
 	return cfg
+}
+
+// TestMigrate_CrossCloudFromDestinationEnvRefused pins the case a config-only
+// check misses: neither side sets `environment`, but the destination
+// environment selects a different cloud through ARM_ENVIRONMENT. The source and
+// destination each carry their own venv precisely because the same variable can
+// differ per side, so the destination cloud must be resolved from dstV.
+func TestMigrate_CrossCloudFromDestinationEnvRefused(t *testing.T) {
+	t.Parallel()
+
+	srcV := (&venv.Venv{}).WithEnv(map[string]string{"ARM_ENVIRONMENT": "public"})
+	dstV := (&venv.Venv{}).WithEnv(map[string]string{"ARM_ENVIRONMENT": "usgovernment"})
+
+	cfg := backend.Config(fullConfig()) // identical config on both sides
+
+	err := azurerm.NewBackend().Migrate(
+		t.Context(), logger.CreateLogger(), srcV, dstV, cfg, cfg, optsWithExperiment(t, true))
+
+	var crossCloud *azurerm.CrossCloudMigrationError
+	require.ErrorAs(t, err, &crossCloud)
 }

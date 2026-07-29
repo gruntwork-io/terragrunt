@@ -136,6 +136,11 @@ type AzureConfig struct {
 	// for passing to Azure SDK client constructors as the embedded
 	// azcore.ClientOptions value.
 	ClientOptions azcore.ClientOptions
+	// UseAzureADAuth records whether the user asked for direct Microsoft Entra
+	// authorization on the blob data plane. When false, the native azurerm
+	// backend authenticates to ARM and uses a storage account key for blob
+	// access instead, so callers with a ctx mirror that.
+	UseAzureADAuth bool
 }
 
 // Build resolves credentials from the session config and environment and
@@ -163,6 +168,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 	clientOpts := azcore.ClientOptions{Cloud: cloudCfg}
 
 	out := &AzureConfig{
+		UseAzureADAuth: resolved.UseAzureADAuth,
 		SubscriptionID: resolved.SubscriptionID,
 		TenantID:       resolved.TenantID,
 		AccountName:    resolved.StorageAccountName,
@@ -250,16 +256,15 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 // chain. Shared by the explicit use_azuread_auth tier and the default fallback
 // so the use_azuread_auth field is honored rather than silently dead.
 //
-// The chain tries an explicit AzureCLICredential first, then
-// DefaultAzureCredential. As of azidentity v1.13, DefaultAzureCredential
-// excludes the Azure CLI unless AZURE_TOKEN_CREDENTIALS opts in, so a plain
-// `az login` would otherwise be ignored. AzureCLICredential reports
-// "unavailable" when az is not installed or not logged in, which lets the chain
-// fall through to DefaultAzureCredential (environment / workload-identity /
-// managed-identity) in CI. The CLI must come first because
-// DefaultAzureCredential can return a hard (non-"unavailable") error (e.g. an
-// IMDS probe that gets an unexpected response) which would halt the chain
-// before the CLI is reached. This matches OpenTofu azurerm's `use_cli` default.
+// DefaultAzureCredential is used directly. Its default chain already includes
+// the Azure CLI (environment, workload identity, managed identity, Azure CLI,
+// Azure Developer CLI, then Azure PowerShell), and it builds each credential
+// with the SDK's in-default-chain flag so an unusable one reports
+// "unavailable" and the chain continues. Prepending a standalone
+// AzureCLICredential would defeat that: constructed outside the chain it
+// returns a hard error when `az` is logged out, halting the chain before
+// environment, workload identity, or managed identity are ever tried.
+// AZURE_TOKEN_CREDENTIALS narrows the chain for callers that need it.
 func buildAzureADConfig(
 	out *AzureConfig,
 	resolved *AzureSessionConfig,
@@ -276,34 +281,11 @@ func buildAzureADConfig(
 	}
 
 	out.Method = AuthMethodAzureAD
-	out.Credential = chainedCredential(defaultCred, resolved.TenantID, l)
+	out.Credential = defaultCred
 
 	l.Debugf("azurehelper: using Azure AD authentication (%s)", reason)
 
 	return out, validate(out, resolved)
-}
-
-// chainedCredential prepends an Azure CLI credential to defaultCred when one
-// can be constructed; on any construction error it logs and keeps defaultCred
-// alone, so an operator expecting `az login` precedence is not left guessing.
-func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l log.Logger) azcore.TokenCredential {
-	cliCred, err := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{
-		TenantID: tenantID,
-	})
-	if err != nil {
-		l.Debugf("azurehelper: Azure CLI credential unavailable, using DefaultAzureCredential only: %v", err)
-
-		return defaultCred
-	}
-
-	chain, err := azidentity.NewChainedTokenCredential([]azcore.TokenCredential{cliCred, defaultCred}, nil)
-	if err != nil {
-		l.Debugf("azurehelper: failed to build CLI credential chain, using DefaultAzureCredential only: %v", err)
-
-		return defaultCred
-	}
-
-	return chain
 }
 
 // BuildBlobClient is a convenience that calls Build and then constructs a
@@ -458,6 +440,11 @@ func managedIdentityID(cfg *AzureSessionConfig) azidentity.ManagedIDKind {
 }
 
 // validate returns an error if required fields are missing for the chosen method.
+//
+// subscription_id is deliberately NOT required here: Blob data-plane access via
+// Microsoft Entra needs only the account endpoint and a token. It is enforced
+// where it is actually used, by NewStorageAccountClient and
+// NewResourceGroupClient, which reach the ARM control plane.
 func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 	// SAS token and access key are data-plane only and bound to a specific
 	// account; subscription not required.
@@ -467,10 +454,6 @@ func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 		}
 
 		return nil
-	}
-
-	if out.SubscriptionID == "" {
-		return fmt.Errorf("%w (set via config, ARM_SUBSCRIPTION_ID, or AZURE_SUBSCRIPTION_ID)", ErrSubscriptionIDRequired)
 	}
 
 	if out.Method == AuthMethodServicePrincipal {

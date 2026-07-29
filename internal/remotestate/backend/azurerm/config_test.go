@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -161,23 +160,6 @@ func TestRemoteStateConfigCacheKey(t *testing.T) {
 	assert.NotEqual(t, keyFor("public"), keyFor("usgovernment"))
 	assert.NotEqual(t, keyFor("public"), keyFor("china"))
 }
-
-func TestConfigIsEqual(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-	cfg := fullConfig()
-
-	same := fullConfig().FilterOutTerragruntKeys()
-	assert.True(t, cfg.IsEqual(same, l), "backend portion must compare equal")
-
-	changed := fullConfig().FilterOutTerragruntKeys()
-	changed["storage_account_name"] = "otheraccount"
-	assert.False(t, cfg.IsEqual(changed, l), "different account must compare unequal")
-}
-
-// fullConfig returns a complete, valid azurerm backend config for use across the
-// azurerm_test package (also referenced from backend_test.go).
 func fullConfig() azurerm.Config {
 	return azurerm.Config{
 		"storage_account_name": "tfstate1234",

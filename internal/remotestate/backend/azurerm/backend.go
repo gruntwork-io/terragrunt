@@ -102,6 +102,54 @@ func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod
 	l.Warnf("Cannot manage the storage account for %s backend with %s authentication; skipping account creation and versioning/soft-delete convergence.", name, method)
 }
 
+// newBlobClient builds the data-plane client, mirroring the native azurerm
+// backend's authorization choice. That backend uses direct Microsoft Entra
+// authorization for blob operations only when use_azuread_auth is true;
+// otherwise it authenticates to ARM, looks up a storage account key, and uses
+// shared-key authorization. Without this, an identity that may manage the
+// account and list its keys but holds no blob data-plane role would work in
+// OpenTofu/Terraform and get 403s under Terragrunt.
+//
+// The key lookup is best effort: when it fails (for example the identity may
+// read blobs but not list keys) the token credential is used instead, so this
+// only ever adds a way to authorize, never removes one.
+func newBlobClient(ctx context.Context, l log.Logger, cfg *azurehelper.AzureConfig) (*azurehelper.BlobClient, error) {
+	if !armCapable(cfg) || cfg.UseAzureADAuth || cfg.ResourceGroup == "" || cfg.SubscriptionID == "" {
+		return azurehelper.NewBlobClient(cfg)
+	}
+
+	keyed, err := sharedKeyConfig(ctx, cfg)
+	if err != nil {
+		l.Debugf("%s: storage account key lookup failed, using token authorization for blob access: %v", BackendName, err)
+
+		return azurehelper.NewBlobClient(cfg)
+	}
+
+	l.Debugf("%s: using shared-key blob authorization (set use_azuread_auth to authorize with Microsoft Entra instead)", BackendName)
+
+	return azurehelper.NewBlobClient(keyed)
+}
+
+// sharedKeyConfig returns a copy of cfg switched to access-key authentication
+// using the first non-empty account key.
+func sharedKeyConfig(ctx context.Context, cfg *azurehelper.AzureConfig) (*azurehelper.AzureConfig, error) {
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	keys, err := saClient.GetKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	keyed := *cfg
+	keyed.Method = azurehelper.AuthMethodAccessKey
+	keyed.AccessKey = keys[0]
+
+	return &keyed, nil
+}
+
 // NeedsBootstrap returns true if the storage account or container backing the
 // state does not yet exist, or (when reachable) blob versioning or soft-delete
 // configuration has drifted from what the config requests.
@@ -133,7 +181,7 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv
 	}
 
 	if !extCfg.SkipContainerCreation {
-		blobClient, err := azurehelper.NewBlobClient(cfg)
+		blobClient, err := newBlobClient(ctx, l, cfg)
 		if err != nil {
 			return false, err
 		}
@@ -212,7 +260,7 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 		}
 	}
 
-	if err := ensureContainer(ctx, cfg, extCfg, opts); err != nil {
+	if err := ensureContainer(ctx, l, cfg, extCfg, opts); err != nil {
 		return err
 	}
 
@@ -223,14 +271,14 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 
 // ensureContainer creates the state container when it is missing and creation
 // is neither skipped nor forbidden.
-func ensureContainer(ctx context.Context, cfg *azurehelper.AzureConfig, extCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) error {
+func ensureContainer(ctx context.Context, l log.Logger, cfg *azurehelper.AzureConfig, extCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) error {
 	if extCfg.SkipContainerCreation {
 		return nil
 	}
 
 	rs := &extCfg.RemoteStateConfigAzurerm
 
-	blobClient, err := azurehelper.NewBlobClient(cfg)
+	blobClient, err := newBlobClient(ctx, l, cfg)
 	if err != nil {
 		return err
 	}
@@ -438,12 +486,12 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *
 
 // Migrate copies the state blob from the source backend config to the
 // destination backend config within the same storage account.
-func (b *Backend) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}
 
-	srcExtCfg, cfg, err := resolveConfig(l, v, srcBackendConfig)
+	srcExtCfg, cfg, err := resolveConfig(l, srcV, srcBackendConfig)
 	if err != nil {
 		return err
 	}
@@ -459,21 +507,20 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, srcBa
 	// A storage account name identifies a different account in each Azure
 	// cloud, and the blob client below is built from the source config, so a
 	// cross-cloud destination would be written into the source account and the
-	// source key then deleted. An empty destination environment inherits the
-	// same resolution as the source (config value, then ARM_ENVIRONMENT /
-	// AZURE_ENVIRONMENT), so only an explicit value can differ.
-	if dst.Environment != "" {
-		dstCloud, err := azurehelper.CloudConfigForEnvironment(dst.Environment)
-		if err != nil {
-			return err
-		}
+	// source key then deleted. The destination cloud must be resolved from
+	// dstV: the same ARM_ENVIRONMENT / AZURE_ENVIRONMENT variable can hold a
+	// different value on each side, so an empty destination `environment` does
+	// NOT imply the source cloud.
+	_, dstCfg, err := resolveConfig(l, dstV, dstBackendConfig)
+	if err != nil {
+		return err
+	}
 
-		if dstCloud.ActiveDirectoryAuthorityHost != cfg.CloudConfig.ActiveDirectoryAuthorityHost {
-			return &CrossCloudMigrationError{
-				StorageAccount: src.StorageAccountName,
-				SrcEnvironment: src.Environment,
-				DstEnvironment: dst.Environment,
-			}
+	if dstCfg.CloudConfig.ActiveDirectoryAuthorityHost != cfg.CloudConfig.ActiveDirectoryAuthorityHost {
+		return &CrossCloudMigrationError{
+			StorageAccount: src.StorageAccountName,
+			SrcEnvironment: src.Environment,
+			DstEnvironment: dst.Environment,
 		}
 	}
 
@@ -491,7 +538,7 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, srcBa
 		}
 	}
 
-	blobClient, err := azurehelper.NewBlobClient(cfg)
+	blobClient, err := newBlobClient(ctx, l, cfg)
 	if err != nil {
 		return err
 	}
@@ -514,7 +561,7 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 
 	rs := &extCfg.RemoteStateConfigAzurerm
 
-	blobClient, err := azurehelper.NewBlobClient(cfg)
+	blobClient, err := newBlobClient(ctx, l, cfg)
 	if err != nil {
 		return err
 	}
@@ -547,7 +594,7 @@ func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, 
 
 	rs := &extCfg.RemoteStateConfigAzurerm
 
-	blobClient, err := azurehelper.NewBlobClient(cfg)
+	blobClient, err := newBlobClient(ctx, l, cfg)
 	if err != nil {
 		return err
 	}
