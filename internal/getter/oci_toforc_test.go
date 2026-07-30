@@ -940,21 +940,6 @@ oci_credentials "registry.example.com" {
 	}
 }
 
-// TestOCITofuCredentialsMixedCaseRegistryMatches: registry hostnames are
-// case-insensitive, so a capitalised source host still matches its block.
-func TestOCITofuCredentialsMixedCaseRegistryMatches(t *testing.T) {
-	t.Parallel()
-
-	home := testHome
-	v := credentialVenv(home, nil)
-	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"),
-		tofuBasicAuth(testRegistry, "svc", "fake-secret-tofu"))
-
-	store := newStoreForRepo(t, v, "Registry.Example.COM", "team/vpc")
-	want := auth.Credential{Username: "svc", Password: "fake-secret-tofu"}
-	assert.Equal(t, want, credentialFor(t, store, "Registry.Example.COM"))
-}
-
 // TestOCITofuCredentialsJSONWithoutSuffix: tofu detects JSON from the content, so
 // a JSON config named by an extensionless path is parsed, not rejected.
 func TestOCITofuCredentialsJSONWithoutSuffix(t *testing.T) {

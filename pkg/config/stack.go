@@ -808,8 +808,7 @@ func fetchComponentSource(
 		return nil
 	}
 
-	// CAS stack processing is git-backed, so an oci:// source can never resolve
-	// through it; go straight to the getter instead of failing and warning.
+	// CAS is git-backed, so an oci:// source goes straight to the getter.
 	if opts.casEnabled && !isOCI {
 		casErr := fetchViaCAS(ctx, l, v, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {

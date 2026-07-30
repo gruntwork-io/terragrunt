@@ -332,8 +332,7 @@ func ociTofuConfigCandidates(v *venv.Venv) []string {
 
 	var paths []string
 
-	// On Windows OpenTofu's home directory is the roaming application-data
-	// folder, and it looks only for tofu.rc / terraform.rc there.
+	// On Windows tofu reads only tofu.rc and terraform.rc under %APPDATA%.
 	if v.Platform.GOOS == windowsGOOS {
 		if appData := v.Env["APPDATA"]; appData != "" {
 			return []string{
@@ -349,8 +348,7 @@ func ociTofuConfigCandidates(v *venv.Venv) []string {
 		paths = append(paths, filepath.Join(home, ".tofurc"), filepath.Join(home, ".terraformrc"))
 	}
 
-	// OpenTofu falls back to XDG only when XDG_CONFIG_HOME is set, so do not
-	// synthesize a ~/.config path it would never read.
+	// tofu falls back to XDG only when XDG_CONFIG_HOME is set.
 	if configDir := v.Env["XDG_CONFIG_HOME"]; configDir != "" {
 		paths = append(paths, filepath.Join(configDir, "opentofu", "tofurc"))
 	}
@@ -446,8 +444,7 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 		discoverAmbient: discoverAmbient,
 	}
 
-	// Absent means "use the default search paths"; an explicit list, even an
-	// empty one, replaces them, so keep the two states apart.
+	// Absent keeps the default paths; any explicit list, even empty, replaces them.
 	if decoded.ConfigFiles != nil {
 		defaults.configFiles = *decoded.ConfigFiles
 		defaults.configFilesSet = true
@@ -473,8 +470,7 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 		return ociTofuRepoCredential{}, diags
 	}
 
-	// tofu picks the style from which arguments are present, so an empty string
-	// still selects its style and is rejected below rather than ignored.
+	// tofu picks the style from argument presence, so an empty value still selects it.
 	basic := decoded.Username != nil || decoded.Password != nil
 	oauth := decoded.AccessToken != nil || decoded.RefreshToken != nil
 	helper := decoded.Helper != nil
@@ -489,8 +485,7 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 		return ociTofuRepoCredential{}, errOCIIncompleteOAuthCredential
 	}
 
-	// OpenTofu requires exactly one style; zero would rank an empty credential
-	// as a match and shadow a valid ambient one.
+	// tofu requires exactly one style; zero would shadow a valid ambient credential.
 	switch trueCount(basic, oauth, helper) {
 	case 1:
 	case 0:

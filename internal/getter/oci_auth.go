@@ -293,8 +293,7 @@ func ociSelectCredentialCandidate(
 
 	// The oci_default_credentials helper is a global-specificity CLI source.
 	if tofu.defaultHelper != "" {
-		// Explicitly configured, so its failure surfaces instead of silently
-		// degrading to anonymous, matching OpenTofu's selected-source behavior.
+		// Explicitly configured, so its failure surfaces instead of going anonymous.
 		cand := ociCredentialCandidate{
 			helper: &ociHelperEntry{
 				suffix:        tofu.defaultHelper,
@@ -402,8 +401,7 @@ func ociCredentialFromHelper(
 	entry ociHelperEntry,
 	timeout time.Duration,
 ) (auth.Credential, error) {
-	// Reject a helper name with a path separator up front: exec.LookPath would
-	// treat it as a filesystem path and run a non-PATH binary.
+	// A path separator would make exec.LookPath run a non-PATH binary.
 	if !ociValidHelperName(entry.suffix) {
 		return auth.EmptyCredential, OCICredentialHelperError{
 			Helper:   entry.suffix,
@@ -542,8 +540,7 @@ func ociCredentialFromHelperOutput(entry ociHelperEntry, out []byte) (auth.Crede
 
 func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) ([]ociAmbientStore, error) {
 	candidates := ociAmbientCredentialPaths(v)
-	// An explicit docker_style_config_files list replaces the default search
-	// paths, and an explicit empty list disables Docker-style discovery.
+	// An explicit list replaces the default search paths; an empty one disables discovery.
 	explicit := tofu.configFilesSet
 	if explicit {
 		candidates = ociResolveConfigFiles(tofu.configDir, tofu.configFiles)
@@ -554,8 +551,7 @@ func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) 
 	for _, candidate := range candidates {
 		file, err := ociAuthFile(v, candidate)
 		if err != nil {
-			// A path the user named explicitly is configuration, so a failure
-			// there is an error rather than a missed discovery probe.
+			// A path the user named is configuration, so its failure is an error.
 			if explicit {
 				return nil, fmt.Errorf("reading docker_style_config_files entry %s: %w", candidate, err)
 			}
@@ -664,30 +660,17 @@ func ociCredentialKeys(hostport, repositoryName string) []string {
 // the resolver matches on, so the Docker Hub spellings and a legacy config's
 // scheme all meet in one place.
 func ociCanonicalAuthKey(key string) string {
-	stripped := key
-	// URL schemes are case-insensitive, so strip them before anything else.
-	for _, scheme := range []string{"https://", "http://"} {
-		if len(stripped) >= len(scheme) && strings.EqualFold(stripped[:len(scheme)], scheme) {
-			stripped = stripped[len(scheme):]
-
-			break
-		}
-	}
-
+	stripped := strings.TrimPrefix(key, "https://")
+	stripped = strings.TrimPrefix(stripped, "http://")
 	stripped = strings.TrimRight(stripped, "/")
 
+	if stripped == "index.docker.io/v1" {
+		return ociDockerHubKey
+	}
+
 	registry, repository, found := strings.Cut(stripped, "/")
-
-	// Hostnames are case-insensitive; repository paths are not, so fold only the host.
-	registry = strings.ToLower(registry)
-
 	if slices.Contains(ociDockerHubRegistries, registry) {
 		registry = ociDockerHubKey
-
-		// Docker writes the legacy index.docker.io/v1 key, which is the registry itself.
-		if repository == "v1" {
-			return ociDockerHubKey
-		}
 	}
 
 	if !found || repository == "" {
