@@ -1,8 +1,6 @@
 package discovery_test
 
 import (
-	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -13,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -36,15 +35,15 @@ type graphBoundaryFixture struct {
 	externalDir string
 }
 
-func newGraphBoundaryFixture(t *testing.T) graphBoundaryFixture {
+// newGraphBoundaryFixture returns the fixture and a venv whose git is stubbed to
+// report tmpDir as the repository root, so no repository is created on disk. Its
+// FS is the real one because discovery reads the fixture from the filesystem.
+func newGraphBoundaryFixture(t *testing.T) (graphBoundaryFixture, *venv.Venv) {
 	t.Helper()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	cmd := exec.CommandContext(t.Context(), "git", "init")
-	cmd.Dir = tmpDir
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Run())
+	v := memGitTopLevelVenv(t, tmpDir).WithFS(vfs.NewOSFS())
 
 	f := graphBoundaryFixture{
 		stagingDir:  filepath.Join(tmpDir, "environments", "staging"),
@@ -56,31 +55,31 @@ func newGraphBoundaryFixture(t *testing.T) graphBoundaryFixture {
 	}
 
 	for _, dir := range []string{f.vpcDir, f.appDir, f.edgeDir, f.consumerDir, f.externalDir} {
-		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, v.FS.MkdirAll(dir, 0o755))
 	}
 
-	require.NoError(t, os.WriteFile(filepath.Join(f.vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(f.externalDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(f.appDir, "terragrunt.hcl"), []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.externalDir, "terragrunt.hcl"), []byte(``), 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.appDir, "terragrunt.hcl"), []byte(`
 dependency "vpc" {
   config_path = "../vpc"
 }
 `), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(f.consumerDir, "terragrunt.hcl"), []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.consumerDir, "terragrunt.hcl"), []byte(`
 dependency "vpc" {
   config_path = "../../staging/vpc"
 }
 `), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(f.edgeDir, "terragrunt.hcl"), []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.edgeDir, "terragrunt.hcl"), []byte(`
 dependency "external" {
   config_path = "../../production/external"
 }
 `), 0o644))
 
-	return f
+	return f, v
 }
 
-func (f *graphBoundaryFixture) discover(t *testing.T, query string) component.Components {
+func (f *graphBoundaryFixture) discover(t *testing.T, v *venv.Venv, query string) component.Components {
 	t.Helper()
 
 	opts := options.NewTerragruntOptions()
@@ -92,7 +91,7 @@ func (f *graphBoundaryFixture) discover(t *testing.T, query string) component.Co
 
 	configs, err := discovery.NewDiscovery(f.stagingDir).
 		WithFilters(filters).
-		Discover(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
+		Discover(t.Context(), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	return configs
@@ -109,15 +108,15 @@ func TestDiscoveryGraphBoundary_EnclosesGraphDiscovery(t *testing.T) {
 	t.Run("dependent direction", func(t *testing.T) {
 		t.Parallel()
 
-		f := newGraphBoundaryFixture(t)
+		f, v := newGraphBoundaryFixture(t)
 
-		unbounded := f.discover(t, "...{"+f.vpcDir+"}")
+		unbounded := f.discover(t, v, "...{"+f.vpcDir+"}")
 		assert.ElementsMatch(t,
 			[]string{f.vpcDir, f.appDir, f.consumerDir},
 			unbounded.Filter(component.UnitKind).Paths(),
 		)
 
-		bounded := f.discover(t, "("+f.stagingDir+")...{"+f.vpcDir+"}")
+		bounded := f.discover(t, v, "("+f.stagingDir+")...{"+f.vpcDir+"}")
 		assert.ElementsMatch(t,
 			[]string{f.vpcDir, f.appDir},
 			bounded.Filter(component.UnitKind).Paths(),
@@ -127,15 +126,15 @@ func TestDiscoveryGraphBoundary_EnclosesGraphDiscovery(t *testing.T) {
 	t.Run("dependency direction", func(t *testing.T) {
 		t.Parallel()
 
-		f := newGraphBoundaryFixture(t)
+		f, v := newGraphBoundaryFixture(t)
 
-		unbounded := f.discover(t, "{"+f.edgeDir+"}...")
+		unbounded := f.discover(t, v, "{"+f.edgeDir+"}...")
 		assert.ElementsMatch(t,
 			[]string{f.edgeDir, f.externalDir},
 			unbounded.Filter(component.UnitKind).Paths(),
 		)
 
-		bounded := f.discover(t, "{"+f.edgeDir+"}...("+f.stagingDir+")")
+		bounded := f.discover(t, v, "{"+f.edgeDir+"}...("+f.stagingDir+")")
 		assert.ElementsMatch(t,
 			[]string{f.edgeDir},
 			bounded.Filter(component.UnitKind).Paths(),
@@ -147,7 +146,7 @@ func TestDiscoveryGraphBoundary_EnclosesGraphDiscovery(t *testing.T) {
 func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 	t.Parallel()
 
-	f := newGraphBoundaryFixture(t)
+	f, v := newGraphBoundaryFixture(t)
 
 	testCases := []struct {
 		errAs any
@@ -179,7 +178,7 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 
 			_, err = discovery.NewDiscovery(f.stagingDir).
 				WithFilters(filters).
-				Discover(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
+				Discover(t.Context(), logger.CreateLogger(), v, opts)
 			require.ErrorAs(t, err, tc.errAs)
 		})
 	}
@@ -194,19 +193,16 @@ func TestDiscoveryGraphBoundary_PathWithLiteralParens(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	cmd := exec.CommandContext(t.Context(), "git", "init")
-	cmd.Dir = tmpDir
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Run())
+	v := memGitTopLevelVenv(t, tmpDir).WithFS(vfs.NewOSFS())
 
 	// vpc(prod) has literal parentheses in its directory name; app depends on it.
 	vpcDir := filepath.Join(tmpDir, "vpc(prod)")
 	appDir := filepath.Join(tmpDir, "app")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(appDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+	require.NoError(t, v.FS.MkdirAll(vpcDir, 0o755))
+	require.NoError(t, v.FS.MkdirAll(appDir, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(appDir, "terragrunt.hcl"), []byte(`
 dependency "vpc" {
   config_path = "../vpc(prod)"
 }
@@ -224,7 +220,7 @@ dependency "vpc" {
 
 		configs, err := discovery.NewDiscovery(tmpDir).
 			WithFilters(filters).
-			Discover(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
+			Discover(t.Context(), logger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 
 		return configs
