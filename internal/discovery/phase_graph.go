@@ -204,8 +204,8 @@ func (p *GraphPhase) processGraphTarget(
 			depth = graphExpr.Dependencies.Depth
 		}
 
-		// An inline "(dir)" operand overrides --filter-boundary for this expression.
-		boundary := state.discovery.filterBoundary
+		// An inline "(dir)" operand overrides --discovery-boundary for this expression.
+		boundary := state.discovery.discoveryBoundary
 
 		if graphExpr.Dependencies.Boundary != "" {
 			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
@@ -234,7 +234,7 @@ func (p *GraphPhase) processGraphTarget(
 		}
 
 		// The upstream dependent walk is capped by an explicit boundary when the
-		// expression carries one, otherwise by --filter-boundary, otherwise by
+		// expression carries one, otherwise by --discovery-boundary, otherwise by
 		// the detected git root.
 		startDir := state.discovery.workingDir
 		boundaryRoot := state.discovery.dependentWalkBoundary()
@@ -246,13 +246,15 @@ func (p *GraphPhase) processGraphTarget(
 			}
 
 			if isExternal(resolved, startDir) {
-				return NewFilterBoundaryScopeError(resolved, startDir)
+				return NewDiscoveryBoundaryScopeError(resolved, startDir)
 			}
 
 			boundaryRoot = resolved
 		}
 
-		if graphExpr.Dependents.Boundary == "" {
+		// Only fall back to the component's own working directory when the user
+		// named no boundary at all; an explicit one must not be silently widened.
+		if graphExpr.Dependents.Boundary == "" && state.discovery.discoveryBoundary == "" {
 			if dCtx := c.DiscoveryContext(); dCtx != nil &&
 				dCtx.WorkingDir != "" &&
 				dCtx.WorkingDir != state.discovery.workingDir {
@@ -348,7 +350,7 @@ func (p *GraphPhase) discoverDependencies(
 	for _, depPath := range depPaths {
 		g.Go(func() error {
 			if boundary != "" && isExternal(boundary, depPath) {
-				l.Debugf("Dependency %s is outside graph boundary %s; skipping", depPath, boundary)
+				l.Debugf("Dependency %s is outside discovery boundary %s; skipping", depPath, boundary)
 				return nil
 			}
 

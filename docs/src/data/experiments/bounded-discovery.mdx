@@ -31,14 +31,14 @@ Any configuration that is discovered outside the boundary, whether a dependent o
 
 A boundary bounds discovery traversal rather than filtering results, so an in-boundary unit reachable only by passing through an out-of-boundary unit is intentionally excluded (e.g. `a` --> `b` --> `c`, and yo`b` is not part of the boundary, will prevent graph traversal from `a` to reach `c` and vice-versa).
 
-The experiment also unlocks the [`--filter-boundary`](/reference/cli/commands/find#filter-boundary) flag (env: `TG_FILTER_BOUNDARY`), which applies one boundary to every `--filter` expression on the command, in both directions:
+The experiment also unlocks the [`--discovery-boundary`](/reference/cli/commands/find#discovery-boundary) flag (env: `TG_DISCOVERY_BOUNDARY`), which applies one boundary to every `--filter` expression on the command, in both directions:
 
 ```bash
 cd environments/staging
-terragrunt find --experiment bounded-discovery --filter '...{vpc}' --filter-boundary .
+terragrunt find --experiment bounded-discovery --filter '...{vpc}' --discovery-boundary .
 ```
 
-An inline `(dir)` operand overrides the flag for the expression that carries it. See the [`--filter-boundary` reference](/reference/cli/commands/find#filter-boundary) for how the boundary is resolved.
+An inline `(dir)` operand overrides the flag for the expression that carries it. See the [`--discovery-boundary` reference](/reference/cli/commands/find#discovery-boundary) for how the boundary is resolved.
 
 ### `bounded-discovery` - How to provide feedback
 

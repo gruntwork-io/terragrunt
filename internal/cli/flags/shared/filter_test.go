@@ -13,27 +13,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFilterBoundaryFlagRequiresExperiment(t *testing.T) {
+func TestDiscoveryBoundaryFlagRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
 	flags := shared.NewFilterFlags(logger.CreateLogger(), opts)
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--filter-boundary", "."}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}))
 
 	err := flags.RunActions(context.Background(), &clihelper.Context{})
 
-	require.ErrorIs(t, err, shared.ErrFilterBoundaryRequiresExperiment)
+	require.ErrorIs(t, err, shared.ErrDiscoveryBoundaryRequiresExperiment)
 }
 
-func TestFilterBoundaryFlagAllowedWithExperiment(t *testing.T) {
+func TestDiscoveryBoundaryFlagAllowedWithExperiment(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.BoundedDiscovery))
 	flags := shared.NewFilterFlags(logger.CreateLogger(), opts)
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--filter-boundary", "."}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}))
 	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
-	assert.Equal(t, ".", opts.FilterBoundary)
+	assert.Equal(t, ".", opts.DiscoveryBoundary)
 }

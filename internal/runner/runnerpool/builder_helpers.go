@@ -113,8 +113,8 @@ func prepareDiscovery(
 		d = d.WithFilters(opts.Filters)
 	}
 
-	if opts.FilterBoundary != "" {
-		d = d.WithFilterBoundary(opts.FilterBoundary)
+	if opts.DiscoveryBoundary != "" {
+		d = d.WithDiscoveryBoundary(opts.DiscoveryBoundary)
 	}
 
 	// Apply worktrees for git filter expressions

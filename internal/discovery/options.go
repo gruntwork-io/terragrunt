@@ -136,13 +136,13 @@ func (d *Discovery) WithGitRoot(gitRoot string) *Discovery {
 	return d
 }
 
-// WithFilterBoundary sets the directory that encloses graph discovery for
+// WithDiscoveryBoundary sets the directory that encloses graph discovery for
 // filters, in place of the automatically detected git repository root:
 // dependencies and dependents resolving outside it are not discovered. The
 // path may be relative, in which case it is resolved against the discovery
 // working directory.
-func (d *Discovery) WithFilterBoundary(boundary string) *Discovery {
-	d.filterBoundary = boundary
+func (d *Discovery) WithDiscoveryBoundary(boundary string) *Discovery {
+	d.discoveryBoundary = boundary
 	return d
 }
 

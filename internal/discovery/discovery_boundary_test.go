@@ -43,7 +43,7 @@ func newBoundaryFixture(t *testing.T) boundaryFixture {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize a git repository so graph traversal bounds to the repo root
-	// when no filter boundary is configured.
+	// when no discovery boundary is configured.
 	cmd := exec.CommandContext(t.Context(), "git", "init")
 	cmd.Dir = tmpDir
 	cmd.Env = os.Environ()
@@ -97,18 +97,18 @@ func (f *boundaryFixture) discover(t *testing.T, query, boundary string) (compon
 	d := discovery.NewDiscovery(f.stagingDir).WithFilters(filters)
 
 	if boundary != "" {
-		d = d.WithFilterBoundary(boundary)
+		d = d.WithDiscoveryBoundary(boundary)
 	}
 
 	return d.Discover(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
 }
 
-// Test that a filter boundary encloses graph discovery in both directions,
+// Test that a discovery boundary encloses graph discovery in both directions,
 // while the default (git root) crosses out of the working directory. The
 // dependent direction (`...{vpc}`) reaches a dependent in a sibling
 // environment; the dependency direction (`{edge}...`) reaches an external
 // dependency in a sibling environment. Both are confined by the boundary.
-func TestDiscoveryFilterBoundary_EnclosesGraphDiscovery(t *testing.T) {
+func TestDiscoveryBoundary_EnclosesGraphDiscovery(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -176,7 +176,7 @@ func TestDiscoveryFilterBoundary_EnclosesGraphDiscovery(t *testing.T) {
 // Test that an invalid boundary supplied directly to Discover is rejected
 // with a typed error, covering callers that bypass the command constructors
 // (like the runner pool).
-func TestDiscoveryFilterBoundary_DiscoverValidatesBoundary(t *testing.T) {
+func TestDiscoveryBoundary_DiscoverValidatesBoundary(t *testing.T) {
 	t.Parallel()
 
 	f := newBoundaryFixture(t)
@@ -189,17 +189,17 @@ func TestDiscoveryFilterBoundary_DiscoverValidatesBoundary(t *testing.T) {
 		{
 			name:     "nonexistent boundary",
 			boundary: filepath.Join(f.tmpDir, "does-not-exist"),
-			errAs:    &discovery.FilterBoundaryDirError{},
+			errAs:    &discovery.DiscoveryBoundaryDirError{},
 		},
 		{
 			name:     "boundary is a file",
 			boundary: filepath.Join(f.vpcDir, "terragrunt.hcl"),
-			errAs:    &discovery.FilterBoundaryDirError{},
+			errAs:    &discovery.DiscoveryBoundaryDirError{},
 		},
 		{
 			name:     "boundary does not contain working directory",
 			boundary: f.consumerDir,
-			errAs:    &discovery.FilterBoundaryScopeError{},
+			errAs:    &discovery.DiscoveryBoundaryScopeError{},
 		},
 	}
 
@@ -215,7 +215,7 @@ func TestDiscoveryFilterBoundary_DiscoverValidatesBoundary(t *testing.T) {
 
 // Test that NewForDiscoveryCommand validates the boundary so commands that
 // swallow Discover errors (like find and list) still surface invalid input.
-func TestNewForDiscoveryCommand_FilterBoundaryValidation(t *testing.T) {
+func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 	t.Parallel()
 
 	f := newBoundaryFixture(t)
@@ -228,12 +228,12 @@ func TestNewForDiscoveryCommand_FilterBoundaryValidation(t *testing.T) {
 		{
 			name:     "nonexistent boundary",
 			boundary: filepath.Join(f.tmpDir, "does-not-exist"),
-			errAs:    &discovery.FilterBoundaryDirError{},
+			errAs:    &discovery.DiscoveryBoundaryDirError{},
 		},
 		{
 			name:     "boundary does not contain working directory",
 			boundary: f.consumerDir,
-			errAs:    &discovery.FilterBoundaryScopeError{},
+			errAs:    &discovery.DiscoveryBoundaryScopeError{},
 		},
 	}
 
@@ -242,8 +242,8 @@ func TestNewForDiscoveryCommand_FilterBoundaryValidation(t *testing.T) {
 			t.Parallel()
 
 			_, err := discovery.NewForDiscoveryCommand(logger.CreateLogger(), &discovery.DiscoveryCommandOptions{
-				WorkingDir:     f.stagingDir,
-				FilterBoundary: tc.boundary,
+				WorkingDir:        f.stagingDir,
+				DiscoveryBoundary: tc.boundary,
 			})
 			require.ErrorAs(t, err, tc.errAs)
 		})
@@ -253,8 +253,8 @@ func TestNewForDiscoveryCommand_FilterBoundaryValidation(t *testing.T) {
 		t.Parallel()
 
 		d, err := discovery.NewForDiscoveryCommand(logger.CreateLogger(), &discovery.DiscoveryCommandOptions{
-			WorkingDir:     f.stagingDir,
-			FilterBoundary: "..",
+			WorkingDir:        f.stagingDir,
+			DiscoveryBoundary: "..",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, d)

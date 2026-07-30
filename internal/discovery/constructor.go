@@ -15,7 +15,7 @@ import (
 type DiscoveryCommandOptions struct {
 	WorkingDir        string
 	QueueConstructAs  string
-	FilterBoundary    string
+	DiscoveryBoundary string
 	Filters           filter.Filters
 	NoHidden          bool
 	Exclude           bool
@@ -27,9 +27,9 @@ type DiscoveryCommandOptions struct {
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
 type HCLCommandOptions struct {
-	WorkingDir     string
-	FilterBoundary string
-	Filters        filter.Filters
+	WorkingDir        string
+	DiscoveryBoundary string
+	Filters           filter.Filters
 }
 
 // StackGenerateOptions contains options for stack generate commands.
@@ -97,13 +97,13 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 		d = d.WithFilters(opts.Filters)
 	}
 
-	if opts.FilterBoundary != "" {
-		boundary, err := resolveFilterBoundary(vfs.NewOSFS(), opts.WorkingDir, opts.FilterBoundary)
+	if opts.DiscoveryBoundary != "" {
+		boundary, err := resolveDiscoveryBoundary(vfs.NewOSFS(), opts.WorkingDir, opts.DiscoveryBoundary)
 		if err != nil {
 			return nil, err
 		}
 
-		d = d.WithFilterBoundary(boundary)
+		d = d.WithDiscoveryBoundary(boundary)
 	}
 
 	return d, nil
@@ -117,13 +117,13 @@ func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) 
 		d = d.WithFilters(opts.Filters)
 	}
 
-	if opts.FilterBoundary != "" {
-		boundary, err := resolveFilterBoundary(vfs.NewOSFS(), opts.WorkingDir, opts.FilterBoundary)
+	if opts.DiscoveryBoundary != "" {
+		boundary, err := resolveDiscoveryBoundary(vfs.NewOSFS(), opts.WorkingDir, opts.DiscoveryBoundary)
 		if err != nil {
 			return nil, err
 		}
 
-		d = d.WithFilterBoundary(boundary)
+		d = d.WithDiscoveryBoundary(boundary)
 	}
 
 	return d, nil

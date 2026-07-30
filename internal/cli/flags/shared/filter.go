@@ -18,15 +18,15 @@ const (
 	FilterFlagName             = "filter"
 	FilterAffectedFlagName     = "filter-affected"
 	FilterAllowDestroyFlagName = "filter-allow-destroy"
-	FilterBoundaryFlagName     = "filter-boundary"
+	DiscoveryBoundaryFlagName  = "discovery-boundary"
 	FilterFileFlagName         = "filters-file"
 	NoFilterFileFlagName       = "no-filters-file"
 )
 
-// ErrFilterBoundaryRequiresExperiment is returned when --filter-boundary is
+// ErrDiscoveryBoundaryRequiresExperiment is returned when --discovery-boundary is
 // set without the bounded-discovery experiment enabled.
-var ErrFilterBoundaryRequiresExperiment = errors.New(
-	"--filter-boundary requires the 'bounded-discovery' experiment to be enabled (e.g., --experiment=bounded-discovery)",
+var ErrDiscoveryBoundaryRequiresExperiment = errors.New(
+	"--discovery-boundary requires the 'bounded-discovery' experiment to be enabled (e.g., --experiment=bounded-discovery)",
 )
 
 // NewFilterFlags creates flags for specifying filter queries.
@@ -110,9 +110,9 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 		),
 		flags.NewFlag(
 			&clihelper.GenericFlag[string]{
-				Name:        FilterBoundaryFlagName,
-				EnvVars:     tgPrefix.EnvVars(FilterBoundaryFlagName),
-				Destination: &opts.FilterBoundary,
+				Name:        DiscoveryBoundaryFlagName,
+				EnvVars:     tgPrefix.EnvVars(DiscoveryBoundaryFlagName),
+				Destination: &opts.DiscoveryBoundary,
 				Usage:       "Bound --filter discovery to a directory, not git root. Requires the 'bounded-discovery' experiment.",
 				Action: func(_ context.Context, _ *clihelper.Context, value string) error {
 					if value == "" {
@@ -123,7 +123,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 						return nil
 					}
 
-					return ErrFilterBoundaryRequiresExperiment
+					return ErrDiscoveryBoundaryRequiresExperiment
 				},
 			},
 		),
