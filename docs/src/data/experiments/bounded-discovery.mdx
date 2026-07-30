@@ -7,7 +7,7 @@ Enclose graph traversal for a `--filter` expression within a directory using an 
 
 ### `bounded-discovery` - What it does
 
-Graph-traversing filter expressions reach beyond the working directory. Dependent discovery (`...{unit}`) requires searching from the working directory of the given component up to the Git repository root (if the unit is within a Git repository). Dependency discovery (`{unit}...`) requires recursive parsing of depndencies to find the terminal dependency. Either way, Terragrunt has to read and parses every configuration it touches along the way for accuracy. In monorepos where sibling environments cannot be parsed independently of each other, that traversal fails or wastes work reaching into them.
+Graph-traversing filter expressions reach beyond the working directory. Dependent discovery (`...{unit}`) requires searching from the working directory of the given component up to the Git repository root (if the unit is within a Git repository). Dependency discovery (`{unit}...`) requires recursive parsing of dependencies to find the terminal dependency. Either way, Terragrunt has to read and parses every configuration it touches along the way for accuracy. In monorepos where sibling environments cannot be parsed independently of each other, that traversal fails or wastes work reaching into them.
 
 When enabled, this experiment unlocks an inline `(dir)` boundary operand. It sits in the same operand slot as a traversal depth (e.g. `1...{vpc}`):
 
