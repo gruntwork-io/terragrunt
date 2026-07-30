@@ -87,7 +87,10 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) 
 	// Components are generated on the pool, so the fetch error surfaces from Wait.
 	genErr := config.GenerateStackFile(t.Context(), l, pctx, pool, stackPath)
 
-	return logBuf.String(), errors.Join(genErr, pool.Wait())
+	// Drain the pool before reading the buffer the workers log into.
+	waitErr := pool.Wait()
+
+	return logBuf.String(), errors.Join(genErr, waitErr)
 }
 
 // TestGenerateStackOCIRequiresExperiment: an oci:// component is rejected up front without the experiment.
@@ -149,4 +152,24 @@ func TestGenerateStackOCIForcedFormGated(t *testing.T) {
 
 	var gateErr config.OCIExperimentRequiredError
 	require.ErrorAs(t, err, &gateErr, "the forced form must hit the same typed gate")
+}
+
+// TestGenerateStackOCIUpperCaseSchemeGated: URL schemes are case-insensitive, so
+// an upper-case source must not slip past the experiment gate.
+func TestGenerateStackOCIUpperCaseSchemeGated(t *testing.T) {
+	t.Parallel()
+
+	tc := []string{"OCI://", "OCI::https://"}
+
+	for _, scheme := range tc {
+		t.Run(scheme, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := generateOCIStack(t, "unit", scheme, false)
+			require.Error(t, err, "an upper-case oci scheme must not bypass the experiment gate")
+
+			var gateErr config.OCIExperimentRequiredError
+			require.ErrorAs(t, err, &gateErr, "the upper-case form must hit the same typed gate")
+		})
+	}
 }

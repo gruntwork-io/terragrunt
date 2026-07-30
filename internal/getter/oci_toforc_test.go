@@ -1,6 +1,7 @@
 package getter_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +78,7 @@ func TestOCITofuCredentialsRepositoryHelper(t *testing.T) {
 	home := testHome
 	v := credentialVenv(home, nil).WithExec(exec)
 	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
-oci_credentials "registry.example.com/team" {
+oci_credentials "registry.example.com" {
   docker_credentials_helper = "ecr-login"
 }
 `)
@@ -87,29 +89,71 @@ oci_credentials "registry.example.com/team" {
 	assert.Equal(t, "https://"+testRegistry, stdin, "tofu helpers receive OpenTofu's https:// server address")
 }
 
-// TestOCITofuCredentialsHelperDockerHubFold: a tofu helper for Docker Hub receives the index-server address.
-func TestOCITofuCredentialsHelperDockerHubFold(t *testing.T) {
+// TestOCITofuCredentialsHelperRepositoryPathRejected: tofu rejects a helper on a
+// repository-scoped label, because helpers only key on a whole domain.
+func TestOCITofuCredentialsHelperRepositoryPathRejected(t *testing.T) {
 	t.Parallel()
 
-	var stdin string
+	var calls atomic.Int32
 
-	exec := stubHelperExec(t, "desktop", func(in string) vexec.Result {
-		stdin = in
-		return vexec.Result{Stdout: []byte(`{"Username":"hub","Secret":"fake-secret-hub"}`)}
-	}, nil)
+	exec := stubHelperExec(t, "ecr-login", func(string) vexec.Result {
+		return vexec.Result{Stdout: []byte(`{"Username":"AWS","Secret":"fake-secret-minted"}`)}
+	}, &calls)
 
 	home := testHome
 	v := credentialVenv(home, nil).WithExec(exec)
 	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_credentials "registry.example.com/team" {
+  docker_credentials_helper = "ecr-login"
+}
+`)
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+	assert.EqualValues(t, 0, calls.Load(), "a repository-scoped helper block must never run")
+}
+
+// TestOCITofuCredentialsHelperServerAddress: a tofu helper receives https:// plus
+// the requested registry domain, with no Docker Hub rewrite, matching OpenTofu.
+func TestOCITofuCredentialsHelperServerAddress(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		registry   string
+		repository string
+		want       string
+	}{
+		{registry: "registry-1.docker.io", repository: "library/alpine", want: "https://registry-1.docker.io"},
+		{registry: "docker.io", repository: "library/alpine", want: "https://docker.io"},
+		{registry: "index.docker.io", repository: "library/alpine", want: "https://index.docker.io"},
+		{registry: testRegistry, repository: "team/vpc", want: "https://" + testRegistry},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.registry, func(t *testing.T) {
+			t.Parallel()
+
+			var stdin string
+
+			exec := stubHelperExec(t, "desktop", func(in string) vexec.Result {
+				stdin = in
+				return vexec.Result{Stdout: []byte(`{"Username":"hub","Secret":"fake-secret-hub"}`)}
+			}, nil)
+
+			home := testHome
+			v := credentialVenv(home, nil).WithExec(exec)
+			writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
 oci_default_credentials {
   docker_credentials_helper = "desktop"
 }
 `)
 
-	store := newStoreForRepo(t, v, "registry-1.docker.io", "library/alpine")
-	want := auth.Credential{Username: "hub", Password: "fake-secret-hub"}
-	assert.Equal(t, want, credentialFor(t, store, "registry-1.docker.io"))
-	assert.Equal(t, "https://index.docker.io/v1/", stdin, "Docker Hub folds to the index server for tofu helpers")
+			store := newStoreForRepo(t, v, tt.registry, tt.repository)
+			want := auth.Credential{Username: "hub", Password: "fake-secret-hub"}
+			assert.Equal(t, want, credentialFor(t, store, tt.registry))
+			assert.Equal(t, tt.want, stdin)
+		})
+	}
 }
 
 // TestOCITofuCredentialsSchemePrefixedLabel: a scheme-prefixed label still matches the bare host.
@@ -347,9 +391,10 @@ func TestOCITofuCredentialsMultipleStylesSkipped(t *testing.T) {
 	v := credentialVenv(home, nil)
 	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
 oci_credentials "registry.example.com" {
-  username     = "svc"
-  password     = "fake-secret-tofu"
-  access_token = "fake-access"
+  username      = "svc"
+  password      = "fake-secret-tofu"
+  access_token  = "fake-access"
+  refresh_token = "fake-refresh"
 }
 `)
 
@@ -821,4 +866,156 @@ oci_default_credentials {
 	_, err := newStore(t.Context(), testRegistry, "team/vpc")
 	require.Error(t, err, "an explicitly configured credential file that cannot be read must fail")
 	assert.ErrorContains(t, err, "docker_style_config_files")
+}
+
+// TestOCITofuCredentialsInvalidDefaultBlockKeepsAmbientDisabled: an invalid helper
+// must not silently re-enable ambient discovery the user turned off.
+func TestOCITofuCredentialsInvalidDefaultBlockKeepsAmbientDisabled(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  discover_ambient_credentials = false
+  docker_credentials_helper    = "../../../tmp/evil"
+}
+`)
+	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry),
+		"an unusable default block must not widen credential exposure")
+}
+
+// TestOCITofuCredentialsUndecodableDefaultBlockKeepsAmbientDisabled: a type error
+// elsewhere in the block must not discard an explicit opt-out either.
+func TestOCITofuCredentialsUndecodableDefaultBlockKeepsAmbientDisabled(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  discover_ambient_credentials = false
+  docker_style_config_files    = "not-a-list"
+}
+`)
+	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+}
+
+// TestOCITofuCredentialsAmbientFilesRequireDiscovery: tofu rejects
+// docker_style_config_files when ambient discovery is disabled.
+func TestOCITofuCredentialsAmbientFilesRequireDiscovery(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		name  string
+		files string
+	}{
+		{name: "populated list", files: `["/virtual/home/.docker/config.json"]`},
+		{name: "empty list", files: `[]`},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := testHome
+			v := credentialVenv(home, nil)
+			writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  discover_ambient_credentials = false
+  docker_style_config_files    = `+tt.files+`
+}
+`)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(home, ".docker", "config.json"),
+				testRegistry,
+				"ambient",
+				"ambient-pass",
+			)
+
+			var logBuf bytes.Buffer
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
+
+			newStore := getter.NewOCIRepositoryStore(l, v)
+
+			store, err := newStore(t.Context(), testRegistry, "team/vpc")
+			require.NoError(t, err)
+
+			assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+			assert.Contains(t, logBuf.String(), "discover_ambient_credentials",
+				"the inconsistent default block must be reported, as tofu reports it")
+		})
+	}
+}
+
+// TestOCITofuCredentialsEmptyStringValuesSkipped: an empty username, password, or
+// token carries no credential and must not shadow a valid ambient login.
+func TestOCITofuCredentialsEmptyStringValuesSkipped(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		name string
+		body string
+	}{
+		{name: "basic auth", body: `
+oci_credentials "registry.example.com" {
+  username = ""
+  password = ""
+}
+`},
+		{name: "oauth", body: `
+oci_credentials "registry.example.com" {
+  access_token  = ""
+  refresh_token = ""
+}
+`},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := testHome
+			v := credentialVenv(home, nil)
+			writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), tt.body)
+			writeAuthFile(
+				t,
+				v.FS,
+				filepath.Join(home, ".docker", "config.json"),
+				testRegistry,
+				"ambient",
+				"ambient-pass",
+			)
+
+			store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+			want := auth.Credential{Username: "ambient", Password: "ambient-pass"}
+			assert.Equal(t, want, credentialFor(t, store, testRegistry),
+				"an empty CLI-config credential must not outrank a working ambient login")
+		})
+	}
+}
+
+// TestOCITofuCredentialsMixedCaseRegistryMatches: registry hostnames are
+// case-insensitive, so a capitalised source host still matches its block.
+func TestOCITofuCredentialsMixedCaseRegistryMatches(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"),
+		tofuBasicAuth(testRegistry, "svc", "fake-secret-tofu"))
+
+	store := newStoreForRepo(t, v, "Registry.Example.COM", "team/vpc")
+	want := auth.Credential{Username: "svc", Password: "fake-secret-tofu"}
+	assert.Equal(t, want, credentialFor(t, store, "Registry.Example.COM"))
 }

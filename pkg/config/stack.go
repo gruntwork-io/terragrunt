@@ -988,11 +988,13 @@ func (err OCIExperimentRequiredError) Error() string {
 // isOCISource reports whether source is an oci registry reference, in either the
 // oci:// scheme form or go-getter's oci:: forced form.
 func isOCISource(source string) bool {
-	if strings.HasPrefix(source, getter.SchemeOCI+"::") {
+	// URL schemes are case-insensitive, and the getter lower-cases before matching.
+	scheme := strings.ToLower(source)
+	if strings.HasPrefix(scheme, getter.SchemeOCI+"::") {
 		return true
 	}
 
-	return strings.HasPrefix(source, getter.SchemeOCI+"://")
+	return strings.HasPrefix(scheme, getter.SchemeOCI+"://")
 }
 
 // stackGetterOptions builds the getter options a stack component fetch needs,

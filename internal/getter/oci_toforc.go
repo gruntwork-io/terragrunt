@@ -102,6 +102,16 @@ var errOCIIncompleteOAuthCredential = errors.New(
 	"oci_credentials oauth requires both an access_token and a refresh_token",
 )
 
+// errOCIHelperWithRepositoryPath reports a helper on a repository-scoped label, which tofu rejects.
+var errOCIHelperWithRepositoryPath = errors.New(
+	"oci_credentials docker_credentials_helper cannot be used with a repository path",
+)
+
+// errOCIAmbientFilesWithoutDiscovery reports docker_style_config_files set while ambient discovery is off.
+var errOCIAmbientFilesWithoutDiscovery = errors.New(
+	"oci_default_credentials docker_style_config_files requires discover_ambient_credentials to be enabled",
+)
+
 // ociValidHelperName reports whether name is a safe docker-credential suffix:
 // non-empty and free of path separators, matching OpenTofu's validation.
 func ociValidHelperName(name string) bool {
@@ -382,8 +392,8 @@ func decodeOCITofuCredentials(l log.Logger, data []byte, path string) (ociTofuCr
 
 			defaults, err := decodeOCITofuDefaultHelper(block.Body)
 
-			// Keep the discovery switch even when the rest of the block is
-			// invalid, so a bad helper name cannot silently re-enable ambient.
+			// A present block owns the discovery policy even when its other fields are invalid.
+			tofu.hasDefault = true
 			tofu.discoverAmbient = defaults.discoverAmbient
 
 			if err != nil {
@@ -395,7 +405,6 @@ func decodeOCITofuCredentials(l log.Logger, data []byte, path string) (ociTofuCr
 			tofu.defaultHelper = defaults.helper
 			tofu.configFiles = defaults.configFiles
 			tofu.configFilesSet = defaults.configFilesSet
-			tofu.hasDefault = true
 
 			continue
 		}
@@ -425,13 +434,18 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 	}
 
 	if diags := gohcl.DecodeBody(body, nil, &decoded); diags.HasErrors() {
-		return ociTofuDefaults{discoverAmbient: true}, diags
+		return ociTofuDefaults{discoverAmbient: ociTofuDiscoverAmbientOnly(body)}, diags
 	}
 
 	discoverAmbient := decoded.DiscoverAmbient == nil || *decoded.DiscoverAmbient
 
 	if decoded.Helper != nil && !ociValidHelperName(*decoded.Helper) {
 		return ociTofuDefaults{discoverAmbient: discoverAmbient}, errOCIInvalidHelperName
+	}
+
+	// The file list only tunes ambient discovery, so tofu rejects it when discovery is off.
+	if !discoverAmbient && decoded.ConfigFiles != nil {
+		return ociTofuDefaults{discoverAmbient: discoverAmbient}, errOCIAmbientFilesWithoutDiscovery
 	}
 
 	defaults := ociTofuDefaults{
@@ -447,6 +461,21 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 	}
 
 	return defaults, nil
+}
+
+// ociTofuDiscoverAmbientOnly re-reads just the discovery switch so an explicit
+// opt-out survives an unrelated decode error in the rest of the block.
+func ociTofuDiscoverAmbientOnly(body hcl.Body) bool {
+	var decoded struct {
+		DiscoverAmbient *bool    `hcl:"discover_ambient_credentials,optional"`
+		Remain          hcl.Body `hcl:",remain"`
+	}
+
+	if diags := gohcl.DecodeBody(body, nil, &decoded); diags.HasErrors() {
+		return true
+	}
+
+	return decoded.DiscoverAmbient == nil || *decoded.DiscoverAmbient
 }
 
 // decodeOCITofuRepoBlock reads one oci_credentials block, mapping OpenTofu's
@@ -466,17 +495,24 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 		return ociTofuRepoCredential{}, diags
 	}
 
-	basic := decoded.Username != nil && decoded.Password != nil
-	oauth := decoded.AccessToken != nil && decoded.RefreshToken != nil
+	// An empty string carries no credential, so treat it as absent rather than
+	// letting it build a zero credential that outranks a valid ambient login.
+	username := nonEmptyString(decoded.Username)
+	password := nonEmptyString(decoded.Password)
+	accessToken := nonEmptyString(decoded.AccessToken)
+	refreshToken := nonEmptyString(decoded.RefreshToken)
+
+	basic := username != nil && password != nil
+	oauth := accessToken != nil && refreshToken != nil
 	helper := decoded.Helper != nil
 
 	// Reject a username without a password, or the reverse, matching OpenTofu.
-	if (decoded.Username != nil) != (decoded.Password != nil) {
+	if (username != nil) != (password != nil) {
 		return ociTofuRepoCredential{}, errOCIIncompleteBasicCredential
 	}
 
 	// OpenTofu requires the OAuth pair together, so reject a lone token.
-	if (decoded.AccessToken != nil) != (decoded.RefreshToken != nil) {
+	if (accessToken != nil) != (refreshToken != nil) {
 		return ociTofuRepoCredential{}, errOCIIncompleteOAuthCredential
 	}
 
@@ -496,6 +532,11 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 
 	registryDomain, repositoryPrefix := ociSplitRepositoryPrefix(block.Labels[0])
 
+	// Docker credential helpers key on a whole domain, so tofu rejects a repository path here.
+	if helper && repositoryPrefix != "" {
+		return ociTofuRepoCredential{}, errOCIHelperWithRepositoryPath
+	}
+
 	repo := ociTofuRepoCredential{
 		registryDomain:   ociCanonicalAuthKey(registryDomain),
 		repositoryPrefix: repositoryPrefix,
@@ -504,8 +545,8 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 
 	if oauth {
 		repo.cred = auth.Credential{
-			AccessToken:  derefString(decoded.AccessToken),
-			RefreshToken: derefString(decoded.RefreshToken),
+			AccessToken:  derefString(accessToken),
+			RefreshToken: derefString(refreshToken),
 		}
 
 		return repo, nil
@@ -513,8 +554,8 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 
 	if basic {
 		repo.cred = auth.Credential{
-			Username: derefString(decoded.Username),
-			Password: derefString(decoded.Password),
+			Username: derefString(username),
+			Password: derefString(password),
 		}
 	}
 
@@ -547,10 +588,20 @@ func ociSplitRepositoryPrefix(label string) (registryDomain, repositoryPrefix st
 	return registryDomain, repositoryPrefix
 }
 
+// derefString returns the pointed-to string, or the empty string when nil.
 func derefString(s *string) string {
 	if s == nil {
 		return ""
 	}
 
 	return *s
+}
+
+// nonEmptyString returns s unless it is nil or points at an empty string.
+func nonEmptyString(s *string) *string {
+	if s == nil || *s == "" {
+		return nil
+	}
+
+	return s
 }

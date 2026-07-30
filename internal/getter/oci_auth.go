@@ -387,13 +387,9 @@ func ociHelperServerAddress(hostport string) string {
 }
 
 // ociTofuHelperServerAddress builds the server address OpenTofu hands its
-// CLI-config credential helpers: https:// plus the host, folding Docker Hub to
-// the index server helpers store Hub credentials under.
+// CLI-config credential helpers: https:// plus the requested registry domain,
+// with no Docker Hub rewrite, matching tofu.
 func ociTofuHelperServerAddress(hostport string) string {
-	if ociCanonicalAuthKey(hostport) == ociDockerHubKey {
-		return ociDockerHubIndexServer
-	}
-
 	return "https://" + hostport
 }
 
@@ -675,6 +671,10 @@ func ociCanonicalAuthKey(key string) string {
 	}
 
 	registry, repository, found := strings.Cut(stripped, "/")
+
+	// Hostnames are case-insensitive; repository paths are not, so fold only the host.
+	registry = strings.ToLower(registry)
+
 	if slices.Contains(ociDockerHubRegistries, registry) {
 		registry = ociDockerHubKey
 	}
