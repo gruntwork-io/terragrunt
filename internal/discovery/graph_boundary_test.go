@@ -11,15 +11,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-// graphBoundaryFixture is a git repository mimicking a monorepo with sibling
-// environments. The working directory is environments/staging, and the graph
-// crosses out of it in both directions:
+// graphBoundaryFixture is a monorepo layout with sibling environments. The
+// working directory is environments/staging, and the graph crosses out of it in
+// both directions:
 //
 //	environments/staging/vpc          (dependent-direction target)
 //	environments/staging/app          depends on ../vpc
@@ -35,45 +33,41 @@ type graphBoundaryFixture struct {
 	externalDir string
 }
 
-// newGraphBoundaryFixture returns the fixture and a venv whose git is stubbed to
-// report tmpDir as the repository root, so no repository is created on disk.
 func newGraphBoundaryFixture(t *testing.T) (graphBoundaryFixture, *venv.Venv) {
 	t.Helper()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	repoRoot := string(filepath.Separator) + "repo"
 
-	v := memGitTopLevelVenv(t, tmpDir)
+	v := memGitTopLevelVenv(t, repoRoot)
 
 	f := graphBoundaryFixture{
-		stagingDir:  filepath.Join(tmpDir, "environments", "staging"),
-		vpcDir:      filepath.Join(tmpDir, "environments", "staging", "vpc"),
-		appDir:      filepath.Join(tmpDir, "environments", "staging", "app"),
-		edgeDir:     filepath.Join(tmpDir, "environments", "staging", "edge"),
-		consumerDir: filepath.Join(tmpDir, "environments", "production", "consumer"),
-		externalDir: filepath.Join(tmpDir, "environments", "production", "external"),
+		stagingDir:  filepath.Join(repoRoot, "environments", "staging"),
+		vpcDir:      filepath.Join(repoRoot, "environments", "staging", "vpc"),
+		appDir:      filepath.Join(repoRoot, "environments", "staging", "app"),
+		edgeDir:     filepath.Join(repoRoot, "environments", "staging", "edge"),
+		consumerDir: filepath.Join(repoRoot, "environments", "production", "consumer"),
+		externalDir: filepath.Join(repoRoot, "environments", "production", "external"),
 	}
 
-	for _, dir := range []string{f.vpcDir, f.appDir, f.edgeDir, f.consumerDir, f.externalDir} {
-		require.NoError(t, v.FS.MkdirAll(dir, 0o755))
-	}
-
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.externalDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.appDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		f.vpcDir:      ``,
+		f.externalDir: ``,
+		f.appDir: `
 dependency "vpc" {
   config_path = "../vpc"
 }
-`), 0o644))
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.consumerDir, "terragrunt.hcl"), []byte(`
+`,
+		f.consumerDir: `
 dependency "vpc" {
   config_path = "../../staging/vpc"
 }
-`), 0o644))
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(f.edgeDir, "terragrunt.hcl"), []byte(`
+`,
+		f.edgeDir: `
 dependency "external" {
   config_path = "../../production/external"
 }
-`), 0o644))
+`,
+	})
 
 	return f, v
 }
@@ -190,34 +184,34 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 func TestDiscoveryGraphBoundary_PathWithLiteralParens(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	repoRoot := string(filepath.Separator) + "repo"
 
-	v := memGitTopLevelVenv(t, tmpDir)
+	v := memGitTopLevelVenv(t, repoRoot)
 
 	// vpc(prod) has literal parentheses in its directory name; app depends on it.
-	vpcDir := filepath.Join(tmpDir, "vpc(prod)")
-	appDir := filepath.Join(tmpDir, "app")
+	vpcDir := filepath.Join(repoRoot, "vpc(prod)")
+	appDir := filepath.Join(repoRoot, "app")
 
-	require.NoError(t, v.FS.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, v.FS.MkdirAll(appDir, 0o755))
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		appDir: `
 dependency "vpc" {
   config_path = "../vpc(prod)"
 }
-`), 0o644))
+`,
+	})
 
 	discover := func(query string) component.Components {
 		t.Helper()
 
 		opts := options.NewTerragruntOptions()
-		opts.WorkingDir = tmpDir
-		opts.RootWorkingDir = tmpDir
+		opts.WorkingDir = repoRoot
+		opts.RootWorkingDir = repoRoot
 
 		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
 		require.NoError(t, err)
 
-		configs, err := discovery.NewDiscovery(tmpDir).
+		configs, err := discovery.NewDiscovery(repoRoot).
 			WithFilters(filters).
 			Discover(t.Context(), logger.CreateLogger(), v, opts)
 		require.NoError(t, err)
@@ -243,7 +237,7 @@ dependency "vpc" {
 		t.Parallel()
 
 		// Boundary parens are a delimiter; the braced target parens are literal.
-		configs := discover("(" + tmpDir + ")...{" + vpcDir + "}")
+		configs := discover("(" + repoRoot + ")...{" + vpcDir + "}")
 		assert.ElementsMatch(t, []string{vpcDir, appDir}, configs.Filter(component.UnitKind).Paths())
 	})
 }
