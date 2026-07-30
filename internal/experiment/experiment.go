@@ -88,6 +88,11 @@ const (
 	// records through the configured logs exporter and correlating them with
 	// traces via the active span.
 	OtelLogs = "otel-logs"
+	// PatchSourceOutOfCache gates the --tf-update-source-out-of-cache flag, which
+	// rewrites relative paths in a source-less unit's OpenTofu/Terraform files so
+	// they still resolve after the files are copied into the .terragrunt-cache
+	// directory.
+	PatchSourceOutOfCache = "patch-source-out-of-cache"
 )
 
 const (
@@ -187,6 +192,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OtelLogs,
+		},
+		{
+			Name: PatchSourceOutOfCache,
 		},
 	}
 }
