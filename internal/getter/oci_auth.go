@@ -42,6 +42,9 @@ var ociDockerHubRegistries = []string{
 // ErrOCIHelperMalformedOutput reports a credential helper whose output is not valid JSON.
 var ErrOCIHelperMalformedOutput = errors.New("oci credential helper returned malformed output")
 
+// ErrOCIAmbientConfigFile reports a docker_style_config_files entry that cannot be read.
+var ErrOCIAmbientConfigFile = errors.New("cannot read docker_style_config_files entry")
+
 const (
 	// ociCredentialHelperPrefix is the docker-credential binary name prefix.
 	ociCredentialHelperPrefix = "docker-credential-"
@@ -293,7 +296,6 @@ func ociSelectCredentialCandidate(
 
 	// The oci_default_credentials helper is a global-specificity CLI source.
 	if tofu.defaultHelper != "" {
-		// Explicitly configured, so its failure surfaces instead of going anonymous.
 		cand := ociCredentialCandidate{
 			helper: &ociHelperEntry{
 				suffix:        tofu.defaultHelper,
@@ -538,9 +540,10 @@ func ociCredentialFromHelperOutput(entry ociHelperEntry, out []byte) (auth.Crede
 	return auth.Credential{Username: decoded.Username, Password: decoded.Secret}, nil
 }
 
+// loadOCIAmbientStores reads the Docker-style credential files docker_style_config_files replaces when set.
 func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) ([]ociAmbientStore, error) {
 	candidates := ociAmbientCredentialPaths(v)
-	// An explicit list replaces the default search paths; an empty one disables discovery.
+
 	explicit := tofu.configFilesSet
 	if explicit {
 		candidates = ociResolveConfigFiles(tofu.configDir, tofu.configFiles)
@@ -551,9 +554,8 @@ func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) 
 	for _, candidate := range candidates {
 		file, err := ociAuthFile(v, candidate)
 		if err != nil {
-			// A path the user named is configuration, so its failure is an error.
 			if explicit {
-				return nil, fmt.Errorf("reading docker_style_config_files entry %s: %w", candidate, err)
+				return nil, fmt.Errorf("%w %s: %w", ErrOCIAmbientConfigFile, candidate, err)
 			}
 
 			if !errors.Is(err, iofs.ErrNotExist) {

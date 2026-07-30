@@ -815,8 +815,8 @@ oci_default_credentials {
 	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
 
 	_, err := newStore(t.Context(), testRegistry, "team/vpc")
-	require.Error(t, err, "an explicitly configured credential file that cannot be read must fail")
-	assert.ErrorContains(t, err, "docker_style_config_files")
+	require.ErrorIs(t, err, getter.ErrOCIAmbientConfigFile,
+		"an explicitly configured credential file that cannot be read must fail")
 }
 
 // TestOCITofuCredentialsInvalidDefaultBlockRejected: an invalid helper is a
