@@ -108,7 +108,7 @@
 // Dependencies and dependents that resolve outside the boundary are neither
 // read nor returned, the same way a too-deep node is excluded by a depth bound.
 // The value must be an existing directory, resolved against the working
-// directory. This syntax is gated behind the bounded-filter experiment.
+// directory. This syntax is gated behind the bounded-discovery experiment.
 //
 // ## Numeric Directory Disambiguation
 //

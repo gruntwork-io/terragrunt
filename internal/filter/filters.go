@@ -18,11 +18,11 @@ import (
 type Filters []*Filter
 
 // ErrBoundaryRequiresExperiment is returned when a filter expression uses the
-// inline "(dir)" graph boundary operand without the bounded-filter experiment
+// inline "(dir)" graph boundary operand without the bounded-discovery experiment
 // enabled.
 var ErrBoundaryRequiresExperiment = errors.New(
-	"the inline '(dir)' graph boundary requires the 'bounded-filter' experiment " +
-		"to be enabled (e.g., --experiment=bounded-filter)",
+	"the inline '(dir)' graph boundary requires the 'bounded-discovery' experiment " +
+		"to be enabled (e.g., --experiment=bounded-discovery)",
 )
 
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.

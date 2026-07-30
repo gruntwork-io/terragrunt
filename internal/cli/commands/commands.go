@@ -609,9 +609,9 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.Filters = deduped
 
-	// The inline "(dir)" graph boundary is gated behind the bounded-filter
+	// The inline "(dir)" graph boundary is gated behind the bounded-discovery
 	// experiment, regardless of whether it arrived via --filter or a filters file.
-	if opts.Filters.HasGraphBoundary() && !opts.Experiments.Evaluate(experiment.BoundedFilter) {
+	if opts.Filters.HasGraphBoundary() && !opts.Experiments.Evaluate(experiment.BoundedDiscovery) {
 		return filter.ErrBoundaryRequiresExperiment
 	}
 

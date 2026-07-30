@@ -92,11 +92,11 @@ const (
 	// command, rendering discovered components as JSON Lines or Markdown on
 	// standard output instead of launching the terminal user interface.
 	CatalogFormat = "catalog-format"
-	// BoundedFilter gates the inline "(dir)" graph boundary operand, which
+	// BoundedDiscovery gates the inline "(dir)" graph boundary operand, which
 	// encloses graph discovery for a filter expression within a directory
 	// instead of the git repository root: dependencies and dependents resolving
 	// outside it are not discovered.
-	BoundedFilter = "bounded-filter"
+	BoundedDiscovery = "bounded-discovery"
 )
 
 const (
@@ -201,7 +201,7 @@ func NewExperiments() Experiments {
 			Name: CatalogFormat,
 		},
 		{
-			Name: BoundedFilter,
+			Name: BoundedDiscovery,
 		},
 	}
 }

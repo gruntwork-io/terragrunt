@@ -1,11 +1,11 @@
 ---
-name: bounded-filter
+name: bounded-discovery
 since: "1.1.0"
 ---
 
 Enclose graph traversal for a `--filter` expression within a directory using an inline `(dir)` operand, instead of the git repository root.
 
-### `bounded-filter` - What it does
+### `bounded-discovery` - What it does
 
 Graph-traversing filter expressions reach beyond the working directory. Dependents (`...{unit}`) live anywhere, so Terragrunt searches from the working directory up to the git repository root; dependencies (`{unit}...`) are declared by path and can point anywhere. Either way, Terragrunt reads and parses every configuration it touches along the way. In monorepos where sibling environments cannot be parsed independently of each other, that traversal fails or wastes work reaching into them.
 
@@ -13,7 +13,7 @@ When enabled, this experiment unlocks an inline `(dir)` boundary operand. It sit
 
 ```bash
 cd environments/staging
-terragrunt find --experiment bounded-filter --filter '(.)...{vpc}'
+terragrunt find --experiment bounded-discovery --filter '(.)...{vpc}'
 ```
 
 ```text
@@ -31,13 +31,13 @@ Any configuration that resolves outside the boundary, whether a dependent or a d
 
 A boundary prunes traversal rather than filtering results, so an in-boundary unit reachable only by passing through an out-of-boundary unit is intentionally excluded, the same way a too-deep unit is excluded by a depth bound. To keep that unit, use an unbounded expression with a path intersection (`{vpc}... | ./envs/staging/**`) instead, which reads the full closure and then matches.
 
-### `bounded-filter` - How to provide feedback
+### `bounded-discovery` - How to provide feedback
 
 Provide your feedback in the [Keeping `--filter` flag contained within working directory GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6331), which motivated this experiment.
 
-### `bounded-filter` - Criteria for stabilization
+### `bounded-discovery` - Criteria for stabilization
 
-To transition the `bounded-filter` feature to a stable release, the following must be addressed:
+To transition the `bounded-discovery` feature to a stable release, the following must be addressed:
 
 - [ ] Confirm a single directory boundary covers the common isolation layouts (per-environment directories, shared parent configuration).
 - [ ] Decide whether a boundary should also accept a glob, or remain directory-only.
