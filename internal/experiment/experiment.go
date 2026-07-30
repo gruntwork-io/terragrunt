@@ -88,6 +88,10 @@ const (
 	// records through the configured logs exporter and correlating them with
 	// traces via the active span.
 	OtelLogs = "otel-logs"
+	// CatalogFormat enables non-interactive output formats for the catalog
+	// command, rendering discovered components as JSON Lines or Markdown on
+	// standard output instead of launching the terminal user interface.
+	CatalogFormat = "catalog-format"
 )
 
 const (
@@ -187,6 +191,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OtelLogs,
+		},
+		{
+			Name: CatalogFormat,
 		},
 	}
 }

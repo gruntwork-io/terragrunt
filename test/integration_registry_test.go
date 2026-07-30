@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -103,7 +104,7 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 
 	assert.True(t, util.FileExists(filepath.Join(pinned.WorkingDir, "main.tf")))
 
-	wantVersion, err := pinned.EncodeSourceVersion(l)
+	wantVersion, err := pinned.EncodeSourceVersion(l, vfs.NewOSFS())
 	require.NoError(t, err)
 
 	// Guard against a vacuous comparison: the version encoding must
@@ -118,7 +119,7 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	otherVersion, err := otherPin.EncodeSourceVersion(l)
+	otherVersion, err := otherPin.EncodeSourceVersion(l, vfs.NewOSFS())
 	require.NoError(t, err)
 	require.NotEqual(t, wantVersion, otherVersion)
 
@@ -159,7 +160,7 @@ func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testin
 		)
 		require.NoError(t, err)
 
-		wantVersion, err := pinned.EncodeSourceVersion(l)
+		wantVersion, err := pinned.EncodeSourceVersion(l, vfs.NewOSFS())
 		require.NoError(t, err)
 
 		gotVersion, err := util.ReadFileAsString(pinned.VersionFile)

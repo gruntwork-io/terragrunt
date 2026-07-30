@@ -356,6 +356,100 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 	return err
 }
 
+// WalkDirWithSymlinks walks the file tree rooted at root like [WalkDir] does,
+// additionally descending into the directories that symbolic links resolve to.
+// Paths handed to fn are logical: they read as if the link target lived at the
+// link's own location.
+//
+// Each logical path is reported once, so a directory reachable through several
+// links is visited once, and a link pointing back at an ancestor terminates
+// instead of looping.
+func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
+	w := &symlinkWalker{
+		fsys:           fsys,
+		fn:             fn,
+		visited:        make(map[string]bool),
+		visitedLogical: make(map[string]bool),
+	}
+
+	realRoot, err := EvalSymlinks(fsys, root)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+	}
+
+	return w.walk(realRoot, realRoot)
+}
+
+// symlinkWalker carries the bookkeeping [WalkDirWithSymlinks] needs across the
+// nested walks it starts for each followed link.
+type symlinkWalker struct {
+	fsys           FS
+	fn             fs.WalkDirFunc
+	visited        map[string]bool
+	visitedLogical map[string]bool
+}
+
+// walk traverses the tree at physical, reporting entries under logical.
+func (w *symlinkWalker) walk(physical, logical string) error {
+	return WalkDir(w.fsys, physical, func(current string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return w.fn(current, d, err)
+		}
+
+		rel, err := filepath.Rel(physical, current)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to get relative path between %s and %s: %w",
+				physical,
+				current,
+				err,
+			)
+		}
+
+		logicalPath := filepath.Join(logical, rel)
+
+		if !w.visitedLogical[logicalPath] {
+			w.visitedLogical[logicalPath] = true
+
+			if err := w.fn(logicalPath, d, nil); err != nil {
+				return err
+			}
+		}
+
+		if d.Type()&fs.ModeSymlink == 0 {
+			return nil
+		}
+
+		return w.follow(current, logicalPath)
+	})
+}
+
+// follow resolves the link at current and, when it lands on a directory,
+// walks the target as though it lived at logicalPath.
+func (w *symlinkWalker) follow(current, logicalPath string) error {
+	realPath, err := EvalSymlinks(w.fsys, current)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err)
+	}
+
+	realInfo, err := w.fsys.Stat(realPath)
+	if err != nil {
+		return fmt.Errorf("failed to describe file %s: %w", realPath, err)
+	}
+
+	if w.visited[realPath+":"+current] {
+		return nil
+	}
+
+	w.visited[realPath+":"+current] = true
+
+	if !realInfo.IsDir() {
+		return nil
+	}
+
+	return w.walk(realPath, logicalPath)
+}
+
 // osFS wraps afero.OsFs with hard link support.
 type osFS struct {
 	afero.Fs

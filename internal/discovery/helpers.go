@@ -13,9 +13,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -38,6 +40,30 @@ const (
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
+
+// walkDirFunc returns the tree walk the discovery phases use, bound to the
+// venv filesystem so discovery only sees what the venv exposes. The symlinks
+// experiment swaps in the walk that descends into symlinked directories.
+func walkDirFunc(
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) func(string, iofs.WalkDirFunc) error {
+	v.RequireFS()
+
+	if opts == nil {
+		panic("discovery.walkDirFunc: opts is nil")
+	}
+
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		return func(root string, fn iofs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(v.FS, root, fn)
+		}
+	}
+
+	return func(root string, fn iofs.WalkDirFunc) error {
+		return vfs.WalkDir(v.FS, root, fn)
+	}
+}
 
 // stringSet is a thread-safe set of strings using map and RWMutex.
 // This is more performant than sync.Map for string keys with simple bool values.

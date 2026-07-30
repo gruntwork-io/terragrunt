@@ -120,7 +120,7 @@ func Run(
 
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
-	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return ProcessHooks(ctx, l, v, ProcessHooksParams{
 			Hooks:    cfg.Terraform.AfterHooks,
 			Opts:     terragruntOptionsClone,
@@ -138,7 +138,7 @@ func Run(
 		opts.OriginalIAMRoleOptions,
 	)
 
-	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(
 			ctx, l, v,
 			amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env),
@@ -199,7 +199,7 @@ func Run(
 		return err
 	}
 
-	if err := opts.RunWithErrorHandling(ctx, l, r, func() error {
+	if err := opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return runTerragruntWithConfig(ctx, l, v, opts, updatedOpts, cfg, r)
 	}); err != nil {
 		return err

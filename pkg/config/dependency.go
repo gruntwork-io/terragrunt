@@ -2035,7 +2035,8 @@ func parseAutoIncludeFileCached(
 		return cached.Rebind(hclparse.NewParser(pctx.ParserOptions...)), nil
 	}
 
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(autoIncludePath)
+	file, err := hclparse.NewParser(pctx.ParserOptions...).
+		ParseFromFile(pctx.Venv.FS, autoIncludePath)
 	if err != nil {
 		return nil, err
 	}

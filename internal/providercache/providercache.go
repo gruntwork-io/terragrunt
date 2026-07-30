@@ -353,7 +353,7 @@ func (pc *ProviderCache) warmUpCache(
 	// wrote the lock file here, that check would always pass, silently defeating the
 	// flag. Leave the lock file untouched and let OpenTofu/Terraform enforce it.
 	if lockfileReadonly {
-		l.Warnf(
+		l.Debugf(
 			"`%s=%s` is set, so Terragrunt will not generate or update %s in %s. "+
 				"OpenTofu/Terraform will fail if the lock file is missing or incomplete.",
 			tf.FlagNameLockfile,

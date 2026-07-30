@@ -296,6 +296,7 @@ func resolveStackAutoIncludes(
 	// terragrunt.autoinclude.stack.hcl overrides same-name components wholesale, so an overridden
 	// component must not inherit the base block's resolved unit-level autoinclude.
 	if pruneErr := pruneOverriddenStackAutoIncludes(
+		scopedPctx.Venv.FS,
 		autoIncludes,
 		stackSourceDir,
 		prodEvalCtx,
@@ -1068,7 +1069,8 @@ func ReadStackConfigFile(
 	stackPctx.TerragruntConfigPath = filePath
 	stackPctx.OriginalTerragruntConfigPath = filePath
 
-	file, err := hclparse.NewParser(stackPctx.ParserOptions...).ParseFromFile(filePath)
+	file, err := hclparse.NewParser(stackPctx.ParserOptions...).
+		ParseFromFile(stackPctx.Venv.FS, filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -1123,6 +1125,7 @@ func ParseStackConfig(
 	// can reference where sibling components generate to (e.g. to pass a unit path
 	// down to a child stack).
 	if err := injectStackComponentRefs(
+		parser.Venv.FS,
 		file,
 		evalParsingContext,
 		filepath.Dir(file.ConfigPath),
@@ -1140,6 +1143,7 @@ func ParseStackConfig(
 	stackDir := filepath.Dir(file.ConfigPath)
 
 	if err := processStackConfigIncludes(
+		parser.Venv.FS,
 		config,
 		stackDir,
 		evalParsingContext,
@@ -1149,6 +1153,7 @@ func ParseStackConfig(
 	}
 
 	if err := mergeStackAutoIncludeFile(
+		parser.Venv.FS,
 		l,
 		config,
 		stackDir,
@@ -1213,6 +1218,7 @@ func (h *stackComponentHeader) GeneratedPath(stackDir string) string {
 // overridden component's path reflects the override, not the stale base path.
 // stackDir is the directory containing the stack file.
 func injectStackComponentRefs(
+	fsys vfs.FS,
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
 	stackDir string,
@@ -1227,7 +1233,7 @@ func injectStackComponentRefs(
 	// stack.<name>.path can resolve against the base components, matching how the full decode resolves them.
 	setStackComponentRefVars(evalCtx, stackDir, headers.Units, headers.Stacks)
 
-	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(stackDir, evalCtx, parserOpts)
+	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(fsys, stackDir, evalCtx, parserOpts)
 	if err != nil {
 		return err
 	}
@@ -1279,16 +1285,23 @@ func setStackComponentRefVars(
 // stackAutoIncludeComponentHeaders decodes the unit and stack block headers (name and path only) declared
 // by a sibling terragrunt.autoinclude.stack.hcl. It returns nil slices when no autoinclude file exists.
 func stackAutoIncludeComponentHeaders(
+	fsys vfs.FS,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
 ) ([]*stackComponentHeader, []*stackComponentHeader, error) {
 	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
-	if !util.FileExists(autoIncludePath) {
+
+	exists, err := vfs.FileExists(fsys, autoIncludePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !exists {
 		return nil, nil, nil
 	}
 
-	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(autoIncludePath)
+	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, autoIncludePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
 	}
@@ -1333,16 +1346,23 @@ type stackComponentLabels struct {
 // names do not depend on local.*/unit.*/stack.* being populated in the eval context. It returns nil slices
 // when no autoinclude file exists.
 func stackAutoIncludeComponentNames(
+	fsys vfs.FS,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
 ) (unitNames, stackNames []string, err error) {
 	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
-	if !util.FileExists(autoIncludePath) {
+
+	exists, err := vfs.FileExists(fsys, autoIncludePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !exists {
 		return nil, nil, nil
 	}
 
-	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(autoIncludePath)
+	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, autoIncludePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
 	}
@@ -1381,6 +1401,7 @@ func stackAutoIncludeComponentNames(
 // pruning it is a no-op. It reads only block names so it never evaluates an injected path expression that
 // the generate-path eval context cannot resolve.
 func pruneOverriddenStackAutoIncludes(
+	fsys vfs.FS,
 	autoIncludes map[string]*inthclparse.AutoIncludeResolved,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
@@ -1390,7 +1411,7 @@ func pruneOverriddenStackAutoIncludes(
 		return nil
 	}
 
-	unitNames, stackNames, err := stackAutoIncludeComponentNames(stackDir, evalCtx, parserOpts)
+	unitNames, stackNames, err := stackAutoIncludeComponentNames(fsys, stackDir, evalCtx, parserOpts)
 	if err != nil {
 		return err
 	}
@@ -1411,6 +1432,7 @@ func pruneOverriddenStackAutoIncludes(
 // its units and stacks into the main config so generation sees all components,
 // not just those in the root file.
 func processStackConfigIncludes(
+	fsys vfs.FS,
 	config *StackConfigFile,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
@@ -1422,7 +1444,7 @@ func processStackConfigIncludes(
 			includePath = filepath.Join(stackDir, includePath)
 		}
 
-		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(includePath)
+		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, includePath)
 		if err != nil {
 			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
@@ -1474,6 +1496,7 @@ func processStackConfigIncludes(
 // autoinclude block materialize in the nested stack the same way a unit's
 // terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeIfPresent].
 func mergeStackAutoIncludeFile(
+	fsys vfs.FS,
 	l log.Logger,
 	config *StackConfigFile,
 	stackDir, stackFileName string,
@@ -1486,11 +1509,17 @@ func mergeStackAutoIncludeFile(
 	}
 
 	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
-	if !util.FileExists(autoIncludePath) {
+
+	exists, err := vfs.FileExists(fsys, autoIncludePath)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
 		return nil
 	}
 
-	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(autoIncludePath)
+	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, autoIncludePath)
 	if err != nil {
 		return fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
 	}
@@ -1676,13 +1705,18 @@ func ReadValues(
 
 	filePath := filepath.Join(directory, valuesFile)
 
-	if util.FileNotExists(filePath) {
+	exists, err := vfs.FileExists(pctx.Venv.FS, filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
 		return nil, nil
 	}
 
 	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
 
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(filePath)
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(pctx.Venv.FS, filePath)
 	if err != nil {
 		return nil, err
 	}
