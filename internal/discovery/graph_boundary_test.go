@@ -36,14 +36,13 @@ type graphBoundaryFixture struct {
 }
 
 // newGraphBoundaryFixture returns the fixture and a venv whose git is stubbed to
-// report tmpDir as the repository root, so no repository is created on disk. Its
-// FS is the real one because discovery reads the fixture from the filesystem.
+// report tmpDir as the repository root, so no repository is created on disk.
 func newGraphBoundaryFixture(t *testing.T) (graphBoundaryFixture, *venv.Venv) {
 	t.Helper()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	v := memGitTopLevelVenv(t, tmpDir).WithFS(vfs.NewOSFS())
+	v := memGitTopLevelVenv(t, tmpDir)
 
 	f := graphBoundaryFixture{
 		stagingDir:  filepath.Join(tmpDir, "environments", "staging"),
@@ -193,7 +192,7 @@ func TestDiscoveryGraphBoundary_PathWithLiteralParens(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	v := memGitTopLevelVenv(t, tmpDir).WithFS(vfs.NewOSFS())
+	v := memGitTopLevelVenv(t, tmpDir)
 
 	// vpc(prod) has literal parentheses in its directory name; app depends on it.
 	vpcDir := filepath.Join(tmpDir, "vpc(prod)")
