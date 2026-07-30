@@ -99,7 +99,7 @@ func (p *Parser) nextToken() {
 func (p *Parser) parseExpression(precedence int) Expression {
 	// Check for a prefix operand before the dependent ellipsis: a boundary
 	// ((dir)...foo), a depth (N...foo), or a bare ellipsis (...foo).
-	includeDependents, dependentDepth, dependentBoundary, ok := p.parseDependentPrefix()
+	dependents, ok := p.parseDependentPrefix()
 	if !ok {
 		return nil
 	}
@@ -190,37 +190,22 @@ func (p *Parser) parseExpression(precedence int) Expression {
 
 	target := leftExpr
 
-	// Check for a postfix operand after the dependency ellipsis: a boundary
-	// (foo...(dir)), a depth (foo...N), or nothing (foo...).
-	includeDependencies := false
-	dependencyDepth := 0
-	dependencyBoundary := ""
-
-	if p.curToken.Type == ELLIPSIS {
-		includeDependencies = true
-
-		p.nextToken()
-
-		depth, boundary, suffixOK := p.parseDependencySuffix()
-		if !suffixOK {
-			return nil
-		}
-
-		dependencyDepth = depth
-		dependencyBoundary = boundary
+	dependencies, ok := p.parseDependencySuffix()
+	if !ok {
+		return nil
 	}
 
 	// If we have any graph operators, wrap in GraphExpression
-	if includeDependents || includeDependencies || excludeTarget {
+	if dependents.include || dependencies.include || excludeTarget {
 		leftExpr = &GraphExpression{
 			Target:              target,
-			IncludeDependents:   includeDependents,
-			IncludeDependencies: includeDependencies,
+			IncludeDependents:   dependents.include,
+			IncludeDependencies: dependencies.include,
 			ExcludeTarget:       excludeTarget,
-			DependentDepth:      dependentDepth,
-			DependencyDepth:     dependencyDepth,
-			DependentBoundary:   dependentBoundary,
-			DependencyBoundary:  dependencyBoundary,
+			DependentDepth:      dependents.depth,
+			DependencyDepth:     dependencies.depth,
+			DependentBoundary:   dependents.boundary,
+			DependencyBoundary:  dependencies.boundary,
 		}
 	}
 
@@ -251,16 +236,22 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	return leftExpr
 }
 
+// graphBound describes how far traversal reaches in one direction of the graph.
+type graphBound struct {
+	boundary string
+	depth    int
+	include  bool
+}
+
 // parseDependentPrefix parses the optional operand before the dependent
-// ellipsis. It returns whether dependents are included, a depth, a directory
-// boundary, and ok=false only when a malformed operand produced a parse error.
+// ellipsis. ok is false only when a malformed operand produced a parse error.
 // A purely numeric operand is a depth (N...foo); "(dir)..." is a boundary;
 // a bare "..." includes dependents unbounded.
-func (p *Parser) parseDependentPrefix() (include bool, depth int, boundary string, ok bool) {
+func (p *Parser) parseDependentPrefix() (dependents graphBound, ok bool) {
 	if p.curToken.Type == LPAREN {
 		dir, parsed := p.parseBoundaryOperand()
 		if !parsed {
-			return false, 0, "", false
+			return graphBound{}, false
 		}
 
 		if p.curToken.Type != ELLIPSIS {
@@ -270,12 +261,12 @@ func (p *Parser) parseDependentPrefix() (include bool, depth int, boundary strin
 				"A graph boundary '(dir)' must be followed by '...'",
 			)
 
-			return false, 0, "", false
+			return graphBound{}, false
 		}
 
 		p.nextToken() // consume ellipsis
 
-		return true, 0, dir, true
+		return graphBound{include: true, boundary: dir}, true
 	}
 
 	if isPurelyNumeric(p.curToken.Literal) && p.peekToken.Type == ELLIPSIS {
@@ -283,39 +274,46 @@ func (p *Parser) parseDependentPrefix() (include bool, depth int, boundary strin
 		p.nextToken() // consume number
 		p.nextToken() // consume ellipsis
 
-		return true, d, "", true
+		return graphBound{include: true, depth: d}, true
 	}
 
 	if p.curToken.Type == ELLIPSIS {
 		p.nextToken()
 
-		return true, 0, "", true
+		return graphBound{include: true}, true
 	}
 
-	return false, 0, "", true
+	return graphBound{}, true
 }
 
-// parseDependencySuffix parses the optional operand after the dependency
-// ellipsis: a "(dir)" boundary, a numeric depth, or nothing. ok is false
-// only when a malformed boundary operand produced a parse error.
-func (p *Parser) parseDependencySuffix() (depth int, boundary string, ok bool) {
+// parseDependencySuffix parses the dependency ellipsis and its optional
+// operand: a "(dir)" boundary (foo...(dir)), a numeric depth (foo...N), or
+// nothing (foo...). ok is false only when a malformed boundary operand
+// produced a parse error.
+func (p *Parser) parseDependencySuffix() (dependencies graphBound, ok bool) {
+	if p.curToken.Type != ELLIPSIS {
+		return graphBound{}, true
+	}
+
+	p.nextToken() // consume ellipsis
+
 	if p.curToken.Type == LPAREN {
 		dir, parsed := p.parseBoundaryOperand()
 		if !parsed {
-			return 0, "", false
+			return graphBound{}, false
 		}
 
-		return 0, dir, true
+		return graphBound{include: true, boundary: dir}, true
 	}
 
 	if isPurelyNumeric(p.curToken.Literal) {
 		d := parseDepth(p.curToken.Literal)
 		p.nextToken()
 
-		return d, "", true
+		return graphBound{include: true, depth: d}, true
 	}
 
-	return 0, "", true
+	return graphBound{include: true}, true
 }
 
 // parseBoundaryOperand parses a "(dir)" graph boundary with curToken on the
