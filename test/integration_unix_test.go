@@ -179,3 +179,76 @@ func TestSymlinksExperimentRunAllWithRacing(t *testing.T) {
 		assert.Equal(t, 3, strings.Count(stdout, "Apply complete!"))
 	})
 }
+
+// buildSymlinkedStackFileFixture lays out a tree where the terragrunt.stack.hcl in `live`
+// is a symlink to a real stack file in `source`. The real stack file reads a sibling config
+// with a path relative to get_terragrunt_dir(), and that sibling exists only next to the
+// symlink (in `live`), not next to the symlink target (in `source`). It returns the `live`
+// working directory and the value the sibling contributes to the generated unit's values.
+func buildSymlinkedStackFileFixture(t *testing.T) (liveDir, siblingData string) {
+	t.Helper()
+
+	rootDir := helpers.TmpDirWOSymlinks(t)
+	siblingData = "from-sibling"
+
+	// The unit source: a module dir carrying a terragrunt.hcl so generation's post-copy
+	// validation (which requires terragrunt.hcl at the generated unit root) passes.
+	moduleDir := filepath.Join(rootDir, "module")
+	require.NoError(t, os.Mkdir(moduleDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "terragrunt.hcl"),
+		[]byte("inputs = {\n  data = \"placeholder\"\n}\n"), 0644))
+
+	// The real stack file lives in `source` and reads its sibling relative to its own dir.
+	sourceDir := filepath.Join(rootDir, "source")
+	require.NoError(t, os.Mkdir(sourceDir, 0755))
+
+	stackHCL := `locals {
+  sibling = read_terragrunt_config("${get_terragrunt_dir()}/sibling.hcl")
+}
+
+unit "app" {
+  source = "${get_terragrunt_dir()}/../module"
+  path   = "app"
+  values = {
+    data = local.sibling.locals.data
+  }
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "terragrunt.stack.hcl"), []byte(stackHCL), 0644))
+
+	// The `live` dir holds the symlink to the real stack file, plus the sibling it reads.
+	// The sibling exists here only, so generation succeeds only if reads resolve against
+	// `live` (where the symlink lives), not `source` (the symlink target's dir).
+	liveDir = filepath.Join(rootDir, "live")
+	require.NoError(t, os.Mkdir(liveDir, 0755))
+	require.NoError(t, os.Symlink(
+		filepath.Join(sourceDir, "terragrunt.stack.hcl"),
+		filepath.Join(liveDir, "terragrunt.stack.hcl"),
+	))
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "sibling.hcl"),
+		[]byte("locals {\n  data = \""+siblingData+"\"\n}\n"), 0644))
+
+	return liveDir, siblingData
+}
+
+// TestStackGenerateSymlinkedStackFileReadsRelative is a regression test for a symlinked
+// terragrunt.stack.hcl whose relative read_terragrunt_config reads were resolved against the
+// symlink target's directory instead of the directory the symlink lives in. Stack generation
+// canonicalises the stack file's directory but must keep the file anchored to its own location,
+// so a sibling config read relative to get_terragrunt_dir() resolves next to the symlink.
+func TestStackGenerateSymlinkedStackFileReadsRelative(t *testing.T) {
+	t.Parallel()
+
+	liveDir, siblingData := buildSymlinkedStackFileFixture(t)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --working-dir "+liveDir)
+	require.NoError(t, err, "stack generate should resolve the sibling read next to the symlink; stderr: %s", stderr)
+
+	// The generated unit's values must carry the value read from the sibling, proving the
+	// relative read resolved against the symlink's directory rather than its target's.
+	valuesPath := filepath.Join(liveDir, ".terragrunt-stack", "app", "terragrunt.values.hcl")
+	contents, readErr := os.ReadFile(valuesPath)
+	require.NoError(t, readErr)
+	assert.Contains(t, string(contents), siblingData)
+}
