@@ -21,7 +21,8 @@ type Filters []*Filter
 // inline "(dir)" graph boundary operand without the bounded-filter experiment
 // enabled.
 var ErrBoundaryRequiresExperiment = errors.New(
-	"the inline '(dir)' graph boundary requires the 'bounded-filter' experiment to be enabled (e.g., --experiment=bounded-filter)",
+	"the inline '(dir)' graph boundary requires the 'bounded-filter' experiment " +
+		"to be enabled (e.g., --experiment=bounded-filter)",
 )
 
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.

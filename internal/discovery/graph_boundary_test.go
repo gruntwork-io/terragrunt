@@ -224,7 +224,7 @@ dependency "vpc" {
 
 		configs, err := discovery.NewDiscovery(tmpDir).
 			WithFilters(filters).
-			Discover(t.Context(), logger.CreateLogger(), opts)
+			Discover(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
 		require.NoError(t, err)
 
 		return configs

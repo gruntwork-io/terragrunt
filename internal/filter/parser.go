@@ -264,7 +264,12 @@ func (p *Parser) parseDependentPrefix() (include bool, depth int, boundary strin
 		}
 
 		if p.curToken.Type != ELLIPSIS {
-			p.addErrorWithCode(ErrorCodeUnexpectedToken, "Invalid boundary operand", "A graph boundary '(dir)' must be followed by '...'")
+			p.addErrorWithCode(
+				ErrorCodeUnexpectedToken,
+				"Invalid boundary operand",
+				"A graph boundary '(dir)' must be followed by '...'",
+			)
+
 			return false, 0, "", false
 		}
 
@@ -333,7 +338,13 @@ func (p *Parser) parseBoundaryOperand() (string, bool) {
 	}
 
 	if p.curToken.Type != RPAREN {
-		p.addErrorAtPosition(ErrorCodeUnexpectedToken, "Unclosed boundary", "This graph boundary is missing a closing ')'", openParenPos)
+		p.addErrorAtPosition(
+			ErrorCodeUnexpectedToken,
+			"Unclosed boundary",
+			"This graph boundary is missing a closing ')'",
+			openParenPos,
+		)
+
 		return "", false
 	}
 
