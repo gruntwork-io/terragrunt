@@ -1,9 +1,16 @@
 package test_test
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -13,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -30,6 +38,15 @@ import (
 
 const (
 	testFixtureCatalogLocalTemplate = "fixtures/catalog/local-template"
+
+	// catalogPipeWorkDirEnv carries the working directory the catalog pipe
+	// child process renders, and marks the process as that child.
+	catalogPipeWorkDirEnv = "CATALOG_PIPE_WORKING_DIR"
+
+	// catalogEarlyExitModules is large enough that rendering every module
+	// outgrows a pipe buffer, so the child is still writing when the reader
+	// stops.
+	catalogEarlyExitModules = 400
 )
 
 func TestCatalogGitRepoUpdate(t *testing.T) {
@@ -433,13 +450,281 @@ func TestCatalogNonTTYFailsFast(t *testing.T) {
 	require.ErrorIs(t, err, tui.ErrNoTerminal)
 }
 
+// TestCatalogJSONLFormat renders a catalog non-interactively, one JSON object
+// per line, and checks the components it discovered.
+func TestCatalogJSONLFormat(t *testing.T) {
+	t.Parallel()
+
+	workDir := catalogJSONLFixture(t)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir)
+	require.NoError(t, err)
+
+	byDir := parseCatalogJSONL(t, stdout)
+
+	kinds := map[string]string{}
+	for dir, entry := range byDir {
+		kinds[dir] = entry.Kind
+	}
+
+	assert.Equal(t, map[string]string{
+		"modules/vpc":       "module",
+		"templates/service": "template",
+		"units/app":         "unit",
+		"stacks/prod":       "stack",
+	}, kinds)
+
+	vpc := byDir["modules/vpc"]
+	assert.Equal(t, "VPC", vpc.Title)
+	assert.Equal(t, "Creates a VPC.", vpc.Description)
+	assert.Equal(t, []string{"networking"}, vpc.Tags)
+	assert.Contains(t, vpc.Doc, "Everything a VPC needs.")
+	assert.False(t, vpc.Copyable)
+
+	assert.True(t, byDir["units/app"].Copyable)
+	assert.True(t, byDir["stacks/prod"].Copyable)
+}
+
+// TestCatalogJSONLFormatWithoutTTY guards the non-interactive path against the
+// terminal check that the TUI needs, which would make the command unusable in
+// CI. It mirrors the skip of [TestCatalogNonTTYFailsFast]: where a terminal is
+// available, a regression would launch the TUI and block instead of failing.
+func TestCatalogJSONLFormatWithoutTTY(t *testing.T) {
+	t.Parallel()
+
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		t.Skip("stdin is a terminal; a regression would launch the catalog TUI for real")
+	}
+
+	if in, out, err := tea.OpenTTY(); err == nil {
+		closeErr := in.Close()
+		if out != in {
+			closeErr = errors.Join(closeErr, out.Close())
+		}
+
+		require.NoError(t, closeErr)
+		t.Skip("a controlling terminal is available; a regression would launch the catalog TUI for real")
+	}
+
+	workDir := catalogJSONLFixture(t)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir)
+	require.NoError(t, err)
+	assert.Len(t, parseCatalogJSONL(t, stdout), 4)
+}
+
+func TestCatalogJSONLFormatRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip(
+			"Skipping: TG_EXPERIMENT_MODE forces all experiments on, opening the gate this test pins shut",
+		)
+	}
+
+	workDir := catalogJSONLFixture(t)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt catalog --format jsonl --working-dir "+workDir)
+
+	require.ErrorIs(t, err, catalog.ErrFormatRequiresExperiment)
+	assert.Empty(t, stdout)
+}
+
+// TestCatalogUnknownFormat uses a format nothing plans to implement, so that
+// adding a renderer never turns this into a failure that has to be chased.
+func TestCatalogUnknownFormat(t *testing.T) {
+	t.Parallel()
+
+	workDir := catalogJSONLFixture(t)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt catalog --experiment catalog-format --format pdf --working-dir "+workDir)
+
+	require.Error(t, err)
+	assert.Empty(t, stdout)
+}
+
+// TestCatalogJSONLFormatCleansUpOnEarlyExit covers `terragrunt catalog
+// --format=jsonl | head -1`: the reader stops, and the command must still
+// remove the repositories it cloned into the temporary directory.
+//
+// It runs in a child process because standard output has to be a real pipe.
+// A write to a closed pipe on file descriptor 1 is the only thing that
+// reaches the path this guards, and the test process cannot produce one
+// without taking over its own standard output.
+func TestCatalogJSONLFormatCleansUpOnEarlyExit(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("SIGPIPE, and the early exit it used to cause, do not exist on Windows")
+	}
+
+	workDir := catalogManyModulesFixture(t, catalogEarlyExitModules)
+	childTempDir := t.TempDir()
+
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestCatalogPipeHelper$")
+
+	cmd.Env = append(
+		os.Environ(),
+		catalogPipeWorkDirEnv+"="+workDir,
+		"TMPDIR="+childTempDir,
+	)
+
+	var childStderr bytes.Buffer
+
+	cmd.Stderr = &childStderr
+
+	childStdout, err := cmd.StdoutPipe()
+	require.NoError(t, err)
+
+	require.NoError(t, cmd.Start())
+
+	// Reading one record and closing is what `head -1` does. The fixture is
+	// large enough that the child is still writing at that point.
+	line, err := bufio.NewReader(childStdout).ReadString('\n')
+	require.NoError(t, err)
+	require.NoError(t, childStdout.Close())
+
+	waitErr := cmd.Wait()
+
+	var entry format.Entry
+
+	require.NoError(t, json.Unmarshal([]byte(line), &entry))
+	assert.Equal(t, "module", entry.Kind)
+
+	leftovers, err := filepath.Glob(filepath.Join(childTempDir, "catalog-*"))
+	require.NoError(t, err)
+	assert.Empty(
+		t,
+		leftovers,
+		"clone directories survived the early exit (child exit: %v, child stderr: %s)",
+		waitErr,
+		childStderr.String(),
+	)
+}
+
+// TestCatalogPipeHelper renders a catalog to the process's own standard
+// output. It is the child of [TestCatalogJSONLFormatCleansUpOnEarlyExit] and
+// skips itself in every other run.
+func TestCatalogPipeHelper(t *testing.T) {
+	t.Parallel()
+
+	workDir := os.Getenv(catalogPipeWorkDirEnv)
+	if workDir == "" {
+		t.Skip("not the catalog pipe child process")
+	}
+
+	require.NoError(t, helpers.RunTerragruntCommand(t,
+		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir,
+		os.Stdout, os.Stderr))
+}
+
+// catalogManyModulesFixture builds a repository of count modules, each with a
+// README long enough that rendering them all outgrows a pipe buffer, and
+// returns a working directory whose catalog configuration points at it.
+func catalogManyModulesFixture(t *testing.T, count int) string {
+	t.Helper()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	body := strings.Repeat("Everything this module needs. ", 20)
+
+	for i := range count {
+		name := fmt.Sprintf("m%04d", i)
+
+		writeFixtureFile(t, filepath.Join(repoDir, "modules", name, "main.tf"), "# "+name)
+		writeFixtureFile(
+			t,
+			filepath.Join(repoDir, "modules", name, "README.md"),
+			"# "+name+"\n\n"+body+"\n",
+		)
+	}
+
+	seedFakeGit(t, repoDir)
+
+	workDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFixtureFile(t, filepath.Join(workDir, "terragrunt.hcl"), `catalog {
+  urls = ["`+filepath.ToSlash(repoDir)+`"]
+}
+`)
+
+	return workDir
+}
+
+// catalogJSONLFixture builds a repository holding one component of each kind
+// and a working directory whose catalog configuration points at it, then
+// returns the working directory.
+func catalogJSONLFixture(t *testing.T) string {
+	t.Helper()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFixtureFile(t, filepath.Join(repoDir, "modules", "vpc", "main.tf"), "# vpc module")
+	writeFixtureFile(t, filepath.Join(repoDir, "modules", "vpc", "README.md"), `---
+name: VPC
+description: Creates a VPC.
+tags:
+  - networking
+---
+
+Everything a VPC needs.
+`)
+	writeFixtureFile(
+		t,
+		filepath.Join(repoDir, "templates", "service", ".boilerplate", "boilerplate.yml"),
+		"variables: []\n",
+	)
+	writeFixtureFile(t, filepath.Join(repoDir, "units", "app", "terragrunt.hcl"), "# app unit")
+	writeFixtureFile(
+		t,
+		filepath.Join(repoDir, "stacks", "prod", "terragrunt.stack.hcl"),
+		"# prod stack",
+	)
+
+	seedFakeGit(t, repoDir)
+
+	workDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFixtureFile(t, filepath.Join(workDir, "terragrunt.hcl"), `catalog {
+  urls = ["`+filepath.ToSlash(repoDir)+`"]
+}
+`)
+
+	return workDir
+}
+
+// parseCatalogJSONL parses each line of rendered output and keys the entries
+// by directory. Entries arrive in discovery order, so callers may not depend
+// on the order they were written in.
+func parseCatalogJSONL(t *testing.T, stdout string) map[string]*format.Entry {
+	t.Helper()
+
+	entries := map[string]*format.Entry{}
+
+	for line := range strings.SplitSeq(strings.TrimSuffix(stdout, "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+
+		entry := &format.Entry{}
+		require.NoError(t, json.Unmarshal([]byte(line), entry))
+
+		entries[entry.Dir] = entry
+	}
+
+	return entries
+}
+
 func ignoreFileAction(
 	t *testing.T,
 	opts *options.TerragruntOptions,
 ) clihelper.FlagActionFunc[string] {
 	t.Helper()
 
-	flagList := catalog.NewFlags(opts, nil)
+	flagList := catalog.NewFlags(catalog.NewOptions(opts), nil)
 
 	flag := flagList.Get(catalog.IgnoreFileFlagName)
 	require.NotNil(t, flag, "--%s flag not registered", catalog.IgnoreFileFlagName)
