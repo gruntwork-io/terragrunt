@@ -544,7 +544,7 @@ func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) 
 	candidates := ociAmbientCredentialPaths(v)
 	// An explicit docker_style_config_files list replaces the default search
 	// paths, and an explicit empty list disables Docker-style discovery.
-	explicit := tofu != nil && tofu.configFilesSet
+	explicit := tofu.configFilesSet
 	if explicit {
 		candidates = ociResolveConfigFiles(tofu.configDir, tofu.configFiles)
 	}

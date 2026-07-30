@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -156,11 +155,6 @@ func loadOCITofuCredentials(l log.Logger, v *venv.Venv) (ociTofuCredentials, err
 			return ociTofuCredentials{}, err
 		}
 	}
-
-	// Longest repository prefix first, so the most specific block wins.
-	slices.SortStableFunc(merged.repos, func(a, b ociTofuRepoCredential) int {
-		return len(b.repositoryPrefix) - len(a.repositoryPrefix)
-	})
 
 	return merged, nil
 }

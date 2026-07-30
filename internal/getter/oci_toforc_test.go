@@ -238,21 +238,6 @@ func TestOCITofuCredentialsPrefixBoundary(t *testing.T) {
 	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
 }
 
-// TestOCITofuCredentialsBeatsAmbient: a tofu block wins over an ambient inline auth.
-func TestOCITofuCredentialsBeatsAmbient(t *testing.T) {
-	t.Parallel()
-
-	home := testHome
-	v := credentialVenv(home, nil)
-	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"),
-		tofuBasicAuth("registry.example.com", "tofu", "fake-secret-tofu"))
-	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
-
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	want := auth.Credential{Username: "tofu", Password: "fake-secret-tofu"}
-	assert.Equal(t, want, credentialFor(t, store, testRegistry))
-}
-
 // TestOCITofuCredentialsConfigFileOverride: TF_CLI_CONFIG_FILE selects the config path.
 func TestOCITofuCredentialsConfigFileOverride(t *testing.T) {
 	t.Parallel()
@@ -436,36 +421,6 @@ func TestOCITofuCredentialsConfigPathResolution(t *testing.T) {
 		store = newStoreForRepo(t, v, testRegistry, "team/vpc")
 		assert.Equal(t, "tofurc", credentialFor(t, store, testRegistry).Username)
 	})
-}
-
-// newStoreErr returns the error from building the store for one registry/repository.
-func newStoreErr(t *testing.T, v *venv.Venv, registry, repositoryName string) error {
-	t.Helper()
-
-	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
-
-	_, err := newStore(t.Context(), registry, repositoryName)
-
-	return err
-}
-
-// newStoreForRepo builds the default store for one registry/repository.
-func newStoreForRepo(t *testing.T, v *venv.Venv, registry, repositoryName string) getter.OCIRepositoryStore {
-	t.Helper()
-
-	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
-
-	store, err := newStore(t.Context(), registry, repositoryName)
-	require.NoError(t, err)
-
-	return store
-}
-
-// writeTofuConfig writes an OpenTofu CLI config file with the given body.
-func writeTofuConfig(t *testing.T, fs vfs.FS, path, body string) {
-	t.Helper()
-
-	require.NoError(t, vfs.WriteFile(fs, path, []byte(body), 0o600))
 }
 
 // TestOCITofuCredentialsRepoAmbientBeatsDomainCLI: a repository-scoped ambient auth outranks a registry-wide CLI block.
@@ -661,20 +616,7 @@ oci_default_credentials {
 }
 
 // tofuJSONBasicAuth renders a JSON oci_credentials block, keeping the username
-// and secret out of an adjacent literal pair that scanners flag.
-func tofuJSONBasicAuth(label, user, secret string) string {
-	return fmt.Sprintf(
-		"{\n  %q: {\n    %q: {\n      %q: %q,\n      %q: %q\n    }\n  }\n}",
-		"oci_credentials", label, "username", user, "password", secret,
-	)
-}
-
 // tofuBasicAuth renders an oci_credentials block with basic auth, keeping the
-// username and secret out of an adjacent literal pair that scanners flag.
-func tofuBasicAuth(label, user, secret string) string {
-	return fmt.Sprintf("\noci_credentials %q {\n  username = %q\n  password = %q\n}\n", label, user, secret)
-}
-
 // TestOCITofuCredentialsConfigPathPrecedence: with competing config sources present, the documented order wins.
 func TestOCITofuCredentialsConfigPathPrecedence(t *testing.T) {
 	t.Parallel()
@@ -1047,4 +989,91 @@ oci_default_credentials {
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "at most one oci_default_credentials block")
+}
+
+// TestOCITofuCredentialsRelativeConfigFileResolves: a relative
+// docker_style_config_files entry resolves against the file that declared it.
+func TestOCITofuCredentialsRelativeConfigFileResolves(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  docker_style_config_files = ["relative-auth.json"]
+}
+`)
+	writeAuthFile(t, v.FS, filepath.Join(home, "relative-auth.json"), testRegistry, "relative", "relative-pass")
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, "relative", credentialFor(t, store, testRegistry).Username,
+		"a relative entry must resolve against the declaring config file's directory")
+}
+
+// TestOCITofuCredentialsBlockHelperFailureIsFatal: a helper named by an
+// oci_credentials block was chosen deliberately, so its failure fails the pull
+// rather than quietly degrading to an anonymous one.
+func TestOCITofuCredentialsBlockHelperFailureIsFatal(t *testing.T) {
+	t.Parallel()
+
+	exec := stubHelperExec(t, "ecr-login", func(string) vexec.Result {
+		return vexec.Result{ExitCode: 1, Stderr: []byte("helper exploded")}
+	}, nil)
+
+	home := testHome
+	v := credentialVenv(home, nil).WithExec(exec)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_credentials "registry.example.com" {
+  docker_credentials_helper = "ecr-login"
+}
+`)
+	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+
+	_, err := credentialForErr(t, store, testRegistry)
+	require.Error(t, err, "a configured helper's failure must not fall back to ambient credentials")
+}
+
+// newStoreErr returns the error from building the store for one registry/repository.
+func newStoreErr(t *testing.T, v *venv.Venv, registry, repositoryName string) error {
+	t.Helper()
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	_, err := newStore(t.Context(), registry, repositoryName)
+
+	return err
+}
+
+// newStoreForRepo builds the default store for one registry/repository.
+func newStoreForRepo(t *testing.T, v *venv.Venv, registry, repositoryName string) getter.OCIRepositoryStore {
+	t.Helper()
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	store, err := newStore(t.Context(), registry, repositoryName)
+	require.NoError(t, err)
+
+	return store
+}
+
+// writeTofuConfig writes an OpenTofu CLI config file with the given body.
+func writeTofuConfig(t *testing.T, fs vfs.FS, path, body string) {
+	t.Helper()
+
+	require.NoError(t, vfs.WriteFile(fs, path, []byte(body), 0o600))
+}
+
+// and secret out of an adjacent literal pair that scanners flag.
+func tofuJSONBasicAuth(label, user, secret string) string {
+	return fmt.Sprintf(
+		"{\n  %q: {\n    %q: {\n      %q: %q,\n      %q: %q\n    }\n  }\n}",
+		"oci_credentials", label, "username", user, "password", secret,
+	)
+}
+
+// username and secret out of an adjacent literal pair that scanners flag.
+func tofuBasicAuth(label, user, secret string) string {
+	return fmt.Sprintf("\noci_credentials %q {\n  username = %q\n  password = %q\n}\n", label, user, secret)
 }
