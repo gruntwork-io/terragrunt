@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -232,7 +233,7 @@ func memGitTopLevelVenv(t *testing.T, repoRoot string) *venv.Venv {
 		return vexec.Result{ExitCode: 1}
 	})
 
-	return venvtest.New().WithExec(exec)
+	return venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 }
 
 // mockGraphTargetOption implements the GraphTarget() interface for testing.

@@ -461,7 +461,8 @@ func PartialParseConfigFile(
 			} else {
 				var parseErr error
 
-				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(configPath)
+				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
+					ParseFromFile(pctx.Venv.FS, configPath)
 				if parseErr != nil {
 					return parseErr
 				}
