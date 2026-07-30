@@ -1402,3 +1402,39 @@ func TestOCIHelperCredentialRejectsPathSeparatorName(t *testing.T) {
 	require.ErrorAs(t, credErr, &helperErr)
 	assert.Empty(t, lookedUp, "the binary must be rejected before any PATH lookup")
 }
+
+// TestOCICanonicalAuthKeyFoldsHostOnly: registry hosts and URL schemes are
+// case-insensitive, repository paths are not.
+func TestOCICanonicalAuthKeyFoldsHostOnly(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		name string
+		key  string
+		user string
+	}{
+		{name: "mixed-case host", key: "Registry.Example.COM", user: "host"},
+		{name: "upper-case scheme", key: "HTTPS://registry.example.com", user: "scheme"},
+		{name: "legacy hub key", key: "https://index.docker.io/v1/", user: "hub"},
+		{name: "mixed-case legacy hub key", key: "HTTPS://INDEX.DOCKER.IO/v1/", user: "hub"},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := testHome
+			v := credentialVenv(home, nil)
+			writeAuthFileKeys(t, v.FS, filepath.Join(home, ".docker", "config.json"),
+				map[string]string{tt.key: tt.user})
+
+			registry := testRegistry
+			if tt.user == "hub" {
+				registry = "registry-1.docker.io"
+			}
+
+			store := newStoreForRepo(t, v, registry, "team/vpc")
+			assert.Equal(t, tt.user, credentialFor(t, store, registry).Username)
+		})
+	}
+}

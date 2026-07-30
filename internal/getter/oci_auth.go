@@ -153,11 +153,13 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	}
 }
 
-// ociCredentialFunc resolves credentials in precedence order: OpenTofu
-// CLI-config oci_credentials blocks, then ambient Docker/containers discovery
-// and its helpers, then the oci_default_credentials helper.
+// ociCredentialFunc ranks CLI-config and ambient candidates by how specifically
+// each pins the repository, then runs the winning source, which may be a helper.
 func ociCredentialFunc(l log.Logger, v *venv.Venv) (ociCredentialFactory, error) {
-	tofu := loadOCITofuCredentials(l, v)
+	tofu, err := loadOCITofuCredentials(l, v)
+	if err != nil {
+		return nil, err
+	}
 
 	var stores []ociAmbientStore
 
@@ -662,13 +664,17 @@ func ociCredentialKeys(hostport, repositoryName string) []string {
 // the resolver matches on, so the Docker Hub spellings and a legacy config's
 // scheme all meet in one place.
 func ociCanonicalAuthKey(key string) string {
-	stripped := strings.TrimPrefix(key, "https://")
-	stripped = strings.TrimPrefix(stripped, "http://")
-	stripped = strings.TrimRight(stripped, "/")
+	stripped := key
+	// URL schemes are case-insensitive, so strip them before anything else.
+	for _, scheme := range []string{"https://", "http://"} {
+		if len(stripped) >= len(scheme) && strings.EqualFold(stripped[:len(scheme)], scheme) {
+			stripped = stripped[len(scheme):]
 
-	if stripped == "index.docker.io/v1" {
-		return ociDockerHubKey
+			break
+		}
 	}
+
+	stripped = strings.TrimRight(stripped, "/")
 
 	registry, repository, found := strings.Cut(stripped, "/")
 
@@ -677,6 +683,11 @@ func ociCanonicalAuthKey(key string) string {
 
 	if slices.Contains(ociDockerHubRegistries, registry) {
 		registry = ociDockerHubKey
+
+		// Docker writes the legacy index.docker.io/v1 key, which is the registry itself.
+		if repository == "v1" {
+			return ociDockerHubKey
+		}
 	}
 
 	if !found || repository == "" {

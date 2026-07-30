@@ -174,6 +174,11 @@ func GenerateStackFile(
 		strictControls:  pctx.StrictControls,
 	}
 
+	// One getter per stack, so every component shares its credential resolution.
+	if genOpts.ociEnabled {
+		genOpts.ociGetter = getter.NewOCIGetter(l, pctx.Venv)
+	}
+
 	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
 		return err
 	}
@@ -423,6 +428,7 @@ func setupCAS(l log.Logger, v *venv.Venv, enabled bool, cloneDepth int) (casSetu
 type generateOpts struct {
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	casInstance     *cas.CAS
+	ociGetter       *getter.OCIGetter
 	sourceMap       map[string]string
 	strictControls  strict.Controls
 	rootWorkingDir  string
@@ -989,13 +995,14 @@ func (err OCIExperimentRequiredError) Error() string {
 // isOCISource reports whether source is an oci registry reference, in either the
 // oci:// scheme form or go-getter's oci:: forced form.
 func isOCISource(source string) bool {
-	// URL schemes are case-insensitive, and the getter lower-cases before matching.
-	scheme := strings.ToLower(source)
-	if strings.HasPrefix(scheme, getter.SchemeOCI+"::") {
+	// go-getter matches the forced token exactly, so only the URL scheme folds.
+	if strings.HasPrefix(source, getter.SchemeOCI+"::") {
 		return true
 	}
 
-	return strings.HasPrefix(scheme, getter.SchemeOCI+"://")
+	scheme, _, found := strings.Cut(source, "://")
+
+	return found && strings.EqualFold(scheme, getter.SchemeOCI)
 }
 
 // stackGetterOptions builds the getter options a stack component fetch needs,
@@ -1003,8 +1010,8 @@ func isOCISource(source string) bool {
 func stackGetterOptions(l log.Logger, v *venv.Venv, opts *generateOpts) []getter.Option {
 	clientOpts := []getter.Option{getter.WithLogger(l), getter.WithHTTP(v.HTTP)}
 
-	if opts.ociEnabled {
-		clientOpts = append(clientOpts, getter.WithOCI(getter.NewOCIGetter(l, v)))
+	if opts.ociGetter != nil {
+		clientOpts = append(clientOpts, getter.WithOCI(opts.ociGetter))
 	}
 
 	return clientOpts

@@ -32,19 +32,28 @@ unit "vpc" {
 ```
 
 Specify either `tag` or `digest`; omitting both selects the `latest` tag.
-`//subdir` selectors are supported. Authentication is file-based, matching OpenTofu: configured
-credentials come from OpenTofu's CLI config (`oci_credentials` and
-`oci_default_credentials` blocks in `.tofurc` / `.terraformrc`), and Terragrunt
-also reads ambient Docker and containers auth files (`~/.docker/config.json`
-and containers `auth.json`), following the containers-auth search order
-OpenTofu uses.
+`//subdir` selectors are supported.
+
+Credentials come from OpenTofu's CLI config, in the `oci_credentials` and
+`oci_default_credentials` blocks. Terragrunt reads the file named by
+`TF_CLI_CONFIG_FILE` or `TERRAFORM_CONFIG`, otherwise the first of `~/.tofurc`
+and `~/.terraformrc` that exists (on Windows, `%APPDATA%\tofu.rc` and
+`%APPDATA%\terraform.rc`), and merges the `*.tfrc` and `*.tfrc.json` files in
+OpenTofu's config directory. Terragrunt also reads ambient Docker and containers
+auth files (`~/.docker/config.json` and containers `auth.json`), following the
+containers-auth search order OpenTofu uses. Set `docker_style_config_files` in
+`oci_default_credentials` to replace those default search paths, or an empty
+list to disable ambient discovery entirely.
+
+A CLI config that exists but is invalid is an error, matching `tofu`, rather
+than being skipped in a way that would change which credentials are sent.
 
 Terragrunt ranks every matching CLI-config and ambient credential together by how
 much of the repository path each one matches, and uses the single best match. A
 CLI-config entry wins only when both candidates match equally closely. The
 `oci_default_credentials` helper is the global fallback, and Terragrunt pulls
-anonymously when nothing matches. Set `discover_ambient_credentials = false` to
-rank CLI-config sources only.
+anonymously when nothing matches. Set `discover_ambient_credentials = false` in
+the `oci_default_credentials` block to use CLI config only.
 
 [Credential helpers](https://docs.docker.com/reference/cli/docker/login/#credential-helpers)
 configured in either place

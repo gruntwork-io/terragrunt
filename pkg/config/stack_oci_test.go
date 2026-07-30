@@ -154,12 +154,28 @@ func TestGenerateStackOCIForcedFormGated(t *testing.T) {
 	require.ErrorAs(t, err, &gateErr, "the forced form must hit the same typed gate")
 }
 
+// TestGenerateStackOCIUpperCaseForcedFormNotClaimed: go-getter matches the forced
+// token exactly, so an upper-case OCI:: cannot reach the OCI getter and must not
+// be claimed by the gate either, or it would be reported as supported and then
+// fail to dispatch.
+func TestGenerateStackOCIUpperCaseForcedFormNotClaimed(t *testing.T) {
+	t.Parallel()
+
+	_, err := generateOCIStack(t, "unit", "OCI::https://", false)
+	require.Error(t, err)
+
+	var gateErr config.OCIExperimentRequiredError
+	assert.NotErrorAs(t, err, &gateErr,
+		"an upper-case forced token is not an oci source, so the gate must not claim it")
+}
+
 // TestGenerateStackOCIUpperCaseSchemeGated: URL schemes are case-insensitive, so
 // an upper-case source must not slip past the experiment gate.
 func TestGenerateStackOCIUpperCaseSchemeGated(t *testing.T) {
 	t.Parallel()
 
-	tc := []string{"OCI://", "OCI::https://"}
+	// go-getter matches the forced token exactly, so only the URL scheme folds.
+	tc := []string{"OCI://"}
 
 	for _, scheme := range tc {
 		t.Run(scheme, func(t *testing.T) {

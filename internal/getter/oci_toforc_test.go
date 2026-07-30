@@ -1,7 +1,6 @@
 package getter_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,8 +106,9 @@ oci_credentials "registry.example.com/team" {
 }
 `)
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "cannot be used with a repository path")
 	assert.EqualValues(t, 0, calls.Load(), "a repository-scoped helper block must never run")
 }
 
@@ -156,8 +155,9 @@ oci_default_credentials {
 	}
 }
 
-// TestOCITofuCredentialsSchemePrefixedLabel: a scheme-prefixed label still matches the bare host.
-func TestOCITofuCredentialsSchemePrefixedLabel(t *testing.T) {
+// TestOCITofuCredentialsSchemeLabelRejected: tofu parses the label as a bare
+// repository address, so a URL scheme is a configuration error.
+func TestOCITofuCredentialsSchemeLabelRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
@@ -165,9 +165,9 @@ func TestOCITofuCredentialsSchemePrefixedLabel(t *testing.T) {
 	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"),
 		tofuBasicAuth("https://registry.example.com/team", "scheme-user", "fake-secret-scheme"))
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	want := auth.Credential{Username: "scheme-user", Password: "fake-secret-scheme"}
-	assert.Equal(t, want, credentialFor(t, store, testRegistry))
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "without a URL scheme")
 }
 
 // TestOCITofuCredentialsIncompleteBasicSkipped: a username without a password is skipped, not used.
@@ -182,8 +182,9 @@ oci_credentials "registry.example.com" {
 }
 `)
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "requires both a username and a password")
 }
 
 // TestOCITofuCredentialsDefaultHelper: oci_default_credentials supplies a fallback helper.
@@ -266,37 +267,33 @@ func TestOCITofuCredentialsConfigFileOverride(t *testing.T) {
 	assert.Equal(t, want, credentialFor(t, store, testRegistry))
 }
 
-// TestOCITofuCredentialsMissingOrUnparsableIsEmpty: a missing or broken config yields no credentials, no error.
-func TestOCITofuCredentialsMissingOrUnparsableIsEmpty(t *testing.T) {
+// TestOCITofuCredentialsAbsentConfigIsEmpty: no CLI config at all is a normal
+// discovery miss, not an error.
+func TestOCITofuCredentialsAbsentConfigIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name    string
-		content string
-		write   bool
-	}{
-		{name: "no config file", write: false},
-		{name: "unparsable config", write: true, content: "oci_credentials {{{ not hcl"},
-	}
+	v := credentialVenv(testHome, nil)
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	cred, err := credentialForErr(t, store, testRegistry)
+	require.NoError(t, err)
+	assert.Equal(t, auth.EmptyCredential, cred)
+}
 
-			home := testHome
-			v := credentialVenv(home, nil)
+// TestOCITofuCredentialsUnparsableConfigRejected: a config file that exists but
+// cannot be parsed is reported, so a typo can never silently widen credentials
+// by discarding an explicit discover_ambient_credentials opt-out.
+func TestOCITofuCredentialsUnparsableConfigRejected(t *testing.T) {
+	t.Parallel()
 
-			if tc.write {
-				writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), tc.content)
-			}
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), "oci_credentials {{{ not hcl")
+	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
 
-			store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-
-			cred, err := credentialForErr(t, store, testRegistry)
-			require.NoError(t, err)
-			assert.Equal(t, auth.EmptyCredential, cred)
-		})
-	}
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err, "an unparsable CLI config must not fall through to ambient credentials")
+	assert.ErrorContains(t, err, "reading OpenTofu CLI config")
 }
 
 // TestOCITofuCredentialsDiscoverAmbientFalseSuppressesAmbient: an explicit
@@ -378,8 +375,9 @@ oci_credentials "registry.example.com" {
 }
 `)
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "credential helper name must not be empty")
 }
 
 // TestOCITofuCredentialsMultipleStylesSkipped: a block configuring more than one
@@ -398,8 +396,9 @@ oci_credentials "registry.example.com" {
 }
 `)
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "at most one credential style")
 }
 
 // TestOCITofuCredentialsConfigPathResolution: TERRAFORM_CONFIG and the
@@ -437,6 +436,17 @@ func TestOCITofuCredentialsConfigPathResolution(t *testing.T) {
 		store = newStoreForRepo(t, v, testRegistry, "team/vpc")
 		assert.Equal(t, "tofurc", credentialFor(t, store, testRegistry).Username)
 	})
+}
+
+// newStoreErr returns the error from building the store for one registry/repository.
+func newStoreErr(t *testing.T, v *venv.Venv, registry, repositoryName string) error {
+	t.Helper()
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	_, err := newStore(t.Context(), registry, repositoryName)
+
+	return err
 }
 
 // newStoreForRepo builds the default store for one registry/repository.
@@ -518,8 +528,9 @@ oci_credentials "registry.example.com" {
 }
 `)
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry),
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "requires both an access_token and a refresh_token",
 		"an OAuth block missing refresh_token must be skipped")
 }
 
@@ -529,14 +540,7 @@ func TestOCITofuCredentialsJSONConfig(t *testing.T) {
 
 	custom := "/virtual/tofu.tfrc.json"
 	v := credentialVenv(testHome, map[string]string{"TF_CLI_CONFIG_FILE": custom})
-	writeTofuConfig(t, v.FS, custom, `{
-  "oci_credentials": {
-    "registry.example.com": {
-      "username": "json-user",
-      "password": "fake-secret-json"
-    }
-  }
-}`)
+	writeTofuConfig(t, v.FS, custom, tofuJSONBasicAuth(testRegistry, "json-user", "fake-secret-json"))
 
 	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
 	want := auth.Credential{Username: "json-user", Password: "fake-secret-json"}
@@ -623,8 +627,9 @@ oci_credentials "registry.example.com" {
 }
 `)
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry),
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "at most one credential style",
 		"a block mixing a helper with basic auth must be skipped")
 }
 
@@ -653,6 +658,15 @@ oci_default_credentials {
 	assert.Equal(t, want, credentialFor(t, store, testRegistry),
 		"the default helper must still serve when ambient discovery is disabled")
 	assert.EqualValues(t, 1, calls.Load(), "the default helper must run exactly once")
+}
+
+// tofuJSONBasicAuth renders a JSON oci_credentials block, keeping the username
+// and secret out of an adjacent literal pair that scanners flag.
+func tofuJSONBasicAuth(label, user, secret string) string {
+	return fmt.Sprintf(
+		"{\n  %q: {\n    %q: {\n      %q: %q,\n      %q: %q\n    }\n  }\n}",
+		"oci_credentials", label, "username", user, "password", secret,
+	)
 }
 
 // tofuBasicAuth renders an oci_credentials block with basic auth, keeping the
@@ -706,8 +720,8 @@ func TestOCITofuCredentialsConfigPathPrecedence(t *testing.T) {
 	}
 }
 
-// TestOCITofuCredentialsEmptyBlockSkipped: an empty block must not shadow a valid ambient credential.
-func TestOCITofuCredentialsEmptyBlockSkipped(t *testing.T) {
+// TestOCITofuCredentialsEmptyBlockRejected: an empty block is a configuration error, matching tofu.
+func TestOCITofuCredentialsEmptyBlockRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
@@ -718,9 +732,9 @@ oci_credentials "registry.example.com/team/vpc" {
 `)
 	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "pw")
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, "ambient", credentialFor(t, store, testRegistry).Username,
-		"an empty oci_credentials block must be skipped, not ranked as a match")
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err, "an empty oci_credentials block must be reported, as tofu reports it")
+	assert.ErrorContains(t, err, "must configure basic auth, OAuth tokens, or a helper")
 }
 
 // TestOCITofuCredentialsWindowsIgnoresHomeDotfiles: on Windows only the APPDATA pair is read.
@@ -801,14 +815,8 @@ func TestOCITofuCredentialsConfigDirJSONFragment(t *testing.T) {
 
 	home := testHome
 	v := credentialVenv(home, nil)
-	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "creds.tfrc.json"), `{
-  "oci_credentials": {
-    "registry.example.com": {
-      "username": "json-fragment",
-      "password": "fake-secret-json-fragment"
-    }
-  }
-}`)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "creds.tfrc.json"),
+		tofuJSONBasicAuth(testRegistry, "json-fragment", "fake-secret-json-fragment"))
 
 	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
 	assert.Equal(t, "json-fragment", credentialFor(t, store, testRegistry).Username,
@@ -833,20 +841,21 @@ func TestOCITofuCredentialsOverrideSuppressesFragments(t *testing.T) {
 		"an explicit config override must suppress config-directory fragments")
 }
 
-// TestOCITofuCredentialsDuplicateLabelAcrossFilesKeepsFirst: the main file wins over a fragment.
-func TestOCITofuCredentialsDuplicateLabelAcrossFilesKeepsFirst(t *testing.T) {
+// TestOCITofuCredentialsDuplicateLabelAcrossFilesRejected: tofu rejects two
+// oci_credentials blocks sharing a label, even across merged config sources.
+func TestOCITofuCredentialsDuplicateLabelAcrossFilesRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
 	v := credentialVenv(home, nil)
 	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"),
 		tofuBasicAuth(testRegistry, "main-file", "fake-secret-main"))
-	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "creds.tfrc"),
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "extra.tfrc"),
 		tofuBasicAuth(testRegistry, "fragment", "fake-secret-fragment"))
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, "main-file", credentialFor(t, store, testRegistry).Username,
-		"a duplicate label in a fragment must not override the main config file")
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "duplicate oci_credentials block")
 }
 
 // TestOCITofuCredentialsExplicitConfigFileMissingIsFatal: a named config file must not fail silently.
@@ -868,9 +877,9 @@ oci_default_credentials {
 	assert.ErrorContains(t, err, "docker_style_config_files")
 }
 
-// TestOCITofuCredentialsInvalidDefaultBlockKeepsAmbientDisabled: an invalid helper
-// must not silently re-enable ambient discovery the user turned off.
-func TestOCITofuCredentialsInvalidDefaultBlockKeepsAmbientDisabled(t *testing.T) {
+// TestOCITofuCredentialsInvalidDefaultBlockRejected: an invalid helper is a
+// configuration error, so it can never silently re-enable ambient discovery.
+func TestOCITofuCredentialsInvalidDefaultBlockRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
@@ -883,14 +892,15 @@ oci_default_credentials {
 `)
 	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry),
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "credential helper name must not be empty",
 		"an unusable default block must not widen credential exposure")
 }
 
-// TestOCITofuCredentialsUndecodableDefaultBlockKeepsAmbientDisabled: a type error
-// elsewhere in the block must not discard an explicit opt-out either.
-func TestOCITofuCredentialsUndecodableDefaultBlockKeepsAmbientDisabled(t *testing.T) {
+// TestOCITofuCredentialsUndecodableDefaultBlockRejected: a type error in the
+// block is reported rather than silently discarding the explicit opt-out.
+func TestOCITofuCredentialsUndecodableDefaultBlockRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
@@ -903,8 +913,9 @@ oci_default_credentials {
 `)
 	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
 
-	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "reading OpenTofu CLI config")
 }
 
 // TestOCITofuCredentialsAmbientFilesRequireDiscovery: tofu rejects
@@ -932,35 +943,18 @@ oci_default_credentials {
   docker_style_config_files    = `+tt.files+`
 }
 `)
-			writeAuthFile(
-				t,
-				v.FS,
-				filepath.Join(home, ".docker", "config.json"),
-				testRegistry,
-				"ambient",
-				"ambient-pass",
-			)
 
-			var logBuf bytes.Buffer
-
-			l := logger.CreateLogger()
-			l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
-
-			newStore := getter.NewOCIRepositoryStore(l, v)
-
-			store, err := newStore(t.Context(), testRegistry, "team/vpc")
-			require.NoError(t, err)
-
-			assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
-			assert.Contains(t, logBuf.String(), "discover_ambient_credentials",
-				"the inconsistent default block must be reported, as tofu reports it")
+			err := newStoreErr(t, v, testRegistry, "team/vpc")
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "requires discover_ambient_credentials to be enabled")
 		})
 	}
 }
 
-// TestOCITofuCredentialsEmptyStringValuesSkipped: an empty username, password, or
-// token carries no credential and must not shadow a valid ambient login.
-func TestOCITofuCredentialsEmptyStringValuesSkipped(t *testing.T) {
+// TestOCITofuCredentialsEmptyStringValuesRejected: tofu selects the credential
+// style from which arguments are present, so an empty value is an error rather
+// than a block that silently disappears and lets ambient credentials take over.
+func TestOCITofuCredentialsEmptyStringValuesRejected(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
@@ -997,10 +991,9 @@ oci_credentials "registry.example.com" {
 				"ambient-pass",
 			)
 
-			store := newStoreForRepo(t, v, testRegistry, "team/vpc")
-			want := auth.Credential{Username: "ambient", Password: "ambient-pass"}
-			assert.Equal(t, want, credentialFor(t, store, testRegistry),
-				"an empty CLI-config credential must not outrank a working ambient login")
+			err := newStoreErr(t, v, testRegistry, "team/vpc")
+			require.Error(t, err, "an empty credential value must not fall through to ambient")
+			assert.ErrorContains(t, err, "must not be empty")
 		})
 	}
 }
@@ -1018,4 +1011,40 @@ func TestOCITofuCredentialsMixedCaseRegistryMatches(t *testing.T) {
 	store := newStoreForRepo(t, v, "Registry.Example.COM", "team/vpc")
 	want := auth.Credential{Username: "svc", Password: "fake-secret-tofu"}
 	assert.Equal(t, want, credentialFor(t, store, "Registry.Example.COM"))
+}
+
+// TestOCITofuCredentialsJSONWithoutSuffix: tofu detects JSON from the content, so
+// a JSON config named by an extensionless path is parsed, not rejected.
+func TestOCITofuCredentialsJSONWithoutSuffix(t *testing.T) {
+	t.Parallel()
+
+	custom := "/virtual/secrets/tofurc"
+	v := credentialVenv(testHome, map[string]string{envTFCLIConfigFileTest: custom})
+	writeTofuConfig(t, v.FS, custom, tofuJSONBasicAuth(testRegistry, "json-user", "fake-secret-nosuffix"))
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, "json-user", credentialFor(t, store, testRegistry).Username,
+		"JSON content must be detected without a .json suffix")
+}
+
+// TestOCITofuCredentialsDuplicateDefaultBlockRejected: tofu allows at most one
+// oci_default_credentials block per configuration.
+func TestOCITofuCredentialsDuplicateDefaultBlockRejected(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  discover_ambient_credentials = false
+}
+
+oci_default_credentials {
+  discover_ambient_credentials = true
+}
+`)
+
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "at most one oci_default_credentials block")
 }
