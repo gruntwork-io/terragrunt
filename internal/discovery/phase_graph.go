@@ -11,7 +11,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -505,10 +504,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 	var candidates []component.Component
 
-	walkFn := filepath.WalkDir
-	if state.opts != nil && state.opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFn = util.WalkDirWithSymlinks
-	}
+	walkFn := walkDirFunc(v, state.opts)
 
 	err := walkFn(currentDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

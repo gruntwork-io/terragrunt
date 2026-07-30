@@ -446,7 +446,8 @@ func TestComponent_TerraformSourcePath(t *testing.T) {
 // opt-in symlink-follow builder returns the same pointer for chaining, and
 // that a discovery run with the flag enabled still classifies a plain
 // module correctly. This case stays on the OS filesystem because the
-// symlink-following walker (util.WalkDirWithSymlinks) is OS-only.
+// in-memory filesystem reports no symlink entries, leaving the
+// symlink-following walk nothing to follow.
 func TestComponentDiscovery_WithWalkWithSymlinksIsChainable(t *testing.T) {
 	t.Parallel()
 
