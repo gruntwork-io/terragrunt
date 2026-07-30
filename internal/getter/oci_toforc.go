@@ -215,27 +215,18 @@ func ociTofuConfigFragments(l log.Logger, v *venv.Venv) []string {
 		return nil
 	}
 
-	handle, err := v.FS.Open(dir)
+	// ReadDirEntries sorts by name, so merging stays deterministic.
+	entries, err := vfs.ReadDirEntries(v.FS, dir)
 	if err != nil {
 		l.Warnf("Skipping unreadable OpenTofu CLI config directory %s: %v", dir, err)
 
 		return nil
 	}
-
-	defer handle.Close() //nolint:errcheck
-
-	names, err := handle.Readdirnames(-1)
-	if err != nil {
-		l.Warnf("Skipping unreadable OpenTofu CLI config directory %s: %v", dir, err)
-
-		return nil
-	}
-
-	slices.Sort(names)
 
 	var fragments []string
 
-	for _, name := range names {
+	for _, entry := range entries {
+		name := entry.Name()
 		if !strings.HasSuffix(name, ".tfrc") && !strings.HasSuffix(name, ".tfrc.json") {
 			continue
 		}
