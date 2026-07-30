@@ -87,8 +87,7 @@ oci_credentials "registry.example.com" {
 	assert.Equal(t, "https://"+testRegistry, stdin, "tofu helpers receive OpenTofu's https:// server address")
 }
 
-// TestOCITofuCredentialsHelperRepositoryPathRejected: tofu rejects a helper on a
-// repository-scoped label, because helpers only key on a whole domain.
+// TestOCITofuCredentialsHelperRepositoryPathRejected: tofu rejects a helper on a repository-scoped label.
 func TestOCITofuCredentialsHelperRepositoryPathRejected(t *testing.T) {
 	t.Parallel()
 
@@ -112,8 +111,7 @@ oci_credentials "registry.example.com/team" {
 	assert.EqualValues(t, 0, calls.Load(), "a repository-scoped helper block must never run")
 }
 
-// TestOCITofuCredentialsHelperServerAddress: a tofu helper receives https:// plus
-// the requested registry domain, with no Docker Hub rewrite, matching OpenTofu.
+// TestOCITofuCredentialsHelperServerAddress: a tofu helper receives https:// plus the registry, unrewritten.
 func TestOCITofuCredentialsHelperServerAddress(t *testing.T) {
 	t.Parallel()
 
@@ -155,8 +153,7 @@ oci_default_credentials {
 	}
 }
 
-// TestOCITofuCredentialsSchemeLabelRejected: tofu parses the label as a bare
-// repository address, so a URL scheme is a configuration error.
+// TestOCITofuCredentialsSchemeLabelRejected: a URL scheme in the label is a configuration error.
 func TestOCITofuCredentialsSchemeLabelRejected(t *testing.T) {
 	t.Parallel()
 
@@ -252,8 +249,7 @@ func TestOCITofuCredentialsConfigFileOverride(t *testing.T) {
 	assert.Equal(t, want, credentialFor(t, store, testRegistry))
 }
 
-// TestOCITofuCredentialsAbsentConfigIsEmpty: no CLI config at all is a normal
-// discovery miss, not an error.
+// TestOCITofuCredentialsAbsentConfigIsEmpty: no CLI config at all is a discovery miss, not an error.
 func TestOCITofuCredentialsAbsentConfigIsEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -265,9 +261,7 @@ func TestOCITofuCredentialsAbsentConfigIsEmpty(t *testing.T) {
 	assert.Equal(t, auth.EmptyCredential, cred)
 }
 
-// TestOCITofuCredentialsUnparsableConfigRejected: a config file that exists but
-// cannot be parsed is reported, so a typo can never silently widen credentials
-// by discarding an explicit discover_ambient_credentials opt-out.
+// TestOCITofuCredentialsUnparsableConfigRejected: an existing but unparsable config must not widen credentials.
 func TestOCITofuCredentialsUnparsableConfigRejected(t *testing.T) {
 	t.Parallel()
 
@@ -281,9 +275,7 @@ func TestOCITofuCredentialsUnparsableConfigRejected(t *testing.T) {
 	assert.ErrorContains(t, err, "reading OpenTofu CLI config")
 }
 
-// TestOCITofuCredentialsDiscoverAmbientFalseSuppressesAmbient: an explicit
-// discover_ambient_credentials=false stops ambient Docker credentials from
-// being offered, matching OpenTofu.
+// TestOCITofuCredentialsDiscoverAmbientFalseSuppressesAmbient: the opt-out stops ambient credentials.
 func TestOCITofuCredentialsDiscoverAmbientFalseSuppressesAmbient(t *testing.T) {
 	t.Parallel()
 
@@ -301,8 +293,7 @@ oci_default_credentials {
 		"discover_ambient_credentials=false must suppress the ambient auth")
 }
 
-// TestOCITofuCredentialsDefaultHelperBelowAmbient: the default helper is a
-// lower-priority fallback than ambient discovery, matching OpenTofu.
+// TestOCITofuCredentialsDefaultHelperBelowAmbient: the default helper ranks below ambient discovery.
 func TestOCITofuCredentialsDefaultHelperBelowAmbient(t *testing.T) {
 	t.Parallel()
 
@@ -327,8 +318,7 @@ oci_default_credentials {
 	assert.EqualValues(t, 0, calls.Load(), "the default helper must not run when ambient resolves")
 }
 
-// TestOCITofuCredentialsUnknownAttributeTolerated: an unrecognized argument does
-// not discard the known blocks, so a config for a newer tofu still loads.
+// TestOCITofuCredentialsUnknownAttributeTolerated: an unknown argument still lets a newer tofu config load.
 func TestOCITofuCredentialsUnknownAttributeTolerated(t *testing.T) {
 	t.Parallel()
 
@@ -347,8 +337,7 @@ oci_credentials "registry.example.com" {
 	assert.Equal(t, want, credentialFor(t, store, testRegistry))
 }
 
-// TestOCITofuCredentialsInvalidHelperNameSkipped: a helper name with a path
-// separator is rejected so it cannot execute a non-PATH binary.
+// TestOCITofuCredentialsInvalidHelperNameSkipped: a helper name with a path separator is rejected.
 func TestOCITofuCredentialsInvalidHelperNameSkipped(t *testing.T) {
 	t.Parallel()
 
@@ -365,8 +354,7 @@ oci_credentials "registry.example.com" {
 	assert.ErrorContains(t, err, "credential helper name must not be empty")
 }
 
-// TestOCITofuCredentialsMultipleStylesSkipped: a block configuring more than one
-// credential style is rejected, matching OpenTofu.
+// TestOCITofuCredentialsMultipleStylesSkipped: a block with more than one credential style is rejected.
 func TestOCITofuCredentialsMultipleStylesSkipped(t *testing.T) {
 	t.Parallel()
 
@@ -386,8 +374,7 @@ oci_credentials "registry.example.com" {
 	assert.ErrorContains(t, err, "at most one credential style")
 }
 
-// TestOCITofuCredentialsConfigPathResolution: TERRAFORM_CONFIG and the
-// .terraformrc fallback resolve, with .tofurc winning when both files exist.
+// TestOCITofuCredentialsConfigPathResolution: TERRAFORM_CONFIG and the .terraformrc fallback resolve.
 func TestOCITofuCredentialsConfigPathResolution(t *testing.T) {
 	t.Parallel()
 
@@ -615,8 +602,6 @@ oci_default_credentials {
 	assert.EqualValues(t, 1, calls.Load(), "the default helper must run exactly once")
 }
 
-// tofuJSONBasicAuth renders a JSON oci_credentials block, keeping the username
-// tofuBasicAuth renders an oci_credentials block with basic auth, keeping the
 // TestOCITofuCredentialsConfigPathPrecedence: with competing config sources present, the documented order wins.
 func TestOCITofuCredentialsConfigPathPrecedence(t *testing.T) {
 	t.Parallel()
@@ -783,8 +768,7 @@ func TestOCITofuCredentialsOverrideSuppressesFragments(t *testing.T) {
 		"an explicit config override must suppress config-directory fragments")
 }
 
-// TestOCITofuCredentialsDuplicateLabelAcrossFilesRejected: tofu rejects two
-// oci_credentials blocks sharing a label, even across merged config sources.
+// TestOCITofuCredentialsDuplicateLabelAcrossFilesRejected: two blocks sharing a label are rejected.
 func TestOCITofuCredentialsDuplicateLabelAcrossFilesRejected(t *testing.T) {
 	t.Parallel()
 
@@ -819,8 +803,7 @@ oci_default_credentials {
 		"an explicitly configured credential file that cannot be read must fail")
 }
 
-// TestOCITofuCredentialsInvalidDefaultBlockRejected: an invalid helper is a
-// configuration error, so it can never silently re-enable ambient discovery.
+// TestOCITofuCredentialsInvalidDefaultBlockRejected: an invalid helper cannot re-enable ambient discovery.
 func TestOCITofuCredentialsInvalidDefaultBlockRejected(t *testing.T) {
 	t.Parallel()
 
@@ -840,8 +823,7 @@ oci_default_credentials {
 		"an unusable default block must not widen credential exposure")
 }
 
-// TestOCITofuCredentialsUndecodableDefaultBlockRejected: a type error in the
-// block is reported rather than silently discarding the explicit opt-out.
+// TestOCITofuCredentialsUndecodableDefaultBlockRejected: a type error is reported, not silently dropped.
 func TestOCITofuCredentialsUndecodableDefaultBlockRejected(t *testing.T) {
 	t.Parallel()
 
@@ -860,8 +842,7 @@ oci_default_credentials {
 	assert.ErrorContains(t, err, "reading OpenTofu CLI config")
 }
 
-// TestOCITofuCredentialsAmbientFilesRequireDiscovery: tofu rejects
-// docker_style_config_files when ambient discovery is disabled.
+// TestOCITofuCredentialsAmbientFilesRequireDiscovery: config files need ambient discovery enabled.
 func TestOCITofuCredentialsAmbientFilesRequireDiscovery(t *testing.T) {
 	t.Parallel()
 
@@ -893,9 +874,7 @@ oci_default_credentials {
 	}
 }
 
-// TestOCITofuCredentialsEmptyStringValuesRejected: tofu selects the credential
-// style from which arguments are present, so an empty value is an error rather
-// than a block that silently disappears and lets ambient credentials take over.
+// TestOCITofuCredentialsEmptyStringValuesRejected: an empty value is an error, not a silent ambient fallback.
 func TestOCITofuCredentialsEmptyStringValuesRejected(t *testing.T) {
 	t.Parallel()
 
@@ -940,8 +919,7 @@ oci_credentials "registry.example.com" {
 	}
 }
 
-// TestOCITofuCredentialsJSONWithoutSuffix: tofu detects JSON from the content, so
-// a JSON config named by an extensionless path is parsed, not rejected.
+// TestOCITofuCredentialsJSONWithoutSuffix: JSON content parses even without a .json suffix.
 func TestOCITofuCredentialsJSONWithoutSuffix(t *testing.T) {
 	t.Parallel()
 
@@ -954,8 +932,7 @@ func TestOCITofuCredentialsJSONWithoutSuffix(t *testing.T) {
 		"JSON content must be detected without a .json suffix")
 }
 
-// TestOCITofuCredentialsDuplicateDefaultBlockRejected: tofu allows at most one
-// oci_default_credentials block per configuration.
+// TestOCITofuCredentialsDuplicateDefaultBlockRejected: at most one default block is allowed.
 func TestOCITofuCredentialsDuplicateDefaultBlockRejected(t *testing.T) {
 	t.Parallel()
 
@@ -976,8 +953,7 @@ oci_default_credentials {
 	assert.ErrorContains(t, err, "at most one oci_default_credentials block")
 }
 
-// TestOCITofuCredentialsRelativeConfigFileResolves: a relative
-// docker_style_config_files entry resolves against the file that declared it.
+// TestOCITofuCredentialsRelativeConfigFileResolves: a relative entry resolves against the declaring file.
 func TestOCITofuCredentialsRelativeConfigFileResolves(t *testing.T) {
 	t.Parallel()
 
@@ -995,9 +971,7 @@ oci_default_credentials {
 		"a relative entry must resolve against the declaring config file's directory")
 }
 
-// TestOCITofuCredentialsBlockHelperFailureIsFatal: a helper named by an
-// oci_credentials block was chosen deliberately, so its failure fails the pull
-// rather than quietly degrading to an anonymous one.
+// TestOCITofuCredentialsBlockHelperFailureIsFatal: a configured helper's failure fails the pull.
 func TestOCITofuCredentialsBlockHelperFailureIsFatal(t *testing.T) {
 	t.Parallel()
 
@@ -1050,7 +1024,7 @@ func writeTofuConfig(t *testing.T, fs vfs.FS, path, body string) {
 	require.NoError(t, vfs.WriteFile(fs, path, []byte(body), 0o600))
 }
 
-// and secret out of an adjacent literal pair that scanners flag.
+// tofuJSONBasicAuth renders a JSON oci_credentials block, keeping credential pairs out of source literals.
 func tofuJSONBasicAuth(label, user, secret string) string {
 	return fmt.Sprintf(
 		"{\n  %q: {\n    %q: {\n      %q: %q,\n      %q: %q\n    }\n  }\n}",
@@ -1058,7 +1032,7 @@ func tofuJSONBasicAuth(label, user, secret string) string {
 	)
 }
 
-// username and secret out of an adjacent literal pair that scanners flag.
+// tofuBasicAuth renders an oci_credentials block, keeping credential pairs out of source literals.
 func tofuBasicAuth(label, user, secret string) string {
 	return fmt.Sprintf("\noci_credentials %q {\n  username = %q\n  password = %q\n}\n", label, user, secret)
 }

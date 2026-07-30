@@ -1565,8 +1565,7 @@ func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 	}
 }
 
-// TestBuildDownloadClientThreadsVenvToOCIStore: the run's venv reaches the OCI
-// credential store, observed through a CLI config only that venv can see.
+// TestBuildDownloadClientThreadsVenvToOCIStore: the run's venv reaches the OCI credential store.
 func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	t.Parallel()
 

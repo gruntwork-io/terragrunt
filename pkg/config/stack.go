@@ -991,8 +991,7 @@ func (err OCIExperimentRequiredError) Error() string {
 	)
 }
 
-// isOCISource reports whether source is an oci registry reference, in either the
-// oci:// scheme form or go-getter's oci:: forced form.
+// isOCISource reports whether source is an oci reference, in the oci:// or oci:: form.
 func isOCISource(source string) bool {
 	// go-getter matches the forced token exactly, so only the URL scheme folds.
 	if strings.HasPrefix(source, getter.SchemeOCI+"::") {
@@ -1004,8 +1003,7 @@ func isOCISource(source string) bool {
 	return found && strings.EqualFold(scheme, getter.SchemeOCI)
 }
 
-// stackGetterOptions builds the getter options a stack component fetch needs,
-// registering the oci:// getter only when the experiment is enabled.
+// stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.
 func stackGetterOptions(l log.Logger, v *venv.Venv, opts *generateOpts) []getter.Option {
 	clientOpts := []getter.Option{getter.WithLogger(l), getter.WithHTTP(v.HTTP)}
 

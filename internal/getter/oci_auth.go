@@ -109,10 +109,7 @@ func ociUserAgent() string {
 // most specific ambient entry depends on the repository being pulled.
 type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
 
-// NewOCIRepositoryStore returns the default [OCINewStoreFunc]: the most specific
-// source across OpenTofu CLI-config oci_credentials blocks and ambient Docker and
-// containers auth files, then the oci_default_credentials helper, running a
-// configured credential helper (e.g. Amazon ECR via ecr-login) only when selected.
+// NewOCIRepositoryStore returns the default [OCINewStoreFunc], ranking CLI-config and ambient sources.
 func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	v.RequireFS()
 	v.RequireEnv()
@@ -156,8 +153,7 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	}
 }
 
-// ociCredentialFunc ranks CLI-config and ambient candidates by how specifically
-// each pins the repository, then runs the winning source, which may be a helper.
+// ociCredentialFunc ranks candidates by how specifically each pins the repository, then runs the winner.
 func ociCredentialFunc(l log.Logger, v *venv.Venv) (ociCredentialFactory, error) {
 	tofu, err := loadOCITofuCredentials(l, v)
 	if err != nil {
@@ -238,8 +234,7 @@ type ociCredentialCandidate struct {
 	fromCLIConfig bool
 }
 
-// ociOutranks reports whether cand replaces best: greater specificity first,
-// then CLI config over ambient, then a per-registry helper over an inline login.
+// ociOutranks reports whether cand replaces best: specificity, then CLI config, then helper over inline.
 func ociOutranks(cand, best *ociCredentialCandidate) bool {
 	if cand.specificity != best.specificity {
 		return cand.specificity > best.specificity
@@ -256,8 +251,7 @@ func ociOutranks(cand, best *ociCredentialCandidate) bool {
 	return cand.helper != nil && best.helper == nil
 }
 
-// ociResolveConfigFiles makes each configured Docker-style path absolute against
-// the directory holding the CLI config, matching OpenTofu.
+// ociResolveConfigFiles resolves each configured path against the CLI config's directory, as tofu does.
 func ociResolveConfigFiles(configDir string, files []string) []string {
 	out := make([]string, 0, len(files))
 
@@ -389,9 +383,7 @@ func ociHelperServerAddress(hostport string) string {
 	return hostport
 }
 
-// ociTofuHelperServerAddress builds the server address OpenTofu hands its
-// CLI-config credential helpers: https:// plus the requested registry domain,
-// with no Docker Hub rewrite, matching tofu.
+// ociTofuHelperServerAddress builds the CLI-config helper address: https:// plus the host, unrewritten.
 func ociTofuHelperServerAddress(hostport string) string {
 	return "https://" + hostport
 }

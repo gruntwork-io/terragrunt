@@ -21,8 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ociStackFixture writes a terragrunt.stack.hcl whose single component of the
-// given kind ("unit" or "stack") is served from an oci:// registry.
+// ociStackFixture writes a terragrunt.stack.hcl whose single unit or stack is served from an oci:// registry.
 func ociStackFixture(t *testing.T, kind, source string) string {
 	t.Helper()
 
@@ -39,21 +38,18 @@ func ociStackFixture(t *testing.T, kind, source string) string {
 	return stackPath
 }
 
-// generateOCIStack runs stack generation for an oci:// component, with the oci
-// experiment on or off, against a registry the test owns.
+// generateOCIStack runs stack generation for an oci:// component against a registry the test owns.
 func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) (string, error) {
 	t.Helper()
 
-	// A TLS server the test owns: the client rejects its self-signed cert
-	// deterministically, so the fetch fails without reaching the network.
+	// A TLS server the test owns, whose self-signed cert the client always rejects.
 	registry := httptest.NewTLSServer(http.NotFoundHandler())
 	t.Cleanup(registry.Close)
 
 	source := sourceScheme + registry.Listener.Addr().String() + "/terraform-modules/vpc?tag=1.0.0"
 	stackPath := ociStackFixture(t, kind, source)
 
-	// Hermetic home so a developer's Docker or tofu credentials cannot
-	// influence how the source authenticates.
+	// Hermetic home so a developer's own credentials cannot influence the result.
 	hermeticHome := t.TempDir()
 	v := venv.OSVenv().
 		WithEnv(map[string]string{"HOME": hermeticHome}).
@@ -70,8 +66,7 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) 
 	pctx.RootWorkingDir = filepath.Dir(stackPath)
 	pctx.WorkingDir = filepath.Dir(stackPath)
 	pctx.TerragruntConfigPath = stackPath
-	// CAS is on by default, so this also covers that an oci:// source bypasses
-	// the git-backed CAS path instead of failing through it.
+	// CAS is on by default, so this also covers that an oci:// source bypasses it.
 	pctx.CASCloneDepth = 1
 	pctx.Experiments = experiment.NewExperiments()
 
@@ -154,10 +149,7 @@ func TestGenerateStackOCIForcedFormGated(t *testing.T) {
 	require.ErrorAs(t, err, &gateErr, "the forced form must hit the same typed gate")
 }
 
-// TestGenerateStackOCIUpperCaseForcedFormNotClaimed: go-getter matches the forced
-// token exactly, so an upper-case OCI:: cannot reach the OCI getter and must not
-// be claimed by the gate either, or it would be reported as supported and then
-// fail to dispatch.
+// TestGenerateStackOCIUpperCaseForcedFormNotClaimed: OCI:: cannot dispatch, so the gate must not claim it.
 func TestGenerateStackOCIUpperCaseForcedFormNotClaimed(t *testing.T) {
 	t.Parallel()
 
@@ -169,8 +161,7 @@ func TestGenerateStackOCIUpperCaseForcedFormNotClaimed(t *testing.T) {
 		"an upper-case forced token is not an oci source, so the gate must not claim it")
 }
 
-// TestGenerateStackOCIUpperCaseSchemeGated: URL schemes are case-insensitive, so
-// an upper-case source must not slip past the experiment gate.
+// TestGenerateStackOCIUpperCaseSchemeGated: an upper-case scheme must not slip past the experiment gate.
 func TestGenerateStackOCIUpperCaseSchemeGated(t *testing.T) {
 	t.Parallel()
 
