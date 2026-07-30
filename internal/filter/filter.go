@@ -64,7 +64,7 @@ func (f *Filter) HasGraphBoundary() bool {
 	found := false
 
 	WalkExpressions(f.expr, func(e Expression) bool {
-		if g, ok := e.(*GraphExpression); ok && (g.DependentBoundary != "" || g.DependencyBoundary != "") {
+		if g, ok := e.(*GraphExpression); ok && (g.Dependents.Boundary != "" || g.Dependencies.Boundary != "") {
 			found = true
 		}
 

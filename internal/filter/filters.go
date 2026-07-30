@@ -375,7 +375,7 @@ func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression
 	var targets []Expression
 
 	WalkExpressions(expr, func(e Expression) bool {
-		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependencies {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.Dependencies.Include {
 			targets = append(targets, graphExpr.Target)
 		}
 
@@ -389,7 +389,7 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 	var targets []Expression
 
 	WalkExpressions(expr, func(e Expression) bool {
-		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependents {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.Dependents.Include {
 			targets = append(targets, graphExpr.Target)
 		}
 

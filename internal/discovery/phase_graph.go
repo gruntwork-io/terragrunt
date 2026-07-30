@@ -198,16 +198,16 @@ func (p *GraphPhase) processGraphTarget(
 		})
 	}
 
-	if graphExpr.IncludeDependencies {
+	if graphExpr.Dependencies.Include {
 		depth := p.maxDepth
-		if graphExpr.DependencyDepth > 0 {
-			depth = graphExpr.DependencyDepth
+		if graphExpr.Dependencies.Depth > 0 {
+			depth = graphExpr.Dependencies.Depth
 		}
 
 		boundary := ""
 
-		if graphExpr.DependencyBoundary != "" {
-			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.DependencyBoundary)
+		if graphExpr.Dependencies.Boundary != "" {
+			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
 			if err != nil {
 				return err
 			}
@@ -221,10 +221,10 @@ func (p *GraphPhase) processGraphTarget(
 		}
 	}
 
-	if graphExpr.IncludeDependents {
+	if graphExpr.Dependents.Include {
 		depth := p.maxDepth
-		if graphExpr.DependentDepth > 0 {
-			depth = graphExpr.DependentDepth
+		if graphExpr.Dependents.Depth > 0 {
+			depth = graphExpr.Dependents.Depth
 		}
 
 		err := p.discoverDependents(ctx, l, v, state, c, depth)
@@ -237,8 +237,8 @@ func (p *GraphPhase) processGraphTarget(
 		startDir := state.discovery.workingDir
 		boundaryRoot := state.discovery.gitRoot
 
-		if graphExpr.DependentBoundary != "" {
-			resolved, rerr := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.DependentBoundary)
+		if graphExpr.Dependents.Boundary != "" {
+			resolved, rerr := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependents.Boundary)
 			if rerr != nil {
 				return rerr
 			}
@@ -250,7 +250,7 @@ func (p *GraphPhase) processGraphTarget(
 			boundaryRoot = resolved
 		}
 
-		if graphExpr.DependentBoundary == "" {
+		if graphExpr.Dependents.Boundary == "" {
 			if dCtx := c.DiscoveryContext(); dCtx != nil &&
 				dCtx.WorkingDir != "" &&
 				dCtx.WorkingDir != state.discovery.workingDir {

@@ -20,47 +20,41 @@ func TestParser_GraphBoundaryOperand(t *testing.T) {
 			name:  "dependent boundary with braced path target",
 			input: "(./envs/prod)...{./envs/prod/vpc}",
 			expected: &filter.GraphExpression{
-				Target:            mustPath(t, "./envs/prod/vpc"),
-				IncludeDependents: true,
-				DependentBoundary: "./envs/prod",
+				Target:     mustPath(t, "./envs/prod/vpc"),
+				Dependents: filter.GraphBound{Include: true, Boundary: "./envs/prod"},
 			},
 		},
 		{
 			name:  "dependency boundary with braced path target",
 			input: "{./envs/prod/edge}...(./envs/prod)",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "./envs/prod/edge"),
-				IncludeDependencies: true,
-				DependencyBoundary:  "./envs/prod",
+				Target:       mustPath(t, "./envs/prod/edge"),
+				Dependencies: filter.GraphBound{Include: true, Boundary: "./envs/prod"},
 			},
 		},
 		{
 			name:  "boundary in both directions",
 			input: "(./a)...{./apps/foo}...(./b)",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "./apps/foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				DependentBoundary:   "./a",
-				DependencyBoundary:  "./b",
+				Target:       mustPath(t, "./apps/foo"),
+				Dependents:   filter.GraphBound{Include: true, Boundary: "./a"},
+				Dependencies: filter.GraphBound{Include: true, Boundary: "./b"},
 			},
 		},
 		{
 			name:  "dependent boundary with name target",
 			input: "(./bound)...foo",
 			expected: &filter.GraphExpression{
-				Target:            mustAttr(t, "name", "foo"),
-				IncludeDependents: true,
-				DependentBoundary: "./bound",
+				Target:     mustAttr(t, "name", "foo"),
+				Dependents: filter.GraphBound{Include: true, Boundary: "./bound"},
 			},
 		},
 		{
 			name:  "working directory boundary",
 			input: "(.)...{./apps/foo}",
 			expected: &filter.GraphExpression{
-				Target:            mustPath(t, "./apps/foo"),
-				IncludeDependents: true,
-				DependentBoundary: ".",
+				Target:     mustPath(t, "./apps/foo"),
+				Dependents: filter.GraphBound{Include: true, Boundary: "."},
 			},
 		},
 	}
@@ -76,12 +70,8 @@ func TestParser_GraphBoundaryOperand(t *testing.T) {
 			require.True(t, ok, "Expected GraphExpression, got %T", expr)
 
 			assert.Equal(t, tt.expected.Target, graphExpr.Target)
-			assert.Equal(t, tt.expected.IncludeDependents, graphExpr.IncludeDependents)
-			assert.Equal(t, tt.expected.IncludeDependencies, graphExpr.IncludeDependencies)
-			assert.Equal(t, tt.expected.DependentBoundary, graphExpr.DependentBoundary)
-			assert.Equal(t, tt.expected.DependencyBoundary, graphExpr.DependencyBoundary)
-			assert.Equal(t, tt.expected.DependentDepth, graphExpr.DependentDepth)
-			assert.Equal(t, tt.expected.DependencyDepth, graphExpr.DependencyDepth)
+			assert.Equal(t, tt.expected.Dependents, graphExpr.Dependents)
+			assert.Equal(t, tt.expected.Dependencies, graphExpr.Dependencies)
 		})
 	}
 }
@@ -115,8 +105,8 @@ func TestParser_GraphBoundaryRoundTrip(t *testing.T) {
 			secondGraph, ok := second.(*filter.GraphExpression)
 			require.True(t, ok)
 
-			assert.Equal(t, firstGraph.DependentBoundary, secondGraph.DependentBoundary)
-			assert.Equal(t, firstGraph.DependencyBoundary, secondGraph.DependencyBoundary)
+			assert.Equal(t, firstGraph.Dependents.Boundary, secondGraph.Dependents.Boundary)
+			assert.Equal(t, firstGraph.Dependencies.Boundary, secondGraph.Dependencies.Boundary)
 		})
 	}
 }
@@ -136,12 +126,12 @@ func TestClassifier_PropagatesGraphBoundary(t *testing.T) {
 	require.Len(t, graphExprs, 2)
 
 	assert.False(t, graphExprs[0].IsNegated)
-	assert.Equal(t, "./a", graphExprs[0].DependentBoundary)
-	assert.Equal(t, "./b", graphExprs[0].DependencyBoundary)
+	assert.Equal(t, "./a", graphExprs[0].Dependents.Boundary)
+	assert.Equal(t, "./b", graphExprs[0].Dependencies.Boundary)
 
 	assert.True(t, graphExprs[1].IsNegated)
-	assert.Equal(t, "./c", graphExprs[1].DependentBoundary)
-	assert.Empty(t, graphExprs[1].DependencyBoundary)
+	assert.Equal(t, "./c", graphExprs[1].Dependents.Boundary)
+	assert.Empty(t, graphExprs[1].Dependencies.Boundary)
 }
 
 func TestFilters_HasGraphBoundary(t *testing.T) {
@@ -182,8 +172,8 @@ func TestParser_BracedPathWithParens(t *testing.T) {
 		graphExpr, ok := expr.(*filter.GraphExpression)
 		require.True(t, ok, "Expected GraphExpression, got %T", expr)
 		assert.Equal(t, mustPath(t, "./weird(name)"), graphExpr.Target)
-		assert.True(t, graphExpr.IncludeDependencies)
-		assert.Empty(t, graphExpr.DependencyBoundary)
+		assert.True(t, graphExpr.Dependencies.Include)
+		assert.Empty(t, graphExpr.Dependencies.Boundary)
 	})
 
 	t.Run("parens boundary with braced parens target", func(t *testing.T) {
@@ -197,8 +187,8 @@ func TestParser_BracedPathWithParens(t *testing.T) {
 		graphExpr, ok := expr.(*filter.GraphExpression)
 		require.True(t, ok, "Expected GraphExpression, got %T", expr)
 		assert.Equal(t, mustPath(t, "./weird(name)"), graphExpr.Target)
-		assert.True(t, graphExpr.IncludeDependents)
-		assert.Equal(t, "./bound", graphExpr.DependentBoundary)
+		assert.True(t, graphExpr.Dependents.Include)
+		assert.Equal(t, "./bound", graphExpr.Dependents.Boundary)
 	})
 
 	t.Run("unbraced parens path is an error", func(t *testing.T) {

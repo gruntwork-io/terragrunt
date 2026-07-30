@@ -235,17 +235,35 @@ func (i *InfixExpression) Negated() Expression {
 	}
 }
 
+// GraphBound describes how far traversal reaches in one direction of the graph.
+// Include gates the direction entirely; Boundary confines traversal to a
+// directory and Depth caps the number of levels, with zero meaning unbounded.
+type GraphBound struct {
+	Boundary string
+	Depth    int
+	Include  bool
+}
+
+// operand renders the query operand this bound was parsed from: a "(dir)"
+// directory boundary, a numeric depth, or nothing.
+func (b GraphBound) operand() string {
+	if b.Boundary != "" {
+		return "(" + b.Boundary + ")"
+	}
+
+	if b.Depth > 0 {
+		return strconv.Itoa(b.Depth)
+	}
+
+	return ""
+}
+
 // GraphExpression represents a graph traversal expression (e.g., "...foo", "foo...", "..1foo", "foo..2").
-// Depth fields control how many levels of dependencies/dependents to traverse.
 type GraphExpression struct {
-	Target              Expression
-	DependentBoundary   string
-	DependencyBoundary  string
-	IncludeDependents   bool
-	IncludeDependencies bool
-	ExcludeTarget       bool
-	DependentDepth      int
-	DependencyDepth     int
+	Target        Expression
+	Dependents    GraphBound
+	Dependencies  GraphBound
+	ExcludeTarget bool
 }
 
 // NewGraphExpression creates a new GraphExpression for the given target.
@@ -259,13 +277,13 @@ func NewGraphExpression(target Expression) *GraphExpression {
 
 // WithDependents includes dependents (reverse dependencies) in the graph traversal.
 func (g *GraphExpression) WithDependents() *GraphExpression {
-	g.IncludeDependents = true
+	g.Dependents.Include = true
 	return g
 }
 
 // WithDependencies includes dependencies in the graph traversal.
 func (g *GraphExpression) WithDependencies() *GraphExpression {
-	g.IncludeDependencies = true
+	g.Dependencies.Include = true
 	return g
 }
 
@@ -279,8 +297,8 @@ func (g *GraphExpression) expressionNode() {}
 func (g *GraphExpression) String() string {
 	result := ""
 
-	if g.IncludeDependents {
-		result += graphBoundOperand(g.DependentBoundary, g.DependentDepth)
+	if g.Dependents.Include {
+		result += g.Dependents.operand()
 		result += "..."
 	}
 
@@ -290,26 +308,12 @@ func (g *GraphExpression) String() string {
 
 	result += g.Target.String()
 
-	if g.IncludeDependencies {
+	if g.Dependencies.Include {
 		result += "..."
-		result += graphBoundOperand(g.DependencyBoundary, g.DependencyDepth)
+		result += g.Dependencies.operand()
 	}
 
 	return result
-}
-
-// graphBoundOperand renders the operand that bounds graph traversal in one
-// direction: a "(dir)" directory boundary, a numeric depth, or nothing.
-func graphBoundOperand(boundary string, depth int) string {
-	if boundary != "" {
-		return "(" + boundary + ")"
-	}
-
-	if depth > 0 {
-		return strconv.Itoa(depth)
-	}
-
-	return ""
 }
 func (g *GraphExpression) RequiresDiscovery() (Expression, bool) {
 	// Graph expressions require dependency discovery to traverse the graph

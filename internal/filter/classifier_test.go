@@ -144,12 +144,12 @@ func TestClassifier_MixedNegatedAndNonNegatedGraphFilters(t *testing.T) {
 	// First one is positive (...foo)
 	assert.False(t, graphExprs[0].IsNegated, "first graph expression should not be negated")
 	assert.Equal(t, 0, graphExprs[0].Index, "first graph expression should have index 0")
-	assert.True(t, graphExprs[0].IncludeDependents, "first should include dependents")
+	assert.True(t, graphExprs[0].Dependents.Include, "first should include dependents")
 
 	// Second one is negated (!...bar)
 	assert.True(t, graphExprs[1].IsNegated, "second graph expression should be negated")
 	assert.Equal(t, 1, graphExprs[1].Index, "second graph expression should have index 1")
-	assert.True(t, graphExprs[1].IncludeDependents, "second should include dependents")
+	assert.True(t, graphExprs[1].Dependents.Include, "second should include dependents")
 }
 
 func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
@@ -175,8 +175,8 @@ func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
 	graphExprs := classifier.GraphExpressions()
 	require.Len(t, graphExprs, 1)
 	assert.True(t, graphExprs[0].IsNegated)
-	assert.False(t, graphExprs[0].IncludeDependents)
-	assert.True(t, graphExprs[0].IncludeDependencies)
+	assert.False(t, graphExprs[0].Dependents.Include)
+	assert.True(t, graphExprs[0].Dependencies.Include)
 }
 
 func TestClassifier_NegatedBidirectionalGraphExpression(t *testing.T) {
@@ -198,8 +198,8 @@ func TestClassifier_NegatedBidirectionalGraphExpression(t *testing.T) {
 	graphExprs := classifier.GraphExpressions()
 	require.Len(t, graphExprs, 1)
 	assert.True(t, graphExprs[0].IsNegated)
-	assert.True(t, graphExprs[0].IncludeDependencies)
-	assert.True(t, graphExprs[0].IncludeDependents)
+	assert.True(t, graphExprs[0].Dependencies.Include)
+	assert.True(t, graphExprs[0].Dependents.Include)
 }
 
 func TestClassifier_Classify(t *testing.T) {

@@ -81,24 +81,16 @@ type GraphExpressionInfo struct {
 	Target Expression
 	// FullExpression is the complete graph expression.
 	FullExpression *GraphExpression
-	// DependentBoundary, when set, encloses dependent traversal within a directory.
-	DependentBoundary string
-	// DependencyBoundary, when set, encloses dependency traversal within a directory.
-	DependencyBoundary string
+	// Dependents bounds traversal towards components that depend on the target.
+	Dependents GraphBound
+	// Dependencies bounds traversal towards components the target depends on.
+	Dependencies GraphBound
 	// Index is the position of this expression in the original filter list.
 	Index int
-	// IncludeDependencies indicates if dependencies should be traversed.
-	IncludeDependencies bool
-	// IncludeDependents indicates if dependents should be traversed.
-	IncludeDependents bool
 	// ExcludeTarget indicates if the target itself should be excluded from results (^ prefix).
 	ExcludeTarget bool
 	// IsNegated indicates if this graph expression is within a negation (e.g., !...db).
 	IsNegated bool
-	// DependencyDepth is the maximum depth for dependency traversal.
-	DependencyDepth int
-	// DependentDepth is the maximum depth for dependent traversal.
-	DependentDepth int
 }
 
 // Classifier analyzes filter expressions to efficiently classify components
@@ -221,16 +213,12 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 
 	case *GraphExpression:
 		info := &GraphExpressionInfo{
-			Target:              node.Target,
-			FullExpression:      node,
-			DependentBoundary:   node.DependentBoundary,
-			DependencyBoundary:  node.DependencyBoundary,
-			Index:               filterIndex,
-			IncludeDependencies: node.IncludeDependencies,
-			IncludeDependents:   node.IncludeDependents,
-			ExcludeTarget:       node.ExcludeTarget,
-			DependencyDepth:     node.DependencyDepth,
-			DependentDepth:      node.DependentDepth,
+			Target:         node.Target,
+			FullExpression: node,
+			Dependents:     node.Dependents,
+			Dependencies:   node.Dependencies,
+			Index:          filterIndex,
+			ExcludeTarget:  node.ExcludeTarget,
 		}
 		c.graphExprs = append(c.graphExprs, info)
 
@@ -265,17 +253,13 @@ func (c *Classifier) extractNegatedGraphExpressions(expr Expression, filterIndex
 	WalkExpressions(expr, func(e Expression) bool {
 		if graphExpr, ok := e.(*GraphExpression); ok {
 			info := &GraphExpressionInfo{
-				Target:              graphExpr.Target,
-				FullExpression:      graphExpr,
-				DependentBoundary:   graphExpr.DependentBoundary,
-				DependencyBoundary:  graphExpr.DependencyBoundary,
-				Index:               filterIndex,
-				IncludeDependencies: graphExpr.IncludeDependencies,
-				IncludeDependents:   graphExpr.IncludeDependents,
-				ExcludeTarget:       graphExpr.ExcludeTarget,
-				DependencyDepth:     graphExpr.DependencyDepth,
-				DependentDepth:      graphExpr.DependentDepth,
-				IsNegated:           true,
+				Target:         graphExpr.Target,
+				FullExpression: graphExpr,
+				Dependents:     graphExpr.Dependents,
+				Dependencies:   graphExpr.Dependencies,
+				Index:          filterIndex,
+				ExcludeTarget:  graphExpr.ExcludeTarget,
+				IsNegated:      true,
 			}
 			c.graphExprs = append(c.graphExprs, info)
 		}
@@ -395,7 +379,7 @@ func (c *Classifier) HasGraphFilters() bool {
 // reverse links before dependent discovery can work.
 func (c *Classifier) HasDependentFilters() bool {
 	return slices.ContainsFunc(c.graphExprs, func(expr *GraphExpressionInfo) bool {
-		return expr.IncludeDependents
+		return expr.Dependents.Include
 	})
 }
 
