@@ -324,7 +324,7 @@ func runTerragruntWithConfig(
 		cfg,
 		r,
 		func(childCtx context.Context) error {
-			// Set the per-command downstream profile path here so auto-init and the main command, which share v.Env, do not clobber each other.
+			// Set the per-command downstream profile path here so auto-init and the main command can use distinct profiles.
 			if err := SetTofuCPUProfileEnv(l, v, opts); err != nil {
 				return err
 			}
@@ -835,7 +835,7 @@ func runTerraformInitRunCfg(
 		return err
 	}
 
-	initV := v
+	initV := v.WithEnvCloned()
 	if suppressInitStdout {
 		initV = initV.WithWriter(io.Discard)
 	}
