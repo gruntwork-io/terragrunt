@@ -986,6 +986,74 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	}
 }
 
+func TestFastCopyPreservesModeOfDirsHoldingIncludes(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since it does not carry POSIX permission bits")
+	}
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	source := filepath.Join(tempDir, "source")
+	destination := filepath.Join(tempDir, "destination")
+
+	// Dot-prefixed dirs are excluded by default, so the walk only descends
+	// into them to reach the includes below. Modes are set after the tree
+	// is written so the assertions hold under any umask.
+	dirModes := map[string]os.FileMode{
+		".hidden":            0o751,
+		".hidden/.nested":    0o705,
+		".hidden/.nested/in": 0o755,
+		".hidden/.no-match":  0o711,
+		".deep":              0o703,
+		".deep/keep":         0o750,
+	}
+
+	for dir := range dirModes {
+		require.NoError(t, os.MkdirAll(filepath.Join(source, dir), 0o755))
+	}
+
+	for _, file := range []string{
+		".hidden/.nested/in/file.txt",
+		".hidden/.no-match/other.txt",
+		".deep/keep/file.txt",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(source, file), []byte("source file"), 0o644))
+	}
+
+	for dir, mode := range dirModes {
+		require.NoError(t, os.Chmod(filepath.Join(source, dir), mode))
+	}
+
+	require.NoError(t, util.CopyFolderContents(
+		logger.CreateLogger(),
+		source,
+		destination,
+		testManifestName,
+		// The second pattern makes every dir a candidate ancestor, so the
+		// walk descends into dirs it ends up copying nothing from.
+		util.WithIncludeInCopy(".hidden/.nested/in", "**/keep"),
+		util.WithFastCopy(),
+	))
+
+	for _, dir := range []string{
+		".hidden",
+		".hidden/.nested",
+		".hidden/.nested/in",
+		".deep",
+		".deep/keep",
+	} {
+		info, err := os.Lstat(filepath.Join(destination, dir))
+		require.NoError(t, err)
+		assert.Equal(t, dirModes[dir], info.Mode().Perm(), "Unexpected mode for %s", dir)
+	}
+
+	// A dot-prefixed dir with no include match below it stays out of the
+	// destination entirely.
+	_, err := os.Lstat(filepath.Join(destination, ".hidden/.no-match"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestEmptyDir(t *testing.T) {
 	t.Parallel()
 
