@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -632,6 +633,11 @@ func copyFolderContentsFast(
 	// concurrent writes, so AddFile is guarded.
 	var manifestMu sync.Mutex
 
+	var (
+		ancestorMu    sync.Mutex
+		ancestorModes = map[string]fs.FileMode{}
+	)
+
 	walkFn := func(absolutePath string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -689,6 +695,15 @@ func copyFolderContentsFast(
 			// still be descended into even when TerragruntExcludes
 			// would reject it.
 			if isDir && include.isAncestor(rel) {
+				info, err := os.Stat(absolutePath)
+				if err != nil {
+					return err
+				}
+
+				ancestorMu.Lock()
+				ancestorModes[rel] = info.Mode().Perm()
+				ancestorMu.Unlock()
+
 				return nil
 			}
 
@@ -743,6 +758,31 @@ func copyFolderContentsFast(
 		vfs.WithFollowSymlinks(),
 	); err != nil {
 		return err
+	}
+
+	return applyDirModes(destination, ancestorModes)
+}
+
+// applyDirModes sets the mode of each source-relative directory in modes,
+// skipping those that never made it into destination. Deeper directories
+// are handled first, so a mode that drops traversal on a parent cannot
+// lock out the children still waiting for theirs.
+func applyDirModes(destination string, modes map[string]fs.FileMode) error {
+	rels := slices.SortedFunc(maps.Keys(modes), func(a, b string) int {
+		return strings.Count(b, "/") - strings.Count(a, "/")
+	})
+
+	for _, rel := range rels {
+		err := os.Chmod(filepath.Join(destination, rel), modes[rel])
+
+		// Nothing under the directory was copied, so it does not exist.
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -1,0 +1,8 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Keep source permissions on hidden directories copied for `include_in_copy`
+
+With the `fast-copy` strict control enabled, a hidden directory that Terragrunt copied only because `include_in_copy` matched something inside it took the permissions of whatever landed in it first, instead of the permissions it has in the source. Those directories now keep their source permissions, matching the copy Terragrunt performs with the control disabled.
