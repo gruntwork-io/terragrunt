@@ -38,8 +38,8 @@ Credentials come from OpenTofu's CLI config, in the `oci_credentials` and
 `oci_default_credentials` blocks. Terragrunt reads the file named by
 `TF_CLI_CONFIG_FILE` or `TERRAFORM_CONFIG`, otherwise the first of `~/.tofurc`
 and `~/.terraformrc` that exists (on Windows, `%APPDATA%\tofu.rc` and
-`%APPDATA%\terraform.rc`), and merges the `*.tfrc` and `*.tfrc.json` files in
-OpenTofu's config directory. Terragrunt also reads ambient Docker and containers
+`%APPDATA%\terraform.rc`). Unless one of those environment variables is set, it
+also merges the `*.tfrc` and `*.tfrc.json` files in OpenTofu's config directory. Terragrunt also reads ambient Docker and containers
 auth files (`~/.docker/config.json` and containers `auth.json`), following the
 containers-auth search order OpenTofu uses. Set `docker_style_config_files` in
 `oci_default_credentials` to replace those default search paths, or an empty

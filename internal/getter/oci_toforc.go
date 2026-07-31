@@ -28,6 +28,7 @@ const windowsGOOS = "windows"
 
 // ociTofuRepoCredential is one decoded oci_credentials block: registry, repository prefix, credential or helper.
 type ociTofuRepoCredential struct {
+	label            string
 	registryDomain   string
 	repositoryPrefix string
 	cred             auth.Credential
@@ -154,15 +155,17 @@ func mergeOCITofuCredentials(
 	path string,
 	seenRepos map[string]struct{},
 ) error {
-	for _, repo := range one.repos {
+	for i := range one.repos {
+		repo := &one.repos[i]
+
 		key := repo.registryDomain + "/" + repo.repositoryPrefix
 		if _, dup := seenRepos[key]; dup {
-			return fmt.Errorf("%w %q in %s", errOCIDuplicateRepoBlock, key, path)
+			return fmt.Errorf("%w %q in %s", errOCIDuplicateRepoBlock, repo.label, path)
 		}
 
 		seenRepos[key] = struct{}{}
 
-		merged.repos = append(merged.repos, repo)
+		merged.repos = append(merged.repos, *repo)
 	}
 
 	if !one.hasDefault {
@@ -483,6 +486,7 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 	}
 
 	repo := ociTofuRepoCredential{
+		label:            block.Labels[0],
 		registryDomain:   ociCanonicalAuthKey(registryDomain),
 		repositoryPrefix: repositoryPrefix,
 		helper:           derefString(decoded.Helper),
@@ -530,11 +534,7 @@ func trueCount(bools ...bool) int {
 
 // ociSplitRepositoryPrefix splits a registry[/repo/path] label into registry domain and repository prefix.
 func ociSplitRepositoryPrefix(label string) (registryDomain, repositoryPrefix string) {
-	cleaned := strings.TrimPrefix(label, "https://")
-	cleaned = strings.TrimPrefix(cleaned, "http://")
-	cleaned = strings.TrimRight(cleaned, "/")
-
-	registryDomain, repositoryPrefix, _ = strings.Cut(cleaned, "/")
+	registryDomain, repositoryPrefix, _ = strings.Cut(strings.TrimRight(label, "/"), "/")
 
 	return registryDomain, repositoryPrefix
 }

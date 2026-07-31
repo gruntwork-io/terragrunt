@@ -167,21 +167,39 @@ func TestOCITofuCredentialsSchemeLabelRejected(t *testing.T) {
 	assert.ErrorContains(t, err, "without a URL scheme")
 }
 
-// TestOCITofuCredentialsIncompleteBasicSkipped: a username without a password is skipped, not used.
-func TestOCITofuCredentialsIncompleteBasicSkipped(t *testing.T) {
+// TestOCITofuCredentialsIncompleteBasicRejected: either half of the basic-auth pair alone is rejected.
+func TestOCITofuCredentialsIncompleteBasicRejected(t *testing.T) {
 	t.Parallel()
 
-	home := testHome
-	v := credentialVenv(home, nil)
-	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+	tc := []struct {
+		name string
+		body string
+	}{
+		{name: "username only", body: `
 oci_credentials "registry.example.com" {
   username = "no-password"
 }
-`)
+`},
+		{name: "password only", body: `
+oci_credentials "registry.example.com" {
+  password = "fake-secret-tofu"
+}
+`},
+	}
 
-	err := newStoreErr(t, v, testRegistry, "team/vpc")
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "requires both a username and a password")
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := testHome
+			v := credentialVenv(home, nil)
+			writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), tt.body)
+
+			err := newStoreErr(t, v, testRegistry, "team/vpc")
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "requires both a username and a password")
+		})
+	}
 }
 
 // TestOCITofuCredentialsDefaultHelper: oci_default_credentials supplies a fallback helper.
@@ -337,8 +355,8 @@ oci_credentials "registry.example.com" {
 	assert.Equal(t, want, credentialFor(t, store, testRegistry))
 }
 
-// TestOCITofuCredentialsInvalidHelperNameSkipped: a helper name with a path separator is rejected.
-func TestOCITofuCredentialsInvalidHelperNameSkipped(t *testing.T) {
+// TestOCITofuCredentialsInvalidHelperNameRejected: a helper name with a path separator is rejected.
+func TestOCITofuCredentialsInvalidHelperNameRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
@@ -354,8 +372,8 @@ oci_credentials "registry.example.com" {
 	assert.ErrorContains(t, err, "credential helper name must not be empty")
 }
 
-// TestOCITofuCredentialsMultipleStylesSkipped: a block with more than one credential style is rejected.
-func TestOCITofuCredentialsMultipleStylesSkipped(t *testing.T) {
+// TestOCITofuCredentialsMultipleStylesRejected: a block with more than one credential style is rejected.
+func TestOCITofuCredentialsMultipleStylesRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
@@ -458,8 +476,8 @@ func TestOCITofuCredentialsOtherRegistryNotServed(t *testing.T) {
 		"a block must not leak credentials to an unrelated registry")
 }
 
-// TestOCITofuCredentialsIncompleteOAuthSkipped: a lone access_token is rejected, matching OpenTofu.
-func TestOCITofuCredentialsIncompleteOAuthSkipped(t *testing.T) {
+// TestOCITofuCredentialsIncompleteOAuthRejected: a lone access_token is rejected, matching OpenTofu.
+func TestOCITofuCredentialsIncompleteOAuthRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
@@ -473,7 +491,7 @@ oci_credentials "registry.example.com" {
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "requires both an access_token and a refresh_token",
-		"an OAuth block missing refresh_token must be skipped")
+		"an OAuth block missing refresh_token must be rejected")
 }
 
 // TestOCITofuCredentialsJSONConfig: a *.tfrc.json CLI config is parsed, not skipped as unparsable.
@@ -555,8 +573,8 @@ oci_default_credentials {
 		"an empty docker_style_config_files list must disable Docker-style discovery")
 }
 
-// TestOCITofuCredentialsHelperWithBasicSkipped: a block mixing a helper with basic auth is rejected.
-func TestOCITofuCredentialsHelperWithBasicSkipped(t *testing.T) {
+// TestOCITofuCredentialsHelperWithBasicRejected: a block mixing a helper with basic auth is rejected.
+func TestOCITofuCredentialsHelperWithBasicRejected(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
@@ -572,7 +590,7 @@ oci_credentials "registry.example.com" {
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "at most one credential style",
-		"a block mixing a helper with basic auth must be skipped")
+		"a block mixing a helper with basic auth must be rejected")
 }
 
 // TestOCITofuCredentialsDiscoverAmbientFalseKeepsDefaultHelper: the default helper still runs with ambient disabled.
@@ -882,15 +900,39 @@ func TestOCITofuCredentialsEmptyStringValuesRejected(t *testing.T) {
 		name string
 		body string
 	}{
-		{name: "basic auth", body: `
+		{name: "both basic empty", body: `
 oci_credentials "registry.example.com" {
   username = ""
   password = ""
 }
 `},
-		{name: "oauth", body: `
+		{name: "empty username only", body: `
+oci_credentials "registry.example.com" {
+  username = ""
+  password = "fake-secret-tofu"
+}
+`},
+		{name: "empty password only", body: `
+oci_credentials "registry.example.com" {
+  username = "svc"
+  password = ""
+}
+`},
+		{name: "both oauth empty", body: `
 oci_credentials "registry.example.com" {
   access_token  = ""
+  refresh_token = ""
+}
+`},
+		{name: "empty access_token only", body: `
+oci_credentials "registry.example.com" {
+  access_token  = ""
+  refresh_token = "fake-refresh"
+}
+`},
+		{name: "empty refresh_token only", body: `
+oci_credentials "registry.example.com" {
+  access_token  = "fake-access"
   refresh_token = ""
 }
 `},
@@ -943,6 +985,28 @@ oci_default_credentials {
   discover_ambient_credentials = false
 }
 
+oci_default_credentials {
+  discover_ambient_credentials = true
+}
+`)
+
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "at most one oci_default_credentials block")
+}
+
+// TestOCITofuCredentialsDuplicateDefaultBlockAcrossFilesRejected: the one-default rule spans merged sources.
+func TestOCITofuCredentialsDuplicateDefaultBlockAcrossFilesRejected(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_default_credentials {
+  discover_ambient_credentials = false
+}
+`)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "extra.tfrc"), `
 oci_default_credentials {
   discover_ambient_credentials = true
 }
@@ -1035,4 +1099,24 @@ func tofuJSONBasicAuth(label, user, secret string) string {
 // tofuBasicAuth renders an oci_credentials block, keeping credential pairs out of source literals.
 func tofuBasicAuth(label, user, secret string) string {
 	return fmt.Sprintf("\noci_credentials %q {\n  username = %q\n  password = %q\n}\n", label, user, secret)
+}
+
+// TestOCITofuCredentialsDockerHubLabel: a Docker Hub label matches any Hub spelling of the host.
+func TestOCITofuCredentialsDockerHubLabel(t *testing.T) {
+	t.Parallel()
+
+	for _, registry := range []string{"docker.io", "index.docker.io", "registry-1.docker.io"} {
+		t.Run(registry, func(t *testing.T) {
+			t.Parallel()
+
+			home := testHome
+			v := credentialVenv(home, nil)
+			writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"),
+				tofuBasicAuth("docker.io", "hub", "fake-secret-hub"))
+
+			store := newStoreForRepo(t, v, registry, "library/alpine")
+			assert.Equal(t, "hub", credentialFor(t, store, registry).Username,
+				"a docker.io label must serve every Docker Hub spelling")
+		})
+	}
 }
