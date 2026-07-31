@@ -35,6 +35,20 @@ func TestToastStackPushDropAndCap(t *testing.T) {
 	assert.Contains(t, content, "third")
 }
 
+func TestToastSanitizesMessages(t *testing.T) {
+	t.Parallel()
+
+	var s viewtui.ToastStack
+
+	// Warnings quote paths and parse errors, so a hostile file name reaches the
+	// stack through the log.
+	require.NotNil(t, s.Push("failed to parse /repo/mod\x1b]52;c;cHduZWQ=\a/terragrunt.hcl"))
+
+	content := s.Overlay("base", 80, 24)
+	assert.NotContains(t, content, "\x1b]", "toasts only ever emit SGR styling escapes")
+	assert.NotContains(t, content, "\a")
+}
+
 func TestToastStackOverlayNoops(t *testing.T) {
 	t.Parallel()
 

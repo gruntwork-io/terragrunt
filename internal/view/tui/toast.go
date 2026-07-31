@@ -77,10 +77,12 @@ type ToastStack struct {
 }
 
 // Push adds a toast with the given message, dropping the oldest once the
-// stack is full. The returned command schedules the toast's expiry.
+// stack is full. The returned command schedules the toast's expiry. Messages
+// reach the stack from log entries quoting paths and parse errors, so they are
+// sanitized on the way in rather than trusted at render time.
 func (s *ToastStack) Push(message string) tea.Cmd {
 	s.lastID++
-	s.toasts = append(s.toasts, toast{id: s.lastID, message: message})
+	s.toasts = append(s.toasts, toast{id: s.lastID, message: SanitizeLabel(message)})
 
 	if len(s.toasts) > maxToasts {
 		s.toasts = s.toasts[len(s.toasts)-maxToasts:]

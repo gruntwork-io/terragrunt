@@ -226,7 +226,7 @@ const (
 // The highlighted row is a full-width blue bar. While a search is active, the
 // gutter reserves space and matched entries are flagged with a marker.
 func (m Model) renderName(n *Node, sel selection, gutter matchGutter, rowWidth int) string {
-	label := n.name
+	label := viewtui.SanitizeLabel(n.name)
 	if n.kind != KindFile {
 		label += "/"
 	}
@@ -288,7 +288,7 @@ func (m Model) headerView() string {
 		target = sel
 	}
 
-	return clipWidth(headerStyle.Render(abbreviatePath(m.home, target.absPath)), m.contentWidth())
+	return clipWidth(headerStyle.Render(viewtui.SanitizeLabel(abbreviatePath(m.home, target.absPath))), m.contentWidth())
 }
 
 // abbreviatePath replaces a leading home directory with ~. An empty home or a
@@ -340,7 +340,7 @@ func (m Model) rawPreviewContent(n *Node) string {
 // back to its dimmed path when nothing has been rendered yet.
 func (m Model) filePreview(n *Node) string {
 	if n.preview == "" {
-		return dimStyle.Render(n.relPath)
+		return dimStyle.Render(viewtui.SanitizeLabel(n.relPath))
 	}
 
 	return n.preview
@@ -372,7 +372,7 @@ func (m Model) componentPreview(n *Node) string {
 	}
 
 	if sources := c.Sources(); len(sources) > 0 {
-		lines = append(lines, m.field("Source", strings.Join(sources, ", ")))
+		lines = append(lines, m.field("Source", viewtui.SanitizeLabel(strings.Join(sources, ", "))))
 	}
 
 	lines = append(lines, "")
@@ -404,7 +404,7 @@ func relativeReadPaths(c component.Component) []string {
 	paths := make([]string, 0, len(reading))
 
 	for _, f := range reading {
-		paths = append(paths, relTo(c.Path(), f))
+		paths = append(paths, viewtui.SanitizeLabel(relTo(c.Path(), f)))
 	}
 
 	return paths
@@ -489,7 +489,7 @@ func (m Model) stackEntrySection(label string, entries []stackEntry, kind compon
 	out := []string{m.colorizer.ColorizeHeading(label + ":")}
 
 	for _, e := range entries {
-		out = append(out, "  "+m.colorizer.ColorizeKind(e.name, kind))
+		out = append(out, "  "+m.colorizer.ColorizeKind(viewtui.SanitizeLabel(e.name), kind))
 
 		if e.source != "" {
 			out = append(out, "    "+attr("source", e.source))
@@ -504,8 +504,9 @@ func (m Model) stackEntrySection(label string, entries []stackEntry, kind compon
 }
 
 // attr renders a "label: value" line in white for an entry's nested attributes.
+// Only the label is ours; every value comes from a parsed stack config.
 func attr(label, value string) string {
-	return itemStyle.Render(label+":") + " " + valueStyle.Render(value)
+	return itemStyle.Render(label+":") + " " + valueStyle.Render(viewtui.SanitizeLabel(value))
 }
 
 // componentLines renders each component as a path relative to base, styled
@@ -520,7 +521,7 @@ func componentLines(base string, comps component.Components, style lipgloss.Styl
 
 	lines := make([]string, len(paths))
 	for i, p := range paths {
-		lines[i] = style.Render(p)
+		lines[i] = style.Render(viewtui.SanitizeLabel(p))
 	}
 
 	return lines
