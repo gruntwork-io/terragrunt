@@ -1,0 +1,20 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Apply the positive half of a filter that begins with a negation
+
+A `--filter` query like `'!name=foo | name=bar'` now returns only the components named `bar` that are not named `foo`. Previously the whole query was treated as an exclusion of `foo`, so the `name=bar` restriction was dropped and components matching neither term came back in the results.
+
+```bash
+# Three units: foo, bar and baz
+$ terragrunt list --filter '!name=foo | name=bar'
+bar
+```
+
+This follows the left-to-right refinement that `|` has everywhere else: each expression narrows what the one before it selected. A query is only treated as an exclusion when every one of its expressions is negated, such as `'!name=foo'` or `'!name=foo | !name=bar'`.
+
+If you were relying on a query like `'!./prod/** | type=stack'` to mean "everything except the stacks under `./prod/**`", there is no grouping syntax to negate a chain as a whole, so write the exclusion you want on its own, such as `'!./prod/**'` to drop that path entirely.
+
+See [Combining Expressions](/features/filter/combining) for how negation, intersection and union interact.

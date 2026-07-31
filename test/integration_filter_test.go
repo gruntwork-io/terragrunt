@@ -264,9 +264,35 @@ func TestFilterFlagWithList(t *testing.T) {
 			expectError:     false,
 		},
 		{
+			// Quoted so that shellwords keeps the pipe in the filter rather than cutting the
+			// command short at it.
 			name:            "filter with intersection - name and type",
-			filterQuery:     "a-unit | type=unit",
+			filterQuery:     "'a-unit | type=unit'",
 			expectedResults: []string{"a-unit"},
+			expectError:     false,
+		},
+		{
+			name:            "filter with intersection - negated name and type",
+			filterQuery:     "'!a-unit | type=unit'",
+			expectedResults: []string{"b-unit"},
+			expectError:     false,
+		},
+		{
+			name:            "filter with intersection - negated name and name",
+			filterQuery:     "'!a-unit | b-unit'",
+			expectedResults: []string{"b-unit"},
+			expectError:     false,
+		},
+		{
+			name:            "filter with intersection - operands that share nothing",
+			filterQuery:     "'!a-unit | a-unit'",
+			expectedResults: []string{},
+			expectError:     false,
+		},
+		{
+			name:            "filter with intersection - both operands negated",
+			filterQuery:     "'!a-unit | !b-unit'",
+			expectedResults: []string{},
 			expectError:     false,
 		},
 		{
@@ -1247,6 +1273,42 @@ func getJSONRunNames(recordsByUnit map[string]*report.JSONRun) []string {
 	sort.Strings(names)
 
 	return names
+}
+
+// TestFilterCompoundNegationDropsUnrelatedUnits pins that a filter whose negation comes first
+// still restricts on its positive operand. A unit matching neither operand used to survive,
+// because the whole query was treated as an exclusion of the negated operand alone.
+func TestFilterCompoundNegationDropsUnrelatedUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	for _, name := range []string{"foo", "bar", "baz"} {
+		_ = createTestUnit(t, filepath.Join(tmpDir, name), "# "+name)
+	}
+
+	cmd := "terragrunt list --no-color --working-dir " + tmpDir + " --filter '!name=foo | name=bar'"
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"bar"}, strings.Fields(stdout))
+}
+
+// TestFilterExcludeByDefault pins that a filter which only excludes still starts from every
+// component, rather than emptying discovery out.
+func TestFilterExcludeByDefault(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludeByDefault)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExcludeByDefault)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	cmd := "terragrunt list --no-color --working-dir " + rootPath + " --filter '!_stacks'"
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"unit1"}, strings.Fields(stdout))
 }
 
 func TestFilterFlagWithMarkAsRead(t *testing.T) {

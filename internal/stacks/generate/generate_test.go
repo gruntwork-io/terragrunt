@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -77,4 +79,83 @@ func TestGeneratorDefaultMaxLevel(t *testing.T) {
 		generate.DefaultMaxLevel,
 		"default level cap must stay generous so only genuine cycles reach it",
 	)
+}
+
+// TestStackDiscoveryFilters pins how a generation run composes its stack filters. A user
+// filter that already narrows to stacks must stand on its own, because unioning a blanket
+// type=stack alongside it would re-select the stacks it excludes.
+func TestStackDiscoveryFilters(t *testing.T) {
+	t.Parallel()
+
+	stacks := component.Components{
+		component.NewStack("./live/land-mine"),
+		component.NewStack("./live/normal"),
+	}
+
+	for _, c := range stacks {
+		c.SetDiscoveryContext(&component.DiscoveryContext{WorkingDir: "."})
+	}
+
+	tests := []struct {
+		name     string
+		filters  []string
+		expected []string
+	}{
+		{
+			name:     "no filters selects every stack",
+			filters:  nil,
+			expected: []string{"./live/land-mine", "./live/normal"},
+		},
+		{
+			name:     "stack filters that exclude keep excluding",
+			filters:  []string{"!./live/land-mine | type=stack"},
+			expected: []string{"./live/normal"},
+		},
+		{
+			name:     "filters that do not narrow to stacks fall back to every stack",
+			filters:  []string{"[HEAD~1...HEAD]"},
+			expected: []string{"./live/land-mine", "./live/normal"},
+		},
+		{
+			name:     "a path filter alone still leaves generation permissive",
+			filters:  []string{"./apps/*"},
+			expected: []string{"./live/land-mine", "./live/normal"},
+		},
+		{
+			name:     "another filter's stacks survive alongside a stack filter",
+			filters:  []string{"type=stack | name=normal", "name=land-mine"},
+			expected: []string{"./live/normal", "./live/land-mine"},
+		},
+		{
+			name:     "a git expression never narrows the stacks a stack filter selects",
+			filters:  []string{"[HEAD~1...HEAD]", "!./live/land-mine | type=stack"},
+			expected: []string{"./live/normal"},
+		},
+		{
+			name:     "a filter that only excludes keeps subtracting",
+			filters:  []string{"!./live/land-mine | type=stack", "!name=normal"},
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+
+			parsed, err := filter.ParseFilterQueries(l, tt.filters)
+			require.NoError(t, err)
+
+			selected, err := generate.StackDiscoveryFilters(parsed).Evaluate(l, stacks)
+			require.NoError(t, err)
+
+			selectedPaths := make([]string, 0, len(selected))
+			for _, c := range selected {
+				selectedPaths = append(selectedPaths, c.Path())
+			}
+
+			assert.ElementsMatch(t, tt.expected, selectedPaths)
+		})
+	}
 }
