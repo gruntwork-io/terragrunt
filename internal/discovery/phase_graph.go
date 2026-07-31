@@ -198,22 +198,33 @@ func (p *GraphPhase) processGraphTarget(
 		})
 	}
 
-	if graphExpr.IncludeDependencies {
+	if graphExpr.Dependencies.Include {
 		depth := p.maxDepth
-		if graphExpr.DependencyDepth > 0 {
-			depth = graphExpr.DependencyDepth
+		if graphExpr.Dependencies.Depth > 0 {
+			depth = graphExpr.Dependencies.Depth
 		}
 
-		err := p.discoverDependencies(ctx, l, v, state, c, depth)
+		boundary := ""
+
+		if graphExpr.Dependencies.Boundary != "" {
+			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
+			if err != nil {
+				return err
+			}
+
+			boundary = resolved
+		}
+
+		err := p.discoverDependencies(ctx, l, v, state, c, depth, boundary)
 		if err != nil {
 			return err
 		}
 	}
 
-	if graphExpr.IncludeDependents {
+	if graphExpr.Dependents.Include {
 		depth := p.maxDepth
-		if graphExpr.DependentDepth > 0 {
-			depth = graphExpr.DependentDepth
+		if graphExpr.Dependents.Depth > 0 {
+			depth = graphExpr.Dependents.Depth
 		}
 
 		err := p.discoverDependents(ctx, l, v, state, c, depth)
@@ -221,17 +232,34 @@ func (p *GraphPhase) processGraphTarget(
 			return err
 		}
 
-		if state.discovery.gitRoot != "" {
-			startDir := state.discovery.workingDir
-			boundaryRoot := state.discovery.gitRoot
+		// The upstream dependent walk is capped by an explicit boundary when the
+		// expression carries one, otherwise by the detected git root.
+		startDir := state.discovery.workingDir
+		boundaryRoot := state.discovery.gitRoot
 
+		if graphExpr.Dependents.Boundary != "" {
+			resolved, rerr := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependents.Boundary)
+			if rerr != nil {
+				return rerr
+			}
+
+			if isExternal(resolved, startDir) {
+				return NewFilterBoundaryScopeError(resolved, startDir)
+			}
+
+			boundaryRoot = resolved
+		}
+
+		if graphExpr.Dependents.Boundary == "" {
 			if dCtx := c.DiscoveryContext(); dCtx != nil &&
 				dCtx.WorkingDir != "" &&
 				dCtx.WorkingDir != state.discovery.workingDir {
 				startDir = dCtx.WorkingDir
 				boundaryRoot = dCtx.WorkingDir
 			}
+		}
 
+		if boundaryRoot != "" {
 			l.Debugf(
 				"Starting upstream dependent discovery from %s to boundary %s",
 				startDir,
@@ -261,6 +289,8 @@ func (p *GraphPhase) processGraphTarget(
 }
 
 // discoverDependencies recursively discovers dependencies of a component.
+// When boundary is non-empty, dependencies that resolve outside it are neither
+// read nor traversed, so the dependency closure stays within that directory.
 func (p *GraphPhase) discoverDependencies(
 	ctx context.Context,
 	l log.Logger,
@@ -268,6 +298,7 @@ func (p *GraphPhase) discoverDependencies(
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
+	boundary string,
 ) error {
 	if depthRemaining <= 0 {
 		return nil
@@ -314,6 +345,11 @@ func (p *GraphPhase) discoverDependencies(
 
 	for _, depPath := range depPaths {
 		g.Go(func() error {
+			if boundary != "" && isExternal(boundary, depPath) {
+				l.Debugf("Dependency %s is outside graph boundary %s; skipping", depPath, boundary)
+				return nil
+			}
+
 			depComponent, err := p.resolveDependency(
 				c, depPath, state.threadSafeComponents,
 			)
@@ -346,6 +382,7 @@ func (p *GraphPhase) discoverDependencies(
 					state,
 					depComponent,
 					depthRemaining-1,
+					boundary,
 				)
 				if err != nil {
 					errMu.Lock()

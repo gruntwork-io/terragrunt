@@ -609,6 +609,10 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.Filters = deduped
 
+	if opts.Filters.HasGraphBoundary() && !opts.Experiments.Evaluate(experiment.BoundedDiscovery) {
+		return filter.ErrBoundaryRequiresExperiment
+	}
+
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)
 	if err != nil {
