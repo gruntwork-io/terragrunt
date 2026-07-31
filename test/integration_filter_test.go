@@ -2841,3 +2841,71 @@ func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 		})
 	}
 }
+
+// TestRunAllGitFilterDeletedDependencyUnit verifies that `run --all -- plan` with a
+// git-range filter does not crash when the diff deletes a unit that a live, unmodified
+// unit still references via a dependency block. The consumer keeps planning with mocks
+// on the HEAD side and the deleted unit gets its destroy plan on the from side.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/6540.
+func TestRunAllGitFilterDeletedDependencyUnit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	depDir := filepath.Join(tmpDir, "dep")
+	require.NoError(t, os.MkdirAll(depDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte(`# dep`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(depDir, "main.tf"), []byte("# minimal"), 0644))
+
+	consumerDir := filepath.Join(tmpDir, "consumer")
+	require.NoError(t, os.MkdirAll(consumerDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(consumerDir, "terragrunt.hcl"), []byte(`dependency "dep" {
+  config_path = "../dep"
+  mock_outputs = { name = "mock" }
+  mock_outputs_allowed_terraform_commands = ["plan", "destroy"]
+}`), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(consumerDir, "main.tf"), []byte("# minimal"), 0644),
+	)
+
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Baseline units"))
+
+	// Delete only dep; consumer is untouched but still references it.
+	require.NoError(t, os.RemoveAll(depDir))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Delete dep"))
+
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
+
+	cmd := "terragrunt run --all --non-interactive --no-color --working-dir " + tmpDir +
+		" --filter '...[HEAD~1...HEAD]... | ./**' --filter-allow-destroy --report-file " +
+		reportFilePath + " -- plan"
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	// A missing IaC binary may fail the plan itself, but discovery must not fail
+	// with the missing-config crash this test pins.
+	if err != nil && !strings.Contains(stderr, "executable file not found") {
+		require.NoError(t, err, "Unexpected error\nstdout: %s\nstderr: %s", stdout, stderr)
+	}
+
+	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl",
+		"run --all must not crash on the consumer's dangling dependency reference")
+
+	require.FileExists(t, reportFilePath, "Report file should exist at %s", reportFilePath)
+
+	runs, parseErr := report.ParseJSONRunsFromFile(reportFilePath)
+	require.NoError(t, parseErr, "Should be able to parse report JSON")
+
+	runNames := make([]string, 0, len(runs))
+	for i := range runs {
+		runNames = append(runNames, filepath.Base(runs[i].Name))
+	}
+
+	assert.Contains(t, runNames, "consumer", "live consumer must be part of the run")
+	assert.Contains(t, runNames, "dep", "deleted dep must get its destroy plan")
+}

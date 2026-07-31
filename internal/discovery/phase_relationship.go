@@ -166,6 +166,14 @@ func (p *RelationshipPhase) discoverRelationships(
 	ctx = contextWithParsePhase(ctx, parsePhaseTagRelationship)
 
 	if err := ensureParsed(ctx, l, v, c, state.opts, state.discovery); err != nil {
+		// Defensive: dependencyToDiscover already filters missing configs before
+		// publishing, so this only fires for a traversal root deleted in the diff.
+		if state.discovery.skipMissingDependencyConfig(err) {
+			l.Debugf("Skipping relationship discovery for %s: config not found", c.Path())
+
+			return nil
+		}
+
 		return err
 	}
 
@@ -189,12 +197,17 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	for _, path := range paths {
 		dep, created := p.dependencyToDiscover(
+			ctx,
+			l,
+			v,
 			c,
 			path,
-			state.allComponents,
-			state.interTransientComponents,
-			state.discovery,
+			state,
 		)
+
+		if dep == nil {
+			continue
+		}
 
 		tracker.remove(dep.Path())
 
@@ -254,14 +267,17 @@ func (p *RelationshipPhase) discoverRelationships(
 }
 
 // dependencyToDiscover resolves a dependency path and links it to the component.
+// It returns nil for a dependency deleted in the diff: even a bare edge would
+// resurrect the config-less component through graph-expression evaluation.
 func (p *RelationshipPhase) dependencyToDiscover(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
 	c component.Component,
 	path string,
-	allComponents *component.Components,
-	interTransientComponents *component.ThreadSafeComponents,
-	discovery *Discovery,
+	state *relationshipTraversalState,
 ) (component.Component, bool) {
-	for _, dep := range *allComponents {
+	for _, dep := range *state.allComponents {
 		if dep.Path() == path {
 			if !slices.Contains(c.Dependencies(), dep) {
 				c.AddDependency(dep)
@@ -271,12 +287,32 @@ func (p *RelationshipPhase) dependencyToDiscover(
 		}
 	}
 
+	// A component already in the transient set passed the missing-config check when
+	// it was created, so link it without re-parsing.
+	if existing := state.interTransientComponents.FindByPath(path); existing != nil {
+		c.AddDependency(existing)
+
+		return existing, false
+	}
+
 	newUnit := component.NewUnit(path)
 
-	dep, created := interTransientComponents.EnsureComponent(newUnit)
+	// Parse before linking so a missing config is caught while the dependency is
+	// still unpublished. Other parse errors surface during recursion, as before.
+	if err := ensureParsed(ctx, l, v, newUnit, state.opts, state.discovery); err != nil {
+		if state.discovery.skipMissingDependencyConfig(err) {
+			l.Debugf("Skipping dependency %s of %s: config not found", path, c.Path())
 
-	if created && discovery.discoveryContext != nil {
-		discoveryCtx := discovery.discoveryContext.Copy()
+			return nil, false
+		}
+
+		l.Debugf("Deferring parse error for %s to recursion: %v", path, err)
+	}
+
+	dep, created := state.interTransientComponents.EnsureComponent(newUnit)
+
+	if created && state.discovery.discoveryContext != nil {
+		discoveryCtx := state.discovery.discoveryContext.Copy()
 		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
 		dep.SetDiscoveryContext(discoveryCtx)
 
