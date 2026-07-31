@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -20,7 +22,7 @@ const (
 	lockfileReadonlyLogMessage = "so Terragrunt will not generate or update"
 )
 
-// TestTerragruntProviderCacheLockfileReadonly is a regression test for GitHub issue
+// TestTFTerragruntProviderCacheLockfileReadonly is a regression test for GitHub issue
 // #6349. With the provider cache enabled, Terragrunt used to generate
 // `.terraform.lock.hcl` before running `init`, which satisfied OpenTofu/Terraform's
 // dependency check and silently defeated `-lockfile=readonly`. The cache must now
@@ -28,7 +30,7 @@ const (
 // line or through `TF_CLI_ARGS_init`, so init fails exactly as it does without the cache.
 //
 //nolint:paralleltest,tparallel // the env-var subtest relies on t.Setenv.
-func TestTerragruntProviderCacheLockfileReadonly(t *testing.T) {
+func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 	lockfileName := ".terraform.lock.hcl"
 
 	t.Run("cache writes lock file without readonly", func(t *testing.T) {

@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -35,32 +37,32 @@ const (
 	registryTestModuleSource = "tfr://registry.opentofu.org/yorinasub17/terragrunt-registry-test/null"
 )
 
-func TestTerraformRegistryFetchingRootModule(t *testing.T) {
+func TestTFTerraformRegistryFetchingRootModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureRootModulePath, "root_null_resource")
 }
 
-func TestRegistryFetchingRootShorthandModule(t *testing.T) {
+func TestTFRegistryFetchingRootShorthandModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureRootShorthandModulePath, "root_null_resource")
 }
 
-func TestTerraformRegistryFetchingSubdirModule(t *testing.T) {
+func TestTFTerraformRegistryFetchingSubdirModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureSubdirModulePath, "one_null_resource")
 }
 
-func TestTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
+func TestTFTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureSubdirWithReferenceModulePath, "two")
 }
 
-// TestTerraformRegistryVersionConstraintPinsResolvedVersion runs a unit whose
+// TestTFTerraformRegistryVersionConstraintPinsResolvedVersion runs a unit whose
 // terraform block carries a bare tfr:// source plus a version constraint and
 // verifies the constraint end-to-end: the unit applies successfully, and the
 // download lands in the cache slot keyed by the exact ?version=0.0.2 pin the
 // resolver must have produced from "~> 0.0.1".
-func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
+func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	t.Parallel()
 
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintModulePath)
@@ -128,12 +130,12 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	assert.Equal(t, wantVersion, gotVersion)
 }
 
-// TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing applies
+// TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing applies
 // several units sharing a module source and version constraint in a single
 // run --all, which resolves them concurrently through the run's shared
 // version resolver. The WithRacing suffix puts the shared resolver under the
 // race detector in CI; every unit must land on the same 0.0.2 pin.
-func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testing.T) {
+func TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testing.T) {
 	t.Parallel()
 
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintMultiModulePath)
@@ -169,10 +171,10 @@ func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testin
 	}
 }
 
-// TestTerraformRegistryVersionConstraintRequiresExperiment pins the typed
+// TestTFTerraformRegistryVersionConstraintRequiresExperiment pins the typed
 // error returned when the terraform block sets the version attribute but the
 // version-attribute experiment is not enabled.
-func TestTerraformRegistryVersionConstraintRequiresExperiment(t *testing.T) {
+func TestTFTerraformRegistryVersionConstraintRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
 	if helpers.IsExperimentMode(t) {
@@ -199,10 +201,10 @@ func TestTerraformRegistryVersionConstraintRequiresExperiment(t *testing.T) {
 	assert.ErrorAs(t, err, &expectedErr)
 }
 
-// TestTerraformRegistryVersionConstraintNoMatchingVersion pins the typed
+// TestTFTerraformRegistryVersionConstraintNoMatchingVersion pins the typed
 // error returned at download time when the registry publishes versions but
 // none satisfy the configured constraint.
-func TestTerraformRegistryVersionConstraintNoMatchingVersion(t *testing.T) {
+func TestTFTerraformRegistryVersionConstraintNoMatchingVersion(t *testing.T) {
 	t.Parallel()
 
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintNoMatchModulePath)
@@ -225,11 +227,11 @@ func TestTerraformRegistryVersionConstraintNoMatchingVersion(t *testing.T) {
 	assert.ErrorAs(t, err, &expectedErr)
 }
 
-// TestTerraformRegistryVersionConstraintInQueryRejected pins the typed error
+// TestTFTerraformRegistryVersionConstraintInQueryRejected pins the typed error
 // returned when a tfr:// source carries a version constraint in its ?version=
 // query, which accepts an exact version only. The guard is active without the
 // version-attribute experiment, since such a source was never valid.
-func TestTerraformRegistryVersionConstraintInQueryRejected(t *testing.T) {
+func TestTFTerraformRegistryVersionConstraintInQueryRejected(t *testing.T) {
 	t.Parallel()
 
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintInQueryModulePath)

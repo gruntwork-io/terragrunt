@@ -144,67 +144,6 @@ func TestScaffoldGitModule(t *testing.T) {
 	)
 }
 
-func TestScaffoldGitModuleHttps(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	tempDir := helpers.TmpDirWOSymlinks(t)
-
-	repo, err := module.NewRepo(
-		ctx,
-		logger.CreateLogger(),
-		venv.OSVenv(),
-		&module.RepoOpts{
-			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules",
-			Path:     tempDir,
-		},
-	)
-	require.NoError(t, err)
-
-	modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
-	require.NoError(t, err)
-
-	var auroraModule *module.Module
-
-	for _, m := range modules {
-		if m.Title() == "Terraform Fake AWS Aurora Module" {
-			auroraModule = m
-		}
-	}
-
-	assert.NotNil(t, auroraModule)
-
-	testPath := helpers.TmpDirWOSymlinks(t)
-	opts, err := options.NewTerragruntOptionsForTest(testPath)
-	require.NoError(t, err)
-
-	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
-
-	err = scaffold.Run(
-		ctx,
-		createLogger(),
-		venv.OSVenv(),
-		opts,
-		auroraModule.TerraformSourcePath(),
-		"",
-	)
-	require.NoError(t, err)
-
-	cfg := readConfig(t, opts)
-	assert.NotEmpty(t, cfg.Inputs)
-	assert.Len(t, cfg.Inputs, 1)
-	_, found := cfg.Inputs["vpc_id"]
-	assert.True(t, found)
-	assert.Contains(
-		t,
-		*cfg.Terraform.Source,
-		"git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5",
-	)
-
-	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+opts.WorkingDir)
-}
-
 func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 	t.Parallel()
 

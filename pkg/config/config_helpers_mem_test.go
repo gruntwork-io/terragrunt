@@ -16,7 +16,7 @@ import (
 )
 
 // TestRunCommandMemExec exercises the run_cmd HCL helper end-to-end on a
-// mem-backed exec. The existing TestRunCommand skips on Windows because
+// mem-backed exec. The existing TestTFRunCommand skips on Windows because
 // it shells out to /bin/bash; this variant runs everywhere because the
 // subprocess is intercepted by the mem backend.
 func TestRunCommandMemExec(t *testing.T) {

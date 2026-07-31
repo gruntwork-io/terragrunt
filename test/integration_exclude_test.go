@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -34,7 +36,7 @@ type excludeTestCase struct {
 	expectRuns      bool
 }
 
-func TestExcludeBlockBehavior(t *testing.T) {
+func TestTFExcludeBlockBehavior(t *testing.T) {
 	t.Parallel()
 
 	testCases := []*excludeTestCase{
@@ -314,11 +316,11 @@ func buildExcludeTestCommand(tc *excludeTestCase, rootPath, reportFile string) s
 	return cmd
 }
 
-// TestExcludeBlockFeatureFlagDefaultInDependency tests that when a dependency unit
+// TestTFExcludeBlockFeatureFlagDefaultInDependency tests that when a dependency unit
 // defines feature flags with defaults and uses them in an exclude block, the dependent
 // unit can still parse the dependency's config without errors.
 // This reproduces https://github.com/gruntwork-io/terragrunt/issues/4395
-func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
+func TestTFExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
 	t.Parallel()
 
 	testFixturePath := "fixtures/exclude/dependency-feature-flags"
@@ -340,9 +342,9 @@ func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
 	)
 }
 
-// TestExcludeBlockFeatureFlagDefaultRunAll tests the run-all scenario where
+// TestTFExcludeBlockFeatureFlagDefaultRunAll tests the run-all scenario where
 // all units are parsed and one has feature flags with defaults in exclude blocks.
-func TestExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
+func TestTFExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 	t.Parallel()
 
 	testFixturePath := "fixtures/exclude/dependency-feature-flags"
