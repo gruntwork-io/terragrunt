@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -297,7 +298,7 @@ func fileWasGeneratedByTerragrunt(path string) (bool, error) {
 	reader := bufio.NewReader(file)
 
 	firstLine, err := reader.ReadString('\n')
-	if err != nil {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return false, err
 	}
 
