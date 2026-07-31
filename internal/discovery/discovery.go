@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -35,7 +34,7 @@ func (d *Discovery) Discover(
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
 	if d.discoveryBoundary != "" {
-		boundary, boundaryErr := resolveDiscoveryBoundary(vfs.NewOSFS(), d.workingDir, d.discoveryBoundary)
+		boundary, boundaryErr := resolveDiscoveryBoundary(v.FS, d.workingDir, d.discoveryBoundary)
 		if boundaryErr != nil {
 			return nil, boundaryErr
 		}

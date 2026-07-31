@@ -96,7 +96,7 @@
 // ## Graph Boundary
 //
 // A boundary encloses graph traversal within a directory, in place of the
-// default outer limit (the git repository root for dependents, the declared
+// default outer limit (the Git repository root for dependents, the declared
 // path for dependencies). It occupies the same operand slot as depth, written
 // as a parenthesized directory:
 //
@@ -109,6 +109,14 @@
 // read nor returned, the same way a too-deep node is excluded by a depth bound.
 // The value must be an existing directory, resolved against the working
 // directory. This syntax is gated behind the bounded-discovery experiment.
+//
+// A dependent-direction boundary must be the working directory or one of its
+// parents, since the dependent walk starts at the working directory and moves
+// outward. A boundary that does not contain it is rejected before traversal.
+//
+// Reserving "(" and ")" for this operand means neither character can appear
+// bare in a name or path. Brace a value that contains one, as in
+// "{./weird(name)}".
 //
 // ## Numeric Directory Disambiguation
 //
