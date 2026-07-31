@@ -797,6 +797,11 @@ func TestTFTerragruntExcludesFile(t *testing.T) {
 	}
 }
 
+// The subtests run sequentially because the provider cache server stages downloaded archives in a
+// process-wide temp directory, so two concurrent cache runs fetching the same providers delete each
+// other's archives before they're unpacked.
+//
+//nolint:paralleltest,tparallel
 func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 	t.Parallel()
 
@@ -819,8 +824,6 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheMultiplePlatforms)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheMultiplePlatforms)
 
