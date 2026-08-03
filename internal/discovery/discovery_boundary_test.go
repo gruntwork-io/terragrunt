@@ -1,8 +1,6 @@
 package discovery_test
 
 import (
-	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -14,13 +12,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-// boundaryFixture is a git repository mimicking a monorepo with sibling
-// environments. The working directory is environments/staging, and the graph
-// crosses out of it in both directions:
+// boundaryFixture is an in-memory monorepo whose graph crosses out of the
+// working directory (environments/staging) in both directions:
 //
 //	environments/staging/vpc          (dependent-direction target)
 //	environments/staging/app          depends on ../vpc
@@ -28,7 +24,7 @@ import (
 //	environments/production/consumer  depends on ../../staging/vpc
 //	environments/production/external  (dependency-direction target's external dep)
 type boundaryFixture struct {
-	tmpDir      string
+	repoRoot    string
 	stagingDir  string
 	vpcDir      string
 	appDir      string
@@ -37,54 +33,49 @@ type boundaryFixture struct {
 	externalDir string
 }
 
-func newBoundaryFixture(t *testing.T) boundaryFixture {
+func newBoundaryFixture(t *testing.T) (boundaryFixture, *venv.Venv) {
 	t.Helper()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	repoRoot := string(filepath.Separator) + "repo"
 
-	// Initialize a git repository so graph traversal bounds to the repo root
-	// when no discovery boundary is configured.
-	cmd := exec.CommandContext(t.Context(), "git", "init")
-	cmd.Dir = tmpDir
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Run())
+	// The venv answers the git top-level probe with repoRoot, so traversal
+	// bounds to the repository root when no discovery boundary is configured.
+	v := memGitTopLevelVenv(t, repoRoot)
 
 	f := boundaryFixture{
-		tmpDir:      tmpDir,
-		stagingDir:  filepath.Join(tmpDir, "environments", "staging"),
-		vpcDir:      filepath.Join(tmpDir, "environments", "staging", "vpc"),
-		appDir:      filepath.Join(tmpDir, "environments", "staging", "app"),
-		edgeDir:     filepath.Join(tmpDir, "environments", "staging", "edge"),
-		consumerDir: filepath.Join(tmpDir, "environments", "production", "consumer"),
-		externalDir: filepath.Join(tmpDir, "environments", "production", "external"),
+		repoRoot:    repoRoot,
+		stagingDir:  filepath.Join(repoRoot, "environments", "staging"),
+		vpcDir:      filepath.Join(repoRoot, "environments", "staging", "vpc"),
+		appDir:      filepath.Join(repoRoot, "environments", "staging", "app"),
+		edgeDir:     filepath.Join(repoRoot, "environments", "staging", "edge"),
+		consumerDir: filepath.Join(repoRoot, "environments", "production", "consumer"),
+		externalDir: filepath.Join(repoRoot, "environments", "production", "external"),
 	}
 
-	for _, dir := range []string{f.vpcDir, f.appDir, f.edgeDir, f.consumerDir, f.externalDir} {
-		require.NoError(t, os.MkdirAll(dir, 0o755))
-	}
-
-	require.NoError(t, os.WriteFile(filepath.Join(f.vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(f.externalDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(f.appDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		f.vpcDir:      ``,
+		f.externalDir: ``,
+		f.appDir: `
 dependency "vpc" {
   config_path = "../vpc"
 }
-`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(f.consumerDir, "terragrunt.hcl"), []byte(`
+`,
+		f.consumerDir: `
 dependency "vpc" {
   config_path = "../../staging/vpc"
 }
-`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(f.edgeDir, "terragrunt.hcl"), []byte(`
+`,
+		f.edgeDir: `
 dependency "external" {
   config_path = "../../production/external"
 }
-`), 0o644))
+`,
+	})
 
-	return f
+	return f, v
 }
 
-func (f *boundaryFixture) discover(t *testing.T, query, boundary string) (component.Components, error) {
+func (f *boundaryFixture) discover(t *testing.T, v *venv.Venv, query, boundary string) (component.Components, error) {
 	t.Helper()
 
 	opts := options.NewTerragruntOptions()
@@ -100,7 +91,7 @@ func (f *boundaryFixture) discover(t *testing.T, query, boundary string) (compon
 		d = d.WithDiscoveryBoundary(boundary)
 	}
 
-	return d.Discover(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
+	return d.Discover(t.Context(), logger.CreateLogger(), v, opts)
 }
 
 // Test that a discovery boundary encloses graph discovery in both directions,
@@ -139,7 +130,7 @@ func TestDiscoveryBoundary_EnclosesGraphDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := newBoundaryFixture(t)
+			f, v := newBoundaryFixture(t)
 
 			byName := map[string]string{
 				"vpc": f.vpcDir, "app": f.appDir, "edge": f.edgeDir,
@@ -161,12 +152,12 @@ func TestDiscoveryBoundary_EnclosesGraphDiscovery(t *testing.T) {
 			// into the sibling production environment. This pins the fixture as
 			// actually exercising cross-boundary traversal, so the bounded
 			// assertion below is meaningful.
-			configs, err := f.discover(t, query, "")
+			configs, err := f.discover(t, v, query, "")
 			require.NoError(t, err)
 			assert.ElementsMatch(t, resolve(tc.unbounded), configs.Filter(component.UnitKind).Paths())
 
 			// "." resolves against the working directory (staging).
-			configs, err = f.discover(t, query, ".")
+			configs, err = f.discover(t, v, query, ".")
 			require.NoError(t, err)
 			assert.ElementsMatch(t, resolve(tc.bounded), configs.Filter(component.UnitKind).Paths())
 		})
@@ -179,7 +170,7 @@ func TestDiscoveryBoundary_EnclosesGraphDiscovery(t *testing.T) {
 func TestDiscoveryBoundary_DiscoverValidatesBoundary(t *testing.T) {
 	t.Parallel()
 
-	f := newBoundaryFixture(t)
+	f, v := newBoundaryFixture(t)
 
 	testCases := []struct {
 		errAs    any
@@ -188,7 +179,7 @@ func TestDiscoveryBoundary_DiscoverValidatesBoundary(t *testing.T) {
 	}{
 		{
 			name:     "nonexistent boundary",
-			boundary: filepath.Join(f.tmpDir, "does-not-exist"),
+			boundary: filepath.Join(f.repoRoot, "does-not-exist"),
 			errAs:    &discovery.DiscoveryBoundaryDirError{},
 		},
 		{
@@ -207,7 +198,7 @@ func TestDiscoveryBoundary_DiscoverValidatesBoundary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := f.discover(t, "...{"+f.vpcDir+"}", tc.boundary)
+			_, err := f.discover(t, v, "...{"+f.vpcDir+"}", tc.boundary)
 			require.ErrorAs(t, err, tc.errAs)
 		})
 	}
@@ -218,7 +209,7 @@ func TestDiscoveryBoundary_DiscoverValidatesBoundary(t *testing.T) {
 func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 	t.Parallel()
 
-	f := newBoundaryFixture(t)
+	f, v := newBoundaryFixture(t)
 
 	testCases := []struct {
 		errAs    any
@@ -227,7 +218,7 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 	}{
 		{
 			name:     "nonexistent boundary",
-			boundary: filepath.Join(f.tmpDir, "does-not-exist"),
+			boundary: filepath.Join(f.repoRoot, "does-not-exist"),
 			errAs:    &discovery.DiscoveryBoundaryDirError{},
 		},
 		{
@@ -241,7 +232,7 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := discovery.NewForDiscoveryCommand(logger.CreateLogger(), &discovery.DiscoveryCommandOptions{
+			_, err := discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
 				WorkingDir:        f.stagingDir,
 				DiscoveryBoundary: tc.boundary,
 			})
@@ -252,7 +243,7 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 	t.Run("valid boundary", func(t *testing.T) {
 		t.Parallel()
 
-		d, err := discovery.NewForDiscoveryCommand(logger.CreateLogger(), &discovery.DiscoveryCommandOptions{
+		d, err := discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
 			WorkingDir:        f.stagingDir,
 			DiscoveryBoundary: "..",
 		})

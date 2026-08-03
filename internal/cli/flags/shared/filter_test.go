@@ -1,7 +1,6 @@
 package shared_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
@@ -21,7 +20,7 @@ func TestDiscoveryBoundaryFlagRequiresExperiment(t *testing.T) {
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}))
 
-	err := flags.RunActions(context.Background(), &clihelper.Context{})
+	err := flags.RunActions(t.Context(), &clihelper.Context{})
 
 	require.ErrorIs(t, err, shared.ErrDiscoveryBoundaryRequiresExperiment)
 }
@@ -34,6 +33,6 @@ func TestDiscoveryBoundaryFlagAllowedWithExperiment(t *testing.T) {
 	flags := shared.NewFilterFlags(logger.CreateLogger(), opts)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}))
-	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
+	require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
 	assert.Equal(t, ".", opts.DiscoveryBoundary)
 }
