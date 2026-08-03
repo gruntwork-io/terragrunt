@@ -28,7 +28,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Tags declared in the README front matter, in authoring order. Absent when the entry declares none."
+      "description": "Tags declared in the README front matter, in authoring order. Omitted rather than emitted as an empty array when the entry declares none."
     },
     "source": {
       "type": "string",
@@ -53,10 +53,6 @@
     "doc": {
       "type": "string",
       "description": "README body as written, with front matter removed. Absent when the entry has no README."
-    },
-    "copyable": {
-      "type": "boolean",
-      "description": "True when the entry is installed by copying its directory (units and stacks) rather than by scaffolding. Absent when false."
     }
   },
   "additionalProperties": false,

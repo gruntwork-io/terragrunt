@@ -57,15 +57,25 @@ func (c *Component) Title() string {
 	return filepath.Base(c.Dir)
 }
 
-// Description returns a short description for the list view.
+// Description returns a short description for the list view, falling back to
+// a placeholder that fills the row a list item always reserves for it.
 func (c *Component) Description() string {
-	if c.Doc != nil {
-		if desc := c.Doc.Description(maxDescriptionLength); desc != "" {
-			return desc
-		}
+	if desc := c.DocDescription(); desc != "" {
+		return desc
 	}
 
 	return defaultDescription
+}
+
+// DocDescription returns the component's README description, or an empty
+// string when it has none. Output formats that have no row to fill use this
+// rather than writing the list view's placeholder into a document.
+func (c *Component) DocDescription() string {
+	if c.Doc == nil {
+		return ""
+	}
+
+	return c.Doc.Description(maxDescriptionLength)
 }
 
 // FilterValue is what the list fuzzy-matches against when the user filters.

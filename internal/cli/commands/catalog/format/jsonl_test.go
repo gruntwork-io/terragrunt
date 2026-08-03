@@ -91,14 +91,13 @@ func entryCases() []entryCase {
 			want: format.Entry{
 				Kind:            "template",
 				Title:           "service",
-				Description:     "(no description found)",
 				Source:          "github.com/acme/repo",
 				Dir:             "templates/service",
 				ComponentSource: "github.com/acme/repo//templates/service?ref=v2",
 			},
 		},
 		{
-			name: "unit is copyable",
+			name: "unit",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
 					component.KindUnit,
@@ -110,15 +109,13 @@ func entryCases() []entryCase {
 			want: format.Entry{
 				Kind:            "unit",
 				Title:           "app",
-				Description:     "(no description found)",
 				Source:          "github.com/acme/repo",
 				Dir:             "units/app",
 				ComponentSource: "github.com/acme/repo//units/app",
-				Copyable:        true,
 			},
 		},
 		{
-			name: "stack is copyable",
+			name: "stack",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
 					component.KindStack,
@@ -130,11 +127,9 @@ func entryCases() []entryCase {
 			want: format.Entry{
 				Kind:            "stack",
 				Title:           "prod",
-				Description:     "(no description found)",
 				Source:          "github.com/acme/repo",
 				Dir:             "stacks/prod",
 				ComponentSource: "github.com/acme/repo//stacks/prod",
-				Copyable:        true,
 			},
 		},
 		{
@@ -200,7 +195,7 @@ func TestJSONLRendererOmitsUnsetFields(t *testing.T) {
 					"",
 				),
 			).WithSource("github.com/acme/repo"),
-			want: []string{"component_source", "description", "dir", "kind", "source", "title"},
+			want: []string{"component_source", "dir", "kind", "source", "title"},
 		},
 		{
 			name: "entry with every field populated",
@@ -213,7 +208,7 @@ func TestJSONLRendererOmitsUnsetFields(t *testing.T) {
 				),
 			).WithSource("github.com/acme/repo").WithVersion("v1.2.3"),
 			want: []string{
-				"component_source", "copyable", "description", "dir", "doc",
+				"component_source", "description", "dir", "doc",
 				"kind", "source", "tags", "title", "version",
 			},
 		},
@@ -339,7 +334,7 @@ func TestNewRenderer(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "jsonl", format: "jsonl"},
-		{name: "markdown is not implemented yet", format: "md", wantErr: true},
+		{name: "md", format: "md"},
 		{name: "the tui is not a renderer", format: "tui", wantErr: true},
 		{name: "unknown", format: "yaml", wantErr: true},
 	}
