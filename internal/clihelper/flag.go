@@ -95,6 +95,19 @@ type Flag interface {
 
 type LookupEnvFuncType func(key string) []string
 
+// FlagDefaultsFunc returns the values an external source, such as a configuration file,
+// declares for a flag.
+//
+// cmdPath is the chain of commands from the root command down to the command being
+// parsed, one entry per command, each holding the names that command answers to: its own
+// name first, then its aliases. It is empty for the global flags of the application
+// itself.
+//
+// A flag that accepts multiple values yields one string per value, exactly as the flag
+// would be repeated on the command line. The second return value reports whether the
+// source declares anything for the flag at all.
+type FlagDefaultsFunc func(cmdPath [][]string, flag Flag) ([]string, bool)
+
 type FlagValueGetter interface {
 	libflag.Getter
 

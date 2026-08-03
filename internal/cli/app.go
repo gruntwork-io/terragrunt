@@ -42,7 +42,10 @@ func init() {
 type App struct {
 	*clihelper.App
 	opts *options.TerragruntOptions
-	l    log.Logger
+	// env is the shell environment shared with the virtualized environment, so that
+	// variables Terragrunt exports itself reach the commands it runs.
+	env map[string]string
+	l   log.Logger
 }
 
 // NewApp creates the Terragrunt CLI App. The supplied [venv.Venv] is the
@@ -69,7 +72,7 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
 	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
 	app.Action = clihelper.ShowAppHelp
 
-	return &App{app, opts, l}
+	return &App{app, opts, v.Env, l}
 }
 
 func (app *App) Run(args []string) error {
@@ -107,6 +110,10 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx = run.WithModuleVersionResolver(ctx)
 
 	args = removeNoColorFlagDuplicates(args)
+
+	if err := app.setupRCFile(args); err != nil {
+		return err
+	}
 
 	if err := app.App.RunContext(ctx, args); err != nil && !errors.Is(err, context.Canceled) {
 		return err

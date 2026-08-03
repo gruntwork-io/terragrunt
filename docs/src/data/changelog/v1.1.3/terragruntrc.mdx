@@ -1,0 +1,27 @@
+---
+version: "v1.1.3"
+category: "experiments-added"
+---
+
+#### `terragruntrc` experiment reads defaults from a committed configuration file
+
+Terragrunt is configured with flags and environment variables, and neither can be committed next to the code they configure. Teams fall back on a README that asks every engineer to export the same variables, which quietly goes stale as the recommended settings change.
+
+Enable the new [`terragruntrc`](/reference/experiments/active#terragruntrc) experiment to read those defaults from a `.terragruntrc.json`, `.terragruntrc.yaml` or `.terragruntrc.yml` file instead:
+
+```json title=".terragruntrc.json"
+{
+  "env": {
+    "TG_PROVIDER_CACHE": "1",
+    "TF_CLI_CONFIG_FILE": "./terraformrc.hcl"
+  },
+  "flags": [{ "name": "non-interactive", "default": true }],
+  "commands": [{ "name": "run", "flags": [{ "name": "parallelism", "default": 8 }] }]
+}
+```
+
+The file is searched from the working directory up to the root of the git repository, then in `.config` at the repository root, the user configuration directory and the home directory, and the first one found is used. It is read before the command line is parsed, so variables in `env` are in place before the provider cache server starts. The command line and the shell environment still win over the file, so committing one changes the defaults without taking away anyone's ability to override them.
+
+See [the reference page](/reference/terragruntrc) for the full format.
+
+Thanks to [@elkh510](https://github.com/elkh510) for building this.
