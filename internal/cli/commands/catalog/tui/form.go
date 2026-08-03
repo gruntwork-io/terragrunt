@@ -18,10 +18,12 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/hashicorp/hcl/v2"
+
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
@@ -1580,10 +1582,10 @@ var (
 	// the two screens share a visual language. Edit swaps to yellow so the
 	// mode change is unmistakable.
 	formNavCursorStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#63C5DA"))
+				Foreground(lipgloss.Color(viewtui.SelectionBlue))
 
 	formNavCursorBoldStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#63C5DA")).
+				Foreground(lipgloss.Color(viewtui.SelectionBlue)).
 				Bold(true)
 
 	formEditCursorStyle = lipgloss.NewStyle().
@@ -1710,13 +1712,13 @@ const (
 var (
 	formDetailBoxStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("#63C5DA")).
+				BorderForeground(lipgloss.Color(viewtui.SelectionBlue)).
 				Background(lipgloss.Color("#11161C")).
 				Padding(0, detailContentPadding)
 
 	formDetailTitleStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(lipgloss.Color("#63C5DA"))
+				Foreground(lipgloss.Color(viewtui.SelectionBlue))
 
 	formDetailHintStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#6C7086")).
