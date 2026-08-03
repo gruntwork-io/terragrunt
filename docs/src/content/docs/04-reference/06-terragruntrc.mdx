@@ -167,7 +167,7 @@ The search starts at [`--working-dir`](/reference/cli/global-flags#working-dir) 
 at the current directory otherwise. That flag, along with
 [`--experiment`](/reference/cli/global-flags#experiment) and
 [`--experiment-mode`](/reference/cli/global-flags#experiment-mode), is read from the raw arguments
-before the file is looked for; the rest of the command line is parsed afterwards.
+before the file is looked for; the rest of the command line is parsed afterward.
 
 </Since>
 
@@ -206,9 +206,10 @@ to see the matching CLI configuration, can commit this next to its root configur
 }
 ```
 
-Every engineer who clones the repository then gets the same provider cache configuration, with no
-exports in their shell profile. While the feature is experimental, each of them still has to enable
-the experiment once, and CI has to set `TG_EXPERIMENT=terragruntrc`; everything else a team would
-otherwise write down in a README lives in the committed file.
+Every engineer who clones the repository then gets that provider cache configuration as their
+default, with no exports in their shell profile, and anyone who needs something else still overrides
+it on the command line or in their environment. While the feature is experimental, each of them has
+to enable the experiment once, and CI has to set `TG_EXPERIMENT=terragruntrc`; everything else a team
+would otherwise write down in a README lives in the committed file.
 
 </Since>
