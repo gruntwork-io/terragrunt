@@ -1260,7 +1260,11 @@ resource "null_resource" "unit_a" {}
 	require.NotEmpty(t, planFiles)
 }
 
-func TestTFFilterExcludeByDefault(t *testing.T) {
+// TestTFFilterCompoundNegation pins the left-to-right reading of "|" for a filter whose negation
+// comes first. Asking for stacks outside _stacks selects nothing in this fixture, so the run
+// finds no units. The run still has to succeed: the stack under _stacks holds no units and
+// would fail to generate, which is what shows the filter reached stack generation too.
+func TestTFFilterCompoundNegation(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludeByDefault)
@@ -1272,11 +1276,11 @@ func TestTFFilterExcludeByDefault(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.NotContains(
+	assert.Contains(
 		t,
 		stderr,
 		"No units discovered",
-		"Filter should discover units, not result in empty discovery",
+		"Filter asking only for stacks should select no units",
 	)
 }
 

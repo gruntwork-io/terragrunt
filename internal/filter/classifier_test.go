@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -452,9 +453,18 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedIdx:    -1,
 		},
 		{
-			name:           "compound_negation_filter_does_not_force_exclude_by_default",
+			name:           "compound_negation_filter_excludes_what_its_positive_operand_misses",
 			filterStrs:     []string{"!./_stacks | type=stack"},
 			componentPath:  "./unit1",
+			expectedStatus: filter.StatusExcluded,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
+		{
+			name:           "compound_negation_filter_keeps_what_its_positive_operand_matches",
+			filterStrs:     []string{"!./_stacks | type=stack"},
+			componentPath:  "./stack1",
+			componentKind:  component.StackKind,
 			expectedStatus: filter.StatusReadyForFilter,
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
@@ -588,4 +598,61 @@ func newTestComponentWithRef(path, ref string) component.Component {
 		WorkingDir: ".",
 		Ref:        ref,
 	})
+}
+
+// TestClassifier_AgreesWithEvaluateOnSingleFilters holds the classifier's early exclusion to the
+// evaluator it exists to short-circuit: for any single filter query, nothing that survives
+// evaluation may be dropped before evaluation ever runs. Compound queries mixing a negation with
+// a positive operand are the shapes that used to disagree, because the negation was treated as if
+// it stood alone.
+func TestClassifier_AgreesWithEvaluateOnSingleFilters(t *testing.T) {
+	t.Parallel()
+
+	operands := []string{
+		"./apps/*", "name=app1", "type=unit", "type=stack",
+		"!./apps/*", "!name=app1", "!type=unit", "!type=stack",
+	}
+
+	queries := make([]string, 0, len(operands)*(len(operands)+1))
+
+	for _, left := range operands {
+		queries = append(queries, left)
+
+		for _, right := range operands {
+			queries = append(queries, left+" | "+right)
+		}
+	}
+
+	for _, query := range queries {
+		t.Run(query, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+
+			filters, err := filter.ParseFilterQueries(l, []string{query})
+			require.NoError(t, err)
+
+			components := component.Components{
+				newTestComponent("./apps/app1"),
+				newTestComponent("./apps/app2"),
+				newTestComponent("./libs/db"),
+				newTestStack("./apps/stack1"),
+				newTestStack("./stacks/stack2"),
+			}
+
+			kept, err := filters.Evaluate(l, components)
+			require.NoError(t, err)
+
+			classifier := filter.NewClassifier(filters)
+
+			for _, c := range kept {
+				status, _, _ := classifier.Classify(c, filter.ClassificationContext{
+					ParseDataAvailable: true,
+				})
+
+				assert.NotEqual(t, filter.StatusExcluded, status,
+					"%s survives evaluation, so the classifier must not exclude it first", c.Path())
+			}
+		})
+	}
 }

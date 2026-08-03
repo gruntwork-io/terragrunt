@@ -3,7 +3,6 @@ package filter
 import (
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 
 	"errors"
@@ -69,10 +68,11 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 	return result, nil
 }
 
-// HasPositiveFilter returns true if the filters have any positive filters.
+// HasPositiveFilter returns true if any filter selects components, rather than only
+// subtracting them.
 func (f Filters) HasPositiveFilter() bool {
 	for _, filter := range f {
-		if !IsNegated(filter.expr) {
+		if !IsPureNegation(filter.expr) {
 			return true
 		}
 	}
@@ -205,9 +205,14 @@ func (f Filters) RestrictToStacks() Filters {
 }
 
 // Evaluate applies all filters with union (OR) semantics in two phases:
-//  1. Positive filters (non-negated) are evaluated and their results are unioned
-//  2. Negative filters (starting with negation) are evaluated against the combined
-//     results and remove matching components
+//  1. Selecting filters are evaluated and their results are unioned
+//  2. Pure negations are evaluated against that union, keeping only what they don't reject
+//
+// A filter only subtracts when every one of its operands is negated, because such a filter
+// would otherwise swallow the union it is meant to narrow. A compound filter like "!foo | bar"
+// selects instead: "|" intersects left to right, so the expression still has to match "bar",
+// and subtracting it would drop that restriction and let components matching neither operand
+// through.
 //
 // If logger is provided, it will be used for logging warnings during evaluation.
 func (f Filters) Evaluate(
@@ -224,7 +229,7 @@ func (f Filters) Evaluate(
 	)
 
 	for _, filter := range f {
-		if IsNegated(filter.expr) {
+		if IsPureNegation(filter.expr) {
 			negativeFilters = append(negativeFilters, filter)
 
 			continue
@@ -243,33 +248,41 @@ func (f Filters) Evaluate(
 		return combined, nil
 	}
 
-	// Phase 2: Apply negative filters to find components to remove
-	toRemove := make(component.Components, 0, len(combined))
+	// Phase 2: Collect what the negations reject. Evaluating a negation returns what it keeps,
+	// so its rejects are the rest of the set, which spares us a complement of the filter that
+	// the language couldn't express for a chain like "!foo | !bar" anyway. Each negation is
+	// measured against the same initial set rather than against the previous one's leftovers,
+	// so that removing a component cannot rob a later negation of a graph traversal target.
+	rejected := make(map[string]struct{}, len(combined))
 
 	for _, filter := range negativeFilters {
-		removed, err := filter.Negated().Evaluate(l, combined)
+		kept, err := filter.Evaluate(l, combined)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, c := range removed {
-			if !slices.Contains(toRemove, c) {
-				toRemove = append(toRemove, c)
+		keptPaths := make(map[string]struct{}, len(kept))
+		for _, c := range kept {
+			keptPaths[c.Path()] = struct{}{}
+		}
+
+		for _, c := range combined {
+			if _, ok := keptPaths[c.Path()]; !ok {
+				rejected[c.Path()] = struct{}{}
 			}
 		}
 	}
 
-	if len(toRemove) == 0 {
+	if len(rejected) == 0 {
 		return combined, nil
 	}
 
-	// Phase 3: Remove components from the initial set
+	// We don't use slices.DeleteFunc here because we don't want the members of the original
+	// components slice to be zeroed.
+	results := make(component.Components, 0, len(combined)-len(rejected))
 
-	// We don't use slices.DeleteFunc here because we don't want the members of the original components slice to be
-	// zeroed.
-	results := make(component.Components, 0, len(combined)-len(toRemove))
 	for _, c := range combined {
-		if slices.Contains(toRemove, c) {
+		if _, ok := rejected[c.Path()]; ok {
 			continue
 		}
 

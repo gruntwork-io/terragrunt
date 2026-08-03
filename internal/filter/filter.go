@@ -76,27 +76,6 @@ func (f *Filter) HasGraphBoundary() bool {
 	return found
 }
 
-// Negated returns the equivalent filter with negation flipped.
-//
-// If the filter is already negated, it will return the non-negated filter.
-func (f *Filter) Negated() *Filter {
-	switch node := f.expr.(type) {
-	case *PrefixExpression:
-		return NewFilter(node.Right, f.originalQuery)
-	case *InfixExpression:
-		return NewFilter(
-			NewInfixExpression(
-				node.Left.Negated(),
-				node.Operator,
-				node.Right,
-			),
-			f.originalQuery,
-		)
-	default:
-		return f
-	}
-}
-
 // Apply is a convenience function that parses and evaluates a filter in one step.
 // It's equivalent to calling Parse followed by Evaluate.
 func Apply(
