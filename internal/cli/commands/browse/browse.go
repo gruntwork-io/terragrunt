@@ -23,7 +23,7 @@ import (
 // TUI fills from the filesystem, and runs discovery in the background so unit and
 // stack metadata and counts stream in without blocking the initial render.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
-	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		WithRequiresParse: true,
 		WithRelationships: true,

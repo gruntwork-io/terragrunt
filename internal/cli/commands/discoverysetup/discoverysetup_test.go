@@ -20,17 +20,18 @@ func TestWorktreesNoGitFilters(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
+	v := venv.OSVenv()
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 
-	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir: tmpDir,
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, venv.OSVenv(), opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	require.NotNil(t, cleanup)
@@ -42,6 +43,7 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
+	v := venv.OSVenv()
 
 	// A plain directory with no git repository makes worktree creation fail.
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -53,13 +55,13 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	opts.WorkingDir = tmpDir
 	opts.Filters = filters
 
-	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir: tmpDir,
 		Filters:    filters,
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, venv.OSVenv(), opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
 	require.Error(t, err)
 	assert.Same(t, d, got, "failed setup must not attach worktrees to the discovery")
 	require.NotNil(t, cleanup)
@@ -71,6 +73,7 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
+	v := venv.OSVenv()
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	runner := helpers.InitTestGitRunner(t, tmpDir)
 
@@ -96,13 +99,13 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	opts.WorkingDir = tmpDir
 	opts.Filters = filters
 
-	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir: tmpDir,
 		Filters:    filters,
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, venv.OSVenv(), opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
 	require.Error(t, err)
 	assert.Same(t, d, got, "failed setup must not attach worktrees to the discovery")
 	require.NotNil(t, cleanup)
