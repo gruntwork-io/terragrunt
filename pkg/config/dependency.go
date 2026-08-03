@@ -62,6 +62,8 @@ type dependencyOutputCache struct {
 }
 
 type Dependency struct {
+	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
+
 	ConfigPath                          cty.Value  `hcl:"config_path,attr"                             cty:"config_path"`
 	Enabled                             *bool      `hcl:"enabled,attr"                                 cty:"enabled"`
 	SkipOutputs                         *bool      `hcl:"skip_outputs,attr"                            cty:"skip"`

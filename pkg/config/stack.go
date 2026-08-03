@@ -69,7 +69,10 @@ type StackConfig struct {
 
 // Unit represents unit from a stack file.
 type Unit struct {
-	Remain              hcl.Body   `hcl:",remain"`
+	Remain hcl.Body `hcl:",remain"`
+
+	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
+
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
@@ -87,7 +90,10 @@ func (u *Unit) GeneratedPath(stackDir string) string {
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
-	Remain              hcl.Body   `hcl:",remain"`
+	Remain hcl.Body `hcl:",remain"`
+
+	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
+
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
