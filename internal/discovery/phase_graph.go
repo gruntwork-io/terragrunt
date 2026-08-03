@@ -204,7 +204,8 @@ func (p *GraphPhase) processGraphTarget(
 			depth = graphExpr.Dependencies.Depth
 		}
 
-		boundary := ""
+		// An inline "(dir)" operand overrides --discovery-boundary for this expression.
+		boundary := state.discovery.discoveryBoundary
 
 		if graphExpr.Dependencies.Boundary != "" {
 			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
@@ -233,9 +234,10 @@ func (p *GraphPhase) processGraphTarget(
 		}
 
 		// The upstream dependent walk is capped by an explicit boundary when the
-		// expression carries one, otherwise by the detected git root.
+		// expression carries one, otherwise by --discovery-boundary, otherwise by
+		// the detected git root.
 		startDir := state.discovery.workingDir
-		boundaryRoot := state.discovery.gitRoot
+		boundaryRoot := state.discovery.dependentWalkBoundary()
 
 		if graphExpr.Dependents.Boundary != "" {
 			resolved, rerr := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependents.Boundary)
@@ -244,13 +246,15 @@ func (p *GraphPhase) processGraphTarget(
 			}
 
 			if isExternal(resolved, startDir) {
-				return NewFilterBoundaryScopeError(resolved, startDir)
+				return NewDiscoveryBoundaryScopeError(resolved, startDir)
 			}
 
 			boundaryRoot = resolved
 		}
 
-		if graphExpr.Dependents.Boundary == "" {
+		// Only fall back to the component's own working directory when the user
+		// named no boundary at all; an explicit one must not be silently widened.
+		if graphExpr.Dependents.Boundary == "" && state.discovery.discoveryBoundary == "" {
 			if dCtx := c.DiscoveryContext(); dCtx != nil &&
 				dCtx.WorkingDir != "" &&
 				dCtx.WorkingDir != state.discovery.workingDir {
@@ -346,7 +350,7 @@ func (p *GraphPhase) discoverDependencies(
 	for _, depPath := range depPaths {
 		g.Go(func() error {
 			if boundary != "" && isExternal(boundary, depPath) {
-				l.Debugf("Dependency %s is outside graph boundary %s; skipping", depPath, boundary)
+				l.Debugf("Dependency %s is outside discovery boundary %s; skipping", depPath, boundary)
 				return nil
 			}
 
@@ -485,9 +489,9 @@ type upstreamDiscoveryState struct {
 }
 
 // discoverDependentsUpstream discovers dependents by walking up the filesystem
-// from the target component's directory to gitRoot (or filesystem root if gitRoot is empty).
-// At each directory level, it walks down to find terragrunt configs and checks if they
-// depend on the target component.
+// from the target component's directory to boundaryRoot (or filesystem root if
+// boundaryRoot is empty). At each directory level, it walks down to find
+// terragrunt configs and checks if they depend on the target component.
 func (p *GraphPhase) discoverDependentsUpstream(
 	ctx context.Context,
 	l log.Logger,

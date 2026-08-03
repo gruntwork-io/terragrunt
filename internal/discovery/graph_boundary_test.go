@@ -149,12 +149,12 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 		{
 			name:  "nonexistent boundary",
 			query: "(" + filepath.Join(f.stagingDir, "does-not-exist") + ")...{" + f.vpcDir + "}",
-			errAs: &discovery.FilterBoundaryDirError{},
+			errAs: &discovery.DiscoveryBoundaryDirError{},
 		},
 		{
 			name:  "boundary does not contain working directory",
 			query: "(" + f.consumerDir + ")...{" + f.vpcDir + "}",
-			errAs: &discovery.FilterBoundaryScopeError{},
+			errAs: &discovery.DiscoveryBoundaryScopeError{},
 		},
 	}
 
