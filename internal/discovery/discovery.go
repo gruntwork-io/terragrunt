@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -32,6 +33,20 @@ func (d *Discovery) Discover(
 	d.classifier = filter.NewClassifier(d.filters)
 
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
+
+	if d.discoveryBoundary != "" {
+		boundary, boundaryErr := resolveDiscoveryBoundary(vfs.NewOSFS(), d.workingDir, d.discoveryBoundary)
+		if boundaryErr != nil {
+			return nil, boundaryErr
+		}
+
+		// Store the resolved enclosure. It caps the dependent walk in place of
+		// the git root (see dependentWalkBoundary) and prunes dependencies that
+		// resolve outside it (see the graph phase).
+		d.discoveryBoundary = boundary
+
+		l.Debugf("Discovery: graph traversal bounded to %s", boundary)
+	}
 
 	var (
 		results *PhaseResults
@@ -106,10 +121,10 @@ func (d *Discovery) Discover(
 	}
 
 	if d.classifier.HasGraphFilters() {
-		if d.classifier.HasDependentFilters() && d.gitRoot == "" {
+		if d.classifier.HasDependentFilters() && d.discoveryBoundary == "" && d.gitRoot == "" {
 			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, v, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
-				l.Debugf("Set gitRoot for dependent discovery: %s", d.gitRoot)
+				l.Debugf("Set dependent discovery boundary to git root: %s", d.gitRoot)
 			}
 		}
 
