@@ -3,57 +3,56 @@ package config_test
 import (
 	"bytes"
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// The virtual paths and registry the in-memory stack fixtures use.
+const (
+	ociTestStackDir = "/virtual/stack"
+	ociTestHome     = "/virtual/home"
+	ociTestRegistry = "registry.example.com"
+)
+
 // ociStackFixture writes a terragrunt.stack.hcl whose single unit or stack is served from an oci:// registry.
-func ociStackFixture(t *testing.T, kind, source string) string {
+func ociStackFixture(t *testing.T, fsys vfs.FS, kind, source string) string {
 	t.Helper()
 
-	dir := t.TempDir()
 	body := kind + ` "vpc" {
   source = "` + source + `"
   path   = "vpc"
 }
 `
 
-	stackPath := filepath.Join(dir, "terragrunt.stack.hcl")
-	require.NoError(t, os.WriteFile(stackPath, []byte(body), 0o644))
+	stackPath := filepath.Join(ociTestStackDir, "terragrunt.stack.hcl")
+	require.NoError(t, vfs.WriteFile(fsys, stackPath, []byte(body), 0o644))
 
 	return stackPath
 }
 
-// generateOCIStack runs stack generation for an oci:// component against a registry the test owns.
+// generateOCIStack runs stack generation for an oci:// component against an unreachable registry.
 func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) (string, error) {
 	t.Helper()
 
-	// A TLS server the test owns, whose self-signed cert the client always rejects.
-	registry := httptest.NewTLSServer(http.NotFoundHandler())
-	t.Cleanup(registry.Close)
+	// An in-memory venv: no disk, and a fail-closed client so no fetch can leave the test.
+	v := venvtest.New().
+		WithEnv(map[string]string{"HOME": ociTestHome}).
+		WithUserHomeDir(func() (string, error) { return ociTestHome, nil })
 
-	source := sourceScheme + registry.Listener.Addr().String() + "/terraform-modules/vpc?tag=1.0.0"
-	stackPath := ociStackFixture(t, kind, source)
-
-	// Hermetic home so a developer's own credentials cannot influence the result.
-	hermeticHome := t.TempDir()
-	v := venv.OSVenv().
-		WithEnv(map[string]string{"HOME": hermeticHome}).
-		WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
+	source := sourceScheme + ociTestRegistry + "/terraform-modules/vpc?tag=1.0.0"
+	stackPath := ociStackFixture(t, v.FS, kind, source)
 
 	var logBuf bytes.Buffer
 
@@ -123,7 +122,7 @@ func TestGenerateStackOCIReachesGetter(t *testing.T) {
 			t.Parallel()
 
 			logs, err := generateOCIStack(t, kind, "oci://", true)
-			require.Error(t, err, "the fake registry's cert is untrusted, so every fetch fails")
+			require.Error(t, err, "the venv's fail-closed HTTP client rejects every fetch")
 
 			var resolutionErr getter.OCIReferenceResolutionError
 			require.ErrorAs(

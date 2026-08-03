@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -17,15 +19,6 @@ import (
 	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
-// Env vars OpenTofu reads to locate its CLI config, in the order it checks them.
-const (
-	envTFCLIConfigFile = "TF_CLI_CONFIG_FILE"
-	envTerraformConfig = "TERRAFORM_CONFIG"
-)
-
-// windowsGOOS is the platform whose CLI config lives under %APPDATA%.
-const windowsGOOS = "windows"
-
 // ociTofuRepoCredential is one decoded oci_credentials block: registry, repository prefix, credential or helper.
 type ociTofuRepoCredential struct {
 	label            string
@@ -35,7 +28,7 @@ type ociTofuRepoCredential struct {
 	helper           string
 }
 
-// matches reports whether this block serves hostport/repositoryName, on a path-segment boundary.
+// matches reports whether this block serves hostport/repositoryName; the trailing "/" path.Join strips is the boundary.
 func (c *ociTofuRepoCredential) matches(hostport, repositoryName string) bool {
 	if c.registryDomain != ociCanonicalAuthKey(hostport) {
 		return false
@@ -49,13 +42,18 @@ func (c *ociTofuRepoCredential) matches(hostport, repositoryName string) bool {
 		strings.HasPrefix(repositoryName, c.repositoryPrefix+"/")
 }
 
-// specificity ranks this block: domain level plus one per repository-path segment the label pins.
+// specificity ranks this block by counting the repository-path segments the label pins, not by joining a path.
 func (c *ociTofuRepoCredential) specificity() int {
 	if c.repositoryPrefix == "" {
 		return ociDomainSpecificity
 	}
 
 	return ociDomainSpecificity + strings.Count(c.repositoryPrefix, "/") + 1
+}
+
+// dedupKey identifies the label a block claims; concatenation keeps it injective, which path cleaning would not.
+func (c *ociTofuRepoCredential) dedupKey() string {
+	return c.registryDomain + "/" + c.repositoryPrefix
 }
 
 // ociTofuCredentials is the decoded OCI subset of an OpenTofu CLI config.
@@ -77,52 +75,24 @@ type ociTofuDefaults struct {
 	configFilesSet  bool
 }
 
-// errOCIInvalidHelperName reports a helper name that is empty or contains a path separator.
-var errOCIInvalidHelperName = errors.New("credential helper name must not be empty or contain a path separator")
+// ociTofuRepoBody is the decoded argument set of one oci_credentials block.
+type ociTofuRepoBody struct {
+	Username     *string  `hcl:"username,optional"`
+	Password     *string  `hcl:"password,optional"`
+	AccessToken  *string  `hcl:"access_token,optional"`
+	RefreshToken *string  `hcl:"refresh_token,optional"`
+	Helper       *string  `hcl:"docker_credentials_helper,optional"`
+	Remain       hcl.Body `hcl:",remain"`
+}
 
-// errOCIMissingCredentialStyle reports an oci_credentials block configuring no credential at all.
-var errOCIMissingCredentialStyle = errors.New(
-	"oci_credentials block must configure basic auth, OAuth tokens, or a helper",
-)
-
-// errOCIMultipleCredentialStyles reports a block configuring more than one credential style.
-var errOCIMultipleCredentialStyles = errors.New("oci_credentials block must configure at most one credential style")
-
-// errOCIIncompleteBasicCredential reports an oci_credentials block missing a username or password.
-var errOCIIncompleteBasicCredential = errors.New("oci_credentials basic auth requires both a username and a password")
-
-// errOCIIncompleteOAuthCredential reports an oci_credentials block missing an access or refresh token.
-var errOCIIncompleteOAuthCredential = errors.New(
-	"oci_credentials oauth requires both an access_token and a refresh_token",
-)
-
-// errOCIHelperWithRepositoryPath reports a helper on a repository-scoped label, which tofu rejects.
-var errOCIHelperWithRepositoryPath = errors.New(
-	"oci_credentials docker_credentials_helper cannot be used with a repository path",
-)
-
-// errOCIAmbientFilesWithoutDiscovery reports docker_style_config_files set while ambient discovery is off.
-var errOCIAmbientFilesWithoutDiscovery = errors.New(
-	"oci_default_credentials docker_style_config_files requires discover_ambient_credentials to be enabled",
-)
-
-// errOCIDuplicateDefaultBlock reports a second oci_default_credentials block, which tofu rejects.
-var errOCIDuplicateDefaultBlock = errors.New("at most one oci_default_credentials block is allowed")
-
-// errOCIDuplicateRepoBlock reports two oci_credentials blocks sharing a label, which tofu rejects.
-var errOCIDuplicateRepoBlock = errors.New("duplicate oci_credentials block")
-
-// errOCIEmptyCredentialValue reports a credential argument set to an empty string.
-var errOCIEmptyCredentialValue = errors.New("oci_credentials values must not be empty")
-
-// errOCILabelNotRepositoryAddress reports a label that is not a bare registry domain and repository path.
-var errOCILabelNotRepositoryAddress = errors.New(
-	"oci_credentials label must be a registry domain with an optional repository path, without a URL scheme",
-)
-
-// ociValidHelperName reports whether name is a safe docker-credential suffix, matching tofu.
+// ociValidHelperName reports whether name is a docker-credential-<name> suffix run off PATH, never a path itself.
 func ociValidHelperName(name string) bool {
 	return name != "" && !strings.ContainsAny(name, `/\`)
+}
+
+// ociTofuConfigError attributes one problem to its CLI config file, so every joined line locates itself.
+func ociTofuConfigError(path string, err error) error {
+	return fmt.Errorf("reading OpenTofu CLI config %s: %w", path, err)
 }
 
 // loadOCITofuCredentials merges the CLI config's OCI blocks; a file that exists but is invalid is an error.
@@ -130,20 +100,36 @@ func loadOCITofuCredentials(l log.Logger, v *venv.Venv) (ociTofuCredentials, err
 	merged := ociTofuCredentials{discoverAmbient: true}
 	seenRepos := make(map[string]struct{})
 
-	for _, path := range ociTofuConfigSources(l, v) {
+	sources, err := ociTofuConfigSources(l, v)
+	if err != nil {
+		return ociTofuCredentials{}, err
+	}
+
+	var errs []error
+
+	for _, path := range sources {
 		data, err := vfs.ReadFile(v.FS, path)
 		if err != nil {
-			return ociTofuCredentials{}, fmt.Errorf("reading OpenTofu CLI config %s: %w", path, err)
+			errs = append(errs, ociTofuConfigError(path, err))
+
+			continue
 		}
 
 		one, err := decodeOCITofuCredentials(data, path)
 		if err != nil {
-			return ociTofuCredentials{}, fmt.Errorf("reading OpenTofu CLI config %s: %w", path, err)
+			errs = append(errs, err)
+
+			continue
 		}
 
 		if err := mergeOCITofuCredentials(&merged, &one, path, seenRepos); err != nil {
-			return ociTofuCredentials{}, err
+			errs = append(errs, err)
 		}
+	}
+
+	// Every source is reported at once, and no partial merge escapes alongside an error.
+	if err := errors.Join(errs...); err != nil {
+		return ociTofuCredentials{}, err
 	}
 
 	return merged, nil
@@ -155,12 +141,16 @@ func mergeOCITofuCredentials(
 	path string,
 	seenRepos map[string]struct{},
 ) error {
+	var errs []error
+
 	for i := range one.repos {
 		repo := &one.repos[i]
 
-		key := repo.registryDomain + "/" + repo.repositoryPrefix
+		key := repo.dedupKey()
 		if _, dup := seenRepos[key]; dup {
-			return fmt.Errorf("%w %q in %s", errOCIDuplicateRepoBlock, repo.label, path)
+			errs = append(errs, OCIDuplicateRepoBlockError{Label: repo.label, Path: path})
+
+			continue
 		}
 
 		seenRepos[key] = struct{}{}
@@ -168,63 +158,81 @@ func mergeOCITofuCredentials(
 		merged.repos = append(merged.repos, *repo)
 	}
 
-	if !one.hasDefault {
-		return nil
-	}
-
-	if merged.hasDefault {
-		return fmt.Errorf("%w: %s", errOCIDuplicateDefaultBlock, path)
-	}
-
-	merged.hasDefault = true
-	merged.defaultHelper = one.defaultHelper
-	merged.discoverAmbient = one.discoverAmbient
-	merged.configFiles = one.configFiles
-	merged.configFilesSet = one.configFilesSet
-	// Relative docker_style_config_files resolve against the declaring file.
-	merged.configDir = filepath.Dir(path)
-
-	return nil
-}
-
-// ociTofuConfigSources lists the CLI config files to read; an env override suppresses the fragments.
-func ociTofuConfigSources(l log.Logger, v *venv.Venv) []string {
-	var sources []string
-
-	if path := ociTofuConfigPath(l, v); path != "" {
-		if _, err := v.FS.Stat(path); err == nil {
-			sources = append(sources, path)
+	if one.hasDefault {
+		if merged.hasDefault {
+			errs = append(errs, OCIDuplicateDefaultBlockError{Path: path})
+		} else {
+			merged.hasDefault = true
+			merged.defaultHelper = one.defaultHelper
+			merged.discoverAmbient = one.discoverAmbient
+			merged.configFiles = one.configFiles
+			merged.configFilesSet = one.configFilesSet
+			// Relative docker_style_config_files resolve against the declaring file.
+			merged.configDir = filepath.Dir(path)
 		}
 	}
 
-	if v.Env[envTFCLIConfigFile] != "" || v.Env[envTerraformConfig] != "" {
-		return sources
+	return errors.Join(errs...)
+}
+
+// ociTofuConfigSources lists the CLI config files to read; an env override suppresses the fragments.
+func ociTofuConfigSources(l log.Logger, v *venv.Venv) ([]string, error) {
+	path, err := ociTofuConfigPath(l, v)
+	if err != nil {
+		return nil, err
 	}
 
-	return append(sources, ociTofuConfigFragments(l, v)...)
+	var sources []string
+
+	if path != "" {
+		sources = append(sources, path)
+	}
+
+	if override, _ := cliconfig.UserConfigOverride(v); override != "" {
+		return sources, nil
+	}
+
+	fragments, err := ociTofuConfigFragments(l, v)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(sources, fragments...), nil
 }
 
 // ociTofuConfigFragments returns the config directory's *.tfrc and *.tfrc.json files, in filename order.
-func ociTofuConfigFragments(l log.Logger, v *venv.Venv) []string {
-	dir := ociTofuConfigDir(v)
+func ociTofuConfigFragments(l log.Logger, v *venv.Venv) ([]string, error) {
+	dir, err := cliconfig.UserConfigDir(v)
+	if err != nil {
+		return nil, err
+	}
+
 	if dir == "" {
-		return nil
+		return nil, nil
 	}
 
+	// tofu reads no fragments when the config directory is absent, unreadable, or not a directory.
 	info, err := v.FS.Stat(dir)
-	if err != nil || !info.IsDir() {
-		return nil
+	if err != nil {
+		if !errors.Is(err, iofs.ErrNotExist) {
+			l.Warnf("Skipping unreadable OpenTofu CLI config directory %s: %v", dir, err)
+		}
+
+		return nil, nil
 	}
 
-	// ReadDirEntries sorts by name, so merging stays deterministic.
+	if !info.IsDir() {
+		return nil, nil
+	}
+
 	entries, err := vfs.ReadDirEntries(v.FS, dir)
 	if err != nil {
 		l.Warnf("Skipping unreadable OpenTofu CLI config directory %s: %v", dir, err)
 
-		return nil
+		return nil, nil
 	}
 
-	var fragments []string
+	fragments := make([]string, 0, len(entries))
 
 	for _, entry := range entries {
 		name := entry.Name()
@@ -235,64 +243,39 @@ func ociTofuConfigFragments(l log.Logger, v *venv.Venv) []string {
 		fragments = append(fragments, filepath.Join(dir, name))
 	}
 
-	return fragments
-}
-
-// ociTofuConfigDir resolves OpenTofu's CLI config directory for the platform.
-func ociTofuConfigDir(v *venv.Venv) string {
-	home, err := v.Platform.UserHomeDir()
-	if err != nil {
-		home = ""
-	}
-
-	if v.Platform.GOOS == windowsGOOS {
-		if appData := v.Env["APPDATA"]; appData != "" {
-			return filepath.Join(appData, "terraform.d")
-		}
-
-		return ""
-	}
-
-	if home != "" {
-		legacy := filepath.Join(home, ".terraform.d")
-		if _, statErr := v.FS.Stat(legacy); statErr == nil {
-			return legacy
-		}
-	}
-
-	if xdg := v.Env["XDG_CONFIG_HOME"]; xdg != "" {
-		return filepath.Join(xdg, "opentofu")
-	}
-
-	if home == "" {
-		return ""
-	}
-
-	return filepath.Join(home, ".terraform.d")
+	return fragments, nil
 }
 
 // ociTofuConfigPath resolves the CLI config path OpenTofu would use, honoring its env overrides.
-func ociTofuConfigPath(l log.Logger, v *venv.Venv) string {
-	for _, name := range []string{envTFCLIConfigFile, envTerraformConfig} {
-		override := v.Env[name]
-		if override == "" {
-			continue
+func ociTofuConfigPath(l log.Logger, v *venv.Venv) (string, error) {
+	if override, envName := cliconfig.UserConfigOverride(v); override != "" {
+		exists, err := vfs.FileExists(v.FS, override)
+		if err != nil {
+			return "", ociTofuConfigError(override, err)
 		}
 
-		if _, err := v.FS.Stat(override); err != nil {
-			l.Warnf("OpenTofu CLI config %s set by %s cannot be read: %v", override, name, err)
+		// tofu skips a named config file that is absent, so warn rather than fail, and read no other file.
+		if !exists {
+			l.Warnf("OpenTofu CLI config %s named by %s does not exist", override, envName)
+
+			return "", nil
 		}
 
-		return override
+		return override, nil
 	}
 
-	for _, candidate := range ociTofuConfigCandidates(v) {
-		if _, statErr := v.FS.Stat(candidate); statErr == nil {
-			return candidate
+	for _, candidate := range cliconfig.UserConfigCandidates(v) {
+		exists, err := vfs.FileExists(v.FS, candidate)
+		if err != nil {
+			return "", ociTofuConfigError(candidate, err)
+		}
+
+		if exists {
+			return candidate, nil
 		}
 	}
 
-	return ""
+	return "", nil
 }
 
 // parseOCITofuConfig parses the CLI config, detecting the JSON form from a leading brace as tofu does.
@@ -304,44 +287,11 @@ func parseOCITofuConfig(data []byte, path string) (*hcl.File, hcl.Diagnostics) {
 	return hclsyntax.ParseConfig(data, path, hcl.Pos{Line: 1, Column: 1})
 }
 
-// ociTofuConfigCandidates lists OpenTofu's default CLI-config locations for the injected platform.
-func ociTofuConfigCandidates(v *venv.Venv) []string {
-	home, err := v.Platform.UserHomeDir()
-	if err != nil {
-		home = ""
-	}
-
-	var paths []string
-
-	// On Windows tofu reads only tofu.rc and terraform.rc under %APPDATA%.
-	if v.Platform.GOOS == windowsGOOS {
-		if appData := v.Env["APPDATA"]; appData != "" {
-			return []string{
-				filepath.Join(appData, "tofu.rc"),
-				filepath.Join(appData, "terraform.rc"),
-			}
-		}
-
-		return nil
-	}
-
-	if home != "" {
-		paths = append(paths, filepath.Join(home, ".tofurc"), filepath.Join(home, ".terraformrc"))
-	}
-
-	// tofu falls back to XDG only when XDG_CONFIG_HOME is set.
-	if configDir := v.Env["XDG_CONFIG_HOME"]; configDir != "" {
-		paths = append(paths, filepath.Join(configDir, "opentofu", "tofurc"))
-	}
-
-	return paths
-}
-
 // decodeOCITofuCredentials extracts the OCI blocks; an invalid block is an error, as tofu reports.
 func decodeOCITofuCredentials(data []byte, path string) (ociTofuCredentials, error) {
 	file, diags := parseOCITofuConfig(data, path)
 	if diags.HasErrors() {
-		return ociTofuCredentials{}, diags
+		return ociTofuCredentials{}, ociTofuConfigError(path, diags)
 	}
 
 	schema := &hcl.BodySchema{
@@ -353,7 +303,7 @@ func decodeOCITofuCredentials(data []byte, path string) (ociTofuCredentials, err
 
 	content, _, diags := file.Body.PartialContent(schema)
 	if diags.HasErrors() {
-		return ociTofuCredentials{}, diags
+		return ociTofuCredentials{}, ociTofuConfigError(path, diags)
 	}
 
 	tofu := ociTofuCredentials{
@@ -361,35 +311,53 @@ func decodeOCITofuCredentials(data []byte, path string) (ociTofuCredentials, err
 		discoverAmbient: true,
 	}
 
+	var errs []error
+
 	for _, block := range content.Blocks {
 		if block.Type == "oci_default_credentials" {
-			if tofu.hasDefault {
-				return ociTofuCredentials{}, errOCIDuplicateDefaultBlock
+			if err := decodeOCITofuDefaultBlock(&tofu, block, path); err != nil {
+				errs = append(errs, err)
 			}
-
-			defaults, err := decodeOCITofuDefaultHelper(block.Body)
-			if err != nil {
-				return ociTofuCredentials{}, err
-			}
-
-			tofu.hasDefault = true
-			tofu.discoverAmbient = defaults.discoverAmbient
-			tofu.defaultHelper = defaults.helper
-			tofu.configFiles = defaults.configFiles
-			tofu.configFilesSet = defaults.configFilesSet
 
 			continue
 		}
 
 		repo, err := decodeOCITofuRepoBlock(block)
 		if err != nil {
-			return ociTofuCredentials{}, fmt.Errorf("oci_credentials %q: %w", block.Labels[0], err)
+			errs = append(errs, ociTofuConfigError(path, fmt.Errorf("oci_credentials %q: %w", block.Labels[0], err)))
+
+			continue
 		}
 
 		tofu.repos = append(tofu.repos, repo)
 	}
 
+	// Every bad block is reported at once, so a user fixes the whole file in one pass.
+	if err := errors.Join(errs...); err != nil {
+		return ociTofuCredentials{}, err
+	}
+
 	return tofu, nil
+}
+
+// decodeOCITofuDefaultBlock folds one oci_default_credentials block into tofu, rejecting a second one.
+func decodeOCITofuDefaultBlock(tofu *ociTofuCredentials, block *hcl.Block, path string) error {
+	if tofu.hasDefault {
+		return OCIDuplicateDefaultBlockError{Path: path}
+	}
+
+	defaults, err := decodeOCITofuDefaultHelper(block.Body)
+	if err != nil {
+		return ociTofuConfigError(path, err)
+	}
+
+	tofu.hasDefault = true
+	tofu.discoverAmbient = defaults.discoverAmbient
+	tofu.defaultHelper = defaults.helper
+	tofu.configFiles = defaults.configFiles
+	tofu.configFilesSet = defaults.configFilesSet
+
+	return nil
 }
 
 // decodeOCITofuDefaultHelper reads the fallback helper and the ambient-discovery switch, default true.
@@ -408,16 +376,16 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 	discoverAmbient := decoded.DiscoverAmbient == nil || *decoded.DiscoverAmbient
 
 	if decoded.Helper != nil && !ociValidHelperName(*decoded.Helper) {
-		return ociTofuDefaults{discoverAmbient: discoverAmbient}, errOCIInvalidHelperName
+		return ociTofuDefaults{discoverAmbient: discoverAmbient}, ErrOCIInvalidHelperName
 	}
 
 	// The file list only tunes ambient discovery, so tofu rejects it when discovery is off.
 	if !discoverAmbient && decoded.ConfigFiles != nil {
-		return ociTofuDefaults{discoverAmbient: discoverAmbient}, errOCIAmbientFilesWithoutDiscovery
+		return ociTofuDefaults{discoverAmbient: discoverAmbient}, ErrOCIAmbientFilesWithoutDiscovery
 	}
 
 	defaults := ociTofuDefaults{
-		helper:          derefString(decoded.Helper),
+		helper:          deref(decoded.Helper),
 		discoverAmbient: discoverAmbient,
 	}
 
@@ -430,16 +398,9 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 	return defaults, nil
 }
 
-// decodeOCITofuRepoBlock reads one oci_credentials block, requiring exactly one credential style.
+// decodeOCITofuRepoBlock reads one oci_credentials block; a rejected block yields no credential, never a partial one.
 func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
-	var decoded struct {
-		Username     *string  `hcl:"username,optional"`
-		Password     *string  `hcl:"password,optional"`
-		AccessToken  *string  `hcl:"access_token,optional"`
-		RefreshToken *string  `hcl:"refresh_token,optional"`
-		Helper       *string  `hcl:"docker_credentials_helper,optional"`
-		Remain       hcl.Body `hcl:",remain"`
-	}
+	var decoded ociTofuRepoBody
 
 	if diags := gohcl.DecodeBody(block.Body, nil, &decoded); diags.HasErrors() {
 		return ociTofuRepoCredential{}, diags
@@ -450,73 +411,97 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 	oauth := decoded.AccessToken != nil || decoded.RefreshToken != nil
 	helper := decoded.Helper != nil
 
-	// Reject a username without a password, or the reverse, matching OpenTofu.
-	if basic && (decoded.Username == nil || decoded.Password == nil) {
-		return ociTofuRepoCredential{}, errOCIIncompleteBasicCredential
-	}
-
-	// OpenTofu requires the OAuth pair together, so reject a lone token.
-	if oauth && (decoded.AccessToken == nil || decoded.RefreshToken == nil) {
-		return ociTofuRepoCredential{}, errOCIIncompleteOAuthCredential
-	}
-
-	// tofu requires exactly one style; zero would shadow a valid ambient credential.
-	switch trueCount(basic, oauth, helper) {
-	case 1:
-	case 0:
-		return ociTofuRepoCredential{}, errOCIMissingCredentialStyle
-	default:
-		return ociTofuRepoCredential{}, errOCIMultipleCredentialStyles
-	}
-
-	if helper && !ociValidHelperName(*decoded.Helper) {
-		return ociTofuRepoCredential{}, errOCIInvalidHelperName
+	if err := validateOCITofuRepoStyle(&decoded, basic, oauth, helper); err != nil {
+		return ociTofuRepoCredential{}, err
 	}
 
 	// tofu parses the label as a bare repository address, so a URL scheme is invalid.
 	if strings.Contains(block.Labels[0], "://") {
-		return ociTofuRepoCredential{}, errOCILabelNotRepositoryAddress
+		return ociTofuRepoCredential{}, ErrOCILabelNotRepositoryAddress
 	}
 
 	registryDomain, repositoryPrefix := ociSplitRepositoryPrefix(block.Labels[0])
 
 	// Docker credential helpers key on a whole domain, so tofu rejects a repository path here.
 	if helper && repositoryPrefix != "" {
-		return ociTofuRepoCredential{}, errOCIHelperWithRepositoryPath
+		return ociTofuRepoCredential{}, ErrOCIHelperWithRepositoryPath
 	}
 
 	repo := ociTofuRepoCredential{
 		label:            block.Labels[0],
 		registryDomain:   ociCanonicalAuthKey(registryDomain),
 		repositoryPrefix: repositoryPrefix,
-		helper:           derefString(decoded.Helper),
+		helper:           deref(decoded.Helper),
 	}
 
-	if oauth {
-		if *decoded.AccessToken == "" || *decoded.RefreshToken == "" {
-			return ociTofuRepoCredential{}, errOCIEmptyCredentialValue
-		}
-
-		repo.cred = auth.Credential{
-			AccessToken:  *decoded.AccessToken,
-			RefreshToken: *decoded.RefreshToken,
-		}
-
+	// A helper block carries no inline secret, so it is complete once the helper name is validated.
+	if !oauth && !basic {
 		return repo, nil
 	}
 
-	if basic {
-		if *decoded.Username == "" || *decoded.Password == "" {
-			return ociTofuRepoCredential{}, errOCIEmptyCredentialValue
-		}
-
-		repo.cred = auth.Credential{
-			Username: *decoded.Username,
-			Password: *decoded.Password,
-		}
+	cred, err := ociTofuInlineCredential(&decoded, oauth)
+	if err != nil {
+		return ociTofuRepoCredential{}, err
 	}
 
+	repo.cred = cred
+
 	return repo, nil
+}
+
+// validateOCITofuRepoStyle enforces tofu's rule of exactly one complete credential style per block.
+func validateOCITofuRepoStyle(decoded *ociTofuRepoBody, basic, oauth, helper bool) error {
+	// Reject a username without a password, or the reverse, matching OpenTofu.
+	if basic && (decoded.Username == nil || decoded.Password == nil) {
+		return ErrOCIIncompleteBasicCredential
+	}
+
+	// OpenTofu requires the OAuth pair together, so reject a lone token.
+	if oauth && (decoded.AccessToken == nil || decoded.RefreshToken == nil) {
+		return ErrOCIIncompleteOAuthCredential
+	}
+
+	// tofu requires exactly one style; zero would shadow a valid ambient credential.
+	switch trueCount(basic, oauth, helper) {
+	case 1:
+	case 0:
+		return ErrOCIMissingCredentialStyle
+	default:
+		return ErrOCIMultipleCredentialStyles
+	}
+
+	if helper && !ociValidHelperName(*decoded.Helper) {
+		return ErrOCIInvalidHelperName
+	}
+
+	return nil
+}
+
+// ociTofuInlineCredential builds the credential for whichever inline style the block selected.
+func ociTofuInlineCredential(decoded *ociTofuRepoBody, oauth bool) (auth.Credential, error) {
+	if oauth {
+		return ociTofuOAuthCredential(*decoded.AccessToken, *decoded.RefreshToken)
+	}
+
+	return ociTofuBasicCredential(*decoded.Username, *decoded.Password)
+}
+
+// ociTofuOAuthCredential builds the OAuth pair, rejecting an empty token as tofu does.
+func ociTofuOAuthCredential(accessToken, refreshToken string) (auth.Credential, error) {
+	if accessToken == "" || refreshToken == "" {
+		return auth.EmptyCredential, ErrOCIEmptyCredentialValue
+	}
+
+	return auth.Credential{AccessToken: accessToken, RefreshToken: refreshToken}, nil
+}
+
+// ociTofuBasicCredential builds the basic-auth pair, rejecting an empty half as tofu does.
+func ociTofuBasicCredential(username, password string) (auth.Credential, error) {
+	if username == "" || password == "" {
+		return auth.EmptyCredential, ErrOCIEmptyCredentialValue
+	}
+
+	return auth.Credential{Username: username, Password: password}, nil
 }
 
 // trueCount returns how many of the given booleans are true.
@@ -539,11 +524,13 @@ func ociSplitRepositoryPrefix(label string) (registryDomain, repositoryPrefix st
 	return registryDomain, repositoryPrefix
 }
 
-// derefString returns the pointed-to string, or the empty string when nil.
-func derefString(s *string) string {
-	if s == nil {
-		return ""
+// deref returns the pointed-to value, or the zero value of T when nil.
+func deref[T any](v *T) T {
+	if v == nil {
+		var zero T
+
+		return zero
 	}
 
-	return *s
+	return *v
 }

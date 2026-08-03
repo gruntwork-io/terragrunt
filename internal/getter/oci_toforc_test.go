@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -107,7 +108,7 @@ oci_credentials "registry.example.com/team" {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	require.ErrorContains(t, err, "cannot be used with a repository path")
+	require.ErrorIs(t, err, getter.ErrOCIHelperWithRepositoryPath)
 	assert.EqualValues(t, 0, calls.Load(), "a repository-scoped helper block must never run")
 }
 
@@ -164,7 +165,7 @@ func TestOCITofuCredentialsSchemeLabelRejected(t *testing.T) {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "without a URL scheme")
+	assert.ErrorIs(t, err, getter.ErrOCILabelNotRepositoryAddress)
 }
 
 // TestOCITofuCredentialsIncompleteBasicRejected: either half of the basic-auth pair alone is rejected.
@@ -197,7 +198,7 @@ oci_credentials "registry.example.com" {
 
 			err := newStoreErr(t, v, testRegistry, "team/vpc")
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "requires both a username and a password")
+			assert.ErrorIs(t, err, getter.ErrOCIIncompleteBasicCredential)
 		})
 	}
 }
@@ -369,7 +370,7 @@ oci_credentials "registry.example.com" {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "credential helper name must not be empty")
+	assert.ErrorIs(t, err, getter.ErrOCIInvalidHelperName)
 }
 
 // TestOCITofuCredentialsMultipleStylesRejected: a block with more than one credential style is rejected.
@@ -389,7 +390,7 @@ oci_credentials "registry.example.com" {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "at most one credential style")
+	assert.ErrorIs(t, err, getter.ErrOCIMultipleCredentialStyles)
 }
 
 // TestOCITofuCredentialsConfigPathResolution: TERRAFORM_CONFIG and the .terraformrc fallback resolve.
@@ -490,7 +491,7 @@ oci_credentials "registry.example.com" {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "requires both an access_token and a refresh_token",
+	assert.ErrorIs(t, err, getter.ErrOCIIncompleteOAuthCredential,
 		"an OAuth block missing refresh_token must be rejected")
 }
 
@@ -589,7 +590,7 @@ oci_credentials "registry.example.com" {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "at most one credential style",
+	assert.ErrorIs(t, err, getter.ErrOCIMultipleCredentialStyles,
 		"a block mixing a helper with basic auth must be rejected")
 }
 
@@ -679,7 +680,7 @@ oci_credentials "registry.example.com/team/vpc" {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err, "an empty oci_credentials block must be reported, as tofu reports it")
-	assert.ErrorContains(t, err, "must configure basic auth, OAuth tokens, or a helper")
+	assert.ErrorIs(t, err, getter.ErrOCIMissingCredentialStyle)
 }
 
 // TestOCITofuCredentialsWindowsIgnoresHomeDotfiles: on Windows only the APPDATA pair is read.
@@ -798,8 +799,14 @@ func TestOCITofuCredentialsDuplicateLabelAcrossFilesRejected(t *testing.T) {
 		tofuBasicAuth(testRegistry, "fragment", "fake-secret-fragment"))
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "duplicate oci_credentials block")
+	require.ErrorIs(t, err, getter.ErrOCIDuplicateRepoBlock)
+
+	var dupErr getter.OCIDuplicateRepoBlockError
+
+	require.ErrorAs(t, err, &dupErr)
+	assert.Equal(t, testRegistry, dupErr.Label)
+	assert.Equal(t, filepath.Join(home, ".terraform.d", "extra.tfrc"), dupErr.Path,
+		"the error must name the file redeclaring the label")
 }
 
 // TestOCITofuCredentialsExplicitConfigFileMissingIsFatal: a named config file must not fail silently.
@@ -837,7 +844,7 @@ oci_default_credentials {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "credential helper name must not be empty",
+	assert.ErrorIs(t, err, getter.ErrOCIInvalidHelperName,
 		"an unusable default block must not widen credential exposure")
 }
 
@@ -887,7 +894,7 @@ oci_default_credentials {
 
 			err := newStoreErr(t, v, testRegistry, "team/vpc")
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "requires discover_ambient_credentials to be enabled")
+			assert.ErrorIs(t, err, getter.ErrOCIAmbientFilesWithoutDiscovery)
 		})
 	}
 }
@@ -956,7 +963,7 @@ oci_credentials "registry.example.com" {
 
 			err := newStoreErr(t, v, testRegistry, "team/vpc")
 			require.Error(t, err, "an empty credential value must not fall through to ambient")
-			assert.ErrorContains(t, err, "must not be empty")
+			assert.ErrorIs(t, err, getter.ErrOCIEmptyCredentialValue)
 		})
 	}
 }
@@ -992,7 +999,7 @@ oci_default_credentials {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "at most one oci_default_credentials block")
+	assert.ErrorIs(t, err, getter.ErrOCIDuplicateDefaultBlock)
 }
 
 // TestOCITofuCredentialsDuplicateDefaultBlockAcrossFilesRejected: the one-default rule spans merged sources.
@@ -1014,7 +1021,7 @@ oci_default_credentials {
 
 	err := newStoreErr(t, v, testRegistry, "team/vpc")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "at most one oci_default_credentials block")
+	assert.ErrorIs(t, err, getter.ErrOCIDuplicateDefaultBlock)
 }
 
 // TestOCITofuCredentialsRelativeConfigFileResolves: a relative entry resolves against the declaring file.
@@ -1119,4 +1126,110 @@ func TestOCITofuCredentialsDockerHubLabel(t *testing.T) {
 				"a docker.io label must serve every Docker Hub spelling")
 		})
 	}
+}
+
+// TestOCITofuCredentialsAllBlockErrorsReported: every invalid block in one file is reported at once.
+func TestOCITofuCredentialsAllBlockErrorsReported(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_credentials "registry.example.com/a" {
+  username = "only-user"
+}
+
+oci_credentials "registry.example.com/b" {
+}
+`+tofuBasicAuth("https://"+testRegistry+"/c", "user", "fake-secret-c"))
+
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	require.ErrorIs(t, err, getter.ErrOCIIncompleteBasicCredential)
+	require.ErrorIs(t, err, getter.ErrOCIMissingCredentialStyle)
+	require.ErrorIs(t, err, getter.ErrOCILabelNotRepositoryAddress,
+		"every invalid block must be reported, so a user fixes the file in one pass")
+}
+
+// TestOCITofuCredentialsAllSourceErrorsReported: a broken main config and a broken fragment are reported together.
+func TestOCITofuCredentialsAllSourceErrorsReported(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
+oci_credentials "registry.example.com/a" {
+  username = "only-user"
+}
+`)
+	writeTofuConfig(t, v.FS, filepath.Join(home, ".terraform.d", "extra.tfrc"), `
+oci_credentials "registry.example.com/b" {
+  access_token = "fake-secret-token"
+}
+`)
+
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.Error(t, err)
+	require.ErrorIs(t, err, getter.ErrOCIIncompleteBasicCredential)
+	require.ErrorIs(t, err, getter.ErrOCIIncompleteOAuthCredential,
+		"every config source must be reported, not just the first that fails")
+}
+
+// TestOCITofuCredentialsMissingOverrideIsSkipped: a named config file that is absent is skipped, as tofu skips it.
+func TestOCITofuCredentialsMissingOverrideIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, map[string]string{envTFCLIConfigFileTest: "/virtual/absent.tofurc"})
+	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
+
+	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
+	assert.Equal(t, "ambient", credentialFor(t, store, testRegistry).Username,
+		"an absent named config file must not fail the pull, matching tofu")
+}
+
+// TestOCITofuCredentialsUnreadableOverrideIsFatal: a named config file that cannot be read must not widen credentials.
+func TestOCITofuCredentialsUnreadableOverrideIsFatal(t *testing.T) {
+	t.Parallel()
+
+	const override = "/virtual/unreadable.tofurc"
+
+	home := testHome
+	v := credentialVenv(home, map[string]string{envTFCLIConfigFileTest: override})
+	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
+	v = v.WithFS(statErrorFS{FS: v.FS, failPath: override})
+
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.ErrorIs(t, err, errStatFailed,
+		"a config file whose presence cannot be determined must not fall through to ambient credentials")
+}
+
+// TestOCITofuCredentialsUnreadableCandidateIsFatal: an unreadable default config location is an error, not a miss.
+func TestOCITofuCredentialsUnreadableCandidateIsFatal(t *testing.T) {
+	t.Parallel()
+
+	home := testHome
+	v := credentialVenv(home, nil)
+	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient", "ambient-pass")
+	v = v.WithFS(statErrorFS{FS: v.FS, failPath: filepath.Join(home, ".tofurc")})
+
+	err := newStoreErr(t, v, testRegistry, "team/vpc")
+	require.ErrorIs(t, err, errStatFailed)
+}
+
+// errStatFailed stands in for a filesystem that cannot answer whether a path exists.
+var errStatFailed = errors.New("stat failed")
+
+// statErrorFS fails Stat for one exact path, so a test can tell an absent config from an unreadable one.
+type statErrorFS struct {
+	vfs.FS
+	failPath string
+}
+
+func (fsys statErrorFS) Stat(name string) (os.FileInfo, error) {
+	if name == fsys.failPath {
+		return nil, &os.PathError{Op: "stat", Path: name, Err: errStatFailed}
+	}
+
+	return fsys.FS.Stat(name)
 }
