@@ -205,6 +205,42 @@ func TestApplyFlagDefaultsForSubcommand(t *testing.T) {
 	assert.Equal(t, [][][]string{nil, {{"hcl"}, {"fmt"}}}, seen)
 }
 
+func TestApplyFlagDefaultsWithSkippedFlagParsing(t *testing.T) {
+	t.Parallel()
+
+	var (
+		destination string
+		seen        [][][]string
+	)
+
+	app := &clihelper.App{
+		App:          &urfaveCli.App{Writer: io.Discard},
+		FlagDefaults: newFlagDefaults([][]string{{"cmd"}}, "foo", []string{"from-rc"}, &seen),
+	}
+
+	cmd := clihelper.Command{
+		Name:   "terragrunt",
+		IsRoot: true,
+		Subcommands: clihelper.Commands{
+			&clihelper.Command{
+				Name:            "cmd",
+				SkipFlagParsing: true,
+				Flags: clihelper.Flags{
+					&clihelper.GenericFlag[string]{Name: "foo", Destination: &destination},
+				},
+			},
+		},
+	}
+
+	args := []string{"cmd", "--foo", "from-arg"}
+	require.NoError(t, cmd.Run(t.Context(), clihelper.NewAppContext(app, args), args))
+
+	// The command treats every flag as an argument, so the value on the command line is
+	// left for the command itself and the default still applies, exactly as an environment
+	// variable would.
+	assert.Equal(t, "from-rc", destination)
+}
+
 func TestApplyFlagDefaultsInvalidValue(t *testing.T) {
 	t.Parallel()
 

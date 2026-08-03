@@ -6,8 +6,10 @@
 // export by hand, and it is read early enough that variables such as TF_CLI_CONFIG_FILE
 // are in the environment before the provider cache server starts.
 //
-// Note that this package is gated behind the `terragruntrc` experiment. See
-// /docs/src/content/docs/04-reference/04-experiments.md.
+// Note that this package is gated behind the `terragruntrc` experiment, documented in
+// /docs/src/data/experiments/terragruntrc.mdx and published at
+// /reference/experiments/active#terragruntrc. The file format itself is documented in
+// /docs/src/content/docs/04-reference/06-terragruntrc.mdx.
 package rcfile
 
 import (

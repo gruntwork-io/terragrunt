@@ -20,7 +20,7 @@ Enable the new [`terragruntrc`](/reference/experiments/active#terragruntrc) expe
 }
 ```
 
-The file is searched from the working directory up to the root of the git repository, then in `.config` at the repository root, the user configuration directory and the home directory, and the first one found is used. It is read before the command line is parsed, so variables in `env` are in place before the provider cache server starts. The command line and the shell environment still win over the file, so committing one changes the defaults without taking away anyone's ability to override them.
+The file is searched from the working directory up to the root of the git repository, then in `.config` at the repository root, the user configuration directory and the home directory, and the first one found is used. It is read before the rest of the command line is parsed, so variables in `env` are in place before the provider cache server starts. The command line and the shell environment still win over the file, so committing one changes the defaults without taking away anyone's ability to override them.
 
 See [the reference page](/reference/terragruntrc) for the full format.
 

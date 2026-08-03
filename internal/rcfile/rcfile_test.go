@@ -428,12 +428,18 @@ func TestSearchDirs(t *testing.T) {
 	dirs, err := rcfile.SearchDirs(unitDir)
 	require.NoError(t, err)
 
+	// The user configuration directory is platform specific: XDG_CONFIG_HOME on Linux,
+	// "Library/Application Support" on macOS, %AppData% on Windows. Ask the runtime for it
+	// rather than assuming the layout of the platform the test happens to run on.
+	userConfigDir, err := os.UserConfigDir()
+	require.NoError(t, err)
+
 	expected := []string{
 		unitDir,
 		filepath.Join(repoRoot, "envs"),
 		repoRoot,
 		filepath.Join(repoRoot, rcfile.ConfigDirName),
-		filepath.Join(root, ".config", rcfile.AppDirName),
+		filepath.Join(userConfigDir, rcfile.AppDirName),
 		root,
 	}
 

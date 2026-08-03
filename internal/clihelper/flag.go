@@ -129,60 +129,45 @@ type flagValueGetter struct {
 }
 
 func (flag *flagValueGetter) EnvSet(val string) error {
-	var err error
+	firstSet := !flag.envHasBeenSet
+	flag.envHasBeenSet = true
 
-	if !flag.envHasBeenSet {
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
-		flag.value.Reset()
-		flag.envHasBeenSet = true
-	} else if !flag.multipleSet {
-		err = ErrMultipleTimesSettingEnvVar
-	}
-
-	flag.name = flag.valueName
-
-	if err := flag.value.Set(val); err != nil {
-		return err
-	}
-
-	return err
+	return flag.assign(val, firstSet, ErrMultipleTimesSettingEnvVar)
 }
 
 func (flag *flagValueGetter) DefaultSet(val string) error {
-	var err error
+	firstSet := !flag.defaultHasBeenSet
+	flag.defaultHasBeenSet = true
 
-	if !flag.defaultHasBeenSet {
-		// may contain a built-in default, so it needs to be cleared before the first setting.
-		flag.value.Reset()
-		flag.defaultHasBeenSet = true
-	} else if !flag.multipleSet {
-		err = ErrMultipleTimesSettingFlag
-	}
-
-	flag.name = flag.valueName
-
-	if err := flag.value.Set(val); err != nil {
-		return err
-	}
-
-	return err
+	return flag.assign(val, firstSet, ErrMultipleTimesSettingFlag)
 }
 
 func (flag *flagValueGetter) Set(val string) error {
+	firstSet := !flag.hasBeenSet
+	flag.hasBeenSet = true
+
+	return flag.assign(val, firstSet, ErrMultipleTimesSettingFlag)
+}
+
+// assign gives the flag a value on behalf of one of its sources.
+//
+// The first value a source assigns clears whatever the flag held before, which may be a
+// built-in default or a value from a lower priority source. Assigning a second time from
+// the same source reports repeatedErr, unless the flag takes multiple values, and the
+// value is assigned either way.
+func (flag *flagValueGetter) assign(val string, firstSet bool, repeatedErr error) error {
 	var err error
 
-	if !flag.hasBeenSet {
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
+	if firstSet {
 		flag.value.Reset()
-		flag.hasBeenSet = true
 	} else if !flag.multipleSet {
-		err = ErrMultipleTimesSettingFlag
+		err = repeatedErr
 	}
 
 	flag.name = flag.valueName
 
-	if err := flag.value.Set(val); err != nil {
-		return err
+	if setErr := flag.value.Set(val); setErr != nil {
+		return setErr
 	}
 
 	return err

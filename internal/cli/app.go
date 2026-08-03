@@ -72,7 +72,7 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
 	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
 	app.Action = clihelper.ShowAppHelp
 
-	return &App{app, opts, v.Env, l}
+	return &App{App: app, opts: opts, env: v.Env, l: l}
 }
 
 func (app *App) Run(args []string) error {

@@ -6,14 +6,26 @@ sidebar:
   order: 6
 ---
 
-The `.terragruntrc` file supplies default environment variables and CLI flag values from a file that
-can live next to the configurations it applies to. It is read before Terragrunt parses its command
-line, so it can also set variables that have to be in place before Terragrunt starts working, such as
-`TF_CLI_CONFIG_FILE`.
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
+import { Aside } from '@astrojs/starlight/components';
 
-:::caution
+<Before version="v1.1.3">
+
+The `.terragruntrc` file ships with v1.1.3.
+
+</Before>
+
+<Since version="v1.1.3">
+
+The `.terragruntrc` file supplies default environment variables and CLI flag values from a file that
+can live next to the configurations it applies to. It is read before the rest of the command line is
+parsed, so it can also set variables that have to be in place before Terragrunt starts working, such
+as `TF_CLI_CONFIG_FILE`.
+
+<Aside type="caution" title="Experimental">
 This is an experimental feature. Enable it with the [`terragruntrc`](/reference/experiments/active#terragruntrc)
-experiment:
+experiment, on the command line or through the environment:
 
 ```bash
 terragrunt run plan --experiment terragruntrc
@@ -23,11 +35,16 @@ terragrunt run plan --experiment terragruntrc
 TG_EXPERIMENT='terragruntrc' terragrunt run plan
 ```
 
-When the experiment is not enabled, a `.terragruntrc` file that is found is reported in a warning and
-otherwise ignored.
-:::
+The experiment has to be enabled outside the file: it is checked before the file is read, so an
+`experiment` entry in the file cannot switch it on. When the experiment is not enabled, a
+`.terragruntrc` file that is found is reported in a warning and otherwise ignored.
+</Aside>
+
+</Since>
 
 ## Format
+
+<Since version="v1.1.3">
 
 The file can be written as JSON or YAML. Terragrunt looks for these names, in this order, within a
 single directory:
@@ -76,7 +93,11 @@ commands:
 Unknown keys are an error, so that a typo in a file the whole team shares is reported instead of
 silently doing nothing.
 
+</Since>
+
 ### `env`
+
+<Since version="v1.1.3">
 
 Environment variables to export before Terragrunt reads its environment. Use this for variables that
 are not Terragrunt flags, such as `TF_CLI_CONFIG_FILE` or `TERM`.
@@ -88,7 +109,11 @@ Values are processed as follows:
   `.terragruntrc` file, so a committed configuration works no matter where the repository is cloned.
 - A value containing `://` is left alone, because it is a URL rather than a path.
 
+</Since>
+
 ### `flags`
+
+<Since version="v1.1.3">
 
 Defaults for flags that apply to every command. The `name` is the flag name as it is typed on the
 command line, without the leading dashes.
@@ -97,14 +122,18 @@ The `default` can be a string, a boolean or a number. For a flag that accepts mo
 use a list, which is applied as though the flag had been repeated:
 
 ```json
-{ "flags": [{ "name": "experiment", "default": ["stacks", "terragruntrc"] }] }
+{ "flags": [{ "name": "queue-include-dir", "default": ["prod/*", "shared/*"] }] }
 ```
+
+</Since>
 
 ### `commands`
 
+<Since version="v1.1.3">
+
 Defaults that apply only while a single command runs. A command is addressed either by its own name
-(`format`) or by its full path as it is typed (`hcl format`). Aliases work too, so `hcl fmt` and `fmt`
-address the same command.
+(`format`) or by its full path as it is typed (`hcl format`). Aliases work too, so `hcl fmt` and
+`fmt` address the same command.
 
 ```json
 {
@@ -115,7 +144,11 @@ address the same command.
 }
 ```
 
+</Since>
+
 ## Discovery
+
+<Since version="v1.1.3">
 
 Terragrunt uses the first file it finds, searching in this order:
 
@@ -131,9 +164,16 @@ inside a git repository, only the working directory itself is searched, so an un
 directory cannot configure a run.
 
 The search starts at [`--working-dir`](/reference/cli/global-flags#working-dir) when it is set, and
-at the current directory otherwise.
+at the current directory otherwise. That flag, along with
+[`--experiment`](/reference/cli/global-flags#experiment) and
+[`--experiment-mode`](/reference/cli/global-flags#experiment-mode), is read from the raw arguments
+before the file is looked for; the rest of the command line is parsed afterwards.
+
+</Since>
 
 ## Precedence
+
+<Since version="v1.1.3">
 
 From highest to lowest:
 
@@ -147,7 +187,11 @@ flag given on the command line is never overwritten by the `flags` or `commands`
 the file safe to commit: it changes the defaults for everyone, and anyone can still override them for
 a single run.
 
+</Since>
+
 ## Example
+
+<Since version="v1.1.3">
 
 A repository that publishes providers through a private registry, and wants the provider cache server
 to see the matching CLI configuration, can commit this next to its root configuration:
@@ -162,5 +206,9 @@ to see the matching CLI configuration, can commit this next to its root configur
 }
 ```
 
-Every engineer who clones the repository gets the same provider cache configuration, with no exports
-in their shell profile, and CI needs no extra setup step.
+Every engineer who clones the repository then gets the same provider cache configuration, with no
+exports in their shell profile. While the feature is experimental, each of them still has to enable
+the experiment once, and CI has to set `TG_EXPERIMENT=terragruntrc`; everything else a team would
+otherwise write down in a README lives in the committed file.
+
+</Since>

@@ -9,7 +9,7 @@ Read defaults for environment variables and CLI flags from a `.terragruntrc` fil
 
 Terragrunt is configured through flags and environment variables, and neither can be committed alongside the code they configure. Teams work around that with a README that asks every engineer to export the same variables, a Makefile, or a shell wrapper. When the recommended settings change, the exports quietly go stale.
 
-When this experiment is enabled, Terragrunt looks for a `.terragruntrc.json`, `.terragruntrc.yaml` or `.terragruntrc.yml` file before it parses the command line, and uses it to supply defaults:
+When this experiment is enabled, Terragrunt looks for a `.terragruntrc.json`, `.terragruntrc.yaml` or `.terragruntrc.yml` file before it parses the rest of the command line, and uses it to supply defaults:
 
 ```json
 {
@@ -42,7 +42,7 @@ commands:
         default: 8
 ```
 
-Because the file is read before anything else, the variables in `env` are in place before the provider cache server starts, which is not true of variables set through `extra_arguments`.
+Because the file is read before normal command parsing, the variables in `env` are in place before the provider cache server starts, which is not true of variables set through `extra_arguments`. Only `--working-dir`, `--experiment` and `--experiment-mode` are read ahead of it, so that Terragrunt knows where to search and whether the experiment is on; the experiment therefore cannot be enabled from the file itself.
 
 Anything given on the command line, and anything already exported in the shell, still wins over the file. See [the reference page](/reference/terragruntrc) for discovery order, precedence and value handling.
 
