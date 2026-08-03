@@ -102,6 +102,14 @@ func TestRCFileInvalid(t *testing.T) {
 	assert.ErrorIs(t, err, rcfile.ErrMissingFlagDefault)
 }
 
+//nolint:paralleltest // isolates the home directory so discovery is deterministic.
+func TestRCFileInvalidIsIgnoredWithoutExperiment(t *testing.T) {
+	workingDir := newRCFileDir(t, `{"flags": [{"name": "non-interactive"}]}`)
+
+	_, err := runApp(t, workingDir, "--version")
+	require.NoError(t, err, "a broken rc file must not fail a run that did not ask for the feature")
+}
+
 // newRCFileDir returns a working directory holding an rc file with the given contents, and
 // points the home directory somewhere empty so that a real rc file cannot be picked up.
 func newRCFileDir(t *testing.T, content string) string {

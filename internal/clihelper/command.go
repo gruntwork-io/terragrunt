@@ -209,7 +209,9 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	}
 
 	if cmd.SkipFlagParsing {
-		return args, nil
+		// Environment variables were applied when the flag set was built, so external
+		// defaults are applied here too, rather than only on the parsing path.
+		return args, cmd.applyFlagDefaults(ctx)
 	}
 
 	args, builtinCmd := args.Split(BuiltinCmdSep)
@@ -303,13 +305,14 @@ func (cmd *Command) commandPath(ctx *Context) [][]string {
 	return append(parents, cmd.Names())
 }
 
-// setFlagValues assigns values to a flag the same way repeated command line arguments do.
+// setFlagValues assigns values to a flag the same way repeated command line arguments do,
+// except that the flag is not reported as having been given by the user.
 func setFlagValues(flag Flag, values []string) error {
 	name := flag.Names()[0]
 	getter := flag.Value().Getter(name)
 
 	for _, value := range values {
-		if err := getter.Set(value); err != nil {
+		if err := getter.DefaultSet(value); err != nil {
 			return fmt.Errorf("invalid value %q for flag %s: %w", value, name, err)
 		}
 	}

@@ -359,9 +359,9 @@ func TestFind(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(repoRoot, ".git"), 0755))
 
 	// Nothing to find yet.
-	cfg, err := rcfile.Find(unitDir)
+	found, err := rcfile.Find(unitDir)
 	require.NoError(t, err)
-	assert.Nil(t, cfg)
+	assert.Empty(t, found)
 
 	// The home directory is the last resort.
 	homePath := writeFile(t, root, rcfile.BaseName+".json", `{"flags": [{"name": "a", "default": "home"}]}`)
@@ -397,9 +397,9 @@ func TestFindStopsAtRepoRoot(t *testing.T) {
 
 	writeFile(t, outside, rcfile.BaseName+".json", `{"flags": [{"name": "a", "default": "outside"}]}`)
 
-	cfg, err := rcfile.Find(repoRoot)
+	found, err := rcfile.Find(repoRoot)
 	require.NoError(t, err)
-	assert.Nil(t, cfg, "a directory above the repository root must not configure the run")
+	assert.Empty(t, found, "a directory above the repository root must not configure the run")
 }
 
 //nolint:paralleltest // relies on a home directory that only this test may change.
@@ -411,9 +411,9 @@ func TestFindWithoutRepo(t *testing.T) {
 
 	writeFile(t, filepath.Join(root, "a"), rcfile.BaseName+".json", `{"flags": [{"name": "a", "default": "parent"}]}`)
 
-	cfg, err := rcfile.Find(nested)
+	found, err := rcfile.Find(nested)
 	require.NoError(t, err)
-	assert.Nil(t, cfg, "outside a repository only the working directory is searched")
+	assert.Empty(t, found, "outside a repository only the working directory is searched")
 }
 
 //nolint:paralleltest // relies on a home directory that only this test may change.
@@ -440,14 +440,13 @@ func TestSearchDirs(t *testing.T) {
 	assert.Equal(t, expected, dirs)
 }
 
-// assertFound checks that a search from startDir returns the config stored at path.
+// assertFound checks that a search from startDir finds the rc file at path.
 func assertFound(t *testing.T, startDir, path string) {
 	t.Helper()
 
-	cfg, err := rcfile.Find(startDir)
+	found, err := rcfile.Find(startDir)
 	require.NoError(t, err)
-	require.NotNil(t, cfg)
-	assert.Equal(t, path, cfg.Path)
+	assert.Equal(t, path, found)
 }
 
 // isolatedHome points the home and user configuration directories at a new temporary

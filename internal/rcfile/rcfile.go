@@ -93,27 +93,32 @@ type Config struct {
 	Commands []Command `json:"commands" yaml:"commands"`
 }
 
-// Find searches for an rc file starting at startDir and returns the first one found.
-// It returns a nil config, and no error, when there is no rc file to read.
-func Find(startDir string) (*Config, error) {
+// Find searches for an rc file starting at startDir and returns the path of the first one
+// found, or an empty path when there is none, which is the normal case.
+//
+// Finding a file and reading it are separate steps, so that a caller can name the file it
+// found without paying to parse it, and so that a malformed file only fails the runs that
+// actually asked for it.
+func Find(startDir string) (string, error) {
 	dirs, err := SearchDirs(startDir)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
+	fileNames := FileNames()
+
 	for _, dir := range dirs {
-		path, err := findInDir(dir)
+		path, err := findInDir(dir, fileNames)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
 		if path != "" {
-			return Load(path)
+			return path, nil
 		}
 	}
 
-	// Having no rc file at all is the normal case, not an error.
-	return nil, nil
+	return "", nil
 }
 
 // SearchDirs returns the directories that are searched for an rc file, in priority order:
@@ -173,14 +178,21 @@ func dedupe(dirs []string) []string {
 
 // Load reads and parses the rc file at path.
 func Load(path string) (*Config, error) {
-	content, err := os.ReadFile(path)
+	// The path is resolved here rather than assumed to be absolute, because values in the
+	// `env` section are resolved against the directory holding the file.
+	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+		return nil, fmt.Errorf("failed to resolve %s: %w", path, err)
 	}
 
-	cfg := &Config{Path: path}
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", absPath, err)
+	}
 
-	if err := unmarshal(path, content, cfg); err != nil {
+	cfg := &Config{Path: absPath}
+
+	if err := unmarshal(absPath, content, cfg); err != nil {
 		return nil, err
 	}
 
@@ -343,10 +355,10 @@ func unmarshal(path string, content []byte, cfg *Config) error {
 	return nil
 }
 
-// findInDir returns the path of the first rc file in dir, or an empty string when the
-// directory holds none.
-func findInDir(dir string) (string, error) {
-	for _, name := range FileNames() {
+// findInDir returns the path of the first of fileNames present in dir, or an empty string
+// when the directory holds none of them.
+func findInDir(dir string, fileNames []string) (string, error) {
+	for _, name := range fileNames {
 		path := filepath.Join(dir, name)
 
 		info, err := os.Stat(path)

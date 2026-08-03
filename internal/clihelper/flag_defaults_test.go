@@ -60,6 +60,12 @@ func TestApplyFlagDefaults(t *testing.T) {
 	require.NoError(t, cmd.Run(t.Context(), clihelper.NewAppContext(app, nil), nil))
 	assert.Equal(t, "from-rc", destination)
 	assert.Equal(t, [][][]string{nil}, seen, "the root command owns the global flags")
+
+	value := cmd.Flags.Get("foo").Value()
+	assert.True(t, value.IsSet())
+	assert.True(t, value.IsDefaultSet())
+	assert.False(t, value.IsArgSet(), "a default must not look like a command line argument")
+	assert.False(t, value.IsEnvSet(), "a default must not look like an environment variable")
 }
 
 func TestApplyFlagDefaultsIsOverriddenByArg(t *testing.T) {

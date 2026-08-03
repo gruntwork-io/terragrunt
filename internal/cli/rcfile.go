@@ -23,6 +23,9 @@ const maxEarlyFlagsParse = 1000
 // is read. Discovery starts at the working directory, and the file is only honored while
 // the experiment is enabled, so both are resolved from the raw arguments first.
 func (app *App) setupRCFile(args []string) error {
+	// These are throwaway copies of the flags rather than the ones on the app: parsing a
+	// flag marks it as set, and the app's own flags have to look untouched when the
+	// command line is parsed for real, or setting them again reports them as set twice.
 	earlyFlags := global.NewFlags(app.l, app.opts, nil).Filter(
 		global.WorkingDirFlagName,
 		global.ExperimentFlagName,
@@ -38,20 +41,28 @@ func (app *App) setupRCFile(args []string) error {
 		return err
 	}
 
-	cfg, err := rcfile.Find(startDir)
-	if err != nil || cfg == nil {
+	path, err := rcfile.Find(startDir)
+	if err != nil || path == "" {
 		return err
 	}
 
+	// The gate is checked before the file is read, so that a mistake in an rc file only
+	// fails the runs that asked for the feature. Discovery itself still runs, so that a
+	// file nobody enabled is reported rather than silently doing nothing.
 	if !app.opts.Experiments.Evaluate(experiment.TerragruntRC) {
 		app.l.Warnf(
 			"Ignoring %s because the %s experiment is not enabled. Enable it with --experiment %s.",
-			cfg.Path,
+			path,
 			experiment.TerragruntRC,
 			experiment.TerragruntRC,
 		)
 
 		return nil
+	}
+
+	cfg, err := rcfile.Load(path)
+	if err != nil {
+		return err
 	}
 
 	if err := app.applyRCFileEnv(cfg); err != nil {
