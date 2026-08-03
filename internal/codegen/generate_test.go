@@ -782,7 +782,7 @@ func TestWriteToFileOverwriteTerragruntOrSkip(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
+			require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
 
 			fileContent, err := os.ReadFile(path)
 			require.NoError(t, err)
@@ -823,7 +823,7 @@ func TestWriteToFileOverwriteTerragruntStillErrorsOnHandWrittenFile(t *testing.T
 
 	var existsErr codegen.GenerateFileExistsError
 
-	require.ErrorAs(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config), &existsErr)
+	require.ErrorAs(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config), &existsErr)
 
 	fileContent, err := os.ReadFile(path)
 	require.NoError(t, err)
