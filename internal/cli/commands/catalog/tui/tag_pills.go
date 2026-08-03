@@ -6,20 +6,21 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 )
 
-// KindForTag returns the ComponentKind that tag names case-insensitively,
+// KindForTag returns the component.Kind that tag names case-insensitively,
 // and a bool reporting whether tag matched any known kind.
-func KindForTag(tag string) (ComponentKind, bool) {
+func KindForTag(tag string) (component.Kind, bool) {
 	switch strings.ToLower(strings.TrimSpace(tag)) {
 	case "module":
-		return ComponentKindModule, true
+		return component.KindModule, true
 	case "template":
-		return ComponentKindTemplate, true
+		return component.KindTemplate, true
 	case "unit":
-		return ComponentKindUnit, true
+		return component.KindUnit, true
 	case "stack":
-		return ComponentKindStack, true
+		return component.KindStack, true
 	}
 
 	return 0, false
@@ -50,27 +51,27 @@ func TagPillStyle(tag string, selected bool) lipgloss.Style {
 }
 
 // pillColorsForKind returns the (bg, fg) hex pair for a kind's pill.
-func pillColorsForKind(kind ComponentKind, selected bool) (string, string) {
+func pillColorsForKind(kind component.Kind, selected bool) (string, string) {
 	switch kind {
-	case ComponentKindTemplate:
+	case component.KindTemplate:
 		if selected {
 			return templatePillBgS, templatePillFgS
 		}
 
 		return templatePillBg, templatePillFg
-	case ComponentKindUnit:
+	case component.KindUnit:
 		if selected {
 			return unitPillBgS, unitPillFgS
 		}
 
 		return unitPillBg, unitPillFg
-	case ComponentKindStack:
+	case component.KindStack:
 		if selected {
 			return stackPillBgS, stackPillFgS
 		}
 
 		return stackPillBg, stackPillFg
-	case ComponentKindModule:
+	case component.KindModule:
 		if selected {
 			return modulePillBgS, modulePillFgS
 		}

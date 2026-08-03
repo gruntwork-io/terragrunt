@@ -8,6 +8,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
@@ -67,8 +68,8 @@ func TestFormFieldsFromParsedVariables_BoolStringRawTypes(t *testing.T) {
 func TestFormFieldsFromValuesReferences_StringAndComplexDefaults(t *testing.T) {
 	t.Parallel()
 
-	refs := tui.ValuesReferences{
-		Optional: []tui.OptionalValue{
+	refs := component.ValuesReferences{
+		Optional: []component.OptionalValue{
 			{Name: "region", Default: cty.StringVal("us-east-1")},
 			{
 				Name:    "zones",

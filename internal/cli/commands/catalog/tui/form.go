@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
@@ -186,7 +187,7 @@ type editKeyMap struct {
 // FormModel is the interactive value-collection view shown when the user
 // presses `s`. Each field corresponds to a discovered variable; submission
 // emits a FormSubmitMsg carrying a name->raw-HCL map consumed by either
-// scaffold.Plan.Generate or WriteValuesFile.
+// scaffold.Plan.Generate or component.WriteValuesFile.
 //
 // The form is modal. In navigate mode (the default) j/k move between
 // fields, enter interacts with the focused field, x toggles whether an
@@ -484,7 +485,7 @@ func parseBoolDefault(raw string) bool {
 // seeded with the HCL-formatted try() fallback. Optionals whose fallback
 // is a known string default are flagged literal so the user edits the raw
 // value the same way they would for a module string variable.
-func FieldsFromValuesReferences(refs ValuesReferences) []FormField {
+func FieldsFromValuesReferences(refs component.ValuesReferences) []FormField {
 	fields := make([]FormField, 0, len(refs.Required)+len(refs.Optional))
 
 	for _, name := range refs.Required {
@@ -506,7 +507,7 @@ func FieldsFromValuesReferences(refs ValuesReferences) []FormField {
 // reference. Known-string defaults become literal-mode (the user edits the
 // raw value); known-bool defaults become checkbox-mode; everything else
 // stays raw HCL with the default pre-formatted.
-func newValuesField(o OptionalValue) FormField {
+func newValuesField(o component.OptionalValue) FormField {
 	switch o.Default.Type() {
 	case cty.String:
 		return FormField{

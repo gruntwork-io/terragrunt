@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
@@ -286,7 +287,7 @@ func styleMetaLine(
 }
 
 // metaPalette returns pill/text styles for the metadata row based on component kind and selection state.
-func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
+func metaPalette(kind component.Kind, selected, dimmed bool) catalogMetaColors {
 	if dimmed {
 		muted := lipgloss.Color(metaMuted)
 
@@ -302,16 +303,16 @@ func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
 	pillBgSel, pillFgSel := modulePillBgS, modulePillFgS
 
 	switch kind {
-	case ComponentKindTemplate:
+	case component.KindTemplate:
 		pillBg, pillFg = templatePillBg, templatePillFg
 		pillBgSel, pillFgSel = templatePillBgS, templatePillFgS
-	case ComponentKindUnit:
+	case component.KindUnit:
 		pillBg, pillFg = unitPillBg, unitPillFg
 		pillBgSel, pillFgSel = unitPillBgS, unitPillFgS
-	case ComponentKindStack:
+	case component.KindStack:
 		pillBg, pillFg = stackPillBg, stackPillFg
 		pillBgSel, pillFgSel = stackPillBgS, stackPillFgS
-	case ComponentKindModule:
+	case component.KindModule:
 		// Defaults already applied above.
 	}
 

@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -345,15 +346,15 @@ func TestCatalogDiscoveryWithIgnoreFiles(t *testing.T) {
 		Discover(vfs.NewOSFS(), repo)
 	require.NoError(t, err)
 
-	got := map[string]tui.ComponentKind{}
+	got := map[string]component.Kind{}
 	for _, c := range components {
 		got[c.Dir] = c.Kind
 	}
 
-	want := map[string]tui.ComponentKind{
-		"modules/vpc":       tui.ComponentKindModule,
-		"templates/service": tui.ComponentKindTemplate,
-		"stash/keep":        tui.ComponentKindModule,
+	want := map[string]component.Kind{
+		"modules/vpc":       component.KindModule,
+		"templates/service": component.KindTemplate,
+		"stash/keep":        component.KindModule,
 	}
 
 	assert.Equal(t, want, got)

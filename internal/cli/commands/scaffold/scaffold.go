@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -157,6 +158,8 @@ type Plan struct {
 	originalModuleURL string
 	resolvedModuleURL string
 	outputDir         string
+	sourceDir         string
+	kind              component.Kind
 }
 
 // Cleanup removes the temporary directories allocated during Prepare.
@@ -263,6 +266,26 @@ func Prepare(
 		return nil, err
 	}
 
+	markers, err := component.Inspect(v.FS, tempDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// A unit or a stack is already a Terragrunt configuration, so there is
+	// nothing to generate from it: rendering the module template would point
+	// terraform.source at a directory holding no .tf files at all. Its own
+	// files are what the user wants, which is what the catalog user interface
+	// gives them, so Generate copies them instead.
+	if kind, ok := markers.CopyKind(); ok {
+		warnUnusedScaffoldInputs(l, opts, templateURL, kind)
+
+		plan.kind = kind
+		plan.sourceDir = tempDir
+		success = true
+
+		return plan, nil
+	}
+
 	// extract variables from downloaded module
 	requiredVariables, optionalVariables, err := parseVariables(l, v.FS, opts, tempDir)
 	if err != nil {
@@ -304,6 +327,13 @@ func (p *Plan) Generate(
 	opts *options.TerragruntOptions,
 	values map[string]string,
 ) error {
+	// The zero kind is a module, so a plan whose source was never classified
+	// as copyable renders, which is every plan Prepare built before units and
+	// stacks could be scaffolded by copying.
+	if p.kind.IsCopyable() {
+		return p.copyComponent(l, v, values)
+	}
+
 	applyUserValues(p.Required, values)
 	applyUserValues(p.Optional, values)
 
@@ -362,6 +392,60 @@ func (p *Plan) Generate(
 	l.Debug("Scaffolding completed")
 
 	return nil
+}
+
+// copyComponent scaffolds a unit or stack into the output directory, alongside
+// a terragrunt.values.hcl for the `values.*` references its configuration
+// makes. It is the same work the catalog user interface does, so a component
+// lands identically whichever one the user reaches for.
+func (p *Plan) copyComponent(l log.Logger, v *venv.Venv, values map[string]string) error {
+	result, err := component.Scaffold(v.FS, p.kind, p.sourceDir, p.outputDir, values)
+	if err != nil {
+		return err
+	}
+
+	l.Infof("Scaffolded %s into %s", p.kind, p.outputDir)
+
+	valuesPath := filepath.Join(p.outputDir, component.ValuesFileName)
+
+	if result.ValuesWritten {
+		l.Infof("Generated %s; fill in each TODO before running Terragrunt", valuesPath)
+	}
+
+	if result.ValuesSkipped {
+		l.Warnf(
+			"%s already exists and was left untouched; check that it sets %s",
+			valuesPath,
+			strings.Join(result.References.AllNames(), ", "),
+		)
+	}
+
+	return nil
+}
+
+// warnUnusedScaffoldInputs reports the inputs that only apply when generating
+// a configuration, so a user who passed them does not go looking for their
+// effect in a component that was copied verbatim.
+func warnUnusedScaffoldInputs(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	templateURL string,
+	kind component.Kind,
+) {
+	if templateURL != "" {
+		l.Warnf("A %s is copied as it is written, so the template argument is ignored.", kind)
+	}
+
+	if len(opts.ScaffoldVars) > 0 || len(opts.ScaffoldVarFiles) > 0 {
+		l.Warnf(
+			"A %s is copied as it is written, so --%s and --%s are ignored."+
+				" Set its values in %s instead.",
+			kind,
+			VarFlagName,
+			VarFileFlagName,
+			component.ValuesFileName,
+		)
+	}
 }
 
 // setVarDefault writes value to vars[key] when the key is absent; if

@@ -11,6 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
@@ -883,9 +884,9 @@ func TestFormEscFromEditReturnsToNavigateNotCancel(t *testing.T) {
 func TestFormValuesReferencesPromotesBoolDefaults(t *testing.T) {
 	t.Parallel()
 
-	refs := tui.ValuesReferences{
+	refs := component.ValuesReferences{
 		Required: []string{"region"},
-		Optional: []tui.OptionalValue{
+		Optional: []component.OptionalValue{
 			{Name: "enable_dns", Default: cty.True},
 			{Name: "delete_on_destroy", Default: cty.False},
 		},

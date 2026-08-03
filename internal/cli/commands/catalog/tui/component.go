@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 )
 
@@ -11,46 +12,6 @@ const (
 	defaultDescription   = "(no description found)"
 	maxDescriptionLength = 200
 )
-
-// ComponentKind classifies a Component. Modules and templates are scaffoldable
-// artifacts; units and stacks are terragrunt configurations that the user
-// copies into their working directory.
-type ComponentKind int
-
-const (
-	// ComponentKindModule is a directory containing .tf files.
-	ComponentKindModule ComponentKind = iota
-	// ComponentKindTemplate is a directory containing a `.boilerplate/`
-	// subdirectory or a top-level `boilerplate.yml`.
-	ComponentKindTemplate
-	// ComponentKindUnit is a directory containing a `terragrunt.hcl` file.
-	ComponentKindUnit
-	// ComponentKindStack is a directory containing a `terragrunt.stack.hcl`
-	// file.
-	ComponentKindStack
-)
-
-// String returns the user-visible kind label.
-func (k ComponentKind) String() string {
-	switch k {
-	case ComponentKindTemplate:
-		return "template"
-	case ComponentKindUnit:
-		return "unit"
-	case ComponentKindStack:
-		return "stack"
-	case ComponentKindModule:
-		return "module"
-	default:
-		return "module"
-	}
-}
-
-// IsCopyable reports whether a component of this kind is installed by copying
-// its directory tree into the working directory rather than by scaffolding.
-func (k ComponentKind) IsCopyable() bool {
-	return k == ComponentKindUnit || k == ComponentKindStack
-}
 
 // Component is the catalog TUI's representation of a scaffoldable directory
 // discovered inside a cloned repository. It is intentionally independent of
@@ -73,7 +34,7 @@ type Component struct {
 	repoPath string
 	url      string
 
-	Kind ComponentKind
+	Kind component.Kind
 }
 
 // Components is a slice of *Component for ergonomic return types.
@@ -163,7 +124,7 @@ func (c *Component) Content(stripTags bool) string {
 
 // NewComponentForTest constructs a Component for use in unit tests without
 // requiring a cloned repository on disk.
-func NewComponentForTest(kind ComponentKind, cloneURL, dir, readme string) *Component {
+func NewComponentForTest(kind component.Kind, cloneURL, dir, readme string) *Component {
 	doc := &ComponentDoc{}
 	if readme != "" {
 		doc = NewComponentDoc(readme, mdExt)
