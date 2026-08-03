@@ -13,9 +13,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -38,6 +40,30 @@ const (
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
+
+// walkDirFunc returns the tree walk the discovery phases use, bound to the
+// venv filesystem so discovery only sees what the venv exposes. The symlinks
+// experiment swaps in the walk that descends into symlinked directories.
+func walkDirFunc(
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) func(string, iofs.WalkDirFunc) error {
+	v.RequireFS()
+
+	if opts == nil {
+		panic("discovery.walkDirFunc: opts is nil")
+	}
+
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		return func(root string, fn iofs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(v.FS, root, fn)
+		}
+	}
+
+	return func(root string, fn iofs.WalkDirFunc) error {
+		return vfs.WalkDir(v.FS, root, fn)
+	}
+}
 
 // stringSet is a thread-safe set of strings using map and RWMutex.
 // This is more performant than sync.Map for string keys with simple bool values.
@@ -373,4 +399,70 @@ func stackDependencyPaths(
 	}
 
 	return result, nil
+}
+
+// dependentWalkBoundary returns where the upstream dependent walk must stop:
+// the user's discovery boundary when set, otherwise the detected git root. An
+// empty result means the walk is unbounded (no boundary could be determined).
+func (d *Discovery) dependentWalkBoundary() string {
+	if d.discoveryBoundary != "" {
+		return d.discoveryBoundary
+	}
+
+	return d.gitRoot
+}
+
+// validateBoundaryDir reports whether resolved names an existing directory.
+func validateBoundaryDir(fs vfs.FS, resolved string) error {
+	info, err := fs.Stat(resolved)
+	if err != nil {
+		return NewDiscoveryBoundaryDirError(resolved, err)
+	}
+
+	if !info.IsDir() {
+		return NewDiscoveryBoundaryDirError(resolved, errors.New("not a directory"))
+	}
+
+	return nil
+}
+
+// resolveGraphBoundary canonicalizes a raw "(dir)" boundary value against
+// the working directory and validates that it points at an existing directory.
+// Returns the resolved absolute path.
+func resolveGraphBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
+	resolved := boundary
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(workingDir, resolved)
+	}
+
+	resolved = filepath.Clean(resolved)
+
+	if err := validateBoundaryDir(fs, resolved); err != nil {
+		return "", err
+	}
+
+	return resolved, nil
+}
+
+// resolveDiscoveryBoundary canonicalizes a user-supplied discovery boundary against
+// the working directory and validates that it is an existing directory that
+// contains the working directory. Returns the resolved absolute path.
+func resolveDiscoveryBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
+	resolved, err := util.CanonicalResolvedPath(boundary, workingDir)
+	if err != nil {
+		return "", NewDiscoveryBoundaryDirError(boundary, err)
+	}
+
+	if err := validateBoundaryDir(fs, resolved); err != nil {
+		return "", err
+	}
+
+	resolvedWorkingDir := util.ResolvePath(workingDir)
+
+	rel, err := filepath.Rel(resolved, resolvedWorkingDir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", NewDiscoveryBoundaryScopeError(resolved, workingDir)
+	}
+
+	return resolved, nil
 }

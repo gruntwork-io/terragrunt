@@ -35,7 +35,7 @@ func TestFilesReadNilReceiver(t *testing.T) {
 // TestFilesReadConcurrentAddWithRacing pins the concurrency-safety of FilesRead.
 // Without the mutex, concurrent Add calls fault on concurrent map writes; the
 // pre-FilesRead version of this race crashed inside slices.Contains (the panic
-// originally seen in TestStackOutputsRaw). The -race suffix flags this test for
+// originally seen in TestTFStackOutputsRaw). The -race suffix flags this test for
 // CI execution under `go test -race`.
 func TestFilesReadConcurrentAddWithRacing(t *testing.T) {
 	t.Parallel()

@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -1473,6 +1474,7 @@ func TestFindConfigFilesInPathNone(t *testing.T) {
 
 	expected := []string{}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/none",
 		experiment.NewExperiments(),
 		"test",
@@ -1489,6 +1491,7 @@ func TestFindConfigFilesInPathOneConfig(t *testing.T) {
 
 	expected := []string{"../../test/fixtures/config-files/one-config/subdir/terragrunt.hcl"}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/one-config",
 		experiment.NewExperiments(),
 		"test",
@@ -1507,6 +1510,7 @@ func TestFindConfigFilesInPathOneJsonConfig(t *testing.T) {
 		"../../test/fixtures/config-files/one-json-config/subdir/terragrunt.hcl.json",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/one-json-config",
 		experiment.NewExperiments(),
 		"test",
@@ -1527,6 +1531,7 @@ func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
 		"../../test/fixtures/config-files/multiple-configs/subdir-3/terragrunt.hcl",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/multiple-configs",
 		experiment.NewExperiments(),
 		"test",
@@ -1547,6 +1552,7 @@ func TestFindConfigFilesInPathMultipleJsonConfigs(t *testing.T) {
 		"../../test/fixtures/config-files/multiple-json-configs/subdir-3/terragrunt.hcl.json",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/multiple-json-configs",
 		experiment.NewExperiments(),
 		"test",
@@ -1567,6 +1573,7 @@ func TestFindConfigFilesInPathMultipleMixedConfigs(t *testing.T) {
 		"../../test/fixtures/config-files/multiple-mixed-configs/subdir-3/terragrunt.hcl.json",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/multiple-mixed-configs",
 		experiment.NewExperiments(),
 		"test",
@@ -1585,6 +1592,7 @@ func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
 		"../../test/fixtures/config-files/ignore-cached-config/terragrunt.hcl",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/ignore-cached-config",
 		experiment.NewExperiments(),
 		"test",
@@ -1605,6 +1613,7 @@ func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/ignore-terraform-data-dir",
 		experiment.NewExperiments(),
 		"test",
@@ -1624,6 +1633,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/ignore-terraform-data-dir",
 		experiment.NewExperiments(),
 		"test",
@@ -1644,6 +1654,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/ignore-terraform-data-dir",
 		experiment.NewExperiments(),
 		"test",
@@ -1664,6 +1675,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	require.NoError(t, err)
 
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		workingDir,
 		experiment.NewExperiments(),
 		workingDir,
@@ -1706,6 +1718,7 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 		"../../test/fixtures/config-files/multiple-configs/subdir-3/terragrunt.hcl",
 	}
 	actual, err := config.FindConfigFilesInPath(
+		vfs.NewOSFS(),
 		"../../test/fixtures/config-files/multiple-configs",
 		experiment.NewExperiments(),
 		"test",

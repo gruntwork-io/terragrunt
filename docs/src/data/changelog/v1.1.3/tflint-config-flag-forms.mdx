@@ -1,0 +1,19 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Fixed `--config=` being ignored by the `tflint` hook
+
+The built-in `tflint` hook reads the configuration file out of the arguments you give it, then uses that path for `tflint init` and for the lint run. It only recognized the space-separated `--config <path>` spelling, so a hook written as:
+
+```hcl
+before_hook "tflint" {
+  commands = ["plan"]
+  execute  = ["tflint", "--config=custom.tflint.hcl"]
+}
+```
+
+was treated as though no configuration file had been named at all. Terragrunt searched the unit directory and its parents for a `.tflint.hcl` file instead, and either failed with a config-not-found error or ran `tflint init` against whatever unrelated configuration the search turned up. Terragrunt now recognizes `--config <path>`, `--config=<path>`, `-c <path>`, and `-c=<path>`.
+
+The hook also builds `--var` arguments from the unit's `inputs` and from `TF_VAR_` entries in `extra_arguments` blocks. Those arguments came out in a different order on every run, which made the logged command line, and anything comparing it between runs, needlessly unstable. They are now ordered by variable name.

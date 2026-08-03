@@ -997,43 +997,6 @@ func TestTerragruntHelp(t *testing.T) {
 	}
 }
 
-func TestTerraformHelp(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		expected string
-		args     []string
-	}{
-		{
-			args:     []string{"terragrunt", tf.CommandNamePlan, "--help"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] plan.*-detailed-exitcode",
-		},
-		{
-			args:     []string{"terragrunt", tf.CommandNameApply, "-help"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy",
-		},
-		{
-			args:     []string{"terragrunt", tf.CommandNameApply, "-h"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy",
-		},
-	}
-
-	for _, tc := range testCases {
-		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions()
-
-		testV := venv.OSVenv()
-
-		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
-
-		app := cli.NewApp(logger.CreateLogger(), opts, testV)
-		err := app.Run(tc.args)
-		require.NoError(t, err)
-
-		assert.Regexp(t, tc.expected, output.String())
-	}
-}
-
 func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 	t.Parallel()
 

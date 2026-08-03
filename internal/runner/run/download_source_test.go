@@ -81,7 +81,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = terraformSource.WriteVersionFile(logger.CreateLogger())
+	err = terraformSource.WriteVersionFile(logger.CreateLogger(), vfs.NewOSFS())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -721,7 +721,12 @@ func testAlreadyHaveLatestCode(
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := run.AlreadyHaveLatestCode(l, terraformSource, configbridge.NewRunOptions(opts))
+	actual, err := run.AlreadyHaveLatestCode(
+		l,
+		venv.OSVenv(),
+		terraformSource,
+		configbridge.NewRunOptions(opts),
+	)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }
@@ -1419,16 +1424,16 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 }
 
 // TestDownloadTerraformSourceRejectsNonOSFilesystem pins that the entry
-// guard returns ErrNonOSFilesystem before any download work runs when
-// Options.FS is not OS-backed.
+// guard returns ErrNonOSFilesystem before any download work runs when the
+// venv filesystem is not OS-backed.
 func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	runOpts := configbridge.NewRunOptions(opts)
-	runOpts.FS = vfs.NewMemMapFS()
+	v := venv.OSVenv()
+	v.FS = vfs.NewMemMapFS()
 
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(io.Discard))
@@ -1436,9 +1441,9 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
 	_, err = run.DownloadTerraformSource(
 		t.Context(),
 		l,
-		venv.OSVenv(),
+		v,
 		".",
-		runOpts,
+		configbridge.NewRunOptions(opts),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 		report.NewReport(),
 	)
@@ -1453,8 +1458,8 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	opts, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	runOpts := configbridge.NewRunOptions(opts)
-	runOpts.FS = vfs.NewMemMapFS()
+	v := venv.OSVenv()
+	v.FS = vfs.NewMemMapFS()
 
 	src, err := tf.NewSource(logger.CreateLogger(), ".", t.TempDir(), opts.WorkingDir, false)
 	require.NoError(t, err)
@@ -1462,9 +1467,9 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		v,
 		src,
-		runOpts,
+		configbridge.NewRunOptions(opts),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 		report.NewReport(),
 	)

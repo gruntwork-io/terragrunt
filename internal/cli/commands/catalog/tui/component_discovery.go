@@ -73,7 +73,9 @@ func (cd *ComponentDiscovery) Discover(fsys vfs.FS, repo *module.Repo) (Componen
 	}
 
 	if cd.walkWithSymlinks {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(fsys, root, fn)
+		}
 	}
 
 	ignoreMatcher, err := ignore.Load(fsys, repoPath)

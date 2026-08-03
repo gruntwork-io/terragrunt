@@ -150,6 +150,11 @@ type TerragruntOptions struct {
 	ReportFile string
 	// Path to a file containing filter queries, one per line. Default is .terragrunt-filters.
 	FiltersFile string
+	// DiscoveryBoundary encloses graph discovery for filters within the given
+	// directory instead of the git repository root: dependencies and dependents
+	// resolving outside it are not discovered. Gated behind the bounded-discovery
+	// experiment.
+	DiscoveryBoundary string
 	// Report format.
 	ReportFormat report.Format
 	// Path to the report schema file.

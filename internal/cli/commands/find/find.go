@@ -27,7 +27,7 @@ import (
 
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
-	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
 		NoHidden:          opts.NoHidden,
@@ -36,6 +36,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		Exclude:           opts.Exclude,
 		Include:           opts.Include,
 		Reading:           opts.Reading,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,
 	})
 	if err != nil {

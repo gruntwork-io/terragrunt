@@ -338,12 +338,12 @@ func evaluateGraphExpression(
 		}
 	}
 
-	if expr.IncludeDependencies {
+	if expr.Dependencies.Include {
 		depth := MaxTraversalDepth
 		warnOnLimit := true
 
-		if expr.DependencyDepth > 0 {
-			depth = expr.DependencyDepth
+		if expr.Dependencies.Depth > 0 {
+			depth = expr.Dependencies.Depth
 			warnOnLimit = false
 		}
 
@@ -359,12 +359,12 @@ func evaluateGraphExpression(
 		}
 	}
 
-	if expr.IncludeDependents {
+	if expr.Dependents.Include {
 		depth := MaxTraversalDepth
 		warnOnLimit := true
 
-		if expr.DependentDepth > 0 {
-			depth = expr.DependentDepth
+		if expr.Dependents.Depth > 0 {
+			depth = expr.Dependents.Depth
 			warnOnLimit = false
 		}
 

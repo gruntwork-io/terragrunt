@@ -31,12 +31,13 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
-	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
 		NoHidden:          opts.NoHidden,
 		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
 		WithRelationships: opts.Dependencies || opts.Mode == ModeDAG,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,
 	})
 	if err != nil {

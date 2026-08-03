@@ -477,210 +477,172 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "prefix ellipsis - dependents only",
 			input: "...foo",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
+				Target:     mustAttr(t, "name", "foo"),
+				Dependents: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "postfix ellipsis - dependencies only",
 			input: "foo...",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   false,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
+				Target:       mustAttr(t, "name", "foo"),
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "both prefix and postfix ellipsis",
 			input: "...foo...",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
+				Target:       mustAttr(t, "name", "foo"),
+				Dependents:   filter.GraphBound{Include: true},
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "caret - exclude target only",
 			input: "^foo",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   false,
-				IncludeDependencies: false,
-				ExcludeTarget:       true,
+				Target:        mustAttr(t, "name", "foo"),
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "caret with prefix ellipsis",
 			input: "...^foo",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       true,
+				Target:        mustAttr(t, "name", "foo"),
+				Dependents:    filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "caret with postfix ellipsis",
 			input: "^foo...",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   false,
-				IncludeDependencies: true,
-				ExcludeTarget:       true,
+				Target:        mustAttr(t, "name", "foo"),
+				Dependencies:  filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "caret with both ellipsis",
 			input: "...^foo...",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				ExcludeTarget:       true,
+				Target:        mustAttr(t, "name", "foo"),
+				Dependents:    filter.GraphBound{Include: true},
+				Dependencies:  filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "graph expression with path filter",
 			input: "...{./apps/foo}",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "./apps/foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
+				Target:     mustPath(t, "./apps/foo"),
+				Dependents: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "graph expression with path filter and postfix ellipsis",
 			input: "./apps/foo...",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "./apps/foo"),
-				IncludeDependents:   false,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
+				Target:       mustPath(t, "./apps/foo"),
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "graph expression with attribute filter",
 			input: "...name=bar",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "bar"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
+				Target:     mustAttr(t, "name", "bar"),
+				Dependents: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "graph expression with braced path and postfix ellipsis",
 			input: "{./apps/foo}...",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "./apps/foo"),
-				IncludeDependents:   false,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
+				Target:       mustPath(t, "./apps/foo"),
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "graph expression with braced path and both ellipsis",
 			input: "...{./apps/foo}...",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "./apps/foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
+				Target:       mustPath(t, "./apps/foo"),
+				Dependents:   filter.GraphBound{Include: true},
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "graph expression with braced path, caret, and both ellipsis",
 			input: "...^{./apps/foo}...",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "./apps/foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				ExcludeTarget:       true,
+				Target:        mustPath(t, "./apps/foo"),
+				Dependents:    filter.GraphBound{Include: true},
+				Dependencies:  filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "depth-limited prefix - direct dependents only",
 			input: "1...foo",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
-				DependentDepth:      1,
+				Target:     mustAttr(t, "name", "foo"),
+				Dependents: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "depth-limited postfix - direct dependencies only",
 			input: "foo...1",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   false,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
-				DependencyDepth:     1,
+				Target:       mustAttr(t, "name", "foo"),
+				Dependencies: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "depth-limited both directions",
 			input: "2...foo...3",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
-				DependentDepth:      2,
-				DependencyDepth:     3,
+				Target:       mustAttr(t, "name", "foo"),
+				Dependents:   filter.GraphBound{Include: true, Depth: 2},
+				Dependencies: filter.GraphBound{Include: true, Depth: 3},
 			},
 		},
 		{
 			name:  "depth-limited with caret",
 			input: "1...^foo...2",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				ExcludeTarget:       true,
-				DependentDepth:      1,
-				DependencyDepth:     2,
+				Target:        mustAttr(t, "name", "foo"),
+				Dependents:    filter.GraphBound{Include: true, Depth: 1},
+				Dependencies:  filter.GraphBound{Include: true, Depth: 2},
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "depth-limited with multi-digit depth",
 			input: "10...foo...25",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
-				DependentDepth:      10,
-				DependencyDepth:     25,
+				Target:       mustAttr(t, "name", "foo"),
+				Dependents:   filter.GraphBound{Include: true, Depth: 10},
+				Dependencies: filter.GraphBound{Include: true, Depth: 25},
 			},
 		},
 		{
 			name:  "very large depth clamps to max",
 			input: "999999999...foo",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
-				DependentDepth:      filter.MaxTraversalDepth,
+				Target:     mustAttr(t, "name", "foo"),
+				Dependents: filter.GraphBound{Include: true, Depth: filter.MaxTraversalDepth},
 			},
 		},
 		{
 			name:  "overflow depth falls back to unlimited",
 			input: "99999999999999999999999...foo",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
-				DependentDepth:      0,
+				Target:     mustAttr(t, "name", "foo"),
+				Dependents: filter.GraphBound{Include: true},
 			},
 		},
 		// Numeric directory edge cases - testing disambiguation
@@ -688,89 +650,65 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "numeric dir with depth - number before ellipsis is depth",
 			input: "1...1",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "1"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
-				DependentDepth:      1,
+				Target:     mustAttr(t, "name", "1"),
+				Dependents: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "numeric dir escape hatch - braced path for target with dependency depth",
 			input: "{1}...1",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "1"),
-				IncludeDependents:   false,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
-				DependencyDepth:     1,
+				Target:       mustPath(t, "1"),
+				Dependencies: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "numeric dir escape hatch - braced path for target with dependent depth",
 			input: "1...{1}",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "1"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
-				DependentDepth:      1,
+				Target:     mustPath(t, "1"),
+				Dependents: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "numeric dir escape hatch - explicit name attribute with dependency depth",
 			input: "name=1...1",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "1"),
-				IncludeDependents:   false,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
-				DependencyDepth:     1,
+				Target:       mustAttr(t, "name", "1"),
+				Dependencies: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "numeric dir escape hatch - explicit name attribute with dependent depth",
 			input: "1...name=1",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "1"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
-				DependentDepth:      1,
+				Target:     mustAttr(t, "name", "1"),
+				Dependents: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "numeric dir full escape - both directions with braces",
 			input: "1...{1}...1",
 			expected: &filter.GraphExpression{
-				Target:              mustPath(t, "1"),
-				IncludeDependents:   true,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
-				DependentDepth:      1,
-				DependencyDepth:     1,
+				Target:       mustPath(t, "1"),
+				Dependents:   filter.GraphBound{Include: true, Depth: 1},
+				Dependencies: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "alphanumeric dir not confused with depth",
 			input: "1...1foo",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "1foo"),
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
-				DependentDepth:      1,
+				Target:     mustAttr(t, "name", "1foo"),
+				Dependents: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 		{
 			name:  "alphanumeric dir not confused with depth - postfix",
 			input: "foo1...1",
 			expected: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "foo1"),
-				IncludeDependents:   false,
-				IncludeDependencies: true,
-				ExcludeTarget:       false,
-				DependencyDepth:     1,
+				Target:       mustAttr(t, "name", "foo1"),
+				Dependencies: filter.GraphBound{Include: true, Depth: 1},
 			},
 		},
 	}
@@ -788,32 +726,12 @@ func TestParser_GraphExpressions(t *testing.T) {
 			graphExpr, ok := expr.(*filter.GraphExpression)
 			require.True(t, ok, "Expected GraphExpression, got %T", expr)
 
-			assert.Equal(
-				t,
-				tt.expected.(*filter.GraphExpression).IncludeDependents,
-				graphExpr.IncludeDependents,
-			)
-			assert.Equal(
-				t,
-				tt.expected.(*filter.GraphExpression).IncludeDependencies,
-				graphExpr.IncludeDependencies,
-			)
-			assert.Equal(
-				t,
-				tt.expected.(*filter.GraphExpression).ExcludeTarget,
-				graphExpr.ExcludeTarget,
-			)
-			assert.Equal(t, tt.expected.(*filter.GraphExpression).Target, graphExpr.Target)
-			assert.Equal(
-				t,
-				tt.expected.(*filter.GraphExpression).DependentDepth,
-				graphExpr.DependentDepth,
-			)
-			assert.Equal(
-				t,
-				tt.expected.(*filter.GraphExpression).DependencyDepth,
-				graphExpr.DependencyDepth,
-			)
+			expected := tt.expected.(*filter.GraphExpression)
+
+			assert.Equal(t, expected.Target, graphExpr.Target)
+			assert.Equal(t, expected.Dependents, graphExpr.Dependents)
+			assert.Equal(t, expected.Dependencies, graphExpr.Dependencies)
+			assert.Equal(t, expected.ExcludeTarget, graphExpr.ExcludeTarget)
 		})
 	}
 }
@@ -831,10 +749,8 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 			input: "...foo | bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.GraphExpression{
-					Target:              mustAttr(t, "name", "foo"),
-					IncludeDependents:   true,
-					IncludeDependencies: false,
-					ExcludeTarget:       false,
+					Target:     mustAttr(t, "name", "foo"),
+					Dependents: filter.GraphBound{Include: true},
 				},
 				Operator: "|",
 				Right:    mustAttr(t, "name", "bar"),
@@ -847,10 +763,8 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 				Left:     mustAttr(t, "name", "foo"),
 				Operator: "|",
 				Right: &filter.GraphExpression{
-					Target:              mustAttr(t, "name", "bar"),
-					IncludeDependents:   false,
-					IncludeDependencies: true,
-					ExcludeTarget:       false,
+					Target:       mustAttr(t, "name", "bar"),
+					Dependencies: filter.GraphBound{Include: true},
 				},
 			},
 		},
@@ -860,10 +774,8 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.GraphExpression{
-					Target:              mustAttr(t, "name", "foo"),
-					IncludeDependents:   true,
-					IncludeDependencies: false,
-					ExcludeTarget:       false,
+					Target:     mustAttr(t, "name", "foo"),
+					Dependents: filter.GraphBound{Include: true},
 				},
 			},
 		},
@@ -875,9 +787,7 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 					Operator: "!",
 					Right:    mustAttr(t, "name", "foo"),
 				},
-				IncludeDependents:   true,
-				IncludeDependencies: false,
-				ExcludeTarget:       false,
+				Dependents: filter.GraphBound{Include: true},
 			},
 		},
 	}
@@ -1083,10 +993,8 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 				Left:     filter.NewGitExpression("main", "HEAD"),
 				Operator: "|",
 				Right: &filter.GraphExpression{
-					Target:              mustAttr(t, "name", "app"),
-					IncludeDependencies: true,
-					IncludeDependents:   false,
-					ExcludeTarget:       false,
+					Target:       mustAttr(t, "name", "app"),
+					Dependencies: filter.GraphBound{Include: true},
 				},
 			},
 		},
@@ -1173,100 +1081,86 @@ func TestParser_GitFilterAsGraphExpressionTarget(t *testing.T) {
 			name:  "dependencies of git changes - postfix ellipsis",
 			input: "[main...HEAD]...",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("main", "HEAD"),
-				IncludeDependencies: true,
-				IncludeDependents:   false,
-				ExcludeTarget:       false,
+				Target:       filter.NewGitExpression("main", "HEAD"),
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "dependents of git changes - prefix ellipsis",
 			input: "...[main...HEAD]",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("main", "HEAD"),
-				IncludeDependencies: false,
-				IncludeDependents:   true,
-				ExcludeTarget:       false,
+				Target:     filter.NewGitExpression("main", "HEAD"),
+				Dependents: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "both directions of git changes - issue #5307 pattern",
 			input: "...[main...HEAD]...",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("main", "HEAD"),
-				IncludeDependencies: true,
-				IncludeDependents:   true,
-				ExcludeTarget:       false,
+				Target:       filter.NewGitExpression("main", "HEAD"),
+				Dependents:   filter.GraphBound{Include: true},
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "exclude target with dependencies of git changes",
 			input: "^[main...HEAD]...",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("main", "HEAD"),
-				IncludeDependencies: true,
-				IncludeDependents:   false,
-				ExcludeTarget:       true,
+				Target:        filter.NewGitExpression("main", "HEAD"),
+				Dependencies:  filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "exclude target with dependents of git changes",
 			input: "...^[main...HEAD]",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("main", "HEAD"),
-				IncludeDependencies: false,
-				IncludeDependents:   true,
-				ExcludeTarget:       true,
+				Target:        filter.NewGitExpression("main", "HEAD"),
+				Dependents:    filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "exclude target with both directions of git changes",
 			input: "...^[main...HEAD]...",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("main", "HEAD"),
-				IncludeDependencies: true,
-				IncludeDependents:   true,
-				ExcludeTarget:       true,
+				Target:        filter.NewGitExpression("main", "HEAD"),
+				Dependents:    filter.GraphBound{Include: true},
+				Dependencies:  filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 		},
 		{
 			name:  "single git ref with dependencies",
 			input: "[main]...",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("main", "HEAD"),
-				IncludeDependencies: true,
-				IncludeDependents:   false,
-				ExcludeTarget:       false,
+				Target:       filter.NewGitExpression("main", "HEAD"),
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "single git ref with dependents",
 			input: "...[main]",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("main", "HEAD"),
-				IncludeDependencies: false,
-				IncludeDependents:   true,
-				ExcludeTarget:       false,
+				Target:     filter.NewGitExpression("main", "HEAD"),
+				Dependents: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "git ref with commit SHA and both directions",
 			input: "...[abc123...def456]...",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("abc123", "def456"),
-				IncludeDependencies: true,
-				IncludeDependents:   true,
-				ExcludeTarget:       false,
+				Target:       filter.NewGitExpression("abc123", "def456"),
+				Dependents:   filter.GraphBound{Include: true},
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 		{
 			name:  "git ref with relative ref (HEAD~1) and dependencies",
 			input: "[HEAD~1...HEAD]...",
 			expected: &filter.GraphExpression{
-				Target:              filter.NewGitExpression("HEAD~1", "HEAD"),
-				IncludeDependencies: true,
-				IncludeDependents:   false,
-				ExcludeTarget:       false,
+				Target:       filter.NewGitExpression("HEAD~1", "HEAD"),
+				Dependencies: filter.GraphBound{Include: true},
 			},
 		},
 	}
@@ -1285,17 +1179,12 @@ func TestParser_GitFilterAsGraphExpressionTarget(t *testing.T) {
 			require.True(t, ok, "Expected GraphExpression, got %T", expr)
 
 			expectedGraph := tt.expected.(*filter.GraphExpression)
+			assert.Equal(t, expectedGraph.Dependents, graphExpr.Dependents, "Dependents mismatch")
 			assert.Equal(
 				t,
-				expectedGraph.IncludeDependents,
-				graphExpr.IncludeDependents,
-				"IncludeDependents mismatch",
-			)
-			assert.Equal(
-				t,
-				expectedGraph.IncludeDependencies,
-				graphExpr.IncludeDependencies,
-				"IncludeDependencies mismatch",
+				expectedGraph.Dependencies,
+				graphExpr.Dependencies,
+				"Dependencies mismatch",
 			)
 			assert.Equal(
 				t,

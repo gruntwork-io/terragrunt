@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.terragrunt.com/schemas/catalog/v1/schema.json",
+  "title": "Terragrunt Catalog Entry Schema",
+  "description": "Schema for a single catalog entry emitted by `terragrunt catalog --format=jsonl`. Each line of output is one entry, and each entry is validated against this schema on its own.",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "module",
+        "template",
+        "unit",
+        "stack"
+      ],
+      "description": "What the entry is: an OpenTofu/Terraform module, a boilerplate template, a Terragrunt unit, or a Terragrunt stack."
+    },
+    "title": {
+      "type": "string",
+      "description": "Display title, taken from the README front matter or first heading, falling back to the directory name."
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description, taken from the README front matter or the text under its headings."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags declared in the README front matter, in authoring order. Absent when the entry declares none."
+    },
+    "source": {
+      "type": "string",
+      "description": "Repository the entry was discovered in, for example `github.com/gruntwork-io/terraform-aws-utilities`. Empty for a repository given as a local path."
+    },
+    "dir": {
+      "type": "string",
+      "description": "Slash-separated path of the entry within its repository. Absent when the repository root is itself the entry."
+    },
+    "version": {
+      "type": "string",
+      "description": "Latest release tag of the repository. Absent when the repository has no tags."
+    },
+    "url": {
+      "type": "string",
+      "description": "Browsable URL of the entry. Absent when one could not be derived from the repository."
+    },
+    "component_source": {
+      "type": "string",
+      "description": "Source string to use for the entry, in the form accepted by the `source` attribute of a `terraform` block."
+    },
+    "doc": {
+      "type": "string",
+      "description": "README body as written, with front matter removed. Absent when the entry has no README."
+    },
+    "copyable": {
+      "type": "boolean",
+      "description": "True when the entry is installed by copying its directory (units and stacks) rather than by scaffolding. Absent when false."
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "title",
+    "source",
+    "component_source"
+  ]
+}

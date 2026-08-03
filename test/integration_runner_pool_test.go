@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -22,7 +24,7 @@ const (
 	testFixtureAuthProviderParallel   = "fixtures/auth-provider-parallel"
 )
 
-func TestRunnerPoolDiscovery(t *testing.T) {
+func TestTFRunnerPoolDiscovery(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
@@ -41,7 +43,7 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 	require.Contains(t, stdout, "result = \"42\"")
 }
 
-func TestRunnerPoolDiscoveryNoParallelism(t *testing.T) {
+func TestTFRunnerPoolDiscoveryNoParallelism(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
@@ -60,7 +62,7 @@ func TestRunnerPoolDiscoveryNoParallelism(t *testing.T) {
 	require.Contains(t, stdout, "result = \"42\"")
 }
 
-func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
+func TestTFRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
@@ -105,7 +107,7 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	}
 }
 
-func TestRunnerPoolStackConfigIgnored(t *testing.T) {
+func TestTFRunnerPoolStackConfigIgnored(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
@@ -121,7 +123,7 @@ func TestRunnerPoolStackConfigIgnored(t *testing.T) {
 	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
 }
 
-func TestRunnerPoolFailFast(t *testing.T) {
+func TestTFRunnerPoolFailFast(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -233,7 +235,7 @@ func TestRunnerPoolFailFast(t *testing.T) {
 	}
 }
 
-func TestRunnerPoolDestroyFailFast(t *testing.T) {
+func TestTFRunnerPoolDestroyFailFast(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
@@ -277,7 +279,7 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	)
 }
 
-func TestRunnerPoolDestroyDependencies(t *testing.T) {
+func TestTFRunnerPoolDestroyDependencies(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
@@ -320,7 +322,7 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	)
 }
 
-func TestRunnerPoolRemoteSource(t *testing.T) {
+func TestTFRunnerPoolRemoteSource(t *testing.T) {
 	t.Parallel()
 
 	mirror := helpers.NewGitServer(t)
@@ -337,7 +339,7 @@ func TestRunnerPoolRemoteSource(t *testing.T) {
 	require.Contains(t, stdout, "data = \"unit-a\"")
 }
 
-func TestRunnerPoolSourceMap(t *testing.T) {
+func TestTFRunnerPoolSourceMap(t *testing.T) {
 	t.Parallel()
 
 	mirror := helpers.NewGitServer(t)
@@ -359,7 +361,7 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 	require.Contains(t, stderr, "configurations from git::"+mirror.URL+"?ref=v0.85.0")
 }
 
-// TestAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel
+// TestTFAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel
 // for multiple units during the resolution phase.
 //
 // The test works by:
@@ -370,7 +372,7 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 //     2. Parsing the output to find "Auth concurrent" messages
 //     3. Verifying that at least one auth command detected concurrent execution
 //     (which is deterministic proof of parallelism)
-func TestAuthProviderParallelExecution(t *testing.T) {
+func TestTFAuthProviderParallelExecution(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)

@@ -1,0 +1,50 @@
+---
+name: discovery-boundary
+description: Directory that encloses graph discovery for filters, instead of the git repository root
+type: string
+env:
+  - TG_DISCOVERY_BOUNDARY
+since: "v1.1.3"
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`bounded-discovery`](/reference/experiments/active#bounded-discovery) experiment. Enable it with `--experiment=bounded-discovery` (or `TG_EXPERIMENT=bounded-discovery`); otherwise setting `--discovery-boundary` returns an error. The flag's behavior may change while the experiment is in progress.
+</Aside>
+
+Filter expressions that traverse the dependency graph reach beyond the working directory. Dependents (`...{unit}`) can live anywhere, so Terragrunt searches from the working directory up to the git repository root; dependencies (`{unit}...`) are declared by path and can point anywhere. Either way, Terragrunt reads and parses every configuration it touches along the way.
+
+The `--discovery-boundary` flag is a single enclosure for that traversal: it replaces the git repository root as the outer limit, and any configuration that resolves outside it, whether a dependent or a dependency, is neither read nor parsed nor returned. Configurations inside the boundary are discovered as usual.
+
+This matters in monorepos where environments are isolated from each other. When sibling environments cannot be parsed independently, the default search fails or wastes work reaching into them:
+
+```text
+environments/
+  staging/
+  production/
+  test/
+  root.hcl
+```
+
+Bounding the traversal to the current environment keeps discovery inside it:
+
+```bash
+cd environments/staging
+terragrunt find --experiment bounded-discovery --filter '...{vpc}' --discovery-boundary .
+```
+
+## Usage
+
+```bash
+# Enclose discovery within the working directory
+terragrunt find --filter '...{vpc}' --discovery-boundary .
+
+# Enclose discovery within a parent directory
+terragrunt run --all plan --filter '...{vpc}' --discovery-boundary ..
+
+# Equivalent, via environment variable
+TG_DISCOVERY_BOUNDARY=. terragrunt find --filter '...{vpc}'
+```
+
+The boundary must be an existing directory that is the working directory or one of its parents. Relative paths are resolved against the working directory.

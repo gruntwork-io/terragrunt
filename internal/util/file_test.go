@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"testing"
 
@@ -987,6 +986,74 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	}
 }
 
+func TestFastCopyPreservesModeOfDirsHoldingIncludes(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since it does not carry POSIX permission bits")
+	}
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	source := filepath.Join(tempDir, "source")
+	destination := filepath.Join(tempDir, "destination")
+
+	// Dot-prefixed dirs are excluded by default, so the walk only descends
+	// into them to reach the includes below. Modes are set after the tree
+	// is written so the assertions hold under any umask.
+	dirModes := map[string]os.FileMode{
+		".hidden":            0o751,
+		".hidden/.nested":    0o705,
+		".hidden/.nested/in": 0o755,
+		".hidden/.no-match":  0o711,
+		".deep":              0o703,
+		".deep/keep":         0o750,
+	}
+
+	for dir := range dirModes {
+		require.NoError(t, os.MkdirAll(filepath.Join(source, dir), 0o755))
+	}
+
+	for _, file := range []string{
+		".hidden/.nested/in/file.txt",
+		".hidden/.no-match/other.txt",
+		".deep/keep/file.txt",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(source, file), []byte("source file"), 0o644))
+	}
+
+	for dir, mode := range dirModes {
+		require.NoError(t, os.Chmod(filepath.Join(source, dir), mode))
+	}
+
+	require.NoError(t, util.CopyFolderContents(
+		logger.CreateLogger(),
+		source,
+		destination,
+		testManifestName,
+		// The second pattern makes every dir a candidate ancestor, so the
+		// walk descends into dirs it ends up copying nothing from.
+		util.WithIncludeInCopy(".hidden/.nested/in", "**/keep"),
+		util.WithFastCopy(),
+	))
+
+	for _, dir := range []string{
+		".hidden",
+		".hidden/.nested",
+		".hidden/.nested/in",
+		".deep",
+		".deep/keep",
+	} {
+		info, err := os.Lstat(filepath.Join(destination, dir))
+		require.NoError(t, err)
+		assert.Equal(t, dirModes[dir], info.Mode().Perm(), "Unexpected mode for %s", dir)
+	}
+
+	// A dot-prefixed dir with no include match below it stays out of the
+	// destination entirely.
+	_, err := os.Lstat(filepath.Join(destination, ".hidden/.no-match"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestEmptyDir(t *testing.T) {
 	t.Parallel()
 
@@ -1006,218 +1073,6 @@ func TestEmptyDir(t *testing.T) {
 			assert.Equal(t, tc.expectEmpty, emptyValue, "For path %s", tc.path)
 		})
 	}
-}
-
-//nolint:funlen
-func TestWalkWithSimpleSymlinks(t *testing.T) {
-	t.Parallel()
-	// Create a temporary test directory structure
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	tempDir, err := filepath.EvalSymlinks(tempDir)
-	require.NoError(t, err)
-
-	// Create directories
-	dirs := []string{"a", "d"}
-	for _, dir := range dirs {
-		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0o755))
-	}
-
-	// Create test files
-	testFile := filepath.Join(tempDir, "a", "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0o644))
-
-	// Create symlinks
-	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "b")))
-	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "c")))
-	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "d", "a")))
-
-	var paths []string
-
-	err = util.WalkDirWithSymlinks(tempDir, func(path string, _ fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(tempDir, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		paths = append(paths, relPath)
-
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Sort paths for reliable comparison
-	sort.Strings(paths)
-
-	// Expected paths should include original and symlinked locations
-	expectedPaths := []string{
-		".",
-		"a",
-		filepath.Join("a", "test.txt"),
-		"b",
-		filepath.Join("b", "test.txt"),
-		"c",
-		filepath.Join("c", "test.txt"),
-		"d",
-		filepath.Join("d", "a"),
-		filepath.Join("d", "a", "test.txt"),
-	}
-	sort.Strings(expectedPaths)
-
-	if len(paths) != len(expectedPaths) {
-		t.Errorf("Got %d paths, expected %d", len(paths), len(expectedPaths))
-	}
-
-	for expectedPath := range expectedPaths {
-		if expectedPath >= len(paths) {
-			t.Errorf("Missing expected path: %s", expectedPaths[expectedPath])
-
-			continue
-		}
-
-		if paths[expectedPath] != expectedPaths[expectedPath] {
-			t.Errorf(
-				"Path mismatch at index %d:\ngot:  %s\nwant: %s",
-				expectedPath,
-				paths[expectedPath],
-				expectedPaths[expectedPath],
-			)
-		}
-	}
-}
-
-//nolint:funlen
-func TestWalkWithCircularSymlinks(t *testing.T) {
-	t.Parallel()
-	// Create temporary test directory structure
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	tempDir, err := filepath.EvalSymlinks(tempDir)
-	require.NoError(t, err)
-
-	// Create directories
-	dirs := []string{"a", "b", "c", "d"}
-	for _, dir := range dirs {
-		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0o755))
-	}
-
-	// Create test files
-	testFile := filepath.Join(tempDir, "a", "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0o644))
-
-	// Create symlinks
-	require.NoError(
-		t,
-		os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "b", "link-to-a")),
-	)
-	require.NoError(
-		t,
-		os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "c", "another-link-to-a")),
-	)
-
-	// Create circular symlink
-	require.NoError(
-		t,
-		os.Symlink(filepath.Join(tempDir, "d"), filepath.Join(tempDir, "a", "link-to-d")),
-	)
-	require.NoError(
-		t,
-		os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "d", "link-to-a")),
-	)
-
-	var paths []string
-
-	err = util.WalkDirWithSymlinks(tempDir, func(path string, _ fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(tempDir, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		paths = append(paths, relPath)
-
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Sort paths for reliable comparison
-	sort.Strings(paths)
-
-	// Expected paths should include original and symlinked locations
-	expectedPaths := []string{
-		".",
-		"a",
-		filepath.Join("a", "link-to-d"),
-		filepath.Join("a", "link-to-d", "link-to-a"),
-		filepath.Join("a", "link-to-d", "link-to-a", "link-to-d"),
-		filepath.Join("a", "link-to-d", "link-to-a", "test.txt"),
-		filepath.Join("a", "test.txt"),
-		"b",
-		filepath.Join("b", "link-to-a"),
-		filepath.Join("b", "link-to-a", "link-to-d"),
-		filepath.Join("b", "link-to-a", "test.txt"),
-		"c",
-		filepath.Join("c", "another-link-to-a"),
-		filepath.Join("c", "another-link-to-a", "link-to-d"),
-		filepath.Join("c", "another-link-to-a", "test.txt"),
-		"d",
-		filepath.Join("d", "link-to-a"),
-	}
-	sort.Strings(expectedPaths)
-
-	if len(paths) != len(expectedPaths) {
-		t.Errorf("Got %d paths, expected %d", len(paths), len(expectedPaths))
-	}
-
-	for expectedPath := range expectedPaths {
-		if expectedPath >= len(paths) {
-			t.Errorf("Missing expected path: %s", expectedPaths[expectedPath])
-
-			continue
-		}
-
-		if paths[expectedPath] != expectedPaths[expectedPath] {
-			t.Errorf(
-				"Path mismatch at index %d:\ngot:  %s\nwant: %s",
-				expectedPath,
-				paths[expectedPath],
-				expectedPaths[expectedPath],
-			)
-		}
-	}
-}
-
-func TestWalkDirWithSymlinksErrors(t *testing.T) {
-	t.Parallel()
-
-	tempDir := helpers.TmpDirWOSymlinks(t)
-
-	// Test with non-existent directory
-	require.Error(
-		t,
-		util.WalkDirWithSymlinks(
-			filepath.Join(tempDir, "nonexistent"),
-			func(_ string, _ fs.DirEntry, err error) error {
-				return err
-			},
-		),
-	)
-
-	// Test with broken symlink
-	brokenLink := filepath.Join(tempDir, "broken")
-	require.NoError(t, os.Symlink(filepath.Join(tempDir, "nonexistent"), brokenLink))
-
-	require.Error(
-		t,
-		util.WalkDirWithSymlinks(tempDir, func(_ string, _ fs.DirEntry, err error) error {
-			return err
-		}),
-	)
 }
 
 func Test_sanitizePath(t *testing.T) {

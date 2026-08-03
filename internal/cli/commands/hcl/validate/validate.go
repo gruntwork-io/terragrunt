@@ -105,9 +105,10 @@ func RunValidate(
 	opts.NonInteractive = true
 
 	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
 		return processDiagnostics(l, v, opts, diags, err)
@@ -173,7 +174,8 @@ func RunValidate(
 				parser = parser.WithValues(values)
 			}
 
-			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(stackFilePath)
+			file, err := hclparse.NewParser(parser.ParserOptions...).
+				ParseFromFile(parser.Venv.FS, stackFilePath)
 			if err != nil {
 				parseErrs = append(parseErrs, err)
 				continue
@@ -299,9 +301,10 @@ func RunValidateInputs(
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
 		return err

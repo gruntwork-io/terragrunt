@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
+	// The pinned go-getter/s3/v2 builds its S3 client on aws-sdk-go v1, so the
+	// dependency-contract tests below have to drive the deprecated v1 chain.
+	"github.com/aws/aws-sdk-go/aws"         //nolint:staticcheck
+	"github.com/aws/aws-sdk-go/aws/session" //nolint:staticcheck
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"

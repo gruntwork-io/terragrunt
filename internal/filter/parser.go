@@ -97,20 +97,11 @@ func (p *Parser) nextToken() {
 
 // parseExpression is the core recursive descent parser.
 func (p *Parser) parseExpression(precedence int) Expression {
-	// Check for prefix depth (N...foo) or ellipsis (...foo)
-	includeDependents := false
-	dependentDepth := 0
-
-	// Check for N... (number followed by ellipsis = dependent depth)
-	if isPurelyNumeric(p.curToken.Literal) && p.peekToken.Type == ELLIPSIS {
-		includeDependents = true
-		dependentDepth = parseDepth(p.curToken.Literal)
-		p.nextToken() // consume number
-		p.nextToken() // consume ellipsis
-	} else if p.curToken.Type == ELLIPSIS {
-		includeDependents = true
-
-		p.nextToken()
+	// Check for a prefix operand before the dependent ellipsis: a boundary
+	// ((dir)...foo), a depth (N...foo), or a bare ellipsis (...foo).
+	dependents, ok := p.parseDependentPrefix()
+	if !ok {
+		return nil
 	}
 
 	// Check for caret (^) for exclusion
@@ -175,7 +166,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			"Unexpected token",
 			"Missing left-hand side of '|' operator",
 		)
-	case EQUAL, RBRACE, RBRACKET, ELLIPSIS, CARET:
+	case EQUAL, RBRACE, RBRACKET, LPAREN, RPAREN, ELLIPSIS, CARET:
 		p.addErrorWithCode(
 			ErrorCodeUnexpectedToken,
 			"Unexpected token",
@@ -199,31 +190,18 @@ func (p *Parser) parseExpression(precedence int) Expression {
 
 	target := leftExpr
 
-	// Check for postfix ellipsis (foo... or foo...N)
-	includeDependencies := false
-	dependencyDepth := 0
-
-	if p.curToken.Type == ELLIPSIS {
-		includeDependencies = true
-
-		p.nextToken()
-
-		// Check for ...N (ellipsis followed by number = dependency depth)
-		if isPurelyNumeric(p.curToken.Literal) {
-			dependencyDepth = parseDepth(p.curToken.Literal)
-			p.nextToken()
-		}
+	dependencies, ok := p.parseDependencySuffix()
+	if !ok {
+		return nil
 	}
 
 	// If we have any graph operators, wrap in GraphExpression
-	if includeDependents || includeDependencies || excludeTarget {
+	if dependents.Include || dependencies.Include || excludeTarget {
 		leftExpr = &GraphExpression{
-			Target:              target,
-			IncludeDependents:   includeDependents,
-			IncludeDependencies: includeDependencies,
-			ExcludeTarget:       excludeTarget,
-			DependentDepth:      dependentDepth,
-			DependencyDepth:     dependencyDepth,
+			Target:        target,
+			Dependents:    dependents,
+			Dependencies:  dependencies,
+			ExcludeTarget: excludeTarget,
 		}
 	}
 
@@ -241,6 +219,8 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			RBRACE,
 			LBRACKET,
 			RBRACKET,
+			LPAREN,
+			RPAREN,
 			ELLIPSIS,
 			CARET:
 			return leftExpr
@@ -250,6 +230,114 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	}
 
 	return leftExpr
+}
+
+// parseDependentPrefix parses the optional operand before the dependent
+// ellipsis. ok is false only when a malformed operand produced a parse error.
+// A purely numeric operand is a depth (N...foo); "(dir)..." is a boundary;
+// a bare "..." includes dependents unbounded.
+func (p *Parser) parseDependentPrefix() (dependents GraphBound, ok bool) {
+	if p.curToken.Type == LPAREN {
+		dir, parsed := p.parseBoundaryOperand()
+		if !parsed {
+			return GraphBound{}, false
+		}
+
+		if p.curToken.Type != ELLIPSIS {
+			p.addErrorWithCode(
+				ErrorCodeUnexpectedToken,
+				"Invalid boundary operand",
+				"A graph boundary '(dir)' must be followed by '...'",
+			)
+
+			return GraphBound{}, false
+		}
+
+		p.nextToken() // consume ellipsis
+
+		return GraphBound{Include: true, Boundary: dir}, true
+	}
+
+	if isPurelyNumeric(p.curToken.Literal) && p.peekToken.Type == ELLIPSIS {
+		d := parseDepth(p.curToken.Literal)
+		p.nextToken() // consume number
+		p.nextToken() // consume ellipsis
+
+		return GraphBound{Include: true, Depth: d}, true
+	}
+
+	if p.curToken.Type == ELLIPSIS {
+		p.nextToken()
+
+		return GraphBound{Include: true}, true
+	}
+
+	return GraphBound{}, true
+}
+
+// parseDependencySuffix parses the dependency ellipsis and its optional
+// operand: a "(dir)" boundary (foo...(dir)), a numeric depth (foo...N), or
+// nothing (foo...). ok is false only when a malformed boundary operand
+// produced a parse error.
+func (p *Parser) parseDependencySuffix() (dependencies GraphBound, ok bool) {
+	if p.curToken.Type != ELLIPSIS {
+		return GraphBound{}, true
+	}
+
+	p.nextToken() // consume ellipsis
+
+	if p.curToken.Type == LPAREN {
+		dir, parsed := p.parseBoundaryOperand()
+		if !parsed {
+			return GraphBound{}, false
+		}
+
+		return GraphBound{Include: true, Boundary: dir}, true
+	}
+
+	if isPurelyNumeric(p.curToken.Literal) {
+		d := parseDepth(p.curToken.Literal)
+		p.nextToken()
+
+		return GraphBound{Include: true, Depth: d}, true
+	}
+
+	return GraphBound{Include: true}, true
+}
+
+// parseBoundaryOperand parses a "(dir)" graph boundary with curToken on the
+// opening parenthesis. It returns the directory value, leaving curToken on the
+// token after the closing parenthesis.
+func (p *Parser) parseBoundaryOperand() (string, bool) {
+	openParenPos := p.curToken.Position
+
+	p.nextToken() // consume '('
+
+	if p.curToken.Type == RPAREN {
+		p.addErrorWithCode(ErrorCodeEmptyExpression, "Empty boundary", "A graph boundary '()' cannot be empty")
+		return "", false
+	}
+
+	var parts []string
+	for p.curToken.Type != RPAREN && p.curToken.Type != EOF {
+		parts = append(parts, p.curToken.Literal)
+		p.nextToken()
+	}
+
+	if p.curToken.Type != RPAREN {
+		p.addErrorAtPosition(
+			ErrorCodeUnexpectedToken,
+			"Unclosed boundary",
+			"This graph boundary is missing a closing ')'",
+			openParenPos,
+		)
+
+		return "", false
+	}
+
+	p.nextToken() // consume ')'
+
+	return strings.Join(parts, ""), true
 }
 
 // isPurelyNumeric returns true if the string contains only digits.
