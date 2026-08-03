@@ -97,6 +97,10 @@ const (
 	// directory instead of the git repository root: dependencies and dependents
 	// resolving outside it are not discovered.
 	BoundedDiscovery = "bounded-discovery"
+	// BlockIteration gates the expansion block, which iterates a dependency, unit,
+	// or stack block over a count or for_each, along with the enabled attribute on
+	// unit and stack blocks.
+	BlockIteration = "block-iteration"
 )
 
 const (
@@ -202,6 +206,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: BoundedDiscovery,
+		},
+		{
+			Name: BlockIteration,
 		},
 	}
 }
