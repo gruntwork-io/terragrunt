@@ -1,0 +1,12 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Feature flag defaults no longer leak between units in `run --all`
+
+A [`feature`](/reference/hcl/blocks#feature) block's `default` was recorded once per run and shared by every unit. During `run --all`, the first unit to be parsed set the value for a flag name, so a unit defining `default = false` could evaluate `feature.toggle.value` as `true` because a sibling unit was parsed first. Which unit won depended on parsing order, making the result vary between runs.
+
+Defaults are now resolved per unit, including defaults inherited through `include`. Overrides passed with `--feature` or `TG_FEATURE` continue to apply to every unit in the run.
+
+Thanks to [@dhotcolorado](https://github.com/dhotcolorado) for reporting and fixing this!

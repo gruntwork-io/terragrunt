@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -66,9 +67,20 @@ const (
 )
 
 const (
-	// Cap extraction so malformed archives fail before they can exhaust disk space.
+	// engineArchiveDecompressedSizeLimit caps the decompressed size of an
+	// engine archive so malformed archives fail before they can exhaust
+	// disk space.
 	engineArchiveDecompressedSizeLimit int64 = 512 << 20
-	engineArchiveFilesLimit                  = 20
+
+	// engineArchiveFilesLimit caps how many files are extracted from an
+	// engine archive, for the same reason as
+	// [engineArchiveDecompressedSizeLimit].
+	engineArchiveFilesLimit = 20
+
+	// engineReleaseLookupTimeout caps engine release-tag lookups against
+	// the GitHub API; the venv client carries no timeout, so this
+	// re-applies the cap the github package's default client would use.
+	engineReleaseLookupTimeout = 30 * time.Second
 )
 
 type (
@@ -99,7 +111,7 @@ type engineInstance struct {
 	execOptions  *ExecutionOptions
 	// v carries the env the plugin was started with so Shutdown can address
 	// the same environment long after Run returned.
-	v venv.Venv
+	v *venv.Venv
 }
 
 // engineEntry single-flights one cache dir's engine creation: the builder writes instance and
@@ -202,7 +214,7 @@ func (c *engineClients) takeUnit(unitDir string) *engineEntry {
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
@@ -212,9 +224,13 @@ func Run(
 
 	cacheDir := execOptions.CacheDir
 
-	instance, found, err := engineClients.loadOrCreate(cacheDir, execOptions, func() (*engineInstance, error) {
-		return createInstance(ctx, l, v, execOptions)
-	})
+	instance, found, err := engineClients.loadOrCreate(
+		cacheDir,
+		execOptions,
+		func() (*engineInstance, error) {
+			return createInstance(ctx, l, v, execOptions)
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -245,10 +261,10 @@ func Run(
 func createInstance(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*engineInstance, error) {
-	if err := downloadEngine(ctx, l, execOptions); err != nil {
+	if err := downloadEngine(ctx, l, v, execOptions); err != nil {
 		return nil, err
 	}
 
@@ -283,7 +299,12 @@ func WithEngineValues(ctx context.Context) context.Context {
 }
 
 // downloadEngine downloads the engine for the given options.
-func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOptions) error {
+func downloadEngine(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	execOptions *ExecutionOptions,
+) error {
 	e := execOptions.EngineConfig
 	if e == nil {
 		return nil
@@ -309,7 +330,9 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		// identify engine version if not specified
 		if len(e.Version) == 0 {
 			if !isDirectURL(e.Source) {
-				tag, err := lastReleaseVersion(ctx, execOptions)
+				v.RequireHTTP()
+
+				tag, err := lastReleaseVersion(ctx, v.HTTP, execOptions)
 				if err != nil {
 					return err
 				}
@@ -375,7 +398,8 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		checksumFile = result.ChecksumFile
 		checksumSigFile = result.ChecksumSigFile
 
-		if !execOptions.EngineOptions.SkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
+		if !execOptions.EngineOptions.SkipChecksumCheck && checksumFile != "" &&
+			checksumSigFile != "" {
 			l.Infof("Verifying checksum for %s", downloadFile)
 
 			if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
@@ -395,7 +419,11 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 	})
 }
 
-func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, error) {
+func lastReleaseVersion(
+	ctx context.Context,
+	c vhttp.Client,
+	opts *ExecutionOptions,
+) (string, error) {
 	repository := strings.TrimPrefix(opts.EngineConfig.Source, defaultEngineRepoRoot)
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
@@ -408,7 +436,10 @@ func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, er
 		return val, nil
 	}
 
-	githubClient := github.NewGitHubAPIClient(github.WithGithubComDefaultAuth())
+	githubClient := github.NewGitHubAPIClient(
+		github.WithHTTPClient(vhttp.WithTimeout(c, engineReleaseLookupTimeout)),
+		github.WithGithubComDefaultAuth(),
+	)
 
 	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
 	if err != nil {
@@ -636,7 +667,12 @@ const (
 )
 
 // Shutdown shuts down the experimental engine.
-func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experiments, noEngine bool) error {
+func Shutdown(
+	ctx context.Context,
+	l log.Logger,
+	experiments experiment.Experiments,
+	noEngine bool,
+) error {
 	if !experiments.Evaluate(experiment.IacEngine) || noEngine {
 		return nil
 	}
@@ -702,7 +738,13 @@ func shutdownInstance(ctx context.Context, l log.Logger, instance *engineInstanc
 
 	l.Debugf("Shutting down engine for %s", instance.execOptions.CacheDir)
 
-	if err := shutdown(ctx, l, instance.v, instance.execOptions, instance.engineClient); err != nil {
+	if err := shutdown(
+		ctx,
+		l,
+		instance.v,
+		instance.execOptions,
+		instance.engineClient,
+	); err != nil {
 		l.Errorf("Error shutting down engine: %v", err)
 	}
 
@@ -790,7 +832,11 @@ func createEngine(
 		skipCheck := execOptions.EngineOptions.SkipChecksumCheck
 		if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 			util.FileExists(localChecksumSigFile) {
-			if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
+			if err = verifyFile(
+				localEnginePath,
+				localChecksumFile,
+				localChecksumSigFile,
+			); err != nil {
 				return err
 			}
 		} else {
@@ -890,7 +936,7 @@ func createEngine(
 func invoke(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	client *proto.EngineClient,
 ) (*util.CmdOutput, error) {
@@ -971,13 +1017,21 @@ func invoke(
 			switch resp := responseType.(type) {
 			case *proto.RunResponse_Stdout:
 				if resp.Stdout != nil {
-					if err = processStream(resp.Stdout.GetContent(), &stdoutLineBuf, stdout); err != nil {
+					if err = processStream(
+						resp.Stdout.GetContent(),
+						&stdoutLineBuf,
+						stdout,
+					); err != nil {
 						return err
 					}
 				}
 			case *proto.RunResponse_Stderr:
 				if resp.Stderr != nil {
-					if err = processStream(resp.Stderr.GetContent(), &stderrLineBuf, stderr); err != nil {
+					if err = processStream(
+						resp.Stderr.GetContent(),
+						&stderrLineBuf,
+						stderr,
+					); err != nil {
 						return err
 					}
 				}
@@ -1064,7 +1118,7 @@ var ErrEngineInitFailed = errors.New("engine init failed")
 func initialize(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	client *proto.EngineClient,
 ) error {
@@ -1116,7 +1170,12 @@ func initialize(
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine init failed with exit code %d", exitCode)
-						return nil, fmt.Errorf("%w with exit code %d", ErrEngineInitFailed, exitCode)
+
+						return nil, fmt.Errorf(
+							"%w with exit code %d",
+							ErrEngineInitFailed,
+							exitCode,
+						)
 					}
 				}
 			case *proto.InitResponse_Log:
@@ -1138,7 +1197,7 @@ var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 func shutdown(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	terragruntEngine *proto.EngineClient,
 ) error {
@@ -1193,7 +1252,12 @@ func shutdown(
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine shutdown failed with exit code %d", exitCode)
-						return nil, fmt.Errorf("%w with exit code %d", ErrEngineShutdownFailed, exitCode)
+
+						return nil, fmt.Errorf(
+							"%w with exit code %d",
+							ErrEngineShutdownFailed,
+							exitCode,
+						)
 					}
 				}
 			case *proto.ShutdownResponse_Log:
@@ -1219,13 +1283,14 @@ type outputFn func() (*OutputLine, error)
 
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
-func ReadEngineOutput(v venv.Venv, forceStdErr bool, output outputFn) error {
+func ReadEngineOutput(v *venv.Venv, forceStdErr bool, output outputFn) error {
 	cmdStdout := v.Writers.Writer
 	cmdStderr := v.Writers.ErrWriter
 
 	for {
 		response, err := output()
-		if err != nil && (errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
+		if err != nil &&
+			(errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
 			return err
 		}
 

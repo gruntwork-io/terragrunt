@@ -95,10 +95,14 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 			wantSHA256Sum: expectedHash,
 			expectedErr: func() error {
 				if runtime.GOOS == "windows" {
-					return errors.New("archive has incorrect checksum zh:e8ad9768267f71ad74397f18c12fc073da9855d822817c5c4c2c25642e142e68 (expected zh:a0d5c70cb817a8c20052731d4ca348e1f2ad955dd3b133729634b278aa6103de)")
+					return errors.New(
+						"archive has incorrect checksum zh:e8ad9768267f71ad74397f18c12fc073da9855d822817c5c4c2c25642e142e68 (expected zh:a0d5c70cb817a8c20052731d4ca348e1f2ad955dd3b133729634b278aa6103de)",
+					)
 				}
 
-				return errors.New("archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)")
+				return errors.New(
+					"archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)",
+				)
 			}(),
 		},
 		{
@@ -111,16 +115,22 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 			wantSHA256Sum: [sha256.Size]byte{},
 			expectedErr: func() error {
 				if runtime.GOOS == "windows" {
-					return errors.New("archive has incorrect checksum zh:a0d5c70cb817a8c20052731d4ca348e1f2ad955dd3b133729634b278aa6103de (expected zh:0000000000000000000000000000000000000000000000000000000000000000)")
+					return errors.New(
+						"archive has incorrect checksum zh:a0d5c70cb817a8c20052731d4ca348e1f2ad955dd3b133729634b278aa6103de (expected zh:0000000000000000000000000000000000000000000000000000000000000000)",
+					)
 				}
 
-				return errors.New("archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)")
+				return errors.New(
+					"archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)",
+				)
 			}(),
 		},
 		{
 			path:          "testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64",
 			wantSHA256Sum: [sha256.Size]byte{},
-			expectedErr:   errors.New("cannot check archive hash for non-archive location testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64"),
+			expectedErr: errors.New(
+				"cannot check archive hash for non-archive location testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64",
+			),
 		},
 	}
 
@@ -137,8 +147,12 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 				}
 				// For file not found errors, just check if it contains the expected text
 				if strings.Contains(tc.expectedErr.Error(), "file not found") {
-					if !strings.Contains(actualErr.Error(), "no such file") && !strings.Contains(actualErr.Error(), "cannot find the file") {
-						t.Errorf("expected error containing 'file not found' but got: %v", actualErr)
+					if !strings.Contains(actualErr.Error(), "no such file") &&
+						!strings.Contains(actualErr.Error(), "cannot find the file") {
+						t.Errorf(
+							"expected error containing 'file not found' but got: %v",
+							actualErr,
+						)
 					}
 				} else {
 					require.EqualError(t, actualErr, tc.expectedErr.Error())
@@ -163,9 +177,14 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		wantSHA256Sum [sha256.Size]byte
 	}{
 		{
-			path:          "testdata/my-package.zip",
-			filename:      "my-package.zip",
-			document:      fmt.Appendf(nil, "%x README.txt\n%x my-package.zip\n", [sha256.Size]byte{0xc0, 0xff, 0xee}, [sha256.Size]byte{0xde, 0xca, 0xde}),
+			path:     "testdata/my-package.zip",
+			filename: "my-package.zip",
+			document: fmt.Appendf(
+				nil,
+				"%x README.txt\n%x my-package.zip\n",
+				[sha256.Size]byte{0xc0, 0xff, 0xee},
+				[sha256.Size]byte{0xde, 0xca, 0xde},
+			),
 			wantSHA256Sum: [sha256.Size]byte{0xde, 0xca, 0xde},
 		},
 
@@ -177,18 +196,32 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 			expectedErr:   errors.New(`checksum list has no SHA-256 hash for "my-package.zip"`),
 		},
 		{
-			path:          "testdata/my-package.zip",
-			filename:      "my-package.zip",
-			document:      fmt.Appendf(nil, "%s README.txt\n%s my-package.zip", "horses", "chickens"),
+			path:     "testdata/my-package.zip",
+			filename: "my-package.zip",
+			document: fmt.Appendf(
+				nil,
+				"%s README.txt\n%s my-package.zip",
+				"horses",
+				"chickens",
+			),
 			wantSHA256Sum: [sha256.Size]byte{0xde, 0xca, 0xde},
-			expectedErr:   errors.New(`checksum list has invalid SHA256 hash "chickens": encoding/hex: invalid byte: U+0068 'h'`),
+			expectedErr: errors.New(
+				`checksum list has invalid SHA256 hash "chickens": encoding/hex: invalid byte: U+0068 'h'`,
+			),
 		},
 		{
-			path:          "testdata/my-package.zip",
-			filename:      "my-package.zip",
-			document:      fmt.Appendf(nil, "%x README.txt\n%x my-package.zip", [sha256.Size]byte{0xbe, 0xef}, [sha256.Size]byte{0xc0, 0xff, 0xee}),
+			path:     "testdata/my-package.zip",
+			filename: "my-package.zip",
+			document: fmt.Appendf(
+				nil,
+				"%x README.txt\n%x my-package.zip",
+				[sha256.Size]byte{0xbe, 0xef},
+				[sha256.Size]byte{0xc0, 0xff, 0xee},
+			),
 			wantSHA256Sum: [sha256.Size]byte{0xde, 0xca, 0xde},
-			expectedErr:   errors.New("checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected decade0000000000000000000000000000000000000000000000000000000000)"),
+			expectedErr: errors.New(
+				"checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected decade0000000000000000000000000000000000000000000000000000000000)",
+			),
 		},
 	}
 
@@ -196,7 +229,11 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := getproviders.NewMatchingChecksumAuthentication(tc.document, tc.filename, tc.wantSHA256Sum)
+			auth := getproviders.NewMatchingChecksumAuthentication(
+				tc.document,
+				tc.filename,
+				tc.wantSHA256Sum,
+			)
 			_, actualErr := auth.Authenticate(tc.path)
 
 			if tc.expectedErr != nil {
@@ -278,18 +315,22 @@ func TestSignatureAuthenticate(t *testing.T) {
 			expectedResult: new(getproviders.OfficialProvider),
 		},
 		{
-			path:        "testdata/my-package.zip",
-			document:    []byte("example shasums data"),
-			signature:   testHashicorpSignatureGoodBase64,
-			keys:        map[string]string{"invalid PGP armor value": ""},
-			expectedErr: errors.New("error decoding signing key: openpgp: invalid argument: no armored data found"),
+			path:      "testdata/my-package.zip",
+			document:  []byte("example shasums data"),
+			signature: testHashicorpSignatureGoodBase64,
+			keys:      map[string]string{"invalid PGP armor value": ""},
+			expectedErr: errors.New(
+				"error decoding signing key: openpgp: invalid argument: no armored data found",
+			),
 		},
 		{
-			path:        "testdata/my-package.zip",
-			document:    []byte("example shasums data"),
-			signature:   testSignatureBadBase64,
-			keys:        map[string]string{testAuthorKeyArmor: ""},
-			expectedErr: errors.New("error checking signature: openpgp: invalid data: signature subpacket truncated"),
+			path:      "testdata/my-package.zip",
+			document:  []byte("example shasums data"),
+			signature: testSignatureBadBase64,
+			keys:      map[string]string{testAuthorKeyArmor: ""},
+			expectedErr: errors.New(
+				"error checking signature: openpgp: invalid data: signature subpacket truncated",
+			),
 		},
 		{
 			path:        "testdata/my-package.zip",
@@ -306,11 +347,13 @@ func TestSignatureAuthenticate(t *testing.T) {
 			expectedErr: errors.New("error decoding trust signature: EOF"),
 		},
 		{
-			path:        "testdata/my-package.zip",
-			document:    []byte("example shasums data"),
-			signature:   testAuthorSignatureGoodBase64,
-			keys:        map[string]string{testAuthorKeyArmor: testOtherKeyTrustSignatureArmor},
-			expectedErr: errors.New("error verifying trust signature: openpgp: invalid signature: RSA verification failure"),
+			path:      "testdata/my-package.zip",
+			document:  []byte("example shasums data"),
+			signature: testAuthorSignatureGoodBase64,
+			keys:      map[string]string{testAuthorKeyArmor: testOtherKeyTrustSignatureArmor},
+			expectedErr: errors.New(
+				"error verifying trust signature: openpgp: invalid signature: RSA verification failure",
+			),
 		},
 	}
 

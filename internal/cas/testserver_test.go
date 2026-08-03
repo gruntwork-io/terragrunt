@@ -1,11 +1,27 @@
 package cas_test
 
 import (
+	"context"
+	"os"
+	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/stretchr/testify/require"
 )
+
+// TestMain shuts down the fixture servers shared by startTestServer and
+// startStackTestServer, if any test started them, once the package's
+// tests finish.
+func TestMain(m *testing.M) {
+	code := m.Run()
+
+	closeSharedServers()
+
+	os.Exit(code)
+}
 
 // newEmptyTestServer creates a Server that the caller can populate
 // before starting. The returned cleanup is registered on the test, so
@@ -22,27 +38,27 @@ func newEmptyTestServer(t *testing.T) *git.Server {
 	return srv
 }
 
-// startTestServer creates a local Git server with a few test files and
-// returns its URL. The server is shut down when the test completes.
+// startTestServer returns the URL of a package-shared Git server
+// populated once with a few test files. The fixture is immutable and
+// read-only for every caller; tests that need a mutable server must use
+// newEmptyTestServer. Each call returns a distinct URL that routes to
+// the same repository, so tests that partition state by URL stay
+// isolated from each other.
 func startTestServer(t *testing.T) string {
 	t.Helper()
 
-	srv, err := git.NewServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = srv.Close() })
-
-	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "add readme"))
-	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`resource "null_resource" "test" {}`), "add main.tf"))
-	require.NoError(t, srv.CommitFile(t.Context(), "test/integration_test.go", []byte("package test"), "add test file"))
-
-	url, err := srv.Start(t.Context())
+	srv, err := sharedTestServer()
 	require.NoError(t, err)
 
-	return url
+	return uniqueRepoURL(srv)
 }
 
-// startStackTestServer creates a local Git server with a realistic stack
-// repository structure and returns its URL.
+// startStackTestServer returns the URL of a package-shared Git server
+// populated once with a realistic stack repository structure. The
+// fixture is immutable and read-only for every caller; tests that need
+// a mutable server must use newEmptyTestServer. Each call returns a
+// distinct URL that routes to the same repository, so tests that
+// partition state by URL stay isolated from each other.
 //
 // The repo layout is:
 //
@@ -54,10 +70,47 @@ func startTestServer(t *testing.T) string {
 func startStackTestServer(t *testing.T) string {
 	t.Helper()
 
-	srv, err := git.NewServer()
+	srv, err := sharedStackTestServer()
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = srv.Close() })
 
+	return uniqueRepoURL(srv)
+}
+
+// sharedTestServer and sharedStackTestServer build their fixture server
+// on first use and return the cached server (or construction error) to
+// every later caller.
+var (
+	sharedTestServer      = sync.OnceValues(newSharedTestServer)
+	sharedStackTestServer = sync.OnceValues(newSharedStackTestServer)
+)
+
+// sharedServers tracks the fixture servers started by the shared
+// helpers so closeSharedServers can shut them down after the package's
+// tests finish.
+var (
+	sharedServersMu sync.Mutex
+	sharedServers   []*git.Server
+
+	// sharedRepoURLID feeds uniqueRepoURL with a fresh path component
+	// per call.
+	sharedRepoURLID atomic.Int64
+)
+
+// newSharedTestServer builds the fixture repository behind
+// startTestServer.
+func newSharedTestServer() (*git.Server, error) {
+	files := map[string][]byte{
+		"README.md":                []byte("# test repo"),
+		"main.tf":                  []byte(`resource "null_resource" "test" {}`),
+		"test/integration_test.go": []byte("package test"),
+	}
+
+	return newSharedFixtureServer(files, "add test fixture")
+}
+
+// newSharedStackTestServer builds the fixture repository behind
+// startStackTestServer.
+func newSharedStackTestServer() (*git.Server, error) {
 	// Stack file that references sibling units via relative paths with //.
 	stackHCL := []byte(`unit "service" {
   source = "../..//units/my-service"
@@ -80,7 +133,6 @@ unit "plain" {
   path   = "plain"
 }
 `)
-	require.NoError(t, srv.CommitFile(t.Context(), "stacks/my-stack/terragrunt.stack.hcl", stackHCL, "add stack file"))
 
 	// Unit file whose terraform.source references a module via "//" so the
 	// synthetic tree retains the surrounding repo structure.
@@ -90,7 +142,6 @@ unit "plain" {
   update_source_with_cas = true
 }
 `)
-	require.NoError(t, srv.CommitFile(t.Context(), "units/my-service/terragrunt.hcl", unitHCL, "add unit file"))
 
 	// Unit file whose terraform.source omits "//". The synthetic tree must
 	// stay scoped to the leaf module and the rewritten ref must carry no
@@ -101,40 +152,102 @@ unit "plain" {
   update_source_with_cas = true
 }
 `)
-	require.NoError(t, srv.CommitFile(t.Context(), "units/leaf-service/terragrunt.hcl", leafUnitHCL, "add leaf unit"))
 
 	// Plain unit (no CAS flag) should remain unchanged after processing.
 	plainUnitHCL := []byte(`terraform {
   source = "../../modules/vpc"
 }
 `)
-	require.NoError(t, srv.CommitFile(t.Context(), "units/plain-service/terragrunt.hcl", plainUnitHCL, "add plain unit"))
 
 	// OpenTofu/Terraform module referenced by the unit. It cross-references a
 	// sibling module via a relative path, which only resolves if the synthetic
 	// tree retains the surrounding repo structure.
-	require.NoError(t, srv.CommitFile(t.Context(), "modules/vpc/main.tf", []byte(`module "sibling" {
+	vpcMainTF := []byte(`module "sibling" {
   source = "../sibling"
 }
 
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
-`), "add vpc module"))
+`)
 
-	require.NoError(t, srv.CommitFile(t.Context(), "modules/vpc/variables.tf", []byte(`variable "name" {
+	vpcVariablesTF := []byte(`variable "name" {
   type = string
 }
-`), "add vpc variables"))
+`)
 
 	// Sibling module that the vpc module references via "../sibling".
-	require.NoError(t, srv.CommitFile(t.Context(), "modules/sibling/main.tf", []byte(`output "name" {
+	siblingMainTF := []byte(`output "name" {
   value = "sibling"
 }
-`), "add sibling module"))
+`)
 
-	url, err := srv.Start(t.Context())
-	require.NoError(t, err)
+	files := map[string][]byte{
+		"stacks/my-stack/terragrunt.stack.hcl": stackHCL,
+		"units/my-service/terragrunt.hcl":      unitHCL,
+		"units/leaf-service/terragrunt.hcl":    leafUnitHCL,
+		"units/plain-service/terragrunt.hcl":   plainUnitHCL,
+		"modules/vpc/main.tf":                  vpcMainTF,
+		"modules/vpc/variables.tf":             vpcVariablesTF,
+		"modules/sibling/main.tf":              siblingMainTF,
+	}
 
-	return url
+	return newSharedFixtureServer(files, "add stack fixture")
+}
+
+// newSharedFixtureServer creates a Server, commits all files in one
+// batch, starts serving, and registers the server for shutdown in
+// closeSharedServers. The server outlives any single test, so it uses
+// context.Background() rather than a test context.
+func newSharedFixtureServer(files map[string][]byte, msg string) (*git.Server, error) {
+	srv, err := git.NewServer()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+
+	if err := srv.CommitFiles(ctx, files, msg); err != nil {
+		_ = srv.Close()
+
+		return nil, err
+	}
+
+	if _, err := srv.Start(ctx); err != nil {
+		_ = srv.Close()
+
+		return nil, err
+	}
+
+	registerSharedServer(srv)
+
+	return srv, nil
+}
+
+// registerSharedServer records a started fixture server for shutdown in
+// closeSharedServers.
+func registerSharedServer(srv *git.Server) {
+	sharedServersMu.Lock()
+	defer sharedServersMu.Unlock()
+
+	sharedServers = append(sharedServers, srv)
+}
+
+// uniqueRepoURL returns a fresh URL that routes to srv's single
+// repository. The server rewrites unknown path components to its real
+// repo, so every returned URL serves the same fixture while remaining a
+// distinct URL identity.
+func uniqueRepoURL(srv *git.Server) string {
+	return srv.BaseURL() + "/repo-" + strconv.FormatInt(sharedRepoURLID.Add(1), 10) + ".git"
+}
+
+// closeSharedServers shuts down every fixture server started by the
+// shared helpers. Called from TestMain after all tests complete.
+func closeSharedServers() {
+	sharedServersMu.Lock()
+	defer sharedServersMu.Unlock()
+
+	for _, srv := range sharedServers {
+		_ = srv.Close()
+	}
 }

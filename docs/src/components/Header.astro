@@ -8,6 +8,7 @@ import HeadphonesIcon from '@assets/headset-icon.svg';
 import PipelineIcon from '@assets/pipelines.svg';
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
 import TerragruntIcon from '@assets/logo-dark-2.svg';
+import SearchTelemetry from '@components/SearchTelemetry.astro';
 import ThemeToggle from '@components/ThemeToggle.astro';
 import ButtonLink from '@components/ui/ButtonLink.astro';
 import { getGitHubRepo, formatStarCount } from '@lib/github';
@@ -212,6 +213,8 @@ if (!process.env.GITHUB_STARS) {
     </div>
   </div>
 </div>
+
+<SearchTelemetry />
 
 <!-- Google Tag Manager -->
 <script type="text/partytown">(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':

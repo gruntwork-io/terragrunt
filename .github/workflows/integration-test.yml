@@ -13,13 +13,16 @@ jobs:
         integration:
           - name: Fixtures with OpenTofu
             os: ubuntu
-            target: ./test
-            tags: tofu
+            target: ./...
+            tags: "tofu,tf"
+            run: "^(TestTF|TestTofu)"
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
           - name: Fixtures with Latest Terraform
             os: ubuntu
-            target: ./test
+            target: ./...
+            tags: tf
+            run: "^TestTF"
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
           - name: Independent Integration Tests
@@ -100,6 +103,18 @@ jobs:
                 GOOGLE_IDENTITY_EMAIL,
                 GOOGLE_PROJECT_ID,
               ]
+          - name: Azure
+            os: ubuntu
+            target: ./internal/azurehelper/...
+            tags: azure
+            secrets:
+              [
+                AZURE_CLIENT_ID,
+                AZURE_CLIENT_SECRET,
+                AZURE_TENANT_ID,
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+              ]
           - name: Windows
             os: windows
             target: ./...
@@ -110,19 +125,21 @@ jobs:
           - name: Provider Cache Server with Latest Terraform
             os: ubuntu
             target: ./test
+            tags: tf
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/terraform-switch-latest.sh
           - name: Provider Cache Server with Tofu
             os: ubuntu
             target: ./test
-            tags: tofu
+            tags: "tofu,tf"
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/tofu-switch.sh
           - name: Race
             os: ubuntu
             target: ./...
+            tags: tf
             run: ".*WithRacing"
             test_args: "-race"
           - name: Parse
@@ -133,6 +150,7 @@ jobs:
           - name: Experiment mode
             os: ubuntu
             target: ./...
+            tags: tf
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
           - name: OpenTofu Unit Tests
@@ -142,12 +160,19 @@ jobs:
             run: "^TestTofu"
           - name: Exec
             os: ubuntu
-            target: ./internal/vexec/...
+            target: ./...
             tags: exec
+            run: "^TestExec"
           - name: Exec Windows
             os: windows
-            target: ./internal/vexec/...
+            target: ./...
             tags: exec
+            run: "^TestExec"
+          - name: HTTP
+            os: ubuntu
+            target: ./...
+            tags: http
+            run: "^TestHTTP"
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
@@ -194,6 +219,11 @@ jobs:
           GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
           GCLOUD_SERVICE_KEY_IMPERSONATOR: ${{ secrets.GCLOUD_SERVICE_KEY_IMPERSONATOR }}
           AWS_TEST_S3_ASSUME_ROLE: ${{ secrets.AWS_TEST_S3_ASSUME_ROLE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          TG_AZURE_TEST_STORAGE_ACCOUNT: ${{ secrets.TG_AZURE_TEST_STORAGE_ACCOUNT }}
+          TG_AZURE_TEST_SUBSCRIPTION_ID: ${{ secrets.TG_AZURE_TEST_SUBSCRIPTION_ID }}
         shell: bash
 
       - name: Setup
@@ -266,6 +296,7 @@ jobs:
           HAS_DOCKER: ${{ runner.os == 'Linux' }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results-${{ matrix.integration.name }}
@@ -283,6 +314,7 @@ jobs:
           group_suite: "true"
 
       - name: Print Failed Tests (${{ matrix.integration.name }})
+        if: always()
         run: |
           echo "Failed Tests in ${{ matrix.integration.name }}"
           if [[ -f test_output.log ]]; then

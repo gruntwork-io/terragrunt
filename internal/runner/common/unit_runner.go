@@ -47,13 +47,16 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 func (runner *UnitRunner) runTerragrunt(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
 ) error {
-	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths))
+	l.Debugf(
+		"Running %s",
+		util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths),
+	)
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
@@ -134,7 +137,7 @@ func (runner *UnitRunner) runTerragrunt(
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -175,7 +178,15 @@ func (runner *UnitRunner) Run(
 		jsonV := v.WithWriter(&stdout)
 
 		runOpts := configbridge.NewRunOptions(jsonOptions)
-		if err := run.Run(ctx, jsonLogger, jsonV, runOpts, adhocReport, cfg, credsGetter); err != nil {
+		if err := run.Run(
+			ctx,
+			jsonLogger,
+			jsonV,
+			runOpts,
+			adhocReport,
+			cfg,
+			credsGetter,
+		); err != nil {
 			return err
 		}
 

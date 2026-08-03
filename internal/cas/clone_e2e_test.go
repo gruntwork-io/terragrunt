@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
@@ -24,8 +26,7 @@ func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -66,8 +67,7 @@ func TestCASClone_E2E_CommitFormRefRoundTrip(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -96,8 +96,7 @@ func TestCASClone_E2E_ThroughCASGetter(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -144,8 +143,7 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -159,9 +157,17 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	require.NoError(t, srv.Close())
 
 	dst2 := filepath.Join(tempDir, "dst2")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst2),
+	require.NoError(t, c.Clone(
+		t.Context(),
+		l,
+		v,
+		repoURL,
+		cas.WithDir(dst2),
 		cas.WithBranch(headHash),
-		cas.WithDepth(-1)), "second clone keyed by full SHA must resolve from local CAS without ls-remote")
+		cas.WithDepth(
+			-1,
+		),
+	), "second clone keyed by full SHA must resolve from local CAS without ls-remote")
 
 	require.FileExists(t, filepath.Join(dst2, "README.md"))
 }
@@ -175,8 +181,7 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 

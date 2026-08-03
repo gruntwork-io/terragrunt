@@ -10,11 +10,13 @@ import (
 
 	"cloud.google.com/go/storage"
 
+	"github.com/stretchr/testify/require"
+
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/require"
 )
 
 // TestGcpCASGCSMD5Probe exercises CASGetter end-to-end against a
@@ -41,10 +43,15 @@ func TestGcpCASGCSMD5Probe(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
-	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{}, tggetter.WithDefaultGenericDispatch())
+	g := tggetter.NewCASGetter(
+		logger.CreateLogger(),
+		c,
+		v,
+		&tgcas.CloneOptions{},
+		tggetter.WithDefaultGenericDispatch(),
+	)
 	client := &tggetter.Client{Getters: []tggetter.Getter{g}}
 
 	// The bare v2 gcs.Getter's parseURL only recognizes

@@ -51,7 +51,9 @@ func TestResponseBodyPackagesRoundTrip(t *testing.T) {
 func TestResponseBodyPackagesAbsent(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{"os":"linux","arch":"amd64","filename":"x.zip","download_url":"https://example.com/x.zip","signing_keys":{"gpg_public_keys":[]}}`)
+	raw := []byte(
+		`{"os":"linux","arch":"amd64","filename":"x.zip","download_url":"https://example.com/x.zip","signing_keys":{"gpg_public_keys":[]}}`,
+	)
 
 	var body models.ResponseBody
 	require.NoError(t, json.Unmarshal(raw, &body))

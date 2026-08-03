@@ -35,7 +35,9 @@ func TestCommandRun(t *testing.T) {
 					Action: skip,
 					After:  skip,
 				},
-				expectedErr: errors.New("invalid boolean flag foo: setting the flag multiple times"),
+				expectedErr: errors.New(
+					"invalid boolean flag foo: setting the flag multiple times",
+				),
 			}
 		},
 
@@ -56,8 +58,10 @@ func TestCommandRun(t *testing.T) {
 							After:  skip,
 						},
 						&clihelper.Command{
-							Name:                         "cmd-bar",
-							Flags:                        clihelper.Flags{&clihelper.BoolFlag{Name: "bar"}},
+							Name: "cmd-bar",
+							Flags: clihelper.Flags{
+								&clihelper.BoolFlag{Name: "bar"},
+							},
 							Before:                       action(2, nil),
 							Action:                       action(3, []string{"one", "-two"}),
 							After:                        action(4, nil),
@@ -77,8 +81,10 @@ func TestCommandRun(t *testing.T) {
 					After:  action(4, nil),
 					Subcommands: clihelper.Commands{
 						&clihelper.Command{
-							Name:                         "cmd-bar",
-							Flags:                        clihelper.Flags{&clihelper.BoolFlag{Name: "bar"}},
+							Name: "cmd-bar",
+							Flags: clihelper.Flags{
+								&clihelper.BoolFlag{Name: "bar"},
+							},
 							Before:                       action(2, nil),
 							After:                        action(3, nil),
 							DisabledErrorOnUndefinedFlag: true,
@@ -97,8 +103,10 @@ func TestCommandRun(t *testing.T) {
 					After:  action(5, nil),
 					Subcommands: clihelper.Commands{
 						&clihelper.Command{
-							Name:                         "cmd-bar",
-							Flags:                        clihelper.Flags{&clihelper.BoolFlag{Name: "bar"}},
+							Name: "cmd-bar",
+							Flags: clihelper.Flags{
+								&clihelper.BoolFlag{Name: "bar"},
+							},
 							Before:                       action(2, nil),
 							Action:                       action(3, []string{"one", "-two"}),
 							After:                        action(4, nil),
@@ -119,8 +127,10 @@ func TestCommandRun(t *testing.T) {
 					After:  action(5, nil),
 					Subcommands: clihelper.Commands{
 						&clihelper.Command{
-							Name:                         "cmd-bar",
-							Flags:                        clihelper.Flags{&clihelper.GenericFlag[string]{Name: "bar"}},
+							Name: "cmd-bar",
+							Flags: clihelper.Flags{
+								&clihelper.GenericFlag[string]{Name: "bar"},
+							},
 							Before:                       action(2, nil),
 							Action:                       action(3, []string{"one", "-two"}),
 							After:                        action(4, nil),
@@ -140,8 +150,10 @@ func TestCommandRun(t *testing.T) {
 					After:  action(3, nil),
 					Subcommands: clihelper.Commands{
 						&clihelper.Command{
-							Name:        "cmd-bar",
-							Flags:       clihelper.Flags{&clihelper.GenericFlag[string]{Name: "bar"}},
+							Name: "cmd-bar",
+							Flags: clihelper.Flags{
+								&clihelper.GenericFlag[string]{Name: "bar"},
+							},
 							SkipRunning: true,
 							Before:      skip,
 							Action:      skip,
@@ -263,12 +275,24 @@ func TestCommandSubcommand(t *testing.T) {
 		command       clihelper.Command
 	}{
 		{
-			command:       clihelper.Command{Name: "foo", Subcommands: clihelper.Commands{&clihelper.Command{Name: "bar"}, &clihelper.Command{Name: "baz"}}},
+			command: clihelper.Command{
+				Name: "foo",
+				Subcommands: clihelper.Commands{
+					&clihelper.Command{Name: "bar"},
+					&clihelper.Command{Name: "baz"},
+				},
+			},
 			searchCmdName: "baz",
 			expected:      &clihelper.Command{Name: "baz"},
 		},
 		{
-			command:       clihelper.Command{Name: "foo", Subcommands: clihelper.Commands{&clihelper.Command{Name: "bar"}, &clihelper.Command{Name: "baz"}}},
+			command: clihelper.Command{
+				Name: "foo",
+				Subcommands: clihelper.Commands{
+					&clihelper.Command{Name: "bar"},
+					&clihelper.Command{Name: "baz"},
+				},
+			},
 			searchCmdName: "qux",
 			expected:      nil,
 		},
@@ -292,11 +316,26 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 		command  clihelper.Command
 	}{
 		{
-			command:  clihelper.Command{Name: "foo", Subcommands: clihelper.Commands{&clihelper.Command{Name: "bar"}, &clihelper.Command{Name: "baz", HelpName: "helpBaz"}}},
-			expected: clihelper.Commands{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
+			command: clihelper.Command{
+				Name: "foo",
+				Subcommands: clihelper.Commands{
+					&clihelper.Command{Name: "bar"},
+					&clihelper.Command{Name: "baz", HelpName: "helpBaz"},
+				},
+			},
+			expected: clihelper.Commands{
+				{Name: "bar", HelpName: "bar"},
+				{Name: "baz", HelpName: "helpBaz"},
+			},
 		},
 		{
-			command:  clihelper.Command{Name: "foo", Subcommands: clihelper.Commands{&clihelper.Command{Name: "bar", Hidden: true}, &clihelper.Command{Name: "baz"}}},
+			command: clihelper.Command{
+				Name: "foo",
+				Subcommands: clihelper.Commands{
+					&clihelper.Command{Name: "bar", Hidden: true},
+					&clihelper.Command{Name: "baz"},
+				},
+			},
 			expected: clihelper.Commands{{Name: "baz", HelpName: "baz"}},
 		},
 	}

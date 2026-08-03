@@ -23,20 +23,29 @@ func TestDetailedExitCodeMapFinal(t *testing.T) {
 			wantDetailed:    tf.DetailedExitCodeSuccess,
 		},
 		{
-			name:            "all success",
-			codes:           map[string]int{"a": tf.DetailedExitCodeSuccess, "b": tf.DetailedExitCodeSuccess},
+			name: "all success",
+			codes: map[string]int{
+				"a": tf.DetailedExitCodeSuccess,
+				"b": tf.DetailedExitCodeSuccess,
+			},
 			wantNonDetailed: tf.DetailedExitCodeSuccess,
 			wantDetailed:    tf.DetailedExitCodeSuccess,
 		},
 		{
-			name:            "only changes returns 2 in both modes",
-			codes:           map[string]int{"a": tf.DetailedExitCodeChanges, "b": tf.DetailedExitCodeSuccess},
+			name: "only changes returns 2 in both modes",
+			codes: map[string]int{
+				"a": tf.DetailedExitCodeChanges,
+				"b": tf.DetailedExitCodeSuccess,
+			},
 			wantNonDetailed: tf.DetailedExitCodeChanges,
 			wantDetailed:    tf.DetailedExitCodeChanges,
 		},
 		{
-			name:            "changes plus error - dispatch is observable (max=2 vs error precedence=1)",
-			codes:           map[string]int{"a": tf.DetailedExitCodeChanges, "b": tf.DetailedExitCodeError},
+			name: "changes plus error - dispatch is observable (max=2 vs error precedence=1)",
+			codes: map[string]int{
+				"a": tf.DetailedExitCodeChanges,
+				"b": tf.DetailedExitCodeError,
+			},
 			wantNonDetailed: tf.DetailedExitCodeChanges,
 			wantDetailed:    tf.DetailedExitCodeError,
 		},

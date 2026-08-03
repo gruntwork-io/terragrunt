@@ -13,12 +13,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestSSHCASGetterGet(t *testing.T) {
@@ -51,8 +53,7 @@ func TestSSHCASGetterGet(t *testing.T) {
 			c, err := cas.New(cas.WithStorePath(storePath))
 			require.NoError(t, err)
 
-			v, err := cas.OSVenv()
-			require.NoError(t, err)
+			v := venv.OSVenv()
 
 			opts := &cas.CloneOptions{
 				Branch: "main",

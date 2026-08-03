@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -22,14 +24,17 @@ const (
 	testFixtureAuthProviderParallel   = "fixtures/auth-provider-parallel"
 )
 
-func TestRunnerPoolDiscovery(t *testing.T) {
+func TestTFRunnerPoolDiscovery(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply",
+	)
 	require.NoError(t, err)
 	// Verify that the output contains value from the app
 	require.Contains(t, stdout, "output_value = \"42\"")
@@ -38,14 +43,17 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 	require.Contains(t, stdout, "result = \"42\"")
 }
 
-func TestRunnerPoolDiscoveryNoParallelism(t *testing.T) {
+func TestTFRunnerPoolDiscoveryNoParallelism(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --parallelism 1 --working-dir "+testPath+"  -- apply")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --parallelism 1 --working-dir "+testPath+"  -- apply",
+	)
 	require.NoError(t, err)
 	// Verify that the output contains value from the app
 	require.Contains(t, stdout, "output_value = \"42\"")
@@ -54,7 +62,7 @@ func TestRunnerPoolDiscoveryNoParallelism(t *testing.T) {
 	require.Contains(t, stdout, "result = \"42\"")
 }
 
-func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
+func TestTFRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
@@ -65,7 +73,10 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// run destroy with runner pool and check the modules are destroyed
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 
 	// Parse destroyed modules from stdout
@@ -96,7 +107,7 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	}
 }
 
-func TestRunnerPoolStackConfigIgnored(t *testing.T) {
+func TestTFRunnerPoolStackConfigIgnored(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
@@ -112,7 +123,7 @@ func TestRunnerPoolStackConfigIgnored(t *testing.T) {
 	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
 }
 
-func TestRunnerPoolFailFast(t *testing.T) {
+func TestTFRunnerPoolFailFast(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -132,9 +143,13 @@ func TestRunnerPoolFailFast(t *testing.T) {
 				reason string
 				cause  string
 			}{
-				"failing-unit":          {result: "failed", reason: "run error"},
-				"succeeding-unit":       {result: "succeeded"},
-				"depends-on-failing":    {result: "early exit", reason: "ancestor error", cause: "failing-unit"},
+				"failing-unit":    {result: "failed", reason: "run error"},
+				"succeeding-unit": {result: "succeeded"},
+				"depends-on-failing": {
+					result: "early exit",
+					reason: "ancestor error",
+					cause:  "failing-unit",
+				},
 				"depends-on-succeeding": {result: "succeeded"},
 			},
 		},
@@ -146,9 +161,13 @@ func TestRunnerPoolFailFast(t *testing.T) {
 				reason string
 				cause  string
 			}{
-				"failing-unit":          {result: "failed", reason: "run error"},
-				"succeeding-unit":       {result: "succeeded"},
-				"depends-on-failing":    {result: "early exit", reason: "ancestor error", cause: "failing-unit"},
+				"failing-unit":    {result: "failed", reason: "run error"},
+				"succeeding-unit": {result: "succeeded"},
+				"depends-on-failing": {
+					result: "early exit",
+					reason: "ancestor error",
+					cause:  "failing-unit",
+				},
 				"depends-on-succeeding": {result: "early exit", reason: "ancestor error"},
 			},
 		},
@@ -178,7 +197,16 @@ func TestRunnerPoolFailFast(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify expected units are in the report
-			assert.ElementsMatch(t, []string{"failing-unit", "succeeding-unit", "depends-on-failing", "depends-on-succeeding"}, runs.Names())
+			assert.ElementsMatch(
+				t,
+				[]string{
+					"failing-unit",
+					"succeeding-unit",
+					"depends-on-failing",
+					"depends-on-succeeding",
+				},
+				runs.Names(),
+			)
 
 			// Verify each unit's result, reason, and cause
 			for unitName, expected := range tc.expectedResults {
@@ -189,7 +217,13 @@ func TestRunnerPoolFailFast(t *testing.T) {
 
 				if expected.reason != "" {
 					require.NotNil(t, run.Reason, "expected reason for %q but got nil", unitName)
-					assert.Equal(t, expected.reason, *run.Reason, "unexpected reason for %q", unitName)
+					assert.Equal(
+						t,
+						expected.reason,
+						*run.Reason,
+						"unexpected reason for %q",
+						unitName,
+					)
 				}
 
 				if expected.cause != "" {
@@ -201,14 +235,17 @@ func TestRunnerPoolFailFast(t *testing.T) {
 	}
 }
 
-func TestRunnerPoolDestroyFailFast(t *testing.T) {
+func TestTFRunnerPoolDestroyFailFast(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
 	testPath := filepath.Join(tmpEnvPath, testFixtureFailFast)
 
-	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- apply")
+	_, stdout, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- apply",
+	)
 	require.NoError(t, err)
 
 	// Verify that there are no parsing errors in the output
@@ -217,17 +254,32 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 
 	// create fail.txt in unit-a to trigger a failure
 	helpers.CreateFile(t, testPath, "unit-b", "fail.txt")
-	stdout, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy")
+	stdout, stderr, _ := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy",
+	)
 	// Check that error output contains terraform error details
 	assert.Contains(t, stderr, "level=error")
 	// Verify that unit-b failed
 	assert.Contains(t, stderr, "Failed to execute")
 	assert.Contains(t, stderr, "in ./unit-b")
-	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed.")
+	assert.NotContains(
+		t,
+		stdout,
+		"unit-b tf-path="+wrappedBinary(
+			t.Context(),
+		)+" msg=Destroy complete! Resources: 1 destroyed",
+	)
+	assert.NotContains(
+		t,
+		stdout,
+		"unit-a tf-path="+wrappedBinary(
+			t.Context(),
+		)+" msg=Destroy complete! Resources: 1 destroyed.",
+	)
 }
 
-func TestRunnerPoolDestroyDependencies(t *testing.T) {
+func TestTFRunnerPoolDestroyDependencies(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
@@ -236,17 +288,41 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- apply")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- apply",
+	)
 	require.NoError(t, err)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy",
+	)
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "unit-b tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed.")
+	assert.Contains(
+		t,
+		stdout,
+		"unit-b tf-path="+wrappedBinary(
+			t.Context(),
+		)+" msg=Destroy complete! Resources: 1 destroyed",
+	)
+	assert.Contains(
+		t,
+		stdout,
+		"unit-c tf-path="+wrappedBinary(
+			t.Context(),
+		)+" msg=Destroy complete! Resources: 1 destroyed",
+	)
+	assert.Contains(
+		t,
+		stdout,
+		"unit-a tf-path="+wrappedBinary(
+			t.Context(),
+		)+" msg=Destroy complete! Resources: 1 destroyed.",
+	)
 }
 
-func TestRunnerPoolRemoteSource(t *testing.T) {
+func TestTFRunnerPoolRemoteSource(t *testing.T) {
 	t.Parallel()
 
 	mirror := helpers.NewGitServer(t)
@@ -254,13 +330,16 @@ func TestRunnerPoolRemoteSource(t *testing.T) {
 	tmpEnvPath := mirror.RenderFixture(testFixtureRunnerPoolRemoteSource)
 	testPath := filepath.Join(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply",
+	)
 	require.NoError(t, err)
 	// Verify that the output contains value produced from remote unit
 	require.Contains(t, stdout, "data = \"unit-a\"")
 }
 
-func TestRunnerPoolSourceMap(t *testing.T) {
+func TestTFRunnerPoolSourceMap(t *testing.T) {
 	t.Parallel()
 
 	mirror := helpers.NewGitServer(t)
@@ -282,7 +361,7 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 	require.Contains(t, stderr, "configurations from git::"+mirror.URL+"?ref=v0.85.0")
 }
 
-// TestAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel
+// TestTFAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel
 // for multiple units during the resolution phase.
 //
 // The test works by:
@@ -293,7 +372,7 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 //     2. Parsing the output to find "Auth concurrent" messages
 //     3. Verifying that at least one auth command detected concurrent execution
 //     (which is deterministic proof of parallelism)
-func TestAuthProviderParallelExecution(t *testing.T) {
+func TestTFAuthProviderParallelExecution(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)

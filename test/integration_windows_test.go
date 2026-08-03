@@ -82,10 +82,22 @@ func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	rootPath := mirror.RenderFixture(testFixtureDownloadPath)
 	modulePath := filepath.Join(rootPath, testFixtureLocalRelativeArgsWindowsDownloadPath)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s", modulePath))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --non-interactive --working-dir %s",
+			modulePath,
+		),
+	)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s", modulePath))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --non-interactive --working-dir %s",
+			modulePath,
+		),
+	)
 }
 
 // TestWindowsTerragruntSourceMapDebug copies the test/fixtures/source-map directory to a new Windows path
@@ -113,14 +125,23 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 				"TG_SOURCE_MAP",
 				strings.Join(
 					[]string{
-						fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=%s", targetPath),
-						fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/another-dont-exist.git=%s", targetPath),
+						fmt.Sprintf(
+							"git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=%s",
+							targetPath,
+						),
+						fmt.Sprintf(
+							"git::ssh://git@github.com/gruntwork-io/another-dont-exist.git=%s",
+							targetPath,
+						),
 					},
 					",",
 				),
 			)
 			tgPath := filepath.Join(rootPath, tc.name)
-			tgArgs := fmt.Sprintf("terragrunt run --all apply --non-interactive --working-dir '%s'", tgPath)
+			tgArgs := fmt.Sprintf(
+				"terragrunt run --all apply --non-interactive --working-dir '%s'",
+				tgPath,
+			)
 			helpers.RunTerragrunt(t, tgArgs)
 		})
 	}
@@ -131,7 +152,12 @@ func TestWindowsManifestFileIsRemoved(t *testing.T) {
 	errOut := new(bytes.Buffer)
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureManifestRemoval)
 	modulePath := filepath.Join(rootPath, testFixtureManifestRemoval, "app")
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s", modulePath), out, errOut)
+	err := helpers.RunTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s", modulePath),
+		out,
+		errOut,
+	)
 	assert.NoError(t, err)
 
 	info1, err := fileInfo(modulePath, ".terragrunt-module-manifest")
@@ -140,7 +166,12 @@ func TestWindowsManifestFileIsRemoved(t *testing.T) {
 
 	out = new(bytes.Buffer)
 	errOut = new(bytes.Buffer)
-	err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s", modulePath), out, errOut)
+	err = helpers.RunTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s", modulePath),
+		out,
+		errOut,
+	)
 	assert.NoError(t, err)
 
 	info2, err := fileInfo(modulePath, ".terragrunt-module-manifest")
@@ -174,10 +205,19 @@ func TestWindowsFindParent(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindParent)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --working-dir %s", testFixtureFindParent))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all plan --non-interactive --working-dir %s",
+			testFixtureFindParent,
+		),
+	)
 
 	// second run shouldn't fail with find_in_parent_folders("root.hcl") issue
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+testFixtureFindParent+" -- apply -auto-approve")
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+testFixtureFindParent+" -- apply -auto-approve",
+	)
 }
 
 func TestWindowsScaffold(t *testing.T) {
@@ -187,7 +227,13 @@ func TestWindowsScaffold(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	assert.NoError(t, err)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --working-dir '%s'", tmpDir))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --working-dir '%s'",
+			tmpDir,
+		),
+	)
 
 	// check that terragrunt.hcl was created
 	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
@@ -201,7 +247,13 @@ func TestWindowsScaffoldRef(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	assert.NoError(t, err)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --working-dir '%s'", tmpDir))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --working-dir '%s'",
+			tmpDir,
+		),
+	)
 
 	// check that terragrunt.hcl was created
 	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
@@ -221,7 +273,14 @@ func TestWindowsProviderCacheWithRemoteURL(t *testing.T) {
 
 	providerCacheDir := filepath.Join(t.TempDir(), "provider-cache-windows-test")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, rootPath))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
+			providerCacheDir,
+			rootPath,
+		),
+	)
 
 	// Verify the provider was cached
 	entries, err := os.ReadDir(providerCacheDir)
@@ -234,7 +293,12 @@ func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
 	}
 
-	copyErr := util.CopyFolderContents(createLogger(), helpers.MustAbs(t, environmentPath), filepath.Join(targetPath, environmentPath), ".terragrunt-test")
+	copyErr := util.CopyFolderContents(
+		createLogger(),
+		helpers.MustAbs(t, environmentPath),
+		filepath.Join(targetPath, environmentPath),
+		".terragrunt-test",
+	)
 	require.NoError(t, copyErr)
 }
 

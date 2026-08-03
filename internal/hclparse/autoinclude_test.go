@@ -93,7 +93,11 @@ dependency "vpc" {
 			result, diags := autoInclude.Resolve(evalCtx)
 			require.True(t, diags.HasErrors(), "%s must surface as a diagnostic", tc.summary)
 			assert.Equal(t, tc.summary, diags[0].Summary)
-			require.NotNil(t, diags[0].Subject, "diagnostic must carry the offending expression's source range")
+			require.NotNil(
+				t,
+				diags[0].Subject,
+				"diagnostic must carry the offending expression's source range",
+			)
 			require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
 			assert.Empty(t, result.Dependencies, "failed dep must not be appended")
 		})
@@ -403,7 +407,15 @@ func TestAutoIncludeDependencyPaths_MalformedReturnsTypedError(t *testing.T) {
 			t.Parallel()
 
 			fs := vfs.NewMemMapFS()
-			require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(tc.content), 0644))
+			require.NoError(
+				t,
+				vfs.WriteFile(
+					fs,
+					filepath.Join("/test", hclparse.AutoIncludeFile),
+					[]byte(tc.content),
+					0644,
+				),
+			)
 
 			paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
 			require.Error(t, err)
@@ -444,7 +456,15 @@ func TestAutoIncludeDependencyPaths_FileParseErrorOnSyntaxError(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`dependency "x" { config_path = "`), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(
+			fs,
+			filepath.Join("/test", hclparse.AutoIncludeFile),
+			[]byte(`dependency "x" { config_path = "`),
+			0644,
+		),
+	)
 
 	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
 	require.Error(t, err)
@@ -459,7 +479,10 @@ func TestAutoIncludeDependencyPaths_FileParseErrorOnJSON(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 	jsonBody := `{"dependency": {"vpc": {"config_path": "../vpc"}}}`
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(jsonBody), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(jsonBody), 0644),
+	)
 
 	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
 	require.Error(t, err)
@@ -475,7 +498,9 @@ func TestResolveForKind_StackAutoIncludeDepValues(t *testing.T) {
 	evalCtx := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"unit": cty.ObjectVal(map[string]cty.Value{
-				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+				"producer": cty.ObjectVal(
+					map[string]cty.Value{"path": cty.StringVal("../producer")},
+				),
 			}),
 			"stack": cty.EmptyObjectVal,
 		},
@@ -499,7 +524,11 @@ unit "extra" {
 	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
 
 	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
-	require.True(t, diags.HasErrors(), "stack autoinclude consuming a sibling dependency via injected values must error")
+	require.True(
+		t,
+		diags.HasErrors(),
+		"stack autoinclude consuming a sibling dependency via injected values must error",
+	)
 
 	extra, ok := diags[0].Extra.(error)
 	require.True(t, ok, "the diagnostic Extra must carry an error")
@@ -524,7 +553,12 @@ unit "extra" {
 	supported := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, okSrc)}
 
 	_, okDiags := supported.ResolveForKind(evalCtx, hclparse.KindStack, "net")
-	require.False(t, okDiags.HasErrors(), "literal unit.path values must still resolve: %s", okDiags.Error())
+	require.False(
+		t,
+		okDiags.HasErrors(),
+		"literal unit.path values must still resolve: %s",
+		okDiags.Error(),
+	)
 
 	// A real unit-level autoinclude carries a top-level dependency feeding unit-level inputs; the same
 	// dependency-output reference is allowed when the kind is unit (the established cross-level pattern).
@@ -540,7 +574,12 @@ inputs = {
 	unitAutoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, unitSrc)}
 
 	_, unitDiags := unitAutoInclude.ResolveForKind(evalCtx, hclparse.KindUnit, "")
-	require.False(t, unitDiags.HasErrors(), "unit-level autoinclude with a dependency-output input must still resolve: %s", unitDiags.Error())
+	require.False(
+		t,
+		unitDiags.HasErrors(),
+		"unit-level autoinclude with a dependency-output input must still resolve: %s",
+		unitDiags.Error(),
+	)
 }
 
 // TestResolveForKind_StackAutoIncludeDepValuesIndexForm pins that the index traversal form
@@ -552,7 +591,9 @@ func TestResolveForKind_StackAutoIncludeDepValuesIndexForm(t *testing.T) {
 	evalCtx := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"unit": cty.ObjectVal(map[string]cty.Value{
-				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+				"producer": cty.ObjectVal(
+					map[string]cty.Value{"path": cty.StringVal("../producer")},
+				),
 			}),
 			"stack": cty.EmptyObjectVal,
 		},
@@ -582,7 +623,12 @@ unit "extra" {
 	require.True(t, ok, "the diagnostic Extra must carry an error")
 
 	var typed hclparse.StackAutoIncludeDependencyValuesError
-	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error for the index form")
+	require.ErrorAs(
+		t,
+		extra,
+		&typed,
+		"the diagnostic must carry the typed error for the index form",
+	)
 	assert.Equal(t, "extra", typed.UnitName)
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }
@@ -597,7 +643,9 @@ func TestResolveForKind_StackAutoIncludeDepValuesDynamicIndex(t *testing.T) {
 	evalCtx := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"unit": cty.ObjectVal(map[string]cty.Value{
-				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+				"producer": cty.ObjectVal(
+					map[string]cty.Value{"path": cty.StringVal("../producer")},
+				),
 			}),
 			"stack": cty.EmptyObjectVal,
 		},
@@ -628,7 +676,12 @@ unit "extra" {
 	require.True(t, ok, "the diagnostic Extra must carry an error")
 
 	var typed hclparse.StackAutoIncludeDependencyValuesError
-	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error for the dynamic index form")
+	require.ErrorAs(
+		t,
+		extra,
+		&typed,
+		"the diagnostic must carry the typed error for the dynamic index form",
+	)
 	assert.Equal(t, "extra", typed.UnitName)
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }
@@ -643,7 +696,9 @@ func TestResolveForKind_StackAutoIncludeUndeclaredDepRefAlsoRejected(t *testing.
 	evalCtx := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"unit": cty.ObjectVal(map[string]cty.Value{
-				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+				"producer": cty.ObjectVal(
+					map[string]cty.Value{"path": cty.StringVal("../producer")},
+				),
 			}),
 			"stack": cty.EmptyObjectVal,
 		},
@@ -667,13 +722,22 @@ unit "extra" {
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, src)}
 
 	_, diags := autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "net")
-	require.True(t, diags.HasErrors(), "any dependency reference in injected values must be rejected, declared or not")
+	require.True(
+		t,
+		diags.HasErrors(),
+		"any dependency reference in injected values must be rejected, declared or not",
+	)
 
 	extra, ok := diags[0].Extra.(error)
 	require.True(t, ok, "the diagnostic Extra must carry an error")
 
 	var typed hclparse.StackAutoIncludeDependencyValuesError
-	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error even for an undeclared dependency")
+	require.ErrorAs(
+		t,
+		extra,
+		&typed,
+		"the diagnostic must carry the typed error even for an undeclared dependency",
+	)
 	assert.Equal(t, "extra", typed.UnitName)
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }

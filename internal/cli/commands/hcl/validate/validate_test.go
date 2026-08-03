@@ -99,7 +99,10 @@ func writeValidateInputsUnits(t *testing.T, bInputs string) string {
 		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, unit), 0755))
 
 		for name, content := range files {
-			require.NoError(t, os.WriteFile(filepath.Join(tmpDir, unit, name), []byte(content), 0644))
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(tmpDir, unit, name), []byte(content), 0644),
+			)
 		}
 	}
 
@@ -132,7 +135,11 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 	opts.AuthProviderCmd = "fake-auth-provider"
 
 	err = validate.RunValidateInputs(t.Context(), l, v, opts)
-	require.Error(t, err, "unit-b never sets region, so validation must fail even after unit-a merged TF_VAR_region into its own env")
+	require.Error(
+		t,
+		err,
+		"unit-b never sets region, so validation must fail even after unit-a merged TF_VAR_region into its own env",
+	)
 
 	assert.NotContains(t, v.Env, "TF_VAR_region")
 	assert.NotContains(t, v.Env, "AWS_ACCESS_KEY_ID")

@@ -12,7 +12,11 @@ func TestAutoIncludeParserStageError(t *testing.T) {
 	t.Parallel()
 
 	cause := errors.New("boom")
-	err := AutoIncludeParserStageError{Stage: "rescope", File: "/abs/dir/terragrunt.stack.hcl", Err: cause}
+	err := AutoIncludeParserStageError{
+		Stage: "rescope",
+		File:  "/abs/dir/terragrunt.stack.hcl",
+		Err:   cause,
+	}
 
 	t.Run("Error message contains stage, file, and cause", func(t *testing.T) {
 		t.Parallel()

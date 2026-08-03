@@ -1,0 +1,55 @@
+---
+question: "Terragrunt is running slowly. How do I speed it up?"
+description: "Run fewer units with --filter, share provider downloads with the Provider Cache Server, and fetch dependency outputs from state instead of running output against every dependency. Measure first with OpenTelemetry traces."
+order: 7
+---
+
+Most slow runs come down to doing work you did not need to do: running units that did not change, downloading the same provider once per unit, or initializing dependencies just to read their outputs. The [Performance](/troubleshooting/performance/) guide covers this in full. The short version:
+
+## Run fewer units
+
+The largest win is usually running less. The [`--filter` flag](/features/filter/) restricts a run to the units you care about, and [git-based filters](/features/filter/git/) restrict it to the units a diff touched. `--filter-affected` is the shorthand for the common case, comparing your repository's default branch against `HEAD`:
+
+```bash
+terragrunt run --all --filter-affected -- plan
+```
+
+It compares committed changes, so uncommitted work in progress may not be picked up. Terragrunt logs a warning when it notices local modifications.
+
+## Share provider downloads
+
+Providers are large binaries, and without a shared cache every unit downloads its own copy. On OpenTofu 1.10 and later this is already handled: [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir/) is on by default and points OpenTofu at a shared cache directory, with nothing for you to enable.
+
+Reach for the [Provider Cache Server](/features/caching/provider-cache-server/) when that default does not apply or does not scale, which the docs narrow to four cases: you use Terraform, you use an older OpenTofu, your cache lives on an NFS mount, or you are large enough that filesystem lock contention on the cache directory has become the bottleneck.
+
+```bash
+terragrunt run --all --provider-cache -- plan
+```
+
+The cache server is built for runs that do many OpenTofu/Terraform operations at once, so pair it with `--all`. On a single-unit run it can cost more than it saves, because starting and stopping the server may outweigh the downloads it avoids.
+
+## Stop initializing dependencies to read outputs
+
+By default, Terragrunt runs `output -json` against each dependency, which loads providers it does not need. The [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment reads the values straight out of the state file instead:
+
+```bash
+terragrunt run --all --experiment=dependency-fetch-output-from-state -- plan
+```
+
+This only applies to S3 backends, and it fails outright with OpenTofu client-side state encryption, since Terragrunt cannot parse an encrypted state file. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) before turning it on.
+
+## Cache repository clones
+
+If many units source modules from the same git repository, the [Content Addressable Store](/features/caching/cas/) clones it once and reuses it. This is on by default as of 1.1. On earlier versions, enable it with `--experiment cas`.
+
+## Measure before you tune
+
+Guessing at the bottleneck wastes time. Terragrunt emits [OpenTelemetry](/troubleshooting/open-telemetry/) traces, so you can see where a run spends its time:
+
+```bash
+export TG_TELEMETRY_TRACE_EXPORTER=http
+export TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
+export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+```
+
+Point those at a local collector such as Jaeger and read the trace. [Tuning parallelism](/troubleshooting/performance/#tuning-parallelism) is worth reaching for only once you know parallelism is the constraint. Raising `--parallelism` on a run that is bottlenecked on provider downloads makes things worse, not better.

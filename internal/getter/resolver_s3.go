@@ -47,7 +47,11 @@ const (
 // S3API is the subset of *s3.Client a resolver depends on. Exported
 // so tests can inject a fake.
 type S3API interface {
-	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+	HeadObject(
+		ctx context.Context,
+		params *s3.HeadObjectInput,
+		optFns ...func(*s3.Options),
+	) (*s3.HeadObjectOutput, error)
 }
 
 // S3Resolver is a [cas.SourceResolver] for objects in Amazon S3 and
@@ -220,7 +224,12 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 				return s3Target{}, fmt.Errorf("%w: %q", ErrS3UnrecognizedURL, u.String())
 			}
 
-			return s3Target{Region: region, Bucket: pathParts[1], Key: pathParts[2], Version: version}, nil
+			return s3Target{
+				Region:  region,
+				Bucket:  pathParts[1],
+				Key:     pathParts[2],
+				Version: version,
+			}, nil
 		case s3HostPartsVHostStyle:
 			// hostParts[0] == "s3" is the modern path-style form
 			// (`s3.<region>.amazonaws.com/<bucket>/<key>`); the region
@@ -233,7 +242,12 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 					return s3Target{}, fmt.Errorf("%w: %q", ErrS3UnrecognizedURL, u.String())
 				}
 
-				return s3Target{Region: hostParts[1], Bucket: pathParts[1], Key: pathParts[2], Version: version}, nil
+				return s3Target{
+					Region:  hostParts[1],
+					Bucket:  pathParts[1],
+					Key:     pathParts[2],
+					Version: version,
+				}, nil
 			}
 
 			// Legacy virtual-host style: <bucket>.s3[-<region>].amazonaws.com/<key>.

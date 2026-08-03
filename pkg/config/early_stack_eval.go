@@ -12,7 +12,10 @@ import (
 )
 
 // StackParseFunctionsFrom returns a copy of funcs with get_working_dir overridden to return baseDir, for callers that already hold the stack-file eval context (the input map is not mutated).
-func StackParseFunctionsFrom(funcs map[string]function.Function, baseDir string) map[string]function.Function {
+func StackParseFunctionsFrom(
+	funcs map[string]function.Function,
+	baseDir string,
+) map[string]function.Function {
 	out := maps.Clone(funcs)
 	out[FuncNameGetWorkingDir] = stackDirGetWorkingDir(baseDir)
 
@@ -36,7 +39,12 @@ func StackParseFunctionsFrom(funcs map[string]function.Function, baseDir string)
 //
 // Callers building a ParsingContext from *options.TerragruntOptions should use
 // configbridge.NewParsingContext.
-func EarlyStackParseFunctions(ctx context.Context, l log.Logger, baseDir string, pctx *ParsingContext) (map[string]function.Function, error) {
+func EarlyStackParseFunctions(
+	ctx context.Context,
+	l log.Logger,
+	baseDir string,
+	pctx *ParsingContext,
+) (map[string]function.Function, error) {
 	stackFilePath := filepath.Join(baseDir, DefaultStackFile)
 
 	_, scoped, err := pctx.WithConfigPath(l, stackFilePath)

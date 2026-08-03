@@ -5,6 +5,7 @@ package tflint
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -40,7 +41,7 @@ const (
 func RunTflintWithOpts(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *TFLintOptions,
 	cfg *runcfg.RunConfig,
 	hook *runcfg.Hook,
@@ -83,8 +84,16 @@ func RunTflintWithOpts(
 	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
 	l.Debugf("Running external tflint init with args %v", initArgs)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, v, opts.ShellOptions, opts.RootWorkingDir, false, false,
-		initArgs[0], initArgs[1:]...)
+	_, err = shell.RunCommandWithOutput(
+		ctx,
+		l,
+		v,
+		opts.ShellOptions,
+		opts.RootWorkingDir,
+		false,
+		false,
+		initArgs[0],
+		initArgs[1:]...)
 	if err != nil {
 		return ErrorRunningTflint{Args: initArgs, Err: err}
 	}
@@ -102,8 +111,16 @@ func RunTflintWithOpts(
 
 	l.Debugf("Running external tflint with args %v", args)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, v, opts.ShellOptions, opts.RootWorkingDir, false, false,
-		args[0], args[1:]...)
+	_, err = shell.RunCommandWithOutput(
+		ctx,
+		l,
+		v,
+		opts.ShellOptions,
+		opts.RootWorkingDir,
+		false,
+		false,
+		args[0],
+		args[1:]...)
 	if err != nil {
 		return ErrorRunningTflint{Args: args, Err: err}
 	}
@@ -117,8 +134,9 @@ func RunTflintWithOpts(
 func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 	variables := make([]string, 0, len(inputs))
 
-	for key, value := range inputs {
-		varValue, err := util.AsTerraformEnvVarJSONValue(value)
+	// Sorted so that repeated runs produce the same command line.
+	for _, key := range slices.Sorted(maps.Keys(inputs)) {
+		varValue, err := util.AsTerraformEnvVarJSONValue(inputs[key])
 		if err != nil {
 			return nil, err
 		}
@@ -139,7 +157,11 @@ type ErrorRunningTflint struct {
 
 func (err ErrorRunningTflint) Error() string {
 	if err.Err != nil {
-		return fmt.Sprintf("Error encountered while running tflint with args: '%v': %s", err.Args, err.Err)
+		return fmt.Sprintf(
+			"Error encountered while running tflint with args: '%v': %s",
+			err.Args,
+			err.Err,
+		)
 	}
 
 	return fmt.Sprintf("Error encountered while running tflint with args: '%v'", err.Args)
@@ -186,12 +208,12 @@ func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
 		}
 
 		if len(arg.EnvVars) > 0 {
-			// extract env_vars
-			for name, value := range arg.EnvVars {
+			// extract env_vars, sorted so that repeated runs produce the same command line
+			for _, name := range slices.Sorted(maps.Keys(arg.EnvVars)) {
 				if after, ok := strings.CutPrefix(name, tfVarPrefix); ok {
 					varName := after
 
-					varValue, err := util.AsTerraformEnvVarJSONValue(value)
+					varValue, err := util.AsTerraformEnvVarJSONValue(arg.EnvVars[name])
 					if err != nil {
 						return nil, err
 					}
@@ -296,12 +318,26 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 	}
 }
 
-// ConfigFilePath returns the configuration file specified in --config argument,
+// ConfigFilePath returns the configuration file specified in the --config argument,
 // or the result of walking parents to find a .tflint.hcl file.
-func ConfigFilePath(l log.Logger, fs vfs.FS, opts *TFLintOptions, arguments []string) (string, error) {
+func ConfigFilePath(
+	l log.Logger,
+	fs vfs.FS,
+	opts *TFLintOptions,
+	arguments []string,
+) (string, error) {
+	// The spellings tflint accepts for the flag that names its configuration file.
+	configFlags := []string{"--config", "-c"}
+
 	for i, arg := range arguments {
-		if arg == "--config" && len(arguments) > i+1 {
-			return arguments[i+1], nil
+		for _, flag := range configFlags {
+			if arg == flag && len(arguments) > i+1 {
+				return arguments[i+1], nil
+			}
+
+			if after, ok := strings.CutPrefix(arg, flag+"="); ok {
+				return after, nil
+			}
 		}
 	}
 	// find .tflint.hcl configuration in project files if it is not provided in arguments

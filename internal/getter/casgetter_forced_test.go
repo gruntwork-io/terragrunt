@@ -7,13 +7,15 @@ import (
 	"sync/atomic"
 	"testing"
 
-	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 // TestCASGetter_ForcedThreadedToInnerClient pins the wiring fix that
@@ -39,8 +41,7 @@ func TestCASGetter_ForcedThreadedToInnerClient(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithGenericFetchers(map[string]gogetter.Getter{scheme: stub}),
@@ -94,8 +95,7 @@ func TestCASGetter_GetCanonicalizesForcedAlias(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithGenericFetchers(map[string]gogetter.Getter{getter.SchemeGCS: stub}),

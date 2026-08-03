@@ -69,7 +69,11 @@ include "root" {
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
-			require.NotNil(t, parsed.Exclude, "expected exclude block to be inherited from included parent")
+			require.NotNil(
+				t,
+				parsed.Exclude,
+				"expected exclude block to be inherited from included parent",
+			)
 			assert.True(t, parsed.Exclude.If)
 			assert.Equal(t, []string{"plan", "apply"}, parsed.Exclude.Actions)
 			require.NotNil(t, parsed.Exclude.NoRun)
@@ -205,7 +209,11 @@ include "root" {
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
-			require.NotNil(t, parsed.Errors, "expected errors block to be inherited from included parent")
+			require.NotNil(
+				t,
+				parsed.Errors,
+				"expected errors block to be inherited from included parent",
+			)
 			require.Len(t, parsed.Errors.Retry, 1)
 			assert.Equal(t, "transient", parsed.Errors.Retry[0].Label)
 			assert.Equal(t, 3, parsed.Errors.Retry[0].MaxAttempts)
@@ -260,7 +268,11 @@ include "root" {
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
-			require.NotNil(t, parsed.Engine, "expected engine block to be inherited from included parent")
+			require.NotNil(
+				t,
+				parsed.Engine,
+				"expected engine block to be inherited from included parent",
+			)
 			assert.Equal(t, "engine-from-parent", parsed.Engine.Source)
 			require.NotNil(t, parsed.Engine.Version)
 			assert.Equal(t, "1.2.3", *parsed.Engine.Version)
@@ -314,7 +326,12 @@ include "root" {
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
-			require.Len(t, parsed.FeatureFlags, 1, "expected feature flag to be inherited from included parent")
+			require.Len(
+				t,
+				parsed.FeatureFlags,
+				1,
+				"expected feature flag to be inherited from included parent",
+			)
 			assert.Equal(t, "from_parent", parsed.FeatureFlags[0].Name)
 			require.NotNil(t, parsed.FeatureFlags[0].Default)
 			assert.Equal(t, "parent_value", parsed.FeatureFlags[0].Default.AsString())

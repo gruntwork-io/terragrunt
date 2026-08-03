@@ -64,7 +64,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 	return scaffoldFlags
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	flags := NewFlags(opts, nil)
 	// Accept backend and feature flags for scaffold as well
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
@@ -95,7 +95,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 }
 
 func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions) string {
-	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).SuppressWarning().Evaluate(ctx); err != nil {
+	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).
+		SuppressWarning().
+		Evaluate(ctx); err != nil {
 		return config.RecommendedParentConfigName
 	}
 

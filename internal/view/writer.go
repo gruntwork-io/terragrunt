@@ -42,7 +42,8 @@ func (writer *Writer) ShowConfigPath(diags diagnostic.Diagnostics) error {
 	var filenames []string
 
 	for _, diag := range diags {
-		if diag.Range != nil && diag.Range.Filename != "" && !slices.Contains(filenames, diag.Range.Filename) {
+		if diag.Range != nil && diag.Range.Filename != "" &&
+			!slices.Contains(filenames, diag.Range.Filename) {
 			filenames = append(filenames, diag.Range.Filename)
 		}
 	}

@@ -47,9 +47,11 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 	}
 
 	// Multiple top-level keys, can't provide a single raw output
-	return errors.New("the -raw option requires a single output value, but there are multiple outputs " +
-		"available in the current stack; specify which output you want to display by passing " +
-		"the full output key as an argument to the command")
+	return errors.New(
+		"the -raw option requires a single output value, but there are multiple outputs " +
+			"available in the current stack; specify which output you want to display by passing " +
+			"the full output key as an argument to the command",
+	)
 }
 
 // extractSingleValue extracts a single primitive value from a map with only one element,

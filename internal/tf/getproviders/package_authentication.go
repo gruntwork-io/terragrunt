@@ -80,7 +80,9 @@ func PackageAuthenticationAll(checks ...PackageAuthentication) PackageAuthentica
 	return packageAuthenticationAll(checks)
 }
 
-func (checks packageAuthenticationAll) Authenticate(path string) (*PackageAuthenticationResult, error) {
+func (checks packageAuthenticationAll) Authenticate(
+	path string,
+) (*PackageAuthenticationResult, error) {
 	var authResult *PackageAuthenticationResult
 
 	for _, check := range checks {
@@ -120,7 +122,9 @@ func NewArchiveChecksumAuthentication(wantSHA256Sum [sha256.Size]byte) PackageAu
 	return archiveHashAuthentication{wantSHA256Sum}
 }
 
-func (auth archiveHashAuthentication) Authenticate(path string) (*PackageAuthenticationResult, error) {
+func (auth archiveHashAuthentication) Authenticate(
+	path string,
+) (*PackageAuthenticationResult, error) {
 	if fileInfo, err := os.Stat(path); err != nil {
 		return nil, err
 	} else if fileInfo.IsDir() {
@@ -152,7 +156,11 @@ type matchingChecksumAuthentication struct {
 
 // NewMatchingChecksumAuthentication returns a PackageAuthentication implementation that scans a registry-provided SHA256SUMS document for a specified filename,
 // and compares the SHA256 hash against the expected hash
-func NewMatchingChecksumAuthentication(document []byte, filename string, wantSHA256Sum [sha256.Size]byte) PackageAuthentication {
+func NewMatchingChecksumAuthentication(
+	document []byte,
+	filename string,
+	wantSHA256Sum [sha256.Size]byte,
+) PackageAuthentication {
 	return matchingChecksumAuthentication{
 		Document:      document,
 		Filename:      filename,
@@ -160,7 +168,9 @@ func NewMatchingChecksumAuthentication(document []byte, filename string, wantSHA
 	}
 }
 
-func (auth matchingChecksumAuthentication) Authenticate(location string) (*PackageAuthenticationResult, error) {
+func (auth matchingChecksumAuthentication) Authenticate(
+	location string,
+) (*PackageAuthenticationResult, error) {
 	// Find the checksum in the list with matching filename. The document is in the form "0123456789abcdef filename.zip".
 	filename := []byte(auth.Filename)
 
@@ -172,12 +182,20 @@ func (auth matchingChecksumAuthentication) Authenticate(location string) (*Packa
 	// Decode the ASCII checksum into a byte array for comparison.
 	var gotSHA256Sum [sha256.Size]byte
 	if _, err := hex.Decode(gotSHA256Sum[:], checksum); err != nil {
-		return nil, fmt.Errorf("checksum list has invalid SHA256 hash %q: %w", string(checksum), err)
+		return nil, fmt.Errorf(
+			"checksum list has invalid SHA256 hash %q: %w",
+			string(checksum),
+			err,
+		)
 	}
 
 	// If the checksums don't match, authentication fails.
 	if !bytes.Equal(gotSHA256Sum[:], auth.WantSHA256Sum[:]) {
-		return nil, fmt.Errorf("checksum list has unexpected SHA-256 hash %x (expected %x)", gotSHA256Sum, auth.WantSHA256Sum[:])
+		return nil, fmt.Errorf(
+			"checksum list has unexpected SHA-256 hash %x (expected %x)",
+			gotSHA256Sum,
+			auth.WantSHA256Sum[:],
+		)
 	}
 
 	return nil, nil
@@ -190,7 +208,10 @@ type signatureAuthentication struct {
 }
 
 // NewSignatureAuthentication returns a PackageAuthentication implementation that verifies the cryptographic signature for a package against any of the provided keys.
-func NewSignatureAuthentication(document, signature []byte, keys map[string]string) PackageAuthentication {
+func NewSignatureAuthentication(
+	document, signature []byte,
+	keys map[string]string,
+) PackageAuthentication {
 	return signatureAuthentication{
 		Document:  document,
 		Signature: signature,
@@ -198,7 +219,9 @@ func NewSignatureAuthentication(document, signature []byte, keys map[string]stri
 	}
 }
 
-func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthenticationResult, error) {
+func (auth signatureAuthentication) Authenticate(
+	location string,
+) (*PackageAuthenticationResult, error) {
 	// Find the key that signed the checksum file. This can fail if there is no valid signature for any of the provided keys.
 	asciiArmor, trustSignature, err := auth.findSigningKey()
 	if err != nil {
@@ -211,13 +234,20 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 		return nil, fmt.Errorf("error creating HashiCorp keyring: %w", err)
 	}
 
-	if err := auth.checkDetachedSignature(hashicorpKeyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err == nil {
+	if err := auth.checkDetachedSignature(
+		hashicorpKeyring,
+		bytes.NewReader(auth.Document),
+		bytes.NewReader(auth.Signature),
+		nil,
+	); err == nil {
 		return new(OfficialProvider), nil
 	}
 
 	// If the signing key has a trust signature, attempt to verify it with the HashiCorp partners public key.
 	if trustSignature != "" {
-		hashicorpPartnersKeyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(HashicorpPartnersKey))
+		hashicorpPartnersKeyring, err := openpgp.ReadArmoredKeyRing(
+			strings.NewReader(HashicorpPartnersKey),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("error creating HashiCorp Partners keyring: %w", err)
 		}
@@ -232,7 +262,12 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 			return nil, fmt.Errorf("error decoding trust signature: %w", err)
 		}
 
-		if err := auth.checkDetachedSignature(hashicorpPartnersKeyring, authorKey.Body, trustSignature.Body, nil); err != nil {
+		if err := auth.checkDetachedSignature(
+			hashicorpPartnersKeyring,
+			authorKey.Body,
+			trustSignature.Body,
+			nil,
+		); err != nil {
 			return nil, fmt.Errorf("error verifying trust signature: %w", err)
 		}
 
@@ -243,7 +278,11 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 	return new(CommunityProvider), nil
 }
 
-func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) error {
+func (auth signatureAuthentication) checkDetachedSignature(
+	keyring openpgp.KeyRing,
+	signed, signature io.Reader,
+	config *packet.Config,
+) error {
 	entity, err := openpgp.CheckDetachedSignature(keyring, signed, signature, config)
 
 	if errors.Is(err, openpgpErrors.ErrKeyExpired) {
@@ -269,7 +308,12 @@ func (auth signatureAuthentication) findSigningKey() (string, string, error) {
 			return "", "", fmt.Errorf("error decoding signing key: %w", err)
 		}
 
-		if err := auth.checkDetachedSignature(keyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err != nil {
+		if err := auth.checkDetachedSignature(
+			keyring,
+			bytes.NewReader(auth.Document),
+			bytes.NewReader(auth.Signature),
+			nil,
+		); err != nil {
 			// If the signature issuer does not match the the key, keep trying the rest of the provided keys.
 			if errors.Is(err, openpgpErrors.ErrUnknownIssuer) {
 				continue

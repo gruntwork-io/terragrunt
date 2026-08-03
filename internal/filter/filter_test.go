@@ -93,12 +93,14 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
 				}),
-				component.NewUnit("./services/web").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./services/worker").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				component.NewUnit("./services/web").
+					WithDiscoveryContext(&component.DiscoveryContext{
+						WorkingDir: ".",
+					}),
+				component.NewUnit("./services/worker").
+					WithDiscoveryContext(&component.DiscoveryContext{
+						WorkingDir: ".",
+					}),
 			},
 		},
 		{
@@ -135,12 +137,14 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 			name:         "recursive wildcard",
 			filterString: "./services/**",
 			expected: component.Components{
-				component.NewUnit("./services/web").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./services/worker").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				component.NewUnit("./services/web").
+					WithDiscoveryContext(&component.DiscoveryContext{
+						WorkingDir: ".",
+					}),
+				component.NewUnit("./services/worker").
+					WithDiscoveryContext(&component.DiscoveryContext{
+						WorkingDir: ".",
+					}),
 			},
 		},
 		{
@@ -333,7 +337,16 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 			name:         "exclude specific unit",
 			filterString: "!test-app",
 			description:  "Exclude test-app from all units",
-			expected:     []string{"vpc", "subnets", "security-groups", "app-server", "db-server", "frontend", "backend", "api"},
+			expected: []string{
+				"vpc",
+				"subnets",
+				"security-groups",
+				"app-server",
+				"db-server",
+				"frontend",
+				"backend",
+				"api",
+			},
 		},
 	}
 

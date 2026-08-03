@@ -197,9 +197,19 @@ func TestParseFindListAllComponentsWithDAG(t *testing.T) {
 			// d-dependencies-only (depends on b) should come after b
 			// c-mixed-deps (depends on a and d) should come last
 			assert.Greater(t, aDepLine, bDepLine, "a-dependent should come after b-dependency")
-			assert.Greater(t, dDepsLine, bDepLine, "d-dependencies-only should come after b-dependency")
+			assert.Greater(
+				t,
+				dDepsLine,
+				bDepLine,
+				"d-dependencies-only should come after b-dependency",
+			)
 			assert.Greater(t, cMixedLine, aDepLine, "c-mixed-deps should come after a-dependent")
-			assert.Greater(t, cMixedLine, dDepsLine, "c-mixed-deps should come after d-dependencies-only")
+			assert.Greater(
+				t,
+				cMixedLine,
+				dDepsLine,
+				"c-mixed-deps should come after d-dependencies-only",
+			)
 		})
 	}
 }
@@ -257,12 +267,27 @@ func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 			}
 
 			if dDepsLine >= 0 && bDepLine >= 0 {
-				assert.Greater(t, dDepsLine, bDepLine, "d-dependencies-only should come after b-dependency")
+				assert.Greater(
+					t,
+					dDepsLine,
+					bDepLine,
+					"d-dependencies-only should come after b-dependency",
+				)
 			}
 
 			if cMixedLine >= 0 && aDepLine >= 0 && dDepsLine >= 0 {
-				assert.Greater(t, cMixedLine, aDepLine, "c-mixed-deps should come after a-dependent")
-				assert.Greater(t, cMixedLine, dDepsLine, "c-mixed-deps should come after d-dependencies-only")
+				assert.Greater(
+					t,
+					cMixedLine,
+					aDepLine,
+					"c-mixed-deps should come after a-dependent",
+				)
+				assert.Greater(
+					t,
+					cMixedLine,
+					dDepsLine,
+					"c-mixed-deps should come after d-dependencies-only",
+				)
 			}
 		})
 	}

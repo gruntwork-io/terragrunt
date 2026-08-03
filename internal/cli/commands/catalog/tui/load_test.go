@@ -36,7 +36,10 @@ func TestCreateCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
 
 	t.Setenv("TMPDIR", linkTmp)
 
-	got, err := tui.CreateCatalogTempPath(vfs.NewOSFS(), "github.com/gruntwork-io/terragrunt-scale-catalog")
+	got, err := tui.CreateCatalogTempPath(
+		vfs.NewOSFS(),
+		"github.com/gruntwork-io/terragrunt-scale-catalog",
+	)
 	require.NoError(t, err)
 
 	// The clone dir must sit directly under the resolved temp dir, with no
@@ -122,7 +125,14 @@ func writeCatalogRepo(t *testing.T, repoDir string) {
 	t.Helper()
 
 	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(repoDir, ".git", "HEAD"),
+			[]byte("ref: refs/heads/main\n"),
+			0o644,
+		),
+	)
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".git", "config"), []byte(`[core]
 	repositoryformatversion = 0
 [remote "origin"]
@@ -130,9 +140,15 @@ func writeCatalogRepo(t *testing.T, repoDir string) {
 `), 0o644))
 
 	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, "alpha"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "alpha", "main.tf"), []byte("# alpha\n"), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(repoDir, "alpha", "main.tf"), []byte("# alpha\n"), 0o644),
+	)
 	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, "bravo"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "bravo", "main.tf"), []byte("# bravo\n"), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(repoDir, "bravo", "main.tf"), []byte("# bravo\n"), 0o644),
+	)
 }
 
 func catalogTempDirs(t *testing.T, tempRoot string) []string {

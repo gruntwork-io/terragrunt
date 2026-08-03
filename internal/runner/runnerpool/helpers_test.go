@@ -20,7 +20,9 @@ func TestCloneUnitOptions_WithStackOpts(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 
-	stackOpts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "stack", "terragrunt.hcl"))
+	stackOpts, err := options.NewTerragruntOptionsForTest(
+		filepath.Join(tmpDir, "stack", "terragrunt.hcl"),
+	)
 	require.NoError(t, err)
 
 	unit := component.NewUnit(tmpDir)
@@ -82,7 +84,9 @@ func TestCloneUnitOptions_WithCustomDownloadDir(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
 
-	stackOpts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "stack", "terragrunt.hcl"))
+	stackOpts, err := options.NewTerragruntOptionsForTest(
+		filepath.Join(tmpDir, "stack", "terragrunt.hcl"),
+	)
 	require.NoError(t, err)
 
 	stackOpts.DownloadDir = "/custom/download"

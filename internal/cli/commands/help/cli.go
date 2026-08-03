@@ -27,7 +27,12 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	}
 }
 
-func Action(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, _ *options.TerragruntOptions) error {
+func Action(
+	ctx context.Context,
+	cliCtx *clihelper.Context,
+	l log.Logger,
+	_ *options.TerragruntOptions,
+) error {
 	var (
 		args = cliCtx.Args()
 		cmds = cliCtx.Commands
@@ -36,7 +41,10 @@ func Action(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, _ *opt
 	if l.Level() >= log.DebugLevel {
 		// https: //github.com/urfave/cli/blob/f035ffaa3749afda2cd26fb824aa940747297ef1/help.go#L401
 		if err := os.Setenv("CLI_TEMPLATE_ERROR_DEBUG", "1"); err != nil {
-			return fmt.Errorf("failed to set CLI_TEMPLATE_ERROR_DEBUG environment variable: %w", err)
+			return fmt.Errorf(
+				"failed to set CLI_TEMPLATE_ERROR_DEBUG environment variable: %w",
+				err,
+			)
 		}
 	}
 

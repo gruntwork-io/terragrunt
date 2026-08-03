@@ -47,7 +47,11 @@ func TestBoolFlagApply(t *testing.T) {
 			expectedErr:   nil,
 		},
 		{
-			flag:          clihelper.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: new(false)},
+			flag: clihelper.BoolFlag{
+				Name:        "foo",
+				EnvVars:     []string{"FOO"},
+				Destination: new(false),
+			},
 			args:          []string{"--foo"},
 			envs:          map[string]string{"FOO": "false"},
 			expectedValue: true,
@@ -68,14 +72,24 @@ func TestBoolFlagApply(t *testing.T) {
 			expectedErr:   nil,
 		},
 		{
-			flag:          clihelper.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: new(true), Negative: true},
+			flag: clihelper.BoolFlag{
+				Name:        "foo",
+				EnvVars:     []string{"FOO"},
+				Destination: new(true),
+				Negative:    true,
+			},
 			args:          nil,
 			envs:          map[string]string{"FOO": "true"},
 			expectedValue: false,
 			expectedErr:   nil,
 		},
 		{
-			flag:          clihelper.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: new(false), Negative: true},
+			flag: clihelper.BoolFlag{
+				Name:        "foo",
+				EnvVars:     []string{"FOO"},
+				Destination: new(false),
+				Negative:    true,
+			},
 			args:          nil,
 			envs:          map[string]string{"FOO": "false"},
 			expectedValue: true,
@@ -100,7 +114,9 @@ func TestBoolFlagApply(t *testing.T) {
 			args:          nil,
 			envs:          map[string]string{"FOO": "monkey"},
 			expectedValue: false,
-			expectedErr:   errors.New(`invalid value "monkey" for env var FOO: must be one of: "0", "1", "f", "t", "false", "true"`),
+			expectedErr: errors.New(
+				`invalid value "monkey" for env var FOO: must be one of: "0", "1", "f", "t", "false", "true"`,
+			),
 		},
 	}
 
@@ -113,7 +129,14 @@ func TestBoolFlagApply(t *testing.T) {
 	}
 }
 
-func testBoolFlagApply(t *testing.T, flag *clihelper.BoolFlag, args []string, envs map[string]string, expectedValue bool, expectedErr error) {
+func testBoolFlagApply(
+	t *testing.T,
+	flag *clihelper.BoolFlag,
+	args []string,
+	envs map[string]string,
+	expectedValue bool,
+	expectedErr error,
+) {
 	t.Helper()
 
 	var (

@@ -5,11 +5,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 // startSubmoduleServer commits the given files to a fresh test server,
@@ -19,9 +21,12 @@ func startSubmoduleServer(t *testing.T, files map[string]string) (string, string
 
 	srv := newEmptyTestServer(t)
 
+	batch := make(map[string][]byte, len(files))
 	for path, content := range files {
-		require.NoError(t, srv.CommitFile(t.Context(), path, []byte(content), "add "+path))
+		batch[path] = []byte(content)
 	}
+
+	require.NoError(t, srv.CommitFiles(t.Context(), batch, "add fixture files"))
 
 	head, err := srv.Head(t.Context())
 	require.NoError(t, err)
@@ -42,15 +47,17 @@ func TestCAS_CloneRepoWithSubmodule(t *testing.T) {
 
 	srv := newEmptyTestServer(t)
 	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`# parent`), "add main.tf"))
-	require.NoError(t, srv.CommitSubmodule(t.Context(), "modules/child", subURL, subHead, "add submodule"))
+	require.NoError(
+		t,
+		srv.CommitSubmodule(t.Context(), "modules/child", subURL, subHead, "add submodule"),
+	)
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
@@ -98,7 +105,10 @@ func TestCAS_CloneRepoWithNestedSubmodules(t *testing.T) {
 	})
 
 	childSrv := newEmptyTestServer(t)
-	require.NoError(t, childSrv.CommitFile(t.Context(), "module.tf", []byte(`# child`), "add module.tf"))
+	require.NoError(
+		t,
+		childSrv.CommitFile(t.Context(), "module.tf", []byte(`# child`), "add module.tf"),
+	)
 	require.NoError(t, childSrv.CommitSubmodule(
 		t.Context(), "vendor/leaf", grandchildURL, grandchildHead, "add grandchild",
 	))
@@ -111,13 +121,15 @@ func TestCAS_CloneRepoWithNestedSubmodules(t *testing.T) {
 
 	srv := newEmptyTestServer(t)
 	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`# parent`), "add main.tf"))
-	require.NoError(t, srv.CommitSubmodule(t.Context(), "modules/child", childURL, childHead, "add child"))
+	require.NoError(
+		t,
+		srv.CommitSubmodule(t.Context(), "modules/child", childURL, childHead, "add child"),
+	)
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
@@ -125,14 +137,23 @@ func TestCAS_CloneRepoWithNestedSubmodules(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath), cas.WithDepth(-1))
+	err = c.Clone(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		repoURL,
+		cas.WithDir(targetPath),
+		cas.WithDepth(-1),
+	)
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(filepath.Join(targetPath, "modules", "child", "module.tf"))
 	require.NoError(t, err)
 	assert.Equal(t, "# child", string(data))
 
-	data, err = os.ReadFile(filepath.Join(targetPath, "modules", "child", "vendor", "leaf", "leaf.tf"))
+	data, err = os.ReadFile(
+		filepath.Join(targetPath, "modules", "child", "vendor", "leaf", "leaf.tf"),
+	)
 	require.NoError(t, err)
 	assert.Equal(t, "# grandchild", string(data))
 }
@@ -150,13 +171,15 @@ func TestCAS_CloneRepoWithUnregisteredGitlink(t *testing.T) {
 	// The pinned hash is never fetched, so any well-formed SHA works.
 	const danglingHash = "0123456789abcdef0123456789abcdef01234567"
 
-	require.NoError(t, srv.CommitSubmodule(t.Context(), "vendor/orphan", "", danglingHash, "add orphan gitlink"))
+	require.NoError(
+		t,
+		srv.CommitSubmodule(t.Context(), "vendor/orphan", "", danglingHash, "add orphan gitlink"),
+	)
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
@@ -164,7 +187,14 @@ func TestCAS_CloneRepoWithUnregisteredGitlink(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath), cas.WithDepth(-1))
+	err = c.Clone(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		repoURL,
+		cas.WithDir(targetPath),
+		cas.WithDepth(-1),
+	)
 	require.NoError(t, err)
 
 	_, err = os.ReadFile(filepath.Join(targetPath, "main.tf"))
@@ -188,7 +218,10 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	t.Parallel()
 
 	childSrv := newEmptyTestServer(t)
-	require.NoError(t, childSrv.CommitFile(t.Context(), "module.tf", []byte(`# child module`), "add module.tf"))
+	require.NoError(
+		t,
+		childSrv.CommitFile(t.Context(), "module.tf", []byte(`# child module`), "add module.tf"),
+	)
 
 	childHead, err := childSrv.Head(t.Context())
 	require.NoError(t, err)
@@ -197,7 +230,16 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	srv.Mount("/child.git", childSrv)
 
 	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`# parent`), "add main.tf"))
-	require.NoError(t, srv.CommitSubmodule(t.Context(), "modules/child", "../child.git", childHead, "add submodule"))
+	require.NoError(
+		t,
+		srv.CommitSubmodule(
+			t.Context(),
+			"modules/child",
+			"../child.git",
+			childHead,
+			"add submodule",
+		),
+	)
 
 	_, err = srv.Start(t.Context())
 	require.NoError(t, err)
@@ -208,8 +250,7 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	// component for every request, so any path serves the main repo.
 	repoURL := srv.BaseURL() + "/parent.git"
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
@@ -217,7 +258,14 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath), cas.WithDepth(-1))
+	err = c.Clone(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		repoURL,
+		cas.WithDir(targetPath),
+		cas.WithDepth(-1),
+	)
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(filepath.Join(targetPath, "modules", "child", "module.tf"))

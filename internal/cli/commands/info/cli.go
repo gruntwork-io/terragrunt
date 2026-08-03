@@ -14,7 +14,7 @@ const (
 	CommandName = "info"
 )
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	return &clihelper.Command{
 		Name:  CommandName,
 		Usage: "List of commands to display Terragrunt settings.",

@@ -335,7 +335,12 @@ dependency "unit3" {
 	unit2Index := findIndex("unit2")
 	unit3Index := findIndex("unit3")
 
-	assert.Less(t, unit3Index, unit2Index, "unit3 (no deps) should come before unit2 (depends on unit3)")
+	assert.Less(
+		t,
+		unit3Index,
+		unit2Index,
+		"unit3 (no deps) should come before unit2 (depends on unit3)",
+	)
 	assert.Less(t, unit2Index, unit1Index, "unit2 should come before unit1 (depends on unit2)")
 }
 

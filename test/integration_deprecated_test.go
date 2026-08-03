@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -13,7 +15,7 @@ import (
 
 // This tests terragrunt properly passes through terraform commands with sub commands
 // and any number of specified args
-func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
+func TestTFDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -58,7 +60,10 @@ func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.Error(t, err)
 
-			assert.True(t, strings.Contains(stderr, tc.expected) || strings.Contains(stdout, tc.expected))
+			assert.True(
+				t,
+				strings.Contains(stderr, tc.expected) || strings.Contains(stdout, tc.expected),
+			)
 		})
 	}
 }

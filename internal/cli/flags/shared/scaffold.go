@@ -27,7 +27,10 @@ func NewScaffoldingFlags(opts *options.TerragruntOptions, prefix flags.Prefix) c
 			Usage:       "Name of the root Terragrunt configuration file, if used.",
 			Action: func(ctx context.Context, _ *clihelper.Context, value string) error {
 				if value == "" {
-					return clihelper.NewExitError("root-file-name flag cannot be empty", clihelper.ExitCodeGeneralError)
+					return clihelper.NewExitError(
+						"root-file-name flag cannot be empty",
+						clihelper.ExitCodeGeneralError,
+					)
 				}
 
 				if value != opts.TerragruntConfigPath {
@@ -36,7 +39,8 @@ func NewScaffoldingFlags(opts *options.TerragruntOptions, prefix flags.Prefix) c
 					return nil
 				}
 
-				if err := opts.StrictControls.FilterByNames("RootTerragruntHCL").Evaluate(ctx); err != nil {
+				if err := opts.StrictControls.FilterByNames("RootTerragruntHCL").
+					Evaluate(ctx); err != nil {
 					return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 				}
 

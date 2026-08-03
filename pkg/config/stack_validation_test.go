@@ -338,7 +338,11 @@ func TestValidateStackConfigCrossKindEqualRawPathNoStackNoCollision(t *testing.T
 	}
 
 	err := config.ValidateStackConfig(cfg, "/stack")
-	require.NoError(t, err, "equal raw paths that generate to different dirs must not be flagged as a collision")
+	require.NoError(
+		t,
+		err,
+		"equal raw paths that generate to different dirs must not be flagged as a collision",
+	)
 }
 
 // TestValidateStackConfigCrossKindDifferentRawSameGeneratedCollision proves the inverse: differing raw
@@ -354,7 +358,11 @@ func TestValidateStackConfigCrossKindDifferentRawSameGeneratedCollision(t *testi
 	}
 
 	err := config.ValidateStackConfig(cfg, "/stack")
-	require.Error(t, err, "different raw paths cleaning to the same generated dir must be flagged as a collision")
+	require.Error(
+		t,
+		err,
+		"different raw paths cleaning to the same generated dir must be flagged as a collision",
+	)
 }
 
 // TestValidateStackConfigNilElementDoesNotPanic proves a nil unit or stack element is skipped by the
@@ -415,18 +423,42 @@ unit "extra" {
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
-	require.Error(t, err, "the backstop must reject a stale stack autoinclude carrying a dependency consumed by injected values")
+	require.Error(
+		t,
+		err,
+		"the backstop must reject a stale stack autoinclude carrying a dependency consumed by injected values",
+	)
 
 	var typed inthclparse.StackAutoIncludeDependencyValuesError
-	require.ErrorAs(t, err, &typed, "the backstop must surface the typed StackAutoIncludeDependencyValuesError")
+	require.ErrorAs(
+		t,
+		err,
+		&typed,
+		"the backstop must surface the typed StackAutoIncludeDependencyValuesError",
+	)
 
 	// StackName is derived from the stack directory base by the backstop.
-	assert.Equal(t, filepath.Base(stackDir), typed.StackName, "StackName must be the stack directory base")
+	assert.Equal(
+		t,
+		filepath.Base(stackDir),
+		typed.StackName,
+		"StackName must be the stack directory base",
+	)
 
 	// The previously dropped fields must now be carried through the backstop path.
-	assert.Equal(t, "extra", typed.UnitName, "UnitName must name the injected unit whose values consume the dependency")
+	assert.Equal(
+		t,
+		"extra",
+		typed.UnitName,
+		"UnitName must name the injected unit whose values consume the dependency",
+	)
 	require.NotNil(t, typed.Subject, "Subject must point at the offending values expression")
-	assert.Equal(t, autoIncludePath, typed.Subject.Filename, "Subject must reference the stale autoinclude file on disk")
+	assert.Equal(
+		t,
+		autoIncludePath,
+		typed.Subject.Filename,
+		"Subject must reference the stale autoinclude file on disk",
+	)
 
 	// The clear guidance must still ride along, never the cryptic low-level diagnostic.
 	msg := err.Error()
@@ -464,12 +496,23 @@ unit "extra" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	stackConfig, err := config.ReadStackConfigFile(
+		ctx,
+		logger.CreateLogger(),
+		pctx,
+		stackFilePath,
+		nil,
+	)
 	require.NoError(t, err, "a supported unit.X.path values reference must not trip the backstop")
 	require.NotNil(t, stackConfig)
 
 	var typed inthclparse.StackAutoIncludeDependencyValuesError
-	require.NotErrorAs(t, err, &typed, "the supported pattern must not produce the typed dependency-values error")
+	require.NotErrorAs(
+		t,
+		err,
+		&typed,
+		"the supported pattern must not produce the typed dependency-values error",
+	)
 }
 
 // TestStackAutoIncludeOverridesSameNameUnit pins that a stack autoinclude whose injected unit name
@@ -509,8 +552,18 @@ unit "added" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
-	require.NoError(t, err, "a same-name injected unit must override the base unit, not raise a duplicate-name error")
+	stackConfig, err := config.ReadStackConfigFile(
+		ctx,
+		logger.CreateLogger(),
+		pctx,
+		stackFilePath,
+		nil,
+	)
+	require.NoError(
+		t,
+		err,
+		"a same-name injected unit must override the base unit, not raise a duplicate-name error",
+	)
 	require.NotNil(t, stackConfig)
 
 	byName := make(map[string]*config.Unit, len(stackConfig.Units))
@@ -518,17 +571,42 @@ unit "added" {
 		byName[u.Name] = u
 	}
 
-	require.Len(t, stackConfig.Units, 3, "override collapses the same-name unit while new names are appended")
+	require.Len(
+		t,
+		stackConfig.Units,
+		3,
+		"override collapses the same-name unit while new names are appended",
+	)
 
 	require.Contains(t, byName, "vpc")
-	assert.Equal(t, "injected-source", byName["vpc"].Source, "the injected unit overrides the base source")
-	assert.Equal(t, "injected-path", byName["vpc"].Path, "the injected unit overrides the base path")
+	assert.Equal(
+		t,
+		"injected-source",
+		byName["vpc"].Source,
+		"the injected unit overrides the base source",
+	)
+	assert.Equal(
+		t,
+		"injected-path",
+		byName["vpc"].Path,
+		"the injected unit overrides the base path",
+	)
 
 	require.Contains(t, byName, "untouched")
-	assert.Equal(t, "untouched-source", byName["untouched"].Source, "an unmatched base unit is left intact")
+	assert.Equal(
+		t,
+		"untouched-source",
+		byName["untouched"].Source,
+		"an unmatched base unit is left intact",
+	)
 
 	require.Contains(t, byName, "added")
-	assert.Equal(t, "added-source", byName["added"].Source, "an injected unit with a new name is appended")
+	assert.Equal(
+		t,
+		"added-source",
+		byName["added"].Source,
+		"an injected unit with a new name is appended",
+	)
 }
 
 // TestStackAutoIncludeOverridesSameNameStack mirrors the unit override case for `stack` blocks: a same-name
@@ -567,8 +645,18 @@ stack "added" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
-	require.NoError(t, err, "a same-name injected stack must override the base stack, not raise a duplicate-name error")
+	stackConfig, err := config.ReadStackConfigFile(
+		ctx,
+		logger.CreateLogger(),
+		pctx,
+		stackFilePath,
+		nil,
+	)
+	require.NoError(
+		t,
+		err,
+		"a same-name injected stack must override the base stack, not raise a duplicate-name error",
+	)
 	require.NotNil(t, stackConfig)
 
 	byName := make(map[string]*config.Stack, len(stackConfig.Stacks))
@@ -576,16 +664,36 @@ stack "added" {
 		byName[s.Name] = s
 	}
 
-	require.Len(t, stackConfig.Stacks, 3, "override collapses the same-name stack while new names are appended")
+	require.Len(
+		t,
+		stackConfig.Stacks,
+		3,
+		"override collapses the same-name stack while new names are appended",
+	)
 
 	require.Contains(t, byName, "networking")
-	assert.Equal(t, "injected-source", byName["networking"].Source, "the injected stack overrides the base source")
+	assert.Equal(
+		t,
+		"injected-source",
+		byName["networking"].Source,
+		"the injected stack overrides the base source",
+	)
 
 	require.Contains(t, byName, "untouched")
-	assert.Equal(t, "untouched-source", byName["untouched"].Source, "an unmatched base stack is left intact")
+	assert.Equal(
+		t,
+		"untouched-source",
+		byName["untouched"].Source,
+		"an unmatched base stack is left intact",
+	)
 
 	require.Contains(t, byName, "added")
-	assert.Equal(t, "added-source", byName["added"].Source, "an injected stack with a new name is appended")
+	assert.Equal(
+		t,
+		"added-source",
+		byName["added"].Source,
+		"an injected stack with a new name is appended",
+	)
 }
 
 // TestStackAutoIncludeDuplicateNameWithinFileRejected pins that two same-name blocks within the autoinclude
@@ -620,7 +728,11 @@ unit "extra" {
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
-	require.Error(t, err, "a duplicate name within the autoinclude file must be rejected, not silently collapsed")
+	require.Error(
+		t,
+		err,
+		"a duplicate name within the autoinclude file must be rejected, not silently collapsed",
+	)
 
 	var typed inthclparse.DuplicateUnitNameError
 	require.ErrorAs(t, err, &typed)
@@ -657,7 +769,11 @@ unit "vpc" {
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
-	require.Error(t, err, "a regular include declaring a same-name unit must still be rejected as a duplicate")
+	require.Error(
+		t,
+		err,
+		"a regular include declaring a same-name unit must still be rejected as a duplicate",
+	)
 
 	var typed inthclparse.DuplicateUnitNameError
 	require.ErrorAs(t, err, &typed)
@@ -700,7 +816,13 @@ unit "vpc" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	stackConfig, err := config.ReadStackConfigFile(
+		ctx,
+		logger.CreateLogger(),
+		pctx,
+		stackFilePath,
+		nil,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, stackConfig)
 
@@ -719,7 +841,12 @@ unit "vpc" {
 	p := consumer.Values.GetAttr("p")
 	require.Equal(t, cty.String, p.Type())
 	assert.Contains(t, p.AsString(), "omega", "unit.vpc.path must resolve to the overridden path")
-	assert.NotContains(t, p.AsString(), "alpha", "the stale base path must not leak into the sibling reference")
+	assert.NotContains(
+		t,
+		p.AsString(),
+		"alpha",
+		"the stale base path must not leak into the sibling reference",
+	)
 }
 
 // TestStackAutoIncludeOverridePathReferencesSiblingComponentRef pins that an injected block whose own path
@@ -754,8 +881,18 @@ unit "vpc" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
-	require.NoError(t, err, "an injected path referencing a base unit.<name>.path must resolve, not error the parse")
+	stackConfig, err := config.ReadStackConfigFile(
+		ctx,
+		logger.CreateLogger(),
+		pctx,
+		stackFilePath,
+		nil,
+	)
+	require.NoError(
+		t,
+		err,
+		"an injected path referencing a base unit.<name>.path must resolve, not error the parse",
+	)
 	require.NotNil(t, stackConfig)
 
 	var vpc *config.Unit
@@ -768,5 +905,10 @@ unit "vpc" {
 	}
 
 	require.NotNil(t, vpc, "the overridden vpc unit must survive the merge")
-	assert.Contains(t, vpc.Path, "anchor", "the injected path must resolve unit.anchor.path against the base component")
+	assert.Contains(
+		t,
+		vpc.Path,
+		"anchor",
+		"the injected path must resolve unit.anchor.path against the base component",
+	)
 }

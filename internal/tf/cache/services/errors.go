@@ -17,5 +17,9 @@ type UnexpectedProviderCachePathError struct {
 }
 
 func (e *UnexpectedProviderCachePathError) Error() string {
-	return fmt.Sprintf("unexpected non-symlink at provider package path %q (mode %s); refusing to remove", e.Path, e.Mode)
+	return fmt.Sprintf(
+		"unexpected non-symlink at provider package path %q (mode %s); refusing to remove",
+		e.Path,
+		e.Mode,
+	)
 }

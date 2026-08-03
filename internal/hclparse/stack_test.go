@@ -69,15 +69,22 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 }
 `), 0644))
 	// The nested stack, one level deeper, holds the only unit.
-	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
   source = "."
   path   = "deep"
 }
-`), 0644))
+`), 0644),
+	)
 
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
-	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep")}, paths)
+	assert.Equal(
+		t,
+		[]string{filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep")},
+		paths,
+	)
 }
 
 // TestUnitPathsFromStackDir_ValuesFileResolvesLocals pins that discovery loads the
@@ -102,7 +109,11 @@ unit "vpc" {
 `), 0644))
 
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.NoError(t, err, "locals referencing values.* must resolve when a sibling terragrunt.values.hcl exists")
+	require.NoError(
+		t,
+		err,
+		"locals referencing values.* must resolve when a sibling terragrunt.values.hcl exists",
+	)
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "dev-vpc")}, paths,
 		"the values file content must feed the local and therefore the generated unit path")
 }
@@ -148,7 +159,11 @@ unit "vpc" {
 `), 0644))
 
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.Error(t, err, "values.* without a sibling values file must fail, matching a full parse with no values")
+	require.Error(
+		t,
+		err,
+		"values.* without a sibling values file must fail, matching a full parse with no values",
+	)
 
 	var typed hclparse.LocalEvalError
 	require.ErrorAs(t, err, &typed)
@@ -175,7 +190,9 @@ stack "more" {
 	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.values.hcl", []byte(`env = "dev"
 `), 0644))
 	// The nested generated dir carries its own values file with a different value.
-	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/dev-more/terragrunt.stack.hcl", []byte(`locals {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/.terragrunt-stack/dev-more/terragrunt.stack.hcl", []byte(`locals {
   env = values.env
 }
 
@@ -183,14 +200,35 @@ unit "deep" {
   source = "."
   path   = "${local.env}-deep"
 }
-`), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/dev-more/terragrunt.values.hcl", []byte(`env = "stage"
-`), 0644))
+`), 0644),
+	)
+	require.NoError(
+		t,
+		vfs.WriteFile(
+			fs,
+			"/test/.terragrunt-stack/dev-more/terragrunt.values.hcl",
+			[]byte(`env = "stage"
+`),
+			0644,
+		),
+	)
 
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
-	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "dev-more", ".terragrunt-stack", "stage-deep")}, paths,
-		"each nesting level must resolve values.* from its own sibling values file")
+	assert.Equal(
+		t,
+		[]string{
+			filepath.Join(
+				"/test",
+				".terragrunt-stack",
+				"dev-more",
+				".terragrunt-stack",
+				"stage-deep",
+			),
+		},
+		paths,
+		"each nesting level must resolve values.* from its own sibling values file",
+	)
 }
 
 // TestUnitPathsFromStackDir_MalformedValuesFileReturnsError pins that a corrupt sibling
@@ -228,15 +266,23 @@ func TestUnitPathsFromStackDir_MergesStackAutoInclude(t *testing.T) {
 }
 `), 0644))
 	// A stack-level autoinclude beside the stack file injects an extra unit.
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "injected" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "injected" {
   source = "../units/injected"
   path   = "injected"
 }
-`), 0644))
+`), 0644),
+	)
 
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
-	require.Len(t, paths, 2, "the autoinclude-injected unit must expand alongside the stack file's own unit")
+	require.Len(
+		t,
+		paths,
+		2,
+		"the autoinclude-injected unit must expand alongside the stack file's own unit",
+	)
 	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "vpc"))
 	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "injected"))
 }
@@ -255,14 +301,21 @@ func TestUnitPathsFromStackDir_StackAutoIncludePathReferencesSiblingRef(t *testi
   path   = "anchor"
 }
 `), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
   source = "."
   path   = "${unit.anchor.path}-vpc"
 }
-`), 0644))
+`), 0644),
+	)
 
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.NoError(t, err, "an autoinclude path referencing a base unit.<name>.path must resolve during discovery")
+	require.NoError(
+		t,
+		err,
+		"an autoinclude path referencing a base unit.<name>.path must resolve during discovery",
+	)
 	assert.Len(t, paths, 2, "both the base anchor unit and the injected vpc unit must expand")
 }
 
@@ -278,21 +331,32 @@ func TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack(t *testing.
   path   = "vpc"
 }
 `), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`stack "more" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`stack "more" {
   source = "."
   path   = "more"
 }
-`), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
+`), 0644),
+	)
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
   source = "."
   path   = "deep"
 }
-`), 0644))
+`), 0644),
+	)
 
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
 	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "vpc"))
-	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep"), "a stack injected by the autoinclude must be recursed into")
+	assert.Contains(
+		t,
+		paths,
+		filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep"),
+		"a stack injected by the autoinclude must be recursed into",
+	)
 }
 
 // TestUnitPathsFromStackDir_StackAutoIncludeDepValuesRejected pins that discovery applies the same
@@ -308,20 +372,32 @@ func TestUnitPathsFromStackDir_StackAutoIncludeDepValuesRejected(t *testing.T) {
   path   = "base"
 }
 `), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "extra" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "extra" {
   source = "."
   path   = "extra"
   values = {
     v = dependency.foo.outputs.bar
   }
 }
-`), 0644))
+`), 0644),
+	)
 
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.Error(t, err, "a stack autoinclude whose injected values reference dependency outputs must be rejected by discovery")
+	require.Error(
+		t,
+		err,
+		"a stack autoinclude whose injected values reference dependency outputs must be rejected by discovery",
+	)
 
 	var typed hclparse.StackAutoIncludeDependencyValuesError
-	require.ErrorAs(t, err, &typed, "discovery must surface the same typed dep-values error as the full parse")
+	require.ErrorAs(
+		t,
+		err,
+		&typed,
+		"discovery must surface the same typed dep-values error as the full parse",
+	)
 }
 
 // TestUnitPathsFromStackDir_StackAutoIncludeSameNameOverrides pins that discovery overrides a base
@@ -337,14 +413,21 @@ func TestUnitPathsFromStackDir_StackAutoIncludeSameNameOverrides(t *testing.T) {
   path   = "vpc"
 }
 `), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
   source = "."
   path   = "vpc-injected"
 }
-`), 0644))
+`), 0644),
+	)
 
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.NoError(t, err, "a same-name injected unit must override the base unit, not raise a duplicate-name error")
+	require.NoError(
+		t,
+		err,
+		"a same-name injected unit must override the base unit, not raise a duplicate-name error",
+	)
 
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "vpc-injected")}, paths,
 		"the injected unit overrides the base unit wholesale, so only the injected path remains")
@@ -369,7 +452,11 @@ unit "vpc" {
 `), 0644))
 
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.Error(t, err, "a duplicate unit name within the base stack file must be rejected by discovery")
+	require.Error(
+		t,
+		err,
+		"a duplicate unit name within the base stack file must be rejected by discovery",
+	)
 
 	var typed hclparse.DuplicateUnitNameError
 	require.ErrorAs(t, err, &typed)
@@ -394,14 +481,21 @@ unit "vpc" {
   path   = "vpc-again"
 }
 `), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
   source = "."
   path   = "vpc-injected"
 }
-`), 0644))
+`), 0644),
+	)
 
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.Error(t, err, "a base-file duplicate must be rejected even when the autoinclude overrides that name")
+	require.Error(
+		t,
+		err,
+		"a base-file duplicate must be rejected even when the autoinclude overrides that name",
+	)
 
 	var typed hclparse.DuplicateUnitNameError
 	require.ErrorAs(t, err, &typed)
@@ -421,7 +515,9 @@ func TestUnitPathsFromStackDir_StackAutoIncludeDuplicateNameRejected(t *testing.
   path   = "base"
 }
 `), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "extra" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "extra" {
   source = "."
   path   = "extra"
 }
@@ -430,10 +526,15 @@ unit "extra" {
   source = "."
   path   = "extra-dup"
 }
-`), 0644))
+`), 0644),
+	)
 
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.Error(t, err, "a duplicate name within the autoinclude file must be rejected, not silently collapsed")
+	require.Error(
+		t,
+		err,
+		"a duplicate name within the autoinclude file must be rejected, not silently collapsed",
+	)
 
 	var typed hclparse.DuplicateUnitNameError
 	require.ErrorAs(t, err, &typed)
@@ -463,8 +564,17 @@ unit "extra" {
 `), 0644))
 
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.Error(t, err, "a stack autoinclude defining top-level locals must be rejected by discovery")
-	assert.Contains(t, err.Error(), "locals", "the rejection must identify the unsupported locals block")
+	require.Error(
+		t,
+		err,
+		"a stack autoinclude defining top-level locals must be rejected by discovery",
+	)
+	assert.Contains(
+		t,
+		err.Error(),
+		"locals",
+		"the rejection must identify the unsupported locals block",
+	)
 }
 
 // TestUnitPathsFromStackDir_StackAutoIncludeStrayContentRejected pins that discovery rejects a stack
@@ -480,7 +590,9 @@ func TestUnitPathsFromStackDir_StackAutoIncludeStrayContentRejected(t *testing.T
   path   = "base"
 }
 `), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`generate "stray" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`generate "stray" {
   path      = "stray.tf"
   if_exists = "overwrite"
   contents  = ""
@@ -490,10 +602,15 @@ unit "extra" {
   source = "."
   path   = "extra"
 }
-`), 0644))
+`), 0644),
+	)
 
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.Error(t, err, "a stack autoinclude carrying stray top-level content must be rejected by discovery, matching the full parse")
+	require.Error(
+		t,
+		err,
+		"a stack autoinclude carrying stray top-level content must be rejected by discovery, matching the full parse",
+	)
 }
 
 // TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir pins the dir-scoping
@@ -509,11 +626,14 @@ func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
   path   = "more"
 }
 `), 0644))
-	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
   source = "."
   path   = "deep"
 }
-`), 0644))
+`), 0644),
+	)
 
 	var seenDirs []string
 
@@ -526,7 +646,12 @@ func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
 	require.NoError(t, err)
 
 	nested := filepath.Join("/test", ".terragrunt-stack", "more")
-	assert.Equal(t, []string{"/test", nested}, seenDirs, "the factory must be rebuilt for the top dir and the nested dir")
+	assert.Equal(
+		t,
+		[]string{"/test", nested},
+		seenDirs,
+		"the factory must be rebuilt for the top dir and the nested dir",
+	)
 }
 
 // TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics pins that a factory returning a nil map is a programming error and panics with a clear message.
@@ -579,11 +704,14 @@ func TestUnitPathsFromStackDir_DepthCapReturnsError(t *testing.T) {
 	dir := "/test"
 	for range 1002 {
 		require.NoError(t, fs.MkdirAll(dir, 0755))
-		require.NoError(t, vfs.WriteFile(fs, filepath.Join(dir, "terragrunt.stack.hcl"), []byte(`stack "next" {
+		require.NoError(
+			t,
+			vfs.WriteFile(fs, filepath.Join(dir, "terragrunt.stack.hcl"), []byte(`stack "next" {
   source = "."
   path   = "next"
 }
-`), 0644))
+`), 0644),
+		)
 		dir = filepath.Join(dir, ".terragrunt-stack", "next")
 	}
 
@@ -660,7 +788,10 @@ func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "x" { source = "." `), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "x" { source = "." `), 0644),
+	)
 
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.Error(t, err)
@@ -797,7 +928,14 @@ unit "vpc" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: "/test/terragrunt.stack.hcl", StackDir: "/test"})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(mainSrc),
+			Filename: "/test/terragrunt.stack.hcl",
+			StackDir: "/test",
+		},
+	)
 	require.NoError(t, err)
 
 	// Should have both units: vpc from main + monitoring from include

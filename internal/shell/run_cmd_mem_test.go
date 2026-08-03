@@ -84,8 +84,18 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), v, opts, "tool"))
 	assert.Contains(t, stdout.String(), "out-line", "subprocess stdout must reach Writer")
 	assert.Contains(t, stderr.String(), "err-line", "subprocess stderr must reach ErrWriter")
-	assert.NotContains(t, stdout.String(), "err-line", "stderr must not leak into Writer when ErrWriter is separate")
-	assert.NotContains(t, stderr.String(), "out-line", "stdout must not leak into ErrWriter when Writer is separate")
+	assert.NotContains(
+		t,
+		stdout.String(),
+		"err-line",
+		"stderr must not leak into Writer when ErrWriter is separate",
+	)
+	assert.NotContains(
+		t,
+		stderr.String(),
+		"out-line",
+		"stdout must not leak into ErrWriter when Writer is separate",
+	)
 
 	// Same buffer for both writers: each line still appears, both in the shared buffer.
 	merged := &bytes.Buffer{}

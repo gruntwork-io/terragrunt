@@ -67,7 +67,11 @@ func (e *MaxAttemptsReachedError) Error() string {
 }
 
 // AttemptErrorRecovery attempts to recover from an error by checking the ignore and retry rules.
-func (c *Config) AttemptErrorRecovery(l log.Logger, err error, currentAttempt int) (*Action, error) {
+func (c *Config) AttemptErrorRecovery(
+	l log.Logger,
+	err error,
+	currentAttempt int,
+) (*Action, error) {
 	if err == nil {
 		return nil, nil
 	}

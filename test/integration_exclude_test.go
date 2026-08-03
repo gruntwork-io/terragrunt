@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -34,7 +36,7 @@ type excludeTestCase struct {
 	expectRuns      bool
 }
 
-func TestExcludeBlockBehavior(t *testing.T) {
+func TestTFExcludeBlockBehavior(t *testing.T) {
 	t.Parallel()
 
 	testCases := []*excludeTestCase{
@@ -219,7 +221,13 @@ func TestExcludeBlockBehavior(t *testing.T) {
 
 			for unitName, expected := range tc.expectedUnits {
 				run := runs.FindByName(unitName)
-				require.NotNil(t, run, "unit %s not found in report. Found: %v", unitName, runs.Names())
+				require.NotNil(
+					t,
+					run,
+					"unit %s not found in report. Found: %v",
+					unitName,
+					runs.Names(),
+				)
 				assert.Equal(
 					t,
 					expected.result,
@@ -308,11 +316,11 @@ func buildExcludeTestCommand(tc *excludeTestCase, rootPath, reportFile string) s
 	return cmd
 }
 
-// TestExcludeBlockFeatureFlagDefaultInDependency tests that when a dependency unit
+// TestTFExcludeBlockFeatureFlagDefaultInDependency tests that when a dependency unit
 // defines feature flags with defaults and uses them in an exclude block, the dependent
 // unit can still parse the dependency's config without errors.
 // This reproduces https://github.com/gruntwork-io/terragrunt/issues/4395
-func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
+func TestTFExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
 	t.Parallel()
 
 	testFixturePath := "fixtures/exclude/dependency-feature-flags"
@@ -327,12 +335,16 @@ func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
 	// when parsing the dependency's exclude block that uses feature flags
 	assert.NotContains(t, stderr, "Attempt to get attribute from null value",
 		"Feature flag defaults should be available when parsing dependency configs")
-	require.NoError(t, err, "terragrunt plan should succeed when dependency has feature flags in exclude block")
+	require.NoError(
+		t,
+		err,
+		"terragrunt plan should succeed when dependency has feature flags in exclude block",
+	)
 }
 
-// TestExcludeBlockFeatureFlagDefaultRunAll tests the run-all scenario where
+// TestTFExcludeBlockFeatureFlagDefaultRunAll tests the run-all scenario where
 // all units are parsed and one has feature flags with defaults in exclude blocks.
-func TestExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
+func TestTFExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 	t.Parallel()
 
 	testFixturePath := "fixtures/exclude/dependency-feature-flags"
@@ -351,5 +363,9 @@ func TestExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	assert.NotContains(t, stderr, "Attempt to get attribute from null value",
 		"Feature flag defaults should be available when parsing configs in run-all mode")
-	require.NoError(t, err, "terragrunt run-all plan should succeed with feature flags in exclude blocks")
+	require.NoError(
+		t,
+		err,
+		"terragrunt run-all plan should succeed with feature flags in exclude blocks",
+	)
 }

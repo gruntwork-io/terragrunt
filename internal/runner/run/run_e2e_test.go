@@ -79,6 +79,60 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	assert.Contains(t, calls[0].Args, "plan")
 }
 
+// TestRunPipelineEndToEndAutoInitEnvVarsDoNotLeakIntoApply pins the
+// contract that command-specific environment variables set for auto-init
+// do not overwrite those set for the requested command.
+func TestRunPipelineEndToEndAutoInitEnvVarsDoNotLeakIntoApply(t *testing.T) {
+	t.Parallel()
+
+	s := setupRunE2EScaffold(t)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(s.dir, run.ModuleInitRequiredFile),
+		nil,
+		0o600,
+	))
+
+	rec := &recorder{}
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		rec.record(&inv)
+
+		return vexec.Result{}
+	})
+
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	opts := newRunE2EOpts(t, s, "apply", "-auto-approve")
+	opts.AutoInit = true
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{
+				{
+					Name:     "apply",
+					Commands: []string{"apply"},
+					EnvVars:  map[string]string{"MARKER": "apply"},
+				},
+				{
+					Name:     "init",
+					Commands: []string{"init"},
+					EnvVars:  map[string]string{"MARKER": "init"},
+				},
+			},
+		},
+	}
+
+	require.NoError(
+		t,
+		run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter()),
+	)
+
+	calls := rec.snapshot()
+	require.Len(t, calls, 2)
+	assert.Contains(t, calls[0].Args, "init")
+	assert.Contains(t, calls[0].Env, "MARKER=init")
+	assert.Contains(t, calls[1].Args, "apply")
+	assert.Contains(t, calls[1].Env, "MARKER=apply")
+}
+
 // TestRunPipelineEndToEndPropagatesPlanFailure pins the contract that
 // a non-zero terraform exit causes run.Run to return an error. The mem
 // backend lets us trigger the failure deterministically without
@@ -89,7 +143,10 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	s := setupRunE2EScaffold(t)
 
 	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		return vexec.Result{ExitCode: 1, Stderr: []byte("Error: state lock acquired by another process\n")}
+		return vexec.Result{
+			ExitCode: 1,
+			Stderr:   []byte("Error: state lock acquired by another process\n"),
+		}
 	})
 
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
@@ -101,7 +158,15 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	opts := newRunE2EOpts(t, s, "plan")
 	opts.AutoRetry = false
 
-	err := run.Run(t.Context(), l, v, opts, report.NewReport(), &runcfg.RunConfig{}, creds.NewGetter())
+	err := run.Run(
+		t.Context(),
+		l,
+		v,
+		opts,
+		report.NewReport(),
+		&runcfg.RunConfig{},
+		creds.NewGetter(),
+	)
 	require.Error(t, err, "non-zero terraform exit must surface from run.Run")
 }
 
@@ -142,15 +207,28 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
 			BeforeHooks: []runcfg.Hook{
-				{Name: "before-plan", Commands: []string{"plan"}, Execute: []string{"step-before"}, If: true},
+				{
+					Name:     "before-plan",
+					Commands: []string{"plan"},
+					Execute:  []string{"step-before"},
+					If:       true,
+				},
 			},
 			AfterHooks: []runcfg.Hook{
-				{Name: "after-plan", Commands: []string{"plan"}, Execute: []string{"step-after"}, If: true},
+				{
+					Name:     "after-plan",
+					Commands: []string{"plan"},
+					Execute:  []string{"step-after"},
+					If:       true,
+				},
 			},
 		},
 	}
 
-	require.NoError(t, run.Run(t.Context(), l, v, opts, report.NewReport(), cfg, creds.NewGetter()))
+	require.NoError(
+		t,
+		run.Run(t.Context(), l, v, opts, report.NewReport(), cfg, creds.NewGetter()),
+	)
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -196,13 +274,17 @@ func setupRunE2EScaffold(t *testing.T) runE2EScaffold {
 	return runE2EScaffold{dir: dir, configPath: configPath}
 }
 
-func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...string) *run.Options {
+func newRunE2EOpts(
+	t *testing.T,
+	s runE2EScaffold,
+	command string,
+	extraArgs ...string,
+) *run.Options {
 	t.Helper()
 
 	args := iacargs.New(append([]string{command}, extraArgs...)...)
 
 	return &run.Options{
-		FS:                           vfs.NewOSFS(),
 		UnitDir:                      s.dir,
 		CacheDir:                     s.dir,
 		RootWorkingDir:               s.dir,

@@ -14,7 +14,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -39,7 +38,12 @@ type NestedGitScanDepthExceededError struct {
 }
 
 func (e *NestedGitScanDepthExceededError) Error() string {
-	return fmt.Sprintf("nested-git scan exceeded depth %d walking from %q to %q", e.MaxDepth, e.Path, e.Root)
+	return fmt.Sprintf(
+		"nested-git scan exceeded depth %d walking from %q to %q",
+		e.MaxDepth,
+		e.Path,
+		e.Root,
+	)
 }
 
 // GitTopLevelDir returns the git repository root that contains path,
@@ -47,7 +51,10 @@ func (e *NestedGitScanDepthExceededError) Error() string {
 // ancestor keeps the answer correct when a nested repository sits below an
 // already-cached outer root. Concurrent misses for the same repo collapse to
 // a single fork via the cache's resolve lock and a re-check after acquiring it.
-func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string) (string, error) {
+//
+// The git invocation runs with v.Exec and v.Env; its stdout and stderr are
+// captured to local buffers, so v.Writers is overridden for this call.
+func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string) (string, error) {
 	repoRoots := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	normalized := normalizeRepoPath(path)
 
@@ -69,12 +76,22 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string)
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitV := v
-	gitV.Writers = &writer.Writers{Writer: &stdout, ErrWriter: &stderr}
+	gitV := v.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(path)
 
-	cmd, err := RunCommandWithOutput(ctx, l, gitV, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	cmd, err := RunCommandWithOutput(
+		ctx,
+		l,
+		gitV,
+		gitRunOpts,
+		path,
+		true,
+		false,
+		"git",
+		"rev-parse",
+		"--show-toplevel",
+	)
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +115,11 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string)
 // lookupRepoRoot returns the cached root for path when the nested-repo guard
 // accepts it. A nested `.git` finding is reported as a miss (false, nil) so
 // the caller falls through to a fresh git resolution.
-func lookupRepoRoot(ctx context.Context, repoRoots *cache.RepoRootCache, path string) (string, bool, error) {
+func lookupRepoRoot(
+	ctx context.Context,
+	repoRoots *cache.RepoRootCache,
+	path string,
+) (string, bool, error) {
 	cached, ok := repoRoots.Lookup(ctx, path)
 	if !ok {
 		return "", false, nil
@@ -173,7 +194,13 @@ func normalizeRepoPath(path string) string {
 }
 
 // GitRepoTags fetches git repository tags from passed url.
-func GitRepoTags(ctx context.Context, l log.Logger, v venv.Venv, workingDir string, gitRepo *url.URL) ([]string, error) {
+func GitRepoTags(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	workingDir string,
+	gitRepo *url.URL,
+) ([]string, error) {
 	repoPath := gitRepo.String()
 	// remove git:: part if present
 	repoPath = strings.TrimPrefix(repoPath, gitPrefix)
@@ -181,12 +208,23 @@ func GitRepoTags(ctx context.Context, l log.Logger, v venv.Venv, workingDir stri
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitV := v
-	gitV.Writers = &writer.Writers{Writer: &stdout, ErrWriter: &stderr}
+	gitV := v.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(workingDir)
 
-	output, err := RunCommandWithOutput(ctx, l, gitV, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	output, err := RunCommandWithOutput(
+		ctx,
+		l,
+		gitV,
+		gitRunOpts,
+		workingDir,
+		true,
+		false,
+		"git",
+		"ls-remote",
+		"--tags",
+		repoPath,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +244,13 @@ func GitRepoTags(ctx context.Context, l log.Logger, v venv.Venv, workingDir stri
 }
 
 // GitLastReleaseTag fetches git repository last release tag.
-func GitLastReleaseTag(ctx context.Context, l log.Logger, v venv.Venv, workingDir string, gitRepo *url.URL) (string, error) {
+func GitLastReleaseTag(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	workingDir string,
+	gitRepo *url.URL,
+) (string, error) {
 	tags, err := GitRepoTags(ctx, l, v, workingDir, gitRepo)
 	if err != nil {
 		return "", err

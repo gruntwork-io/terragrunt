@@ -28,7 +28,10 @@ const DefaultEngineType = "rpc"
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder.
 func CopyLockFile(
-	l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sourceFolder, destinationFolder string,
+	l log.Logger,
+	rootWorkingDir string,
+	logShowAbsPaths bool,
+	sourceFolder, destinationFolder string,
 ) error {
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
@@ -89,7 +92,11 @@ func GetTerraformSourceURL(
 // This function will take that source and transform it to:
 //
 //	/path/to/local-modules//fixtures/source-map/modules/app
-func AdjustSourceWithMap(sourceMap map[string]string, source string, modulePath string) (string, error) {
+func AdjustSourceWithMap(
+	sourceMap map[string]string,
+	source string,
+	modulePath string,
+) (string, error) {
 	// Skip logic if source map is not configured
 	if len(sourceMap) == 0 {
 		return source, nil
@@ -149,7 +156,8 @@ func (err InvalidSourceURLWithMapError) Error() string {
 	return fmt.Sprintf(
 		"The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'."+
 			" Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!",
-		err.ModulePath, err.ModuleSourceURL,
+		err.ModulePath,
+		err.ModuleSourceURL,
 	)
 }
 
@@ -399,7 +407,12 @@ func IsActionListedInExclude(actions []string, action string) bool {
 //   - noRun: pointer to no_run flag (nil means not set)
 //   - ifCondition: the if condition value
 //   - command: the command/action to check
-func ShouldPreventRunBasedOnExclude(actions []string, noRun *bool, ifCondition bool, command string) bool {
+func ShouldPreventRunBasedOnExclude(
+	actions []string,
+	noRun *bool,
+	ifCondition bool,
+	command string,
+) bool {
 	if !ifCondition {
 		return false
 	}

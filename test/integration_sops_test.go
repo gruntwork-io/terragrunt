@@ -96,12 +96,20 @@ func TestSOPSDecryptedCorrectly(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSops)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -248,7 +256,12 @@ func TestSOPSDecryptedCorrectlyRunAllMultipleUnits(t *testing.T) {
 		require.NoError(t, err, "Failed to get output for %s: %s", unitName, stderr.String())
 
 		outputs := map[string]helpers.TerraformOutput{}
-		require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs), "Failed to parse output for %s", unitName)
+		require.NoError(
+			t,
+			json.Unmarshal(stdout.Bytes(), &outputs),
+			"Failed to parse output for %s",
+			unitName,
+		)
 
 		// Check for the specific failure mode from issue #5515:
 		// If SOPS decryption fails due to race, try() returns {} and lookup returns "DECRYPTION_FAILED"
@@ -277,11 +290,18 @@ func TestSOPSTerragruntLogSopsErrors(t *testing.T) {
 	testPath := filepath.Join(tmpEnvPath, testFixtureSopsErrors)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+testPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply --non-interactive --working-dir "+testPath,
+	)
 	require.Error(t, err)
 
 	assert.Contains(t, errorOut, "error decrypting key: [error decrypting key")
-	assert.Contains(t, errorOut, "error base64-decoding encrypted data key: illegal base64 data at input byte")
+	assert.Contains(
+		t,
+		errorOut,
+		"error base64-decoding encrypted data key: illegal base64 data at input byte",
+	)
 }
 
 func TestSOPSDecryptOnMissing(t *testing.T) {
@@ -300,7 +320,11 @@ func TestSOPSDecryptOnMissing(t *testing.T) {
 
 	errorOut = strings.ReplaceAll(errorOut, "\n", " ")
 
-	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
+	assert.Contains(
+		t,
+		errorOut,
+		"Encountered error while evaluating locals in file ./terragrunt.hcl",
+	)
 	// Check for the missing file error components separately since they may be split across log lines
 	assert.Contains(t, errorOut, "missing.yaml", "Error should reference the missing SOPS file")
 	assert.Contains(t, errorOut, "no such file", "Error should indicate file does not exist")

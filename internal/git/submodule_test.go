@@ -4,10 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestResolveSubmoduleURL(t *testing.T) {
@@ -145,51 +142,4 @@ func TestParseSubmoduleConfig(t *testing.T) {
 			assert.Equal(t, tt.want, git.ParseSubmoduleConfig(tt.output))
 		})
 	}
-}
-
-// TestGitRunner_SubmoduleURLs exercises the `git config --blob` path
-// against a real repository: the .gitmodules blob committed by the test
-// server is located through ls-tree and parsed by git itself.
-func TestGitRunner_SubmoduleURLs(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	srv, err := git.NewServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = srv.Close() })
-
-	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# repo"), "add readme"))
-
-	const pinnedHash = "0123456789abcdef0123456789abcdef01234567"
-
-	require.NoError(t, srv.CommitSubmodule(
-		t.Context(), "modules/child", "https://example.com/child.git", pinnedHash, "add submodule",
-	))
-
-	url, err := srv.Start(ctx)
-	require.NoError(t, err)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
-	require.NoError(t, runner.Clone(ctx, url, true, 0, ""))
-
-	tree, err := runner.LsTreeRecursive(ctx, "HEAD")
-	require.NoError(t, err)
-
-	var gitmodulesHash string
-
-	for _, entry := range tree.Entries() {
-		if entry.Path == git.GitmodulesPath {
-			gitmodulesHash = entry.Hash
-		}
-	}
-
-	require.NotEmpty(t, gitmodulesHash, ".gitmodules entry not found in tree")
-
-	urls, err := runner.SubmoduleURLs(ctx, gitmodulesHash)
-	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"modules/child": "https://example.com/child.git"}, urls)
 }

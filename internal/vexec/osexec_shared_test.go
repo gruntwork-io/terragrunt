@@ -81,7 +81,9 @@ func runParityCases(t *testing.T, cases []parityCase) {
 					Stderr:   capturedErr,
 					ExitCode: capturedExit,
 				}
-			}).Command(t.Context(), tc.name, tc.argv...).CombinedOutput()
+			}).
+				Command(t.Context(), tc.name, tc.argv...).
+				CombinedOutput()
 
 			assert.Equal(t, tc.wantSuccess, osCombErr == nil)
 			assert.Equal(t, tc.wantSuccess, memCombErr == nil)

@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -25,10 +26,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// ErrNonOSFilesystem is returned by DownloadTerraformSource when Options.FS
-// is not OS-backed. See the doc comment on Options.FS for why this is
+// ErrNonOSFilesystem is returned by DownloadTerraformSource when the venv
+// filesystem is not OS-backed. See [BuildDownloadClient] for why this is
 // required.
-var ErrNonOSFilesystem = errors.New("download requires an OS-backed filesystem; see run.Options.FS")
+var ErrNonOSFilesystem = errors.New("download requires an OS-backed filesystem")
 
 // ModuleManifestName is the manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
 const (
@@ -53,13 +54,13 @@ const (
 func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) (*Options, error) {
-	if !vfs.IsOSFS(opts.FS) {
+	if !vfs.IsOSFS(v.FS) {
 		return nil, ErrNonOSFilesystem
 	}
 
@@ -98,10 +99,10 @@ func DownloadTerraformSource(
 
 	// When no download was needed (AlreadyHaveLatestCode=true) and the source
 	// directory IS the working directory (source="."), skip the module copy: the
-	// version hash incorporates all file mod times, so no files have changed and
-	// the cache already has the correct content from a previous run. Skipping
-	// avoids manifest.Clean() deleting files that a concurrent goroutine expects
-	// to exist.
+	// version hash incorporates the mod times of every file the copy would
+	// deliver, so no relevant files have changed and the cache already has the
+	// correct content from a previous run. Skipping avoids manifest.Clean()
+	// deleting files that a concurrent goroutine expects to exist.
 	//
 	// When the source is a different directory (local or remote), the module copy
 	// overlays working-dir files on top of the downloaded source. These files may
@@ -121,16 +122,7 @@ func DownloadTerraformSource(
 			),
 		)
 
-		// Always include the .tflint.hcl file, if it exists
-		includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
-
-		copyOpts := []util.CopyOption{
-			util.WithIncludeInCopy(includeInCopy...),
-			util.WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...),
-		}
-		if controls.IsFastCopyEnabled(opts.StrictControls) {
-			copyOpts = append(copyOpts, util.WithFastCopy())
-		}
+		copyOpts := moduleCopyOptions(opts, cfg)
 
 		err = telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, l, "copy_folder_contents", map[string]any{
@@ -165,6 +157,26 @@ func DownloadTerraformSource(
 	updatedOpts.CacheDir = terraformSource.WorkingDir
 
 	return updatedOpts, nil
+}
+
+// moduleCopyOptions returns the copy options for the module copy into the
+// cache working directory. The source version hash uses the same options so it
+// covers exactly the files a copy would deliver: when the source directory is
+// the working directory, the module copy is skipped whenever the hash is
+// unchanged, so any file the hash ignored must be one no copy would refresh.
+func moduleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
+	// Always include the .tflint.hcl file, if it exists
+	includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
+
+	copyOpts := []util.CopyOption{
+		util.WithIncludeInCopy(includeInCopy...),
+		util.WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...),
+	}
+	if controls.IsFastCopyEnabled(opts.StrictControls) {
+		copyOpts = append(copyOpts, util.WithFastCopy())
+	}
+
+	return copyOpts
 }
 
 // resolveTerraformModuleVersion rewrites a config-provided tfr:// source to pin
@@ -238,20 +250,22 @@ func (e SourceVersionConstraintErr) Error() string {
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been
 // downloaded. It returns true if a download was performed, or false if the existing cache was up to date.
 //
-// opts.FS must be the OS-backed filesystem from [vfs.NewOSFS]; see [Options.FS]
-// for why. Returns [ErrNonOSFilesystem] otherwise.
+// v.FS must be the OS-backed filesystem from [vfs.NewOSFS]; see
+// [BuildDownloadClient] for why. Returns [ErrNonOSFilesystem] otherwise.
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	terraformSource *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) (bool, error) {
-	if !vfs.IsOSFS(opts.FS) {
+	if !vfs.IsOSFS(v.FS) {
 		return false, ErrNonOSFilesystem
 	}
+
+	copyOpts := moduleCopyOptions(opts, cfg)
 
 	if opts.SourceUpdate {
 		l.Debugf(
@@ -259,11 +273,11 @@ func DownloadTerraformSourceIfNecessary(
 			terraformSource.DownloadDir,
 		)
 
-		if err := opts.FS.RemoveAll(terraformSource.DownloadDir); err != nil {
+		if err := v.FS.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return false, err
 		}
 	} else {
-		alreadyLatest, err := AlreadyHaveLatestCode(l, terraformSource, opts)
+		alreadyLatest, err := AlreadyHaveLatestCode(l, v, terraformSource, opts, copyOpts...)
 		if err != nil {
 			return false, err
 		}
@@ -290,7 +304,7 @@ func DownloadTerraformSourceIfNecessary(
 	var previousVersion = ""
 	// read previous source version
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	versionFileExists, err := vfs.FileExists(opts.FS, terraformSource.VersionFile)
+	versionFileExists, err := vfs.FileExists(v.FS, terraformSource.VersionFile)
 	if err != nil {
 		return false, err
 	}
@@ -352,7 +366,7 @@ func DownloadTerraformSourceIfNecessary(
 		}
 	}
 
-	if err := terraformSource.WriteVersionFile(l); err != nil {
+	if err := terraformSource.WriteVersionFile(l, v.FS, copyOpts...); err != nil {
 		return false, err
 	}
 
@@ -360,7 +374,7 @@ func DownloadTerraformSourceIfNecessary(
 		return false, err
 	}
 
-	currentVersion, err := terraformSource.EncodeSourceVersion(l)
+	currentVersion, err := terraformSource.EncodeSourceVersion(l, v.FS, copyOpts...)
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
@@ -372,7 +386,7 @@ func DownloadTerraformSourceIfNecessary(
 
 		initFile := filepath.Join(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
-		f, createErr := opts.FS.Create(initFile)
+		f, createErr := v.FS.Create(initFile)
 		if createErr != nil {
 			return false, createErr
 		}
@@ -387,10 +401,17 @@ func DownloadTerraformSourceIfNecessary(
 
 // AlreadyHaveLatestCode returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
-// to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
-func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Options) (bool, error) {
+// to a local file path, a hash will be generated from the files in the source dir that a copy configured with
+// copyOpts would deliver. See the ProcessTerraformSource method for more info.
+func AlreadyHaveLatestCode(
+	l log.Logger,
+	v *venv.Venv,
+	terraformSource *tf.Source,
+	opts *Options,
+	copyOpts ...util.CopyOption,
+) (bool, error) {
 	for _, path := range []string{terraformSource.DownloadDir, terraformSource.WorkingDir, terraformSource.VersionFile} {
-		exists, err := vfs.FileExists(opts.FS, path)
+		exists, err := vfs.FileExists(v.FS, path)
 		if err != nil {
 			return false, err
 		}
@@ -414,7 +435,7 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Optio
 		return false, nil
 	}
 
-	currentVersion, err := terraformSource.EncodeSourceVersion(l)
+	currentVersion, err := terraformSource.EncodeSourceVersion(l, v.FS, copyOpts...)
 	// If we fail to calculate the source version (e.g. because walking the
 	// directory tree failed) use a random version instead, bypassing the cache.
 	if err != nil {
@@ -450,7 +471,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 func downloadSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -478,7 +499,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, src, opts, cfg.Terraform.Mutable)
+		done, err := tryCASDownload(ctx, l, v, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -488,7 +509,7 @@ func downloadSource(
 		}
 	}
 
-	return opts.RunWithErrorHandling(ctx, l, r, func() error {
+	return opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		client, err := BuildDownloadClient(l, v, opts, cfg)
 		if err != nil {
 			return err
@@ -515,13 +536,16 @@ func downloadSource(
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	mutable bool,
 ) (bool, error) {
-	// The CAS matcher cannot claim oci:// sources yet, so skip the attempt
-	// instead of logging a guaranteed fallback on every oci download.
-	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI {
+	ociEnabled := opts.Experiments.Evaluate(experiment.OCI)
+
+	// Without the oci experiment the CAS maps carry no oci entries, so skip
+	// the attempt instead of logging a guaranteed fallback on every download.
+	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI && !ociEnabled {
 		return false, nil
 	}
 
@@ -549,8 +573,7 @@ func tryCASDownload(
 		return false, nil
 	}
 
-	casVenv, err := cas.OSVenv()
-	if err != nil {
+	if _, err := git.NewGitRunner(v.Exec); err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
@@ -568,11 +591,17 @@ func tryCASDownload(
 		Mutable:          mutable,
 	}
 
-	casProtocol := getter.NewCASProtocolGetter(l, c, casVenv)
+	casProtocol := getter.NewCASProtocolGetter(l, c, v)
 	casProtocol.Mutable = mutable
 
 	dispatchOpts := []getter.GenericFetcherOption{
-		getter.WithTFRConfig(l, opts.TofuImplementation, casVenv.FS),
+		getter.WithDispatchLogger(l),
+		getter.WithDispatchFS(v.FS),
+		getter.WithTFRConfig(opts.TofuImplementation),
+	}
+
+	if ociEnabled {
+		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(v))
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
@@ -582,7 +611,13 @@ func tryCASDownload(
 	client := &getter.Client{
 		Getters: []getter.Getter{
 			casProtocol,
-			getter.NewCASGetter(l, c, casVenv, &cloneOpts, getter.WithDefaultGenericDispatch(dispatchOpts...)),
+			getter.NewCASGetter(
+				l,
+				c,
+				v,
+				&cloneOpts,
+				getter.WithDefaultGenericDispatch(dispatchOpts...),
+			),
 		},
 	}
 
@@ -602,7 +637,7 @@ func tryCASDownload(
 		// Clear any partial CAS output before the fallback runs; mixing
 		// leftover CAS files with the standard getter's output leaves the
 		// module dir in an inconsistent state.
-		if removeErr := opts.FS.RemoveAll(src.DownloadDir); removeErr != nil {
+		if removeErr := v.FS.RemoveAll(src.DownloadDir); removeErr != nil {
 			l.Warnf("Failed to clean partial CAS output at %s: %v", src.DownloadDir, removeErr)
 		}
 
@@ -628,7 +663,7 @@ func tryCASDownload(
 // Exported so tests can assert the protocol set directly.
 func BuildDownloadClient(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) (*getter.Client, error) {
@@ -638,12 +673,14 @@ func BuildDownloadClient(
 
 	clientOpts := []getter.Option{
 		getter.WithLogger(l),
+		getter.WithHTTP(v.HTTP),
 		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			WithHTTPClient(v.HTTP).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
 

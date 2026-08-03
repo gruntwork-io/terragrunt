@@ -5,13 +5,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIntegration_CloneAndReuse(t *testing.T) {
@@ -20,8 +22,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
@@ -98,8 +99,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()

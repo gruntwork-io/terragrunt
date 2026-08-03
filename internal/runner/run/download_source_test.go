@@ -1,6 +1,7 @@
 package run_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -59,12 +60,19 @@ func findGetter[T any](getters []getter.Getter) (T, bool) {
 func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash")
+	canonicalURL := "file://" + absPath(
+		t,
+		"../../../test/fixtures/download-source/hello-world-local-hash",
+	)
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixtures/download-source/download-dir-version-file-local-hash", downloadDir)
+	copyFolder(
+		t,
+		"../../../test/fixtures/download-source/download-dir-version-file-local-hash",
+		downloadDir,
+	)
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 
 	// Write out a version file so we can test a cache hit
@@ -73,7 +81,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = terraformSource.WriteVersionFile(logger.CreateLogger())
+	err = terraformSource.WriteVersionFile(logger.CreateLogger(), vfs.NewOSFS())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,14 +125,25 @@ func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash")
+	canonicalURL := "file://" + absPath(
+		t,
+		"../../../test/fixtures/download-source/hello-world-local-hash",
+	)
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixtures/download-source/download-dir-version-file-local-hash", downloadDir)
+	copyFolder(
+		t,
+		"../../../test/fixtures/download-source/download-dir-version-file-local-hash",
+		downloadDir,
+	)
 
-	f, err := os.OpenFile(downloadDir+"/version-file.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(
+		downloadDir+"/version-file.txt",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0644,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,16 +182,23 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionNoVersionF
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
 
-func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionWithVersionFile(t *testing.T) {
+func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionWithVersionFile(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file-no-query")
+	downloadDir := absPath(
+		t,
+		"../../../test/fixtures/download-source/download-dir-version-file-no-query",
+	)
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
 
-func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionNoVersionFile(t *testing.T) {
+func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionNoVersionFile(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
@@ -181,7 +207,9 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionNoVersio
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
 
-func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersionFile(t *testing.T) {
+func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersionFile(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
@@ -190,11 +218,16 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
 
-func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersionFileAndTfCode(t *testing.T) {
+func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersionFileAndTfCode(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file-tf-code")
+	downloadDir := absPath(
+		t,
+		"../../../test/fixtures/download-source/download-dir-version-file-tf-code",
+	)
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -207,7 +240,14 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World", false)
+	testDownloadTerraformSourceIfNecessary(
+		t,
+		canonicalURL,
+		downloadDir,
+		false,
+		"# Hello, World",
+		false,
+	)
 }
 
 func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *testing.T) {
@@ -220,7 +260,14 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *tes
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World", false)
+	testDownloadTerraformSourceIfNecessary(
+		t,
+		canonicalURL,
+		downloadDir,
+		false,
+		"# Hello, World",
+		false,
+	)
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
@@ -233,7 +280,14 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World", false)
+	testDownloadTerraformSourceIfNecessary(
+		t,
+		canonicalURL,
+		downloadDir,
+		false,
+		"# Hello, World",
+		false,
+	)
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *testing.T) {
@@ -248,10 +302,19 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *te
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World 2", false)
+	testDownloadTerraformSourceIfNecessary(
+		t,
+		canonicalURL,
+		downloadDir,
+		false,
+		"# Hello, World 2",
+		false,
+	)
 }
 
-func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDifferentVersion(t *testing.T) {
+func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDifferentVersion(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	srv := helpers.NewGitServer(t)
@@ -263,15 +326,27 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World", true)
+	testDownloadTerraformSourceIfNecessary(
+		t,
+		canonicalURL,
+		downloadDir,
+		false,
+		"# Hello, World",
+		true,
+	)
 }
 
-func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVersion(t *testing.T) {
+func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVersion(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	srv := helpers.NewGitServer(t)
 	srv.AddFixtures("test/fixtures/download-source/hello-world-version-remote")
-	canonicalURL := srv.SourceURL("test/fixtures/download-source/hello-world-version-remote", "v0.83.2")
+	canonicalURL := srv.SourceURL(
+		"test/fixtures/download-source/hello-world-version-remote",
+		"v0.83.2",
+	)
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -300,9 +375,20 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := filepath.Join(downloadDir, "main.tf")
-	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
+	if assert.True(
+		t,
+		util.FileExists(expectedFilePath),
+		"For terraform source %v",
+		terraformSource,
+	) {
 		actualFileContents := readFile(t, expectedFilePath)
-		assert.Equal(t, "# Hello, World version remote", actualFileContents, "For terraform source %v", terraformSource)
+		assert.Equal(
+			t,
+			"# Hello, World version remote",
+			actualFileContents,
+			"For terraform source %v",
+			terraformSource,
+		)
 	}
 }
 
@@ -318,7 +404,14 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, true, "# Hello, World", false)
+	testDownloadTerraformSourceIfNecessary(
+		t,
+		canonicalURL,
+		downloadDir,
+		true,
+		"# Hello, World",
+		false,
+	)
 }
 
 func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) {
@@ -513,13 +606,26 @@ func testDownloadTerraformSourceIfNecessary(
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := filepath.Join(downloadDir, "main.tf")
-	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
+	if assert.True(
+		t,
+		util.FileExists(expectedFilePath),
+		"For terraform source %v",
+		terraformSource,
+	) {
 		actualFileContents := readFile(t, expectedFilePath)
-		assert.Equal(t, expectedFileContents, actualFileContents, "For terraform source %v", terraformSource)
+		assert.Equal(
+			t,
+			expectedFileContents,
+			actualFileContents,
+			"For terraform source %v",
+			terraformSource,
+		)
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(filepath.Join(terraformSource.WorkingDir, run.ModuleInitRequiredFile))
+		existsInitFile := util.FileExists(
+			filepath.Join(terraformSource.WorkingDir, run.ModuleInitRequiredFile),
+		)
 		require.True(t, existsInitFile)
 	}
 }
@@ -564,7 +670,8 @@ func createConfig(
 		// DefaultWrappedPath resolves to either tofu or terraform depending
 		// on what's on the host PATH; accept both so the assertion stays
 		// host-independent.
-		if (inv.Name != "tofu" && inv.Name != "terraform") || !slices.Contains(inv.Args, "-version") {
+		if (inv.Name != "tofu" && inv.Name != "terraform") ||
+			!slices.Contains(inv.Args, "-version") {
 			assert.Fail(t, "unexpected invocation during PopulateTFVersion",
 				"name=%q args=%v", inv.Name, inv.Args)
 
@@ -575,11 +682,16 @@ func createConfig(
 	})
 
 	versionV := venvtest.New().WithExec(versionExec).WithEnv(venv.OSVenv().Env)
-	_, ver, impl, err := run.PopulateTFVersion(t.Context(), l, versionV, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
-		WorkingDir:   opts.WorkingDir,
-		VersionFiles: opts.VersionManagerFileName,
-	})
+	_, ver, impl, err := run.PopulateTFVersion(
+		t.Context(),
+		l,
+		versionV,
+		run.PopulateTFVersionInput{
+			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			WorkingDir:   opts.WorkingDir,
+			VersionFiles: opts.VersionManagerFileName,
+		},
+	)
 	require.NoError(t, err)
 
 	opts.TerraformVersion = ver
@@ -588,7 +700,12 @@ func createConfig(
 	return terraformSource, opts, cfg, err
 }
 
-func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir string, expected bool) {
+func testAlreadyHaveLatestCode(
+	t *testing.T,
+	canonicalURL string,
+	downloadDir string,
+	expected bool,
+) {
 	t.Helper()
 
 	l := logger.CreateLogger()
@@ -604,7 +721,12 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := run.AlreadyHaveLatestCode(l, terraformSource, configbridge.NewRunOptions(opts))
+	actual, err := run.AlreadyHaveLatestCode(
+		l,
+		venv.OSVenv(),
+		terraformSource,
+		configbridge.NewRunOptions(opts),
+	)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }
@@ -738,7 +860,11 @@ func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 	wrapped, ok := findGetter[*getter.HTTPSchemeGetter](client.Getters)
 	require.True(t, ok, "client should register an HttpGetter")
 	require.NotNil(t, wrapped.Inner)
-	assert.True(t, wrapped.Inner.Netrc, "HttpGetter must have Netrc enabled for ~/.netrc authentication")
+	assert.True(
+		t,
+		wrapped.Inner.Netrc,
+		"HttpGetter must have Netrc enabled for ~/.netrc authentication",
+	)
 }
 
 // TestBuildDownloadClientCoversDefaultSchemes verifies that the canonical
@@ -829,7 +955,11 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 
 	// Verify that the working directory was changed to the cache directory (inside downloadDir)
 	assert.NotEqual(t, sourceDir, updatedOpts.CacheDir, "Working dir should be changed to cache")
-	assert.True(t, strings.HasPrefix(updatedOpts.CacheDir, downloadDir), "Working dir should be under download dir")
+	assert.True(
+		t,
+		strings.HasPrefix(updatedOpts.CacheDir, downloadDir),
+		"Working dir should be under download dir",
+	)
 
 	// Verify that the main.tf file was copied to the cache
 	cachedMainTf := filepath.Join(updatedOpts.CacheDir, "main.tf")
@@ -934,6 +1064,94 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
 	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceOCIThroughCASExperimentGate: with the oci experiment on,
+// an oci source enters the CAS path (observed via the CAS attempt log) and
+// reaches the real getter; off, the CAS attempt is skipped up front.
+func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		enableOCI bool
+	}{
+		{name: "experiment enabled reaches the oci getter", enableOCI: true},
+		{name: "experiment disabled skips the oci getter", enableOCI: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			// A TLS server the test owns: the client rejects its self-signed
+			// cert deterministically, with no assumptions about closed ports.
+			registry := httptest.NewTLSServer(http.NotFoundHandler())
+			t.Cleanup(registry.Close)
+
+			registryAddr := registry.Listener.Addr().String()
+			src := &tf.Source{
+				CanonicalSourceURL: parseURL(t, "oci://"+registryAddr+"/terraform-modules/vpc?tag=1.0.0"),
+				DownloadDir:        tmpDir,
+				WorkingDir:         tmpDir,
+				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+			}
+
+			opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+			require.NoError(t, err)
+
+			opts.Experiments = experiment.NewExperiments()
+
+			if tc.enableOCI {
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.OCI))
+			}
+
+			cfg := &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{
+					ExtraArgs: []runcfg.TerraformExtraArguments{},
+				},
+			}
+
+			var logBuf bytes.Buffer
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
+
+			// Hermetic env and home so a developer's local Docker or tofu
+			// credentials cannot change how the source authenticates.
+			hermeticHome := t.TempDir()
+			v := venv.OSVenv().
+				WithEnv(map[string]string{"HOME": hermeticHome}).
+				WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
+
+			_, err = run.DownloadTerraformSourceIfNecessary(
+				t.Context(),
+				l,
+				v,
+				src,
+				configbridge.NewRunOptions(opts),
+				cfg,
+				report.NewReport(),
+			)
+			require.Error(t, err, "the fake registry's cert is untrusted, so every fetch fails")
+
+			const casAttempt = "CAS enabled: attempting to use Content Addressable Storage"
+
+			var resolutionErr getter.OCIReferenceResolutionError
+
+			if tc.enableOCI {
+				require.ErrorAs(t, err, &resolutionErr, "the oci getter must run when the experiment is on")
+				assert.Contains(t, logBuf.String(), casAttempt, "the oci source must enter the CAS path when the experiment is on")
+
+				return
+			}
+
+			assert.NotErrorAs(t, err, &resolutionErr, "no oci getter must run when the experiment is off")
+			assert.NotContains(t, logBuf.String(), casAttempt, "the CAS attempt must be skipped when the experiment is off")
+		})
+	}
 }
 
 // TestDownloadSourceWithCASGitSource tests CAS functionality with a Git source
@@ -1185,7 +1403,12 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 
 	dst := filepath.Join(t.TempDir(), "module.tf")
 
-	client, err := run.BuildDownloadClient(logger.CreateLogger(), venv.OSVenv(), configbridge.NewRunOptions(opts), cfg)
+	client, err := run.BuildDownloadClient(
+		logger.CreateLogger(),
+		venv.OSVenv(),
+		configbridge.NewRunOptions(opts),
+		cfg,
+	)
 	require.NoError(t, err)
 
 	_, err = client.Get(t.Context(), &getter.Request{
@@ -1201,16 +1424,16 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 }
 
 // TestDownloadTerraformSourceRejectsNonOSFilesystem pins that the entry
-// guard returns ErrNonOSFilesystem before any download work runs when
-// Options.FS is not OS-backed.
+// guard returns ErrNonOSFilesystem before any download work runs when the
+// venv filesystem is not OS-backed.
 func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	runOpts := configbridge.NewRunOptions(opts)
-	runOpts.FS = vfs.NewMemMapFS()
+	v := venv.OSVenv()
+	v.FS = vfs.NewMemMapFS()
 
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(io.Discard))
@@ -1218,9 +1441,9 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
 	_, err = run.DownloadTerraformSource(
 		t.Context(),
 		l,
-		venv.OSVenv(),
+		v,
 		".",
-		runOpts,
+		configbridge.NewRunOptions(opts),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 		report.NewReport(),
 	)
@@ -1235,8 +1458,8 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	opts, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	runOpts := configbridge.NewRunOptions(opts)
-	runOpts.FS = vfs.NewMemMapFS()
+	v := venv.OSVenv()
+	v.FS = vfs.NewMemMapFS()
 
 	src, err := tf.NewSource(logger.CreateLogger(), ".", t.TempDir(), opts.WorkingDir, false)
 	require.NoError(t, err)
@@ -1244,9 +1467,9 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		v,
 		src,
-		runOpts,
+		configbridge.NewRunOptions(opts),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 		report.NewReport(),
 	)
@@ -1332,7 +1555,11 @@ func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 				GetMode: getter.ModeDir,
 			})
 			require.Error(t, err)
-			assert.Equal(t, tc.enabled, errors.Is(err, getter.OCIUnsupportedQueryParamError{Param: "bogus"}))
+			assert.Equal(
+				t,
+				tc.enabled,
+				errors.Is(err, getter.OCIUnsupportedQueryParamError{Param: "bogus"}),
+			)
 		})
 	}
 }

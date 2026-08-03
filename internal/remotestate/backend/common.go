@@ -33,7 +33,7 @@ func (backend *CommonBackend) Name() string {
 func (backend *CommonBackend) IsVersionControlEnabled(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	config Config,
 	opts *Options,
 ) (bool, error) {
@@ -46,7 +46,7 @@ func (backend *CommonBackend) IsVersionControlEnabled(
 func (backend *CommonBackend) NeedsBootstrap(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	config Config,
 	opts *Options,
 ) (bool, error) {
@@ -57,7 +57,7 @@ func (backend *CommonBackend) NeedsBootstrap(
 func (backend *CommonBackend) Bootstrap(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	config Config,
 	opts *Options,
 ) error {
@@ -70,7 +70,7 @@ func (backend *CommonBackend) Bootstrap(
 func (backend *CommonBackend) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	srcConfig, dstConfig Config,
 	opts *Options,
 ) error {
@@ -83,7 +83,7 @@ func (backend *CommonBackend) Migrate(
 func (backend *CommonBackend) Delete(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	config Config,
 	opts *Options,
 ) error {
@@ -96,7 +96,7 @@ func (backend *CommonBackend) Delete(
 func (backend *CommonBackend) DeleteBucket(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	config Config,
 	opts *Options,
 ) error {

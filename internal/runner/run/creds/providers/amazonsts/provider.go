@@ -23,7 +23,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, iamRoleOpts iam.RoleOptions, env map[string]string) providers.Provider {
+func NewProvider(
+	l log.Logger,
+	iamRoleOpts iam.RoleOptions,
+	env map[string]string,
+) providers.Provider {
 	return &Provider{
 		iamRoleOpts: iamRoleOpts,
 		env:         env,
@@ -41,7 +45,7 @@ func (provider *Provider) Name() string {
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	_ venv.Venv,
+	_ *venv.Venv,
 ) (*providers.Credentials, error) {
 	iamRoleOpts := provider.iamRoleOpts
 	if iamRoleOpts.RoleARN == "" {

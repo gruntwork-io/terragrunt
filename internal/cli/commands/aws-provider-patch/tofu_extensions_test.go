@@ -148,9 +148,12 @@ func TestTofuPatchAwsProvider(t *testing.T) {
 			expectedTofuCode:       []string{tofuCodeExampleMultipleProvidersRegionOverridden},
 		},
 		{
-			testName:               "tofu file with nested blocks - region and role_arn override",
-			originalTofuCode:       tofuCodeExampleNestedBlocksOriginal,
-			attributesToOverride:   map[string]string{"region": `"eu-west-1"`, "assume_role.role_arn": `"arn:aws:iam::123456789012:role/overridden"`},
+			testName:         "tofu file with nested blocks - region and role_arn override",
+			originalTofuCode: tofuCodeExampleNestedBlocksOriginal,
+			attributesToOverride: map[string]string{
+				"region":               `"eu-west-1"`,
+				"assume_role.role_arn": `"arn:aws:iam::123456789012:role/overridden"`,
+			},
 			expectedCodeWasUpdated: true,
 			expectedTofuCode:       []string{tofuCodeExampleNestedBlocksRegionRoleArnOverridden},
 		},
@@ -204,7 +207,10 @@ func TestTofuFindAllTerraformFiles(t *testing.T) {
 			}
 		]
 	}`
-	require.NoError(t, os.WriteFile(filepath.Join(terraformModulesDir, "modules.json"), []byte(modulesJSON), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(terraformModulesDir, "modules.json"), []byte(modulesJSON), 0644),
+	)
 
 	modules := map[string][]string{
 		"modules/vpc":      {"main.tf", "variables.tofu", "outputs.tf.json"},
@@ -248,7 +254,13 @@ func TestTofuFindAllTerraformFiles(t *testing.T) {
 	assert.Len(t, files, len(expectedFiles))
 
 	for _, expectedFile := range expectedFiles {
-		assert.Contains(t, files, expectedFile, "Expected file %s not found in results", expectedFile)
+		assert.Contains(
+			t,
+			files,
+			expectedFile,
+			"Expected file %s not found in results",
+			expectedFile,
+		)
 	}
 
 	for _, file := range files {
@@ -310,14 +322,34 @@ func TestTofuFileExtensionRecognition(t *testing.T) {
 	}{
 		{filename: "main.tf", shouldBeIncluded: true, description: "Standard Terraform file"},
 		{filename: "main.tofu", shouldBeIncluded: true, description: "OpenTofu file"},
-		{filename: "variables.tf.json", shouldBeIncluded: true, description: "Terraform JSON file (recognized but filtered out during processing)"},
-		{filename: "variables.tofu.json", shouldBeIncluded: true, description: "OpenTofu JSON file (recognized but filtered out during processing)"},
+		{
+			filename:         "variables.tf.json",
+			shouldBeIncluded: true,
+			description:      "Terraform JSON file (recognized but filtered out during processing)",
+		},
+		{
+			filename:         "variables.tofu.json",
+			shouldBeIncluded: true,
+			description:      "OpenTofu JSON file (recognized but filtered out during processing)",
+		},
 		{filename: "outputs.tf", shouldBeIncluded: true, description: "Terraform outputs file"},
 		{filename: "outputs.tofu", shouldBeIncluded: true, description: "OpenTofu outputs file"},
 		{filename: "providers.tf", shouldBeIncluded: true, description: "Terraform providers file"},
-		{filename: "providers.tofu", shouldBeIncluded: true, description: "OpenTofu providers file"},
-		{filename: "terraform.tfvars", shouldBeIncluded: false, description: "Terraform variables file (not a configuration file)"},
-		{filename: "terragrunt.hcl", shouldBeIncluded: false, description: "Terragrunt configuration file"},
+		{
+			filename:         "providers.tofu",
+			shouldBeIncluded: true,
+			description:      "OpenTofu providers file",
+		},
+		{
+			filename:         "terraform.tfvars",
+			shouldBeIncluded: false,
+			description:      "Terraform variables file (not a configuration file)",
+		},
+		{
+			filename:         "terragrunt.hcl",
+			shouldBeIncluded: false,
+			description:      "Terragrunt configuration file",
+		},
 		{filename: "README.md", shouldBeIncluded: false, description: "Documentation file"},
 		{filename: "script.sh", shouldBeIncluded: false, description: "Shell script"},
 	}
@@ -329,9 +361,19 @@ func TestTofuFileExtensionRecognition(t *testing.T) {
 			actualResult := util.IsTFFile(tc.filename)
 
 			if tc.shouldBeIncluded {
-				assert.True(t, actualResult, "File %s should be recognized as a TF file", tc.filename)
+				assert.True(
+					t,
+					actualResult,
+					"File %s should be recognized as a TF file",
+					tc.filename,
+				)
 			} else {
-				assert.False(t, actualResult, "File %s should not be recognized as a TF file", tc.filename)
+				assert.False(
+					t,
+					actualResult,
+					"File %s should not be recognized as a TF file",
+					tc.filename,
+				)
 			}
 		})
 	}

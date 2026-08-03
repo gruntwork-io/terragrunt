@@ -72,7 +72,7 @@ const (
 
 // New returns the set of Terragrunt commands, grouped into categories.
 // Categories are ordered in increments of 10 for easy insertion of new categories.
-func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
 	mainCommands := clihelper.Commands{
 		runcmd.NewCommand(l, opts, v),  // run
 		stack.NewCommand(l, opts, v),   // stack
@@ -145,14 +145,22 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	v venv.Venv,
+	v *venv.Venv,
 ) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
 	return func(
 		ctx context.Context,
 		cliCtx *clihelper.Context,
 		action clihelper.ActionFunc,
 	) error {
-		telemeter, err := telemetry.NewTelemeter(ctx, l, cliCtx.App.Name, cliCtx.App.Version, cliCtx.App.Writer, opts.Telemetry, opts.Experiments.Evaluate(experiment.OtelLogs))
+		telemeter, err := telemetry.NewTelemeter(
+			ctx,
+			l,
+			cliCtx.App.Name,
+			cliCtx.App.Version,
+			cliCtx.App.Writer,
+			opts.Telemetry,
+			opts.Experiments.Evaluate(experiment.OtelLogs),
+		)
 		if err != nil {
 			return err
 		}
@@ -178,7 +186,12 @@ func WrapWithTelemetry(
 			// command span is still open (and before the telemeter's deferred
 			// Shutdown flushes) to keep their records correlated with it.
 			defer func() {
-				if err := engine.Shutdown(childCtx, l, opts.Experiments, opts.EngineOptions.NoEngine); err != nil {
+				if err := engine.Shutdown(
+					childCtx,
+					l,
+					opts.Experiments,
+					opts.EngineOptions.NoEngine,
+				); err != nil {
 					_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
 				}
 			}()
@@ -278,7 +291,7 @@ func RunAction(
 	cliCtx *clihelper.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	v venv.Venv,
+	v *venv.Venv,
 	action clihelper.ActionFunc,
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -317,7 +330,12 @@ func RunAction(
 
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
-		server, err := providercache.InitServer(l, &opts.ProviderCacheOptions, opts.RootWorkingDir)
+		server, err := providercache.InitServer(
+			l,
+			v,
+			&opts.ProviderCacheOptions,
+			opts.RootWorkingDir,
+		)
 		if err != nil {
 			return err
 		}
@@ -361,7 +379,12 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
 //
 // Panics if v.Env is nil, as it mutates it.
-func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+func setupAutoProviderCacheDir(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v *venv.Venv,
+) error {
 	if v.Env == nil {
 		panic("setupAutoProviderCacheDir: venv environment map is nil")
 	}
@@ -395,7 +418,10 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	// Check if OpenTofu is being used
 	if tfImplementation != tfimpl.OpenTofu {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
+		return fmt.Errorf(
+			"auto provider cache dir requires OpenTofu, but detected %s",
+			tfImplementation,
+		)
 	}
 
 	// Check OpenTofu version > 1.10
@@ -409,7 +435,10 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if terraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
+		return fmt.Errorf(
+			"auto provider cache dir requires OpenTofu version >= 1.10, but found %s",
+			terraformVersion,
+		)
 	}
 
 	// Set up the provider cache directory
@@ -566,7 +595,10 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	// Process filters file if the filters file is not disabled
 	if !opts.NoFiltersFile {
-		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
+		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(
+			opts.WorkingDir,
+			opts.FiltersFile,
+		)
 		if filtersFromFileErr != nil {
 			return filtersFromFileErr
 		}
@@ -599,6 +631,10 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	opts.Filters = deduped
+
+	if opts.Filters.HasGraphBoundary() && !opts.Experiments.Evaluate(experiment.BoundedDiscovery) {
+		return filter.ErrBoundaryRequiresExperiment
+	}
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

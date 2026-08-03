@@ -66,7 +66,12 @@ func TestGetTerraformGetHeaderFallsBackToBodyLocation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	got, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), parseURL(t, server.URL))
+	got, err := getter.GetTerraformGetHeader(
+		t.Context(),
+		logger.CreateLogger(),
+		server.Client(),
+		parseURL(t, server.URL),
+	)
 	require.NoError(t, err)
 	assert.Equal(t, "https://example.com/foo.zip", got)
 }
@@ -83,7 +88,12 @@ func TestGetTerraformGetHeaderMissing(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), parseURL(t, server.URL))
+	_, err := getter.GetTerraformGetHeader(
+		t.Context(),
+		logger.CreateLogger(),
+		server.Client(),
+		parseURL(t, server.URL),
+	)
 	require.Error(t, err)
 
 	var typed getter.ModuleDownloadErr
@@ -182,7 +192,12 @@ func TestHTTPGETAndGetResponseRespectsContextCancellation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetModuleRegistryURLBasePath(ctx, logger.CreateLogger(), server.Client(), addrFromURL(t, server.URL))
+	_, err := getter.GetModuleRegistryURLBasePath(
+		ctx,
+		logger.CreateLogger(),
+		server.Client(),
+		addrFromURL(t, server.URL),
+	)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 }

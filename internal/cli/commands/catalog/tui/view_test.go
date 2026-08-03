@@ -36,7 +36,12 @@ func TestWelcomeLoadingView_RendersSpinnerAndStatus(t *testing.T) {
 
 	assert.True(t, view.AltScreen, "welcome loading view should use alt screen")
 	assert.Contains(t, content, "Terragrunt Catalog", "should render title")
-	assert.Contains(t, content, "Discovering components from your infrastructure...", "should render default status text")
+	assert.Contains(
+		t,
+		content,
+		"Discovering components from your infrastructure...",
+		"should render default status text",
+	)
 }
 
 func TestWelcomeLoadingView_StatusTextUpdates(t *testing.T) {
@@ -56,7 +61,12 @@ func TestWelcomeLoadingView_StatusTextUpdates(t *testing.T) {
 	m = updateModel(m, tui.StatusUpdateMsg("Loading terraform-aws-vpc...")).(tui.WelcomeModel)
 
 	content = stripANSI(m.View().Content)
-	assert.Contains(t, content, "Loading terraform-aws-vpc...", "status text should update after StatusUpdateMsg")
+	assert.Contains(
+		t,
+		content,
+		"Loading terraform-aws-vpc...",
+		"status text should update after StatusUpdateMsg",
+	)
 	assert.NotContains(t, content,
 		"Discovering components from your infrastructure...",
 		"old status text should be replaced")
@@ -86,10 +96,20 @@ func TestWelcomeNoSourcesView_RendersHelpText(t *testing.T) {
 
 	assert.True(t, view.AltScreen, "no-sources view should use alt screen")
 	assert.Contains(t, content, "Terragrunt Catalog", "should render title")
-	assert.Contains(t, content, "No catalog sources were discovered", "should explain no sources found")
+	assert.Contains(
+		t,
+		content,
+		"No catalog sources were discovered",
+		"should explain no sources found",
+	)
 	assert.Contains(t, content, "catalog {", "should show catalog block example")
 	assert.Contains(t, content, "urls =", "should show urls attribute in example")
-	assert.Contains(t, content, "terraform.source", "should mention terraform.source as alternative")
+	assert.Contains(
+		t,
+		content,
+		"terraform.source",
+		"should mention terraform.source as alternative",
+	)
 	assert.Contains(t, content, "h: open docs in browser", "should show docs key hint")
 	assert.Contains(t, content, "q/esc: exit", "should show quit key hint")
 }
@@ -153,7 +173,12 @@ func TestWelcomeDiscoveryErrorView_AllSourcesFailedDetail(t *testing.T) {
 
 	content := stripANSI(m.View().Content)
 
-	assert.Contains(t, content, "failed to load all 2 catalog sources", "should summarize that every source failed")
+	assert.Contains(
+		t,
+		content,
+		"failed to load all 2 catalog sources",
+		"should summarize that every source failed",
+	)
 	assert.Contains(t, content, "github.com/acme/modules", "should list the first failed source")
 	assert.Contains(t, content, "clone failed", "should show the first source's cause")
 	assert.Contains(t, content, "github.com/acme/templates", "should list the second failed source")
@@ -191,7 +216,12 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 
 	content = stripANSI(m.View().Content)
 	assert.Contains(t, content, "All", "tab bar should still show the All tab")
-	assert.NotContains(t, content, "(loading...)", "loading indicator should be gone after discovery completes")
+	assert.NotContains(
+		t,
+		content,
+		"(loading...)",
+		"loading indicator should be gone after discovery completes",
+	)
 }
 
 // TestComponentListView_PartialSourceFailureNotice verifies that when some
@@ -232,7 +262,12 @@ func TestComponentListView_PartialSourceFailureNotice(t *testing.T) {
 	require.NoError(t, m.Err(), "a partial failure must not end the session")
 
 	exit := stripANSI(m.ExitMessage())
-	assert.Contains(t, exit, "github.com/acme/broken", "post-exit notice should name the failed source")
+	assert.Contains(
+		t,
+		exit,
+		"github.com/acme/broken",
+		"post-exit notice should name the failed source",
+	)
 	assert.Contains(t, exit, "clone failed", "post-exit notice should include the cause")
 }
 
@@ -246,7 +281,8 @@ func TestComponentListView_MetadataRowRendered(t *testing.T) {
 	components := makeComponents(t)
 	require.NotEmpty(t, components)
 
-	entry := components[0].WithVersion("v1.10.2").WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
+	entry := components[0].WithVersion("v1.10.2").
+		WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *tui.ComponentEntry, 10)
 	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, entry, componentCh, nil)
@@ -256,7 +292,12 @@ func TestComponentListView_MetadataRowRendered(t *testing.T) {
 
 	content := stripANSI(m.View().Content)
 	assert.Contains(t, content, "module", "metadata row should contain component kind label")
-	assert.Contains(t, content, "github.com/gruntwork-io/terragrunt-scale-catalog", "metadata row should contain source")
+	assert.Contains(
+		t,
+		content,
+		"github.com/gruntwork-io/terragrunt-scale-catalog",
+		"metadata row should contain source",
+	)
 	assert.Contains(t, content, "v1.10.2", "metadata row should contain version")
 }
 
@@ -282,7 +323,12 @@ func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	m = updated.(tui.Model)
 
 	content := stripANSI(m.View().Content)
-	assert.Contains(t, content, "template", "template components should render with a 'template' kind pill")
+	assert.Contains(
+		t,
+		content,
+		"template",
+		"template components should render with a 'template' kind pill",
+	)
 }
 
 func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
@@ -305,8 +351,18 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 
 	content := stripANSI(m.View().Content)
 	assert.Contains(t, content, "module", "metadata row should contain component kind label")
-	assert.Contains(t, content, "github.com/gruntwork-io/terragrunt-scale-catalog", "metadata row should contain source")
-	assert.NotContains(t, content, "v1.10.2", "version pill should not appear when version is empty")
+	assert.Contains(
+		t,
+		content,
+		"github.com/gruntwork-io/terragrunt-scale-catalog",
+		"metadata row should contain source",
+	)
+	assert.NotContains(
+		t,
+		content,
+		"v1.10.2",
+		"version pill should not appear when version is empty",
+	)
 }
 
 // TestComponentListView_LongSourceAbbreviatesWithEllipsis feeds the metadata
@@ -381,7 +437,11 @@ func TestWelcomeStreamingFlowWithRacing(t *testing.T) {
 		m = runUntilQuiet(t, m, m.Init(), 5*time.Second)
 
 		listModel, isList := m.(tui.Model)
-		require.True(t, isList, "welcome should transition to streaming Model after first component")
+		require.True(
+			t,
+			isList,
+			"welcome should transition to streaming Model after first component",
+		)
 
 		assert.Equal(t, tui.ListState, listModel.State, "should be in list state")
 
@@ -591,7 +651,12 @@ func TestWelcomeLoadingSpinnerWithRacing(t *testing.T) {
 		content := stripANSI(view.Content)
 
 		assert.Contains(t, content, "Terragrunt Catalog", "should still show title")
-		assert.Contains(t, content, "Discovering components from your infrastructure...", "should still show status")
+		assert.Contains(
+			t,
+			content,
+			"Discovering components from your infrastructure...",
+			"should still show status",
+		)
 
 		dotFrames := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 		hasSpinnerFrame := false

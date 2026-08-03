@@ -536,7 +536,15 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    Terragrunt was spawned organically out of supporting Gruntwork customers using Terraform at scale, and features in the product are designed to address common problems like these that arise when managing OpenTofu/Terraform projects at scale in production.
 
-8. **Continue learning and exploring**
+8. **Set up Terragrunt Scale**
+
+   Everything you've run so far has been run by hand, from your own machine. That's fine while you're learning, but once real infrastructure and more than one engineer are involved, you'll want these operations to run in CI/CD instead. Automating IaC operations in the cloud is a general best practice: it puts a reviewable plan on every pull request, makes the main branch the source of truth for what's deployed, and lets CI jobs authenticate with short-lived credentials instead of long-lived keys sitting on laptops.
+
+   Just as Terragrunt came out of supporting Gruntwork customers using Terraform at scale, [Terragrunt Scale](https://terragrunt.com/terragrunt-scale) came out of supporting those same customers leveraging Terragrunt to enable GitOps workflows with teammates. It sets up plan-on-pull-request and apply-on-merge workflows out of the box that respect the same dependency graph you worked with above, and it runs inside your own GitHub Actions or GitLab CI environment.
+
+   [Sign up for the Free Tier](https://app.gruntwork.io/signup/terragrunt-scale-free-tier?utm_source=terragrunt-docs&utm_medium=referral&utm_campaign=quick-start) to try it. It covers up to 25 units, and no credit card is required. To walk through the whole setup with a real AWS account and a real, deployed workload, follow the [Continuous Integration with Terragrunt](/guides/ci-with-terragrunt/) guide.
+
+9. **Continue learning and exploring**
 
    Hopefully, following this simple tutorial has given you confidence in integrating Terragrunt into your existing OpenTofu/Terraform projects. Starting small, and gradually introducing more complex Terragrunt features is a great way to learn how Terragrunt can help you manage your infrastructure more effectively.
 

@@ -49,48 +49,58 @@ func WithFileUpdate(fn func(*File) error) Option {
 // If errors occur in the given `blockNames` blocks, parser returns the error to its caller, otherwise it skips the error.
 func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 	return func(parser *Parser) *Parser {
-		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			if file == nil || !diags.HasErrors() {
-				return diags, nil
-			}
-
-			for _, blockName := range blockNames {
-				blocks, err := file.Blocks(blockName, true)
-				if err != nil {
-					return nil, err
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(
+			parser.handleDiagnosticsFunc,
+			func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+				if file == nil || !diags.HasErrors() {
+					return diags, nil
 				}
 
-				for _, block := range blocks {
-					blockAttrs, _ := block.Body.JustAttributes()
+				for _, blockName := range blockNames {
+					blocks, err := file.Blocks(blockName, true)
+					if err != nil {
+						return nil, err
+					}
 
-					for _, blokcAttr := range blockAttrs {
-						for _, diag := range diags {
-							if diag.Context != nil && blokcAttr.Range.Overlaps(*diag.Context) {
-								return diags, nil
+					for _, block := range blocks {
+						blockAttrs, _ := block.Body.JustAttributes()
+
+						for _, blokcAttr := range blockAttrs {
+							for _, diag := range diags {
+								if diag.Context != nil && blokcAttr.Range.Overlaps(*diag.Context) {
+									return diags, nil
+								}
 							}
 						}
 					}
 				}
-			}
 
-			return nil, nil
-		})
+				return nil, nil
+			},
+		)
 
 		return parser
 	}
 }
 
-func WithDiagnosticsHandler(fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error)) Option {
+func WithDiagnosticsHandler(
+	fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error),
+) Option {
 	return func(parser *Parser) *Parser {
-		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			return fn(file.File, diags)
-		})
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(
+			parser.handleDiagnosticsFunc,
+			func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+				return fn(file.File, diags)
+			},
+		)
 
 		return parser
 	}
 }
 
-func appendHandleDiagnosticsFunc(prev, next func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)) func(*File, hcl.Diagnostics) (hcl.Diagnostics, error) {
+func appendHandleDiagnosticsFunc(
+	prev, next func(*File, hcl.Diagnostics) (hcl.Diagnostics, error),
+) func(*File, hcl.Diagnostics) (hcl.Diagnostics, error) {
 	return func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 		var err error
 

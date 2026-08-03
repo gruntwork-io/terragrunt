@@ -38,7 +38,11 @@ func TestWorktreePhase_Integration_UnitLifecycle(t *testing.T) {
 	commitChanges(t, runner, "Initial commit")
 
 	// Modify the unit
-	err := os.WriteFile(filepath.Join(tmpDir, "unit-to-be-modified", "terragrunt.hcl"), []byte(`# Unit modified`), 0o644)
+	err := os.WriteFile(
+		filepath.Join(tmpDir, "unit-to-be-modified", "terragrunt.hcl"),
+		[]byte(`# Unit modified`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	// Remove the unit
@@ -73,16 +77,36 @@ func TestWorktreePhase_Integration_UnitLifecycle(t *testing.T) {
 	expectedUnitToBeRemoved := filepath.Join(fromWorktree, "unit-to-be-removed")
 	expectedUnitToBeUntouched := filepath.Join(toWorktree, "unit-to-be-untouched")
 
-	assert.Contains(t, unitPaths, expectedUnitToBeCreated, "Unit should be discovered as it was created")
+	assert.Contains(
+		t,
+		unitPaths,
+		expectedUnitToBeCreated,
+		"Unit should be discovered as it was created",
+	)
 	assert.DirExists(t, expectedUnitToBeCreated)
 
-	assert.Contains(t, unitPaths, expectedUnitToBeModified, "Unit should be discovered as it was modified")
+	assert.Contains(
+		t,
+		unitPaths,
+		expectedUnitToBeModified,
+		"Unit should be discovered as it was modified",
+	)
 	assert.DirExists(t, expectedUnitToBeModified)
 
-	assert.Contains(t, unitPaths, expectedUnitToBeRemoved, "Unit should be discovered as it was removed")
+	assert.Contains(
+		t,
+		unitPaths,
+		expectedUnitToBeRemoved,
+		"Unit should be discovered as it was removed",
+	)
 	assert.DirExists(t, expectedUnitToBeRemoved)
 
-	assert.NotContains(t, unitPaths, expectedUnitToBeUntouched, "Unit should not be discovered as it was untouched")
+	assert.NotContains(
+		t,
+		unitPaths,
+		expectedUnitToBeUntouched,
+		"Unit should not be discovered as it was untouched",
+	)
 	assert.DirExists(t, expectedUnitToBeUntouched)
 }
 
@@ -102,8 +126,14 @@ func TestWorktreePhase_Integration_DeletedReadingUnitRediscovered(t *testing.T) 
 
 	configDir := filepath.Join(tmpDir, "config")
 	require.NoError(t, os.MkdirAll(configDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644),
+	)
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0o644),
+	)
 
 	commitChanges(t, runner, "Initial commit")
 
@@ -123,8 +153,18 @@ func TestWorktreePhase_Integration_DeletedReadingUnitRediscovered(t *testing.T) 
 	units := components.Filter(component.UnitKind)
 	unitPaths := units.Paths()
 
-	assert.Contains(t, unitPaths, toPath, "Surviving reading unit should be rediscovered in the to-worktree")
-	assert.NotContains(t, unitPaths, fromPath, "Surviving reading unit should not remain on the from-worktree path")
+	assert.Contains(
+		t,
+		unitPaths,
+		toPath,
+		"Surviving reading unit should be rediscovered in the to-worktree",
+	)
+	assert.NotContains(
+		t,
+		unitPaths,
+		fromPath,
+		"Surviving reading unit should not remain on the from-worktree path",
+	)
 
 	var found bool
 
@@ -138,7 +178,12 @@ func TestWorktreePhase_Integration_DeletedReadingUnitRediscovered(t *testing.T) 
 		dc := c.DiscoveryContext()
 		require.NotNil(t, dc)
 		assert.Equal(t, "HEAD", dc.Ref, "Rediscovered unit should carry the to-worktree ref")
-		assert.NotContains(t, dc.Args, "-destroy", "Rediscovered unit should not be treated as a removal")
+		assert.NotContains(
+			t,
+			dc.Args,
+			"-destroy",
+			"Rediscovered unit should not be treated as a removal",
+		)
 	}
 
 	assert.True(t, found, "Expected the rediscovered unit in the worktree discovery results")
@@ -159,7 +204,10 @@ func TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed(t *testing.T
 
 	configDir := filepath.Join(tmpDir, "config")
 	require.NoError(t, os.MkdirAll(configDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644),
+	)
 
 	commitChanges(t, runner, "Initial commit")
 
@@ -180,8 +228,18 @@ func TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed(t *testing.T
 	units := components.Filter(component.UnitKind)
 	unitPaths := units.Paths()
 
-	assert.Contains(t, unitPaths, fromPath, "Removed reading unit should be discovered in the from-worktree")
-	assert.NotContains(t, unitPaths, toPath, "Removed reading unit must not be rediscovered in the to-worktree")
+	assert.Contains(
+		t,
+		unitPaths,
+		fromPath,
+		"Removed reading unit should be discovered in the from-worktree",
+	)
+	assert.NotContains(
+		t,
+		unitPaths,
+		toPath,
+		"Removed reading unit must not be rediscovered in the to-worktree",
+	)
 
 	for _, c := range units {
 		if c.Path() != fromPath {
@@ -217,8 +275,14 @@ func TestWorktreePhase_Integration_MultipleReadersOfDeletedFile(t *testing.T) {
 
 	sharedDir := filepath.Join(tmpDir, "shared")
 	require.NoError(t, os.MkdirAll(sharedDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(sharedDir, "item-a.yml"), []byte("a: 1\n"), 0o644),
+	)
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(sharedDir, "item-b.yml"), []byte("b: 2\n"), 0o644),
+	)
 
 	otherDir := filepath.Join(tmpDir, "other")
 	require.NoError(t, os.MkdirAll(otherDir, 0o755))
@@ -251,22 +315,56 @@ func TestWorktreePhase_Integration_MultipleReadersOfDeletedFile(t *testing.T) {
 	// Each surviving reader is rediscovered on the to side, with HEAD identity and no destroy.
 	for _, name := range []string{"survivor-a", "survivor-b"} {
 		toUnit := filepath.Join(to, name)
-		assert.Contains(t, unitPaths, toUnit, "surviving reader %s should be rediscovered in to-worktree", name)
-		assert.NotContains(t, unitPaths, filepath.Join(from, name), "surviving reader %s should not stay on from side", name)
+		assert.Contains(
+			t,
+			unitPaths,
+			toUnit,
+			"surviving reader %s should be rediscovered in to-worktree",
+			name,
+		)
+		assert.NotContains(
+			t,
+			unitPaths,
+			filepath.Join(from, name),
+			"surviving reader %s should not stay on from side",
+			name,
+		)
 
 		c, ok := byPath[toUnit]
 		require.True(t, ok)
 
 		dc := c.DiscoveryContext()
 		require.NotNil(t, dc)
-		assert.Equal(t, "HEAD", dc.Ref, "surviving reader %s should carry the to-worktree ref", name)
-		assert.NotContains(t, dc.Args, "-destroy", "surviving reader %s should not be a removal", name)
+		assert.Equal(
+			t,
+			"HEAD",
+			dc.Ref,
+			"surviving reader %s should carry the to-worktree ref",
+			name,
+		)
+		assert.NotContains(
+			t,
+			dc.Args,
+			"-destroy",
+			"surviving reader %s should not be a removal",
+			name,
+		)
 	}
 
 	// The removed reader keeps its from-side destroy treatment and is not rediscovered in the to side.
 	removedFrom := filepath.Join(from, "removed")
-	assert.Contains(t, unitPaths, removedFrom, "removed reader should be discovered in from-worktree")
-	assert.NotContains(t, unitPaths, filepath.Join(to, "removed"), "removed reader must not reappear in to-worktree")
+	assert.Contains(
+		t,
+		unitPaths,
+		removedFrom,
+		"removed reader should be discovered in from-worktree",
+	)
+	assert.NotContains(
+		t,
+		unitPaths,
+		filepath.Join(to, "removed"),
+		"removed reader must not reappear in to-worktree",
+	)
 
 	removed, ok := byPath[removedFrom]
 	require.True(t, ok)
@@ -354,7 +452,11 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 			commitChanges(t, runner, "Initial commit")
 
 			// Modify the unit
-			err := os.WriteFile(filepath.Join(tmpDir, "unit-to-be-modified", "terragrunt.hcl"), []byte(`# Modified`), 0o644)
+			err := os.WriteFile(
+				filepath.Join(tmpDir, "unit-to-be-modified", "terragrunt.hcl"),
+				[]byte(`# Modified`),
+				0o644,
+			)
 			require.NoError(t, err)
 
 			// Remove the unit
@@ -524,20 +626,36 @@ func TestWorktreePhase_Integration_Stacks(t *testing.T) {
 	err := os.MkdirAll(legacyUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(legacyUnitDir, "terragrunt.hcl"),
+		[]byte(`# Legacy unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(legacyUnitDir, "main.tf"),
+		[]byte(`# Intentionally empty`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	modernUnitDir := filepath.Join(tmpDir, "catalog", "units", "modern")
 	err = os.MkdirAll(modernUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(modernUnitDir, "terragrunt.hcl"), []byte(`# Modern unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(modernUnitDir, "terragrunt.hcl"),
+		[]byte(`# Modern unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(modernUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(modernUnitDir, "main.tf"),
+		[]byte(`# Intentionally empty`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create catalog units")
@@ -563,21 +681,33 @@ unit "unit_to_be_untouched" {
 	err = os.MkdirAll(stackToBeModifiedDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"), []byte(stackFileContents), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"),
+		[]byte(stackFileContents),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	stackToBeRemovedDir := filepath.Join(tmpDir, "live", "stack-to-be-removed")
 	err = os.MkdirAll(stackToBeRemovedDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackToBeRemovedDir, "terragrunt.stack.hcl"), []byte(stackFileContents), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackToBeRemovedDir, "terragrunt.stack.hcl"),
+		[]byte(stackFileContents),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	stackToBeUntouchedDir := filepath.Join(tmpDir, "live", "stack-to-be-untouched")
 	err = os.MkdirAll(stackToBeUntouchedDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackToBeUntouchedDir, "terragrunt.stack.hcl"), []byte(stackFileContents), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackToBeUntouchedDir, "terragrunt.stack.hcl"),
+		[]byte(stackFileContents),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create stacks")
@@ -587,7 +717,11 @@ unit "unit_to_be_untouched" {
 	err = os.MkdirAll(stackToBeAddedDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackToBeAddedDir, "terragrunt.stack.hcl"), []byte(stackFileContents), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackToBeAddedDir, "terragrunt.stack.hcl"),
+		[]byte(stackFileContents),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	// Modify the first stack
@@ -606,7 +740,11 @@ unit "unit_to_be_untouched" {
 	path   = "unit_to_be_untouched"
 }
 `
-	err = os.WriteFile(filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"), []byte(modifiedStackContents), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackToBeModifiedDir, "terragrunt.stack.hcl"),
+		[]byte(modifiedStackContents),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	// Remove the second stack
@@ -734,8 +872,14 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 	writeCatalogUnit := func(name, marker string) {
 		unitDir := filepath.Join(tmpDir, "catalog", "units", name)
 		require.NoError(t, os.MkdirAll(unitDir, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# `+marker), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`# `+marker), 0o644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# `+marker), 0o644),
+		)
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`# `+marker), 0o644),
+		)
 	}
 
 	stackDir := filepath.Join(tmpDir, "live")
@@ -747,7 +891,10 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 	path   = "app"
 }
 `, source)
-		require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(contents), 0o644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(contents), 0o644),
+		)
 	}
 
 	// from ref (HEAD~1): source directory "app" exists and the stack points at it.
@@ -810,7 +957,11 @@ func TestWorktreePhase_Integration_FileRename(t *testing.T) {
 	// Create a unit with a file
 	unitDir := createUnit(t, tmpDir, "unit", `# Unit config`)
 
-	err := os.WriteFile(filepath.Join(unitDir, "original.tf"), []byte(`# Same content before and after rename`), 0o644)
+	err := os.WriteFile(
+		filepath.Join(unitDir, "original.tf"),
+		[]byte(`# Same content before and after rename`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Initial commit with original.tf")
@@ -1203,8 +1354,12 @@ locals {
 
 	// Verify the path doesn't have duplicated directory names
 	for _, unitPath := range units {
-		assert.NotContains(t, unitPath, "basic"+string(filepath.Separator)+"basic"+string(filepath.Separator)+"basic-",
-			"Path should not have duplicated directory names")
+		assert.NotContains(
+			t,
+			unitPath,
+			"basic"+string(filepath.Separator)+"basic"+string(filepath.Separator)+"basic-",
+			"Path should not have duplicated directory names",
+		)
 	}
 }
 
@@ -1337,7 +1492,9 @@ func TestWorktreePhase_Integration_NegatedGitGraphExpressions(t *testing.T) {
 			filterQueries: func(fromRef, toRef string) []string {
 				// Use intersection to apply negated graph filter to git results
 				// [HEAD~1...HEAD] | ![HEAD~1...HEAD]... = changed AND NOT (changed with deps)
-				return []string{"[" + fromRef + "..." + toRef + "] | ![" + fromRef + "..." + toRef + "]..."}
+				return []string{
+					"[" + fromRef + "..." + toRef + "] | ![" + fromRef + "..." + toRef + "]...",
+				}
 			},
 			wantUnits: func(_, _ string) []string {
 				// Intersection: component must match [changed] AND match ![changed]...
@@ -1352,7 +1509,9 @@ func TestWorktreePhase_Integration_NegatedGitGraphExpressions(t *testing.T) {
 			name: "negated git with dependent traversal in intersection",
 			filterQueries: func(fromRef, toRef string) []string {
 				// Use intersection: [HEAD~1...HEAD] | !...[HEAD~1...HEAD]
-				return []string{"[" + fromRef + "..." + toRef + "] | !...[" + fromRef + "..." + toRef + "]"}
+				return []string{
+					"[" + fromRef + "..." + toRef + "] | !...[" + fromRef + "..." + toRef + "]",
+				}
 			},
 			wantUnits: func(_, _ string) []string {
 				// Intersection: component must match [changed] AND match !...[changed]
@@ -1468,7 +1627,14 @@ locals {
 			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, worktreePair.ToWorktree.Path)
 
 			// Verify results
-			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s\nDescription: %s", tt.name, tt.description)
+			assert.ElementsMatch(
+				t,
+				wantUnits,
+				units,
+				"Units mismatch for test: %s\nDescription: %s",
+				tt.name,
+				tt.description,
+			)
 		})
 	}
 }
@@ -1627,10 +1793,18 @@ func TestWorktreePhase_Integration_StackReadingChanges(t *testing.T) {
 	err := os.MkdirAll(legacyUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(legacyUnitDir, "terragrunt.hcl"),
+		[]byte(`# Legacy unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(legacyUnitDir, "main.tf"),
+		[]byte(`# Intentionally empty`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create catalog units")
@@ -1641,7 +1815,11 @@ func TestWorktreePhase_Integration_StackReadingChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	// Sidecar file referenced by the stack
-	err = os.WriteFile(filepath.Join(stackWithRefDir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackWithRefDir, "config.hcl"),
+		[]byte(`inputs = { version = "v1" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	stackWithRefContent := `
@@ -1654,7 +1832,11 @@ unit "app" {
   path   = "app"
 }
 `
-	err = os.WriteFile(filepath.Join(stackWithRefDir, "terragrunt.stack.hcl"), []byte(stackWithRefContent), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackWithRefDir, "terragrunt.stack.hcl"),
+		[]byte(stackWithRefContent),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	// Create a stack WITHOUT read_terragrunt_config but with a file in same dir
@@ -1662,7 +1844,11 @@ unit "app" {
 	err = os.MkdirAll(stackNoRefDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackNoRefDir, "unrelated.hcl"), []byte(`# not referenced`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackNoRefDir, "unrelated.hcl"),
+		[]byte(`# not referenced`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	stackNoRefContent := `
@@ -1671,16 +1857,28 @@ unit "app" {
   path   = "app"
 }
 `
-	err = os.WriteFile(filepath.Join(stackNoRefDir, "terragrunt.stack.hcl"), []byte(stackNoRefContent), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackNoRefDir, "terragrunt.stack.hcl"),
+		[]byte(stackNoRefContent),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create stacks with and without read_terragrunt_config")
 
 	// Change only the sidecar files (not the stack files)
-	err = os.WriteFile(filepath.Join(stackWithRefDir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackWithRefDir, "config.hcl"),
+		[]byte(`inputs = { version = "v2" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackNoRefDir, "unrelated.hcl"), []byte(`# still not referenced but modified`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackNoRefDir, "unrelated.hcl"),
+		[]byte(`# still not referenced but modified`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update sidecar files only")
@@ -1766,8 +1964,12 @@ unit "app" {
 		}
 	}
 
-	assert.True(t, foundStackWithRef,
-		"Stack with read_terragrunt_config reference should be discovered when sidecar changes; got: %v", componentPaths)
+	assert.True(
+		t,
+		foundStackWithRef,
+		"Stack with read_terragrunt_config reference should be discovered when sidecar changes; got: %v",
+		componentPaths,
+	)
 
 	// Verify: stack-no-ref should NOT be discovered (unrelated.hcl is not referenced)
 	stackNoRefRel, err := filepath.Rel(tmpDir, stackNoRefDir)
@@ -1784,8 +1986,12 @@ unit "app" {
 		}
 	}
 
-	assert.False(t, foundStackNoRef,
-		"Stack without read_terragrunt_config reference should NOT be discovered; got: %v", componentPaths)
+	assert.False(
+		t,
+		foundStackNoRef,
+		"Stack without read_terragrunt_config reference should NOT be discovered; got: %v",
+		componentPaths,
+	)
 }
 
 // TestWorktreePhase_Integration_StackReadingDedup tests that when both the stack file itself
@@ -1801,10 +2007,18 @@ func TestWorktreePhase_Integration_StackReadingDedup(t *testing.T) {
 	err := os.MkdirAll(legacyUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(legacyUnitDir, "terragrunt.hcl"),
+		[]byte(`# Legacy unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(legacyUnitDir, "main.tf"),
+		[]byte(`# Intentionally empty`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create catalog units")
@@ -1814,7 +2028,11 @@ func TestWorktreePhase_Integration_StackReadingDedup(t *testing.T) {
 	err = os.MkdirAll(stackDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackDir, "config.hcl"),
+		[]byte(`inputs = { version = "v1" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	stackContent := `
@@ -1843,10 +2061,18 @@ unit "app" {
   path   = "app-v2"
 }
 `
-	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(updatedStackContent), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(updatedStackContent),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackDir, "config.hcl"),
+		[]byte(`inputs = { version = "v2" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update both stack file and sidecar")
@@ -1937,8 +2163,13 @@ unit "app" {
 
 	// Verify the stack itself is discovered
 	_, foundStack := seen[expectedStackPath]
-	assert.True(t, foundStack,
-		"Stack %s should be discovered when both stack file and sidecar change; got: %v", expectedStackPath, componentPaths)
+	assert.True(
+		t,
+		foundStack,
+		"Stack %s should be discovered when both stack file and sidecar change; got: %v",
+		expectedStackPath,
+		componentPaths,
+	)
 }
 
 // TestWorktreePhase_Integration_StackReadingNestedPath tests that stacks referencing sidecar
@@ -1954,10 +2185,18 @@ func TestWorktreePhase_Integration_StackReadingNestedPath(t *testing.T) {
 	err := os.MkdirAll(legacyUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(legacyUnitDir, "terragrunt.hcl"),
+		[]byte(`# Legacy unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(legacyUnitDir, "main.tf"),
+		[]byte(`# Intentionally empty`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create catalog units")
@@ -1967,7 +2206,11 @@ func TestWorktreePhase_Integration_StackReadingNestedPath(t *testing.T) {
 	err = os.MkdirAll(envDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(envDir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(envDir, "config.hcl"),
+		[]byte(`inputs = { version = "v1" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	// Create a stack that references the sidecar via a nested/sibling path
@@ -1999,13 +2242,21 @@ unit "app" {
   path   = "app"
 }
 `
-	err = os.WriteFile(filepath.Join(stackNoRefDir, "terragrunt.stack.hcl"), []byte(stackNoRefContent), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackNoRefDir, "terragrunt.stack.hcl"),
+		[]byte(stackNoRefContent),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create stacks and env config")
 
 	// Change ONLY the sidecar file in the separate directory
-	err = os.WriteFile(filepath.Join(envDir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(envDir, "config.hcl"),
+		[]byte(`inputs = { version = "v2" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update env config only")
@@ -2109,8 +2360,12 @@ unit "app" {
 		}
 	}
 
-	assert.False(t, foundNoRef,
-		"Stack without read_terragrunt_config reference should NOT be discovered; got: %v", componentPaths)
+	assert.False(
+		t,
+		foundNoRef,
+		"Stack without read_terragrunt_config reference should NOT be discovered; got: %v",
+		componentPaths,
+	)
 }
 
 // TestWorktreePhase_Integration_StackNotGeneratedForUnitChanges verifies that when only
@@ -2126,10 +2381,18 @@ func TestWorktreePhase_Integration_StackNotGeneratedForUnitChanges(t *testing.T)
 	err := os.MkdirAll(catalogUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(catalogUnitDir, "terragrunt.hcl"),
+		[]byte(`# catalog unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`output "example" { value = "ok" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(catalogUnitDir, "main.tf"),
+		[]byte(`output "example" { value = "ok" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create catalog unit")
@@ -2158,7 +2421,11 @@ unit "myapp" {
 	commitChanges(t, runner, "Create stack and standalone unit")
 
 	// Change ONLY the standalone unit (not anything the stack reads)
-	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# standalone unit modified`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(unitDir, "terragrunt.hcl"),
+		[]byte(`# standalone unit modified`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Modify standalone unit only")
@@ -2201,9 +2468,14 @@ unit "myapp" {
 		for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
 			stackGenDir := filepath.Join(wt.Path, "live", "app-stack", ".terragrunt-stack")
 			_, statErr := os.Stat(stackGenDir)
-			require.ErrorIs(t, statErr, fs.ErrNotExist,
+			require.ErrorIs(
+				t,
+				statErr,
+				fs.ErrNotExist,
 				"Stack should not be generated in worktree %s when only a unit changed, but %s exists",
-				wt.Ref, stackGenDir)
+				wt.Ref,
+				stackGenDir,
+			)
 		}
 	}
 
@@ -2226,10 +2498,18 @@ func TestWorktreePhase_Integration_StackReadingRespectsExclusion(t *testing.T) {
 	err := os.MkdirAll(catalogUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(catalogUnitDir, "terragrunt.hcl"),
+		[]byte(`# catalog unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`output "example" { value = "ok" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(catalogUnitDir, "main.tf"),
+		[]byte(`output "example" { value = "ok" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create catalog unit")
@@ -2259,7 +2539,11 @@ unit "myapp" {
 	err = os.MkdirAll(normalDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(normalDir, "config.hcl"), []byte(`inputs = { example = "v1" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(normalDir, "config.hcl"),
+		[]byte(`inputs = { example = "v1" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(normalDir, "terragrunt.stack.hcl"), []byte(`
@@ -2278,7 +2562,11 @@ unit "myapp" {
 	commitChanges(t, runner, "Create land-mine and normal stacks")
 
 	// Change the normal stack's read file
-	err = os.WriteFile(filepath.Join(normalDir, "config.hcl"), []byte(`inputs = { example = "v2" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(normalDir, "config.hcl"),
+		[]byte(`inputs = { example = "v2" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update config file")
@@ -2337,10 +2625,18 @@ func TestWorktreePhase_Integration_StackReadingExclusionOverridesInclusion(t *te
 	err := os.MkdirAll(catalogUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(catalogUnitDir, "terragrunt.hcl"),
+		[]byte(`# catalog unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`output "example" { value = "ok" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(catalogUnitDir, "main.tf"),
+		[]byte(`output "example" { value = "ok" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Create catalog unit")
@@ -2369,7 +2665,11 @@ unit "myapp" {
 	err = os.MkdirAll(normalDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(normalDir, "config.hcl"), []byte(`inputs = { example = "v1" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(normalDir, "config.hcl"),
+		[]byte(`inputs = { example = "v1" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(normalDir, "terragrunt.stack.hcl"), []byte(`
@@ -2388,7 +2688,11 @@ unit "myapp" {
 	commitChanges(t, runner, "Create land-mine and normal stacks")
 
 	// Change the normal stack's read file
-	err = os.WriteFile(filepath.Join(normalDir, "config.hcl"), []byte(`inputs = { example = "v2" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(normalDir, "config.hcl"),
+		[]byte(`inputs = { example = "v2" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update config file")
@@ -2504,7 +2808,11 @@ func TestWorktreePhase_Integration_StackReadingChanges_Units(t *testing.T) {
 	err := os.MkdirAll(catalogUnitDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(catalogUnitDir, "terragrunt.hcl"),
+		[]byte(`# catalog unit`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`
@@ -2526,7 +2834,11 @@ output "example" {
 	err = os.MkdirAll(stackDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { example = "v1" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackDir, "config.hcl"),
+		[]byte(`inputs = { example = "v1" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	stackContent := `
@@ -2546,7 +2858,11 @@ unit "myapp" {
 	commitChanges(t, runner, "Create stack with read_terragrunt_config")
 
 	// Change ONLY the read file (not the stack file itself)
-	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { example = "v2" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackDir, "config.hcl"),
+		[]byte(`inputs = { example = "v2" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update read config file only")
@@ -2645,14 +2961,34 @@ func TestWorktreePhase_Integration_DeletedReadingStackRecordedAsReadingAffected(
 
 	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
 	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(legacyUnitDir, "terragrunt.hcl"),
+			[]byte(`# Legacy unit`),
+			0o644,
+		),
+	)
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(legacyUnitDir, "main.tf"),
+			[]byte(`# Intentionally empty`),
+			0o644,
+		),
+	)
 
 	stackWithRefDir := filepath.Join(tmpDir, "live", "stack-with-ref")
 	configsDir := filepath.Join(stackWithRefDir, "configs")
 	require.NoError(t, os.MkdirAll(configsDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(configsDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(configsDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(configsDir, "item-a.yml"), []byte("a: 1\n"), 0o644),
+	)
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(configsDir, "item-b.yml"), []byte("b: 2\n"), 0o644),
+	)
 
 	stackWithRefContent := `
 locals {
@@ -2710,7 +3046,10 @@ unit "app" {
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
-	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w))
+	require.NoError(
+		t,
+		generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w),
+	)
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
 
@@ -2721,8 +3060,12 @@ unit "app" {
 		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
 	}
 
-	assert.Contains(t, readingAffectedDirs, "live/stack-with-ref",
-		"Stack reading the deleted file should be recorded as reading-affected for unit-level walking")
+	assert.Contains(
+		t,
+		readingAffectedDirs,
+		"live/stack-with-ref",
+		"Stack reading the deleted file should be recorded as reading-affected for unit-level walking",
+	)
 	assert.NotContains(t, readingAffectedDirs, "live/stack-no-ref",
 		"Stack reading nothing should not be recorded as reading-affected")
 }
@@ -2738,8 +3081,22 @@ func TestWorktreePhase_Integration_MultipleChangedFilesReadByDistinctStacks(t *t
 
 	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
 	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(legacyUnitDir, "terragrunt.hcl"),
+			[]byte(`# Legacy unit`),
+			0o644,
+		),
+	)
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(legacyUnitDir, "main.tf"),
+			[]byte(`# Intentionally empty`),
+			0o644,
+		),
+	)
 
 	// Each stack reads its own sidecar via read_terragrunt_config, so a stack matches exactly one
 	// reading filter.
@@ -2759,8 +3116,18 @@ unit "app" {
 	for _, name := range stackNames {
 		dir := filepath.Join(tmpDir, "live", name)
 		require.NoError(t, os.MkdirAll(dir, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte(stackContent), 0o644))
+		require.NoError(
+			t,
+			os.WriteFile(
+				filepath.Join(dir, "config.hcl"),
+				[]byte(`inputs = { version = "v1" }`),
+				0o644,
+			),
+		)
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte(stackContent), 0o644),
+		)
 	}
 
 	commitChanges(t, runner, "Create stacks")
@@ -2768,7 +3135,14 @@ unit "app" {
 	// Change every sidecar in one commit; the stack files themselves are untouched.
 	for _, name := range stackNames {
 		dir := filepath.Join(tmpDir, "live", name)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644))
+		require.NoError(
+			t,
+			os.WriteFile(
+				filepath.Join(dir, "config.hcl"),
+				[]byte(`inputs = { version = "v2" }`),
+				0o644,
+			),
+		)
 	}
 
 	commitChanges(t, runner, "Change every sidecar")
@@ -2797,7 +3171,10 @@ unit "app" {
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
-	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w))
+	require.NoError(
+		t,
+		generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w),
+	)
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
 
@@ -2808,10 +3185,20 @@ unit "app" {
 		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
 	}
 
-	assert.Contains(t, readingAffectedDirs, "live/stack-a",
-		"Stack reading one changed file should be recorded as reading-affected: %v", readingAffectedDirs)
-	assert.Contains(t, readingAffectedDirs, "live/stack-b",
-		"Stack reading another changed file should also be recorded as reading-affected: %v", readingAffectedDirs)
+	assert.Contains(
+		t,
+		readingAffectedDirs,
+		"live/stack-a",
+		"Stack reading one changed file should be recorded as reading-affected: %v",
+		readingAffectedDirs,
+	)
+	assert.Contains(
+		t,
+		readingAffectedDirs,
+		"live/stack-b",
+		"Stack reading another changed file should also be recorded as reading-affected: %v",
+		readingAffectedDirs,
+	)
 }
 
 // TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries tests that
@@ -2839,7 +3226,11 @@ locals {
 	commitChanges(t, runner, "Initial commit")
 
 	// Modify both units
-	err := os.WriteFile(filepath.Join(tmpDir, "app", "terragrunt.hcl"), []byte(`# Modified app`), 0o644)
+	err := os.WriteFile(
+		filepath.Join(tmpDir, "app", "terragrunt.hcl"),
+		[]byte(`# Modified app`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(tmpDir, "catalog", "units", "svc", "terragrunt.hcl"), []byte(`
@@ -2921,7 +3312,11 @@ locals {
 
 	commitChanges(t, runner, "Initial commit")
 
-	err := os.WriteFile(filepath.Join(tmpDir, "app", "terragrunt.hcl"), []byte(`# Modified app`), 0o644)
+	err := os.WriteFile(
+		filepath.Join(tmpDir, "app", "terragrunt.hcl"),
+		[]byte(`# Modified app`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(tmpDir, "land-mine", "terragrunt.hcl"), []byte(`
@@ -2997,7 +3392,11 @@ locals {
 	err = os.WriteFile(filepath.Join(catalogDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0o644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(catalogDir, "main.tf"), []byte(`output "ok" { value = "ok" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(catalogDir, "main.tf"),
+		[]byte(`output "ok" { value = "ok" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	// Create a stack that reads a config file (triggers reading filter path in worktreeStacksToGenerate)
@@ -3005,7 +3404,11 @@ locals {
 	err = os.MkdirAll(stackDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { v = "v1" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackDir, "config.hcl"),
+		[]byte(`inputs = { v = "v1" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`
@@ -3024,7 +3427,11 @@ unit "myapp" {
 	commitChanges(t, runner, "Initial commit")
 
 	// Change only the config file (triggers reading filter, not a direct stack change)
-	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { v = "v2" }`), 0o644)
+	err = os.WriteFile(
+		filepath.Join(stackDir, "config.hcl"),
+		[]byte(`inputs = { v = "v2" }`),
+		0o644,
+	)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update config file")
@@ -3074,15 +3481,36 @@ func TestWorktreePhase_Integration_WorktreeOnlyStackGeneration(t *testing.T) {
 	// Catalog unit the stack sources.
 	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
 	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(legacyUnitDir, "terragrunt.hcl"),
+			[]byte(`# Legacy unit`),
+			0o644,
+		),
+	)
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(legacyUnitDir, "main.tf"),
+			[]byte(`# Intentionally empty`),
+			0o644,
+		),
+	)
 
 	commitChanges(t, runner, "Create catalog units")
 
 	// Stack that reads a sidecar config file via read_terragrunt_config.
 	stackDir := filepath.Join(tmpDir, "live", "stack")
 	require.NoError(t, os.MkdirAll(stackDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(stackDir, "config.hcl"),
+			[]byte(`inputs = { version = "v1" }`),
+			0o644,
+		),
+	)
 
 	stackContent := `
 locals {
@@ -3094,12 +3522,22 @@ unit "app" {
   path   = "app"
 }
 `
-	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackContent), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackContent), 0o644),
+	)
 
 	commitChanges(t, runner, "Create stack with read_terragrunt_config")
 
 	// Change only the sidecar config file, not the stack file.
-	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(stackDir, "config.hcl"),
+			[]byte(`inputs = { version = "v2" }`),
+			0o644,
+		),
+	)
 
 	commitChanges(t, runner, "Update config file only")
 
@@ -3166,6 +3604,11 @@ unit "app" {
 		componentPaths = append(componentPaths, c.Path())
 	}
 
-	assert.Contains(t, componentPaths, expectedStack,
-		"stack reading the changed config file should be discovered via the Git filter; got: %v", componentPaths)
+	assert.Contains(
+		t,
+		componentPaths,
+		expectedStack,
+		"stack reading the changed config file should be discovered via the Git filter; got: %v",
+		componentPaths,
+	)
 }

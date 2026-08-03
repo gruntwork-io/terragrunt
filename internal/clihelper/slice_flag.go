@@ -155,7 +155,12 @@ type sliceValue[T comparable] struct {
 	valSep    string
 }
 
-func newSliceValue[T comparable](valueType FlagVariable[T], valSep string, dest *[]T, setter FlagSetterFunc[T]) *sliceValue[T] {
+func newSliceValue[T comparable](
+	valueType FlagVariable[T],
+	valSep string,
+	dest *[]T,
+	setter FlagSetterFunc[T],
+) *sliceValue[T] {
 	return &sliceValue[T]{
 		values:    dest,
 		valueType: valueType,

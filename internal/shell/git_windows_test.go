@@ -30,5 +30,11 @@ func TestGitTopLevelDirReturnsOSNativePathOnWindows(t *testing.T) {
 	require.NotEmpty(t, repoRoot)
 
 	assert.NotContains(t, repoRoot, "/", "expected OS-native path on Windows, got %q", repoRoot)
-	assert.Contains(t, repoRoot, "\\", "expected backslash separators on Windows, got %q", strings.ReplaceAll(repoRoot, "\\", "\\\\"))
+	assert.Contains(
+		t,
+		repoRoot,
+		"\\",
+		"expected backslash separators on Windows, got %q",
+		strings.ReplaceAll(repoRoot, "\\", "\\\\"),
+	)
 }

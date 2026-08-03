@@ -85,7 +85,11 @@ func TestFormatDiagnostic_MissingClosingBracket(t *testing.T) {
 
 	assert.Contains(t, result, "     ^ this Git-based expression is missing a closing ']'")
 
-	assert.Contains(t, result, "hint: Git-based expressions require surrounding references with '[]'")
+	assert.Contains(
+		t,
+		result,
+		"hint: Git-based expressions require surrounding references with '[]'",
+	)
 }
 
 func TestFormatDiagnostic_EmptyGitFilter(t *testing.T) {
@@ -238,7 +242,10 @@ func TestParseFilterQueries_MultipleErrors(t *testing.T) {
 func TestParseFilterQueries_ValidFilters(t *testing.T) {
 	t.Parallel()
 
-	filters, err := filter.ParseFilterQueries(testLoggerForDiagnostics(), []string{"name=foo", "./apps/*"})
+	filters, err := filter.ParseFilterQueries(
+		testLoggerForDiagnostics(),
+		[]string{"name=foo", "./apps/*"},
+	)
 
 	require.NoError(t, err)
 	assert.Len(t, filters, 2)

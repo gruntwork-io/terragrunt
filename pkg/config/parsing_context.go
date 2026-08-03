@@ -41,16 +41,19 @@ type ParsingContext struct {
 	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
 	// It also carries the shell environment and stdout/stderr writers.
 	// Defaults to the OS-backed environment when [NewParsingContext] is
-	// called; callers with a threaded root Venv set it before parsing.
-	Venv venv.Venv
+	// called; callers with a threaded root Venv override via [WithVenv].
+	Venv *venv.Venv
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
-	FeatureFlags     *xsync.Map[string, string]
-	FilesRead        *FilesRead
-	Telemetry        *telemetry.Options
+
+	// FeatureFlags contains explicit feature flag overrides supplied by the user.
+	FeatureFlags *xsync.Map[string, string]
+
+	FilesRead *FilesRead
+	Telemetry *telemetry.Options
 
 	DecodedDependencies *cty.Value
 	Values              *cty.Value
@@ -114,7 +117,11 @@ type ParsingContext struct {
 	skipAutoIncludeMerge bool
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
+func NewParsingContext(
+	ctx context.Context,
+	l log.Logger,
+	opts ...Option,
+) (context.Context, *ParsingContext) {
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
 		FilesRead:        NewFilesRead(),
@@ -131,13 +138,24 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (conte
 }
 
 // Clone returns a copy of the ParsingContext.
-// Maps are deep-copied so that mutations (e.g. credential injection into the
-// shell environment) on a clone do not affect the original or other clones.
+// Maps and the embedded Venv (including its Writers pointer and Env map)
+// are deep-copied so that mutations on a clone — credential injection,
+// writer redirection, etc. — do not affect the original or other clones.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
 
-	if ctx.Venv.Env != nil {
-		clone.Venv.Env = maps.Clone(ctx.Venv.Env)
+	if ctx.Venv != nil {
+		v := *ctx.Venv
+		if v.Env != nil {
+			v.Env = maps.Clone(v.Env)
+		}
+
+		if v.Writers != nil {
+			w := *v.Writers
+			v.Writers = &w
+		}
+
+		clone.Venv = &v
 	}
 
 	if ctx.SourceMap != nil {
@@ -157,13 +175,6 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	c := ctx.Clone()
 	c.PartialParseDecodeList = decodeList
-
-	return c
-}
-
-func (ctx *ParsingContext) WithVenv(v venv.Venv) *ParsingContext {
-	c := ctx.Clone()
-	c.Venv = v
 
 	return c
 }
@@ -204,6 +215,16 @@ func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *Par
 	return c
 }
 
+// WithVenv returns a new ParsingContext that uses the supplied virtualized
+// environment for HCL helpers that shell out (e.g. get_repo_root) and for
+// dependency-output evaluation.
+func (ctx *ParsingContext) WithVenv(v *venv.Venv) *ParsingContext {
+	c := ctx.Clone()
+	c.Venv = v
+
+	return c
+}
+
 // WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
 // Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
 // This avoids false positive "There is no variable named dependency" errors during parsing
@@ -215,7 +236,10 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 	}
 
 	c := ctx.Clone()
-	c.ParserOptions = slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
+	c.ParserOptions = slices.Concat(
+		ctx.ParserOptions,
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)},
+	)
 
 	return c
 }
@@ -253,7 +277,10 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 // reads another via read_terragrunt_config.
 //
 // To parse a dependency as an independent unit, use [ParsingContext.WithDependencyConfigPath].
-func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+func (ctx *ParsingContext) WithConfigPath(
+	l log.Logger,
+	configPath string,
+) (log.Logger, *ParsingContext, error) {
 	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
 		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
@@ -291,7 +318,10 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 // and additionally resets OriginalTerragruntConfigPath to the dependency's path.
 // This ensures that get_original_terragrunt_dir() resolves to the dependency's
 // own directory rather than the caller's.
-func (ctx *ParsingContext) WithDependencyConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+func (ctx *ParsingContext) WithDependencyConfigPath(
+	l log.Logger,
+	configPath string,
+) (log.Logger, *ParsingContext, error) {
 	l, c, err := ctx.WithConfigPath(l, configPath)
 	if err != nil {
 		return l, nil, err

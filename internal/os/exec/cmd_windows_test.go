@@ -40,7 +40,12 @@ func TestWindowsExitCode(t *testing.T) {
 	l := logger.CreateLogger()
 
 	for i := 0; i <= 255; i++ {
-		cmd := exec.Command(t.Context(), vexec.NewOSExec(), `testdata\test_exit_code.bat`, strconv.Itoa(i))
+		cmd := exec.Command(
+			t.Context(),
+			vexec.NewOSExec(),
+			`testdata\test_exit_code.bat`,
+			strconv.Itoa(i),
+		)
 		err := cmd.Run(l)
 
 		if i == 0 {
@@ -68,7 +73,12 @@ func TestWindowsNewSignalsForwarderWait(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := exec.Command(t.Context(), vexec.NewOSExec(), `testdata\test_sigint_wait.bat`, strconv.Itoa(expectedWait))
+	cmd := exec.Command(
+		t.Context(),
+		vexec.NewOSExec(),
+		`testdata\test_sigint_wait.bat`,
+		strconv.Itoa(expectedWait),
+	)
 
 	runChannel := make(chan error)
 

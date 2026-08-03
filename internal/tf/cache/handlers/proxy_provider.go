@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/labstack/echo/v4"
 )
@@ -40,10 +41,18 @@ type ProxyProviderHandler struct {
 	*helpers.ReverseProxy
 }
 
-func NewProxyProviderHandler(logger log.Logger, credsSource *cliconfig.CredentialsSource) *ProxyProviderHandler {
+func NewProxyProviderHandler(
+	l log.Logger,
+	c vhttp.Client,
+	credsSource *cliconfig.CredentialsSource,
+) *ProxyProviderHandler {
 	return &ProxyProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(logger, nil, nil),
-		ReverseProxy:          &helpers.ReverseProxy{CredsSource: credsSource, Logger: logger},
+		CommonProviderHandler: NewCommonProviderHandler(l, c, nil, nil),
+		ReverseProxy: &helpers.ReverseProxy{
+			CredsSource: credsSource,
+			Logger:      l,
+			Transport:   c.Transport,
+		},
 	}
 }
 
@@ -55,7 +64,10 @@ func (handler *ProxyProviderHandler) String() string {
 // https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
 //
 //nolint:lll
-func (handler *ProxyProviderHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
+func (handler *ProxyProviderHandler) GetVersions(
+	ctx echo.Context,
+	provider *models.Provider,
+) error {
 	apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
 	if err != nil {
 		return err
@@ -71,7 +83,11 @@ func (handler *ProxyProviderHandler) GetVersions(ctx echo.Context, provider *mod
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
-func (handler *ProxyProviderHandler) GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller) error {
+func (handler *ProxyProviderHandler) GetPlatform(
+	ctx echo.Context,
+	provider *models.Provider,
+	downloaderController router.Controller,
+) error {
 	apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
 	if err != nil {
 		return err
@@ -80,7 +96,15 @@ func (handler *ProxyProviderHandler) GetPlatform(ctx echo.Context, provider *mod
 	platformURL := &url.URL{
 		Scheme: "https",
 		Host:   provider.RegistryName,
-		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
+		Path: path.Join(
+			apiURLs.ProvidersV1,
+			provider.Namespace,
+			provider.Name,
+			provider.Version,
+			"download",
+			provider.OS,
+			provider.Arch,
+		),
 	}
 
 	return handler.ReverseProxy.
@@ -102,7 +126,13 @@ func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models
 		downloadURL := &url.URL{
 			Scheme: "https",
 			Host:   provider.RegistryName,
-			Path:   filepath.Join(apiURLs.ProvidersV1, provider.RegistryName, provider.Namespace, provider.Name, provider.DownloadURL),
+			Path: filepath.Join(
+				apiURLs.ProvidersV1,
+				provider.RegistryName,
+				provider.Namespace,
+				provider.Name,
+				provider.DownloadURL,
+			),
 		}
 
 		return handler.NewRequest(ctx, downloadURL)
@@ -117,7 +147,10 @@ func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models
 }
 
 // modifyDownloadURLsInJSONBody modifies the response to redirect the download URLs to the local server.
-func modifyDownloadURLsInJSONBody(resp *http.Response, downloaderController router.Controller) error {
+func modifyDownloadURLsInJSONBody(
+	resp *http.Response,
+	downloaderController router.Controller,
+) error {
 	var data map[string]json.RawMessage
 
 	return helpers.ModifyJSONBody(resp, &data, func() error {

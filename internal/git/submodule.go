@@ -12,7 +12,10 @@ import (
 // the parsing matches git's own config syntax. Entries missing either
 // a path or a url are dropped. The blob must exist in the repository
 // at [GitRunner.WorkDir].
-func (g *GitRunner) SubmoduleURLs(ctx context.Context, gitmodulesHash string) (map[string]string, error) {
+func (g *GitRunner) SubmoduleURLs(
+	ctx context.Context,
+	gitmodulesHash string,
+) (map[string]string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return nil, err
 	}

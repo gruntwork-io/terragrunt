@@ -154,6 +154,14 @@ type TerragruntOptions struct {
 	ReportFormat report.Format
 	// Path to the report schema file.
 	ReportSchemaFile string
+	// ProfileDir is the directory to write profile files into when using profiling flags.
+	ProfileDir string
+	// ProfileCPU is the path for CPU profile output.
+	ProfileCPU string
+	// ProfileMem is the path for memory (heap) profile output.
+	ProfileMem string
+	// ProfileGoroutine is the path for goroutine profile output.
+	ProfileGoroutine string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs *iacargs.IacArgs
 	// Files with variables to be used in modules scaffolding.
@@ -333,16 +341,18 @@ func NewTerragruntOptions() *TerragruntOptions {
 		Parallelism:              DefaultParallelism,
 		JSONOut:                  DefaultJSONOutName,
 		TofuImplementation:       tfimpl.Unknown,
-		ProviderCacheOptions:     pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
-		FeatureFlags:             xsync.NewMap[string, string](),
-		Errors:                   defaultErrorsConfig(),
-		StrictControls:           controls.New(),
-		Experiments:              experiment.NewExperiments(),
-		Tips:                     tips.NewTips(),
-		Telemetry:                new(telemetry.Options),
-		EngineOptions:            new(engine.EngineOptions),
-		VersionManagerFileName:   defaultVersionManagerFileName,
-		CASCloneDepth:            1,
+		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
+			RegistryNames: pcoptions.DefaultRegistryNames,
+		},
+		FeatureFlags:           xsync.NewMap[string, string](),
+		Errors:                 defaultErrorsConfig(),
+		StrictControls:         controls.New(),
+		Experiments:            experiment.NewExperiments(),
+		Tips:                   tips.NewTips(),
+		Telemetry:              new(telemetry.Options),
+		EngineOptions:          new(engine.EngineOptions),
+		VersionManagerFileName: defaultVersionManagerFileName,
+		CASCloneDepth:          1,
 	}
 }
 
@@ -389,7 +399,8 @@ func NewTerragruntOptionsForTest(
 
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).Errorf("%v\n", err)
+		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).
+			Errorf("%v\n", err)
 
 		return nil, err
 	}

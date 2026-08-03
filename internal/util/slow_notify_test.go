@@ -158,13 +158,20 @@ func TestNotifyIfSlow_SpinnerThenLog(t *testing.T) {
 		spinnerBuf := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(logBuf))
 
-		err := util.NotifyIfSlow(t.Context(), l, spinnerBuf, 50*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "creating worktree...",
-			Done:    "created worktree",
-		}, func() error {
-			time.Sleep(500 * time.Millisecond)
-			return nil
-		})
+		err := util.NotifyIfSlow(
+			t.Context(),
+			l,
+			spinnerBuf,
+			50*time.Millisecond,
+			util.SlowNotifyMsg{
+				Spinner: "creating worktree...",
+				Done:    "created worktree",
+			},
+			func() error {
+				time.Sleep(500 * time.Millisecond)
+				return nil
+			},
+		)
 
 		require.NoError(t, err)
 		// Spinner text was shown during the operation.
@@ -235,12 +242,19 @@ func TestNotifyIfSlow_SpinnerNotShownWhenFast(t *testing.T) {
 		spinnerBuf := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(logBuf))
 
-		err := util.NotifyIfSlow(t.Context(), l, spinnerBuf, 100*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
-			Done:    "done",
-		}, func() error {
-			return nil
-		})
+		err := util.NotifyIfSlow(
+			t.Context(),
+			l,
+			spinnerBuf,
+			100*time.Millisecond,
+			util.SlowNotifyMsg{
+				Spinner: "working...",
+				Done:    "done",
+			},
+			func() error {
+				return nil
+			},
+		)
 
 		require.NoError(t, err)
 		assert.Empty(t, logBuf.String())

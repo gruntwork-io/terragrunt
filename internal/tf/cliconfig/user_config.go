@@ -117,11 +117,28 @@ func getUserProviderInstallationMethods(cfg *cliconfig.Config) []ProviderInstall
 		for _, method := range providerInstallation.Methods {
 			switch location := method.Location.(type) {
 			case cliconfig.ProviderInstallationFilesystemMirror:
-				methods = append(methods, NewProviderInstallationFilesystemMirror(string(location), method.Include, method.Exclude))
+				methods = append(
+					methods,
+					NewProviderInstallationFilesystemMirror(
+						string(location),
+						method.Include,
+						method.Exclude,
+					),
+				)
 			case cliconfig.ProviderInstallationNetworkMirror:
-				methods = append(methods, NewProviderInstallationNetworkMirror(string(location), method.Include, method.Exclude))
+				methods = append(
+					methods,
+					NewProviderInstallationNetworkMirror(
+						string(location),
+						method.Include,
+						method.Exclude,
+					),
+				)
 			default:
-				methods = append(methods, NewProviderInstallationDirect(method.Include, method.Exclude))
+				methods = append(
+					methods,
+					NewProviderInstallationDirect(method.Include, method.Exclude),
+				)
 			}
 		}
 	}

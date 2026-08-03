@@ -52,7 +52,11 @@ func NewInvalidOptionNameError(name string, opts Options) *InvalidOptionNameErro
 }
 
 func (err InvalidOptionNameError) Error() string {
-	return fmt.Sprintf("invalid option name %q, available names: %s", err.name, strings.Join(err.opts.Names(), ","))
+	return fmt.Sprintf(
+		"invalid option name %q, available names: %s",
+		err.name,
+		strings.Join(err.opts.Names(), ","),
+	)
 }
 
 // InvalidOptionValueError is an invalid `option` value error.

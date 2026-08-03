@@ -5,12 +5,14 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/puzpuzpuz/xsync/v4"
 )
 
 type CommonProviderHandler struct {
-	logger log.Logger
+	logger     log.Logger
+	httpClient vhttp.Client
 
 	// discoveryURLCache stores discovered registry URLs
 	// We use [xsync.Map](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
@@ -23,7 +25,13 @@ type CommonProviderHandler struct {
 }
 
 // NewCommonProviderHandler returns a new `CommonProviderHandler` instance with the defined values.
-func NewCommonProviderHandler(logger log.Logger, includes, excludes *[]string) *CommonProviderHandler {
+// c is used for service-discovery requests; pass [vhttp.NewOSClient]
+// in production or a [vhttp.NewMemClient] in tests.
+func NewCommonProviderHandler(
+	l log.Logger,
+	c vhttp.Client,
+	includes, excludes *[]string,
+) *CommonProviderHandler {
 	var includeProviders, excludeProviders models.Providers
 
 	if includes != nil {
@@ -35,7 +43,8 @@ func NewCommonProviderHandler(logger log.Logger, includes, excludes *[]string) *
 	}
 
 	return &CommonProviderHandler{
-		logger:            logger,
+		logger:            l,
+		httpClient:        c,
 		includeProviders:  includeProviders,
 		excludeProviders:  excludeProviders,
 		discoveryURLCache: xsync.NewMap[string, *RegistryURLs](),
@@ -55,24 +64,35 @@ func (handler *CommonProviderHandler) CanHandleProvider(provider *models.Provide
 }
 
 // SetDiscoveryURLCache pre-populates the discovery cache for a given registry.
-func (handler *CommonProviderHandler) SetDiscoveryURLCache(registryName string, urls *RegistryURLs) {
+func (handler *CommonProviderHandler) SetDiscoveryURLCache(
+	registryName string,
+	urls *RegistryURLs,
+) {
 	handler.discoveryURLCache.Store(registryName, urls)
 }
 
 // DiscoveryURL implements ProviderHandler.DiscoveryURL.
-func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, error) {
+func (handler *CommonProviderHandler) DiscoveryURL(
+	ctx context.Context,
+	registryName string,
+) (*RegistryURLs, error) {
 	if urls, ok := handler.discoveryURLCache.Load(registryName); ok {
 		return urls, nil
 	}
 
-	urls, err := DiscoveryURL(ctx, registryName)
+	urls, err := DiscoveryURL(ctx, handler.httpClient, registryName)
 	if err != nil {
 		if !IsOfflineError(err) {
 			return nil, err
 		}
 
 		urls = DefaultRegistryURLs
-		handler.logger.Debugf("Unable to discover %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
+		handler.logger.Debugf(
+			"Unable to discover %q registry URLs, reason: %q, use default URLs: %s",
+			registryName,
+			err,
+			urls,
+		)
 	} else {
 		handler.logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
 	}

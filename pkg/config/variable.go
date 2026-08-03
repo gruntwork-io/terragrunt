@@ -31,7 +31,12 @@ type ParsedVariable struct {
 }
 
 // ParseVariables - parse variables from tf files.
-func ParseVariables(l log.Logger, fsys vfs.FS, strictControls strict.Controls, directoryPath string) ([]*ParsedVariable, error) {
+func ParseVariables(
+	l log.Logger,
+	fsys vfs.FS,
+	strictControls strict.Controls,
+	directoryPath string,
+) ([]*ParsedVariable, error) {
 	// list all tf files
 	tfFiles, err := util.ListTfFiles(fsys, directoryPath)
 	if err != nil {
@@ -76,7 +81,10 @@ func ParseVariables(l log.Logger, fsys vfs.FS, strictControls strict.Controls, d
 						if descriptionAttr != nil {
 							descriptionAttrText = descriptionAttr.AsString()
 						} else {
-							descriptionAttrText = fmt.Sprintf("(variable %s did not define a description)", name)
+							descriptionAttrText = fmt.Sprintf(
+								"(variable %s did not define a description)",
+								name,
+							)
 						}
 
 						var typeAttrText string
@@ -163,7 +171,11 @@ type ctyJSONValue struct {
 }
 
 // readBlockAttribute - hcl block attribute.
-func readBlockAttribute(ctx *hcl.EvalContext, block *hclsyntax.Block, name string) (*cty.Value, error) {
+func readBlockAttribute(
+	ctx *hcl.EvalContext,
+	block *hclsyntax.Block,
+	name string,
+) (*cty.Value, error) {
 	if attr, ok := block.Body.Attributes[name]; ok {
 		if attr.Expr != nil {
 			if call, ok := attr.Expr.(*hclsyntax.FunctionCallExpr); ok {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/labstack/echo/v4"
 )
@@ -34,9 +35,19 @@ type ProxyModuleHandler struct {
 // Only registries listed in registryNames are proxied; requests for any other host
 // are rejected with 404 so a leaked cache-server token can't be used to proxy
 // authenticated requests to arbitrary upstream hosts.
-func NewProxyModuleHandler(logger log.Logger, credsSource *cliconfig.CredentialsSource, discoverer RegistryURLDiscoverer, registryNames []string) *ProxyModuleHandler {
+func NewProxyModuleHandler(
+	l log.Logger,
+	c vhttp.Client,
+	credsSource *cliconfig.CredentialsSource,
+	discoverer RegistryURLDiscoverer,
+	registryNames []string,
+) *ProxyModuleHandler {
 	return &ProxyModuleHandler{
-		ReverseProxy:  &helpers.ReverseProxy{CredsSource: credsSource, Logger: logger},
+		ReverseProxy: &helpers.ReverseProxy{
+			CredsSource: credsSource,
+			Logger:      l,
+			Transport:   c.Transport,
+		},
 		discoverer:    discoverer,
 		registryNames: slices.Clone(registryNames),
 	}
@@ -45,7 +56,10 @@ func NewProxyModuleHandler(logger log.Logger, credsSource *cliconfig.Credentials
 // Proxy forwards a module-registry request to the upstream registry.
 func (h *ProxyModuleHandler) Proxy(ctx echo.Context, registryName, restPath string) error {
 	if !slices.Contains(h.registryNames, registryName) {
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("registry %q is not configured for module proxying", registryName))
+		return echo.NewHTTPError(
+			http.StatusNotFound,
+			fmt.Sprintf("registry %q is not configured for module proxying", registryName),
+		)
 	}
 
 	apiURLs, err := h.discoverer.DiscoveryURL(ctx.Request().Context(), registryName)

@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -34,7 +36,7 @@ const (
 	testFixtureGetPlatform             = "fixtures/get-platform"
 )
 
-func TestStartsWith(t *testing.T) {
+func TestTFStartsWith(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStartswith)
@@ -49,7 +51,12 @@ func TestStartsWith(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -67,7 +74,7 @@ func TestStartsWith(t *testing.T) {
 	validateOutput(t, outputs, "startswith9", false)
 }
 
-func TestTimeCmp(t *testing.T) {
+func TestTFTimeCmp(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureTimecmp)
@@ -82,7 +89,12 @@ func TestTimeCmp(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -97,7 +109,7 @@ func TestTimeCmp(t *testing.T) {
 	validateOutput(t, outputs, "timecmp6", float64(1))
 }
 
-func TestTimeCmpInvalidTimestamp(t *testing.T) {
+func TestTFTimeCmpInvalidTimestamp(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureTimecmpInvalidTimestamp)
@@ -108,13 +120,18 @@ func TestTimeCmpInvalidTimestamp(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt apply --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
 
 	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
 	require.ErrorContains(t, err, expectedError)
 }
 
-func TestEndsWith(t *testing.T) {
+func TestTFEndsWith(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureEndswith)
@@ -129,7 +146,12 @@ func TestEndsWith(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -147,7 +169,7 @@ func TestEndsWith(t *testing.T) {
 	validateOutput(t, outputs, "endswith9", false)
 }
 
-func TestStrContains(t *testing.T) {
+func TestTFStrContains(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStrcontains)
@@ -162,7 +184,12 @@ func TestStrContains(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -173,7 +200,7 @@ func TestStrContains(t *testing.T) {
 	validateOutput(t, outputs, "o2", false)
 }
 
-func TestGetRepoRootCaching(t *testing.T) {
+func TestTFGetRepoRootCaching(t *testing.T) {
 	t.Parallel()
 	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
@@ -199,7 +226,7 @@ func TestGetRepoRootCaching(t *testing.T) {
 	assert.Contains(t, output, fmt.Sprintf(`repo_root = "%s"`, rootPath))
 }
 
-func TestGetRepoRoot(t *testing.T) {
+func TestTFGetRepoRoot(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
@@ -237,10 +264,10 @@ func TestGetRepoRoot(t *testing.T) {
 	repoRoot, ok := outputs["repo_root"]
 
 	assert.True(t, ok)
-	assert.Regexp(t, "/.*/TestGetRepoRoot.*/fixtures/get-repo-root", repoRoot.Value)
+	assert.Regexp(t, "/.*/TestTFGetRepoRoot.*/fixtures/get-repo-root", repoRoot.Value)
 }
 
-func TestGetWorkingDirBuiltInFunc(t *testing.T) {
+func TestTFGetWorkingDirBuiltInFunc(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetWorkingDir)
@@ -263,7 +290,12 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -297,14 +329,19 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	assert.Equal(t, expectedWorkingDir, workingDir.Value)
 }
 
-func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
+func TestTFPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	t.Parallel()
 
 	appPath := path.Join(testFixtureRelativeIncludeCmd, "app")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --working-dir "+appPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt plan --non-interactive --working-dir "+appPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	output := stdout.String()
@@ -312,11 +349,13 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	assert.Equal(t, 0, strings.Count(output, "path_relative_to_inclue: .\n"))
 }
 
-func TestPathRelativeFromInclude(t *testing.T) {
+func TestTFPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixturePathRelativeFromInclude)
-	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixturePathRelativeFromInclude))
+	tmpEnvPath, err := filepath.EvalSymlinks(
+		helpers.CopyEnvironment(t, testFixturePathRelativeFromInclude),
+	)
 	require.NoError(t, err)
 
 	rootPath := filepath.Join(tmpEnvPath, testFixturePathRelativeFromInclude, "lives/dev")
@@ -334,7 +373,10 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	// verify expected outputs are not empty
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+clusterPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt output -no-color -json --non-interactive --working-dir "+clusterPath,
+	)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -345,22 +387,30 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	assert.Equal(t, "something else", val.Value)
 
 	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+basePath+" -- destroy -auto-approve",
+	)
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "Detected dependent units:\n"+clusterPath)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --destroy-dependencies-check --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --destroy-dependencies-check --non-interactive --working-dir "+basePath+" -- destroy -auto-approve",
+	)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Detected dependent units:\n"+clusterPath)
 }
 
-func TestGetPathFromRepoRoot(t *testing.T) {
+func TestTFGetPathFromRepoRoot(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetPathFromRepoRoot)
-	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathFromRepoRoot))
+	tmpEnvPath, _ := filepath.EvalSymlinks(
+		helpers.CopyEnvironment(t, testFixtureGetPathFromRepoRoot),
+	)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
 	runner, err := git.NewGitRunner(vexec.NewOSExec())
@@ -379,7 +429,12 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -392,7 +447,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	assert.Equal(t, testFixtureGetPathFromRepoRoot, pathFromRoot.Value)
 }
 
-func TestGetPathToRepoRoot(t *testing.T) {
+func TestTFGetPathToRepoRoot(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathToRepoRoot))
@@ -415,7 +470,12 @@ func TestGetPathToRepoRoot(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -436,7 +496,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	}
 }
 
-func TestGetPlatform(t *testing.T) {
+func TestTFGetPlatform(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetPlatform)
@@ -451,7 +511,12 @@ func TestGetPlatform(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}

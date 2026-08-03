@@ -28,7 +28,14 @@ terraform {
 	tmpDir := b.TempDir()
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
 	// Create an empty `root.hcl` file
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	// Create 1 units
 	helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
@@ -59,7 +66,14 @@ terraform {
 	tmpDir := b.TempDir()
 
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	helpers.GenerateNUnits(b, tmpDir, 2, includeRootConfig, emptyMainTf)
 
@@ -89,7 +103,14 @@ terraform {
 	tmpDir := b.TempDir()
 
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	helpers.GenerateNUnits(b, tmpDir, 1000, includeRootConfig, emptyMainTf)
 
@@ -120,7 +141,14 @@ terraform {
 	tmpDir := b.TempDir()
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
 	// Create an empty `root.hcl` file
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	// Create 1 units
 	helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
@@ -150,7 +178,14 @@ func BenchmarkTwoEmptyTerragruntPlans(b *testing.B) {
 	tmpDir := b.TempDir()
 
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	helpers.GenerateNUnits(b, tmpDir, 2, includeRootConfig, emptyMainTf)
 
@@ -178,7 +213,14 @@ func BenchmarkManyEmptyTerragruntPlans(b *testing.B) {
 
 	tmpDir := b.TempDir()
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	helpers.GenerateNUnits(b, tmpDir, 1000, includeRootConfig, emptyMainTf)
 
@@ -209,7 +251,14 @@ terraform {
 
 	tmpDir := b.TempDir()
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	helpers.GenerateNUnits(b, tmpDir, 10, includeRootConfig, baseMainTf)
 
@@ -248,7 +297,14 @@ terraform {
 
 	tmpDir := b.TempDir()
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	// Generate independent units with random 100-300ms waits
 	for i := range 10 {
@@ -256,7 +312,10 @@ terraform {
 		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
 		tgPath := filepath.Join(unitDir, "terragrunt.hcl")
-		require.NoError(b, os.WriteFile(tgPath, []byte(includeRootConfig), helpers.DefaultFilePermissions))
+		require.NoError(
+			b,
+			os.WriteFile(tgPath, []byte(includeRootConfig), helpers.DefaultFilePermissions),
+		)
 
 		ms := 100 + rand.Intn(201) // 100..300 ms
 		secs := float64(ms) / 1000.0
@@ -314,7 +373,14 @@ terraform {
 
 	tmpDir := b.TempDir()
 	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+	require.NoError(
+		b,
+		os.WriteFile(
+			rootTerragruntConfigPath,
+			[]byte(emptyRootConfig),
+			helpers.DefaultFilePermissions,
+		),
+	)
 
 	// Create units
 	for i := range 10 {
@@ -408,7 +474,14 @@ terraform {
 			dir := b.TempDir()
 
 			// Write root.hcl
-			require.NoError(b, os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+			require.NoError(
+				b,
+				os.WriteFile(
+					filepath.Join(dir, "root.hcl"),
+					[]byte(emptyRootConfig),
+					helpers.DefaultFilePermissions,
+				),
+			)
 
 			// Seed random generator deterministically within this sub-benchmark
 			rnd := rand.New(rand.NewSource(int64(n)))
@@ -424,7 +497,11 @@ terraform {
 				if i%2 == 1 {
 					prev := i - 1
 					if prev >= 0 {
-						depBlock := fmt.Sprintf("dependency \"unit_%d\" {\n  config_path = \"../unit-%d\"\n}\n\n", prev, prev)
+						depBlock := fmt.Sprintf(
+							"dependency \"unit_%d\" {\n  config_path = \"../unit-%d\"\n}\n\n",
+							prev,
+							prev,
+						)
 						tgConfig = includeRootConfig + depBlock
 					} else {
 						tgConfig = includeRootConfig
@@ -434,7 +511,10 @@ terraform {
 				}
 
 				tgPath := filepath.Join(unitDir, "terragrunt.hcl")
-				require.NoError(b, os.WriteFile(tgPath, []byte(tgConfig), helpers.DefaultFilePermissions))
+				require.NoError(
+					b,
+					os.WriteFile(tgPath, []byte(tgConfig), helpers.DefaultFilePermissions),
+				)
 
 				// main.tf: even units wait 50..100ms; odd units are no-ops
 				var mainTf string
@@ -461,7 +541,10 @@ terraform {
 				}
 
 				tfPath := filepath.Join(unitDir, "main.tf")
-				require.NoError(b, os.WriteFile(tfPath, []byte(mainTf), helpers.DefaultFilePermissions))
+				require.NoError(
+					b,
+					os.WriteFile(tfPath, []byte(mainTf), helpers.DefaultFilePermissions),
+				)
 			}
 
 			// Init once to prepare

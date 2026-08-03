@@ -103,12 +103,32 @@ func TestCandidacyClassifier_Analyze(t *testing.T) {
 
 			classifier := filter.NewClassifier(filters)
 
-			assert.Equal(t, tt.expectHasPositive, classifier.HasPositiveFilters(), "HasPositiveFilters mismatch")
-			assert.Equal(t, tt.expectHasParseRequired, classifier.HasParseRequiredFilters(), "HasParseRequiredFilters mismatch")
-			assert.Equal(t, tt.expectHasGraphFilters, classifier.HasGraphFilters(), "HasGraphFilters mismatch")
+			assert.Equal(
+				t,
+				tt.expectHasPositive,
+				classifier.HasPositiveFilters(),
+				"HasPositiveFilters mismatch",
+			)
+			assert.Equal(
+				t,
+				tt.expectHasParseRequired,
+				classifier.HasParseRequiredFilters(),
+				"HasParseRequiredFilters mismatch",
+			)
+			assert.Equal(
+				t,
+				tt.expectHasGraphFilters,
+				classifier.HasGraphFilters(),
+				"HasGraphFilters mismatch",
+			)
 
 			if tt.expectGraphExprCount > 0 {
-				assert.Len(t, classifier.GraphExpressions(), tt.expectGraphExprCount, "GraphExpressions count mismatch")
+				assert.Len(
+					t,
+					classifier.GraphExpressions(),
+					tt.expectGraphExprCount,
+					"GraphExpressions count mismatch",
+				)
 			}
 		})
 	}

@@ -1,0 +1,34 @@
+---
+version: "v1.1.3"
+category: "experiments-updated"
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+#### `catalog-format` - Reading the catalog as JSON Lines
+
+The `catalog` command draws a terminal user interface, and refuses to start where there is no terminal to draw it on. With the [`catalog-format`](/reference/experiments/active#catalog-format) experiment enabled, `--format=jsonl` writes the same discovery to standard output instead, as one JSON object per line:
+
+```bash
+terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c '{kind, title, component_source}'
+```
+
+Entries are written as they are discovered rather than collected first, so output is readable while the remaining repositories are still loading, and a reader that stops early ends the command quietly:
+
+```bash
+terragrunt catalog --experiment=catalog-format --format=jsonl | head -5
+```
+
+<Aside type="note" title="Closing the pipe">
+In this example, the `head` program exits after reading in five lines, and Terragrunt detects the `SIGPIPE` signal from the OS, and shuts down cleanly.
+</Aside>
+
+Entries appear in discovery order, which interleaves the repositories being loaded and differs between runs. Every entry carries the complete body of the component's README in the `doc` field. Combine usage of Terragrunt with other tools like `jq` to drop it.
+
+```bash
+terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c 'del(.doc)'
+```
+
+Entries follow a [published JSON schema](https://docs.terragrunt.com/schemas/catalog/v1/schema.json). For the fields and their meanings, see [Non-interactive catalog](/features/catalog/non-interactive).
+
+`--format=tui` is the default, and leaves the terminal user interface exactly as it was.

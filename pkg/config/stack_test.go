@@ -33,7 +33,14 @@ stack "projects" {
 
 `
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, cfg, nil)
+	terragruntStackConfig, err := config.ReadStackConfigString(
+		ctx,
+		logger.CreateLogger(),
+		pctx,
+		config.DefaultStackFile,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 
 	assert.NotNil(t, terragruntStackConfig)
@@ -105,7 +112,14 @@ stack "network" {
 }
 `
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, cfg, nil)
+	terragruntStackConfig, err := config.ReadStackConfigString(
+		ctx,
+		logger.CreateLogger(),
+		pctx,
+		config.DefaultStackFile,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Check that config is not nil
@@ -162,7 +176,14 @@ locals {
 }
 `
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	_, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, invalidCfg, nil)
+	_, err := config.ReadStackConfigString(
+		ctx,
+		logger.CreateLogger(),
+		pctx,
+		config.DefaultStackFile,
+		invalidCfg,
+		nil,
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid multi-line string")
 }
@@ -192,7 +213,10 @@ func TestWriteValuesSortsKeys(t *testing.T) {
 		os.RemoveAll(stackDir)
 
 		// Generate the stack
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt stack generate --working-dir "+tmpDir,
+		)
 		require.NoError(t, err)
 		require.FileExists(t, valuesFilePath)
 
@@ -285,7 +309,11 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 			t.Logf("Generation %d:\n%s\n", i+1, content)
 		}
 
-		assert.True(t, allIdentical, "Stack generation should be deterministic - all runs should produce identical values files")
+		assert.True(
+			t,
+			allIdentical,
+			"Stack generation should be deterministic - all runs should produce identical values files",
+		)
 
 		return
 	}
@@ -296,7 +324,18 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 	contentStr := generationContents[0]
 
 	// Check if the keys appear in alphabetical order
-	keys := []string{"aaa_first", "alpha", "beta", "charlie", "delta", "gamma", "mmm_middle", "omega", "zebra", "zzz_last"}
+	keys := []string{
+		"aaa_first",
+		"alpha",
+		"beta",
+		"charlie",
+		"delta",
+		"gamma",
+		"mmm_middle",
+		"omega",
+		"zebra",
+		"zzz_last",
+	}
 
 	positions := make([]int, len(keys))
 	for i, key := range keys {
@@ -321,7 +360,11 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 	t.Logf("Keys in alphabetical order: %v", keysInOrder)
 
 	if !keysInOrder {
-		assert.True(t, keysInOrder, "Keys should appear in alphabetical order for deterministic output")
+		assert.True(
+			t,
+			keysInOrder,
+			"Keys should appear in alphabetical order for deterministic output",
+		)
 	} else {
 		t.Logf("Keys are in alphabetical order - sorting implementation is working!")
 	}
@@ -374,7 +417,10 @@ terraform {
 	require.NoError(t, os.WriteFile(filepath.Join(unit2Dir, "main.tf"), []byte(unit1MainTf), 0644))
 
 	// Generate the stack
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+tmpDir,
+	)
 	require.NoError(t, err)
 
 	// Ensure values files are not created for both units
@@ -413,10 +459,17 @@ terraform {
 	require.NoError(t, os.WriteFile(unitConfigPath, []byte(unitConfig), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(""), 0644))
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+tmpDir,
+	)
 	if err == nil {
 		// If no error, that's a failure for this test
-		t.Fatalf("expected error when values is non-object, got none. stdout=%s stderr=%s", stdout, stderr)
+		t.Fatalf(
+			"expected error when values is non-object, got none. stdout=%s stderr=%s",
+			stdout,
+			stderr,
+		)
 	}
 
 	combined := stdout + "\n" + stderr + "\n" + err.Error()

@@ -206,7 +206,11 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 		// loaded through the main loader. We may load things in other
 		// ways in weird cases, so we'll tolerate it at the expense of
 		// a not-so-helpful error message.
-		return fmt.Sprintf("  on %s line %d:\n  (source code not available)\n", diag.Range.Filename, diag.Range.Start.Line), nil
+		return fmt.Sprintf(
+			"  on %s line %d:\n  (source code not available)\n",
+			diag.Range.Filename,
+			diag.Range.Start.Line,
+		), nil
 	}
 
 	var (
@@ -220,7 +224,13 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 		contextStr = ", in " + snippet.Context
 	}
 
-	if _, err := fmt.Fprintf(buf, "  on %s line %d%s:\n", diag.Range.Filename, diag.Range.Start.Line, contextStr); err != nil {
+	if _, err := fmt.Fprintf(
+		buf,
+		"  on %s line %d%s:\n",
+		diag.Range.Filename,
+		diag.Range.Start.Line,
+		contextStr,
+	); err != nil {
 		return "", err
 	}
 
@@ -265,7 +275,8 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 		}
 	}
 
-	if len(snippet.Values) > 0 || (snippet.FunctionCall != nil && snippet.FunctionCall.Signature != nil) {
+	if len(snippet.Values) > 0 ||
+		(snippet.FunctionCall != nil && snippet.FunctionCall.Signature != nil) {
 		// The diagnostic may also have information about the dynamic
 		// values of relevant variables at the point of evaluation.
 		// This is particularly useful for expressions that get evaluated

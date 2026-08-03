@@ -83,9 +83,10 @@ func TestEvaluate_PathFilter(t *testing.T) {
 				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
 				}),
-				component.NewUnit("./apps/subdir/nested").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				component.NewUnit("./apps/subdir/nested").
+					WithDiscoveryContext(&component.DiscoveryContext{
+						WorkingDir: ".",
+					}),
 			},
 		},
 		{
@@ -221,7 +222,8 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				component.NewUnit("./apps/app4").
+					WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
 			},
 		},
 		{
@@ -236,7 +238,8 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
 				component.NewUnit("./libs/db").WithReading("database.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				component.NewUnit("./apps/app4").
+					WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
 			},
 		},
 		{
@@ -245,7 +248,8 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				component.NewUnit("./apps/app4").
+					WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
 			},
 		},
 		{
@@ -613,9 +617,10 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
 				}),
-				component.NewUnit("./special/unit").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				component.NewUnit("./special/unit").
+					WithDiscoveryContext(&component.DiscoveryContext{
+						WorkingDir: ".",
+					}),
 			},
 		},
 		{
@@ -624,7 +629,10 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				Left: &filter.InfixExpression{
 					Left:     mustPath(t, "./apps/*"),
 					Operator: "|",
-					Right:    &filter.PrefixExpression{Operator: "!", Right: mustAttr(t, "name", "legacy")},
+					Right: &filter.PrefixExpression{
+						Operator: "!",
+						Right:    mustAttr(t, "name", "legacy"),
+					},
 				},
 				Operator: "|",
 				Right:    mustAttr(t, "name", "app1"),
@@ -697,10 +705,8 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "dependency traversal - app...",
 			expr: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "app"),
-				IncludeDependencies: true,
-				IncludeDependents:   false,
-				ExcludeTarget:       false,
+				Target:       mustAttr(t, "name", "app"),
+				Dependencies: filter.GraphBound{Include: true},
 			},
 			expected: []string{"./app", "./db", "./vpc"},
 			setup: func() []component.Component {
@@ -723,10 +729,8 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "dependent traversal - ...vpc",
 			expr: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "vpc"),
-				IncludeDependencies: false,
-				IncludeDependents:   true,
-				ExcludeTarget:       false,
+				Target:     mustAttr(t, "name", "vpc"),
+				Dependents: filter.GraphBound{Include: true},
 			},
 			expected: []string{"./vpc", "./db", "./app"},
 			setup: func() []component.Component {
@@ -749,10 +753,9 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "both directions - ...db...",
 			expr: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "db"),
-				IncludeDependencies: true,
-				IncludeDependents:   true,
-				ExcludeTarget:       false,
+				Target:       mustAttr(t, "name", "db"),
+				Dependents:   filter.GraphBound{Include: true},
+				Dependencies: filter.GraphBound{Include: true},
 			},
 			expected: []string{"./db", "./vpc", "./app"},
 			setup: func() []component.Component {
@@ -775,10 +778,9 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "exclude target - ^app...",
 			expr: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "app"),
-				IncludeDependencies: true,
-				IncludeDependents:   false,
-				ExcludeTarget:       true,
+				Target:        mustAttr(t, "name", "app"),
+				Dependencies:  filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 			expected: []string{"./db", "./vpc"},
 			setup: func() []component.Component {
@@ -801,10 +803,10 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "exclude target with dependents - ...^db...",
 			expr: &filter.GraphExpression{
-				Target:              mustAttr(t, "name", "db"),
-				IncludeDependencies: true,
-				IncludeDependents:   true,
-				ExcludeTarget:       true,
+				Target:        mustAttr(t, "name", "db"),
+				Dependents:    filter.GraphBound{Include: true},
+				Dependencies:  filter.GraphBound{Include: true},
+				ExcludeTarget: true,
 			},
 			expected: []string{"./vpc", "./app"},
 			setup: func() []component.Component {
@@ -884,10 +886,8 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "app"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
+			Target:       mustAttr(t, "name", "app"),
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -921,10 +921,8 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "vpc"),
-			IncludeDependencies: false,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:     mustAttr(t, "name", "vpc"),
+			Dependents: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -946,10 +944,9 @@ func TestEvaluate_GraphExpression_EmptyResults(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "nonexistent"),
-			IncludeDependencies: true,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:       mustAttr(t, "name", "nonexistent"),
+			Dependents:   filter.GraphBound{Include: true},
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -972,10 +969,8 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "isolated"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
+			Target:       mustAttr(t, "name", "isolated"),
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -988,10 +983,8 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "isolated"),
-			IncludeDependencies: false,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:     mustAttr(t, "name", "isolated"),
+			Dependents: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1021,10 +1014,8 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "a"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
+			Target:       mustAttr(t, "name", "a"),
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1039,10 +1030,8 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "a"),
-			IncludeDependencies: false,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:     mustAttr(t, "name", "a"),
+			Dependents: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1082,10 +1071,8 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustPath(t, "./app"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
+			Target:       mustPath(t, "./app"),
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1115,11 +1102,8 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "d"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
-			DependencyDepth:     1,
+			Target:       mustAttr(t, "name", "d"),
+			Dependencies: filter.GraphBound{Include: true, Depth: 1},
 		}
 
 		l := log.New()
@@ -1132,11 +1116,8 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "d"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
-			DependencyDepth:     2,
+			Target:       mustAttr(t, "name", "d"),
+			Dependencies: filter.GraphBound{Include: true, Depth: 2},
 		}
 
 		l := log.New()
@@ -1149,11 +1130,8 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "a"),
-			IncludeDependencies: false,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
-			DependentDepth:      1,
+			Target:     mustAttr(t, "name", "a"),
+			Dependents: filter.GraphBound{Include: true, Depth: 1},
 		}
 
 		l := log.New()
@@ -1166,11 +1144,8 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "a"),
-			IncludeDependencies: false,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
-			DependentDepth:      2,
+			Target:     mustAttr(t, "name", "a"),
+			Dependents: filter.GraphBound{Include: true, Depth: 2},
 		}
 
 		l := log.New()
@@ -1183,11 +1158,8 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              mustAttr(t, "name", "d"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
-			DependencyDepth:     0,
+			Target:       mustAttr(t, "name", "d"),
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1232,11 +1204,8 @@ func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
 
 		// Match both targetA and targetB using glob
 		expr := &filter.GraphExpression{
-			Target:              mustPath(t, "./target*"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
-			DependencyDepth:     2,
+			Target:       mustPath(t, "./target*"),
+			Dependencies: filter.GraphBound{Include: true, Depth: 2},
 		}
 
 		l := log.New()
@@ -1246,7 +1215,11 @@ func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
 		// Should include: targetA, targetB, intermediate (1 hop from A),
 		// shared (2 hops from A, 1 from B), deep1 (2 hops from B)
 		// Should NOT include: deep2 (3 hops from B, too deep)
-		assert.ElementsMatch(t, []component.Component{targetA, targetB, intermediate, shared, deep1}, result)
+		assert.ElementsMatch(
+			t,
+			[]component.Component{targetA, targetB, intermediate, shared, deep1},
+			result,
+		)
 	})
 }
 
@@ -1513,10 +1486,8 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		components := []component.Component{vpc, db, app}
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
+			Target:       filter.NewGitExpression("main", "HEAD"),
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1560,10 +1531,8 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		components := []component.Component{vpc, db, app}
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: false,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:     filter.NewGitExpression("main", "HEAD"),
+			Dependents: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1607,10 +1576,9 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		components := []component.Component{vpc, db, app}
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: true,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:       filter.NewGitExpression("main", "HEAD"),
+			Dependents:   filter.GraphBound{Include: true},
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1649,10 +1617,9 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		components := []component.Component{vpc, db, app}
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: true,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:       filter.NewGitExpression("main", "HEAD"),
+			Dependents:   filter.GraphBound{Include: true},
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1694,10 +1661,9 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: true,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:       filter.NewGitExpression("main", "HEAD"),
+			Dependents:   filter.GraphBound{Include: true},
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1741,10 +1707,9 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		components := []component.Component{vpc, db, app}
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       true,
+			Target:        filter.NewGitExpression("main", "HEAD"),
+			Dependencies:  filter.GraphBound{Include: true},
+			ExcludeTarget: true,
 		}
 
 		l := log.New()
@@ -1788,10 +1753,9 @@ func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
 		components := []component.Component{vpc, db, app}
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: true,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:       filter.NewGitExpression("main", "HEAD"),
+			Dependents:   filter.GraphBound{Include: true},
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1855,10 +1819,8 @@ func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: true,
-			IncludeDependents:   false,
-			ExcludeTarget:       false,
+			Target:       filter.NewGitExpression("main", "HEAD"),
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1877,10 +1839,8 @@ func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: false,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:     filter.NewGitExpression("main", "HEAD"),
+			Dependents: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()
@@ -1901,10 +1861,9 @@ func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              filter.NewGitExpression("main", "HEAD"),
-			IncludeDependencies: true,
-			IncludeDependents:   true,
-			ExcludeTarget:       false,
+			Target:       filter.NewGitExpression("main", "HEAD"),
+			Dependents:   filter.GraphBound{Include: true},
+			Dependencies: filter.GraphBound{Include: true},
 		}
 
 		l := log.New()

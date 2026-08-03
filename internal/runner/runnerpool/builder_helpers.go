@@ -29,7 +29,13 @@ const (
 )
 
 // doWithTelemetry is a small helper to standardize telemetry collection calls.
-func doWithTelemetry(ctx context.Context, l log.Logger, name string, fields map[string]any, fn func(context.Context, log.Logger) error) error {
+func doWithTelemetry(
+	ctx context.Context,
+	l log.Logger,
+	name string,
+	fields map[string]any,
+	fn func(context.Context, log.Logger) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, name, fields, fn)
 }
 
@@ -120,7 +126,7 @@ func prepareDiscovery(
 func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (component.Components, error) {
@@ -181,7 +187,7 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -217,7 +223,7 @@ func checkVersionConstraints(
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -260,7 +266,11 @@ func checkUnitVersionConstraints(
 		VersionFiles: unitOpts.VersionManagerFileName,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
+		return fmt.Errorf(
+			"failed to populate Terraform version for unit %s: %w",
+			unit.DisplayPath(),
+			err,
+		)
 	}
 
 	unitOpts.TerraformVersion = ver
@@ -271,7 +281,10 @@ func checkUnitVersionConstraints(
 		terraformVersionConstraint = unitConfig.TerraformVersionConstraint
 	}
 
-	if err := run.CheckTerraformVersionMeetsConstraint(unitOpts.TerraformVersion, terraformVersionConstraint); err != nil {
+	if err := run.CheckTerraformVersionMeetsConstraint(
+		unitOpts.TerraformVersion,
+		terraformVersionConstraint,
+	); err != nil {
 		return fmt.Errorf("terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
 	}
 
@@ -280,25 +293,11 @@ func checkUnitVersionConstraints(
 			unitOpts.TerragruntVersion,
 			unitConfig.TerragruntVersionConstraint,
 		); err != nil {
-			return fmt.Errorf("terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
-		}
-	}
-
-	if unitConfig.FeatureFlags != nil {
-		for _, flag := range unitConfig.FeatureFlags {
-			flagName := flag.Name
-
-			defaultValue, err := flag.DefaultAsString()
-			if err != nil {
-				return fmt.Errorf(
-					"failed to get default value for feature flag %s in unit %s: %w",
-					flagName, unit.DisplayPath(), err,
-				)
-			}
-
-			if _, exists := unitOpts.FeatureFlags.Load(flagName); !exists {
-				unitOpts.FeatureFlags.Store(flagName, defaultValue)
-			}
+			return fmt.Errorf(
+				"terragrunt version check failed for unit %s: %w",
+				unit.DisplayPath(),
+				err,
+			)
 		}
 	}
 

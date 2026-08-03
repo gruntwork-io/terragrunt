@@ -26,7 +26,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, authProviderCmd string, runOpts *shell.ShellOptions) providers.Provider {
+func NewProvider(
+	l log.Logger,
+	authProviderCmd string,
+	runOpts *shell.ShellOptions,
+) providers.Provider {
 	return &Provider{
 		authProviderCmd: authProviderCmd,
 		runOpts:         runOpts,
@@ -44,7 +48,7 @@ func (provider *Provider) Name() string {
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 ) (*providers.Credentials, error) {
 	if provider.authProviderCmd == "" {
 		return nil, nil
@@ -72,7 +76,7 @@ func (provider *Provider) GetCredentials(
 func (provider *Provider) fetchCredentials(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 ) (*providers.Credentials, error) {
 	parser := shellwords.NewParser()
 
@@ -170,7 +174,7 @@ type AWSRole struct {
 func (role *AWSRole) Envs(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	authProviderCmd string,
 ) map[string]string {
 	if role.RoleARN == "" {
@@ -226,7 +230,11 @@ func (role *AWSRole) Envs(
 	return envs
 }
 
-func (creds *AWSCredentials) Envs(_ context.Context, l log.Logger, authProviderCmd string) map[string]string {
+func (creds *AWSCredentials) Envs(
+	_ context.Context,
+	l log.Logger,
+	authProviderCmd string,
+) map[string]string {
 	var emptyFields []string
 
 	if creds.AccessKeyID == "" {

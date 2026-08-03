@@ -157,7 +157,8 @@ func EvalSymlinks(fsys FS, path string) (string, error) {
 // The final path component is not checked, so callers can safely remove a leaf symlink.
 func ParentPathHasSymlink(fsys FS, rootDir, rel string) (bool, error) {
 	rel = filepath.Clean(rel)
-	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." ||
+		strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return true, nil
 	}
 
@@ -353,6 +354,100 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 	}
 
 	return err
+}
+
+// WalkDirWithSymlinks walks the file tree rooted at root like [WalkDir] does,
+// additionally descending into the directories that symbolic links resolve to.
+// Paths handed to fn are logical: they read as if the link target lived at the
+// link's own location.
+//
+// Each logical path is reported once, so a directory reachable through several
+// links is visited once, and a link pointing back at an ancestor terminates
+// instead of looping.
+func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
+	w := &symlinkWalker{
+		fsys:           fsys,
+		fn:             fn,
+		visited:        make(map[string]bool),
+		visitedLogical: make(map[string]bool),
+	}
+
+	realRoot, err := EvalSymlinks(fsys, root)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+	}
+
+	return w.walk(realRoot, realRoot)
+}
+
+// symlinkWalker carries the bookkeeping [WalkDirWithSymlinks] needs across the
+// nested walks it starts for each followed link.
+type symlinkWalker struct {
+	fsys           FS
+	fn             fs.WalkDirFunc
+	visited        map[string]bool
+	visitedLogical map[string]bool
+}
+
+// walk traverses the tree at physical, reporting entries under logical.
+func (w *symlinkWalker) walk(physical, logical string) error {
+	return WalkDir(w.fsys, physical, func(current string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return w.fn(current, d, err)
+		}
+
+		rel, err := filepath.Rel(physical, current)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to get relative path between %s and %s: %w",
+				physical,
+				current,
+				err,
+			)
+		}
+
+		logicalPath := filepath.Join(logical, rel)
+
+		if !w.visitedLogical[logicalPath] {
+			w.visitedLogical[logicalPath] = true
+
+			if err := w.fn(logicalPath, d, nil); err != nil {
+				return err
+			}
+		}
+
+		if d.Type()&fs.ModeSymlink == 0 {
+			return nil
+		}
+
+		return w.follow(current, logicalPath)
+	})
+}
+
+// follow resolves the link at current and, when it lands on a directory,
+// walks the target as though it lived at logicalPath.
+func (w *symlinkWalker) follow(current, logicalPath string) error {
+	realPath, err := EvalSymlinks(w.fsys, current)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err)
+	}
+
+	realInfo, err := w.fsys.Stat(realPath)
+	if err != nil {
+		return fmt.Errorf("failed to describe file %s: %w", realPath, err)
+	}
+
+	if w.visited[realPath+":"+current] {
+		return nil
+	}
+
+	w.visited[realPath+":"+current] = true
+
+	if !realInfo.IsDir() {
+		return nil
+	}
+
+	return w.walk(realPath, logicalPath)
 }
 
 // osFS wraps afero.OsFs with hard link support.
@@ -602,10 +697,20 @@ const defaultZipDirMode os.FileMode = 0755
 const maxSymlinkTargetSize = 4096
 
 // ZipDecompressedSizeLimitError reports an extraction exceeding its configured decompressed size limit.
-type ZipDecompressedSizeLimitError struct{}
+type ZipDecompressedSizeLimitError struct {
+	// Name is the archive entry whose extraction breached the limit.
+	Name string
+	// Size is the entry's declared uncompressed size in bytes.
+	Size uint64
+	// Limit is the configured total decompressed size limit in bytes.
+	Limit int64
+}
 
-func (ZipDecompressedSizeLimitError) Error() string {
-	return "decompressed size exceeds limit"
+func (err ZipDecompressedSizeLimitError) Error() string {
+	return fmt.Sprintf(
+		"extracting file %q breached the total decompressed size limit of %d (entry size %d)",
+		err.Name, err.Limit, err.Size,
+	)
 }
 
 // ZipDecompressor handles zip archive extraction with configurable limits.
@@ -742,7 +847,10 @@ func (z *ZipDecompressor) extractRegularFile(
 	umask os.FileMode,
 	totalSize *int64,
 ) error {
-	if err := fs.MkdirAll(filepath.Dir(destPath), applyUmask(defaultZipDirMode, umask)); err != nil {
+	if err := fs.MkdirAll(
+		filepath.Dir(destPath),
+		applyUmask(defaultZipDirMode, umask),
+	); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
 
@@ -770,6 +878,9 @@ func (z *ZipDecompressor) extractRegularFile(
 		reader = &limitedReader{
 			reader:    rc,
 			remaining: z.FileSizeLimit - *totalSize,
+			name:      zipFile.Name,
+			size:      zipFile.UncompressedSize64,
+			limit:     z.FileSizeLimit,
 		}
 	}
 
@@ -812,7 +923,10 @@ func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
 // limitedReader wraps a reader and enforces a size limit.
 type limitedReader struct {
 	reader    io.Reader
+	name      string
 	remaining int64
+	size      uint64
+	limit     int64
 }
 
 func (r *limitedReader) Read(p []byte) (int, error) {
@@ -831,7 +945,7 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 
 	n, err := r.reader.Read(probe[:])
 	if n > 0 {
-		return 0, ZipDecompressedSizeLimitError{}
+		return 0, ZipDecompressedSizeLimitError{Name: r.name, Size: r.size, Limit: r.limit}
 	}
 
 	if err == nil {
@@ -919,7 +1033,8 @@ func (state *symlinkWalkState) nextComponent() (string, int, bool) {
 }
 
 func (state *symlinkWalkState) processComponent(fsys FS, part string, end int) (bool, error) {
-	isWindowsDot := runtime.GOOS == "windows" && state.path[len(filepath.VolumeName(state.path)):] == "."
+	isWindowsDot := runtime.GOOS == "windows" &&
+		state.path[len(filepath.VolumeName(state.path)):] == "."
 	if part == "." && !isWindowsDot {
 		state.start = end
 
@@ -948,7 +1063,8 @@ func (state *symlinkWalkState) processComponent(fsys FS, part string, end int) (
 }
 
 func (state *symlinkWalkState) appendPart(part string) {
-	if len(state.dest) > len(filepath.VolumeName(state.dest)) && !os.IsPathSeparator(state.dest[len(state.dest)-1]) {
+	if len(state.dest) > len(filepath.VolumeName(state.dest)) &&
+		!os.IsPathSeparator(state.dest[len(state.dest)-1]) {
 		state.dest += string(os.PathSeparator)
 	}
 
@@ -965,7 +1081,11 @@ func (state *symlinkWalkState) processRegularComponent(info os.FileInfo, end int
 	return true, nil
 }
 
-func (state *symlinkWalkState) processSymlinkComponent(fsys FS, end int, isWindowsDot bool) (bool, error) {
+func (state *symlinkWalkState) processSymlinkComponent(
+	fsys FS,
+	end int,
+	isWindowsDot bool,
+) (bool, error) {
 	state.linksWalked++
 	if state.linksWalked > maxSymlinkEvaluations {
 		return false, errors.New("EvalSymlinks: too many links")
@@ -1105,7 +1225,10 @@ func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 			return nil, err
 		}
 
-		slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+		slices.SortFunc(
+			entries,
+			func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) },
+		)
 
 		return entries, nil
 	}
@@ -1121,7 +1244,10 @@ func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 		entries[i] = FileInfoDirEntry{FileInfo: info}
 	}
 
-	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	slices.SortFunc(
+		entries,
+		func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) },
+	)
 
 	return entries, nil
 }
@@ -1179,7 +1305,12 @@ func ValidateSymlinkTarget(dst, linkPath, target string) error {
 
 // extractSymlink extracts a symlink from a zip file.
 func (z *ZipDecompressor) extractSymlink(
-	l log.Logger, fs FS, dst, destPath string, zipFile *zip.File, umask os.FileMode, totalSize *int64,
+	l log.Logger,
+	fs FS,
+	dst, destPath string,
+	zipFile *zip.File,
+	umask os.FileMode,
+	totalSize *int64,
 ) error {
 	if zipFile.UncompressedSize64 > maxSymlinkTargetSize {
 		return fmt.Errorf("symlink %q target exceeds %d bytes", zipFile.Name, maxSymlinkTargetSize)
@@ -1207,7 +1338,11 @@ func (z *ZipDecompressor) extractSymlink(
 
 	if z.FileSizeLimit > 0 {
 		if *totalSize+int64(len(targetBytes)) > z.FileSizeLimit {
-			return ZipDecompressedSizeLimitError{}
+			return ZipDecompressedSizeLimitError{
+				Name:  zipFile.Name,
+				Size:  uint64(len(targetBytes)),
+				Limit: z.FileSizeLimit,
+			}
 		}
 
 		*totalSize += int64(len(targetBytes))
@@ -1220,7 +1355,10 @@ func (z *ZipDecompressor) extractSymlink(
 		return err
 	}
 
-	if err := fs.MkdirAll(filepath.Dir(destPath), applyUmask(defaultZipDirMode, umask)); err != nil {
+	if err := fs.MkdirAll(
+		filepath.Dir(destPath),
+		applyUmask(defaultZipDirMode, umask),
+	); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
 

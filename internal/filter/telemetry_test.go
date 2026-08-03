@@ -34,10 +34,15 @@ func TestTraceGitWorktreeRemove_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitWorktreeRemove(context.Background(), "main", "/tmp/worktree", func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitWorktreeRemove(
+		context.Background(),
+		"main",
+		"/tmp/worktree",
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -105,10 +110,14 @@ func TestTraceGitWorktreeDiscovery_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitWorktreeDiscovery(context.Background(), 3, func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitWorktreeDiscovery(
+		context.Background(),
+		3,
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -118,10 +127,15 @@ func TestTraceGitWorktreeStackWalk_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitWorktreeStackWalk(context.Background(), "main", "feature", func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitWorktreeStackWalk(
+		context.Background(),
+		"main",
+		"feature",
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -131,10 +145,15 @@ func TestTraceGitWorktreeFilterApply_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitWorktreeFilterApply(context.Background(), 3, 5, func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitWorktreeFilterApply(
+		context.Background(),
+		3,
+		5,
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -157,10 +176,14 @@ func TestTraceFilterParse_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceFilterParse(context.Background(), "name=foo", func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceFilterParse(
+		context.Background(),
+		"name=foo",
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -170,10 +193,18 @@ func TestTraceGitFilterExpand_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitFilterExpand(context.Background(), "main", "HEAD", 3, 1, 5, func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitFilterExpand(
+		context.Background(),
+		"main",
+		"HEAD",
+		3,
+		1,
+		5,
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -183,10 +214,16 @@ func TestTraceGitFilterEvaluate_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitFilterEvaluate(context.Background(), "main", "HEAD", 10, func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitFilterEvaluate(
+		context.Background(),
+		"main",
+		"HEAD",
+		10,
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -196,10 +233,15 @@ func TestTraceGraphFilterTraverse_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGraphFilterTraverse(context.Background(), "dependencies", 5, func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGraphFilterTraverse(
+		context.Background(),
+		"dependencies",
+		5,
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")

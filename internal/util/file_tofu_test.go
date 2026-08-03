@@ -207,10 +207,20 @@ func TestFindTFFiles(t *testing.T) {
 			expectedFiles: []string{"main.tofu"},
 		},
 		{
-			description:   "Directory with mixed TF file types",
-			files:         []string{"main.tf", "variables.tofu", "outputs.tf.json", "providers.tofu.json"},
+			description: "Directory with mixed TF file types",
+			files: []string{
+				"main.tf",
+				"variables.tofu",
+				"outputs.tf.json",
+				"providers.tofu.json",
+			},
 			expectedCount: 4,
-			expectedFiles: []string{"main.tf", "variables.tofu", "outputs.tf.json", "providers.tofu.json"},
+			expectedFiles: []string{
+				"main.tf",
+				"variables.tofu",
+				"outputs.tf.json",
+				"providers.tofu.json",
+			},
 		},
 		{
 			description:   "Directory with TF and non-TF files",
@@ -231,11 +241,19 @@ func TestFindTFFiles(t *testing.T) {
 			expectedFiles: []string{},
 		},
 		{
-			description:   "Directory with nested TF files",
-			files:         []string{"main.tf", "modules/vpc/main.tofu", "modules/security/variables.tf.json"},
+			description: "Directory with nested TF files",
+			files: []string{
+				"main.tf",
+				"modules/vpc/main.tofu",
+				"modules/security/variables.tf.json",
+			},
 			directories:   []string{"modules", "modules/vpc", "modules/security"},
 			expectedCount: 3,
-			expectedFiles: []string{"main.tf", "modules/vpc/main.tofu", "modules/security/variables.tf.json"},
+			expectedFiles: []string{
+				"main.tf",
+				"modules/vpc/main.tofu",
+				"modules/security/variables.tf.json",
+			},
 		},
 	}
 
@@ -264,7 +282,14 @@ func TestFindTFFiles(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check count
-			assert.Len(t, actual, tc.expectedCount, "Expected %d files, got %d", tc.expectedCount, len(actual))
+			assert.Len(
+				t,
+				actual,
+				tc.expectedCount,
+				"Expected %d files, got %d",
+				tc.expectedCount,
+				len(actual),
+			)
 
 			// Check that all expected files are found (convert to relative paths for comparison)
 			expectedRelativePaths := make([]string, len(tc.expectedFiles))
@@ -273,12 +298,23 @@ func TestFindTFFiles(t *testing.T) {
 			}
 
 			for _, expectedPath := range expectedRelativePaths {
-				assert.Contains(t, actual, expectedPath, "Expected file %s not found in results", expectedPath)
+				assert.Contains(
+					t,
+					actual,
+					expectedPath,
+					"Expected file %s not found in results",
+					expectedPath,
+				)
 			}
 
 			// Check that all found files are actually TF files
 			for _, foundFile := range actual {
-				assert.True(t, util.IsTFFile(foundFile), "Non-TF file %s found in results", foundFile)
+				assert.True(
+					t,
+					util.IsTFFile(foundFile),
+					"Non-TF file %s found in results",
+					foundFile,
+				)
 			}
 		})
 	}
@@ -505,10 +541,20 @@ func TestListTfFiles(t *testing.T) {
 			expectedFiles: []string{"main.tofu", "variables.tofu"},
 		},
 		{
-			description:   "Directory with mixed .tf and .tofu files",
-			files:         []string{"main.tf", "variables.tofu", "outputs.tf.json", "providers.tofu.json"},
+			description: "Directory with mixed .tf and .tofu files",
+			files: []string{
+				"main.tf",
+				"variables.tofu",
+				"outputs.tf.json",
+				"providers.tofu.json",
+			},
 			expectedCount: 4,
-			expectedFiles: []string{"main.tf", "variables.tofu", "outputs.tf.json", "providers.tofu.json"},
+			expectedFiles: []string{
+				"main.tf",
+				"variables.tofu",
+				"outputs.tf.json",
+				"providers.tofu.json",
+			},
 		},
 		{
 			description:   "Directory with TF and non-TF files",
@@ -551,15 +597,33 @@ func TestListTfFiles(t *testing.T) {
 			actual, err := util.ListTfFiles(vfs.NewOSFS(), tmpDir)
 			require.NoError(t, err)
 
-			assert.Len(t, actual, tc.expectedCount, "Expected %d files, got %d", tc.expectedCount, len(actual))
+			assert.Len(
+				t,
+				actual,
+				tc.expectedCount,
+				"Expected %d files, got %d",
+				tc.expectedCount,
+				len(actual),
+			)
 
 			for _, expectedFile := range tc.expectedFiles {
 				expectedPath := filepath.Join(tmpDir, expectedFile)
-				assert.Contains(t, actual, expectedPath, "Expected file %s not found in results", expectedPath)
+				assert.Contains(
+					t,
+					actual,
+					expectedPath,
+					"Expected file %s not found in results",
+					expectedPath,
+				)
 			}
 
 			for _, foundFile := range actual {
-				assert.True(t, util.IsTFFile(foundFile), "Non-TF file %s found in results", foundFile)
+				assert.True(
+					t,
+					util.IsTFFile(foundFile),
+					"Non-TF file %s found in results",
+					foundFile,
+				)
 			}
 		})
 	}

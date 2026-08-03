@@ -1,0 +1,61 @@
+---
+title: Non-interactive catalog
+description: Read the catalog from a script, one JSON object per line.
+slug: features/catalog/non-interactive
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+The `--format` flag is gated behind the [`catalog-format`](/reference/experiments/active#catalog-format) experiment. Enable it with `--experiment=catalog-format` or `TG_EXPERIMENT=catalog-format`.
+
+The examples below omit it for brevity.
+</Aside>
+
+The [catalog TUI](/features/catalog/tui) needs a terminal, which leaves scripts and CI jobs with no way to read what the catalog discovers. Pass `--format=jsonl` to write the same discovery to standard output as [JSON Lines](https://jsonlines.org/): one JSON object per line, and nothing else.
+
+```bash
+$ terragrunt catalog --format=jsonl | jq -c '{kind, title, component_source}'
+{"kind":"module","title":"VPC","component_source":"github.com/acme/infrastructure-modules//modules/vpc"}
+{"kind":"unit","title":"App","component_source":"github.com/acme/infrastructure-units//units/app"}
+```
+
+Every line is a catalog entry that you would normally see in the catalog TUI.
+
+## Streaming
+
+Entries are written as they are discovered, and each one is flushed as it is written, so results are readable while the remaining repositories are still being cloned. A consumer that stops reading ends the command:
+
+```bash
+terragrunt catalog --format=jsonl | head -5
+```
+
+Once the reader closes the pipe, Terragrunt stops loading, removes the repositories it cloned, and exits with status 0, writing nothing to standard error.
+
+## Keeping the streams apart
+
+Standard output carries entries and nothing else. Logs and diagnostics go to standard error, including the report of a repository that failed to load.
+
+Keep it that way when you parse the output. A `doc` field holding a large README makes a record longer than the operating system writes to a pipe in one go, so a log line merged into the same stream with `2>&1` can land in the middle of a record and break the parse.
+
+## Ordering
+
+Repositories are loaded concurrently, so entries interleave across them and appear in whatever order discovery produced. That order is not stable between runs, and nothing sorts it, because sorting would mean holding every entry until the slowest repository finished loading.
+
+Collect the stream first when you need a fixed order:
+
+```bash
+terragrunt catalog --format=jsonl | jq -s -c 'sort_by(.component_source)[]'
+```
+
+## Entry structure
+
+Entries are described by a [published JSON schema](https://docs.terragrunt.com/schemas/catalog/v1/schema.json). The schema covers a single entry, so validate each line on its own rather than the stream as a whole.
+
+The `doc` field holds the body of the component's README (which can be a lot of data) so drop it when the metadata is all you need:
+
+```bash
+terragrunt catalog --format=jsonl | jq -c 'del(.doc)'
+```

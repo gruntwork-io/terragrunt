@@ -33,7 +33,10 @@ func RewriteTerraformSource(content []byte, newSource string) ([]byte, error) {
 
 // RewriteStackBlockSource rewrites the `source` attribute in a named `unit` or `stack` block.
 // blockType is "unit" or "stack", blockName is the label.
-func RewriteStackBlockSource(content []byte, blockType, blockName, newSource string) ([]byte, error) {
+func RewriteStackBlockSource(
+	content []byte,
+	blockType, blockName, newSource string,
+) ([]byte, error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.stack.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("failed to parse HCL: %s", diags.Error())
@@ -186,7 +189,11 @@ func extractStringLiteral(attr *hclwrite.Attribute) (string, error) {
 
 	for _, tok := range tokens[1 : len(tokens)-1] {
 		if tok.Type != hclsyntax.TokenQuotedLit {
-			return "", fmt.Errorf("%w; the source is a %s", ErrSourceNotLiteral, nonLiteralKind(tokens))
+			return "", fmt.Errorf(
+				"%w; the source is a %s",
+				ErrSourceNotLiteral,
+				nonLiteralKind(tokens),
+			)
 		}
 
 		b.Write(tok.Bytes)

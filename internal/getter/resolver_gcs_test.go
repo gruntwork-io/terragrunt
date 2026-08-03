@@ -17,7 +17,24 @@ import (
 func TestGCSResolver_PrefersMD5(t *testing.T) {
 	t.Parallel()
 
-	md5 := []byte{0xde, 0xad, 0xbe, 0xef, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b}
+	md5 := []byte{
+		0xde,
+		0xad,
+		0xbe,
+		0xef,
+		0x00,
+		0x01,
+		0x02,
+		0x03,
+		0x04,
+		0x05,
+		0x06,
+		0x07,
+		0x08,
+		0x09,
+		0x0a,
+		0x0b,
+	}
 	client := &fakeGCSClient{objects: map[string]*fakeGCSObject{
 		"path/to/key.tgz": {attrs: &storage.ObjectAttrs{
 			MD5:    md5,
@@ -113,7 +130,24 @@ func TestGCSResolver_NilAttrsReturnsErrNoVersionMetadata(t *testing.T) {
 func TestGCSResolver_AcceptsCanonicalAndShortURLs(t *testing.T) {
 	t.Parallel()
 
-	md5 := []byte{0xde, 0xad, 0xbe, 0xef, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b}
+	md5 := []byte{
+		0xde,
+		0xad,
+		0xbe,
+		0xef,
+		0x00,
+		0x01,
+		0x02,
+		0x03,
+		0x04,
+		0x05,
+		0x06,
+		0x07,
+		0x08,
+		0x09,
+		0x0a,
+		0x0b,
+	}
 	client := &fakeGCSClient{objects: map[string]*fakeGCSObject{
 		"path/to/key.tgz": {attrs: &storage.ObjectAttrs{MD5: md5}},
 	}}
@@ -123,7 +157,10 @@ func TestGCSResolver_AcceptsCanonicalAndShortURLs(t *testing.T) {
 	short, err := r.Probe(t.Context(), "gs://bucket/path/to/key.tgz")
 	require.NoError(t, err)
 
-	canonical, err := r.Probe(t.Context(), "https://www.googleapis.com/storage/v1/bucket/path/to/key.tgz")
+	canonical, err := r.Probe(
+		t.Context(),
+		"https://www.googleapis.com/storage/v1/bucket/path/to/key.tgz",
+	)
 	require.NoError(t, err)
 
 	// Both forms resolve to the same object metadata, so the
@@ -155,7 +192,10 @@ func TestGCSResolver_RejectsEmptyObject(t *testing.T) {
 	}{
 		{name: "gs bucket with no path", url: "gs://bucket"},
 		{name: "gs bucket with trailing slash only", url: "gs://bucket/"},
-		{name: "canonical with no object segment", url: "https://www.googleapis.com/storage/v1/bucket/"},
+		{
+			name: "canonical with no object segment",
+			url:  "https://www.googleapis.com/storage/v1/bucket/",
+		},
 	}
 
 	for _, tt := range tests {
@@ -163,14 +203,21 @@ func TestGCSResolver_RejectsEmptyObject(t *testing.T) {
 			t.Parallel()
 
 			r := newGCSResolverWith(&fakeGCSClient{objects: map[string]*fakeGCSObject{
-				"": {attrs: nil, err: errors.New("Attrs must not be called for an empty-object URL")},
+				"": {
+					attrs: nil,
+					err:   errors.New("Attrs must not be called for an empty-object URL"),
+				},
 			}})
 
 			_, err := r.Probe(t.Context(), tt.url)
 			require.ErrorIs(t, err, getter.ErrGCSMissingObject,
 				"parseGCSURL must reject %q with no object", tt.url)
-			require.NotErrorIs(t, err, cas.ErrNoVersionMetadata,
-				"rejection must come from parseGCSURL, not from an Attrs call on an empty object name")
+			require.NotErrorIs(
+				t,
+				err,
+				cas.ErrNoVersionMetadata,
+				"rejection must come from parseGCSURL, not from an Attrs call on an empty object name",
+			)
 		})
 	}
 }

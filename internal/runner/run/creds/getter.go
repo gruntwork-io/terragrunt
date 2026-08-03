@@ -28,7 +28,7 @@ func NewGetter() *Getter {
 func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	authProviders ...providers.Provider,
 ) error {
 	v.RequireEnv()
@@ -45,8 +45,12 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 
 		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {
-				l.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.",
-					creds.Name, providerName, provider.Name())
+				l.Warnf(
+					"%s credentials obtained using %s are overwritten by credentials obtained using %s.",
+					creds.Name,
+					providerName,
+					provider.Name(),
+				)
 			}
 		}
 
@@ -67,7 +71,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 func ObtainCredsForParsing(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	authProviderCmd string,
 	shellOpts *shell.ShellOptions,
 ) (*Getter, error) {

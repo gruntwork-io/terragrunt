@@ -20,8 +20,16 @@ func TestDefaultClientRegistersS3GCS(t *testing.T) {
 
 	client := getter.NewClient()
 
-	assert.True(t, hasGetter[*getter.S3Getter](client.Getters), "default client must include S3Getter")
-	assert.True(t, hasGetter[*getter.GCSGetter](client.Getters), "default client must include GCSGetter")
+	assert.True(
+		t,
+		hasGetter[*getter.S3Getter](client.Getters),
+		"default client must include S3Getter",
+	)
+	assert.True(
+		t,
+		hasGetter[*getter.GCSGetter](client.Getters),
+		"default client must include GCSGetter",
+	)
 }
 
 // TestDefaultClientCoversCanonicalProtocols pins the rest of the canonical
@@ -46,8 +54,16 @@ func TestWithFileCopyReplacesFileGetter(t *testing.T) {
 
 	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
 
-	assert.True(t, hasGetter[*getter.FileCopyGetter](client.Getters), "FileCopyGetter must be registered")
-	assert.False(t, hasGetter[*getter.FileGetter](client.Getters), "stock FileGetter must be replaced")
+	assert.True(
+		t,
+		hasGetter[*getter.FileCopyGetter](client.Getters),
+		"FileCopyGetter must be registered",
+	)
+	assert.False(
+		t,
+		hasGetter[*getter.FileGetter](client.Getters),
+		"stock FileGetter must be replaced",
+	)
 }
 
 // TestForcedGettersRouteToTheirGetter pins the routing for the v1->v2 forced
@@ -65,7 +81,11 @@ func TestForcedGettersRouteToTheirGetter(t *testing.T) {
 		src    string
 	}{
 		{name: "s3 forced prefix", forced: "s3", src: "s3::https://s3.amazonaws.com/bucket/object"},
-		{name: "gcs forced prefix", forced: "gcs", src: "gcs::https://www.googleapis.com/storage/v1/bucket/object"},
+		{
+			name:   "gcs forced prefix",
+			forced: "gcs",
+			src:    "gcs::https://www.googleapis.com/storage/v1/bucket/object",
+		},
 		{name: "git forced prefix", forced: "git", src: "git::https://github.com/foo/bar.git"},
 	}
 

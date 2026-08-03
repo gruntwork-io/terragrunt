@@ -79,7 +79,8 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Hidden:  true,
 			Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
 				if value {
-					if err := opts.StrictControls.FilterByNames(controls.DeprecatedHiddenFlag).Evaluate(ctx); err != nil {
+					if err := opts.StrictControls.FilterByNames(controls.DeprecatedHiddenFlag).
+						Evaluate(ctx); err != nil {
 						return err
 					}
 				}
@@ -145,7 +146,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 	return append(result, filterFlags...)
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
 
 	// Base flags for find plus backend/feature flags

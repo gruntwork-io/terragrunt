@@ -48,7 +48,12 @@ const (
 // The telemeter travels on ctx, matching [CAS.FetchSource]. A failure
 // to record the event is logged at debug level and never affects the
 // fallback itself.
-func RecordFallback(ctx context.Context, l log.Logger, reason FallbackReason, attrs map[string]any) {
+func RecordFallback(
+	ctx context.Context,
+	l log.Logger,
+	reason FallbackReason,
+	attrs map[string]any,
+) {
 	all := map[string]any{"reason": string(reason)}
 
 	maps.Copy(all, attrs)

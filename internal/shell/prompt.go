@@ -12,7 +12,13 @@ import (
 )
 
 // PromptUserForInput prompts the user for text in the CLI. Returns the text entered by the user.
-func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, nonInteractive bool, errWriter io.Writer) (string, error) {
+func PromptUserForInput(
+	ctx context.Context,
+	l log.Logger,
+	prompt string,
+	nonInteractive bool,
+	errWriter io.Writer,
+) (string, error) {
 	// We are writing directly to ErrWriter so the prompt is always visible
 	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and
 	// a message about assuming `yes` to Debug, so
@@ -64,7 +70,13 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, nonInt
 }
 
 // PromptUserForYesNo prompts the user for a yes/no response and return true if they entered yes.
-func PromptUserForYesNo(ctx context.Context, l log.Logger, prompt string, nonInteractive bool, errWriter io.Writer) (bool, error) {
+func PromptUserForYesNo(
+	ctx context.Context,
+	l log.Logger,
+	prompt string,
+	nonInteractive bool,
+	errWriter io.Writer,
+) (bool, error) {
 	resp, err := PromptUserForInput(ctx, l, prompt+" (y/n) ", nonInteractive, errWriter)
 	if err != nil {
 		return false, err

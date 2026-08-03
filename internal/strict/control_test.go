@@ -103,7 +103,11 @@ var (
 func newTestLogger() (log.Logger, *bytes.Buffer) {
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 	output := new(bytes.Buffer)
-	logger := log.New(log.WithOutput(output), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter))
+	logger := log.New(
+		log.WithOutput(output),
+		log.WithLevel(log.InfoLevel),
+		log.WithFormatter(formatter),
+	)
 
 	return logger, output
 }
@@ -149,11 +153,25 @@ func TestEnableControl(t *testing.T) {
 				},
 				{
 					controlName: "invalid",
-					expectedErr: strict.NewInvalidControlNameError([]string{testOngoingAName, testOngoingBName, testOngoingCName, testParentAName}),
+					expectedErr: strict.NewInvalidControlNameError(
+						[]string{
+							testOngoingAName,
+							testOngoingBName,
+							testOngoingCName,
+							testParentAName,
+						},
+					),
 				},
 			},
-			expectedEnabledControls: []string{testOngoingAName, testOngoingSubAName, testOngoingCName, testCompletedAName, testCompletedCName},
-			expectedCompletedMsg:    strict.NewCompletedControlsWarning([]string{testCompletedAName, testCompletedCName}).String(),
+			expectedEnabledControls: []string{
+				testOngoingAName,
+				testOngoingSubAName,
+				testOngoingCName,
+				testCompletedAName,
+				testCompletedCName,
+			},
+			expectedCompletedMsg: strict.NewCompletedControlsWarning([]string{testCompletedAName, testCompletedCName}).
+				String(),
 		},
 		{
 			enableControls: []testEnableControl{
@@ -165,7 +183,8 @@ func TestEnableControl(t *testing.T) {
 				},
 			},
 			expectedEnabledControls: []string{testOngoingBName, testCompletedBName},
-			expectedCompletedMsg:    strict.NewCompletedControlsWarning([]string{testCompletedBName}).String(),
+			expectedCompletedMsg: strict.NewCompletedControlsWarning([]string{testCompletedBName}).
+				String(),
 		},
 		{
 			enableControls:          []testEnableControl{},
@@ -247,8 +266,15 @@ func TestEnableStrictMode(t *testing.T) {
 		enableStrictMode        bool
 	}{
 		{
-			enableStrictMode:        true,
-			expectedEnabledControls: []string{testParentAName, testOngoingSubAName, testOngoingAName, testOngoingSubAName, testOngoingBName, testOngoingCName},
+			enableStrictMode: true,
+			expectedEnabledControls: []string{
+				testParentAName,
+				testOngoingSubAName,
+				testOngoingAName,
+				testOngoingSubAName,
+				testOngoingBName,
+				testOngoingCName,
+			},
 		},
 		{
 			enableStrictMode:        false,
@@ -323,7 +349,11 @@ func TestLogCompletedControlsWithParentAndCompletedSubcontrol(t *testing.T) {
 	logger, output := newTestLogger()
 	testControls.LogCompletedControls(logger, []string{"parent-control"})
 
-	assert.Empty(t, output.String(), "should not warn about implicitly enabled completed subcontrols")
+	assert.Empty(
+		t,
+		output.String(),
+		"should not warn about implicitly enabled completed subcontrols",
+	)
 }
 
 // TestLogCompletedControlsWithExplicitlyRequestedCompletedControl tests that LogCompletedControls

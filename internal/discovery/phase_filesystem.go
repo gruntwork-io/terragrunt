@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -42,7 +41,7 @@ func (p *FilesystemPhase) Kind() PhaseKind {
 func (p *FilesystemPhase) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -62,10 +61,7 @@ func (p *FilesystemPhase) Run(
 		filenames = DefaultConfigFilenames
 	}
 
-	walkFn := filepath.WalkDir
-	if input.Opts != nil && input.Opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFn = util.WalkDirWithSymlinks
-	}
+	walkFn := walkDirFunc(v, input.Opts)
 
 	err := walkFn(discoveryContext.WorkingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

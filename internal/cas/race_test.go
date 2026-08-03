@@ -8,12 +8,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestCASGetterGetWithRacing(t *testing.T) {
@@ -27,8 +29,7 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	opts := &cas.CloneOptions{
 		Depth: -1,
@@ -84,8 +85,7 @@ func TestProcessStackComponentLocalSourceConcurrentWithRacing(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	const workers = 4
 
@@ -127,7 +127,12 @@ func TestProcessStackComponentLocalSourceConcurrentWithRacing(t *testing.T) {
 	}
 
 	for i := 1; i < workers; i++ {
-		assert.Equal(t, results[0], results[i], "all concurrent runs must produce identical rewritten output")
+		assert.Equal(
+			t,
+			results[0],
+			results[i],
+			"all concurrent runs must produce identical rewritten output",
+		)
 	}
 }
 
@@ -140,8 +145,7 @@ func TestContentLinkConcurrentSameTargetWithRacing(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	v, err := cas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	storeDir := t.TempDir()
 	store := cas.NewStore(storeDir)

@@ -35,22 +35,48 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, rootPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s", tmpTerragruntGCSConfigPath, rootPath))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(
+		t,
+		rootPath,
+		project,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		config.DefaultTerragruntConfigPath,
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s",
+			tmpTerragruntGCSConfigPath,
+			rootPath,
+		),
+	)
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
 		"name":  "terraform_state_storage"}
-	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, expectedGCSLabels)
+	validateGCSBucketExistsAndIsLabeled(
+		t,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		expectedGCSLabels,
+	)
 }
 
 func TestGcpWorksWithImpersonateBackend(t *testing.T) {
 	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	if impersonatorKey == "" {
-		t.Fatalf("required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
+		t.Fatalf(
+			"required environment variable `%s` - not found",
+			"GCLOUD_SERVICE_KEY_IMPERSONATOR",
+		)
 	}
 
-	tmpImpersonatorCreds := helpers.CreateTmpTerragruntConfigContent(t, impersonatorKey, "impersonator-key.json")
+	tmpImpersonatorCreds := helpers.CreateTmpTerragruntConfigContent(
+		t,
+		impersonatorKey,
+		"impersonator-key.json",
+	)
 	defaultCreds := os.Getenv("GCLOUD_SERVICE_KEY")
 
 	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
@@ -62,13 +88,32 @@ func TestGcpWorksWithImpersonateBackend(t *testing.T) {
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	// run with impersonation
-	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsImpersonatePath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s", tmpTerragruntImpersonateGCSConfigPath, testFixtureGcsImpersonatePath))
+	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(
+		t,
+		testFixtureGcsImpersonatePath,
+		project,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		config.DefaultTerragruntConfigPath,
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s",
+			tmpTerragruntImpersonateGCSConfigPath,
+			testFixtureGcsImpersonatePath,
+		),
+	)
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
 		"name":  "terraform_state_storage"}
-	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, expectedGCSLabels)
+	validateGCSBucketExistsAndIsLabeled(
+		t,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		expectedGCSLabels,
+	)
 
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
 	attrs := gcsObjectAttrs(t, gcsBucketName, "terraform.tfstate/default.tfstate")

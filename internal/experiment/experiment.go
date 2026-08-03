@@ -77,6 +77,8 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
+	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
+	Profiling = "profiling"
 	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
 	OCI = "oci"
 	// VersionAttribute gates resolving a tfr:// registry module from a version
@@ -86,6 +88,15 @@ const (
 	// records through the configured logs exporter and correlating them with
 	// traces via the active span.
 	OtelLogs = "otel-logs"
+	// CatalogFormat enables non-interactive output formats for the catalog
+	// command, rendering discovered components as JSON Lines or Markdown on
+	// standard output instead of launching the terminal user interface.
+	CatalogFormat = "catalog-format"
+	// BoundedDiscovery gates the inline "(dir)" graph boundary operand, which
+	// encloses graph discovery for a filter expression within a directory
+	// instead of the git repository root: dependencies and dependents resolving
+	// outside it are not discovered.
+	BoundedDiscovery = "bounded-discovery"
 )
 
 const (
@@ -175,6 +186,9 @@ func NewExperiments() Experiments {
 			Name: OptionalHooks,
 		},
 		{
+			Name: Profiling,
+		},
+		{
 			Name: OCI,
 		},
 		{
@@ -182,6 +196,12 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OtelLogs,
+		},
+		{
+			Name: CatalogFormat,
+		},
+		{
+			Name: BoundedDiscovery,
 		},
 	}
 }

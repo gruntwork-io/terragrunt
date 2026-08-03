@@ -144,7 +144,13 @@ func runDiscover(c *cli.Context) error {
 	// Process each run
 	for i, run := range runs {
 		if verbose {
-			fmt.Printf("\n[%d/%d] Processing run #%d (ID: %d)\n", i+1, len(runs), run.RunNumber, run.ID)
+			fmt.Printf(
+				"\n[%d/%d] Processing run #%d (ID: %d)\n",
+				i+1,
+				len(runs),
+				run.RunNumber,
+				run.ID,
+			)
 		}
 
 		// Get failed jobs
@@ -160,7 +166,10 @@ func runDiscover(c *cli.Context) error {
 
 		// Download logs for failed jobs
 		for _, job := range jobs {
-			logFile := filepath.Join(logsDir, fmt.Sprintf("%d_%s.log", run.ID, sanitizeFilename(job.Name)))
+			logFile := filepath.Join(
+				logsDir,
+				fmt.Sprintf("%d_%s.log", run.ID, sanitizeFilename(job.Name)),
+			)
 
 			if verbose {
 				fmt.Printf("  Downloading logs for job: %s\n", job.Name)

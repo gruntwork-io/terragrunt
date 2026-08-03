@@ -24,7 +24,9 @@ func TestExtractRepoURL_Simple(t *testing.T) {
 func TestExtractRepoURL_WithSubdirAndRef(t *testing.T) {
 	t.Parallel()
 
-	result := tui.ExtractRepoURL("github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0")
+	result := tui.ExtractRepoURL(
+		"github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0",
+	)
 	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc", result)
 }
 
@@ -38,7 +40,9 @@ func TestExtractRepoURL_GitPrefix(t *testing.T) {
 func TestExtractRepoURL_GitPrefixWithSubdir(t *testing.T) {
 	t.Parallel()
 
-	result := tui.ExtractRepoURL("git::https://github.com/gruntwork-io/terraform-aws-vpc.git//modules/vpc?ref=v1.0.0")
+	result := tui.ExtractRepoURL(
+		"git::https://github.com/gruntwork-io/terraform-aws-vpc.git//modules/vpc?ref=v1.0.0",
+	)
 	assert.Equal(t, "https://github.com/gruntwork-io/terraform-aws-vpc.git", result)
 }
 

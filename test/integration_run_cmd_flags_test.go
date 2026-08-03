@@ -3,7 +3,6 @@ package test_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,40 +74,6 @@ func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 	}
 }
 
-func TestRunCmdQuietRedactsOutput(t *testing.T) {
-	t.Parallel()
-
-	result := runCmdFlagsFixture(t)
-
-	assert.Contains(t, result.stderr, "run_cmd output: [REDACTED]")
-	assert.NotContains(t, result.stderr, runCmdSecretValue)
-}
-
-func TestRunCmdGlobalCacheSharesResultAcrossModules(t *testing.T) {
-	t.Parallel()
-
-	result := runCmdFlagsFixture(t)
-
-	combinedOutput := strings.Join([]string{result.stdout, result.stderr}, "\n")
-
-	globalCounterPath := filepath.Join(result.rootPath, "scripts", "global_counter.txt")
-	globalCounterBytes, readErr := os.ReadFile(globalCounterPath)
-	require.NoError(t, readErr)
-
-	assert.Equal(t, "1", strings.TrimSpace(string(globalCounterBytes)))
-	assert.Contains(t, combinedOutput, expectedGlobalCachedValue)
-	assert.NotContains(t, combinedOutput, unexpectedGlobalCachedSecondValue)
-}
-
-func TestRunCmdNoCacheSkipsCachedValue(t *testing.T) {
-	t.Parallel()
-
-	result := runCmdFlagsFixture(t)
-
-	assert.Contains(t, result.stderr, "run_cmd output: ["+expectedNoCacheFirstValue+"]")
-	assert.NotContains(t, result.stderr, "run_cmd, cached output: ["+expectedNoCacheFirstValue+"]")
-}
-
 func TestRunCmdConflictingCacheOptionsFails(t *testing.T) {
 	t.Parallel()
 
@@ -121,5 +86,9 @@ func TestRunCmdConflictingCacheOptionsFails(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.Error(t, err)
-	assert.Contains(t, stderr, "--terragrunt-global-cache and --terragrunt-no-cache options cannot be used together")
+	assert.Contains(
+		t,
+		stderr,
+		"--terragrunt-global-cache and --terragrunt-no-cache options cannot be used together",
+	)
 }

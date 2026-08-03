@@ -3,11 +3,13 @@ package cas_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestParseCASRef(t *testing.T) {
@@ -131,8 +133,7 @@ func TestCASProtocolGetterGet_MalformedHash(t *testing.T) {
 			c, err := cas.New(cas.WithStorePath(t.TempDir()))
 			require.NoError(t, err)
 
-			v, err := cas.OSVenv()
-			require.NoError(t, err)
+			v := venv.OSVenv()
 
 			l := logger.CreateLogger()
 			g := getter.NewCASProtocolGetter(l, c, v)
@@ -166,14 +167,22 @@ func TestFormatCASRef(t *testing.T) {
 func TestFormatCASRefWithSubdir(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "cas::sha1:abc123//modules/vpc", cas.FormatCASRefWithSubdir("abc123", "modules/vpc"))
+	assert.Equal(
+		t,
+		"cas::sha1:abc123//modules/vpc",
+		cas.FormatCASRefWithSubdir("abc123", "modules/vpc"),
+	)
 }
 
 func TestDetectHashAlgorithm(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, cas.HashSHA1, cas.DetectHashAlgorithm("abc123"))
-	assert.Equal(t, cas.HashSHA1, cas.DetectHashAlgorithm("f39ea0ebf891c9954c89d07b73b487ff938ef08b"))
+	assert.Equal(
+		t,
+		cas.HashSHA1,
+		cas.DetectHashAlgorithm("f39ea0ebf891c9954c89d07b73b487ff938ef08b"),
+	)
 
 	sha256Hash := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	assert.Equal(t, cas.HashSHA256, cas.DetectHashAlgorithm(sha256Hash))

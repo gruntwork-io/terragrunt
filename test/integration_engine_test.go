@@ -326,17 +326,27 @@ func TestEngineDependency(t *testing.T) {
 	terragruntCmd := "terragrunt run --log-level debug --non-interactive --tf-forward-stdout --working-dir %s -- apply -auto-approve -no-color"
 
 	// Run apply in app1, make sure it uses engine
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(terragruntCmd, filepath.Join(rootPath, "app1")))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(terragruntCmd, filepath.Join(rootPath, "app1")),
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Using engine to run command: tofu apply -auto-approve -no-color")
 	assert.Contains(t, stdout, "Changes to Outputs:")
 	assert.Contains(t, stdout, "value = \"app1-test\"")
 
 	// Run apply in app2, make sure it uses engine for both app1 output and apply
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(terragruntCmd, filepath.Join(rootPath, "app2")))
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(terragruntCmd, filepath.Join(rootPath, "app2")),
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "prefix=../app1 msg=Using engine to run command: tofu output -json")
-	assert.Contains(t, stderr, "msg=Using engine to run command: tofu apply -auto-approve -no-color")
+	assert.Contains(
+		t,
+		stderr,
+		"msg=Using engine to run command: tofu apply -auto-approve -no-color",
+	)
 	assert.Contains(t, stdout, "resource \"local_file\" \"test\"")
 	assert.Contains(t, stdout, "content              = \"app1-test\"")
 	assert.Contains(t, stdout, "filename             = \"./test.txt\"\n")

@@ -53,7 +53,11 @@ func (flag *DeprecatedFlag) Evaluate(ctx context.Context) error {
 // deprecated flag and wires them into the global deprecated-flags /
 // deprecated-env-vars / terragrunt-prefix-* parent controls plus any extra
 // parents named in `extraParentNames`. A nil `strictControls` is a no-op.
-func (flag *DeprecatedFlag) SetStrictControls(mainFlag *Flag, strictControls strict.Controls, extraParentNames ...string) {
+func (flag *DeprecatedFlag) SetStrictControls(
+	mainFlag *Flag,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) {
 	if strictControls == nil {
 		return
 	}

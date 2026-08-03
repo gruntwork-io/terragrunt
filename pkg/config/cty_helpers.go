@@ -210,7 +210,10 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 	for _, arg := range args {
 		if arg.Type() != cty.String {
-			return nil, InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()}
+			return nil, InvalidParameterTypeError{
+				Expected: "string",
+				Actual:   arg.Type().FriendlyName(),
+			}
 		}
 
 		out = append(out, arg.AsString())
@@ -261,7 +264,9 @@ func deepMergeMapValuesAsFuncImpl(pctx *ParsingContext) function.Function {
 		Type: function.StaticReturnType(cty.DynamicPseudoType),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			if !pctx.Experiments.Evaluate(experiment.DeepMerge) {
-				return cty.NilVal, DeepMergeRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath}
+				return cty.NilVal, DeepMergeRequiresExperimentError{
+					ConfigPath: pctx.TerragruntConfigPath,
+				}
 			}
 
 			outVal := cty.EmptyObjectVal
@@ -273,7 +278,10 @@ func deepMergeMapValuesAsFuncImpl(pctx *ParsingContext) function.Function {
 
 				if !arg.Type().IsMapType() && !arg.Type().IsObjectType() {
 					return cty.NilVal,
-						InvalidParameterTypeError{Expected: "map or object", Actual: arg.Type().FriendlyName()}
+						InvalidParameterTypeError{
+							Expected: "map or object",
+							Actual:   arg.Type().FriendlyName(),
+						}
 				}
 
 				merged, err := deepMergeCtyMaps(outVal, arg)
@@ -292,7 +300,11 @@ func deepMergeMapValuesAsFuncImpl(pctx *ParsingContext) function.Function {
 // deepMergeCtyMapsMapOnly implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
 // we cheat by using map[string]any as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
-func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
+func deepMergeCtyMapsMapOnly(
+	target cty.Value,
+	source cty.Value,
+	opts ...func(*mergo.Config),
+) (*cty.Value, error) {
 	outMap := make(map[string]any)
 
 	targetMap, err := ctyhelper.ParseCtyValueToMap(target)
@@ -349,7 +361,11 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 // NOTE: When evaluated in a partial parse ctx, only the partially parsed ctx is available in the expose. This
 // ensures that we can parse the child config without having access to dependencies when constructing the dependency
 // graph.
-func includeMapAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logger) (cty.Value, error) {
+func includeMapAsCtyVal(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+) (cty.Value, error) {
 	bareInclude, hasBareInclude := pctx.TrackInclude.CurrentMap[bareIncludeKey]
 	if len(pctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
 		l.Debug("Detected single bare include block - exposing as top level")
@@ -423,7 +439,12 @@ func fieldError(field string, err error) error {
 
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
-func includeConfigAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logger, includeConfig IncludeConfig) (cty.Value, error) {
+func includeConfigAsCtyVal(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	includeConfig IncludeConfig,
+) (cty.Value, error) {
 	pctx = pctx.WithTrackInclude(nil)
 
 	if includeConfig.GetExpose() {
@@ -432,12 +453,22 @@ func includeConfigAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logg
 		// carry no source location of their own.
 		parsedIncluded, err := parseIncludedConfig(ctx, pctx, l, &includeConfig)
 		if err != nil {
-			return cty.NilVal, fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(includeConfig), includeConfig.Path, err)
+			return cty.NilVal, fmt.Errorf(
+				"exposed include %s (%s): %w",
+				includeBlockLabel(includeConfig),
+				includeConfig.Path,
+				err,
+			)
 		}
 
 		parsedIncludedCty, err := TerragruntConfigAsCty(parsedIncluded)
 		if err != nil {
-			return cty.NilVal, fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(includeConfig), includeConfig.Path, err)
+			return cty.NilVal, fmt.Errorf(
+				"exposed include %s (%s): %w",
+				includeBlockLabel(includeConfig),
+				includeConfig.Path,
+				err,
+			)
 		}
 
 		return parsedIncludedCty, nil

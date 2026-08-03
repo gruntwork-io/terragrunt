@@ -186,15 +186,18 @@ func Example_parseAndEvaluate() {
 // Example_recursiveWildcard demonstrates using recursive wildcards to match nested paths.
 func Example_recursiveWildcard() {
 	components := []component.Component{
-		component.NewUnit("./infrastructure/networking/vpc").WithDiscoveryContext(&component.DiscoveryContext{
-			WorkingDir: ".",
-		}),
-		component.NewUnit("./infrastructure/networking/subnets").WithDiscoveryContext(&component.DiscoveryContext{
-			WorkingDir: ".",
-		}),
-		component.NewUnit("./infrastructure/compute/app-server").WithDiscoveryContext(&component.DiscoveryContext{
-			WorkingDir: ".",
-		}),
+		component.NewUnit("./infrastructure/networking/vpc").
+			WithDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			}),
+		component.NewUnit("./infrastructure/networking/subnets").
+			WithDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			}),
+		component.NewUnit("./infrastructure/compute/app-server").
+			WithDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: ".",
+			}),
 	}
 
 	// Match all infrastructure components at any depth

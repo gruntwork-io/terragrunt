@@ -1,3 +1,5 @@
+//go:build tf
+
 package runnerpool_test
 
 import (
@@ -20,7 +22,7 @@ import (
 
 // Test that the runner-level fallback (WithGraphTarget) limits the stack to target + dependents,
 // and that this matches the discovery-based graph filter behavior when the filter experiment is enabled.
-func TestGraphFallbackMatchesFilterExperiment(t *testing.T) {
+func TestTFGraphFallbackMatchesFilterExperiment(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -85,7 +87,13 @@ dependency "db" {
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option
-	runnerOff, err := runnerpool.Build(ctx, l, venv.OSVenv(), optsOff, discovery.WithGraphTarget(vpcDir))
+	runnerOff, err := runnerpool.Build(
+		ctx,
+		l,
+		venv.OSVenv(),
+		optsOff,
+		discovery.WithGraphTarget(vpcDir),
+	)
 	require.NoError(t, err)
 
 	offPaths := make([]string, 0, len(runnerOff.GetStack().Units))

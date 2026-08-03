@@ -101,12 +101,17 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 
 	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
 
-	if envCreds := createCredentialsFromEnv(b.env); envCreds != nil {
+	envCreds := createCredentialsFromEnv(b.env)
+
+	if envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
 
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
 	} else if b.sessionConfig != nil && b.sessionConfig.CredsFilename != "" {
-		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{b.sessionConfig.CredsFilename}))
+		configOptions = append(
+			configOptions,
+			config.WithSharedConfigFiles([]string{b.sessionConfig.CredsFilename}),
+		)
 	}
 
 	// Prioritize configured region over environment variables
@@ -125,7 +130,10 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 	configOptions = append(configOptions, config.WithRegion(region))
 
 	if b.sessionConfig != nil && b.sessionConfig.Profile != "" {
-		configOptions = append(configOptions, config.WithSharedConfigProfile(b.sessionConfig.Profile))
+		configOptions = append(
+			configOptions,
+			config.WithSharedConfigProfile(b.sessionConfig.Profile),
+		)
 	}
 
 	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
@@ -133,11 +141,16 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 		return aws.Config{}, fmt.Errorf("error loading AWS config: %w", err)
 	}
 
-	// Role assumption must not be skipped when env credentials are present: they serve as the
-	// source identity for the assumption. The role-assuming credential providers below capture
-	// cfg by value before cfg.Credentials is overwritten, so the STS calls they make are signed
-	// with the env credentials, chaining the two.
-	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, b.iamRoleOpts)
+	// Callers that set iamRoleOpts (iam_role / TG_IAM_ASSUME_ROLE) run the amazonsts credentials
+	// provider first, which writes the assumed role's session into the env. When env credentials
+	// are present, re-assuming that role here would make the role assume itself, so only the
+	// session config's role (assume_role in the remote_state block) is chained on top of them.
+	iamRoleOpts := b.iamRoleOpts
+	if envCreds != nil {
+		iamRoleOpts = iam.RoleOptions{}
+	}
+
+	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, iamRoleOpts)
 	if mergedIAMRoleOptions.RoleARN == "" {
 		return cfg, nil
 	}
@@ -150,7 +163,11 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 	}
 
 	l.Debugf("Assuming role %s", mergedIAMRoleOptions.RoleARN)
-	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, mergedIAMRoleOptions, getExternalID(b.sessionConfig))
+	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(
+		cfg,
+		mergedIAMRoleOptions,
+		getExternalID(b.sessionConfig),
+	)
 
 	return cfg, nil
 }
@@ -198,7 +215,10 @@ func getRegionFromEnv(env map[string]string) string {
 }
 
 // getMergedIAMRoleOptions merges IAM role options from awsCfg and the provided IAM role options.
-func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, iamRoleOpts iam.RoleOptions) iam.RoleOptions {
+func getMergedIAMRoleOptions(
+	awsCfg *AwsSessionConfig,
+	iamRoleOpts iam.RoleOptions,
+) iam.RoleOptions {
 	// Merge in awsCfg role options if available
 	if awsCfg != nil && awsCfg.RoleArn != "" {
 		iamRoleOpts = iam.MergeRoleOptions(
@@ -306,7 +326,10 @@ func AssumeIamRole(
 }
 
 // GetAWSCallerIdentity gets the caller identity from AWS
-func GetAWSCallerIdentity(ctx context.Context, cfg *aws.Config) (*sts.GetCallerIdentityOutput, error) {
+func GetAWSCallerIdentity(
+	ctx context.Context,
+	cfg *aws.Config,
+) (*sts.GetCallerIdentityOutput, error) {
 	stsClient := sts.NewFromConfig(*cfg)
 	return stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 }

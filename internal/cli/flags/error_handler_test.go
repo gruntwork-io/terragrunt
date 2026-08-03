@@ -90,10 +90,15 @@ func TestErrorHandler(t *testing.T) {
 			expectedError: flags.NewGlobalFlagHintError("raw", "stack output", "raw"),
 		},
 		{
-			name:          "known flag at command level returns CommandFlagHintError",
-			ctx:           newCommandCtx("run"),
-			err:           clihelper.UndefinedFlagError("no-include-root"),
-			expectedError: flags.NewCommandFlagHintError("run", "no-include-root", "catalog", "no-include-root"),
+			name: "known flag at command level returns CommandFlagHintError",
+			ctx:  newCommandCtx("run"),
+			err:  clihelper.UndefinedFlagError("no-include-root"),
+			expectedError: flags.NewCommandFlagHintError(
+				"run",
+				"no-include-root",
+				"catalog",
+				"no-include-root",
+			),
 		},
 		{
 			name:          "unknown flag on run command returns PassthroughFlagHintError",

@@ -548,7 +548,12 @@ locals {
 
 	// Should find the app component when filtering by absolute path
 	units := configs.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{appDir}, units, "Should find component by absolute path to read file")
+	assert.ElementsMatch(
+		t,
+		[]string{appDir},
+		units,
+		"Should find component by absolute path to read file",
+	)
 }
 
 // TestDiscovery_ReadingAttributeFiltersErrorHandling tests error handling for invalid reading filters.
@@ -1151,7 +1156,12 @@ dependency "vpc" {
 
 	// Should include only app (dependent), not vpc (target is excluded)
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{appDir}, units, "...^vpc should find only dependents, not the target")
+	assert.ElementsMatch(
+		t,
+		[]string{appDir},
+		units,
+		"...^vpc should find only dependents, not the target",
+	)
 	assert.NotContains(t, units, vpcDir, "vpc should be excluded as the target")
 }
 
@@ -1223,7 +1233,12 @@ dependency "vpc" {
 
 	// Should include only db and vpc (dependencies), not app (target is excluded)
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{dbDir, vpcDir}, units, "^app... should find only dependencies, not the target")
+	assert.ElementsMatch(
+		t,
+		[]string{dbDir, vpcDir},
+		units,
+		"^app... should find only dependencies, not the target",
+	)
 	assert.NotContains(t, units, appDir, "app should be excluded as the target")
 }
 
@@ -1374,7 +1389,12 @@ dependency "vpc" {
 	// Should include vpc (target) and consumer (dependent outside working dir)
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Contains(t, units, vpcDir, "vpc should be discovered as the target")
-	assert.Contains(t, units, consumerDir, "consumer should be discovered even though it's outside working dir")
+	assert.Contains(
+		t,
+		units,
+		consumerDir,
+		"consumer should be discovered even though it's outside working dir",
+	)
 	assert.ElementsMatch(t,
 		[]string{vpcDir, consumerDir}, units,
 		"...vpc should find vpc and consumer (outside working dir)")
@@ -1464,8 +1484,18 @@ dependency "api" {
 	// Should include vpc (target), api (direct dependent), and frontend (transitive dependent)
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Contains(t, units, vpcDir, "vpc should be discovered as the target")
-	assert.Contains(t, units, apiDir, "api should be discovered (direct dependent outside working dir)")
-	assert.Contains(t, units, frontendDir, "frontend should be discovered (transitive dependent outside working dir)")
+	assert.Contains(
+		t,
+		units,
+		apiDir,
+		"api should be discovered (direct dependent outside working dir)",
+	)
+	assert.Contains(
+		t,
+		units,
+		frontendDir,
+		"frontend should be discovered (transitive dependent outside working dir)",
+	)
 	assert.ElementsMatch(t, []string{vpcDir, apiDir, frontendDir}, units)
 }
 
@@ -1540,7 +1570,12 @@ dependency "db" {
 	// Should include db (target), api (dependent), web (dependent)
 	// Should NOT include unrelated
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{dbDir, apiDir, webDir}, units, "...db should find db and all its dependents")
+	assert.ElementsMatch(
+		t,
+		[]string{dbDir, apiDir, webDir},
+		units,
+		"...db should find db and all its dependents",
+	)
 	assert.NotContains(t, units, unrelatedDir, "unrelated should not be included")
 }
 

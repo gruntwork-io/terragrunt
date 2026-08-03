@@ -19,9 +19,9 @@ var boolFlagValues = []string{"if", "exclude_dependencies", "no_run"}
 // ExcludeConfig configurations for hcl files.
 type ExcludeConfig struct {
 	ExcludeDependencies *bool    `cty:"exclude_dependencies" hcl:"exclude_dependencies,attr" json:"exclude_dependencies"`
-	NoRun               *bool    `cty:"no_run" hcl:"no_run,attr" json:"no_run"`
-	Actions             []string `cty:"actions" hcl:"actions,attr" json:"actions"`
-	If                  bool     `cty:"if" hcl:"if,attr" json:"if"`
+	NoRun               *bool    `cty:"no_run"               hcl:"no_run,attr"               json:"no_run"`
+	Actions             []string `cty:"actions"              hcl:"actions,attr"              json:"actions"`
+	If                  bool     `cty:"if"                   hcl:"if,attr"                   json:"if"`
 }
 
 // IsActionListed checks if the action is listed in the exclude block.
@@ -57,7 +57,12 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 }
 
 // evaluateExcludeBlocks evaluates the exclude block in the parsed file.
-func evaluateExcludeBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (*ExcludeConfig, error) {
+func evaluateExcludeBlocks(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+) (*ExcludeConfig, error) {
 	excludeBlock, err := file.Blocks(MetadataExclude, false)
 	if err != nil {
 		return nil, err
@@ -69,7 +74,11 @@ func evaluateExcludeBlocks(ctx context.Context, pctx *ParsingContext, l log.Logg
 
 	if len(excludeBlock) > 1 {
 		// only one block allowed
-		return nil, fmt.Errorf("only one %s block is allowed found multiple in %s", MetadataExclude, file.ConfigPath)
+		return nil, fmt.Errorf(
+			"only one %s block is allowed found multiple in %s",
+			MetadataExclude,
+			file.ConfigPath,
+		)
 	}
 
 	attrs, err := excludeBlock[0].JustAttributes()

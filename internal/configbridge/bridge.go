@@ -33,7 +33,11 @@ func NewParsingContext(
 // StackFuncFactory returns a dir-scoped HCL function factory for early stack
 // discovery parsing, built from TerragruntOptions. Each call rebuilds the
 // function map for the given stack dir so dir-sensitive functions resolve there.
-func StackFuncFactory(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) inthclparse.StackFuncFactory {
+func StackFuncFactory(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) inthclparse.StackFuncFactory {
 	_, pctx := NewParsingContext(ctx, l, opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {
@@ -106,6 +110,7 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
 func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
+		Experiments:                  opts.Experiments,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
@@ -144,6 +149,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.UnitDir = opts.WorkingDir
 	runOpts.CacheDir = opts.WorkingDir
 	runOpts.RootWorkingDir = opts.RootWorkingDir
+	runOpts.ProfileDir = opts.ProfileDir
 	runOpts.DownloadDir = opts.DownloadDir
 	runOpts.TerraformCommand = opts.TerraformCommand
 	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand

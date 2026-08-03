@@ -25,7 +25,7 @@ import (
 )
 
 // Run runs the run command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) error {
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCommand == tf.CommandNameDestroy {
@@ -158,7 +158,12 @@ func isTerraformPath(opts *options.TerragruntOptions) bool {
 
 // runVersionCommand runs the version command. We do this instead of going through the normal run flow because
 // we can resolve `version` a lot more cheaply.
-func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+func runVersionCommand(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v *venv.Venv,
+) error {
 	if !opts.TFPathExplicitlySet {
 		if tfPath, err := getTFPathFromConfig(ctx, l, v, opts); err != nil {
 			return err
@@ -167,10 +172,20 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, v, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(
+		ctx,
+		l,
+		v,
+		configbridge.TFRunOptsFromOpts(opts),
+		opts.TerraformCliArgs.Slice()...)
 }
 
-func getTFPathFromConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (string, error) {
+func getTFPathFromConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) (string, error) {
 	if !util.FileExists(opts.TerragruntConfigPath) {
 		l.Debugf("Did not find the config file %s", opts.TerragruntConfigPath)
 
@@ -189,9 +204,13 @@ func getTFPathFromConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *o
 // Note that as a side effect this will set the following settings on terragruntOptions:
 // - TerraformPath
 // - TerraformVersion
-// - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
-func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) (log.Logger, error) {
+func checkVersionConstraints(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v *venv.Venv,
+) (log.Logger, error) {
 	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, v, opts)
 	if err != nil {
 		return l, err
@@ -219,7 +238,10 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
 	}
 
-	if err := run.CheckTerraformVersionMeetsConstraint(opts.TerraformVersion, terraformVersionConstraint); err != nil {
+	if err := run.CheckTerraformVersionMeetsConstraint(
+		opts.TerraformVersion,
+		terraformVersionConstraint,
+	); err != nil {
 		return l, err
 	}
 
@@ -232,26 +254,15 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		}
 	}
 
-	if partialTerragruntConfig.FeatureFlags != nil {
-		// update feature flags for evaluation
-		for _, flag := range partialTerragruntConfig.FeatureFlags {
-			flagName := flag.Name
-
-			defaultValue, err := flag.DefaultAsString()
-			if err != nil {
-				return l, err
-			}
-
-			if _, exists := opts.FeatureFlags.Load(flagName); !exists {
-				opts.FeatureFlags.Store(flagName, defaultValue)
-			}
-		}
-	}
-
 	return l, nil
 }
 
-func getTerragruntConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+func getTerragruntConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) (*config.TerragruntConfig, error) {
 	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
 	configCtx = configCtx.WithVenv(v).WithDecodeList(
 		config.TerragruntVersionConstraints,
@@ -271,7 +282,7 @@ func getTerragruntConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *o
 func confirmActionWithDependentUnits(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) bool {
@@ -291,7 +302,13 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Writers.ErrWriter)
+		shouldRun, err := shell.PromptUserForYesNo(
+			ctx,
+			l,
+			prompt,
+			opts.NonInteractive,
+			v.Writers.ErrWriter,
+		)
 		if err != nil {
 			l.Error(err)
 			return false
@@ -307,7 +324,7 @@ func confirmActionWithDependentUnits(
 func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []string {

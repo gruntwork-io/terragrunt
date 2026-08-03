@@ -45,7 +45,11 @@ func TestNewDeprecatedEnvVar(t *testing.T) {
 // applyEnvVarFlag wires a fake env lookup into the provided flag and applies
 // it to a fresh flag set, so flag.Value().IsEnvSet() / GetName() reflect the
 // provided env value.
-func applyEnvVarFlag[T clihelper.GenericType](t *testing.T, flag *clihelper.GenericFlag[T], envs map[string]string) {
+func applyEnvVarFlag[T clihelper.GenericType](
+	t *testing.T,
+	flag *clihelper.GenericFlag[T],
+	envs map[string]string,
+) {
 	t.Helper()
 
 	flag.LookupEnvFunc = func(key string) []string {

@@ -26,7 +26,7 @@ import (
 
 // Run executes the configured terraform command against the dependency
 // graph of the unit in the working directory.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	// Get credentials BEFORE config parsing — sops_decrypt_file() and
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in v.Env during HCL evaluation.
@@ -34,7 +34,13 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
 	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
-	if _, err := creds.ObtainCredsForParsing(ctx, l, v, opts.AuthProviderCmd, shellOpts); err != nil {
+	if _, err := creds.ObtainCredsForParsing(
+		ctx,
+		l,
+		v,
+		opts.AuthProviderCmd,
+		shellOpts,
+	); err != nil {
 		return err
 	}
 

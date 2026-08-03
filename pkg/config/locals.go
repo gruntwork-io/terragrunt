@@ -28,7 +28,12 @@ const MaxIter = 1000
 //
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
-func EvaluateLocalsBlock(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (map[string]cty.Value, error) {
+func EvaluateLocalsBlock(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+) (map[string]cty.Value, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return nil, err
@@ -71,7 +76,15 @@ func EvaluateLocalsBlock(ctx context.Context, pctx *ParsingContext, l log.Logger
 			evaluatedLocals,
 		)
 		if err != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths))
+			l.Debugf(
+				"Encountered error while evaluating locals in file %s",
+				util.RelPathForLog(
+					pctx.RootWorkingDir,
+					pctx.TerragruntConfigPath,
+					pctx.LogShowAbsPaths,
+				),
+			)
+
 			return evaluatedLocals, err
 		}
 	}
@@ -113,7 +126,11 @@ func attemptEvaluateLocals(
 ) (unevaluatedAttrs hclparse.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
 	localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		l.Errorf("Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
+		l.Errorf(
+			"Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s",
+			file.ConfigPath,
+		)
+
 		return nil, evaluatedLocals, false, err
 	}
 
@@ -121,7 +138,11 @@ func attemptEvaluateLocals(
 
 	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
-		l.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
+		l.Errorf(
+			"Could not convert include to the execution ctx to evaluate additional locals in file %s",
+			file.ConfigPath,
+		)
+
 		return nil, evaluatedLocals, false, err
 	}
 
@@ -169,7 +190,10 @@ func attemptEvaluateLocals(
 // - It has references to other locals that have already been evaluated.
 // Note that the second return value is a human friendly reason for why the expression can not be evaluated, and is
 // useful for error reporting.
-func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty.Value) hcl.Diagnostics {
+func canEvaluateLocals(
+	expression hcl.Expression,
+	evaluatedLocals map[string]cty.Value,
+) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	localVars := expression.Variables()
@@ -198,7 +222,10 @@ func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty
 
 		case rootName != "local":
 			// We can't evaluate any variable other than `local`
-			detail = fmt.Sprintf("You can only reference to other local variables here, but it looks like you're referencing something else (%q is not defined)", rootName)
+			detail = fmt.Sprintf(
+				"You can only reference to other local variables here, but it looks like you're referencing something else (%q is not defined)",
+				rootName,
+			)
 
 		case localName == "":
 			// If we can't get any local name, we can't evaluate it.
@@ -206,7 +233,10 @@ func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty
 
 		case !hasEvaluated:
 			// If the referenced local isn't evaluated, we can't evaluate this expression.
-			detail = fmt.Sprintf("The local reference '%s' is not evaluated. Either it is not ready yet in the current pass, or there was an error evaluating it in an earlier stage.", localName)
+			detail = fmt.Sprintf(
+				"The local reference '%s' is not evaluated. Either it is not ready yet in the current pass, or there was an error evaluating it in an earlier stage.",
+				localName,
+			)
 		}
 
 		if detail != "" {

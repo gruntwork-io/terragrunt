@@ -15,6 +15,13 @@ type ReverseProxy struct {
 	ServerURL   *url.URL
 	CredsSource *cliconfig.CredentialsSource
 
+	// Transport carries the injected vhttp client's RoundTripper so the
+	// proxied data path honors the same virtualization and pooling as the
+	// discovery requests. Required: NewRequest panics on nil rather than
+	// letting httputil.ReverseProxy silently fall back to
+	// http.DefaultTransport and reach the real network un-injected.
+	Transport http.RoundTripper
+
 	Rewrite        func(*httputil.ProxyRequest)
 	ModifyResponse func(resp *http.Response) error
 	ErrorHandler   func(http.ResponseWriter, *http.Request, error)
@@ -22,13 +29,22 @@ type ReverseProxy struct {
 	Logger log.Logger
 }
 
-func (reverseProxy ReverseProxy) WithModifyResponse(fn func(resp *http.Response) error) *ReverseProxy {
+func (reverseProxy ReverseProxy) WithModifyResponse(
+	fn func(resp *http.Response) error,
+) *ReverseProxy {
 	reverseProxy.ModifyResponse = fn
 	return &reverseProxy
 }
 
 func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.URL) (er error) {
+	if reverseProxy.Transport == nil {
+		panic(
+			"helpers.ReverseProxy: nil Transport; wire the vhttp client's transport at construction",
+		)
+	}
+
 	proxy := &httputil.ReverseProxy{
+		Transport: reverseProxy.Transport,
 		Rewrite: func(req *httputil.ProxyRequest) {
 			req.Out.Host = targetURL.Host
 			req.Out.URL = targetURL
@@ -52,7 +68,11 @@ func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.UR
 			return nil
 		},
 		ErrorHandler: func(resp http.ResponseWriter, req *http.Request, err error) {
-			reverseProxy.Logger.Errorf("remote %s unreachable, could not forward: %v", targetURL, err)
+			reverseProxy.Logger.Errorf(
+				"remote %s unreachable, could not forward: %v",
+				targetURL,
+				err,
+			)
 			ctx.Error(echo.NewHTTPError(http.StatusServiceUnavailable))
 
 			if reverseProxy.ErrorHandler != nil {

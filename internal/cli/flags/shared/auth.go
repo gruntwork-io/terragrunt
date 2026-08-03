@@ -23,13 +23,19 @@ func NewAuthProviderCmdFlag(opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.AuthProviderCmd,
 			Usage:       "Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.",
 		},
-		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("auth-provider-cmd"), opts.StrictControls),
+		flags.WithDeprecatedEnvVars(
+			terragruntPrefix.EnvVars("auth-provider-cmd"),
+			opts.StrictControls,
+		),
 	)
 }
 
 // NewNoDiscoveryAuthProviderCmdFlag opts out of running --auth-provider-cmd
 // during the discovery parse phase.
-func NewNoDiscoveryAuthProviderCmdFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
+func NewNoDiscoveryAuthProviderCmdFlag(
+	opts *options.TerragruntOptions,
+	prefix flags.Prefix,
+) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	return flags.NewFlag(&clihelper.BoolFlag{

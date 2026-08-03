@@ -197,7 +197,11 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			output, err := codegen.RemoteStateConfigToTerraformCode(tc.backend, tc.config, tc.encryption)
+			output, err := codegen.RemoteStateConfigToTerraformCode(
+				tc.backend,
+				tc.config,
+				tc.encryption,
+			)
 			// validates the first output.
 			if tc.expectErr {
 				require.Error(t, err)
@@ -211,7 +215,11 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 			// runs the function a few of times again. All the outputs must be
 			// equal to the first output.
 			for range 20 {
-				actual, _ := codegen.RemoteStateConfigToTerraformCode(tc.backend, tc.config, tc.encryption)
+				actual, _ := codegen.RemoteStateConfigToTerraformCode(
+					tc.backend,
+					tc.config,
+					tc.encryption,
+				)
 				assert.Equal(t, output, actual)
 			}
 		})
@@ -656,7 +664,12 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 
 	storeInfoAfter, err := os.Stat(storePath)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0444), storeInfoAfter.Mode().Perm(), "store blob must stay read-only")
+	assert.Equal(
+		t,
+		os.FileMode(0444),
+		storeInfoAfter.Mode().Perm(),
+		"store blob must stay read-only",
+	)
 
 	targetInfo, err := os.Stat(targetPath)
 	require.NoError(t, err)
@@ -711,6 +724,135 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 	l := logger.CreateLogger()
 	require.NoError(t, codegen.WriteToFile(l, "", &config))
 	assert.True(t, util.FileNotExists(targetPath))
+}
+
+// TestWriteToFileSignatureWithoutTrailingNewline verifies that a generated
+// file consisting of nothing but the signature line, with no trailing newline,
+// is still recognized as terragrunt-generated.
+func TestWriteToFileSignatureWithoutTrailingNewline(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	signatureOnly := codegen.DefaultCommentPrefix + codegen.TerragruntGeneratedSignature
+
+	testCases := []struct {
+		name    string
+		disable bool
+	}{
+		{
+			name:    "overwrite-terragrunt-regenerates",
+			disable: false,
+		},
+		{
+			name:    "remove-terragrunt-removes",
+			disable: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(testDir, tc.name+".tf")
+			require.NoError(t, os.WriteFile(path, []byte(signatureOnly), 0644))
+
+			config := codegen.GenerateConfig{
+				Path:          path,
+				IfExists:      codegen.ExistsOverwriteTerragrunt,
+				IfDisabled:    codegen.DisabledRemoveTerragrunt,
+				CommentPrefix: codegen.DefaultCommentPrefix,
+				Contents:      "terraform {}\n",
+				Disable:       tc.disable,
+			}
+
+			l := logger.CreateLogger()
+			require.NoError(t, codegen.WriteToFile(l, "", &config))
+
+			if tc.disable {
+				assert.True(t, util.FileNotExists(path))
+
+				return
+			}
+
+			fileContent, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Contains(t, string(fileContent), "terraform {}")
+		})
+	}
+}
+
+// TestWriteToFileUnsignedFileWithoutTrailingNewline verifies that files
+// without the signature are still refused by the terragrunt-only modes, even
+// when they lack a trailing newline for the first line read to terminate on.
+func TestWriteToFileUnsignedFileWithoutTrailingNewline(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	testCases := []struct {
+		name     string
+		contents string
+		disable  bool
+	}{
+		{
+			name:     "overwrite-terragrunt-rejects-empty-file",
+			contents: "",
+			disable:  false,
+		},
+		{
+			name:     "overwrite-terragrunt-rejects-foreign-file",
+			contents: "terraform {}",
+			disable:  false,
+		},
+		{
+			name:     "remove-terragrunt-rejects-empty-file",
+			contents: "",
+			disable:  true,
+		},
+		{
+			name:     "remove-terragrunt-rejects-foreign-file",
+			contents: "terraform {}",
+			disable:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(testDir, tc.name+".tf")
+			require.NoError(t, os.WriteFile(path, []byte(tc.contents), 0644))
+
+			config := codegen.GenerateConfig{
+				Path:          path,
+				IfExists:      codegen.ExistsOverwriteTerragrunt,
+				IfDisabled:    codegen.DisabledRemoveTerragrunt,
+				CommentPrefix: codegen.DefaultCommentPrefix,
+				Contents:      "terraform {\n  required_version = \">= 1.0.0\"\n}\n",
+				Disable:       tc.disable,
+			}
+
+			l := logger.CreateLogger()
+			writeErr := codegen.WriteToFile(l, "", &config)
+
+			if tc.disable {
+				var removeErr codegen.GenerateFileRemoveError
+
+				require.ErrorAs(t, writeErr, &removeErr)
+			}
+
+			if !tc.disable {
+				var existsErr codegen.GenerateFileExistsError
+
+				require.ErrorAs(t, writeErr, &existsErr)
+			}
+
+			fileContent, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, tc.contents, string(fileContent), "existing file must stay intact")
+		})
+	}
 }
 
 // writeFileWithPerms writes contents first and tightens permissions afterwards

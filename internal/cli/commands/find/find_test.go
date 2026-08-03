@@ -170,7 +170,10 @@ func TestRun(t *testing.T) {
 				// Verify each config has a valid type
 				for _, config := range configs {
 					assert.NotEmpty(t, config.Type)
-					assert.True(t, config.Type == component.UnitKind || config.Type == component.StackKind)
+					assert.True(
+						t,
+						config.Type == component.UnitKind || config.Type == component.StackKind,
+					)
 				}
 			},
 		},

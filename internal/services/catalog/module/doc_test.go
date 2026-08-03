@@ -222,7 +222,12 @@ func TestElement(t *testing.T) {
 			doc := module.NewDoc(tc.content, tc.fileExt)
 
 			assert.Equal(t, tc.expectedTitle, doc.Title(), "Title")
-			assert.Equal(t, tc.expectedDescription, doc.Description(tc.maxDescriptionLength), "Description")
+			assert.Equal(
+				t,
+				tc.expectedDescription,
+				doc.Description(tc.maxDescriptionLength),
+				"Description",
+			)
 		})
 	}
 }

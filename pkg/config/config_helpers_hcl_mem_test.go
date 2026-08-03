@@ -120,7 +120,7 @@ func TestHCLGetRepoRootPropagatesGitError(t *testing.T) {
 }
 
 // TestHCLRunCmd drives `run_cmd()` through full HCL evaluation,
-// replacing the old TestRunCommand harness with the mem-backed exec.
+// replacing the old TestTFRunCommand harness with the mem-backed exec.
 // The local resolves to the subprocess stdout.
 func TestHCLRunCmd(t *testing.T) {
 	t.Parallel()

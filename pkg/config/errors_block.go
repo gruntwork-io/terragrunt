@@ -10,23 +10,23 @@ import (
 
 // ErrorsConfig represents the top-level errors configuration
 type ErrorsConfig struct {
-	Retry  []*RetryBlock  `cty:"retry" hcl:"retry,block"`
+	Retry  []*RetryBlock  `cty:"retry"  hcl:"retry,block"`
 	Ignore []*IgnoreBlock `cty:"ignore" hcl:"ignore,block"`
 }
 
 // RetryBlock represents a labeled retry block
 type RetryBlock struct {
-	Label            string   `cty:"name" hcl:"name,label"`
-	RetryableErrors  []string `cty:"retryable_errors" hcl:"retryable_errors"`
-	MaxAttempts      int      `cty:"max_attempts" hcl:"max_attempts"`
+	Label            string   `cty:"name"               hcl:"name,label"`
+	RetryableErrors  []string `cty:"retryable_errors"   hcl:"retryable_errors"`
+	MaxAttempts      int      `cty:"max_attempts"       hcl:"max_attempts"`
 	SleepIntervalSec int      `cty:"sleep_interval_sec" hcl:"sleep_interval_sec"`
 }
 
 // IgnoreBlock represents a labeled ignore block
 type IgnoreBlock struct {
-	Signals         map[string]cty.Value `cty:"signals" hcl:"signals,optional"`
-	Label           string               `cty:"name" hcl:"name,label"`
-	Message         string               `cty:"message" hcl:"message,optional"`
+	Signals         map[string]cty.Value `cty:"signals"          hcl:"signals,optional"`
+	Label           string               `cty:"name"             hcl:"name,label"`
+	Message         string               `cty:"message"          hcl:"message,optional"`
 	IgnorableErrors []string             `cty:"ignorable_errors" hcl:"ignorable_errors"`
 }
 
@@ -144,7 +144,10 @@ func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
 	// Merge retry blocks from 'other'
 	for _, otherBlock := range other {
 		if existingBlock, found := retryMap[otherBlock.Label]; found {
-			existingBlock.RetryableErrors = util.MergeSlices(existingBlock.RetryableErrors, otherBlock.RetryableErrors)
+			existingBlock.RetryableErrors = util.MergeSlices(
+				existingBlock.RetryableErrors,
+				otherBlock.RetryableErrors,
+			)
 
 			if otherBlock.MaxAttempts > 0 {
 				existingBlock.MaxAttempts = otherBlock.MaxAttempts
@@ -175,7 +178,10 @@ func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
 	// Merge ignore blocks from 'other'
 	for _, otherBlock := range other {
 		if existingBlock, found := ignoreMap[otherBlock.Label]; found {
-			existingBlock.IgnorableErrors = util.MergeSlices(existingBlock.IgnorableErrors, otherBlock.IgnorableErrors)
+			existingBlock.IgnorableErrors = util.MergeSlices(
+				existingBlock.IgnorableErrors,
+				otherBlock.IgnorableErrors,
+			)
 
 			if otherBlock.Message != "" {
 				existingBlock.Message = otherBlock.Message

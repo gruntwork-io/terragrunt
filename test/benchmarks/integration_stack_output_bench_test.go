@@ -65,7 +65,16 @@ func BenchmarkStackOutputParallelism(b *testing.B) {
 		helpers.DefaultFilePermissions,
 	))
 
-	helpers.RunTerragruntCommand(b, "terragrunt", "stack", "run", "apply", "--non-interactive", "--working-dir", livePath)
+	helpers.RunTerragruntCommand(
+		b,
+		"terragrunt",
+		"stack",
+		"run",
+		"apply",
+		"--non-interactive",
+		"--working-dir",
+		livePath,
+	)
 
 	cpus := runtime.NumCPU()
 	levels := []int{1, max(cpus/2, 1), cpus, 2 * cpus, 4 * cpus, 8 * cpus}

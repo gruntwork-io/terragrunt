@@ -93,7 +93,11 @@ func (render *Render) formatOutput(t *template.Template, data any) (string, erro
 	return out.String(), nil
 }
 
-func (render *Render) executeTemplate(templ string, data any, customFuncs map[string]any) (string, error) {
+func (render *Render) executeTemplate(
+	templ string,
+	data any,
+	customFuncs map[string]any,
+) (string, error) {
 	t := render.buildTemplate(templ, customFuncs)
 
 	return render.formatOutput(t, data)

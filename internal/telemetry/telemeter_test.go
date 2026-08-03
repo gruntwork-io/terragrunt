@@ -52,11 +52,27 @@ func TestNewTelemeterEnvOverrides(t *testing.T) {
 			opts.Telemetry.TraceExporter = "console"
 			opts.Telemetry.MetricExporter = "console"
 
-			tlm, err := telemetry.NewTelemeter(t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false)
+			tlm, err := telemetry.NewTelemeter(
+				t.Context(),
+				nil,
+				"terragrunt",
+				"v0.0.0-test",
+				&buf,
+				opts.Telemetry,
+				false,
+			)
 			require.NoError(t, err)
 			require.NotNil(t, tlm)
 
-			require.NoError(t, tlm.Trace(t.Context(), "test_span", nil, func(context.Context) error { return nil }))
+			require.NoError(
+				t,
+				tlm.Trace(
+					t.Context(),
+					"test_span",
+					nil,
+					func(context.Context) error { return nil },
+				),
+			)
 			tlm.Count(t.Context(), "test_metric", 1)
 			require.NoError(t, tlm.Shutdown(t.Context()))
 

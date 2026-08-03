@@ -19,7 +19,7 @@ const (
 	CommandName = "graph"
 )
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	sharedFlags := shared.NewQueueFlags(opts, nil)
 	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
@@ -37,7 +37,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 	}
 }
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	listOpts := list.NewOptions(opts)
 	listOpts.Format = list.FormatDot
 	listOpts.Mode = list.ModeDAG

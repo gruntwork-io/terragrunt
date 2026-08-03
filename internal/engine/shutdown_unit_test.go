@@ -28,8 +28,11 @@ func TestShutdownUnit_NoOpWhenGated(t *testing.T) {
 
 	const unitDir = "/repo/unit"
 
-	require.NoError(t, engine.ShutdownUnit(ctx, log.New(), experiment.NewExperiments(), false, unitDir),
-		"a disabled iac-engine experiment must be a no-op")
+	require.NoError(
+		t,
+		engine.ShutdownUnit(ctx, log.New(), experiment.NewExperiments(), false, unitDir),
+		"a disabled iac-engine experiment must be a no-op",
+	)
 	require.NoError(t, engine.ShutdownUnit(ctx, log.New(), iacEngineEnabled(t), true, unitDir),
 		"NoEngine must be a no-op")
 }
@@ -41,5 +44,14 @@ func TestShutdownUnit_NoMatchingEngineIsNoOp(t *testing.T) {
 
 	ctx := engine.WithEngineValues(context.Background())
 
-	require.NoError(t, engine.ShutdownUnit(ctx, log.New(), iacEngineEnabled(t), false, "/repo/unit-without-engine"))
+	require.NoError(
+		t,
+		engine.ShutdownUnit(
+			ctx,
+			log.New(),
+			iacEngineEnabled(t),
+			false,
+			"/repo/unit-without-engine",
+		),
+	)
 }

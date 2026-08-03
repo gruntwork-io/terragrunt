@@ -112,7 +112,7 @@ type PhaseInput struct {
 type Phase interface {
 	Name() string
 	Kind() PhaseKind
-	Run(ctx context.Context, l log.Logger, v venv.Venv, input *PhaseInput) (*PhaseResults, error)
+	Run(ctx context.Context, l log.Logger, v *venv.Venv, input *PhaseInput) (*PhaseResults, error)
 }
 
 // Discovery is the main configuration for discovery.

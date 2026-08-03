@@ -21,7 +21,11 @@ import (
 // copyFinishedFromNames assembles a CopyFinishedMsg whose Optional slice is
 // derived from the supplied names (no captured defaults). Required entries
 // stay as plain names.
-func copyFinishedFromNames(workingDir string, required, optional []string, valuesWritten, valuesSkipped bool) tui.CopyFinishedMsg {
+func copyFinishedFromNames(
+	workingDir string,
+	required, optional []string,
+	valuesWritten, valuesSkipped bool,
+) tui.CopyFinishedMsg {
 	opt := make([]tui.OptionalValue, len(optional))
 	for i, name := range optional {
 		opt[i] = tui.OptionalValue{Name: name}
@@ -73,7 +77,15 @@ func TestModelStreamingInsertsSortedWithRacing(t *testing.T) {
 		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
 
 		componentCh := make(chan *tui.ComponentEntry, len(components))
-		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[len(components)-1], componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			l,
+			venv.OSVenv(),
+			opts,
+			components[len(components)-1],
+			componentCh,
+			nil,
+		)
 		close(componentCh)
 
 		msgs := make([]tea.Msg, 0, len(components))
@@ -92,7 +104,14 @@ func TestModelStreamingInsertsSortedWithRacing(t *testing.T) {
 		for i := 1; i < len(items); i++ {
 			prev := strings.ToLower(items[i-1].(*tui.ComponentEntry).Title())
 			curr := strings.ToLower(items[i].(*tui.ComponentEntry).Title())
-			assert.LessOrEqual(t, prev, curr, "components should be in alphabetical order: %q should come before %q", prev, curr)
+			assert.LessOrEqual(
+				t,
+				prev,
+				curr,
+				"components should be in alphabetical order: %q should come before %q",
+				prev,
+				curr,
+			)
 		}
 	})
 }
@@ -131,7 +150,15 @@ func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 		components := makeMixedComponents(t)
 
 		componentCh := make(chan *tui.ComponentEntry, len(components))
-		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			l,
+			venv.OSVenv(),
+			opts,
+			components[0],
+			componentCh,
+			nil,
+		)
 		close(componentCh)
 
 		// Cycle: All -> Templates (first tab after All in the current order).
@@ -143,7 +170,12 @@ func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 
 		finalModel := driveModel(t, m, 120, 40, msgs).(tui.Model)
 
-		assert.Equal(t, tui.TabTemplates, finalModel.ActiveTab(), "tab key should cycle to Templates")
+		assert.Equal(
+			t,
+			tui.TabTemplates,
+			finalModel.ActiveTab(),
+			"tab key should cycle to Templates",
+		)
 
 		templatesItems := finalModel.List().Items()
 		require.Len(t, templatesItems, 1, "Templates tab should contain only the one template")
@@ -164,7 +196,15 @@ func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 		components := makeMixedComponents(t)
 
 		componentCh := make(chan *tui.ComponentEntry, len(components))
-		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			l,
+			venv.OSVenv(),
+			opts,
+			components[0],
+			componentCh,
+			nil,
+		)
 		close(componentCh)
 
 		// Starts on All. Shift+Tab wraps to the last tab (Stacks).
@@ -176,7 +216,12 @@ func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 
 		finalModel := driveModel(t, m, 120, 40, msgs).(tui.Model)
 
-		assert.Equal(t, tui.TabModules, finalModel.ActiveTab(), "shift+tab from All should wrap to the last tab")
+		assert.Equal(
+			t,
+			tui.TabModules,
+			finalModel.ActiveTab(),
+			"shift+tab from All should wrap to the last tab",
+		)
 	})
 }
 
@@ -201,7 +246,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 
 		repo := newFakeRepo(t, fsys, repoDir)
 
-		components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
 		require.Equal(t, tui.ComponentKindUnit, components[0].Kind)
@@ -211,12 +256,21 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 
 		opts.WorkingDir = t.TempDir()
 
-		entry := tui.NewComponentEntry(components[0]).WithSource("github.com/gruntwork-io/fake-repo")
+		entry := tui.NewComponentEntry(components[0]).
+			WithSource("github.com/gruntwork-io/fake-repo")
 
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			logger.CreateLogger(),
+			venv.OSVenv(),
+			opts,
+			entry,
+			componentCh,
+			nil,
+		)
 
 		// Lowercase s = interactive scaffold flow.
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 's', Text: "s"}}
@@ -231,7 +285,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 // TestModelEnterOnPagerLaunchesInteractiveFormWithRacing asserts that once the user
 // has opened a component's README (PagerState), pressing enter on the
 // default-focused Scaffold button takes the interactive form path, the
-// same as pressing `s`. The placeholder flow stays reachable via `S`.
+// same as pressing `s`. The placeholder flow stays reachable via ctrl+d.
 func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -248,10 +302,67 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 
 		repo := newFakeRepo(t, fsys, repoDir)
 
-		components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
 		require.Equal(t, tui.ComponentKindUnit, components[0].Kind)
+
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		opts.WorkingDir = t.TempDir()
+
+		entry := tui.NewComponentEntry(components[0]).
+			WithSource("github.com/gruntwork-io/fake-repo")
+
+		componentCh := make(chan *tui.ComponentEntry)
+		close(componentCh)
+
+		m := tui.NewModelStreaming(
+			t.Context(),
+			logger.CreateLogger(),
+			venv.OSVenv(),
+			opts,
+			entry,
+			componentCh,
+			nil,
+		)
+
+		// First enter: list → pager (opens the README).
+		// Second enter: pager → form (the new behavior).
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+		}
+
+		finalModel := driveModel(t, m, 120, 40, msgs).(tui.Model)
+
+		assert.Equal(t, tui.FormState, finalModel.State,
+			"enter on the pager's Scaffold button should transition to FormState")
+	})
+}
+
+// TestModelCtrlDOnPagerScaffoldsImmediatelyWithRacing asserts that ctrl+d on
+// the pager skips the form entirely: the session jumps straight to
+// ScaffoldState so the placeholder flow runs without value collection.
+func TestModelCtrlDOnPagerScaffoldsImmediatelyWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		fsys := vfs.NewMemMapFS()
+		repoDir := testRepoDir
+
+		unitBody := `locals {
+  region = values.region
+}
+` + "\n"
+		writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+
+		repo := newFakeRepo(t, fsys, repoDir)
+
+		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
+		require.NoError(t, err)
+		require.Len(t, components, 1)
 
 		opts, err := options.NewTerragruntOptionsForTest("")
 		require.NoError(t, err)
@@ -265,17 +376,17 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 
 		m := tui.NewModelStreaming(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, entry, componentCh, nil)
 
-		// First enter: list → pager (opens the README).
-		// Second enter: pager → form (the new behavior).
+		// First enter: list → pager. Then ctrl+d: pager → immediate
+		// placeholder scaffold, no form in between.
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: tea.KeyEnter},
-			tea.KeyPressMsg{Code: tea.KeyEnter},
+			tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl},
 		}
 
 		finalModel := driveModel(t, m, 120, 40, msgs).(tui.Model)
 
-		assert.Equal(t, tui.FormState, finalModel.State,
-			"enter on the pager's Scaffold button should transition to FormState")
+		assert.Equal(t, tui.ScaffoldState, finalModel.State,
+			"ctrl+d on the pager should skip the form and enter ScaffoldState")
 	})
 }
 
@@ -293,7 +404,15 @@ func TestModelStreamingDeduplicatesWithRacing(t *testing.T) {
 		require.NotEmpty(t, components)
 
 		componentCh := make(chan *tui.ComponentEntry, len(components))
-		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			l,
+			venv.OSVenv(),
+			opts,
+			components[0],
+			componentCh,
+			nil,
+		)
 		close(componentCh)
 
 		msgs := []tea.Msg{
@@ -345,7 +464,12 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 	assert.NotEmpty(t, exit, "exit message should be populated after copyFinishedMsg")
 	assert.Contains(t, exit, "terragrunt.values.hcl generated")
 	assert.Contains(t, exit, "2 required entries", "plural 'entries' should render for count != 1")
-	assert.Contains(t, exit, "1 optional default", "singular 'default' should render for count == 1")
+	assert.Contains(
+		t,
+		exit,
+		"1 optional default",
+		"singular 'default' should render for count == 1",
+	)
 	assert.Contains(t, exit, "terragrunt.values.hcl")
 }
 
@@ -539,7 +663,11 @@ func TestModelScaffoldFailureQuitsWithError(t *testing.T) {
 	updated, cmd := m.Update(tui.ScaffoldFinishedMsg{Err: scaffoldErr})
 	finalModel := updated.(tui.Model)
 
-	require.Error(t, finalModel.Err(), "a failed scaffold should leave the session in an error state")
+	require.Error(
+		t,
+		finalModel.Err(),
+		"a failed scaffold should leave the session in an error state",
+	)
 	require.ErrorIs(t, finalModel.Err(), scaffoldErr)
 
 	require.NotNil(t, cmd, "a failed scaffold should quit the program")
@@ -594,7 +722,15 @@ func TestModelCleanQuitHasNoErrorWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			l,
+			venv.OSVenv(),
+			opts,
+			components[0],
+			componentCh,
+			nil,
+		)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 

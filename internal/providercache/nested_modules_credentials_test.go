@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -102,8 +103,21 @@ func TestNestedModuleCredentials(t *testing.T) {
 
 	l := logger.CreateLogger()
 	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
-	proxyProviderHandler := handlers.NewProxyProviderHandler(l, credsSource)
-	proxyModuleHandler := handlers.NewProxyModuleHandler(l, credsSource, discoverer, []string{registryName})
+	proxyProviderHandler := handlers.NewProxyProviderHandler(
+		l,
+		vhttp.NewNoNetworkClient(),
+		credsSource,
+	)
+	// The module proxy's data path rides the injected client's transport, so
+	// hand it the httptest server's client; the provider handler keeps the
+	// no-network client since this test never exercises provider traffic.
+	proxyModuleHandler := handlers.NewProxyModuleHandler(
+		l,
+		upstream.Client(),
+		credsSource,
+		discoverer,
+		[]string{registryName},
+	)
 
 	server := cache.NewServer(
 		cache.WithToken(cacheToken),
@@ -148,11 +162,27 @@ func TestNestedModuleCredentials(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode, "expected upstream success; body=%s", string(body))
+	assert.Equal(
+		t,
+		http.StatusOK,
+		resp.StatusCode,
+		"expected upstream success; body=%s",
+		string(body),
+	)
 	assert.JSONEq(t, versionsBody, string(body))
 
-	assert.Equal(t, int32(1), upstreamHits.Load(), "upstream registry should have been hit exactly once")
-	assert.Equal(t, int32(0), upstreamReject.Load(), "upstream registry should not have rejected the request")
+	assert.Equal(
+		t,
+		int32(1),
+		upstreamHits.Load(),
+		"upstream registry should have been hit exactly once",
+	)
+	assert.Equal(
+		t,
+		int32(0),
+		upstreamReject.Load(),
+		"upstream registry should not have rejected the request",
+	)
 	assert.Equal(t, "Bearer "+realUserToken, upstreamAuth.Load(),
 		"cache server must forward the user's real upstream credentials, not its own API key")
 

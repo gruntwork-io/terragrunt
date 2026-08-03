@@ -36,7 +36,11 @@ func TestGzipHandler(t *testing.T) {
 		defer res.Body.Close()
 
 		assert.Equal(t, "gzip", res.Header.Get("Content-Encoding"))
-		assert.Empty(t, res.Header.Get("Content-Length"), "length is dropped once the body is compressed")
+		assert.Empty(
+			t,
+			res.Header.Get("Content-Length"),
+			"length is dropped once the body is compressed",
+		)
 
 		gz, err := gzip.NewReader(res.Body)
 		require.NoError(t, err)

@@ -52,7 +52,12 @@ func TestKeyLocksSharedKeySerializes(t *testing.T) {
 
 	wg.Wait()
 
-	require.Equal(t, 20, counter, "serialized increments must total 20 (other totals indicate a lost update)")
+	require.Equal(
+		t,
+		20,
+		counter,
+		"serialized increments must total 20 (other totals indicate a lost update)",
+	)
 }
 
 // TestKeyLocksIndependentKeysDoNotBlock asserts that distinct keys do not block each other.
@@ -121,5 +126,10 @@ func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 
 	wg.Wait()
 
-	require.Equal(t, numGoroutines*numOperations*2, counter, "All lock/unlock cycles should be completed")
+	require.Equal(
+		t,
+		numGoroutines*numOperations*2,
+		counter,
+		"All lock/unlock cycles should be completed",
+	)
 }

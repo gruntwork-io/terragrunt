@@ -18,13 +18,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // GitHubAPIClient represents a GitHub API client.
 type GitHubAPIClient struct {
 	baseURL        string
-	httpClient     *http.Client
+	httpClient     vhttp.Client
 	cache          *cache.ExpiringCache[string]
 	defaultHeaders http.Header
 }
@@ -40,9 +41,9 @@ type Release struct {
 type GitHubAPIClientOption func(*GitHubAPIClient)
 
 // WithHTTPClient sets the HTTP client for the GitHub client.
-func WithHTTPClient(httpClient *http.Client) GitHubAPIClientOption {
-	return func(c *GitHubAPIClient) {
-		c.httpClient = httpClient
+func WithHTTPClient(c vhttp.Client) GitHubAPIClientOption {
+	return func(gh *GitHubAPIClient) {
+		gh.httpClient = c
 	}
 }
 
@@ -90,7 +91,7 @@ func getGithubTokenFromEnv() string {
 func NewGitHubAPIClient(opts ...GitHubAPIClientOption) *GitHubAPIClient {
 	client := &GitHubAPIClient{
 		baseURL:        "https://api.github.com",
-		httpClient:     &http.Client{Timeout: 30 * time.Second},
+		httpClient:     vhttp.NewOSClientWithTimeout(30 * time.Second),
 		cache:          cache.NewExpiringCache[string]("github_api"),
 		defaultHeaders: http.Header{},
 	}
@@ -110,7 +111,10 @@ func (c *GitHubAPIClient) setDefaultHeaders(req *http.Request) {
 
 // GetLatestRelease fetches the latest release for a given repository.
 // The repository should be in the format "owner/repo".
-func (c *GitHubAPIClient) GetLatestRelease(ctx context.Context, repository string) (*Release, error) {
+func (c *GitHubAPIClient) GetLatestRelease(
+	ctx context.Context,
+	repository string,
+) (*Release, error) {
 	if repository == "" {
 		return nil, errors.New("repository cannot be empty")
 	}
@@ -169,7 +173,10 @@ func (c *GitHubAPIClient) GetLatestRelease(ctx context.Context, repository strin
 
 // GetLatestReleaseTag is a convenience method that returns just the tag name
 // of the latest release for a repository.
-func (c *GitHubAPIClient) GetLatestReleaseTag(ctx context.Context, repository string) (string, error) {
+func (c *GitHubAPIClient) GetLatestReleaseTag(
+	ctx context.Context,
+	repository string,
+) (string, error) {
 	release, err := c.GetLatestRelease(ctx, repository)
 	if err != nil {
 		return "", err
@@ -203,14 +210,16 @@ type DownloadResult struct {
 type GitHubReleasesDownloadClientOption func(*GitHubReleasesDownloadClient)
 
 // WithLogger sets the logger for the download client.
-func WithLogger(logger log.Logger) GitHubReleasesDownloadClientOption {
+func WithLogger(l log.Logger) GitHubReleasesDownloadClientOption {
 	return func(c *GitHubReleasesDownloadClient) {
-		c.logger = logger
+		c.logger = l
 	}
 }
 
 // NewGitHubReleasesDownloadClient creates a new GitHub releases download client.
-func NewGitHubReleasesDownloadClient(opts ...GitHubReleasesDownloadClientOption) *GitHubReleasesDownloadClient {
+func NewGitHubReleasesDownloadClient(
+	opts ...GitHubReleasesDownloadClientOption,
+) *GitHubReleasesDownloadClient {
 	client := &GitHubReleasesDownloadClient{}
 
 	for _, opt := range opts {

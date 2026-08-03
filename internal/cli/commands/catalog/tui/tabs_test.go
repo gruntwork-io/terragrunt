@@ -25,7 +25,11 @@ tags: [module, networking]
 
 	assert.True(t, tui.TabAll.Matches(template))
 	assert.True(t, tui.TabTemplates.Matches(template))
-	assert.True(t, tui.TabModules.Matches(template), "template tagged module should match TabModules")
+	assert.True(
+		t,
+		tui.TabModules.Matches(template),
+		"template tagged module should match TabModules",
+	)
 	assert.False(t, tui.TabUnits.Matches(template))
 	assert.False(t, tui.TabStacks.Matches(template))
 }

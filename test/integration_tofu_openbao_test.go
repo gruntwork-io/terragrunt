@@ -18,7 +18,9 @@ const (
 	testFixtureTofuStateEncryptionOpenbao = "fixtures/tofu-state-encryption/openbao"
 )
 
-func setupOpenbao(t *testing.T) (baoC *testcontainers.DockerContainer, baoToken string, baoAddr string) {
+func setupOpenbao(
+	t *testing.T,
+) (baoC *testcontainers.DockerContainer, baoToken string, baoAddr string) {
 	t.Helper()
 
 	baoToken = rand.Text()
@@ -64,7 +66,10 @@ func TestTofuStateEncryptionOpenbao(t *testing.T) {
 		"__FILL_IN_OPENBAO_TOKEN__":    baoToken,
 	})
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+workDir)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+workDir,
+	)
 	assert.True(t, helpers.FileIsInFolder(t, stateFile, workDir))
 	validateStateIsEncrypted(t, stateFile, workDir)
 }

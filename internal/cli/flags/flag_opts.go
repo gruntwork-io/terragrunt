@@ -16,7 +16,12 @@ type Option func(*Flag)
 //	}, WithDeprecatedFlag(&clihelper.BoolFlag{
 //	  Name:    "terragrunt-json-log",
 //	}, flags.NewValue("json"), nil))
-func WithDeprecatedFlag(deprecatedFlag clihelper.Flag, newValueFn NewValueFunc, strictControls strict.Controls, extraParentNames ...string) Option {
+func WithDeprecatedFlag(
+	deprecatedFlag clihelper.Flag,
+	newValueFn NewValueFunc,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   deprecatedFlag,
@@ -42,7 +47,11 @@ func WithDeprecatedFlag(deprecatedFlag clihelper.Flag, newValueFn NewValueFunc, 
 //
 // The deprecated flag will have "terragrunt-no-color","terragrunt-disable-color" names and "TERRAGRUNT_NO_COLOR","TERRAGRUNT_DISABLE_COLOR" env vars.
 // NOTE: This function is currently unused but retained for future flag deprecation needs.
-func WithDeprecatedPrefix(prefix Prefix, strictControls strict.Controls, extraParentNames ...string) Option {
+func WithDeprecatedPrefix(
+	prefix Prefix,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   newFlag.Flag,
@@ -63,7 +72,11 @@ func WithDeprecatedPrefix(prefix Prefix, strictControls strict.Controls, extraPa
 // WithDeprecatedNames([]string{"NO_COLOR", "working-dir"}, nil)
 //
 // The deprecated flag will have "no-color","working-dir" names and "NO_COLOR","WORKING_DIR" env vars.
-func WithDeprecatedNames(flagNames []string, strictControls strict.Controls, extraParentNames ...string) Option {
+func WithDeprecatedNames(
+	flagNames []string,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   newFlag.Flag,
@@ -78,7 +91,11 @@ func WithDeprecatedNames(flagNames []string, strictControls strict.Controls, ext
 }
 
 // WithDeprecatedName does the same as `WithDeprecatedNames`, but with a single name.
-func WithDeprecatedName(flagName string, strictControls strict.Controls, extraParentNames ...string) Option {
+func WithDeprecatedName(
+	flagName string,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) Option {
 	return func(newFlag *Flag) {
 		WithDeprecatedNames([]string{flagName}, strictControls, extraParentNames...)(newFlag)
 	}
@@ -86,7 +103,11 @@ func WithDeprecatedName(flagName string, strictControls strict.Controls, extraPa
 
 // WithDeprecatedNamesEnvVars returns an `Option` that will create a deprecated flag,
 // with the given `flagNames`, `envVars` assigned to the flag names and environment variables as is.
-func WithDeprecatedNamesEnvVars(flagNames, envVars []string, strictControls strict.Controls, extraParentNames ...string) Option {
+func WithDeprecatedNamesEnvVars(
+	flagNames, envVars []string,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   newFlag.Flag,
@@ -101,7 +122,11 @@ func WithDeprecatedNamesEnvVars(flagNames, envVars []string, strictControls stri
 }
 
 // WithDeprecatedEnvVars returns an `Option` that will create a flag with the given deprecated env vars.
-func WithDeprecatedEnvVars(envVars []string, strictControls strict.Controls, extraParentNames ...string) Option {
+func WithDeprecatedEnvVars(
+	envVars []string,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   newFlag.Flag,
@@ -115,7 +140,11 @@ func WithDeprecatedEnvVars(envVars []string, strictControls strict.Controls, ext
 }
 
 // WithDeprecatedFlagNames returns an `Option` that will create a flag with the given deprecated flag names.
-func WithDeprecatedFlagNames(flagNames []string, strictControls strict.Controls, extraParentNames ...string) Option {
+func WithDeprecatedFlagNames(
+	flagNames []string,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   newFlag.Flag,
@@ -129,7 +158,11 @@ func WithDeprecatedFlagNames(flagNames []string, strictControls strict.Controls,
 }
 
 // WithDeprecatedFlagName does the same as `WithDeprecatedFlagNames`, but with a single name.
-func WithDeprecatedFlagName(flagName string, strictControls strict.Controls, extraParentNames ...string) Option {
+func WithDeprecatedFlagName(
+	flagName string,
+	strictControls strict.Controls,
+	extraParentNames ...string,
+) Option {
 	return func(newFlag *Flag) {
 		WithDeprecatedFlagNames([]string{flagName}, strictControls, extraParentNames...)(newFlag)
 	}

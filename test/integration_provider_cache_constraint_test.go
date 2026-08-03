@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -19,12 +21,12 @@ const (
 	testFixtureProviderCacheWeakConstraint = "fixtures/provider-cache/weak-constraint"
 )
 
-// TestTerragruntProviderCacheWeakConstraint tests that provider cache preserves
+// TestTFTerragruntProviderCacheWeakConstraint tests that provider cache preserves
 // module constraints instead of pinning exact versions in .terraform.lock.hcl files.
 // Reproduces and validates the fix for GitHub issue #4512.
 //
 //nolint:paralleltest,tparallel
-func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
+func TestTFTerragruntProviderCacheWeakConstraint(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheWeakConstraint)
@@ -35,12 +37,24 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	t.Run("initial_setup_preserves_module_constraints", func(t *testing.T) {
-		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath))
+		helpers.RunTerragrunt(
+			t,
+			fmt.Sprintf(
+				"terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
+				providerCacheDir,
+				appPath,
+			),
+		)
 
 		constraintsValue := extractConstraintsFromLockFile(t, appPath, "cloudflare/cloudflare")
 
 		expectedConstraints := "~> 4.0.0"
-		assert.Equal(t, expectedConstraints, constraintsValue, "Initial lock file should preserve module's required_providers constraints")
+		assert.Equal(
+			t,
+			expectedConstraints,
+			constraintsValue,
+			"Initial lock file should preserve module's required_providers constraints",
+		)
 	})
 
 	t.Run("upgrade_updates_constraints_to_match_module", func(t *testing.T) {
@@ -50,8 +64,17 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 		require.NoError(t, err)
 
 		// Replace the version constraint
-		updatedContent := strings.ReplaceAll(string(originalContent), `version = "~> 4.0"`, `version = "~> 4.40"`)
-		require.NotEqual(t, string(originalContent), updatedContent, "Content should be different after replacement")
+		updatedContent := strings.ReplaceAll(
+			string(originalContent),
+			`version = "~> 4.0"`,
+			`version = "~> 4.40"`,
+		)
+		require.NotEqual(
+			t,
+			string(originalContent),
+			updatedContent,
+			"Content should be different after replacement",
+		)
 
 		err = os.WriteFile(mainTfPath, []byte(updatedContent), 0644)
 		require.NoError(t, err)
@@ -60,23 +83,52 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run terragrunt init and check that the lock file isn't updated
-		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath))
+		helpers.RunTerragrunt(
+			t,
+			fmt.Sprintf(
+				"terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
+				providerCacheDir,
+				appPath,
+			),
+		)
 		lockFilePostInit, err := os.ReadFile(filepath.Join(appPath, ".terraform.lock.hcl"))
 		require.NoError(t, err)
-		assert.Equal(t, string(lockFilePreInit), string(lockFilePostInit), "Lock file should not be updated")
+		assert.Equal(
+			t,
+			string(lockFilePreInit),
+			string(lockFilePostInit),
+			"Lock file should not be updated",
+		)
 
 		// Run terragrunt init -upgrade to update the lock file
-		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init -upgrade --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath))
+		helpers.RunTerragrunt(
+			t,
+			fmt.Sprintf(
+				"terragrunt init -upgrade --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
+				providerCacheDir,
+				appPath,
+			),
+		)
 
 		lockFilePostUpgrade, err := os.ReadFile(filepath.Join(appPath, ".terraform.lock.hcl"))
 		require.NoError(t, err)
-		assert.NotEqual(t, string(lockFilePostInit), string(lockFilePostUpgrade), "Lock file should be updated")
+		assert.NotEqual(
+			t,
+			string(lockFilePostInit),
+			string(lockFilePostUpgrade),
+			"Lock file should be updated",
+		)
 
 		// Verify the lock file constraints are updated to match the module
 		constraintsValue := extractConstraintsFromLockFile(t, appPath, "cloudflare/cloudflare")
 
 		expectedConstraints := "~> 4.40.0"
-		assert.Equal(t, expectedConstraints, constraintsValue, "Constraints should be updated to match the module's required_providers")
+		assert.Equal(
+			t,
+			expectedConstraints,
+			constraintsValue,
+			"Constraints should be updated to match the module's required_providers",
+		)
 	})
 
 	t.Run("fresh_start_uses_module_constraints", func(t *testing.T) {
@@ -92,12 +144,24 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath))
+		helpers.RunTerragrunt(
+			t,
+			fmt.Sprintf(
+				"terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
+				providerCacheDir,
+				appPath,
+			),
+		)
 
 		constraintsValue := extractConstraintsFromLockFile(t, appPath, "cloudflare/cloudflare")
 
 		expectedConstraints := "~> 4.40.0"
-		assert.Equal(t, expectedConstraints, constraintsValue, "Fresh lock file should use module's required_providers constraints")
+		assert.Equal(
+			t,
+			expectedConstraints,
+			constraintsValue,
+			"Fresh lock file should use module's required_providers constraints",
+		)
 	})
 }
 
@@ -112,17 +176,23 @@ func extractConstraintsFromLockFile(t *testing.T, appPath string, providerName s
 	lockfileContent, err := os.ReadFile(lockfilePath)
 	require.NoError(t, err)
 
-	lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
+	lockfile, diags := hclwrite.ParseConfig(
+		lockfileContent,
+		lockfilePath,
+		hcl.Pos{Line: 1, Column: 1},
+	)
 	require.False(t, diags.HasErrors(), "Lock file should be valid HCL")
 
 	// Find the provider block (handle both short and full provider names)
 	var providerBlock *hclwrite.Block
 	if strings.Contains(providerName, "/") {
 		// Full name like "cloudflare/cloudflare"
-		providerBlock = lockfile.Body().FirstMatchingBlock("provider", []string{"registry.terraform.io/" + providerName})
+		providerBlock = lockfile.Body().
+			FirstMatchingBlock("provider", []string{"registry.terraform.io/" + providerName})
 		if providerBlock == nil {
 			// Try OpenTofu registry as well
-			providerBlock = lockfile.Body().FirstMatchingBlock("provider", []string{"registry.opentofu.org/" + providerName})
+			providerBlock = lockfile.Body().
+				FirstMatchingBlock("provider", []string{"registry.opentofu.org/" + providerName})
 		}
 	} else {
 		// Short name - search for matching block

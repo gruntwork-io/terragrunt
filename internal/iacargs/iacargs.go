@@ -173,7 +173,8 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 
 		if current == target {
 			// Skip value too if: no =value, next entry is a value, and it's a known value-taking flag
-			hasNextValue := !strings.Contains(f, "=") && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-")
+			hasNextValue := !strings.Contains(f, "=") && i+1 < len(a.Flags) &&
+				!strings.HasPrefix(a.Flags[i+1], "-")
 			if hasNextValue && slices.Contains(valueTakingFlags, current) {
 				i++ // skip the value
 			}

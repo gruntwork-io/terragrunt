@@ -6,9 +6,12 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 func TestParseEnviron(t *testing.T) {
@@ -55,10 +58,53 @@ func TestParseEnviron(t *testing.T) {
 	}
 }
 
+// TestVenvRequireFS pins the FS contract: the zero Venv panics with the
+// sentinel, a populated Venv passes.
+func TestVenvRequireFS(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
+		(&venv.Venv{}).RequireFS()
+	})
+
+	assert.NotPanics(t, func() {
+		(&venv.Venv{FS: vfs.NewOSFS()}).RequireFS()
+	})
+}
+
+// TestVenvRequireExec pins the Exec contract. A Venv with FS but no Exec
+// must still panic; only a populated Exec satisfies the check.
+func TestVenvRequireExec(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvExecUnset, func() {
+		(&venv.Venv{FS: vfs.NewOSFS()}).RequireExec()
+	})
+
+	assert.NotPanics(t, func() {
+		(&venv.Venv{Exec: vexec.NewOSExec()}).RequireExec()
+	})
+}
+
+// TestWithEnvRejectsNil pins the argument contract: WithEnv asserts a
+// non-nil env instead of silently substituting an empty map, and
+// WithEnvCloned asserts a non-nil receiver Env before cloning.
+func TestWithEnvRejectsNil(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvEnvNil, func() {
+		(&venv.Venv{}).WithEnv(nil)
+	})
+
+	assert.PanicsWithValue(t, venv.ErrVenvEnvUnset, func() {
+		(&venv.Venv{}).WithEnvCloned()
+	})
+}
+
 func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	t.Parallel()
 
-	v := venv.Venv{Env: map[string]string{"FOO": "bar"}}
+	v := &venv.Venv{Env: map[string]string{"FOO": "bar"}}
 
 	clone := v.WithEnvCloned()
 	clone.Env["AWS_ACCESS_KEY_ID"] = "leaked"
@@ -117,12 +163,12 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	t.Parallel()
 
 	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
-		venv.Venv{}.RequireFS()
+		(&venv.Venv{}).RequireFS()
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvGOOSUnset, func() {
-		venv.Venv{}.RequireGOOS()
+		(&venv.Venv{}).RequireGOOS()
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
-		venv.Venv{}.RequireUserHomeDir()
+		(&venv.Venv{}).RequireUserHomeDir()
 	})
 }

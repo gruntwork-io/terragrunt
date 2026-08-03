@@ -16,7 +16,10 @@ type UnexpectedBodyTypeError struct {
 }
 
 func (e UnexpectedBodyTypeError) Error() string {
-	return fmt.Sprintf("unexpected HCL body type in %s (expected native HCL syntax, not JSON)", e.FilePath)
+	return fmt.Sprintf(
+		"unexpected HCL body type in %s (expected native HCL syntax, not JSON)",
+		e.FilePath,
+	)
 }
 
 // DuplicateUnitNameError indicates that multiple units with the same name were
@@ -283,7 +286,11 @@ type StackRecursionDepthExceededError struct {
 }
 
 func (e StackRecursionDepthExceededError) Error() string {
-	return fmt.Sprintf("nested stack expansion exceeded maximum recursion depth %d at %q", e.MaxDepth, e.StackDir)
+	return fmt.Sprintf(
+		"nested stack expansion exceeded maximum recursion depth %d at %q",
+		e.MaxDepth,
+		e.StackDir,
+	)
 }
 
 // PartialEvalUnresolvedError indicates that partial evaluation could not produce a final cty value.

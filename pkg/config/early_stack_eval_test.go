@@ -79,7 +79,12 @@ func TestEarlyStackParseFunctions_CoversAllTerragruntFunctions(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, newStackParsePctx(t, baseDir))
+	funcs, err := config.EarlyStackParseFunctions(
+		t.Context(),
+		logger.CreateLogger(),
+		baseDir,
+		newStackParsePctx(t, baseDir),
+	)
 	require.NoError(t, err)
 
 	for _, name := range terragruntFuncNames {
@@ -92,10 +97,17 @@ func TestEarlyStackParseFunctions_PureEvaluatesNormally(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, newStackParsePctx(t, baseDir))
+	funcs, err := config.EarlyStackParseFunctions(
+		t.Context(),
+		logger.CreateLogger(),
+		baseDir,
+		newStackParsePctx(t, baseDir),
+	)
 	require.NoError(t, err)
 
-	got, err := funcs[config.FuncNameStartsWith].Call([]cty.Value{cty.StringVal("foobar"), cty.StringVal("foo")})
+	got, err := funcs[config.FuncNameStartsWith].Call(
+		[]cty.Value{cty.StringVal("foobar"), cty.StringVal("foo")},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, cty.True, got)
 }
@@ -119,7 +131,12 @@ func TestEarlyStackParseFunctions_GetTerragruntDirReturnsBaseDir(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, newStackParsePctx(t, baseDir))
+	funcs, err := config.EarlyStackParseFunctions(
+		t.Context(),
+		logger.CreateLogger(),
+		baseDir,
+		newStackParsePctx(t, baseDir),
+	)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerragruntDir].Call(nil)
@@ -135,7 +152,12 @@ func TestEarlyStackParseFunctions_GetWorkingDirOverride(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, newStackParsePctx(t, baseDir))
+	funcs, err := config.EarlyStackParseFunctions(
+		t.Context(),
+		logger.CreateLogger(),
+		baseDir,
+		newStackParsePctx(t, baseDir),
+	)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetWorkingDir].Call(nil)
@@ -161,7 +183,12 @@ func TestStackParseFunctionsFrom_OverridesWithoutMutating(t *testing.T) {
 
 	got, err := out[config.FuncNameGetWorkingDir].Call(nil)
 	require.NoError(t, err)
-	assert.Equal(t, cty.StringVal("/base/dir"), got, "get_working_dir must be overridden to the stack dir")
+	assert.Equal(
+		t,
+		cty.StringVal("/base/dir"),
+		got,
+		"get_working_dir must be overridden to the stack dir",
+	)
 
 	assert.Contains(t, out, "other", "other functions must be preserved")
 
@@ -225,7 +252,12 @@ func TestEarlyStackParseFunctions_PathRelativeToIncludeFallback(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, newStackParsePctx(t, baseDir))
+	funcs, err := config.EarlyStackParseFunctions(
+		t.Context(),
+		logger.CreateLogger(),
+		baseDir,
+		newStackParsePctx(t, baseDir),
+	)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNamePathRelativeToInclude].Call(nil)
@@ -290,14 +322,24 @@ unit "vpc" {
 	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcsFor)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	assert.True(t, strings.HasSuffix(paths[0], "computed-path"), "expected path to end with 'computed-path', got %q", paths[0])
+	assert.True(
+		t,
+		strings.HasSuffix(paths[0], "computed-path"),
+		"expected path to end with 'computed-path', got %q",
+		paths[0],
+	)
 }
 
 func TestEarlyStackParseFunctions_TerraformStdlibIncluded(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, newStackParsePctx(t, baseDir))
+	funcs, err := config.EarlyStackParseFunctions(
+		t.Context(),
+		logger.CreateLogger(),
+		baseDir,
+		newStackParsePctx(t, baseDir),
+	)
 	require.NoError(t, err)
 
 	// `format` is a Terraform stdlib function. Its presence proves the stdlib

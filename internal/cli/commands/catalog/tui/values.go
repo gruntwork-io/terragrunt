@@ -261,7 +261,12 @@ func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, erro
 // Returns written=true only when a new file was created. An invalid HCL
 // fragment in values is surfaced as an error. Callers (typically the
 // interactive form) validate user input before reaching this point.
-func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[string]string) (bool, error) {
+func WriteValuesFile(
+	fsys vfs.FS,
+	dir string,
+	refs ValuesReferences,
+	values map[string]string,
+) (bool, error) {
 	if refs.IsEmpty() {
 		return false, nil
 	}
@@ -293,7 +298,12 @@ func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[
 		required := hclwrite.NewEmptyFile()
 
 		for _, name := range sortedRequired {
-			if err := writeValueAttribute(required.Body(), name, values[name], cty.StringVal("TODO")); err != nil {
+			if err := writeValueAttribute(
+				required.Body(),
+				name,
+				values[name],
+				cty.StringVal("TODO"),
+			); err != nil {
 				return false, err
 			}
 		}
@@ -312,7 +322,12 @@ func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[
 		optional := hclwrite.NewEmptyFile()
 
 		for _, o := range sortedOptional {
-			if err := writeValueAttribute(optional.Body(), o.Name, values[o.Name], o.Default); err != nil {
+			if err := writeValueAttribute(
+				optional.Body(),
+				o.Name,
+				values[o.Name],
+				o.Default,
+			); err != nil {
 				return false, err
 			}
 		}

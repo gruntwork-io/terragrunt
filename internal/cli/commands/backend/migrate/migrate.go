@@ -26,7 +26,7 @@ import (
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	srcPath, dstPath string,
 	opts *options.TerragruntOptions,
 ) error {
@@ -111,7 +111,12 @@ func Run(
 	dstOpts.WorkingDir = dstPctx.WorkingDir
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcV, configbridge.RemoteStateOptsFromOpts(srcOpts))
+		enabled, err := srcRemoteState.IsVersionControlEnabled(
+			ctx,
+			l,
+			srcV,
+			configbridge.RemoteStateOptsFromOpts(srcOpts),
+		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}

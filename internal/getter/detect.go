@@ -84,7 +84,9 @@ func DetectWith(source, pwd string, detectors []Detector) (string, error) {
 // prefix onto a detector's result. The detector's own subdir composes ahead
 // of the caller's so chained "//" segments retain their order, and a
 // caller-supplied getForce wins over the detector's.
-func rewriteDetectedResult(result, detectForce, detectSubdir, subDir, getForce string) (string, error) {
+func rewriteDetectedResult(
+	result, detectForce, detectSubdir, subDir, getForce string,
+) (string, error) {
 	if detectSubdir != "" {
 		subDir = path.Join(detectSubdir, subDir)
 	}

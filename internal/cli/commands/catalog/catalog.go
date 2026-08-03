@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -25,12 +26,45 @@ const urlChannelBufferSize = 10
 
 // Run is the main entry point for the catalog command.
 //
-// It launches the TUI immediately with a loading screen, then loads components
-// in the background. When an explicit repo URL is given, only that URL is
-// loaded; otherwise source discovery walks the configuration to find catalog
-// and source URLs. As components are found, the TUI transitions to the
-// component list, or shows a welcome screen when nothing is discovered.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, repoURL string) error {
+// When an explicit repo URL is given, only that URL is loaded; otherwise
+// source discovery walks the configuration to find catalog and source URLs.
+// The components that turn up are either browsed in the TUI or written to
+// standard output, depending on the requested format.
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *Options,
+	repoURL string,
+) error {
+	if opts.Format == FormatTUI {
+		return runTUI(ctx, l, v, opts.TerragruntOptions, repoURL)
+	}
+
+	renderer, err := format.NewRenderer(opts.Format)
+	if err != nil {
+		return err
+	}
+
+	tempDirs := tui.NewTempDirTracker(v.FS)
+	defer tempDirs.Cleanup(l)
+
+	return Stream(
+		ctx, l, v.Writers.Writer, renderer,
+		newLoadFunc(l, v, opts.TerragruntOptions, tempDirs, repoURL),
+	)
+}
+
+// runTUI launches the TUI immediately with a loading screen, then loads
+// components in the background. As components are found, the TUI transitions
+// to the component list, or shows a welcome screen when nothing is discovered.
+func runTUI(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	repoURL string,
+) error {
 	// Fail fast with a clear error when there is no terminal to attach the
 	// TUI to, instead of surfacing bubbletea's raw TTY failure.
 	if err := tui.EnsureOSTTY(l); err != nil {
@@ -42,23 +76,35 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 
 	return tui.Run(
 		ctx, l, v, opts, v.Writers.ErrWriter,
-		func(
-			ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
-		) error {
-			if repoURL != "" {
-				status("Loading " + repoURL + "...")
+		newLoadFunc(l, v, opts, tempDirs, repoURL),
+	)
+}
 
-				return tui.LoadURL(ctx, l, v, opts, tempDirs, repoURL, componentCh)
-			}
+// newLoadFunc returns the loader that every output format drives.
+func newLoadFunc(
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	tempDirs *tui.TempDirTracker,
+	repoURL string,
+) tui.LoadFunc {
+	return func(
+		ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
+	) error {
+		if repoURL != "" {
+			status("Loading " + repoURL + "...")
 
-			return discoverAndLoad(ctx, l, v, opts, tempDirs, status, componentCh)
-		})
+			return tui.LoadURL(ctx, l, v, opts, tempDirs, repoURL, componentCh)
+		}
+
+		return discoverAndLoad(ctx, l, v, opts, tempDirs, status, componentCh)
+	}
 }
 
 // discoverAndLoad runs the two concurrent URL discoverers and loads each
 // distinct repo URL they surface into componentCh, bounded by parallelism.
 func discoverAndLoad(
-	ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions,
+	ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions,
 	tempDirs *tui.TempDirTracker,
 	status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 ) error {
@@ -148,7 +194,12 @@ func discoverAndLoad(
 
 // discoverCatalogConfigURLs reads catalog URLs from the root config and
 // sends each to urlCh.
-func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
+func discoverCatalogConfigURLs(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	urlCh chan<- string,
+) error {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
@@ -170,7 +221,12 @@ func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, opts *options.
 
 // discoverSourceFileURLs walks terragrunt.hcl files, extracts
 // terraform.source URLs, and sends each repo URL to urlCh.
-func discoverSourceFileURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
+func discoverSourceFileURLs(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	urlCh chan<- string,
+) error {
 	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)

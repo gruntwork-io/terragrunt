@@ -21,9 +21,10 @@ import (
 type Server struct {
 	*router.Router
 	*Config
-	ProviderController *controllers.ProviderController
-	ModuleController   *controllers.ModuleController
-	services           []services.Service
+	ProviderController   *controllers.ProviderController
+	ModuleController     *controllers.ModuleController
+	DownloaderController *controllers.DownloaderController
+	services             []services.Service
 }
 
 // NewServer returns a new Server instance.
@@ -32,10 +33,10 @@ func NewServer(opts ...Option) *Server {
 
 	authMiddleware := middleware.KeyAuth(cfg.token)
 
-	downloaderController := &controllers.DownloaderController{
-		ProxyProviderHandler: cfg.proxyProviderHandler,
-		ProviderService:      cfg.providerService,
-	}
+	downloaderController := controllers.NewDownloaderController(
+		cfg.providerService,
+		cfg.proxyProviderHandler,
+	)
 
 	providerController := &controllers.ProviderController{
 		AuthMiddleware:              authMiddleware,
@@ -63,7 +64,7 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	rootRouter := router.New()
-	rootRouter.Use(middleware.Logger(cfg.logger))
+	rootRouter.Use(middleware.Logger(cfg.logger, downloaderController.Segment()))
 	rootRouter.Use(middleware.Recover(cfg.logger))
 	rootRouter.Register(discoveryController, downloaderController)
 
@@ -75,18 +76,22 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	return &Server{
-		Router:             rootRouter,
-		Config:             cfg,
-		services:           []services.Service{cfg.providerService},
-		ProviderController: providerController,
-		ModuleController:   moduleController,
+		Router:               rootRouter,
+		Config:               cfg,
+		services:             []services.Service{cfg.providerService},
+		ProviderController:   providerController,
+		ModuleController:     moduleController,
+		DownloaderController: downloaderController,
 	}
 }
 
 // DiscoveryURL looks for the first handler that can handle the given `registryName`,
 // which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
 // If the handler is found, tries to discover its API endpoints otherwise return the default registry URLs.
-func (server *Server) DiscoveryURL(ctx context.Context, registryName string) (*handlers.RegistryURLs, error) {
+func (server *Server) DiscoveryURL(
+	ctx context.Context,
+	registryName string,
+) (*handlers.RegistryURLs, error) {
 	return server.providerHandlers.DiscoveryURL(ctx, registryName)
 }
 
@@ -125,7 +130,10 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		// The parent ctx is by definition already cancelled here; detach from
 		// its cancellation (preserving any values) so http.Server.Shutdown gets
 		// the full shutdownTimeout to drain in-flight requests.
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), server.shutdownTimeout)
+		shutdownCtx, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			server.shutdownTimeout,
+		)
 		defer cancel()
 
 		if err := server.Shutdown(shutdownCtx); err != nil {

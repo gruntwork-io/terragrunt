@@ -28,7 +28,12 @@ func TestGetTFVersionOpenTofu(t *testing.T) {
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\non darwin_arm64\n")}
 	})
 
-	_, ver, impl, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("tofu"))
+	_, ver, impl, err := run.GetTFVersion(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		newVersionTFOptions("tofu"),
+	)
 	require.NoError(t, err)
 	assert.Equal(t, tfimpl.OpenTofu, impl)
 	assert.Equal(t, "1.7.2", ver.String())
@@ -41,7 +46,12 @@ func TestGetTFVersionTerraform(t *testing.T) {
 		return vexec.Result{Stdout: []byte("Terraform v1.5.7\non linux_amd64\n")}
 	})
 
-	_, ver, impl, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("terraform"))
+	_, ver, impl, err := run.GetTFVersion(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		newVersionTFOptions("terraform"),
+	)
 	require.NoError(t, err)
 	assert.Equal(t, tfimpl.Terraform, impl)
 	assert.Equal(t, "1.5.7", ver.String())
@@ -58,9 +68,19 @@ func TestGetTFVersionUnknownImplFallsBackToTerraform(t *testing.T) {
 		return vexec.Result{Stdout: []byte("Custom-Fork v0.42.0\n")}
 	})
 
-	_, ver, impl, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("custom-fork"))
+	_, ver, impl, err := run.GetTFVersion(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		newVersionTFOptions("custom-fork"),
+	)
 	require.NoError(t, err)
-	assert.Equal(t, tfimpl.Terraform, impl, "unknown impl must fall back to Terraform, not surface Unknown")
+	assert.Equal(
+		t,
+		tfimpl.Terraform,
+		impl,
+		"unknown impl must fall back to Terraform, not surface Unknown",
+	)
 	assert.Equal(t, "0.42.0", ver.String())
 }
 
@@ -71,7 +91,12 @@ func TestGetTFVersionInvalidOutput(t *testing.T) {
 		return vexec.Result{Stdout: []byte("not a version line\n")}
 	})
 
-	_, _, _, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("tofu"))
+	_, _, _, err := run.GetTFVersion(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		newVersionTFOptions("tofu"),
+	)
 	require.Error(t, err)
 }
 
@@ -82,7 +107,12 @@ func TestGetTFVersionPropagatesExecError(t *testing.T) {
 		return vexec.Result{ExitCode: 1, Stderr: []byte("binary missing\n")}
 	})
 
-	_, _, _, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("tofu"))
+	_, _, _, err := run.GetTFVersion(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		newVersionTFOptions("tofu"),
+	)
 	require.Error(t, err)
 }
 
@@ -106,7 +136,12 @@ func TestGetTFVersionStripsTFCLIArgs(t *testing.T) {
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 	}).WithEnv(env)
 
-	_, _, _, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("tofu"))
+	_, _, _, err := run.GetTFVersion(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		newVersionTFOptions("tofu"),
+	)
 	require.NoError(t, err)
 
 	got, _ := observed.Load().([]string)

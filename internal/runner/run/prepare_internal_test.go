@@ -77,9 +77,12 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 			// not via -backend-config= CLI args.
 			name: "disable_init=true, generate=true - no backend-config args",
 			remoteStateCfg: &remotestate.Config{
-				BackendName:   "s3",
-				DisableInit:   true,
-				Generate:      &remotestate.ConfigGenerate{Path: "backend.tf", IfExists: "overwrite"},
+				BackendName: "s3",
+				DisableInit: true,
+				Generate: &remotestate.ConfigGenerate{
+					Path:     "backend.tf",
+					IfExists: "overwrite",
+				},
 				BackendConfig: s3Config,
 			},
 			backendBootstrap:  false,
@@ -101,7 +104,13 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				cfg.RemoteState = *remotestate.New(tc.remoteStateCfg)
 			}
 
-			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, &cfg)
+			err := prepareInitCommandRunCfg(
+				t.Context(),
+				logger.CreateLogger(),
+				venv.OSVenv(),
+				opts,
+				&cfg,
+			)
 
 			require.NoError(t, err)
 
@@ -124,7 +133,12 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 					}
 				}
 
-				assert.True(t, hasBackendConfig, "expected -backend-config= flag in CLI args, got: %v", allArgs)
+				assert.True(
+					t,
+					hasBackendConfig,
+					"expected -backend-config= flag in CLI args, got: %v",
+					allArgs,
+				)
 			} else {
 				assert.Empty(t, allArgs, "expected no CLI args, got: %v", allArgs)
 			}

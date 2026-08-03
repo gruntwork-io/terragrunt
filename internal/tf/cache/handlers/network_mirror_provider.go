@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -24,16 +25,26 @@ type NetworkMirrorProviderHandler struct {
 	networkMirrorURL *url.URL
 }
 
-func NewNetworkMirrorProviderHandler(logger log.Logger, networkMirror *cliconfig.ProviderInstallationNetworkMirror, credsSource *cliconfig.CredentialsSource) (*NetworkMirrorProviderHandler, error) {
+func NewNetworkMirrorProviderHandler(
+	l log.Logger,
+	c vhttp.Client,
+	networkMirror *cliconfig.ProviderInstallationNetworkMirror,
+	credsSource *cliconfig.CredentialsSource,
+) (*NetworkMirrorProviderHandler, error) {
 	networkMirrorURL, err := url.Parse(networkMirror.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse network mirror URL %q: %w", networkMirror.URL, err)
 	}
 
 	return &NetworkMirrorProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(logger, networkMirror.Include, networkMirror.Exclude),
-		client:                helpers.NewClient(credsSource),
-		networkMirrorURL:      networkMirrorURL,
+		CommonProviderHandler: NewCommonProviderHandler(
+			l,
+			c,
+			networkMirror.Include,
+			networkMirror.Exclude,
+		),
+		client:           helpers.NewClient(c, credsSource),
+		networkMirrorURL: networkMirrorURL,
 	}, nil
 }
 
@@ -42,13 +53,20 @@ func (handler *NetworkMirrorProviderHandler) String() string {
 }
 
 // GetVersions implements ProviderHandler.GetVersions
-func (handler *NetworkMirrorProviderHandler) GetVersions(ctx context.Context, provider *models.Provider) (models.Versions, error) {
+func (handler *NetworkMirrorProviderHandler) GetVersions(
+	ctx context.Context,
+	provider *models.Provider,
+) (models.Versions, error) {
 	var mirrorData struct {
 		Versions map[string]struct{} `json:"versions"`
 	}
 
 	reqPath := path.Join(provider.RegistryName, provider.Namespace, provider.Name, "index.json")
-	reqURL := fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL.String(), "/"), reqPath)
+	reqURL := fmt.Sprintf(
+		"%s/%s",
+		strings.TrimRight(handler.networkMirrorURL.String(), "/"),
+		reqPath,
+	)
 
 	if err := handler.client.Do(ctx, http.MethodGet, reqURL, &mirrorData); err != nil {
 		return nil, err
@@ -67,7 +85,10 @@ func (handler *NetworkMirrorProviderHandler) GetVersions(ctx context.Context, pr
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
-func (handler *NetworkMirrorProviderHandler) GetPlatform(ctx context.Context, provider *models.Provider) (*models.ResponseBody, error) {
+func (handler *NetworkMirrorProviderHandler) GetPlatform(
+	ctx context.Context,
+	provider *models.Provider,
+) (*models.ResponseBody, error) {
 	var mirrorData struct {
 		Archives map[string]struct {
 			URL    string   `json:"url"`
@@ -75,8 +96,17 @@ func (handler *NetworkMirrorProviderHandler) GetPlatform(ctx context.Context, pr
 		} `json:"archives"`
 	}
 
-	reqPath := path.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version+".json")
-	reqURL := fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL.String(), "/"), reqPath)
+	reqPath := path.Join(
+		provider.RegistryName,
+		provider.Namespace,
+		provider.Name,
+		provider.Version+".json",
+	)
+	reqURL := fmt.Sprintf(
+		"%s/%s",
+		strings.TrimRight(handler.networkMirrorURL.String(), "/"),
+		reqPath,
+	)
 
 	if err := handler.client.Do(ctx, http.MethodGet, reqURL, &mirrorData); err != nil {
 		return nil, err

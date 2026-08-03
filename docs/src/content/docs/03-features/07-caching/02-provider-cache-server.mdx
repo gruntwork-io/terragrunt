@@ -93,7 +93,7 @@ terragrunt apply
     - [host](https://github.com/hashicorp/terraform/issues/28309) forces OpenTofu/Terraform to [forward](#how-forwarding-requests-through-the-provider-cache-server-works) all provider requests through the Terragrunt Provider Cache server. The address link contains [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) and is unique for each module, used by Terragrunt Provider Cache server to associate modules with the requested providers.
   - Set environment variables:
     - [TF_CLI_CONFIG_FILE](https://opentofu.org/docs/cli/config/environment-variables/#tf_plugin_cache_dir) sets to use just created local CLI config `.terragrunt-cache/.terraformrc`
-    - [TF*TOKEN*\*](https://opentofu.org/docs/cli/config/config-file/#environment-variable-credentials) sets per-remote-registry tokens for authentication to Terragrunt Provider Cache server.
+    - [`TF_TOKEN_*`](https://opentofu.org/docs/cli/config/config-file/#environment-variable-credentials) sets per-remote-registry tokens for authentication to Terragrunt Provider Cache server.
 
 - Any time Terragrunt is going to run `init`:
   - Call `tofu/terraform init`. This gets OpenTofu/Terraform to request all the providers it needs from the Terragrunt Provider Cache server.

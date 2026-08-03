@@ -82,6 +82,12 @@ func TestDetectRemoteSourceRewritesProduceGitPrefixForKnownHosts(t *testing.T) {
 	for _, src := range knownHostShorthands {
 		got, err := cas.DetectRemoteSource(src)
 		require.NoError(t, err, "src=%s", src)
-		require.True(t, strings.HasPrefix(got, "git::"), "src=%s rewritten to %q which lacks git:: prefix", src, got)
+		require.True(
+			t,
+			strings.HasPrefix(got, "git::"),
+			"src=%s rewritten to %q which lacks git:: prefix",
+			src,
+			got,
+		)
 	}
 }

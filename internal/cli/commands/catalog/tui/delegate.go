@@ -268,7 +268,12 @@ func styleTitleDesc(
 
 // styleMetaLine wraps the metadata content in the appropriate style. Selected
 // items inherit from SelectedTitle so the left border aligns with the title.
-func styleMetaLine(s *list.DefaultItemStyles, content string, selected bool, padL, padR int) string {
+func styleMetaLine(
+	s *list.DefaultItemStyles,
+	content string,
+	selected bool,
+	padL, padR int,
+) string {
 	if selected {
 		return s.SelectedTitle.
 			Foreground(lipgloss.NoColor{}).

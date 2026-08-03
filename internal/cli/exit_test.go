@@ -27,15 +27,30 @@ func TestExitCodeFor(t *testing.T) {
 		t.Parallel()
 
 		l := logger.CreateLogger()
-		assert.Equal(t, 0, cli.ExitCodeFor(l, []string{"terragrunt"}, "1.7.9", nil, 0, newReporter()))
-		assert.Equal(t, 2, cli.ExitCodeFor(l, []string{"terragrunt"}, "1.7.9", nil, 2, newReporter()))
+		assert.Equal(
+			t,
+			0,
+			cli.ExitCodeFor(l, []string{"terragrunt"}, "1.7.9", nil, 0, newReporter()),
+		)
+		assert.Equal(
+			t,
+			2,
+			cli.ExitCodeFor(l, []string{"terragrunt"}, "1.7.9", nil, 2, newReporter()),
+		)
 	})
 
 	t.Run("regular error returns 1 with logged message", func(t *testing.T) {
 		t.Parallel()
 
 		l, buf := newBufferLogger()
-		code := cli.ExitCodeFor(l, []string{"terragrunt"}, "1.7.9", errors.New("regular failure"), 0, newReporter())
+		code := cli.ExitCodeFor(
+			l,
+			[]string{"terragrunt"},
+			"1.7.9",
+			errors.New("regular failure"),
+			0,
+			newReporter(),
+		)
 
 		assert.Equal(t, 1, code)
 		assert.Contains(t, buf.String(), "regular failure")
@@ -89,7 +104,11 @@ func newBufferLogger() (log.Logger, *bytes.Buffer) {
 	buf := new(bytes.Buffer)
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 
-	return log.New(log.WithOutput(buf), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter)), buf
+	return log.New(
+		log.WithOutput(buf),
+		log.WithLevel(log.InfoLevel),
+		log.WithFormatter(formatter),
+	), buf
 }
 
 func newReporter() *panicreport.Reporter {

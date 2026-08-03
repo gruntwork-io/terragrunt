@@ -16,7 +16,9 @@ type ProviderInstallation struct {
 
 type ProviderInstallationMethods []ProviderInstallationMethod
 
-func (methods ProviderInstallationMethods) Merge(withMethods ...ProviderInstallationMethod) ProviderInstallationMethods {
+func (methods ProviderInstallationMethods) Merge(
+	withMethods ...ProviderInstallationMethod,
+) ProviderInstallationMethods {
 	mergedMethods := methods
 
 	for _, withMethod := range withMethods {
@@ -73,7 +75,7 @@ type ProviderInstallationMethod interface {
 type ProviderInstallationDirect struct {
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
-	Name    string    `hcl:",label" json:"Name"`
+	Name    string    `hcl:",label"           json:"Name"`
 }
 
 func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallationDirect {
@@ -155,7 +157,10 @@ func (method *ProviderInstallationDirect) RemoveExclude(addrs []string) {
 		return
 	}
 
-	*method.Exclude = slices.DeleteFunc(*method.Exclude, func(item string) bool { return slices.Contains(addrs, item) })
+	*method.Exclude = slices.DeleteFunc(
+		*method.Exclude,
+		func(item string) bool { return slices.Contains(addrs, item) },
+	)
 
 	if len(*method.Exclude) == 0 {
 		method.Exclude = nil
@@ -167,7 +172,10 @@ func (method *ProviderInstallationDirect) RemoveInclude(addrs []string) {
 		return
 	}
 
-	*method.Include = slices.DeleteFunc(*method.Include, func(item string) bool { return slices.Contains(addrs, item) })
+	*method.Include = slices.DeleteFunc(
+		*method.Include,
+		func(item string) bool { return slices.Contains(addrs, item) },
+	)
 
 	if len(*method.Include) == 0 {
 		method.Include = nil
@@ -183,11 +191,14 @@ func (method *ProviderInstallationDirect) String() string {
 type ProviderInstallationFilesystemMirror struct {
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
-	Name    string    `hcl:",label" json:"Name"`
-	Path    string    `hcl:"path,attr" json:"Path"`
+	Name    string    `hcl:",label"           json:"Name"`
+	Path    string    `hcl:"path,attr"        json:"Path"`
 }
 
-func NewProviderInstallationFilesystemMirror(path string, include, exclude []string) *ProviderInstallationFilesystemMirror {
+func NewProviderInstallationFilesystemMirror(
+	path string,
+	include, exclude []string,
+) *ProviderInstallationFilesystemMirror {
 	res := &ProviderInstallationFilesystemMirror{
 		Name: "filesystem_mirror",
 		Path: path,
@@ -268,7 +279,10 @@ func (method *ProviderInstallationFilesystemMirror) RemoveExclude(addrs []string
 		return
 	}
 
-	*method.Exclude = slices.DeleteFunc(*method.Exclude, func(item string) bool { return slices.Contains(addrs, item) })
+	*method.Exclude = slices.DeleteFunc(
+		*method.Exclude,
+		func(item string) bool { return slices.Contains(addrs, item) },
+	)
 
 	if len(*method.Exclude) == 0 {
 		method.Exclude = nil
@@ -280,7 +294,10 @@ func (method *ProviderInstallationFilesystemMirror) RemoveInclude(addrs []string
 		return
 	}
 
-	*method.Include = slices.DeleteFunc(*method.Include, func(item string) bool { return slices.Contains(addrs, item) })
+	*method.Include = slices.DeleteFunc(
+		*method.Include,
+		func(item string) bool { return slices.Contains(addrs, item) },
+	)
 
 	if len(*method.Include) == 0 {
 		method.Include = nil
@@ -296,11 +313,14 @@ func (method *ProviderInstallationFilesystemMirror) String() string {
 type ProviderInstallationNetworkMirror struct {
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
-	Name    string    `hcl:",label" json:"Name"`
-	URL     string    `hcl:"url,attr" json:"URL"`
+	Name    string    `hcl:",label"           json:"Name"`
+	URL     string    `hcl:"url,attr"         json:"URL"`
 }
 
-func NewProviderInstallationNetworkMirror(url string, include, exclude []string) *ProviderInstallationNetworkMirror {
+func NewProviderInstallationNetworkMirror(
+	url string,
+	include, exclude []string,
+) *ProviderInstallationNetworkMirror {
 	res := &ProviderInstallationNetworkMirror{
 		Name: "network_mirror",
 		URL:  url,
@@ -381,7 +401,10 @@ func (method *ProviderInstallationNetworkMirror) RemoveExclude(addrs []string) {
 		return
 	}
 
-	*method.Exclude = slices.DeleteFunc(*method.Exclude, func(item string) bool { return slices.Contains(addrs, item) })
+	*method.Exclude = slices.DeleteFunc(
+		*method.Exclude,
+		func(item string) bool { return slices.Contains(addrs, item) },
+	)
 
 	if len(*method.Exclude) == 0 {
 		method.Exclude = nil
@@ -393,7 +416,10 @@ func (method *ProviderInstallationNetworkMirror) RemoveInclude(addrs []string) {
 		return
 	}
 
-	*method.Include = slices.DeleteFunc(*method.Include, func(item string) bool { return slices.Contains(addrs, item) })
+	*method.Include = slices.DeleteFunc(
+		*method.Include,
+		func(item string) bool { return slices.Contains(addrs, item) },
+	)
 
 	if len(*method.Include) == 0 {
 		method.Include = nil

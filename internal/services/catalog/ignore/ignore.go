@@ -109,7 +109,13 @@ func Parse(r io.Reader) (*Matcher, error) {
 
 		g, err := glob.Compile(line)
 		if err != nil {
-			return nil, fmt.Errorf("%s line %d: invalid pattern %q: %w", FileName, lineNo, line, err)
+			return nil, fmt.Errorf(
+				"%s line %d: invalid pattern %q: %w",
+				FileName,
+				lineNo,
+				line,
+				err,
+			)
 		}
 
 		m.rules = append(m.rules, rule{glob: g, negate: negate, raw: line})

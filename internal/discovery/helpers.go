@@ -13,9 +13,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -38,6 +40,30 @@ const (
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
+
+// walkDirFunc returns the tree walk the discovery phases use, bound to the
+// venv filesystem so discovery only sees what the venv exposes. The symlinks
+// experiment swaps in the walk that descends into symlinked directories.
+func walkDirFunc(
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) func(string, iofs.WalkDirFunc) error {
+	v.RequireFS()
+
+	if opts == nil {
+		panic("discovery.walkDirFunc: opts is nil")
+	}
+
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		return func(root string, fn iofs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(v.FS, root, fn)
+		}
+	}
+
+	return func(root string, fn iofs.WalkDirFunc) error {
+		return vfs.WalkDir(v.FS, root, fn)
+	}
+}
 
 // stringSet is a thread-safe set of strings using map and RWMutex.
 // This is more performant than sync.Map for string keys with simple bool values.
@@ -84,7 +110,13 @@ func (s *stringSet) Load(key string) bool {
 func RelPathOrAbs(l log.Logger, base, target, desc string) string {
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
-		l.Warnf("could not make %q relative to %q (%s): %v; emitting as-is", target, base, desc, err)
+		l.Warnf(
+			"could not make %q relative to %q (%s): %v; emitting as-is",
+			target,
+			base,
+			desc,
+			err,
+		)
 
 		return target
 	}
@@ -124,7 +156,10 @@ func isExternal(workingDir string, componentPath string) bool {
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.
-func componentFromDependencyPath(path string, components *component.ThreadSafeComponents) component.Component {
+func componentFromDependencyPath(
+	path string,
+	components *component.ThreadSafeComponents,
+) component.Component {
 	if existing := components.FindByPath(path); existing != nil {
 		return existing
 	}
@@ -303,7 +338,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
@@ -311,9 +346,11 @@ func stackDependencyPaths(
 	pctx = pctx.WithVenv(v)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
-	funcsFor := inthclparse.StackFuncFactory(func(stackDir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
-	})
+	funcsFor := inthclparse.StackFuncFactory(
+		func(stackDir string) (map[string]function.Function, error) {
+			return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+		},
+	)
 
 	// Expand stack dependency paths to individual unit paths.
 	expanded := make([]string, 0, len(depPaths))
@@ -362,4 +399,27 @@ func stackDependencyPaths(
 	}
 
 	return result, nil
+}
+
+// resolveGraphBoundary canonicalizes a raw "(dir)" boundary value against
+// the working directory and validates that it points at an existing directory.
+// Returns the resolved absolute path.
+func resolveGraphBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
+	resolved := boundary
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(workingDir, resolved)
+	}
+
+	resolved = filepath.Clean(resolved)
+
+	info, err := fs.Stat(resolved)
+	if err != nil {
+		return "", NewFilterBoundaryDirError(resolved, err)
+	}
+
+	if !info.IsDir() {
+		return "", NewFilterBoundaryDirError(resolved, errors.New("not a directory"))
+	}
+
+	return resolved, nil
 }

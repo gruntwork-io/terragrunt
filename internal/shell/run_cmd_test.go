@@ -71,6 +71,11 @@ func TestGitTopLevelDirNestedRepoBypass(t *testing.T) {
 
 	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venv.OSVenv(), deep)
 	if err == nil {
-		assert.NotEqual(t, root, got, "guard should not return the outer root when a nested .git exists")
+		assert.NotEqual(
+			t,
+			root,
+			got,
+			"guard should not return the outer root when a nested .git exists",
+		)
 	}
 }

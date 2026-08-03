@@ -10,13 +10,16 @@ import (
 	"sync/atomic"
 	"testing"
 
-	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 // tarballHandler serves the supplied tar.gz bytes with a stable ETag and
@@ -94,12 +97,12 @@ func TestCASGetter_HTTPArchiveCachesSecondRun(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
 
 	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
 
@@ -128,7 +131,12 @@ func TestCASGetter_HTTPArchiveCachesSecondRun(t *testing.T) {
 	firstHeads := h.heads.Load()
 
 	assert.Equal(t, int32(1), firstGets, "first run must download the archive once")
-	assert.GreaterOrEqual(t, firstHeads, int32(1), "first run must probe via HEAD before downloading")
+	assert.GreaterOrEqual(
+		t,
+		firstHeads,
+		int32(1),
+		"first run must probe via HEAD before downloading",
+	)
 
 	runOnce(t)
 
@@ -157,12 +165,12 @@ func TestCASGetter_HTTPArchiveFalseSkipsExtraction(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
 
 	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
 
@@ -212,12 +220,12 @@ func TestCASGetter_HTTPMissingETagFallsBackToContentHash(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
 
 	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
 

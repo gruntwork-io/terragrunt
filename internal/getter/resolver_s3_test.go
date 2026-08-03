@@ -242,8 +242,11 @@ func TestS3Resolver_VersionedURLForwardsVersionIDToHeadObject(t *testing.T) {
 			_, err := r.Probe(t.Context(), tt.url)
 			require.NoError(t, err)
 			require.NotNil(t, head.gotInput)
-			require.NotNil(t, head.gotInput.VersionId,
-				"HeadObject must receive VersionId so the probe targets the same version the fetcher downloads")
+			require.NotNil(
+				t,
+				head.gotInput.VersionId,
+				"HeadObject must receive VersionId so the probe targets the same version the fetcher downloads",
+			)
 			assert.Equal(t, "abc123", aws.ToString(head.gotInput.VersionId))
 		})
 	}
@@ -313,8 +316,12 @@ func TestS3Resolver_RejectsNonS3AmazonawsHosts(t *testing.T) {
 			_, err := r.Probe(t.Context(), tt.url)
 			require.ErrorIs(t, err, getter.ErrS3UnrecognizedURL,
 				"parseS3URL must reject non-S3 amazonaws.com host %q", tt.url)
-			require.NotErrorIs(t, err, cas.ErrNoVersionMetadata,
-				"rejection must come from parseS3URL, not from a HeadObject call against the wrong service")
+			require.NotErrorIs(
+				t,
+				err,
+				cas.ErrNoVersionMetadata,
+				"rejection must come from parseS3URL, not from a HeadObject call against the wrong service",
+			)
 		})
 	}
 }

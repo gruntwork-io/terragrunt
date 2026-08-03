@@ -28,7 +28,14 @@ terraform {
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 
 	require.NotNil(t, terragruntConfig.Terraform)
@@ -162,7 +169,9 @@ func TestTerraformConfigValidateVersionRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
 	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: TG_EXPERIMENT_MODE forces the version-attribute experiment on, so its disabled-state error can't be verified")
+		t.Skip(
+			"Skipping: TG_EXPERIMENT_MODE forces the version-attribute experiment on, so its disabled-state error can't be verified",
+		)
 	}
 
 	cfg := &config.TerraformConfig{
@@ -187,15 +196,23 @@ func TestTerraformConfigValidateVersion(t *testing.T) {
 	}{
 		{
 			name: "no version attribute",
-			cfg:  &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws")},
+			cfg: &config.TerraformConfig{
+				Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+			},
 		},
 		{
 			name: "tfr source with version constraint",
-			cfg:  &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"), Version: new("~> 3.3")},
+			cfg: &config.TerraformConfig{
+				Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
+				Version: new("~> 3.3"),
+			},
 		},
 		{
-			name:        "non-registry source with version",
-			cfg:         &config.TerraformConfig{Source: new("github.com/terraform-aws-modules/terraform-aws-vpc"), Version: new("~> 3.3")},
+			name: "non-registry source with version",
+			cfg: &config.TerraformConfig{
+				Source:  new("github.com/terraform-aws-modules/terraform-aws-vpc"),
+				Version: new("~> 3.3"),
+			},
 			expectedErr: &config.VersionAttributeNonRegistrySourceError{},
 		},
 		{
@@ -204,8 +221,13 @@ func TestTerraformConfigValidateVersion(t *testing.T) {
 			expectedErr: &config.VersionAttributeNonRegistrySourceError{},
 		},
 		{
-			name:        "version attribute conflicts with inline version query",
-			cfg:         &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws?version=3.3.0"), Version: new("~> 3.3")},
+			name: "version attribute conflicts with inline version query",
+			cfg: &config.TerraformConfig{
+				Source: new(
+					"tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws?version=3.3.0",
+				),
+				Version: new("~> 3.3"),
+			},
 			expectedErr: &config.VersionAttributeSourceConstraintConflictError{},
 		},
 	}

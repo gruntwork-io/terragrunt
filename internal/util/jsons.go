@@ -55,7 +55,10 @@ func AsTerraformEnvVarJSONValue(value any) (string, error) {
 func escapeInterpolationPatternsInValue(value any, depth int) (any, error) {
 	const maxDepth = 100
 	if depth > maxDepth {
-		return nil, fmt.Errorf("escapeInterpolationPatternsInValue: input exceeds maximum nesting depth of %d", maxDepth)
+		return nil, fmt.Errorf(
+			"escapeInterpolationPatternsInValue: input exceeds maximum nesting depth of %d",
+			maxDepth,
+		)
 	}
 
 	switch v := value.(type) {

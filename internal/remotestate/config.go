@@ -13,24 +13,28 @@ import (
 )
 
 var (
-	ErrRemoteBackendMissing             = errors.New("the remote_state.backend field cannot be empty")
-	ErrGenerateCalledWithNoGenerateAttr = errors.New("generate code routine called when no generate attribute is configured")
+	ErrRemoteBackendMissing = errors.New(
+		"the remote_state.backend field cannot be empty",
+	)
+	ErrGenerateCalledWithNoGenerateAttr = errors.New(
+		"generate code routine called when no generate attribute is configured",
+	)
 )
 
 // ConfigGenerate is code gen configuration for Terraform remote state.
 type ConfigGenerate struct {
-	Path     string `cty:"path" mapstructure:"path"`
+	Path     string `cty:"path"      mapstructure:"path"`
 	IfExists string `cty:"if_exists" mapstructure:"if_exists"`
 }
 
 // Config is the configuration for Terraform remote state.
 // NOTE: If any attributes are added here, be sure to add it to `ConfigFile` struct.
 type Config struct {
-	BackendConfig                 backend.Config  `mapstructure:"config" json:"Config"`
-	Generate                      *ConfigGenerate `mapstructure:"generate" json:"Generate"`
-	Encryption                    map[string]any  `mapstructure:"encryption" json:"Encryption"`
-	BackendName                   string          `mapstructure:"backend" json:"Backend"`
-	DisableInit                   bool            `mapstructure:"disable_init" json:"DisableInit"`
+	BackendConfig                 backend.Config  `mapstructure:"config"                          json:"Config"`
+	Generate                      *ConfigGenerate `mapstructure:"generate"                        json:"Generate"`
+	Encryption                    map[string]any  `mapstructure:"encryption"                      json:"Encryption"`
+	BackendName                   string          `mapstructure:"backend"                         json:"Backend"`
+	DisableInit                   bool            `mapstructure:"disable_init"                    json:"DisableInit"`
 	DisableDependencyOptimization bool            `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
 }
 
@@ -56,7 +60,11 @@ func (cfg *Config) Validate() error {
 }
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
-func (cfg *Config) GenerateOpenTofuCode(l log.Logger, workingDir string, backendConfig map[string]any) error {
+func (cfg *Config) GenerateOpenTofuCode(
+	l log.Logger,
+	workingDir string,
+	backendConfig map[string]any,
+) error {
 	if cfg.Generate == nil {
 		return ErrGenerateCalledWithNoGenerateAttr
 	}
@@ -79,7 +87,11 @@ func (cfg *Config) GenerateOpenTofuCode(l log.Logger, workingDir string, backend
 		return err
 	}
 
-	configBytes, err := codegen.RemoteStateConfigToTerraformCode(cfg.BackendName, backendConfig, cfg.Encryption)
+	configBytes, err := codegen.RemoteStateConfigToTerraformCode(
+		cfg.BackendName,
+		backendConfig,
+		cfg.Encryption,
+	)
 	if err != nil {
 		return err
 	}

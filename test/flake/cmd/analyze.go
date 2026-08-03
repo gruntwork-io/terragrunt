@@ -119,7 +119,11 @@ func runAnalyze(c *cli.Context) error {
 	if minFailures > 1 {
 		report.TestStats = analyzer.FilterByMinFailures(report.TestStats, minFailures)
 		if verbose {
-			fmt.Printf("After filtering (min %d failures): %d unique tests\n", minFailures, len(report.TestStats))
+			fmt.Printf(
+				"After filtering (min %d failures): %d unique tests\n",
+				minFailures,
+				len(report.TestStats),
+			)
 		}
 	}
 

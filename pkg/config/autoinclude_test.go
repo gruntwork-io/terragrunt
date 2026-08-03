@@ -77,7 +77,14 @@ func TestFoldSiblingAutoIncludeDeps_UsesAutoIncludeOwnLocals(t *testing.T) {
 
 	// The valid dependency target named by the autoinclude's own local.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
+			[]byte(``),
+			0644,
+		),
+	)
 
 	const marker = "autoinclude-local-marker"
 
@@ -119,7 +126,11 @@ dependency "foo" {
 	l := logger.CreateLogger()
 
 	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
-	require.NoError(t, err, "the autoinclude dependency must resolve config_path against the autoinclude's own locals")
+	require.NoError(
+		t,
+		err,
+		"the autoinclude dependency must resolve config_path against the autoinclude's own locals",
+	)
 	require.NotNil(t, parsed)
 	require.NotNil(t, parsed.RemoteState)
 
@@ -140,7 +151,14 @@ func TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps(t *testing.T) {
 
 	// The dependency target dir.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
+			[]byte(``),
+			0644,
+		),
+	)
 
 	const marker = "include-inherited-dep-marker"
 
@@ -188,7 +206,11 @@ include "base" {
 	l := logger.CreateLogger()
 
 	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
-	require.NoError(t, err, "a dependency inherited through the autoinclude's own include must be folded into the unit")
+	require.NoError(
+		t,
+		err,
+		"a dependency inherited through the autoinclude's own include must be folded into the unit",
+	)
 	require.NotNil(t, parsed)
 	require.NotNil(t, parsed.RemoteState)
 
@@ -238,7 +260,12 @@ include "common" {
 		require.NoError(t, err, "a same-dir autoinclude include must terminate, not recurse")
 		require.NotNil(t, parsed)
 		// The included sibling's inputs still flow through the autoinclude into the unit.
-		require.Contains(t, parsed.Inputs, "from_common", "the included sibling's inputs must merge through the autoinclude")
+		require.Contains(
+			t,
+			parsed.Inputs,
+			"from_common",
+			"the included sibling's inputs must merge through the autoinclude",
+		)
 		require.Contains(t, parsed.Inputs, "from_unit")
 	})
 }
@@ -256,7 +283,14 @@ func TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude(t 
 	// Dependency targets for the wanted and foreign dependencies.
 	for _, name := range []string{"wanted-target", "leak-target"} {
 		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath), []byte(``), 0644))
+		require.NoError(
+			t,
+			os.WriteFile(
+				filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath),
+				[]byte(``),
+				0644,
+			),
+		)
 	}
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
@@ -285,14 +319,17 @@ inputs = { from_base = "b" }
 `), 0644))
 
 	// The base directory has its OWN sibling autoinclude declaring a foreign dependency that must not leak.
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
 dependency "leak" {
   config_path  = "`+filepath.Join(tmpDir, "leak-target")+`"
   skip_outputs = true
   mock_outputs = { val = "leaked" }
   mock_outputs_allowed_terraform_commands = ["init"]
 }
-`), 0644))
+`), 0644),
+	)
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
@@ -307,8 +344,18 @@ dependency "leak" {
 		depNames = append(depNames, dep.Name)
 	}
 
-	assert.Contains(t, depNames, "wanted", "the autoinclude's own declared dependency must still be folded into the unit")
-	assert.NotContains(t, depNames, "leak", "a file pulled in by an autoinclude must not leak its own sibling autoinclude's dependency into the unit")
+	assert.Contains(
+		t,
+		depNames,
+		"wanted",
+		"the autoinclude's own declared dependency must still be folded into the unit",
+	)
+	assert.NotContains(
+		t,
+		depNames,
+		"leak",
+		"a file pulled in by an autoinclude must not leak its own sibling autoinclude's dependency into the unit",
+	)
 }
 
 // The autoinclude exclude block must win over the unit's exclude in BOTH full and partial parse.
@@ -344,7 +391,12 @@ exclude {
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	require.NotNil(t, parsedFull.Exclude)
-	assert.Equal(t, []string{"apply"}, parsedFull.Exclude.Actions, "autoinclude exclude must win in full parse")
+	assert.Equal(
+		t,
+		[]string{"apply"},
+		parsedFull.Exclude.Actions,
+		"autoinclude exclude must win in full parse",
+	)
 
 	ctxPartial, pctxPartial := newTestParsingContext(t, cfgPath)
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
@@ -354,7 +406,12 @@ exclude {
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Exclude)
-	assert.Equal(t, []string{"apply"}, parsedPartial.Exclude.Actions, "autoinclude exclude must win in partial parse, matching full parse")
+	assert.Equal(
+		t,
+		[]string{"apply"},
+		parsedPartial.Exclude.Actions,
+		"autoinclude exclude must win in partial parse, matching full parse",
+	)
 }
 
 func TestMergeAutoInclude_NoFile(t *testing.T) {
@@ -462,7 +519,12 @@ inputs = {
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
-	assert.Equal(t, "from-unit", parsed.Inputs["name"], "stack-level autoinclude must NOT be merged into the unit config")
+	assert.Equal(
+		t,
+		"from-unit",
+		parsed.Inputs["name"],
+		"stack-level autoinclude must NOT be merged into the unit config",
+	)
 }
 
 // Partial parse with the experiment on must not fail when a remote_state references a dependency output whose dependency block lives only in the sibling autoinclude.
@@ -499,7 +561,8 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).WithSkipOutputsResolution()
+	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
+		WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()
 
@@ -516,7 +579,14 @@ func TestParseConfigAutoIncludeRemoteStateFoldsDependencyMockOutput(t *testing.T
 
 	// A sibling target directory so the dependency config_path is valid.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
+			[]byte(``),
+			0644,
+		),
+	)
 
 	const marker = "autoinclude-mock-marker"
 
@@ -569,7 +639,14 @@ func TestParseConfigAutoIncludeFileDirectlyDoesNotRecurse(t *testing.T) {
 
 	// A sibling target directory so the dependency config_path is valid.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
+			[]byte(``),
+			0644,
+		),
+	)
 
 	// Parse the autoinclude file directly.
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
@@ -631,14 +708,23 @@ inputs = {
 
 	// Top-level keys from both sides survive (shallow merge combines the top-level inputs map).
 	assert.Equal(t, "u", parsed.Inputs["unit_only"], "a unit-only top-level input key must survive")
-	assert.Equal(t, "x", parsed.Inputs["ai_only"], "an autoinclude-only top-level input key must survive")
+	assert.Equal(
+		t,
+		"x",
+		parsed.Inputs["ai_only"],
+		"an autoinclude-only top-level input key must survive",
+	)
 
 	// The overlapping nested map is replaced wholesale by the autoinclude, not deep-merged.
 	tags, ok := parsed.Inputs["tags"].(map[string]any)
 	require.True(t, ok, "tags input should be a map")
 	assert.Equal(t, "2", tags["b"], "autoinclude wins: its tags map replaces the unit's")
 	_, hasA := tags["a"]
-	assert.False(t, hasA, "shallow merge replaces the whole nested map; the unit's nested key must NOT survive")
+	assert.False(
+		t,
+		hasA,
+		"shallow merge replaces the whole nested map; the unit's nested key must NOT survive",
+	)
 }
 
 // The autoinclude scalar must win over the unit scalar for the same key in both full and partial parse.
@@ -677,10 +763,20 @@ inputs = {
 	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
-	assert.Equal(t, "from-autoinclude", parsedFull.Inputs["shared"], "autoinclude scalar must win in full parse")
+	assert.Equal(
+		t,
+		"from-autoinclude",
+		parsedFull.Inputs["shared"],
+		"autoinclude scalar must win in full parse",
+	)
 	require.NotNil(t, parsedFull.Terraform)
 	require.NotNil(t, parsedFull.Terraform.Source)
-	assert.Equal(t, "from-autoinclude", *parsedFull.Terraform.Source, "autoinclude terraform source must win in full parse")
+	assert.Equal(
+		t,
+		"from-autoinclude",
+		*parsedFull.Terraform.Source,
+		"autoinclude terraform source must win in full parse",
+	)
 
 	ctxPartial, pctxPartial := newTestParsingContext(t, cfgPath)
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
@@ -691,7 +787,12 @@ inputs = {
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Terraform)
 	require.NotNil(t, parsedPartial.Terraform.Source)
-	assert.Equal(t, "from-autoinclude", *parsedPartial.Terraform.Source, "autoinclude terraform source must win in partial parse")
+	assert.Equal(
+		t,
+		"from-autoinclude",
+		*parsedPartial.Terraform.Source,
+		"autoinclude terraform source must win in partial parse",
+	)
 }
 
 // Partial parse must surface remote_state, feature, and errors blocks declared only in the autoinclude when those sections are in the decode list.
@@ -777,7 +878,14 @@ func TestPartialParseAutoIncludeDependencyNoDoubleCount(t *testing.T) {
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
+			[]byte(``),
+			0644,
+		),
+	)
 
 	require.NoError(t, os.WriteFile(cfgPath, []byte(`
 dependency "foo" {
@@ -810,7 +918,12 @@ dependency "foo" {
 		names[dep.Name]++
 	}
 
-	assert.Equal(t, 1, names["foo"], "dependency foo must not be double-counted after autoinclude merge")
+	assert.Equal(
+		t,
+		1,
+		names["foo"],
+		"dependency foo must not be double-counted after autoinclude merge",
+	)
 
 	require.NotNil(t, parsed.Dependencies)
 
@@ -833,7 +946,14 @@ func TestPartialParseConfigAutoIncludeFileDirectlyDoesNotRecurse(t *testing.T) {
 
 	// A sibling target directory so the dependency config_path is valid.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
+			[]byte(``),
+			0644,
+		),
+	)
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
@@ -850,7 +970,8 @@ dependency "foo" {
 	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
-	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).WithSkipOutputsResolution()
+	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
+		WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()
 
@@ -869,7 +990,14 @@ func TestPartialParseAutoIncludeCacheNotStaleOnCreate(t *testing.T) {
 
 	// A sibling target directory so the autoinclude dependency config_path is valid.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "producer"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "producer", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(tmpDir, "producer", config.DefaultTerragruntConfigPath),
+			[]byte(``),
+			0644,
+		),
+	)
 
 	// The unit declares none of the blocks under test; the autoinclude supplies them.
 	require.NoError(t, os.WriteFile(cfgPath, []byte(`
@@ -880,10 +1008,15 @@ inputs = {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
-	ctx = context.WithValue(ctx, config.TerragruntConfigCacheContextKey, cache.NewCache[*config.TerragruntConfig]("test-config-cache"))
+	ctx = context.WithValue(
+		ctx,
+		config.TerragruntConfigCacheContextKey,
+		cache.NewCache[*config.TerragruntConfig]("test-config-cache"),
+	)
 	pctx.UsePartialParseConfigCache = true
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).WithSkipOutputsResolution()
+	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
+		WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()
 
@@ -918,7 +1051,11 @@ remote_state {
 	after, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, after)
-	require.NotNil(t, after.RemoteState, "the newly created autoinclude must be merged, not a stale cache hit")
+	require.NotNil(
+		t,
+		after.RemoteState,
+		"the newly created autoinclude must be merged, not a stale cache hit",
+	)
 	assert.Equal(t, "from-autoinclude", after.RemoteState.BackendConfig["path"])
 
 	foundDep := false
@@ -962,7 +1099,11 @@ remote_state {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
-	ctx = context.WithValue(ctx, config.TerragruntConfigCacheContextKey, cache.NewCache[*config.TerragruntConfig]("test-config-cache"))
+	ctx = context.WithValue(
+		ctx,
+		config.TerragruntConfigCacheContextKey,
+		cache.NewCache[*config.TerragruntConfig]("test-config-cache"),
+	)
 	pctx.UsePartialParseConfigCache = true
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.RemoteStateBlock).WithSkipOutputsResolution()
@@ -993,7 +1134,12 @@ remote_state {
 	require.NoError(t, err)
 	require.NotNil(t, second)
 	require.NotNil(t, second.RemoteState)
-	assert.Equal(t, "second", second.RemoteState.BackendConfig["path"], "the edited autoinclude must win, not the stale cached result")
+	assert.Equal(
+		t,
+		"second",
+		second.RemoteState.BackendConfig["path"],
+		"the edited autoinclude must win, not the stale cached result",
+	)
 }
 
 // A dependencies block path that overlaps a DISABLED dependency block of the same path must survive a
@@ -1006,7 +1152,14 @@ func TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap
 	tmpDir := t.TempDir()
 	for _, name := range []string{"foo", "bar"} {
 		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath), []byte(``), 0644))
+		require.NoError(
+			t,
+			os.WriteFile(
+				filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath),
+				[]byte(``),
+				0644,
+			),
+		)
 	}
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
@@ -1030,15 +1183,20 @@ dependency "bar" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock).WithSkipOutputsResolution()
+	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock).
+		WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()
 
 	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed.Dependencies)
-	assert.Contains(t, parsed.Dependencies.Paths, "./foo",
-		"a dependencies block path overlapping a disabled dependency block must survive the autoinclude merge")
+	assert.Contains(
+		t,
+		parsed.Dependencies.Paths,
+		"./foo",
+		"a dependencies block path overlapping a disabled dependency block must survive the autoinclude merge",
+	)
 }
 
 // TestParseTerragruntConfig_ReadsStackAutoIncludeFile pins that read_terragrunt_config can read a
@@ -1074,7 +1232,11 @@ stack "networking" {
 	l := logger.CreateLogger()
 
 	cfgCty, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
-	require.NoError(t, err, "a stack-level autoinclude file must decode through the stack parsing path")
+	require.NoError(
+		t,
+		err,
+		"a stack-level autoinclude file must decode through the stack parsing path",
+	)
 
 	cfgMap, err := ctyhelper.ParseCtyValueToMap(cfgCty)
 	require.NoError(t, err)
@@ -1106,7 +1268,14 @@ func TestParseTerragruntConfig_ReadsUnitAutoIncludeFile(t *testing.T) {
 
 	// The dependency target the autoinclude's dependency block points at.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "vpc"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "vpc", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(tmpDir, "vpc", config.DefaultTerragruntConfigPath),
+			[]byte(``),
+			0644,
+		),
+	)
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
@@ -1177,7 +1346,11 @@ unit "app" {
 	l := logger.CreateLogger()
 
 	stackCfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
-	require.NoError(t, err, "the lenient stack decode must keep accepting the malformed autoinclude block")
+	require.NoError(
+		t,
+		err,
+		"the lenient stack decode must keep accepting the malformed autoinclude block",
+	)
 
 	err = config.ValidateStackAutoIncludes(ctx, l, pctx, stackPath, stackCfg, nil)
 	require.Error(t, err, "the strict autoinclude parse must report the locals block")

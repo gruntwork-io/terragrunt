@@ -128,7 +128,10 @@ type genericValue[T comparable] struct {
 	value  FlagVariable[T]
 }
 
-func newGenericValue[T comparable](value FlagVariable[T], setter FlagSetterFunc[T]) *genericValue[T] {
+func newGenericValue[T comparable](
+	value FlagVariable[T],
+	setter FlagSetterFunc[T],
+) *genericValue[T] {
 	return &genericValue[T]{
 		setter: setter,
 		value:  value,
@@ -184,7 +187,10 @@ func (val *genericVar[T]) Set(str string) error {
 	case *bool:
 		v, err := strconv.ParseBool(str)
 		if err != nil {
-			return InvalidValueError{underlyingError: err, msg: `must be one of: "0", "1", "f", "t", "false", "true"`}
+			return InvalidValueError{
+				underlyingError: err,
+				msg:             `must be one of: "0", "1", "f", "t", "false", "true"`,
+			}
 		}
 
 		*dest = v

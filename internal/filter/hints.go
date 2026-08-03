@@ -22,7 +22,10 @@ func GetHint(code ErrorCode, token, query string, position int) string {
 		return "This character is not recognized. Valid operators: | (union), ! (negation), = (attribute)"
 
 	// These have error messages that are pretty self-explanatory and don't need hints.
-	case ErrorCodeEmptyGitFilter, ErrorCodeEmptyExpression, ErrorCodeMissingOperand, ErrorCodeInvalidGlob:
+	case ErrorCodeEmptyGitFilter,
+		ErrorCodeEmptyExpression,
+		ErrorCodeMissingOperand,
+		ErrorCodeInvalidGlob:
 		return ""
 
 	// These are errors that don't have obvious hints that can be offered.
@@ -83,7 +86,10 @@ func getCaretHint(query string, position int) string {
 
 		// Find the immediate identifier before caret (split by operators/whitespace)
 		parts := strings.FieldsFunc(beforeCaret, func(r rune) bool {
-			return r == ' ' || r == '\t' || r == '|' || r == '!' || r == '=' || r == '{' || r == '}' || r == '[' || r == ']'
+			return r == ' ' || r == '\t' || r == '|' || r == '!' || r == '=' || r == '{' ||
+				r == '}' ||
+				r == '[' ||
+				r == ']'
 		})
 
 		if len(parts) > 0 {
@@ -120,7 +126,10 @@ func getUnexpectedEOFHint(query string) string {
 // getMissingClosingBracketHint returns a dynamic hint for unclosed Git filter expressions.
 func getMissingClosingBracketHint(query string) string {
 	if _, content, found := strings.Cut(query, "["); found {
-		return fmt.Sprintf("Git-based expressions require surrounding references with '[]'. Did you mean '[%s]'?", content)
+		return fmt.Sprintf(
+			"Git-based expressions require surrounding references with '[]'. Did you mean '[%s]'?",
+			content,
+		)
 	}
 
 	return "Git-based expressions require surrounding references with '[]'. e.g. '[main...HEAD]'"
@@ -129,7 +138,10 @@ func getMissingClosingBracketHint(query string) string {
 // getMissingClosingBraceHint returns a dynamic hint for unclosed braced path expressions.
 func getMissingClosingBraceHint(query string) string {
 	if _, content, found := strings.Cut(query, "{"); found {
-		return fmt.Sprintf("Explicit path expressions require surrounding paths with '{}'. Did you mean '{%s}'?", content)
+		return fmt.Sprintf(
+			"Explicit path expressions require surrounding paths with '{}'. Did you mean '{%s}'?",
+			content,
+		)
 	}
 
 	return "Explicit path expressions require surrounding paths with '{}'. e.g. '{path/with spaces}'"

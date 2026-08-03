@@ -35,7 +35,10 @@ func NewPlaceholderRegister() Placeholders {
 		Field(WorkDirKeyName, options.PathFormat(
 			options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath,
 		)),
-		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
+		Field(
+			TFPathKeyName,
+			options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath),
+		),
 		Field(TFCmdArgsKeyName),
 		Field(TFCmdKeyName),
 	}
@@ -190,5 +193,6 @@ func findPlaintextPlaceholder(str string) (Placeholder, string) { //nolint:iretu
 // e.g. "time(" return `false`.
 func isPlaceholderNameCharacter(c byte) bool {
 	// Check if the byte value falls within the range of alphanumeric characters
-	return c == '-' || c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+	return c == '-' || c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+		(c >= '0' && c <= '9')
 }

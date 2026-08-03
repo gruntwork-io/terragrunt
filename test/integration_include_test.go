@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -31,7 +33,7 @@ const (
 	includeRemoteStateDepsFixturePath = "fixtures/dependency-include-remote-state/"
 )
 
-func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
+func TestTFTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
@@ -55,11 +57,19 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 
 			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
-			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --working-dir "+childPath+" -- apply -auto-approve")
+			helpers.RunTerragrunt(
+				t,
+				"terragrunt run --all --queue-include-external --non-interactive --working-dir "+childPath+" -- apply -auto-approve",
+			)
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(
+				t,
+				"terragrunt output -no-color -json --non-interactive --working-dir "+childPath,
+				&stdout,
+				&stderr,
+			)
 			require.NoError(t, err)
 
 			outputs := map[string]helpers.TerraformOutput{}
@@ -68,7 +78,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		})
 	}
 }
-func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
+func TestTFTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
@@ -92,11 +102,19 @@ func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 
 			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
-			helpers.RunTerragrunt(t, "terragrunt run --all --filter '{./**}...' --non-interactive --working-dir "+childPath+" -- apply -auto-approve")
+			helpers.RunTerragrunt(
+				t,
+				"terragrunt run --all --filter '{./**}...' --non-interactive --working-dir "+childPath+" -- apply -auto-approve",
+			)
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(
+				t,
+				"terragrunt output -no-color -json --non-interactive --working-dir "+childPath,
+				&stdout,
+				&stderr,
+			)
 			require.NoError(t, err)
 
 			outputs := map[string]helpers.TerraformOutput{}
@@ -106,7 +124,7 @@ func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 	}
 }
 
-func TestTerragruntFilterReadingRestrictsSet(t *testing.T) {
+func TestTFTerragruntFilterReadingRestrictsSet(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
@@ -124,7 +142,7 @@ func TestTerragruntFilterReadingRestrictsSet(t *testing.T) {
 	assert.NotContains(t, stdout, "charlie")
 }
 
-func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
+func TestTFTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
@@ -132,48 +150,64 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, modulePath)
 
 	// Retry to handle intermittent failures due to network issues on CICD
-	require.NoError(t, util.DoWithRetry(t.Context(), "Run all modules with prefix verification", 3, 0, logger.CreateLogger(), log.DebugLevel, func(ctx context.Context) error {
-		helpers.CleanupTerraformFolder(t, modulePath)
+	require.NoError(
+		t,
+		util.DoWithRetry(
+			t.Context(),
+			"Run all modules with prefix verification",
+			3,
+			0,
+			logger.CreateLogger(),
+			log.DebugLevel,
+			func(ctx context.Context) error {
+				helpers.CleanupTerraformFolder(t, modulePath)
 
-		stdout, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(
-			t,
-			ctx,
-			"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
-		)
-		if err != nil {
-			return fmt.Errorf("command failed: %w", err)
-		}
+				stdout, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(
+					t,
+					ctx,
+					"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
+				)
+				if err != nil {
+					return fmt.Errorf("command failed: %w", err)
+				}
 
-		// Check if all expected outputs are present
-		hasAlpha := strings.Contains(stdout, "alpha")
-		hasBeta := strings.Contains(stdout, "beta")
-		hasCharlie := strings.Contains(stdout, "charlie")
+				// Check if all expected outputs are present
+				hasAlpha := strings.Contains(stdout, "alpha")
+				hasBeta := strings.Contains(stdout, "beta")
+				hasCharlie := strings.Contains(stdout, "charlie")
 
-		if !hasAlpha || !hasBeta || !hasCharlie {
-			return fmt.Errorf("missing outputs: alpha=%v, beta=%v, charlie=%v", hasAlpha, hasBeta, hasCharlie)
-		}
+				if !hasAlpha || !hasBeta || !hasCharlie {
+					return fmt.Errorf(
+						"missing outputs: alpha=%v, beta=%v, charlie=%v",
+						hasAlpha,
+						hasBeta,
+						hasCharlie,
+					)
+				}
 
-		// All outputs present, verify prefixes
-		stdoutLines := strings.SplitSeq(stderr, "\n")
-		for line := range stdoutLines {
-			if strings.Contains(line, "alpha") && !strings.Contains(line, "prefix=a") {
-				return fmt.Errorf("alpha found but wrong prefix in line: %s", line)
-			}
+				// All outputs present, verify prefixes
+				stdoutLines := strings.SplitSeq(stderr, "\n")
+				for line := range stdoutLines {
+					if strings.Contains(line, "alpha") && !strings.Contains(line, "prefix=a") {
+						return fmt.Errorf("alpha found but wrong prefix in line: %s", line)
+					}
 
-			if strings.Contains(line, "beta") && !strings.Contains(line, "prefix=b") {
-				return fmt.Errorf("beta found but wrong prefix in line: %s", line)
-			}
+					if strings.Contains(line, "beta") && !strings.Contains(line, "prefix=b") {
+						return fmt.Errorf("beta found but wrong prefix in line: %s", line)
+					}
 
-			if strings.Contains(line, "charlie") && !strings.Contains(line, "prefix=c") {
-				return fmt.Errorf("charlie found but wrong prefix in line: %s", line)
-			}
-		}
+					if strings.Contains(line, "charlie") && !strings.Contains(line, "prefix=c") {
+						return fmt.Errorf("charlie found but wrong prefix in line: %s", line)
+					}
+				}
 
-		return nil
-	}))
+				return nil
+			},
+		),
+	)
 }
 
-func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
+func TestTFTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, includeDeepFixturePath)
@@ -181,11 +215,19 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	childPath := filepath.Join(rootPath, "child")
 	helpers.CleanupTerraformFolder(t, childPath)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+childPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+childPath,
+	)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt output -no-color -json --non-interactive --working-dir "+childPath,
+		&stdout,
+		&stderr,
+	)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -195,7 +237,11 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
 	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
 	assert.Equal(t, []any{"hello", "mock"}, outputs["list_attr"].Value.([]any))
-	assert.Equal(t, map[string]any{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]any))
+	assert.Equal(
+		t,
+		map[string]any{"foo": "bar", "bar": "baz", "test": "new val"},
+		outputs["map_attr"].Value.(map[string]any),
+	)
 
 	assert.Equal(
 		t,
@@ -213,7 +259,7 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	)
 }
 
-func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
+func TestTFTerragruntWorksWithMultipleInclude(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, includeMultipleFixturePath)
@@ -236,11 +282,19 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 
 			childPath := filepath.Join(rootPath, tc, includeDeepFixtureChildPath)
 			helpers.CleanupTerraformFolder(t, childPath)
-			helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+childPath)
+			helpers.RunTerragrunt(
+				t,
+				"terragrunt apply -auto-approve --non-interactive --working-dir "+childPath,
+			)
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(
+				t,
+				"terragrunt output -no-color -json --non-interactive --working-dir "+childPath,
+				&stdout,
+				&stderr,
+			)
 			require.NoError(t, err)
 
 			outputs := map[string]helpers.TerraformOutput{}
@@ -250,7 +304,7 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	}
 }
 
-func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
+func TestTFTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 	t.Parallel()
 
 	// This is a regression test to ensure that users can still have a root terragrunt.hcl at the project root,
@@ -304,7 +358,7 @@ func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 	assert.Nil(t, rootRun, "Root directory should not be in the report as it should be excluded")
 }
 
-// TestIncludeRemoteStateNoSpuriousUnknownVariableErrors covers both sides of
+// TestTFIncludeRemoteStateNoSpuriousUnknownVariableErrors covers both sides of
 // the rebind contract.
 //
 // The first subtest asserts the `Unknown variable "dependency"` log line no
@@ -314,7 +368,7 @@ func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 // The second subtest patches the child config to reference an undeclared
 // identifier and asserts the resulting error still reaches stderr, so the
 // rebind path is not silently swallowing real diagnostics.
-func TestIncludeRemoteStateNoSpuriousUnknownVariableErrors(t *testing.T) {
+func TestTFIncludeRemoteStateNoSpuriousUnknownVariableErrors(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T) string {
@@ -369,7 +423,12 @@ func TestIncludeRemoteStateNoSpuriousUnknownVariableErrors(t *testing.T) {
 			"parent_value = "+sentinel,
 			1,
 		)
-		require.NotEqual(t, string(contents), patched, "fixture must contain the line being patched")
+		require.NotEqual(
+			t,
+			string(contents),
+			patched,
+			"fixture must contain the line being patched",
+		)
 		require.NoError(t, os.WriteFile(childHCL, []byte(patched), 0o644))
 
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
@@ -387,7 +446,11 @@ func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]helpers.
 	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
 	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
 	assert.Equal(t, []any{"hello", "mock", "foo"}, outputs["list_attr"].Value.([]any))
-	assert.Equal(t, map[string]any{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]any))
+	assert.Equal(
+		t,
+		map[string]any{"foo": "bar", "bar": "baz", "test": "new val"},
+		outputs["map_attr"].Value.(map[string]any),
+	)
 
 	assert.Equal(
 		t,

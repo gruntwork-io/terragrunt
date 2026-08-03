@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -15,11 +17,11 @@ const (
 	testFixtureStrictBareInclude = "fixtures/strict-bare-include"
 )
 
-// TestRootTerragruntHCLStrictMode uses globally mutated state to determine if strict mode has already
+// TestTFRootTerragruntHCLStrictMode uses globally mutated state to determine if strict mode has already
 // been triggered, so we don't run it in parallel.
 //
 //nolint:paralleltest,tparallel
-func TestRootTerragruntHCLStrictMode(t *testing.T) {
+func TestTFRootTerragruntHCLStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureFindParentWithDeprecatedRoot)
 
 	testCases := []struct {
@@ -35,10 +37,12 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 			expectedStderr: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern",
 		},
 		{
-			name:          "root terragrunt.hcl with root-terragrunt-hcl strict control",
-			controls:      []string{"root-terragrunt-hcl"},
-			strictMode:    false,
-			expectedError: errors.New("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern"),
+			name:       "root terragrunt.hcl with root-terragrunt-hcl strict control",
+			controls:   []string{"root-terragrunt-hcl"},
+			strictMode: false,
+			expectedError: errors.New(
+				"Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern",
+			),
 		},
 		// we cannot test `-strict-mode` flag, since we cannot know at which strict control TG will output the error.
 	}
@@ -57,7 +61,10 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 				args = " --strict-control " + control + " " + args
 			}
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run "+args+" -- plan")
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt run "+args+" -- plan",
+			)
 
 			if tc.expectedError != nil {
 				require.Error(t, err)
@@ -71,11 +78,11 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 	}
 }
 
-// TestBareIncludeStrictMode uses globally mutated state to determine if strict mode has already
+// TestTFBareIncludeStrictMode uses globally mutated state to determine if strict mode has already
 // been triggered, so we don't run it in parallel.
 //
 //nolint:paralleltest,tparallel
-func TestBareIncludeStrictMode(t *testing.T) {
+func TestTFBareIncludeStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStrictBareInclude)
 
 	testCases := []struct {
@@ -91,16 +98,20 @@ func TestBareIncludeStrictMode(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:          "bare include with bare-include strict control",
-			controls:      []string{"bare-include"},
-			strictMode:    false,
-			expectedError: errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
+			name:       "bare include with bare-include strict control",
+			controls:   []string{"bare-include"},
+			strictMode: false,
+			expectedError: errors.New(
+				"Using an `include` block without a label is deprecated. Please use the `include` block with a label instead.",
+			),
 		},
 		{
-			name:          "bare include with strict mode",
-			controls:      []string{},
-			strictMode:    true,
-			expectedError: errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
+			name:       "bare include with strict mode",
+			controls:   []string{},
+			strictMode: true,
+			expectedError: errors.New(
+				"Using an `include` block without a label is deprecated. Please use the `include` block with a label instead.",
+			),
 		},
 	}
 

@@ -37,7 +37,9 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 				BucketLoggingStatus: &s3types.BucketLoggingStatus{
 					LoggingEnabled: &s3types.LoggingEnabled{
 						TargetBucket: aws.String("logging-bucket"),
-						TargetPrefix: aws.String(s3backend.DefaultS3BucketAccessLoggingTargetPrefix),
+						TargetPrefix: aws.String(
+							s3backend.DefaultS3BucketAccessLoggingTargetPrefix,
+						),
 					},
 				},
 			},
@@ -115,7 +117,11 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 
 			actual := reflect.DeepEqual(createdLoggingInput, tc.loggingInput)
 			if !assert.Equal(t, tc.shouldBeEqual, actual) {
-				t.Errorf("s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v", createdLoggingInput, tc.loggingInput)
+				t.Errorf(
+					"s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v",
+					createdLoggingInput,
+					tc.loggingInput,
+				)
 			}
 		})
 	}
@@ -215,7 +221,14 @@ func TestConfig_GetAwsSessionConfig(t *testing.T) {
 	}{
 		{
 			"all-values",
-			s3backend.Config{"region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "force_path_style": true},
+			s3backend.Config{
+				"region":                  "foo",
+				"endpoint":                "bar",
+				"profile":                 "baz",
+				"role_arn":                "arn::it",
+				"shared_credentials_file": "my-file",
+				"force_path_style":        true,
+			},
 		},
 		{
 			"no-values",
@@ -223,7 +236,16 @@ func TestConfig_GetAwsSessionConfig(t *testing.T) {
 		},
 		{
 			"extra-values",
-			s3backend.Config{"something": "unexpected", "region": "foo", "endpoint": "bar", "dynamodb_endpoint": "foobar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "force_path_style": false},
+			s3backend.Config{
+				"something":               "unexpected",
+				"region":                  "foo",
+				"endpoint":                "bar",
+				"dynamodb_endpoint":       "foobar",
+				"profile":                 "baz",
+				"role_arn":                "arn::it",
+				"shared_credentials_file": "my-file",
+				"force_path_style":        false,
+			},
 		},
 	}
 
@@ -260,7 +282,12 @@ func TestConfig_GetAwsSessionConfigWithAssumeRole(t *testing.T) {
 	}{
 		{
 			"all-values",
-			s3backend.Config{"role_arn": "arn::it", "external_id": "123", "session_name": "foobar", "tags": map[string]string{"foo": "bar"}},
+			s3backend.Config{
+				"role_arn":     "arn::it",
+				"external_id":  "123",
+				"session_name": "foobar",
+				"tags":         map[string]string{"foo": "bar"},
+			},
 		},
 		{
 			"no-tags",

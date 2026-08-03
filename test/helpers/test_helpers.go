@@ -62,7 +62,12 @@ func ValidateHookTraceParent(t *testing.T, hook, str string) {
 
 	traceparentValue := matches[1]
 	require.NotEmpty(t, traceparentValue, "Traceparent value should not be empty")
-	require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparentValue, "Traceparent value should match W3C traceparent format")
+	require.Regexp(
+		t,
+		`^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`,
+		traceparentValue,
+		"Traceparent value should match W3C traceparent format",
+	)
 }
 
 // CreateFile creates an empty file at the given path, creating parent directories if needed.
@@ -158,7 +163,15 @@ func CloneGitRepo(t *testing.T, srcDir string) string {
 
 	dstDir := TmpDirWOSymlinks(t)
 
-	cmd := exec.CommandContext(t.Context(), "git", "clone", "--local", "--no-hardlinks", srcDir, dstDir)
+	cmd := exec.CommandContext(
+		t.Context(),
+		"git",
+		"clone",
+		"--local",
+		"--no-hardlinks",
+		srcDir,
+		dstDir,
+	)
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "git clone failed: %s", string(output))
 
@@ -166,7 +179,10 @@ func CloneGitRepo(t *testing.T, srcDir string) string {
 }
 
 // MakeDiscoveryContext creates a discovery context copy with an updated WorkingDir.
-func MakeDiscoveryContext(baseCtx *component.DiscoveryContext, dir string) *component.DiscoveryContext {
+func MakeDiscoveryContext(
+	baseCtx *component.DiscoveryContext,
+	dir string,
+) *component.DiscoveryContext {
 	return &component.DiscoveryContext{
 		WorkingDir: dir,
 		Cmd:        baseCtx.Cmd,
@@ -312,7 +328,11 @@ func ExecAndCaptureOutput(t *testing.T, dir, command string, args ...string) (st
 // ExecWithMiseAndCaptureOutput executes a command using mise and captures the stdout and stderr.
 // This is useful for commands that are being tested as installed via mise, as it doesn't depend
 // on the PATH being set correctly.
-func ExecWithMiseAndCaptureOutput(t *testing.T, dir, command string, args ...string) (string, string) {
+func ExecWithMiseAndCaptureOutput(
+	t *testing.T,
+	dir, command string,
+	args ...string,
+) (string, string) {
 	t.Helper()
 
 	tool := determineToolName(command)
@@ -449,7 +469,16 @@ func FindCachedFile(t *testing.T, unitDir, filename string) string {
 		return nil
 	})
 	require.NoError(t, err)
-	require.Lenf(t, matches, 1, "expected exactly one %s under %s, got %d: %v", filename, unitDir, len(matches), matches)
+	require.Lenf(
+		t,
+		matches,
+		1,
+		"expected exactly one %s under %s, got %d: %v",
+		filename,
+		unitDir,
+		len(matches),
+		matches,
+	)
 
 	return matches[0]
 }

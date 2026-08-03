@@ -83,7 +83,11 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 		if handler.CanHandleProvider(provider) {
 			versions, err := handler.GetVersions(ctx.Request().Context(), provider)
 			if err != nil {
-				controller.Logger.Errorf("Failed to get provider versions from %q: %s", handler, err.Error())
+				controller.Logger.Errorf(
+					"Failed to get provider versions from %q: %s",
+					handler,
+					err.Error(),
+				)
 			}
 
 			if versions != nil {
@@ -94,7 +98,11 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 
 	validVersions, invalidVersions := allVersions.FilterValid()
 	for _, v := range invalidVersions {
-		controller.Logger.Warnf("Skipping invalid version %q for provider %s", v, provider.Address())
+		controller.Logger.Warnf(
+			"Skipping invalid version %q for provider %s",
+			v,
+			provider.Address(),
+		)
 	}
 
 	versions := struct {
@@ -129,7 +137,11 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 	}
 
 	if cacheRequestID == "" {
-		return controller.ProxyProviderHandler.GetPlatform(ctx, provider, controller.DownloaderController)
+		return controller.ProxyProviderHandler.GetPlatform(
+			ctx,
+			provider,
+			controller.DownloaderController,
+		)
 	}
 
 	var (
@@ -141,7 +153,11 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 		if handler.CanHandleProvider(provider) {
 			resp, err = handler.GetPlatform(ctx.Request().Context(), provider)
 			if err != nil {
-				controller.Logger.Errorf("Failed to get provider platform from %q: %s", handler, err.Error())
+				controller.Logger.Errorf(
+					"Failed to get provider platform from %q: %s",
+					handler,
+					err.Error(),
+				)
 			}
 
 			if resp != nil {

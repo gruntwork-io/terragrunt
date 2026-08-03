@@ -173,7 +173,12 @@ func (r *Reporter) PanicHandler(rec any, l log.Logger, version func() string, ar
 
 // ReportPanic writes the crash log and friendly banner for a panic surfaced as a returned error.
 // The full report is printed inline only when the crash log file cannot be written.
-func (r *Reporter) ReportPanic(l log.Logger, version, panicMsg string, stack []byte, args []string) {
+func (r *Reporter) ReportPanic(
+	l log.Logger,
+	version, panicMsg string,
+	stack []byte,
+	args []string,
+) {
 	logPath, logContent, writeErr := r.writeLog(version, panicMsg, stack, args)
 
 	displayVersion := version
@@ -324,7 +329,11 @@ func readBuildInfo() (string, bool) {
 // Private helper functions
 
 // writeLog formats and persists the crash report; on cwd write failure it retries under TempDir.
-func (r *Reporter) writeLog(version, panicMsg string, stack []byte, args []string) (string, string, error) {
+func (r *Reporter) writeLog(
+	version, panicMsg string,
+	stack []byte,
+	args []string,
+) (string, string, error) {
 	now := r.now()
 	pid := r.getPID()
 	workingDir := r.workingDir()
@@ -455,7 +464,11 @@ func (r *Reporter) formatLog(
 
 // formatLogPath builds the crash log filename from timestamp and pid.
 func (r *Reporter) formatLogPath(when time.Time, pid int) string {
-	return crashLogPrefix + "-" + when.UTC().Format(crashLogFileTimeLayout) + "-" + strconv.Itoa(pid) + ".log"
+	return crashLogPrefix + "-" + when.UTC().
+		Format(crashLogFileTimeLayout) +
+		"-" + strconv.Itoa(
+		pid,
+	) + ".log"
 }
 
 // mainModuleVersion falls back to the binary's main module version when no caller version is available.

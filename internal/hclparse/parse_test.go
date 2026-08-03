@@ -36,7 +36,14 @@ unit "db" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 	assert.Equal(t, "vpc", result.Units[0].Name)
@@ -68,7 +75,14 @@ unit "db" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
@@ -78,7 +92,11 @@ unit "db" {
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
-	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath)
+	assert.Equal(
+		t,
+		filepath.Join(testStackDir, ".terragrunt-stack", "vpc"),
+		resolved.Dependencies[0].ConfigPath,
+	)
 	assert.NotNil(t, resolved.RawBody)
 }
 
@@ -112,7 +130,14 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -143,14 +168,25 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "networking", resolved.Dependencies[0].Name)
-	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "networking"), resolved.Dependencies[0].ConfigPath)
+	assert.Equal(
+		t,
+		filepath.Join(testStackDir, ".terragrunt-stack", "networking"),
+		resolved.Dependencies[0].ConfigPath,
+	)
 }
 
 // TestParseStackFile_ComponentRefInValuesWithSiblingAutoInclude reproduces the
@@ -192,7 +228,14 @@ unit "c" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 	require.Len(t, result.Stacks, 1)
@@ -205,7 +248,11 @@ unit "c" {
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "c")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
-	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "a"), resolved.Dependencies[0].ConfigPath)
+	assert.Equal(
+		t,
+		filepath.Join(testStackDir, ".terragrunt-stack", "a"),
+		resolved.Dependencies[0].ConfigPath,
+	)
 }
 
 // TestParseStackFile_UnitValuesStackRefWithSiblingAutoInclude covers the mirrored
@@ -236,14 +283,25 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 1)
 
 	require.NotNil(t, result.Units[0].Values)
 	netPath := result.Units[0].Values.GetAttr("net_path")
-	assert.Equal(t, cty.StringVal(filepath.Join(testStackDir, ".terragrunt-stack", "networking")), netPath,
-		"unit values must resolve stack.networking.path even when an autoinclude block is present")
+	assert.Equal(
+		t,
+		cty.StringVal(filepath.Join(testStackDir, ".terragrunt-stack", "networking")),
+		netPath,
+		"unit values must resolve stack.networking.path even when an autoinclude block is present",
+	)
 }
 
 func TestParseStackFile_NoAutoInclude(t *testing.T) {
@@ -256,7 +314,14 @@ unit "vpc" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 1)
 	assert.Empty(t, result.AutoIncludes)
@@ -277,7 +342,14 @@ unit "app" {
 }
 `
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	_, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.Error(t, err)
 
 	var evalErr hclparse.LocalEvalError
@@ -328,7 +400,14 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -425,14 +504,34 @@ unit "app" {
 
 	content := string(generated)
 	// A resolvable function renders to its literal everywhere (mock_outputs, inputs, generate).
-	assert.Contains(t, content, `"T1"`, "a resolvable function must render to its literal at generate time")
+	assert.Contains(
+		t,
+		content,
+		`"T1"`,
+		"a resolvable function must render to its literal at generate time",
+	)
 	assert.NotContains(t, content, "upper(", "a resolvable function must not be left verbatim")
 	assert.NotContains(t, content, "local.tag", "a stack local must not be left verbatim anywhere")
 	// An unresolvable function stays verbatim, but its stack local argument still renders so the generated unit never sees local.*.
-	assert.Contains(t, content, `get_unresolvable("t1")`, "an unresolvable function stays verbatim while its local argument renders")
-	assert.Contains(t, content, "dependency.vpc.outputs.id", "a dependency reference in inputs must stay verbatim")
+	assert.Contains(
+		t,
+		content,
+		`get_unresolvable("t1")`,
+		"an unresolvable function stays verbatim while its local argument renders",
+	)
+	assert.Contains(
+		t,
+		content,
+		"dependency.vpc.outputs.id",
+		"a dependency reference in inputs must stay verbatim",
+	)
 	// The remote_state config path is qualified by its attribute name so it pins that arm verbatim independently of the inputs occurrence.
-	assert.Contains(t, content, `path = get_unresolvable("here")`, "an unresolvable function in remote_state stays verbatim for the unit")
+	assert.Contains(
+		t,
+		content,
+		`path = get_unresolvable("here")`,
+		"an unresolvable function in remote_state stays verbatim for the unit",
+	)
 }
 
 // TestParseStackFile_ConfigPathEvalErrorIsAnchoredAtConfigPath pins that a config_path that fails to evaluate
@@ -466,7 +565,11 @@ unit "app" {
 	require.True(t, diags.HasErrors())
 	assert.Equal(t, "Invalid config_path", diags[0].Summary)
 	assert.Contains(t, diags[0].Detail, `dependency "dep" config_path could not be evaluated`)
-	require.NotNil(t, diags[0].Subject, "the diagnostic must be anchored at the config_path expression")
+	require.NotNil(
+		t,
+		diags[0].Subject,
+		"the diagnostic must be anchored at the config_path expression",
+	)
 
 	srcLines := strings.Split(src, "\n")
 	require.LessOrEqual(t, diags[0].Subject.Start.Line, len(srcLines))
@@ -521,7 +624,12 @@ unit "app" {
 	require.NoError(t, err)
 
 	content := string(generated)
-	assert.Contains(t, content, `"VPC"`, "a function in mock_outputs must render to its literal at generate time")
+	assert.Contains(
+		t,
+		content,
+		`"VPC"`,
+		"a function in mock_outputs must render to its literal at generate time",
+	)
 	assert.NotContains(t, content, "upper(", "a function in mock_outputs must not be left verbatim")
 }
 
@@ -573,9 +681,19 @@ unit "app" {
 	require.NoError(t, err)
 
 	content := string(generated)
-	assert.Contains(t, content, `"VPC"`, "a function in mock_outputs renders to its literal even though dependency.* in the same block defers")
+	assert.Contains(
+		t,
+		content,
+		`"VPC"`,
+		"a function in mock_outputs renders to its literal even though dependency.* in the same block defers",
+	)
 	assert.NotContains(t, content, "upper(", "a function in mock_outputs must not be left verbatim")
-	assert.Contains(t, content, "dependency.other.outputs.id", "a dependency reference in mock_outputs stays verbatim through deferredRoots")
+	assert.Contains(
+		t,
+		content,
+		"dependency.other.outputs.id",
+		"a dependency reference in mock_outputs stays verbatim through deferredRoots",
+	)
 }
 
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
@@ -615,7 +733,14 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -629,12 +754,37 @@ unit "app" {
 
 	content := string(generated)
 	// Dependency path: config_path = unit.account.path resolves to the sibling unit at generate time.
-	assert.Contains(t, content, `"../account"`, "the dependency config_path (unit.<name>.path) must resolve at generate time")
+	assert.Contains(
+		t,
+		content,
+		`"../account"`,
+		"the dependency config_path (unit.<name>.path) must resolve at generate time",
+	)
 	// Dependency mock outputs: stack-level locals resolve to literals at generate time.
-	assert.Contains(t, content, `"my-account"`, "a local in mock_outputs must resolve at generate time")
-	assert.Contains(t, content, `"eu-west-1"`, "a local in mock_outputs must resolve at generate time")
-	assert.NotContains(t, content, "local.account.name", "the local reference must not be left literal")
-	assert.NotContains(t, content, "local.account.region", "the local reference must not be left literal")
+	assert.Contains(
+		t,
+		content,
+		`"my-account"`,
+		"a local in mock_outputs must resolve at generate time",
+	)
+	assert.Contains(
+		t,
+		content,
+		`"eu-west-1"`,
+		"a local in mock_outputs must resolve at generate time",
+	)
+	assert.NotContains(
+		t,
+		content,
+		"local.account.name",
+		"the local reference must not be left literal",
+	)
+	assert.NotContains(
+		t,
+		content,
+		"local.account.region",
+		"the local reference must not be left literal",
+	)
 }
 
 func TestGenerateAutoIncludeFile_MultipleDeps(t *testing.T) {
@@ -674,7 +824,14 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -723,7 +880,14 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -776,7 +940,14 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -839,7 +1010,14 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -858,12 +1036,27 @@ unit "app" {
 	// Stack-level locals resolve at generate time everywhere, including inside the inputs zone.
 	assert.Contains(t, content, `"production"`, "local.env renders at generate time")
 	assert.NotContains(t, content, "local.env", "a stack local must not be left verbatim")
-	assert.Contains(t, content, `"us-east-1"`, "local.region renders at generate time, including inside inputs")
+	assert.Contains(
+		t,
+		content,
+		`"us-east-1"`,
+		"local.region renders at generate time, including inside inputs",
+	)
 	assert.NotContains(t, content, "local.region", "a stack local must not be left verbatim")
 
 	// A dependency reference stays verbatim; a template renders its local part and defers the dependency part.
-	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id", "a dependency reference stays verbatim")
-	assert.Contains(t, content, "production-${dependency.vpc.outputs.vpc_id}-app", "a template renders locals and defers dependency.*")
+	assert.Contains(
+		t,
+		content,
+		"dependency.vpc.outputs.vpc_id",
+		"a dependency reference stays verbatim",
+	)
+	assert.Contains(
+		t,
+		content,
+		"production-${dependency.vpc.outputs.vpc_id}-app",
+		"a template renders locals and defers dependency.*",
+	)
 	assert.Contains(t, content, `dependency "vpc"`)
 	assert.Contains(t, content, "mock_outputs")
 }
@@ -883,7 +1076,14 @@ unit "vpc" {
 }
 `
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	_, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.Error(t, err)
 
 	var cycleErr hclparse.LocalsCycleError
@@ -903,7 +1103,14 @@ unit "vpc" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 1)
 }
@@ -961,7 +1168,14 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -1000,12 +1214,24 @@ stack "networking" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "networking")]
 	require.True(t, ok, "stack networking should have autoinclude")
-	assert.Equal(t, hclparse.KindStack, resolved.Kind, "Kind must be KindStack so the generator picks terragrunt.autoinclude.stack.hcl")
+	assert.Equal(
+		t,
+		hclparse.KindStack,
+		resolved.Kind,
+		"Kind must be KindStack so the generator picks terragrunt.autoinclude.stack.hcl",
+	)
 }
 
 // A stack autoinclude must not carry a dependency block: stacks do not have dependencies, and the
@@ -1032,7 +1258,14 @@ stack "networking" {
 }
 `
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	_, err := hclparse.ParseStackFile(
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(src),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.Error(t, err, "a stack autoinclude carrying a dependency block must be rejected")
 	assert.Contains(t, err.Error(), "dependency block is not allowed in a stack autoinclude")
 }
@@ -1073,7 +1306,14 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 
 	unitResolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -1083,7 +1323,10 @@ unit "app" {
 	require.NotNil(t, stackResolved)
 
 	unitDir := filepath.Join(testStackDir, ".terragrunt-stack", "app")
-	require.NoError(t, hclparse.GenerateAutoIncludeFile(fs, unitResolved, unitDir, srcBytes, unitResolved.EvalCtx))
+	require.NoError(
+		t,
+		hclparse.GenerateAutoIncludeFile(fs, unitResolved, unitDir, srcBytes, unitResolved.EvalCtx),
+	)
 
 	unitExists, err := vfs.FileExists(fs, filepath.Join(unitDir, hclparse.AutoIncludeFile))
 	require.NoError(t, err)
@@ -1091,36 +1334,79 @@ unit "app" {
 
 	stackExists, err := vfs.FileExists(fs, filepath.Join(unitDir, hclparse.AutoIncludeStackFile))
 	require.NoError(t, err)
-	assert.False(t, stackExists, "unit autoinclude must NOT be written as terragrunt.autoinclude.stack.hcl")
+	assert.False(
+		t,
+		stackExists,
+		"unit autoinclude must NOT be written as terragrunt.autoinclude.stack.hcl",
+	)
 
 	stackDir := filepath.Join(testStackDir, ".terragrunt-stack", "networking")
-	require.NoError(t, hclparse.GenerateAutoIncludeFile(fs, stackResolved, stackDir, srcBytes, stackResolved.EvalCtx))
+	require.NoError(
+		t,
+		hclparse.GenerateAutoIncludeFile(
+			fs,
+			stackResolved,
+			stackDir,
+			srcBytes,
+			stackResolved.EvalCtx,
+		),
+	)
 
-	stackFileExists, err := vfs.FileExists(fs, filepath.Join(stackDir, hclparse.AutoIncludeStackFile))
+	stackFileExists, err := vfs.FileExists(
+		fs,
+		filepath.Join(stackDir, hclparse.AutoIncludeStackFile),
+	)
 	require.NoError(t, err)
-	assert.True(t, stackFileExists, "stack autoinclude must be written as terragrunt.autoinclude.stack.hcl")
+	assert.True(
+		t,
+		stackFileExists,
+		"stack autoinclude must be written as terragrunt.autoinclude.stack.hcl",
+	)
 
-	stackUnitFileExists, err := vfs.FileExists(fs, filepath.Join(stackDir, hclparse.AutoIncludeFile))
+	stackUnitFileExists, err := vfs.FileExists(
+		fs,
+		filepath.Join(stackDir, hclparse.AutoIncludeFile),
+	)
 	require.NoError(t, err)
-	assert.False(t, stackUnitFileExists, "stack autoinclude must NOT be written as terragrunt.autoinclude.hcl")
+	assert.False(
+		t,
+		stackUnitFileExists,
+		"stack autoinclude must NOT be written as terragrunt.autoinclude.hcl",
+	)
 }
 
 func TestAutoIncludeFileNameForKind(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "terragrunt.autoinclude.hcl", hclparse.AutoIncludeFileNameForKind(hclparse.KindUnit))
-	assert.Equal(t, "terragrunt.autoinclude.stack.hcl", hclparse.AutoIncludeFileNameForKind(hclparse.KindStack))
+	assert.Equal(
+		t,
+		"terragrunt.autoinclude.hcl",
+		hclparse.AutoIncludeFileNameForKind(hclparse.KindUnit),
+	)
+	assert.Equal(
+		t,
+		"terragrunt.autoinclude.stack.hcl",
+		hclparse.AutoIncludeFileNameForKind(hclparse.KindStack),
+	)
 }
 
 func TestAutoIncludeFileNameForKind_PanicsOnUnknownKind(t *testing.T) {
 	t.Parallel()
 
-	assert.PanicsWithValue(t, `hclparse.AutoIncludeFileNameForKind: unknown kind "" (expected "unit" or "stack")`, func() {
-		hclparse.AutoIncludeFileNameForKind("")
-	})
-	assert.PanicsWithValue(t, `hclparse.AutoIncludeFileNameForKind: unknown kind "unknown" (expected "unit" or "stack")`, func() {
-		hclparse.AutoIncludeFileNameForKind("unknown")
-	})
+	assert.PanicsWithValue(
+		t,
+		`hclparse.AutoIncludeFileNameForKind: unknown kind "" (expected "unit" or "stack")`,
+		func() {
+			hclparse.AutoIncludeFileNameForKind("")
+		},
+	)
+	assert.PanicsWithValue(
+		t,
+		`hclparse.AutoIncludeFileNameForKind: unknown kind "unknown" (expected "unit" or "stack")`,
+		func() {
+			hclparse.AutoIncludeFileNameForKind("unknown")
+		},
+	)
 }
 
 func TestParseStackFile_DuplicateUnits(t *testing.T) {
@@ -1146,9 +1432,19 @@ unit "vpc" {
 `
 
 	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644),
+	)
 
-	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	_, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(mainSrc),
+			Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+			StackDir: testStackDir,
+		},
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate unit name")
 }
@@ -1176,9 +1472,19 @@ stack "infra" {
 `
 
 	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644),
+	)
 
-	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	_, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(mainSrc),
+			Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+			StackDir: testStackDir,
+		},
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate stack name")
 }
@@ -1214,7 +1520,11 @@ unit "consumer" {
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "consumer")]
 	require.NotNil(t, resolved)
 	require.Len(t, resolved.Dependencies, 1)
-	assert.Equal(t, filepath.Join(testStackDir, hclparse.StackDir, "p"), resolved.Dependencies[0].ConfigPath)
+	assert.Equal(
+		t,
+		filepath.Join(testStackDir, hclparse.StackDir, "p"),
+		resolved.Dependencies[0].ConfigPath,
+	)
 }
 
 // A top-level stack named "path" must parse cleanly.
@@ -1258,9 +1568,19 @@ unit "vpc" {
 `
 
 	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "bad.hcl"), []byte(includeSrc), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(testStackDir, "bad.hcl"), []byte(includeSrc), 0644),
+	)
 
-	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	_, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(mainSrc),
+			Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+			StackDir: testStackDir,
+		},
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must not define locals")
 }
@@ -1287,9 +1607,19 @@ unit "vpc" {
 `
 
 	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "nested.hcl"), []byte(includeSrc), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(testStackDir, "nested.hcl"), []byte(includeSrc), 0644),
+	)
 
-	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	_, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(mainSrc),
+			Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+			StackDir: testStackDir,
+		},
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must not define nested includes")
 }
@@ -1319,9 +1649,19 @@ unit "vpc" {
 `
 
 	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includedSrc), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includedSrc), 0644),
+	)
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(rootSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      []byte(rootSrc),
+			Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+			StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.AutoIncludes, 1)
 
@@ -1330,8 +1670,18 @@ unit "vpc" {
 	require.NotNil(t, resolved)
 
 	// SourceBytes must point at the included file's bytes, not the root's, so the generator can slice expression byte ranges correctly.
-	assert.Equal(t, []byte(includedSrc), resolved.SourceBytes, "SourceBytes must equal the included file's bytes")
-	assert.NotEqual(t, []byte(rootSrc), resolved.SourceBytes, "SourceBytes must not be the root file's bytes")
+	assert.Equal(
+		t,
+		[]byte(includedSrc),
+		resolved.SourceBytes,
+		"SourceBytes must equal the included file's bytes",
+	)
+	assert.NotEqual(
+		t,
+		[]byte(rootSrc),
+		resolved.SourceBytes,
+		"SourceBytes must not be the root file's bytes",
+	)
 }
 
 // Benchmarks
@@ -1356,7 +1706,14 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	for b.Loop() {
-		_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+		_, err := hclparse.ParseStackFile(
+			fs,
+			&hclparse.ParseStackFileInput{
+				Src:      src,
+				Filename: "terragrunt.stack.hcl",
+				StackDir: testStackDir,
+			},
+		)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -1409,7 +1766,14 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	for b.Loop() {
-		_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+		_, err := hclparse.ParseStackFile(
+			fs,
+			&hclparse.ParseStackFileInput{
+				Src:      src,
+				Filename: "terragrunt.stack.hcl",
+				StackDir: testStackDir,
+			},
+		)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -1442,7 +1806,14 @@ unit "app" {
 `)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	result, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      src,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+		},
+	)
 	if err != nil {
 		require.NoError(b, err)
 	}
@@ -1479,13 +1850,22 @@ unit "u" {
 	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir, Values: &values,
 	})
-	require.NoError(t, err, "values.* in a dependency config_path resolves against the stack values at generate time")
+	require.NoError(
+		t,
+		err,
+		"values.* in a dependency config_path resolves against the stack values at generate time",
+	)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "u")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "dep", resolved.Dependencies[0].Name)
-	assert.Contains(t, resolved.Dependencies[0].ConfigPath, "producer", "config_path resolves to the value's concrete path")
+	assert.Contains(
+		t,
+		resolved.Dependencies[0].ConfigPath,
+		"producer",
+		"config_path resolves to the value's concrete path",
+	)
 }
 
 // TestGenerateAutoIncludeFile_ResolvesValues pins that a values.* reference anywhere in an autoinclude (inputs,
@@ -1540,9 +1920,24 @@ unit "app" {
 	require.NoError(t, err)
 
 	content := string(generated)
-	assert.Contains(t, content, `"us-east-1"`, "a values.* reference resolves to its literal at generate time")
-	assert.NotContains(t, content, "values.region", "a values.* reference must not be left verbatim")
-	assert.Contains(t, content, "dependency.producer.outputs.address", "a dependency output reference stays verbatim for the generated unit")
+	assert.Contains(
+		t,
+		content,
+		`"us-east-1"`,
+		"a values.* reference resolves to its literal at generate time",
+	)
+	assert.NotContains(
+		t,
+		content,
+		"values.region",
+		"a values.* reference must not be left verbatim",
+	)
+	assert.Contains(
+		t,
+		content,
+		"dependency.producer.outputs.address",
+		"a dependency output reference stays verbatim for the generated unit",
+	)
 }
 
 // TestAutoIncludeResolve_RejectsLocalsBlock verifies a locals block inside autoinclude is rejected for both kinds.
@@ -1714,7 +2109,12 @@ unit "u" {
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "nesting too deep", "deep nesting must fail loud, not overflow the stack")
+	assert.Contains(
+		t,
+		err.Error(),
+		"nesting too deep",
+		"deep nesting must fail loud, not overflow the stack",
+	)
 }
 
 // TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude verifies a unit declared in an included file is reachable as unit.<name>.path during autoinclude resolution.
@@ -1748,7 +2148,10 @@ unit "app" {
 `
 
 	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644),
+	)
 
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
 		Src:      []byte(mainSrc),
@@ -1761,8 +2164,12 @@ unit "app" {
 	require.True(t, ok, "autoinclude for unit 'app' (from included file) must be resolved")
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
-	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath,
-		"unit.vpc.path must resolve to vpc's generated path after include merge, not be undefined")
+	assert.Equal(
+		t,
+		filepath.Join(testStackDir, ".terragrunt-stack", "vpc"),
+		resolved.Dependencies[0].ConfigPath,
+		"unit.vpc.path must resolve to vpc's generated path after include merge, not be undefined",
+	)
 }
 
 func TestParseStackFile_IncludePathReferencesRootLocal(t *testing.T) {
@@ -1788,7 +2195,10 @@ unit "vpc" {
 `
 
 	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644),
+	)
 
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
 		Src:      []byte(mainSrc),
@@ -1814,8 +2224,17 @@ unit "vpc" {
 	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
-	require.Error(t, err, "bootstrap parse must surface unsupported-function eval errors instead of silently skipping the unit")
-	assert.Contains(t, err.Error(), "get_repo_root", "error must name the offending function so users can locate it")
+	require.Error(
+		t,
+		err,
+		"bootstrap parse must surface unsupported-function eval errors instead of silently skipping the unit",
+	)
+	assert.Contains(
+		t,
+		err.Error(),
+		"get_repo_root",
+		"error must name the offending function so users can locate it",
+	)
 }
 
 // TestParseStackFile_BootstrapStackSourceEvalErrorSurfaces pins the same hardening for stack-block source expressions.
@@ -1832,8 +2251,17 @@ stack "networking" {
 	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
-	require.Error(t, err, "bootstrap parse must surface unsupported-function eval errors in stack source instead of silently skipping the stack")
-	assert.Contains(t, err.Error(), "get_repo_root", "error must name the offending function so users can locate it")
+	require.Error(
+		t,
+		err,
+		"bootstrap parse must surface unsupported-function eval errors in stack source instead of silently skipping the stack",
+	)
+	assert.Contains(
+		t,
+		err.Error(),
+		"get_repo_root",
+		"error must name the offending function so users can locate it",
+	)
 }
 func TestParseStackFile_LocalEvaluatedOnce(t *testing.T) {
 	t.Parallel()
@@ -1959,7 +2387,14 @@ unit "vpc" {
 	var first []string
 
 	for i := range 5 {
-		_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+		_, err := hclparse.ParseStackFile(
+			vfs.NewMemMapFS(),
+			&hclparse.ParseStackFileInput{
+				Src:      src,
+				Filename: "terragrunt.stack.hcl",
+				StackDir: testStackDir,
+			},
+		)
 		require.Error(t, err)
 
 		var cycleErr hclparse.LocalsCycleError
@@ -1970,7 +2405,13 @@ unit "vpc" {
 			continue
 		}
 
-		assert.Equal(t, first, cycleErr.Names, "cycle path must be deterministic across runs (run %d)", i)
+		assert.Equal(
+			t,
+			first,
+			cycleErr.Names,
+			"cycle path must be deterministic across runs (run %d)",
+			i,
+		)
 	}
 }
 
@@ -2000,7 +2441,14 @@ unit "app" {
 }
 `)
 
-	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/test"})
+	_, err := hclparse.ParseStackFile(
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src:      src,
+			Filename: "terragrunt.stack.hcl",
+			StackDir: "/test",
+		},
+	)
 	require.Error(t, err)
 
 	var validationErr hclparse.IncludeValidationError
@@ -2009,7 +2457,11 @@ unit "app" {
 	var diags hcl.Diagnostics
 	require.ErrorAs(t, err, &diags)
 	require.NotEmpty(t, diags)
-	require.NotNil(t, diags[0].Subject, "include validation diag must carry a source position for editor underlining")
+	require.NotNil(
+		t,
+		diags[0].Subject,
+		"include validation diag must carry a source position for editor underlining",
+	)
 	assert.Equal(t, "terragrunt.stack.hcl", diags[0].Subject.Filename)
 }
 

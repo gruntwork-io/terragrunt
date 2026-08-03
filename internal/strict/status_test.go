@@ -44,7 +44,11 @@ func TestStatusStringWithANSIColor(t *testing.T) {
 		status strict.Status
 	}{
 		{name: "active green", want: ansiGreen + "Active" + ansiReset, status: strict.ActiveStatus},
-		{name: "completed yellow", want: ansiYellow + "Completed" + ansiReset, status: strict.CompletedStatus},
+		{
+			name:   "completed yellow",
+			want:   ansiYellow + "Completed" + ansiReset,
+			status: strict.CompletedStatus,
+		},
 		{name: "unknown bare", want: "unknown", status: strict.Status(99)},
 	}
 

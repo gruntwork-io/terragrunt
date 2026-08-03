@@ -10,7 +10,12 @@ import (
 )
 
 // ListFailedWorkflowRuns fetches failed workflow runs for a given workflow file.
-func (c *Client) ListFailedWorkflowRuns(ctx context.Context, workflow, branch string, limit int, since *time.Time) ([]types.WorkflowRun, error) {
+func (c *Client) ListFailedWorkflowRuns(
+	ctx context.Context,
+	workflow, branch string,
+	limit int,
+	since *time.Time,
+) ([]types.WorkflowRun, error) {
 	opts := &github.ListWorkflowRunsOptions{
 		Branch: branch,
 		Status: "failure",
@@ -19,7 +24,13 @@ func (c *Client) ListFailedWorkflowRuns(ctx context.Context, workflow, branch st
 		},
 	}
 
-	runs, _, err := c.client.Actions.ListWorkflowRunsByFileName(ctx, c.owner, c.repo, workflow, opts)
+	runs, _, err := c.client.Actions.ListWorkflowRunsByFileName(
+		ctx,
+		c.owner,
+		c.repo,
+		workflow,
+		opts,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -53,9 +64,15 @@ func (c *Client) ListFailedWorkflowRuns(ctx context.Context, workflow, branch st
 
 // ListJobsForRun gets all jobs for a workflow run.
 func (c *Client) ListJobsForRun(ctx context.Context, runID int64) ([]types.Job, error) {
-	jobs, _, err := c.client.Actions.ListWorkflowJobs(ctx, c.owner, c.repo, runID, &github.ListWorkflowJobsOptions{
-		Filter: "all",
-	})
+	jobs, _, err := c.client.Actions.ListWorkflowJobs(
+		ctx,
+		c.owner,
+		c.repo,
+		runID,
+		&github.ListWorkflowJobsOptions{
+			Filter: "all",
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -127,11 +144,17 @@ func (c *Client) GetFailedCheckRunJobs(ctx context.Context, runID int64) ([]type
 	sha := run.GetHeadSHA()
 
 	// List check runs for this commit
-	checkRuns, _, err := c.client.Checks.ListCheckRunsForRef(ctx, c.owner, c.repo, sha, &github.ListCheckRunsOptions{
-		ListOptions: github.ListOptions{
-			PerPage: 100,
+	checkRuns, _, err := c.client.Checks.ListCheckRunsForRef(
+		ctx,
+		c.owner,
+		c.repo,
+		sha,
+		&github.ListCheckRunsOptions{
+			ListOptions: github.ListOptions{
+				PerPage: 100,
+			},
 		},
-	})
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -170,12 +193,17 @@ func (c *Client) GetFailedCheckRunJobs(ctx context.Context, runID int64) ([]type
 // findJobByName searches all workflow runs for a commit to find a job by name.
 func (c *Client) findJobByName(ctx context.Context, sha, jobName string) (*types.Job, error) {
 	// List workflow runs for this commit
-	runs, _, err := c.client.Actions.ListRepositoryWorkflowRuns(ctx, c.owner, c.repo, &github.ListWorkflowRunsOptions{
-		HeadSHA: sha,
-		ListOptions: github.ListOptions{
-			PerPage: 20,
+	runs, _, err := c.client.Actions.ListRepositoryWorkflowRuns(
+		ctx,
+		c.owner,
+		c.repo,
+		&github.ListWorkflowRunsOptions{
+			HeadSHA: sha,
+			ListOptions: github.ListOptions{
+				PerPage: 20,
+			},
 		},
-	})
+	)
 	if err != nil {
 		return nil, err
 	}

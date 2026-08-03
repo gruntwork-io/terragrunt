@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOSExec_Output(t *testing.T) {
+func TestExecOS_Output(t *testing.T) {
 	t.Parallel()
 
 	out, err := vexec.Output(vexec.NewOSExec(), t.Context(), "echo", "hello")
@@ -28,7 +28,7 @@ func TestOSExec_Output(t *testing.T) {
 	assert.Equal(t, "hello\n", string(out))
 }
 
-func TestOSExec_LookPath(t *testing.T) {
+func TestExecOS_LookPath(t *testing.T) {
 	t.Parallel()
 
 	e := vexec.NewOSExec()
@@ -42,7 +42,7 @@ func TestOSExec_LookPath(t *testing.T) {
 	assert.ErrorIs(t, err, exec.ErrNotFound)
 }
 
-func TestOSExec_ExitCode(t *testing.T) {
+func TestExecOS_ExitCode(t *testing.T) {
 	t.Parallel()
 
 	err := vexec.Run(vexec.NewOSExec(), t.Context(), "bash", "-c", "exit 3")
@@ -51,7 +51,7 @@ func TestOSExec_ExitCode(t *testing.T) {
 	assert.Equal(t, 3, vexec.ExitCode(err))
 }
 
-func TestOSExec_StartWait(t *testing.T) {
+func TestExecOS_StartWait(t *testing.T) {
 	t.Parallel()
 
 	var stdout, stderr bytes.Buffer
@@ -69,7 +69,7 @@ func TestOSExec_StartWait(t *testing.T) {
 	assert.True(t, cmd.ProcessState().Success())
 }
 
-func TestOSExec_CombinedOutput(t *testing.T) {
+func TestExecOS_CombinedOutput(t *testing.T) {
 	t.Parallel()
 
 	out, err := vexec.NewOSExec().
@@ -82,7 +82,7 @@ func TestOSExec_CombinedOutput(t *testing.T) {
 	assert.Contains(t, string(out), "err")
 }
 
-func TestOSExec_SetDir(t *testing.T) {
+func TestExecOS_SetDir(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -102,7 +102,7 @@ func TestOSExec_SetDir(t *testing.T) {
 	)
 }
 
-func TestOSExec_SetEnv(t *testing.T) {
+func TestExecOS_SetEnv(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -115,7 +115,7 @@ func TestOSExec_SetEnv(t *testing.T) {
 	assert.Equal(t, "bar", buf.String())
 }
 
-func TestOSExec_SetStdin(t *testing.T) {
+func TestExecOS_SetStdin(t *testing.T) {
 	t.Parallel()
 
 	var stdout bytes.Buffer
@@ -130,7 +130,7 @@ func TestOSExec_SetStdin(t *testing.T) {
 
 // ProcessState parity is deliberately not asserted: osCmd populates it after
 // Wait, memCmd always returns nil. Callers that need it should not migrate.
-func TestParity_OSVsMem(t *testing.T) {
+func TestExecParity_OSVsMem(t *testing.T) {
 	t.Parallel()
 
 	runParityCases(t, []parityCase{
@@ -155,7 +155,7 @@ func TestParity_OSVsMem(t *testing.T) {
 	})
 }
 
-func TestOSExec_SetCancelFiresOnContextCancel(t *testing.T) {
+func TestExecOS_SetCancelFiresOnContextCancel(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -178,7 +178,7 @@ func TestOSExec_SetCancelFiresOnContextCancel(t *testing.T) {
 	assert.True(t, called.Load(), "cancel fn must have been invoked")
 }
 
-func TestOSExec_SignalBeforeStartReturnsErrProcessNotStarted(t *testing.T) {
+func TestExecOS_SignalBeforeStartReturnsErrProcessNotStarted(t *testing.T) {
 	t.Parallel()
 
 	cmd := vexec.NewOSExec().Command(t.Context(), "echo", "hi")
