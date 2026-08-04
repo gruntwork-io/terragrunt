@@ -47,10 +47,17 @@ func Run(
 	}
 
 	tempDirs := tui.NewTempDirTracker(v.FS)
+
+	streamCtx, stopStream := context.WithCancel(ctx)
+	defer stopStream()
+
+	stopNotify := notifyBrokenPipe(ctx, stopStream)
+	defer stopNotify()
+
 	defer tempDirs.Cleanup(l)
 
 	return Stream(
-		ctx, l, v.Writers.Writer, renderer,
+		streamCtx, l, v.Writers.Writer, renderer,
 		newLoadFunc(l, v, opts.TerragruntOptions, tempDirs, repoURL),
 	)
 }
