@@ -1,4 +1,4 @@
-package tui_test
+package form_test
 
 import (
 	"fmt"
@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
@@ -79,7 +79,7 @@ func TestFormFieldsFromParsedVariables_OrderingAndMetadata(t *testing.T) {
 		{Name: "tier", Type: "string", DefaultValue: `"basic"`, DefaultValuePlaceholder: `""`},
 	}
 
-	fields := tui.FieldsFromParsedVariables(required, optional)
+	fields := form.FieldsFromParsedVariables(required, optional)
 
 	require.Len(t, fields, 3)
 
@@ -99,7 +99,7 @@ func TestFormFieldsFromParsedVariables_OrderingAndMetadata(t *testing.T) {
 func TestFormStartsInNavigateMode(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 	})
 	f.SetSize(120, 40)
@@ -115,7 +115,7 @@ func TestFormStartsInNavigateMode(t *testing.T) {
 func TestFormJKNavigates(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "a", Required: true},
 		{Name: "b", Required: true},
 		{Name: "c"},
@@ -148,7 +148,7 @@ func TestFormJKNavigates(t *testing.T) {
 func TestFormEnterOnTextFieldEntersEditMode(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 	})
 	f.SetSize(120, 40)
@@ -168,7 +168,7 @@ func TestFormEnterOnTextFieldEntersEditMode(t *testing.T) {
 func TestFormEditExitWithoutChangeKeepsSetFalse(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
 	})
 	f.SetSize(120, 40)
@@ -185,7 +185,7 @@ func TestFormEditExitWithoutChangeKeepsSetFalse(t *testing.T) {
 func TestFormEnterOnCheckboxEntersEditThenToggles(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "enable_dns", Checkbox: true, TypeStr: "bool", Bool: false},
 	})
 	f.SetSize(120, 40)
@@ -216,7 +216,7 @@ func TestFormXUnsetsOptionalAndPreservesInput(t *testing.T) {
 	// Drive a text field to Set=true via edit, then press x to mark it
 	// "use default" again. The input value should be preserved so the
 	// user can recover their work by re-entering edit mode.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
 	})
 	f.SetSize(120, 40)
@@ -239,7 +239,7 @@ func TestFormXIsNoOpWhenAlreadyUnset(t *testing.T) {
 
 	// An optional field with a default is unset by default; pressing x
 	// on it should NOT flip it to Set=true.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
 	})
 	f.SetSize(120, 40)
@@ -253,7 +253,7 @@ func TestFormXIsNoOpWhenAlreadyUnset(t *testing.T) {
 func TestFormResetUnsetsAllFieldsAndClearsErrors(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
 		{Name: "enabled", Checkbox: true, TypeStr: "bool", Bool: true, BoolInitial: true},
@@ -304,7 +304,7 @@ func TestFormResetUnsetsAllFieldsAndClearsErrors(t *testing.T) {
 func TestFormXUnsetsRequiredAndClearsError(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 	})
 	f.SetSize(120, 40)
@@ -328,7 +328,7 @@ func TestFormXUnsetsRequiredAndClearsError(t *testing.T) {
 func TestFormSubmitOmitsUnsetFields(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
 		{Name: "enabled", Checkbox: true, TypeStr: "bool", Bool: false},
@@ -344,7 +344,7 @@ func TestFormSubmitOmitsUnsetFields(t *testing.T) {
 	require.NotNil(t, cmd)
 
 	msg := drainFormCmds(cmd)
-	sub, ok := msg.(tui.FormSubmitMsg)
+	sub, ok := msg.(form.SubmitMsg)
 	require.True(t, ok, "expected FormSubmitMsg, got %T", msg)
 
 	assert.Equal(t, map[string]string{
@@ -355,7 +355,7 @@ func TestFormSubmitOmitsUnsetFields(t *testing.T) {
 func TestFormBoolToggleEmitsValue(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "enabled", Checkbox: true, TypeStr: "bool", Bool: true},
 	})
 	f.SetSize(120, 40)
@@ -366,7 +366,7 @@ func TestFormBoolToggleEmitsValue(t *testing.T) {
 
 	_, cmd := f.Update(pressCtrlD())
 	msg := drainFormCmds(cmd)
-	sub, ok := msg.(tui.FormSubmitMsg)
+	sub, ok := msg.(form.SubmitMsg)
 	require.True(t, ok)
 
 	assert.Equal(t, map[string]string{"enabled": "false"}, sub.Values)
@@ -375,7 +375,7 @@ func TestFormBoolToggleEmitsValue(t *testing.T) {
 func TestFormLiteralFieldAutoQuotesOnSubmit(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 	})
 	f.SetSize(120, 40)
@@ -390,7 +390,7 @@ func TestFormLiteralFieldAutoQuotesOnSubmit(t *testing.T) {
 
 	_, cmd := f.Update(pressCtrlD())
 	msg := drainFormCmds(cmd)
-	sub, ok := msg.(tui.FormSubmitMsg)
+	sub, ok := msg.(form.SubmitMsg)
 	require.True(t, ok)
 
 	assert.Equal(t, `"us-east-1"`, sub.Values["region"],
@@ -401,7 +401,7 @@ func TestFormHCLValidationBlocksSubmit(t *testing.T) {
 	t.Parallel()
 
 	// Non-literal field (raw HCL); typing broken HCL should block submit.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "ports", Required: true, TypeStr: "list(number)"},
 	})
 	f.SetSize(120, 40)
@@ -427,7 +427,7 @@ func TestFormValidationOnExitFlagsBadHCL(t *testing.T) {
 	// Type a partial map literal and confirm no error surfaces while
 	// the user is still typing; on esc back to navigate the validator
 	// runs once and flags the broken value.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "tags", TypeStr: "map"},
 	})
 	f.SetSize(120, 40)
@@ -464,7 +464,7 @@ func TestFormValidationOnExitFlagsTypeMismatch(t *testing.T) {
 	t.Parallel()
 
 	// Declared type is "number" but the user types a string.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "port", TypeStr: "number"},
 	})
 	f.SetSize(120, 40)
@@ -489,7 +489,7 @@ func TestFormValidationOnExitFlagsBareIdentifier(t *testing.T) {
 	// path used to fall through to "accept as a reference"; bare
 	// identifiers are almost always typos, so the validator should
 	// flag them against the declared type.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "tags", TypeStr: "map"},
 	})
 	f.SetSize(120, 40)
@@ -512,7 +512,7 @@ func TestFormValidationOnExitAcceptsReferences(t *testing.T) {
 	// References can't be evaluated without context; the validator
 	// should accept the syntactically-valid expression and let
 	// terragrunt resolve it at run time.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "tags", TypeStr: "map"},
 	})
 	f.SetSize(120, 40)
@@ -536,7 +536,7 @@ func TestFormValidationDoesNotFireMidTyping(t *testing.T) {
 	// while typing. Confirm no validation error appears until
 	// the user signals they're done (esc, or a future tab to the next
 	// field).
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "port", TypeStr: "number"},
 	})
 	f.SetSize(120, 40)
@@ -557,12 +557,12 @@ func TestFormPageNavigationJumpsMultipleFields(t *testing.T) {
 	// Construct enough fields that one page-down doesn't reach the end.
 	const fieldCount = 20
 
-	fields := make([]tui.FormField, fieldCount)
+	fields := make([]form.Field, fieldCount)
 	for i := range fields {
-		fields[i] = tui.FormField{Name: fmt.Sprintf("f%02d", i), Literal: true, TypeStr: "string"}
+		fields[i] = form.Field{Name: fmt.Sprintf("f%02d", i), Literal: true, TypeStr: "string"}
 	}
 
-	f := tui.NewFormModel(nil, fields)
+	f := form.NewModel("", fields)
 	f.SetSize(120, 40)
 
 	startCursor := f.Cursor()
@@ -581,7 +581,7 @@ func TestFormPageNavigationJumpsMultipleFields(t *testing.T) {
 func TestFormHomeEndJumpsToBounds(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "a", Required: true},
 		{Name: "b", Required: true},
 		{Name: "c", Required: true},
@@ -598,7 +598,7 @@ func TestFormHomeEndJumpsToBounds(t *testing.T) {
 func TestFormFilterNarrowsAndNavigates(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "subnet_ids", Required: true, TypeStr: "list(string)"},
@@ -630,7 +630,7 @@ func TestFormFilterNarrowsAndNavigates(t *testing.T) {
 func TestFormCheckedSubmitReportsMissingRequiredCount(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "tier", Required: false, Literal: true, TypeStr: "string"},
@@ -668,7 +668,7 @@ func TestFormCheckedSubmitReportsMissingRequiredCount(t *testing.T) {
 func TestFormStatusLineClearsOnceRequiredFieldsSet(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
 	})
@@ -711,7 +711,7 @@ func TestFormStatusLineClearsOnceRequiredFieldsSet(t *testing.T) {
 func TestFormErrorRowDoesNotShiftLayout(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "tier", Required: false, Literal: true, TypeStr: "string"},
@@ -747,7 +747,7 @@ func TestFormErrorRowDoesNotShiftLayout(t *testing.T) {
 func TestFormForceSubmitWritesDespiteMissingRequired(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
 	})
@@ -759,7 +759,7 @@ func TestFormForceSubmitWritesDespiteMissingRequired(t *testing.T) {
 	require.True(t, updated.Submitted(), "ctrl+d should submit even with required fields unset")
 
 	msg := drainFormCmds(cmd)
-	sub, ok := msg.(tui.FormSubmitMsg)
+	sub, ok := msg.(form.SubmitMsg)
 	require.True(t, ok, "expected FormSubmitMsg, got %T", msg)
 
 	assert.Empty(
@@ -772,7 +772,7 @@ func TestFormForceSubmitWritesDespiteMissingRequired(t *testing.T) {
 func TestFormUnsetReshowsMissingRequiredCount(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 	})
 	f.SetSize(120, 40)
@@ -807,7 +807,7 @@ func TestFormUnsetReshowsMissingRequiredCount(t *testing.T) {
 func TestFormFilterEntryReturnsFocusCmd(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true},
 		{Name: "vpc_id", Required: true},
 	})
@@ -824,7 +824,7 @@ func TestFormFilterEntryReturnsFocusCmd(t *testing.T) {
 func TestFormFilterEscClearsAndPreservesForm(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true},
 		{Name: "vpc_id", Required: true},
 	})
@@ -841,28 +841,28 @@ func TestFormFilterEscClearsAndPreservesForm(t *testing.T) {
 	// Second esc now cancels the form.
 	_, cmd = f.Update(pressEsc())
 	require.NotNil(t, cmd)
-	_, ok := drainFormCmds(cmd).(tui.FormCancelMsg)
+	_, ok := drainFormCmds(cmd).(form.CancelMsg)
 	assert.True(t, ok, "esc with no active filter should cancel the form")
 }
 
 func TestFormCancelEmitsCancelMsg(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{{Name: "region", Required: true}})
+	f := form.NewModel("", []form.Field{{Name: "region", Required: true}})
 	f.SetSize(120, 40)
 
 	_, cmd := f.Update(pressEsc())
 	require.NotNil(t, cmd)
 
 	msg := drainFormCmds(cmd)
-	_, ok := msg.(tui.FormCancelMsg)
+	_, ok := msg.(form.CancelMsg)
 	assert.True(t, ok, "expected FormCancelMsg, got %T", msg)
 }
 
 func TestFormEscFromEditReturnsToNavigateNotCancel(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 	})
 	f.SetSize(120, 40)
@@ -877,7 +877,7 @@ func TestFormEscFromEditReturnsToNavigateNotCancel(t *testing.T) {
 	// Now a fresh esc in navigate mode cancels the form.
 	_, cmd = f.Update(pressEsc())
 	require.NotNil(t, cmd)
-	_, ok := drainFormCmds(cmd).(tui.FormCancelMsg)
+	_, ok := drainFormCmds(cmd).(form.CancelMsg)
 	assert.True(t, ok)
 }
 
@@ -892,7 +892,7 @@ func TestFormValuesReferencesPromotesBoolDefaults(t *testing.T) {
 		},
 	}
 
-	fields := tui.FieldsFromValuesReferences(refs)
+	fields := form.FieldsFromValuesReferences(refs)
 	require.Len(t, fields, 3)
 
 	assert.False(t, fields[0].Checkbox,
@@ -913,7 +913,7 @@ func TestFormTabCyclesCategoryAndNarrowsCursor(t *testing.T) {
 	// required field. tab moves to the Required-only tab (no-op for the
 	// cursor since it's already on a required), then to Optional which
 	// snaps the cursor onto the first optional field.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
@@ -952,7 +952,7 @@ func TestFormCategoryANDsWithTextFilter(t *testing.T) {
 
 	// Optional category + "vpc" text filter should leave only optional
 	// fields whose names contain "vpc".
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_required", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_cidr", Literal: true, TypeStr: "string", Initial: "10.0.0.0/16"},
@@ -1001,7 +1001,7 @@ func TestFormTabInEditCommitsValidatesAndAdvancesStayingInEdit(t *testing.T) {
 	// value is a valid HCL number), the cursor should move to field 1,
 	// and edit mode should persist so the next character lands in the
 	// new textinput.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "port", Required: true, TypeStr: "number"},
 		{Name: "host", Required: true, TypeStr: "string", Literal: true},
 	})
@@ -1034,7 +1034,7 @@ func TestFormTabInEditFlagsBadValueOnBlur(t *testing.T) {
 
 	// Tab away from a broken value: validation should fire as part of
 	// the tab-commit step, same as it would on esc.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "port", Required: true, TypeStr: "number"},
 		{Name: "host", Required: true, TypeStr: "string", Literal: true},
 	})
@@ -1056,7 +1056,7 @@ func TestFormTabInEditFlagsBadValueOnBlur(t *testing.T) {
 func TestFormShiftTabInEditMovesPrev(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "port", Required: true, TypeStr: "number"},
 		{Name: "host", Required: true, TypeStr: "string", Literal: true},
 	})
@@ -1076,7 +1076,7 @@ func TestFormTabInEditAtBoundaryIsNoOp(t *testing.T) {
 
 	// On the last field, tab should not wrap; the user stays put with
 	// edit mode preserved.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "a", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "b", Required: true, Literal: true, TypeStr: "string"},
 	})
@@ -1104,7 +1104,7 @@ func TestFormDetailOverlayOpenAndClose(t *testing.T) {
 
 	// `?` from navigate opens the overlay; `?` again closes it.
 	// Default-state form is in navigate mode.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string",
 			Description: "AWS region for the resource."},
 	})
@@ -1128,7 +1128,7 @@ func TestFormDetailOverlayOpenAndClose(t *testing.T) {
 func TestFormDetailOverlayEscClosesWithoutCancelingForm(t *testing.T) {
 	t.Parallel()
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string",
 			Description: "AWS region."},
 	})
@@ -1149,7 +1149,7 @@ func TestFormUnfocusedDescriptionIsTruncatedAndFocusedIsFull(t *testing.T) {
 
 	longDesc := "L1\nL2\nL3\nL4"
 
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "a", Required: true, Literal: true, TypeStr: "string",
 			Description: longDesc},
 		{Name: "b", Required: true, Literal: true, TypeStr: "string",
@@ -1184,7 +1184,7 @@ func TestFormUntouchedCursorTracksFirstVisibleAcrossTabs(t *testing.T) {
 	// first visible field as the category changes. Mirrors the list view's
 	// "freshly inserted item snaps selection to 0 until you navigate"
 	// pattern.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
@@ -1212,7 +1212,7 @@ func TestFormNavigationStickyAfterJK(t *testing.T) {
 
 	// Once the user presses j/k, subsequent tabs preserve the cursor
 	// (when the field stays visible) instead of snapping to the top.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "a", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "b", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "c", Required: true, Literal: true, TypeStr: "string"},
@@ -1235,7 +1235,7 @@ func TestFormUntouchedCursorTracksFirstMatchWhileFiltering(t *testing.T) {
 	// A user who hasn't navigated should also have the cursor snap to
 	// the first match as they type into the filter, even when their
 	// pre-filter cursor would have stayed visible.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
 	})
@@ -1255,7 +1255,7 @@ func TestFormEnterInEditExitsBackToNavigateOnTextField(t *testing.T) {
 	// Enter on a text/HCL field acts as the symmetric counterpart to
 	// the enter that brought the user into edit mode: commit + validate
 	// + return to navigate, same as esc.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
 	})
 	f.SetSize(120, 40)
@@ -1286,7 +1286,7 @@ func TestFormEnterInEditStillTogglesBool(t *testing.T) {
 
 	// Enter on a bool field in edit mode keeps its toggle semantics; the
 	// new exit-on-enter behavior is text-field-only.
-	f := tui.NewFormModel(nil, []tui.FormField{
+	f := form.NewModel("", []form.Field{
 		{Name: "debug", Checkbox: true, TypeStr: "bool"},
 	})
 	f.SetSize(120, 40)
@@ -1323,7 +1323,7 @@ func TestCtyValueAsHCLRoundTrips(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.want, tui.CtyValueAsHCL(tc.in))
+			assert.Equal(t, tc.want, form.CtyValueAsHCL(tc.in))
 		})
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -46,11 +47,6 @@ func EmitExitMessage(finalModel tea.Model, errWriter io.Writer, l log.Logger) {
 type sessionState int
 
 type button int
-
-const (
-	titleForegroundColor = "#A8ACB1"
-	titleBackgroundColor = "#1D252F"
-)
 
 const (
 	ListState sessionState = iota
@@ -112,7 +108,7 @@ type Model struct {
 	mdRenderer *glamour.TermRenderer
 	// form is the variable-entry form, nil until a formReadyMsg arrives
 	// from scaffold-variable discovery.
-	form *FormModel
+	form *form.Model
 	// scaffoldPlan is the prepared plan backing the active form. Its
 	// temporary source download is cleaned up when the form is abandoned
 	// or the scaffold is consumed.
@@ -429,8 +425,8 @@ func newModelWithItems(
 	delegate := newCatalogDelegate(delegateKeys)
 
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(titleForegroundColor)).
-		Background(lipgloss.Color(titleBackgroundColor)).
+		Foreground(lipgloss.Color(viewtui.TitleForeground)).
+		Background(lipgloss.Color(viewtui.TitleBackground)).
 		Padding(0, 1)
 
 	var lists [numTabs]list.Model

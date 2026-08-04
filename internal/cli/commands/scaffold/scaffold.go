@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -146,8 +147,6 @@ func NewBoilerplateOptions(
 // HCL fragments via the values argument, and Cleanup removes the temporary
 // directories Prepare allocated. Callers must invoke Cleanup exactly once,
 // typically via defer.
-//
-//nolint:govet // field order chosen for readability over alignment
 type Plan struct {
 	logger            log.Logger
 	Required          []*config.ParsedVariable
@@ -159,7 +158,19 @@ type Plan struct {
 	resolvedModuleURL string
 	outputDir         string
 	sourceDir         string
+	values            component.ValuesReferences
 	kind              component.Kind
+}
+
+// FormFields returns what a user is asked to fill in before this plan is
+// generated: the variables of a module or template, or the `values.*`
+// references a unit or stack makes. Empty when the source asks for nothing.
+func (p *Plan) FormFields() []form.Field {
+	if p.kind.IsCopyable() {
+		return form.FieldsFromValuesReferences(p.values)
+	}
+
+	return form.FieldsFromParsedVariables(p.Required, p.Optional)
 }
 
 // Cleanup removes the temporary directories allocated during Prepare.
@@ -279,8 +290,14 @@ func Prepare(
 	if kind, ok := markers.CopyKind(); ok {
 		warnUnusedScaffoldInputs(l, opts, templateURL, kind)
 
+		values, err := component.Values(v.FS, kind, tempDir)
+		if err != nil {
+			return nil, err
+		}
+
 		plan.kind = kind
 		plan.sourceDir = tempDir
+		plan.values = values
 		success = true
 
 		return plan, nil
