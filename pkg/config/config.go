@@ -767,10 +767,11 @@ type terragruntConfigFile struct {
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
-	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
-	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
-	Exclude                  *ExcludeConfig      `hcl:"exclude,block"`
-	Errors                   *ErrorsConfig       `hcl:"errors,block"`
+	DependencyBlocks         []dependencyHeader  `hcl:"dependency,block"`
+	TerragruntDependencies   []Dependency
+	FeatureFlags             []*FeatureFlag `hcl:"feature,block"`
+	Exclude                  *ExcludeConfig `hcl:"exclude,block"`
+	Errors                   *ErrorsConfig  `hcl:"errors,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -803,6 +804,14 @@ type terragruntConfigFile struct {
 // routine that allows references to the other locals in the same block.
 type terragruntLocal struct {
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// dependencyHeader keeps `dependency` in the config file's schema without evaluating the
+// block body. A block that expands has to be decoded once per element with
+// each.*/count.index bound, which a single whole-file decode cannot express.
+type dependencyHeader struct {
+	Remain hcl.Body `hcl:",remain"`
+	Name   string   `hcl:",label"`
 }
 
 type terragruntIncludeIgnore struct {
@@ -1828,6 +1837,13 @@ func decodeAsTerragruntConfigFile(
 
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
+
+	dependencies, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
+	if err != nil {
+		return &terragruntConfig, err
+	}
+
+	terragruntConfig.TerragruntDependencies = dependencies
 
 	if terragruntConfig.Inputs != nil {
 		inputs, err := ctyhelper.UpdateUnknownCtyValValues(*terragruntConfig.Inputs)

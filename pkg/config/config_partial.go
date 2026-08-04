@@ -735,12 +735,16 @@ func PartialParseConfig(
 			}
 
 		case DependencyBlock:
-			decoded := TerragruntDependency{}
-
-			err := file.Decode(&decoded, evalParsingContext)
+			decodedDeps, err := decodeDependencyBlocks(
+				file,
+				evalParsingContext,
+				pctx.Experiments,
+			)
 			if err != nil {
 				return nil, err
 			}
+
+			decoded := TerragruntDependency{Dependencies: decodedDeps}
 
 			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()

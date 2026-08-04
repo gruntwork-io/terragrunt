@@ -1,8 +1,10 @@
 package hclparse
 
 import (
+	"errors"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -26,6 +28,8 @@ const (
 	countIndexAttrName = "index"
 
 	forEachElementLabel = forEachAttrName + " element"
+
+	labelTagKind = "label"
 )
 
 // DefaultMaxInstances bounds how many instances a single block may expand into,
@@ -87,6 +91,60 @@ func (key InstanceKey) Key() string {
 type Instance struct {
 	Value any
 	InstanceKey
+}
+
+// ExpandBlocks decodes every blockType block in the file through [ExpandBlock],
+// returning the instances in file order.
+//
+// A block whose diagnostics the parser is configured to swallow (hclvalidate, the LSP)
+// is dropped from the result rather than failing the file, so those callers keep parsing
+// best-effort.
+func (file *File) ExpandBlocks(
+	blockType string,
+	out any,
+	ctx *hcl.EvalContext,
+	opts ...ExpandOption,
+) ([]Instance, error) {
+	if file.fileUpdateHandlerFunc != nil {
+		if err := file.fileUpdateHandlerFunc(file); err != nil {
+			return nil, err
+		}
+	}
+
+	labels := labelFields(reflect.TypeOf(out).Elem())
+	labelNames := make([]string, 0, len(labels))
+
+	for _, label := range labels {
+		labelNames = append(labelNames, label.name)
+	}
+
+	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labelNames}},
+	})
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return nil, err
+	}
+
+	instances := make([]Instance, 0, len(content.Blocks))
+
+	for _, block := range content.Blocks {
+		expanded, err := ExpandBlock(block, out, ctx, opts...)
+		if err == nil {
+			instances = append(instances, expanded...)
+			continue
+		}
+
+		var blockDiags hcl.Diagnostics
+		if !errors.As(err, &blockDiags) {
+			return nil, err
+		}
+
+		if err := file.HandleDiagnostics(blockDiags); err != nil {
+			return nil, err
+		}
+	}
+
+	return instances, nil
 }
 
 // ExpandBlock decodes block once per iteration element, returning one Instance per
@@ -360,11 +418,42 @@ func expansionKey(key cty.Value, subject *hcl.Range) (string, error) {
 // decodeInstance decodes the whole block body, expansion sub-block included, into a
 // fresh value of outType.
 func decodeInstance(block *hcl.Block, outType reflect.Type, ctx *hcl.EvalContext) (any, error) {
-	instance := reflect.New(outType.Elem()).Interface()
+	instance := reflect.New(outType.Elem())
 
-	if diags := gohcl.DecodeBody(block.Body, ctx, instance); diags.HasErrors() {
+	if diags := gohcl.DecodeBody(block.Body, ctx, instance.Interface()); diags.HasErrors() {
 		return nil, diags
 	}
 
-	return instance, nil
+	// gohcl fills label fields only when it reaches a block through its parent body.
+	// Expansion decodes the body directly, so labels are assigned here instead.
+	for i, field := range labelFields(outType.Elem()) {
+		if i >= len(block.Labels) {
+			break
+		}
+
+		instance.Elem().Field(field.index).SetString(block.Labels[i])
+	}
+
+	return instance.Interface(), nil
+}
+
+type labelField struct {
+	name  string
+	index int
+}
+
+// labelFields returns the `hcl:",label"` fields of a block struct, in declaration order.
+func labelFields(structType reflect.Type) []labelField {
+	fields := make([]labelField, 0, structType.NumField())
+
+	for i := range structType.NumField() {
+		name, kind, found := strings.Cut(structType.Field(i).Tag.Get("hcl"), ",")
+		if !found || kind != labelTagKind {
+			continue
+		}
+
+		fields = append(fields, labelField{name: name, index: i})
+	}
+
+	return fields
 }
