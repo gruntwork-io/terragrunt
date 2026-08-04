@@ -244,7 +244,7 @@ func checkUnitVersionConstraints(
 			configCtx,
 			pctx,
 			l,
-			unit.ConfigFile(),
+			filepath.Join(unit.Path(), unit.ConfigFile()),
 			nil,
 		)
 		if err != nil {
