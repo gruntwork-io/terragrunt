@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestRemoveStaleSymlink(t *testing.T) {
@@ -145,4 +146,27 @@ type lstatErrorFS struct {
 
 func (fs *lstatErrorFS) LstatIfPossible(string) (os.FileInfo, bool, error) {
 	return nil, false, fs.err
+}
+
+// TestProviderServiceInitIsIdempotent covers the server initializing a
+// service that a caller may also drive through Run: the directories are
+// created once, and both callers see the same outcome.
+func TestProviderServiceInitIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	service := services.NewProviderService(
+		t.TempDir(), t.TempDir(), nil, logger.CreateLogger(),
+	)
+
+	require.NoError(t, service.Init())
+	require.NoError(t, service.Init())
+}
+
+func TestProviderServiceInitWithoutCacheDir(t *testing.T) {
+	t.Parallel()
+
+	service := services.NewProviderService("", t.TempDir(), nil, logger.CreateLogger())
+
+	require.ErrorIs(t, service.Init(), services.ErrCacheDirNotSpecified)
+	require.ErrorIs(t, service.Run(t.Context()), services.ErrCacheDirNotSpecified)
 }
