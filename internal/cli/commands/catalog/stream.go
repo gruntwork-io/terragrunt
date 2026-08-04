@@ -38,8 +38,6 @@ func Stream(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	notifyBrokenPipe(ctx, cancel)
-
 	componentCh := make(chan *tui.ComponentEntry, componentChannelBufferSize)
 
 	g, gctx := errgroup.WithContext(ctx)

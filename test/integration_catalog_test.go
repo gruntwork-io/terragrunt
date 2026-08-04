@@ -47,6 +47,10 @@ const (
 	// outgrows a pipe buffer, so the child is still writing when the reader
 	// stops.
 	catalogEarlyExitModules = 400
+
+	// catalogPipeDoneMarker separates a child process that reached the end of
+	// the command from one that died before it could clean up.
+	catalogPipeDoneMarker = "catalog pipe child finished"
 )
 
 func TestCatalogGitRepoUpdate(t *testing.T) {
@@ -534,6 +538,14 @@ func TestCatalogJSONLFormatCleansUpOnEarlyExit(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(line), &entry))
 	assert.Equal(t, "module", entry.Kind)
 
+	require.Contains(
+		t,
+		childStderr.String(),
+		catalogPipeDoneMarker,
+		"the child never reached the end of the command, so it never got to clean up (child exit: %v)",
+		waitErr,
+	)
+
 	leftovers, err := filepath.Glob(filepath.Join(childTempDir, "catalog-*"))
 	require.NoError(t, err)
 	assert.Empty(
@@ -556,9 +568,17 @@ func TestCatalogPipeHelper(t *testing.T) {
 		t.Skip("not the catalog pipe child process")
 	}
 
-	require.NoError(t, helpers.RunTerragruntCommand(t,
+	err := helpers.RunTerragruntCommand(t,
 		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir,
-		os.Stdout, os.Stderr))
+		os.Stdout, os.Stderr)
+
+	// Standard output is the broken pipe under test, so the marker goes to
+	// standard error, and it is written before the assertion below: a failed
+	// assertion writes to standard output, which kills this process with
+	// SIGPIPE.
+	fmt.Fprintln(os.Stderr, catalogPipeDoneMarker)
+
+	require.NoError(t, err)
 }
 
 // catalogManyModulesFixture builds a repository of count modules, each with a
