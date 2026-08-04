@@ -34,6 +34,12 @@ var ErrOCIIncompleteOAuthCredential = errors.New(
 	"oci_credentials oauth requires both an access_token and a refresh_token",
 )
 
+// ErrOCISubdirNotFound reports a module subdir matching nothing in the extracted archive.
+var ErrOCISubdirNotFound = errors.New("module subdir not found in the archive")
+
+// ErrOCISubdirAmbiguous reports a module subdir glob matching more than one path in the archive.
+var ErrOCISubdirAmbiguous = errors.New("module subdir matches multiple paths in the archive")
+
 // ErrOCIHelperWithRepositoryPath reports a helper on a repository-scoped label, which tofu rejects.
 var ErrOCIHelperWithRepositoryPath = errors.New(
 	"oci_credentials docker_credentials_helper cannot be used with a repository path",

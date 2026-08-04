@@ -650,7 +650,7 @@ func (g *OCIGetter) extractModuleWithLimits(
 		return fmt.Errorf("extracting OCI module archive: %w", err)
 	}
 
-	sourcePath, err := SubdirGlob(unzipPath, subDir)
+	sourcePath, err := ociSubdirGlob(g.FS, unzipPath, subDir)
 	if err != nil {
 		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
 	}
@@ -705,4 +705,22 @@ func (g *OCIGetter) promoteModule(staging, sourcePath, dstPath string) error {
 	}
 
 	return nil
+}
+
+// ociSubdirGlob resolves subDir beneath root on fsys, mirroring [SubdirGlob] without leaving the getter's filesystem.
+func ociSubdirGlob(fsys vfs.FS, root, subDir string) (string, error) {
+	matches, err := vfs.Glob(fsys, filepath.Join(root, subDir))
+	if err != nil {
+		return "", err
+	}
+
+	if len(matches) == 0 {
+		return "", ErrOCISubdirNotFound
+	}
+
+	if len(matches) > 1 {
+		return "", ErrOCISubdirAmbiguous
+	}
+
+	return matches[0], nil
 }

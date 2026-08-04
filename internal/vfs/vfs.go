@@ -114,6 +114,11 @@ func FileExists(vfs FS, path string) (bool, error) {
 	return false, err
 }
 
+// Glob returns the names matching pattern on the given filesystem, as filepath.Glob does on the OS one.
+func Glob(vfs FS, pattern string) ([]string, error) {
+	return afero.Glob(vfs, pattern)
+}
+
 // Lstat returns the FileInfo for the named path without following symlinks.
 // Filesystems that do not implement afero.Lstater fall back to Stat.
 func Lstat(fsys FS, path string) (os.FileInfo, error) {
