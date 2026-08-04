@@ -399,7 +399,9 @@ func (p *Plan) Generate(
 // makes. It is the same work the catalog user interface does, so a component
 // lands identically whichever one the user reaches for.
 func (p *Plan) copyComponent(l log.Logger, v *venv.Venv, values map[string]string) error {
-	result, err := component.Scaffold(v.FS, p.kind, p.sourceDir, p.outputDir, values)
+	paths := component.Paths{Root: p.sourceDir, Src: p.sourceDir, Dst: p.outputDir}
+
+	result, err := component.Scaffold(v.FS, p.kind, paths, values)
 	if err != nil {
 		return err
 	}

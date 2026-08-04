@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -1945,4 +1946,81 @@ func TestMkdirTemp(t *testing.T) {
 	info, err := fs.Stat(got)
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
+}
+
+// TestValidateResolvedSymlinkTarget covers the cases that separate it from
+// [vfs.ValidateSymlinkTarget]: a chain leaving root through a link stored
+// outside the walked tree, a root reached through a symlink of its own, and a
+// chain that cannot be resolved.
+func TestValidateResolvedSymlinkTarget(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+
+	setup := func(t *testing.T) (root, outside string) {
+		t.Helper()
+
+		base := helpers.TmpDirWOSymlinks(t)
+		root = filepath.Join(base, "root")
+		outside = filepath.Join(base, "outside.txt")
+
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
+		require.NoError(t, os.WriteFile(outside, []byte("secret\n"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "real.txt"), []byte("ok\n"), 0o644))
+
+		return root, outside
+	}
+
+	t.Run("link staying inside root passes", func(t *testing.T) {
+		t.Parallel()
+
+		root, _ := setup(t)
+		link := filepath.Join(root, "sub", "link.txt")
+		require.NoError(t, os.Symlink("real.txt", link))
+
+		require.NoError(t, vfs.ValidateResolvedSymlinkTarget(fsys, root, link))
+	})
+
+	t.Run("chain leaving root through a link elsewhere is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		root, outside := setup(t)
+		mid := filepath.Join(root, "sub", "mid.txt")
+		link := filepath.Join(root, "link.txt")
+
+		require.NoError(t, os.Symlink(outside, mid))
+		require.NoError(t, os.Symlink(filepath.Join("sub", "mid.txt"), link))
+
+		// The stored target names a path inside root, so the lexical check
+		// alone lets this through.
+		require.NoError(t, vfs.ValidateSymlinkTarget(root, link, filepath.Join("sub", "mid.txt")))
+		require.Error(t, vfs.ValidateResolvedSymlinkTarget(fsys, root, link))
+	})
+
+	t.Run("root reached through a symlink is not an escape", func(t *testing.T) {
+		t.Parallel()
+
+		root, _ := setup(t)
+		link := filepath.Join(root, "sub", "link.txt")
+		require.NoError(t, os.Symlink("real.txt", link))
+
+		// Reach the same tree through a symlinked ancestor, as /var is on macOS.
+		aliasBase := helpers.TmpDirWOSymlinks(t)
+		alias := filepath.Join(aliasBase, "alias")
+		require.NoError(t, os.Symlink(root, alias))
+
+		require.NoError(t, vfs.ValidateResolvedSymlinkTarget(
+			fsys, alias, filepath.Join(alias, "sub", "link.txt")))
+	})
+
+	t.Run("dangling chain returns the resolution error", func(t *testing.T) {
+		t.Parallel()
+
+		root, _ := setup(t)
+		link := filepath.Join(root, "link.txt")
+		require.NoError(t, os.Symlink("/nonexistent/target", link))
+
+		err := vfs.ValidateResolvedSymlinkTarget(fsys, root, link)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
 }

@@ -62,14 +62,14 @@ func (c *CopyCmd) Run() error {
 		panic("tui.CopyCmd: nil filesystem; wire the venv FS at construction")
 	}
 
-	src, dst, err := c.resolvePaths()
+	paths, err := c.resolvePaths()
 	if err != nil {
 		return err
 	}
 
-	c.logger.Debugf("Copying component %q to %q", src, dst)
+	c.logger.Debugf("Copying component %q to %q", paths.Src, paths.Dst)
 
-	result, err := component.Scaffold(fsys, c.component.Kind, src, dst, c.values)
+	result, err := component.Scaffold(fsys, c.component.Kind, paths, c.values)
 	if err != nil {
 		return err
 	}
@@ -95,18 +95,18 @@ func (c *CopyCmd) SetStdout(io.Writer) {}
 // SetStderr is a no-op; see SetStdin.
 func (c *CopyCmd) SetStderr(io.Writer) {}
 
-// resolvePaths returns the absolute source directory (inside the cloned repo)
-// and the destination directory (the user's working directory) for this copy.
-// Files from src are materialized directly into the working directory so the
-// action mirrors how scaffold emits its output.
-func (c *CopyCmd) resolvePaths() (string, string, error) {
+// resolvePaths locates this copy: the cloned repository, the component within
+// it, and the user's working directory. Files from the component are
+// materialized directly into the working directory so the action mirrors how
+// scaffold emits its output.
+func (c *CopyCmd) resolvePaths() (component.Paths, error) {
 	if c.component == nil || c.component.Repo == nil {
-		return "", "", ErrNilComponent
+		return component.Paths{}, ErrNilComponent
 	}
 
 	repoPath := c.component.Repo.Path()
 	if repoPath == "" {
-		return "", "", ErrEmptyRepoPath
+		return component.Paths{}, ErrEmptyRepoPath
 	}
 
 	src := repoPath
@@ -116,8 +116,8 @@ func (c *CopyCmd) resolvePaths() (string, string, error) {
 
 	workingDir := c.opts.WorkingDir
 	if workingDir == "" {
-		return "", "", ErrEmptyWorkingDir
+		return component.Paths{}, ErrEmptyWorkingDir
 	}
 
-	return src, workingDir, nil
+	return component.Paths{Root: repoPath, Src: src, Dst: workingDir}, nil
 }

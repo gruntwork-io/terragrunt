@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	testSrcDir = "/repo/vpc"
-	testDstDir = "/work"
+	testRootDir = "/repo"
+	testSrcDir  = "/repo/vpc"
+	testDstDir  = "/work"
 )
 
 func TestScaffoldCopiesIntoDestination(t *testing.T) {
@@ -30,7 +31,7 @@ func TestScaffoldCopiesIntoDestination(t *testing.T) {
 
 	require.NoError(t, fsys.MkdirAll(testDstDir, 0o755))
 
-	result, err := component.Scaffold(fsys, component.KindUnit, testSrcDir, testDstDir, nil)
+	result, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, testDstDir, result.Dir)
 
@@ -58,7 +59,7 @@ inputs = {
 
 	require.NoError(t, fsys.MkdirAll(testDstDir, 0o755))
 
-	result, err := component.Scaffold(fsys, component.KindUnit, testSrcDir, testDstDir, nil)
+	result, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
 	require.NoError(t, err)
 	assert.True(t, result.ValuesWritten)
 	assert.False(t, result.ValuesSkipped)
@@ -95,8 +96,7 @@ func TestScaffoldWritesSuppliedValues(t *testing.T) {
 		`locals { region = values.region }`)
 	require.NoError(t, fsys.MkdirAll(testDstDir, 0o755))
 
-	_, err := component.Scaffold(
-		fsys, component.KindUnit, testSrcDir, testDstDir,
+	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir},
 		map[string]string{"region": `"us-east-1"`},
 	)
 	require.NoError(t, err)
@@ -118,7 +118,7 @@ func TestScaffoldLeavesExistingValuesFileAlone(t *testing.T) {
 	valuesPath := filepath.Join(testDstDir, "terragrunt.values.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, valuesPath, existing, 0o644))
 
-	result, err := component.Scaffold(fsys, component.KindUnit, testSrcDir, testDstDir, nil)
+	result, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
 	require.NoError(t, err)
 	assert.False(t, result.ValuesWritten)
 	assert.True(t, result.ValuesSkipped)
@@ -136,7 +136,7 @@ func TestScaffoldRefusesToOverwriteExistingFile(t *testing.T) {
 	writeFileFS(t, fsys, filepath.Join(testSrcDir, "terragrunt.stack.hcl"), "# stack\n")
 	writeFileFS(t, fsys, filepath.Join(testDstDir, "terragrunt.stack.hcl"), "# preexisting")
 
-	_, err := component.Scaffold(fsys, component.KindStack, testSrcDir, testDstDir, nil)
+	_, err := component.Scaffold(fsys, component.KindStack, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
 
 	var destErr *component.DestinationExistsError
 
@@ -155,10 +155,49 @@ func TestScaffoldLeavesDestinationUntouchedOnCollision(t *testing.T) {
 	writeFileFS(t, fsys, filepath.Join(testSrcDir, "inputs.hcl"), "# inputs\n")
 	writeFileFS(t, fsys, filepath.Join(testDstDir, "inputs.hcl"), "# preexisting")
 
-	_, err := component.Scaffold(fsys, component.KindUnit, testSrcDir, testDstDir, nil)
+	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
 	require.Error(t, err)
 
 	assertNotExistsFS(t, fsys, filepath.Join(testDstDir, "terragrunt.hcl"))
+}
+
+func TestScaffoldRefusesToCopyIntoNonDirectory(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+
+	writeFileFS(t, fsys, filepath.Join(testSrcDir, "terragrunt.hcl"), "# unit\n")
+	writeFileFS(t, fsys, filepath.Join(testSrcDir, "scripts", "run.sh"), "#!/bin/sh\n")
+	writeFileFS(t, fsys, filepath.Join(testDstDir, "scripts"), "# preexisting")
+
+	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
+
+	var notDirErr *component.DestinationNotDirectoryError
+
+	require.ErrorAs(t, err, &notDirErr)
+	assert.Equal(t, filepath.Join(testDstDir, "scripts"), notDirErr.Path)
+
+	// Nothing may be written before the collision is found.
+	assertNotExistsFS(t, fsys, filepath.Join(testDstDir, "terragrunt.hcl"))
+}
+
+// TestScaffoldCopiesIntoExistingDirectory pins that a component directory may
+// merge into an existing one; only a file on an occupied path is a collision.
+func TestScaffoldCopiesIntoExistingDirectory(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+
+	writeFileFS(t, fsys, filepath.Join(testSrcDir, "terragrunt.hcl"), "# unit\n")
+	writeFileFS(t, fsys, filepath.Join(testSrcDir, "scripts", "run.sh"), "#!/bin/sh\n")
+	writeFileFS(t, fsys, filepath.Join(testDstDir, "scripts", "keep.sh"), "# mine\n")
+
+	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
+	require.NoError(t, err)
+
+	assertFileExistsFS(t, fsys, filepath.Join(testDstDir, "terragrunt.hcl"))
+	assertFileExistsFS(t, fsys, filepath.Join(testDstDir, "scripts", "run.sh"))
+	assertFileExistsFS(t, fsys, filepath.Join(testDstDir, "scripts", "keep.sh"))
 }
 
 func TestScaffoldRejectsNonCopyableKind(t *testing.T) {
@@ -171,7 +210,7 @@ func TestScaffoldRejectsNonCopyableKind(t *testing.T) {
 			fsys := vfs.NewMemMapFS()
 			writeFileFS(t, fsys, filepath.Join(testSrcDir, "main.tf"), "# module\n")
 
-			_, err := component.Scaffold(fsys, kind, testSrcDir, testDstDir, nil)
+			_, err := component.Scaffold(fsys, kind, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
 			require.ErrorIs(t, err, component.ErrNotCopyable)
 
 			assertNotExistsFS(t, fsys, filepath.Join(testDstDir, "main.tf"))
@@ -185,7 +224,7 @@ func TestScaffoldFailsWhenSourceMissing(t *testing.T) {
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, fsys.MkdirAll(testDstDir, 0o755))
 
-	_, err := component.Scaffold(fsys, component.KindUnit, testSrcDir, testDstDir, nil)
+	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
 	require.Error(t, err)
 }
 
@@ -198,7 +237,7 @@ func TestScaffoldRejectsValuesStubWhenPathIsDirectory(t *testing.T) {
 		`locals { region = values.region }`)
 	require.NoError(t, fsys.MkdirAll(filepath.Join(testDstDir, "terragrunt.values.hcl"), 0o755))
 
-	_, err := component.Scaffold(fsys, component.KindUnit, testSrcDir, testDstDir, nil)
+	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: testRootDir, Src: testSrcDir, Dst: testDstDir}, nil)
 
 	var notRegularErr *component.DestinationNotRegularError
 
@@ -206,14 +245,15 @@ func TestScaffoldRejectsValuesStubWhenPathIsDirectory(t *testing.T) {
 	assert.Equal(t, filepath.Join(testDstDir, "terragrunt.values.hcl"), notRegularErr.Path)
 }
 
-// TestScaffoldSkipsSymlinks stays on the real OS filesystem because the
-// behavior under test is symlink-skipping, and only OsFs participates in the
-// symlink semantics that os.Symlink + lstat exercise.
-func TestScaffoldSkipsSymlinks(t *testing.T) {
+// TestScaffoldReproducesSymlinksWithinComponent stays on the real OS
+// filesystem because the behavior under test is symlink handling, and only
+// OsFs participates in the symlink semantics that os.Symlink + lstat exercise.
+func TestScaffoldReproducesSymlinksWithinComponent(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewOSFS()
-	srcDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "vpc")
+	srcRoot := helpers.TmpDirWOSymlinks(t)
+	srcDir := filepath.Join(srcRoot, "vpc")
 
 	writeFileFS(t, fsys, filepath.Join(srcDir, "terragrunt.hcl"), "# unit\n")
 	writeFileFS(t, fsys, filepath.Join(srcDir, "real.txt"), "hello\n")
@@ -221,11 +261,87 @@ func TestScaffoldSkipsSymlinks(t *testing.T) {
 
 	dstDir := t.TempDir()
 
-	_, err := component.Scaffold(fsys, component.KindUnit, srcDir, dstDir, nil)
+	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: srcRoot, Src: srcDir, Dst: dstDir}, nil)
 	require.NoError(t, err)
 
 	assert.FileExists(t, filepath.Join(dstDir, "real.txt"))
-	assert.NoFileExists(t, filepath.Join(dstDir, "link.txt"))
+
+	linkPath := filepath.Join(dstDir, "link.txt")
+
+	target, err := os.Readlink(linkPath)
+	require.NoError(t, err, "the link must be reproduced as a link, not dereferenced")
+	assert.Equal(t, "real.txt", target)
+
+	// real.txt was copied too, so the link resolves.
+	contents, err := os.ReadFile(linkPath)
+	require.NoError(t, err)
+	assert.Equal(t, "hello\n", string(contents))
+}
+
+// TestScaffoldReproducesSymlinkedRootConfig pins that a component whose root
+// configuration is a symlink lands with that configuration present. Dropping
+// it would report success having scaffolded a unit with nothing to run.
+func TestScaffoldReproducesSymlinkedRootConfig(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+	srcRoot := helpers.TmpDirWOSymlinks(t)
+	srcDir := filepath.Join(srcRoot, "vpc")
+
+	writeFileFS(t, fsys, filepath.Join(srcRoot, "shared", "terragrunt.hcl"),
+		"locals { region = values.region }")
+	require.NoError(t, fsys.MkdirAll(srcDir, 0o755))
+	require.NoError(t, os.Symlink(
+		filepath.Join("..", "shared", "terragrunt.hcl"),
+		filepath.Join(srcDir, "terragrunt.hcl"),
+	))
+
+	markers, err := component.Inspect(fsys, srcDir)
+	require.NoError(t, err)
+
+	kind, ok := markers.CopyKind()
+	require.True(t, ok, "a symlinked terragrunt.hcl still marks a unit")
+	require.Equal(t, component.KindUnit, kind)
+
+	dstDir := t.TempDir()
+
+	result, err := component.Scaffold(fsys, kind, component.Paths{Root: srcRoot, Src: srcDir, Dst: dstDir}, nil)
+	require.NoError(t, err)
+
+	contents, err := os.ReadFile(filepath.Join(dstDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Equal(t, "locals { region = values.region }", string(contents))
+
+	// The references behind the link are still collected.
+	assert.Equal(t, []string{"region"}, result.References.Required)
+	assert.True(t, result.ValuesWritten)
+}
+
+// TestScaffoldReproducesDirectorySymlinks pins that a link to a directory
+// inside the component is reproduced as a link rather than walked into and
+// copied twice.
+func TestScaffoldReproducesDirectorySymlinks(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+	srcRoot := helpers.TmpDirWOSymlinks(t)
+	srcDir := filepath.Join(srcRoot, "vpc")
+
+	writeFileFS(t, fsys, filepath.Join(srcDir, "terragrunt.hcl"), "# unit\n")
+	writeFileFS(t, fsys, filepath.Join(srcDir, "scripts", "run.sh"), "#!/bin/sh\n")
+	require.NoError(t, os.Symlink("scripts", filepath.Join(srcDir, "bin")))
+
+	dstDir := t.TempDir()
+
+	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: srcRoot, Src: srcDir, Dst: dstDir}, nil)
+	require.NoError(t, err)
+
+	target, err := os.Readlink(filepath.Join(dstDir, "bin"))
+	require.NoError(t, err)
+	assert.Equal(t, "scripts", target)
+
+	assert.FileExists(t, filepath.Join(dstDir, "scripts", "run.sh"))
+	assert.FileExists(t, filepath.Join(dstDir, "bin", "run.sh"))
 }
 
 func writeFileFS(t *testing.T, fsys vfs.FS, path, contents string) {
