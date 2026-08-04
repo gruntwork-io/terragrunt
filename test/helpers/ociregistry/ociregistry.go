@@ -34,6 +34,8 @@ const (
 	packCreated = "2026-01-01T00:00:00Z"
 	// headerContentDigest is the header oras reads a resolved digest from.
 	headerContentDigest = "Docker-Content-Digest"
+	// headerContentType names the media type of a response body.
+	headerContentType = "Content-Type"
 	// pathManifests is the distribution-spec path segment addressing manifests.
 	pathManifests = "manifests"
 	// pathBlobs is the distribution-spec path segment addressing blobs.
@@ -156,7 +158,7 @@ func (r *Registry) OverwriteBlob(t *testing.T, repo string, target digest.Digest
 // serve routes the subset of the distribution API a module download exercises.
 func (r *Registry) serve(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/v2" || req.URL.Path == "/v2/" {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(headerContentType, "application/json")
 		writeBody(w, []byte("{}"))
 
 		return
@@ -263,7 +265,7 @@ func resolveReference(held *repository, ref string) (digest.Digest, bool) {
 
 // writeContent sends stored with the length oras requires, omitting the body for a HEAD.
 func writeContent(w http.ResponseWriter, req *http.Request, stored storedBlob) {
-	w.Header().Set("Content-Type", stored.mediaType)
+	w.Header().Set(headerContentType, stored.mediaType)
 	w.Header().Set("Content-Length", strconv.Itoa(len(stored.data)))
 
 	if req.Method == http.MethodHead {
@@ -277,7 +279,7 @@ func writeContent(w http.ResponseWriter, req *http.Request, stored storedBlob) {
 
 // writeNotFound answers with the distribution-spec error body a registry client parses.
 func writeNotFound(w http.ResponseWriter, code string) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, "application/json")
 	w.WriteHeader(http.StatusNotFound)
 	writeBody(w, []byte(`{"errors":[{"code":"`+code+`"}]}`))
 }
