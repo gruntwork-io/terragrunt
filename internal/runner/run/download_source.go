@@ -31,6 +31,12 @@ import (
 // that bypasses the venv filesystem. See [requireOSFilesystemForSource].
 var ErrNonOSFilesystem = errors.New("download requires an OS-backed filesystem")
 
+// ErrNilSource is the panic value [requireOSFilesystemForSource] raises when
+// handed a nil source. Sources are built by [tf.NewSource], whose error every
+// caller checks first, so a nil arriving here is a programming mistake rather
+// than a condition to recover from.
+var ErrNilSource = errors.New("terraform source is required but nil")
+
 // ModuleManifestName is the manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
 const (
 	ModuleManifestName = ".terragrunt-module-manifest"
@@ -165,7 +171,14 @@ func DownloadTerraformSource(
 // the filesystem they are handed; every other protocol either shells out
 // (git, hg, smb) or writes through os, so on a virtual filesystem it would
 // silently touch the real disk.
+//
+// It panics with [ErrNilSource] on a nil source, so the contract fails where
+// it is broken rather than at whichever field is read first.
 func requireOSFilesystemForSource(fsys vfs.FS, src *tf.Source) error {
+	if src == nil {
+		panic(ErrNilSource)
+	}
+
 	if vfs.IsOSFS(fsys) {
 		return nil
 	}

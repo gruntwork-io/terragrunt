@@ -1558,6 +1558,28 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 	}
 }
 
+// TestDownloadTerraformSourceIfNecessaryPanicsOnNilSource pins the contract on
+// the exported helper. Every source is built by tf.NewSource, whose error the
+// caller checks, so a nil one is a mistake in the calling code.
+func TestDownloadTerraformSourceIfNecessaryPanicsOnNilSource(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	require.PanicsWithValue(t, run.ErrNilSource, func() {
+		run.DownloadTerraformSourceIfNecessary(
+			t.Context(),
+			logger.CreateLogger(),
+			venv.OSVenv(),
+			nil,
+			configbridge.NewRunOptions(opts),
+			&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+			report.NewReport(),
+		)
+	})
+}
+
 // TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem pins the gate
 // on the exported helper so external callers cannot bypass it.
 func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) {
