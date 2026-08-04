@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
@@ -265,6 +266,7 @@ func testRemoteFixtureParallelism(
 	for i := range numberOfModules {
 		err := util.CopyFolderContents(
 			createLogger(),
+			vfs.NewOSFS(),
 			helpers.MustAbs(t, testFixtureParallelism),
 			tmpEnvPath,
 			".terragrunt-test",

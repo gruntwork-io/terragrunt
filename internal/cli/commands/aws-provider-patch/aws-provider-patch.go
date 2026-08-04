@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -63,7 +64,7 @@ func runSingle(
 		return err
 	}
 
-	return runAwsProviderPatch(l, v.Env, updatedOpts)
+	return runAwsProviderPatch(l, v.FS, v.Env, updatedOpts)
 }
 
 func runAll(
@@ -117,6 +118,7 @@ func runAll(
 
 func runAwsProviderPatch(
 	l log.Logger,
+	fsys vfs.FS,
 	env map[string]string,
 	opts *options.TerragruntOptions,
 ) error {
@@ -149,7 +151,8 @@ func runAwsProviderPatch(
 		if codeWasUpdated {
 			l.Debugf("Patching AWS provider in %s", terraformFile)
 
-			if err := util.WriteFileWithSamePermissions(
+			if err := vfs.WriteFileWithSamePermissions(
+				fsys,
 				terraformFile,
 				terraformFile,
 				bytes.NewBufferString(updatedTerraformFileContents),

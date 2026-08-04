@@ -166,6 +166,7 @@ func (client *Client) CreateS3BucketIfNecessary(
 		l,
 		prompt,
 		opts.NonInteractive,
+		v.Reader,
 		v.Writers.ErrWriter,
 	)
 	if err != nil {
@@ -244,6 +245,7 @@ func (client *Client) UpdateS3BucketIfNecessary(
 		l,
 		prompt,
 		opts.NonInteractive,
+		v.Reader,
 		v.Writers.ErrWriter,
 	)
 	if err != nil {
@@ -754,6 +756,7 @@ func (client *Client) CreateLogsS3BucketIfNecessary(
 		l,
 		prompt,
 		opts.NonInteractive,
+		v.Reader,
 		v.Writers.ErrWriter,
 	)
 	if err != nil {

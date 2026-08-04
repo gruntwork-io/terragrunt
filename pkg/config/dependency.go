@@ -1600,6 +1600,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
 	if err := CopyLockFile(
 		l,
+		pctx.Venv.FS,
 		pctx.RootWorkingDir,
 		pctx.LogShowAbsPaths,
 		terragruntDir,

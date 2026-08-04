@@ -347,6 +347,7 @@ func runTerragruntWithConfig(
 				// Use directory from OriginalTerragruntConfigPath to copy locks since WorkingDir point to cache directory
 				lockFileError = runcfg.CopyLockFile(
 					l,
+					v.FS,
 					opts.RootWorkingDir,
 					opts.LogShowAbsPaths,
 					opts.CacheDir,

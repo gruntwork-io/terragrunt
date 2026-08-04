@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
@@ -17,6 +16,7 @@ func PromptUserForInput(
 	l log.Logger,
 	prompt string,
 	nonInteractive bool,
+	r io.Reader,
 	errWriter io.Writer,
 ) (string, error) {
 	// We are writing directly to ErrWriter so the prompt is always visible
@@ -44,7 +44,7 @@ func PromptUserForInput(
 
 	exec.PrepareStdinForPrompt(l)
 
-	reader := bufio.NewReader(os.Stdin)
+	reader := bufio.NewReader(r)
 
 	inputCh := make(chan string)
 	errCh := make(chan error)
@@ -75,9 +75,10 @@ func PromptUserForYesNo(
 	l log.Logger,
 	prompt string,
 	nonInteractive bool,
+	r io.Reader,
 	errWriter io.Writer,
 ) (bool, error) {
-	resp, err := PromptUserForInput(ctx, l, prompt+" (y/n) ", nonInteractive, errWriter)
+	resp, err := PromptUserForInput(ctx, l, prompt+" (y/n) ", nonInteractive, r, errWriter)
 	if err != nil {
 		return false, err
 	}

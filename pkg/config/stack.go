@@ -881,6 +881,7 @@ func fetchViaCAS(
 	// to its own temp dir, so failures before this point never touch dest.
 	if copyErr := util.CopyFolderContentsWithFilter(
 		l,
+		v.FS,
 		result.ContentDir,
 		dest,
 		manifestName,
@@ -973,6 +974,7 @@ func copyFiles(
 
 	if err := util.CopyFolderContentsWithFilter(
 		l,
+		v.FS,
 		localSrc,
 		cp.dest,
 		manifestName,

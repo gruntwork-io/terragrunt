@@ -5,7 +5,8 @@
 // to do its work: [vfs.FS] for filesystem reads and writes, [vexec.Exec]
 // for spawning subprocesses, [vhttp.Client] for outbound HTTP,
 // [vsops.Decrypter] for SOPS decryption, the shell environment variables and
-// platform handles read at startup, and the stdout/stderr writers. Production
+// platform handles read at startup, the stdin reader, and the stdout/stderr
+// writers. Production
 // code constructs the real bundle once at the top via [OSVenv]; tests
 // construct an in-memory bundle and drive the full CLI through it.
 //
@@ -54,6 +55,11 @@ var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
 // test that forgot to set HTTP rather than a runtime condition.
 var ErrVenvHTTPUnset = errors.New("venv.Venv.HTTP is required but unset")
 
+// ErrVenvReaderUnset is the panic value [Venv.RequireReader] raises when
+// Reader is nil. Production callers build the Venv through [OSVenv], so it
+// points at a test that forgot to set Reader rather than a runtime condition.
+var ErrVenvReaderUnset = errors.New("venv.Venv.Reader is required but unset")
+
 // ErrVenvGOOSUnset is the panic value [Venv.RequireGOOS] raises when GOOS is empty.
 var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset")
 
@@ -80,9 +86,18 @@ type Venv struct {
 	Exec     vexec.Exec
 	HTTP     vhttp.Client
 	Sops     vsops.Decrypter
+	Reader   io.Reader
 	Env      map[string]string
 	Platform *Platform
 	Writers  *writer.Writers
+}
+
+// WithReader returns a copy of v that reads console input from r.
+func (v *Venv) WithReader(r io.Reader) *Venv {
+	c := *v
+	c.Reader = r
+
+	return &c
 }
 
 // WithWriter returns a copy of v whose primary writer is w. The copy gets
@@ -229,6 +244,16 @@ func (v *Venv) RequireHTTP() {
 	}
 }
 
+// RequireReader panics with [ErrVenvReaderUnset] when Reader is nil.
+// Functions that read console input call this as their first statement so a
+// missing handle panics at the offending call site instead of inside an
+// unrelated stack frame.
+func (v *Venv) RequireReader() {
+	if v.Reader == nil {
+		panic(ErrVenvReaderUnset)
+	}
+}
+
 // RequireGOOS panics with [ErrVenvGOOSUnset] when GOOS is empty.
 func (v *Venv) RequireGOOS() {
 	if v.Platform == nil || v.Platform.GOOS == "" {
@@ -245,8 +270,8 @@ func (v *Venv) RequireUserHomeDir() {
 
 // OSVenv builds the production [Venv]: the real OS filesystem, the real OS
 // process executor, the real outbound HTTP client, platform handles, a
-// snapshot of the OS environment, and stdout/stderr wired to the real OS
-// streams.
+// snapshot of the OS environment, and stdin/stdout/stderr wired to the real
+// OS streams.
 //
 // It returns a *[Venv] so the bundle is threaded by pointer through every
 // downstream call — small parameter, no copying. Shallow-copying a
@@ -256,11 +281,12 @@ func (v *Venv) RequireUserHomeDir() {
 // [writer.Writers.WithWriter] returns a fresh copy.
 func OSVenv() *Venv {
 	return &Venv{
-		FS:   vfs.NewOSFS(),
-		Exec: vexec.NewOSExec(),
-		HTTP: vhttp.NewOSClient(),
-		Sops: vsops.NewOSDecrypter(),
-		Env:  ParseEnviron(os.Environ()),
+		FS:     vfs.NewOSFS(),
+		Exec:   vexec.NewOSExec(),
+		HTTP:   vhttp.NewOSClient(),
+		Sops:   vsops.NewOSDecrypter(),
+		Reader: os.Stdin,
+		Env:    ParseEnviron(os.Environ()),
 		Platform: &Platform{
 			UserHomeDir: os.UserHomeDir,
 			GOOS:        runtime.GOOS,

@@ -47,8 +47,10 @@ func TestTFTerraformHelp(t *testing.T) {
 
 		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-		app := cli.NewApp(logger.CreateLogger(), opts, testV)
-		err := app.Run(tc.args)
+		l := logger.CreateLogger()
+
+		app := cli.NewApp(l, opts, testV)
+		err := app.Run(l, testV, tc.args)
 		require.NoError(t, err)
 
 		assert.Regexp(t, tc.expected, output.String())

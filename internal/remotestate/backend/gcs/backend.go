@@ -232,6 +232,7 @@ func (backend *Backend) Delete(
 		l,
 		prompt,
 		opts.NonInteractive,
+		v.Reader,
 		v.Writers.ErrWriter,
 	); err != nil {
 		return err
@@ -271,6 +272,7 @@ func (backend *Backend) DeleteBucket(
 		l,
 		prompt,
 		opts.NonInteractive,
+		v.Reader,
 		v.Writers.ErrWriter,
 	); err != nil {
 		return err

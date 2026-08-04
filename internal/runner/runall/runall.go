@@ -246,6 +246,7 @@ func RunAllOnStack(
 			l,
 			prompt,
 			opts.NonInteractive,
+			v.Reader,
 			v.Writers.ErrWriter,
 		)
 		if err != nil {

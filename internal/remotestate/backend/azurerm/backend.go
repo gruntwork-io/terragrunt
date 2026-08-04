@@ -522,7 +522,7 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 	prompt := fmt.Sprintf("The Terraform state blob %q in container %q (storage account %q) will be deleted. Do you want to continue?",
 		rs.Key, rs.ContainerName, rs.StorageAccountName)
 
-	yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Writers.ErrWriter)
+	yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Reader, v.Writers.ErrWriter)
 	if err != nil {
 		return err
 	}
@@ -555,7 +555,7 @@ func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, 
 	prompt := fmt.Sprintf("The blob container %q in storage account %q will be completely deleted. Do you want to continue?",
 		rs.ContainerName, rs.StorageAccountName)
 
-	yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Writers.ErrWriter)
+	yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Reader, v.Writers.ErrWriter)
 	if err != nil {
 		return err
 	}

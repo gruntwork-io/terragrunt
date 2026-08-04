@@ -466,7 +466,7 @@ func TestInvalidModulePath(t *testing.T) {
 
 	terraformSource.WorkingDir += "/not-existing-path"
 
-	err = run.ValidateWorkingDir(terraformSource)
+	err = run.ValidateWorkingDir(vfs.NewOSFS(), terraformSource)
 	require.Error(t, err)
 
 	var workingDirNotFound run.WorkingDirNotFound
@@ -490,7 +490,7 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 
 	terraformSource.WorkingDir += "/main.tf"
 
-	err = run.ValidateWorkingDir(terraformSource)
+	err = run.ValidateWorkingDir(vfs.NewOSFS(), terraformSource)
 	require.Error(t, err)
 
 	var workingDirNotDir run.WorkingDirNotDir
@@ -779,6 +779,7 @@ func copyFolder(t *testing.T, src string, dest string) {
 
 	err := util.CopyFolderContents(
 		l,
+		vfs.NewOSFS(),
 		absPath(t, filepath.FromSlash(src)),
 		absPath(t, filepath.FromSlash(dest)),
 		".terragrunt-test",
@@ -1478,35 +1479,69 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 	assert.Equal(t, fileContent, string(downloaded))
 }
 
-// TestDownloadTerraformSourceRejectsNonOSFilesystem pins that the entry
-// guard returns ErrNonOSFilesystem before any download work runs when the
-// venv filesystem is not OS-backed.
-func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
+// TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource pins that the
+// entry gate rejects only the sources whose getter would escape the venv
+// filesystem. A source the file, tfr, or oci getter can serve gets past the
+// gate and fails later on its own terms, if at all.
+func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 	t.Parallel()
 
-	opts, err := options.NewTerragruntOptionsForTest("./test")
-	require.NoError(t, err)
+	testCases := []struct {
+		name     string
+		source   string
+		rejected bool
+	}{
+		{
+			name:     "git source needs the real disk",
+			source:   "git::https://github.com/gruntwork-io/terragrunt.git//foo",
+			rejected: true,
+		},
+		{
+			name:     "https source needs the real disk",
+			source:   "https://example.invalid/module.zip",
+			rejected: true,
+		},
+		{
+			name:     "local source stays on the venv filesystem",
+			source:   ".",
+			rejected: false,
+		},
+		{
+			name:     "tfr source stays on the venv filesystem",
+			source:   "tfr://registry.opentofu.org/foo/bar/baz?version=1.0.0",
+			rejected: false,
+		},
+	}
 
-	v := venv.OSVenv()
-	v.FS = vfs.NewMemMapFS()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	l := logger.CreateLogger()
-	l.SetOptions(log.WithOutput(io.Discard))
+			opts, err := options.NewTerragruntOptionsForTest("./test")
+			require.NoError(t, err)
 
-	_, err = run.DownloadTerraformSource(
-		t.Context(),
-		l,
-		v,
-		".",
-		configbridge.NewRunOptions(opts),
-		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
-		report.NewReport(),
-	)
-	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
+			v := venv.OSVenv()
+			v.FS = vfs.NewMemMapFS()
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(io.Discard))
+
+			_, err = run.DownloadTerraformSource(
+				t.Context(),
+				l,
+				v,
+				tc.source,
+				configbridge.NewRunOptions(opts),
+				&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+				report.NewReport(),
+			)
+			assert.Equal(t, tc.rejected, errors.Is(err, run.ErrNonOSFilesystem))
+		})
+	}
 }
 
-// TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem pins the guard
-// on the exported helper so external callers cannot bypass the OS-FS invariant.
+// TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem pins the gate
+// on the exported helper so external callers cannot bypass it.
 func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
@@ -1516,7 +1551,13 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	v := venv.OSVenv()
 	v.FS = vfs.NewMemMapFS()
 
-	src, err := tf.NewSource(logger.CreateLogger(), ".", t.TempDir(), opts.WorkingDir, false)
+	src, err := tf.NewSource(
+		logger.CreateLogger(),
+		"git::https://github.com/gruntwork-io/terragrunt.git//foo",
+		t.TempDir(),
+		opts.WorkingDir,
+		false,
+	)
 	require.NoError(t, err)
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
@@ -1529,30 +1570,6 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 		report.NewReport(),
 	)
 	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
-}
-
-// TestBuildDownloadClientRejectsNonOSFilesystem pins the guard on the
-// exported client constructor so callers cannot construct a client that would
-// later hand a non-OS FS to FileCopyGetter or RegistryGetter.
-func TestBuildDownloadClientRejectsNonOSFilesystem(t *testing.T) {
-	t.Parallel()
-
-	opts, err := options.NewTerragruntOptionsForTest("./test")
-	require.NoError(t, err)
-
-	runOpts := configbridge.NewRunOptions(opts)
-
-	v := venv.OSVenv()
-	v.FS = vfs.NewMemMapFS()
-
-	client, err := run.BuildDownloadClient(
-		logger.CreateLogger(),
-		v,
-		runOpts,
-		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
-	)
-	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
-	assert.Nil(t, client)
 }
 
 // TestBuildDownloadClientOCIExperimentGate verifies that the oci getter is
