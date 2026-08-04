@@ -1,0 +1,12 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Fix `providers lock` flag values passed as a separate argument
+
+`providers lock -platform linux_amd64` now reaches OpenTofu and Terraform intact. Previously the platform value was moved to the end of the command and read as a provider address, so the run failed with `Invalid provider type "linux_amd64"`. Attaching the value with `-platform=linux_amd64` was the only spelling that worked.
+
+`-fs-mirror` and `-net-mirror` were moved the same way, and now keep their values too.
+
+With `--provider-cache` enabled, platforms are also split correctly across the per-platform `providers lock` runs used to warm the cache.

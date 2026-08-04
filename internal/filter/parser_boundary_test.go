@@ -57,6 +57,26 @@ func TestParser_GraphBoundaryOperand(t *testing.T) {
 				Dependents: filter.GraphBound{Include: true, Boundary: "."},
 			},
 		},
+		{
+			// The dependent prefix is parsed before the caret, so the two
+			// operands have to compose.
+			name:  "boundary with excluded target",
+			input: "(./a)...^{./apps/foo}",
+			expected: &filter.GraphExpression{
+				Target:        mustPath(t, "./apps/foo"),
+				Dependents:    filter.GraphBound{Include: true, Boundary: "./a"},
+				ExcludeTarget: true,
+			},
+		},
+		{
+			// A Git filter is a separate target arm from paths and names.
+			name:  "boundary with git target",
+			input: "(./a)...[main...HEAD]",
+			expected: &filter.GraphExpression{
+				Target:     filter.NewGitExpression("main", "HEAD"),
+				Dependents: filter.GraphBound{Include: true, Boundary: "./a"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -86,6 +106,8 @@ func TestParser_GraphBoundaryRoundTrip(t *testing.T) {
 		"{./envs/prod/edge}...(./envs/prod)",
 		"(./a)...{./apps/foo}...(./b)",
 		"(.)...{./apps/foo}",
+		"(./a)...^{./apps/foo}",
+		"(./a)...[main...HEAD]",
 	}
 
 	for _, input := range inputs {
@@ -100,13 +122,16 @@ func TestParser_GraphBoundaryRoundTrip(t *testing.T) {
 			second, err := filter.NewParser(filter.NewLexer(rendered)).ParseExpression()
 			require.NoError(t, err)
 
+			assert.Equal(t, rendered, second.String(), "rendering must be idempotent")
+
 			firstGraph, ok := first.(*filter.GraphExpression)
 			require.True(t, ok)
 			secondGraph, ok := second.(*filter.GraphExpression)
 			require.True(t, ok)
 
-			assert.Equal(t, firstGraph.Dependents.Boundary, secondGraph.Dependents.Boundary)
-			assert.Equal(t, firstGraph.Dependencies.Boundary, secondGraph.Dependencies.Boundary)
+			assert.Equal(t, firstGraph.Dependents, secondGraph.Dependents)
+			assert.Equal(t, firstGraph.Dependencies, secondGraph.Dependencies)
+			assert.Equal(t, firstGraph.ExcludeTarget, secondGraph.ExcludeTarget)
 		})
 	}
 }
@@ -205,19 +230,40 @@ func TestParser_GraphBoundaryErrors(t *testing.T) {
 	t.Parallel()
 
 	// A boundary "(dir)" must sit in the operand slot adjacent to "...", be
-	// non-empty, and be closed.
-	inputs := []string{
-		"(./bound)",           // no ellipsis follows the boundary
-		"()...{./apps/foo}",   // empty boundary
-		"(./a...{./apps/foo}", // unclosed boundary
+	// non-empty, and be closed. Each violation reports its own diagnostic, so
+	// the title is asserted to keep the three paths from collapsing into one.
+	tests := []struct {
+		name  string
+		input string
+		title string
+	}{
+		{
+			name:  "no ellipsis follows the boundary",
+			input: "(./bound)",
+			title: "Invalid boundary operand",
+		},
+		{
+			name:  "empty boundary",
+			input: "()...{./apps/foo}",
+			title: "Empty boundary",
+		},
+		{
+			name:  "unclosed boundary",
+			input: "(./a...{./apps/foo}",
+			title: "Unclosed boundary",
+		},
 	}
 
-	for _, input := range inputs {
-		t.Run(input, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := filter.NewParser(filter.NewLexer(input)).ParseExpression()
+			_, err := filter.NewParser(filter.NewLexer(tt.input)).ParseExpression()
 			require.Error(t, err)
+
+			var parseErr filter.ParseError
+			require.ErrorAs(t, err, &parseErr)
+			assert.Equal(t, tt.title, parseErr.Title)
 		})
 	}
 }

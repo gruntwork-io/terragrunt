@@ -38,6 +38,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
 // findGetter scans the slice for the first Getter of type T and returns it.
@@ -1564,17 +1565,29 @@ func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 	}
 }
 
-func TestBuildDownloadClientPassesVenvToOCIStore(t *testing.T) {
+// TestBuildDownloadClientThreadsVenvToOCIStore: the run's venv reaches the OCI credential store.
+func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 	require.NoError(t, terragruntOptions.Experiments.EnableExperiment(experiment.OCI))
 
-	v := venv.OSVenv().WithEnv(map[string]string{
-		getter.EnvOCIToken:    "token",
-		getter.EnvOCIUsername: "user",
-	})
+	// A .tofurc reachable only through this venv's home lookup.
+	home := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(home, ".tofurc"),
+		[]byte(fmt.Sprintf(
+			"\noci_credentials %q {\n  %s = %q\n  %s = %q\n}\n",
+			"registry.example.com", "username", "wired", "password", "fake-secret-wired",
+		)),
+		0o600,
+	))
+
+	v := venv.OSVenv().
+		WithEnv(map[string]string{"HOME": home}).
+		WithUserHomeDir(func() (string, error) { return home, nil })
+
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
 		v,
@@ -1584,8 +1597,19 @@ func TestBuildDownloadClientPassesVenvToOCIStore(t *testing.T) {
 	require.NoError(t, err)
 
 	ociGetter, found := findGetter[*getter.OCIGetter](client.Getters)
-	require.True(t, found)
+	require.True(t, found, "the oci getter must be registered when the experiment is on")
 
-	_, err = ociGetter.NewStore(t.Context(), "registry.example.com", "modules/vpc")
-	require.ErrorIs(t, err, getter.ErrOCIStaticCredentialConflict)
+	store, err := ociGetter.NewStore(t.Context(), "registry.example.com", "modules/vpc")
+	require.NoError(t, err)
+
+	remoteStore, castOK := store.(getter.OCIRemoteStore)
+	require.True(t, castOK)
+
+	authClient, castOK := remoteStore.Repo.Client.(*auth.Client)
+	require.True(t, castOK)
+
+	cred, err := authClient.Credential(t.Context(), "registry.example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "wired", cred.Username,
+		"BuildDownloadClient must thread the run's venv into the OCI credential store")
 }

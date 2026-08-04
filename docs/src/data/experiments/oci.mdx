@@ -15,7 +15,8 @@ Azure Container Registry, Google Artifact Registry, and self-hosted or
 air-gapped registries.
 
 With the experiment enabled, Terragrunt accepts `oci://` source URLs in
-`terraform { source = "..." }` blocks. For example:
+`terraform { source = "..." }` blocks, and in the `unit` and `stack` blocks of a
+`terragrunt.stack.hcl`. For example:
 
 ```hcl
 terraform {
@@ -23,24 +24,47 @@ terraform {
 }
 ```
 
+```hcl
+unit "vpc" {
+  source = "oci://ghcr.io/acme/terragrunt-units/vpc?tag=1.0.0"
+  path   = "vpc"
+}
+```
+
 Specify either `tag` or `digest`; omitting both selects the `latest` tag.
-`//subdir` selectors are supported. Authentication covers static credentials
-via the interim `TG_TMP_OCI_*` environment variables and read-only ambient
-discovery of Docker and containers auth files, following the containers-auth
-search order OpenTofu uses. Static credentials can be limited to one registry with
-`TG_TMP_OCI_REGISTRY`; other registries then fall back to ambient discovery.
-Without it, the static credentials may be offered to any registry the process
-contacts, so scope them or avoid setting them when talking to unrelated or
-untrusted registries. [Credential helpers](https://docs.docker.com/reference/cli/docker/login/#credential-helpers)
-configured in the Docker config
+`//subdir` selectors are supported.
+
+Credentials come from OpenTofu's CLI config, in the `oci_credentials` and
+`oci_default_credentials` blocks. Terragrunt reads the file named by
+`TF_CLI_CONFIG_FILE` or `TERRAFORM_CONFIG`, otherwise the first of `~/.tofurc`
+and `~/.terraformrc` that exists (on Windows, `%APPDATA%\tofu.rc` and
+`%APPDATA%\terraform.rc`). Unless one of those environment variables is set, it
+also merges the `*.tfrc` and `*.tfrc.json` files in OpenTofu's config directory. Terragrunt also reads ambient Docker and containers
+auth files (`~/.docker/config.json` and containers `auth.json`), following the
+containers-auth search order OpenTofu uses. Set `docker_style_config_files` in
+`oci_default_credentials` to replace those default search paths, or an empty
+list to disable ambient discovery entirely.
+
+A CLI config that exists but is invalid is an error, matching `tofu`, rather
+than being skipped in a way that would change which credentials are sent.
+
+Terragrunt ranks every matching CLI-config and ambient credential together by how
+much of the repository path each one matches, and uses the single best match. A
+CLI-config entry wins only when both candidates match equally closely. The
+`oci_default_credentials` helper is the global fallback, and Terragrunt pulls
+anonymously when nothing matches. Set `discover_ambient_credentials = false` in
+the `oci_default_credentials` block to use CLI config only.
+
+[Credential helpers](https://docs.docker.com/reference/cli/docker/login/#credential-helpers)
+configured in either place
 ([`credHelpers`](https://docs.docker.com/reference/cli/docker/login/#credential-helpers)
 and
-[`credsStore`](https://docs.docker.com/reference/cli/docker/login/#credential-stores),
-such as
+[`credsStore`](https://docs.docker.com/reference/cli/docker/login/#credential-stores)
+in the Docker config, or a block's `docker_credentials_helper`, such as
 [`ecr-login`](https://github.com/awslabs/amazon-ecr-credential-helper))
-are invoked when configured and selected as the credential source, so ECR and
-other helper-backed registries work without a baked-in login. When the
-experiment is disabled, `oci://` sources remain unsupported.
+are invoked when selected as the credential source, so ECR and other
+helper-backed registries work without a baked-in login. When the experiment is
+disabled, `oci://` sources remain unsupported.
 
 ### `oci` - How to enable it
 
@@ -59,7 +83,7 @@ Track and discuss this experiment in [gruntwork-io/terragrunt#4555](https://gith
 When reporting issues or providing feedback, please include:
 
 - The registry you are using (ECR, GHCR, ACR, GAR, self-hosted).
-- The authentication method (static credentials, ambient Docker config, or a credential helper such as `ecr-login`).
+- The authentication method (an OpenTofu CLI-config `oci_credentials` block, ambient Docker config, or a credential helper such as `ecr-login`), and the CLI config file in use.
 - The full `oci://` source string, and whether you pin by `tag` or `digest`.
 - Any errors encountered during module download.
 
@@ -68,7 +92,7 @@ When reporting issues or providing feedback, please include:
 To transition the `oci` feature to a stable release, the following must be addressed, at a minimum:
 
 - [x] A getter that resolves `oci://` sources, selecting the `application/vnd.opentofu.modulepkg` artifact and its `archive/zip` layer, with blob digest verification.
-- [x] Static and ambient Docker-config credential discovery matching OpenTofu's search order.
+- [x] OpenTofu CLI-config and ambient Docker-config credential discovery matching OpenTofu's search order.
 - [x] Credential-helper support (`docker-credential-*`, `ecr-login`) so ECR and other helper-backed registries work through the configured helper.
 - [ ] Content-addressable caching keyed on the resolved manifest digest, with correct re-resolution of mutable tags.
 - [ ] A portability guarantee that one source string produces an identical module via `tofu` and Terragrunt.

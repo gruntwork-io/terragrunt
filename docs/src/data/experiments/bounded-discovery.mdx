@@ -3,11 +3,11 @@ name: bounded-discovery
 since: "1.1.3"
 ---
 
-Enclose graph traversal for a `--filter` expression within a directory using an inline `(dir)` operand, instead of the git repository root.
+Enclose graph traversal for a `--filter` expression within a directory using an inline `(dir)` operand, instead of the Git repository root.
 
 ### `bounded-discovery` - What it does
 
-Graph-traversing filter expressions reach beyond the working directory. Dependent discovery (`...{unit}`) requires searching from the working directory of the given component up to the Git repository root (if the unit is within a Git repository). Dependency discovery (`{unit}...`) requires recursive parsing of dependencies to find the terminal dependency. Either way, Terragrunt has to read and parses every configuration it touches along the way for accuracy. In monorepos where sibling environments cannot be parsed independently of each other, that traversal fails or wastes work reaching into them.
+Graph-traversing filter expressions reach beyond the working directory. Dependent discovery (`...{unit}`) requires searching from the working directory of the given component up to the Git repository root (if the unit is within a Git repository). Dependency discovery (`{unit}...`) requires recursive parsing of dependencies to find the terminal dependency. Either way, Terragrunt has to read and parse every configuration it touches along the way for accuracy. In monorepos where sibling environments cannot be parsed independently of each other, that traversal fails or wastes work reaching into them.
 
 When enabled, this experiment unlocks an inline `(dir)` boundary operand. It sits in the same operand slot as a traversal depth (e.g. `1...{vpc}`):
 
@@ -27,9 +27,11 @@ terragrunt find --experiment bounded-discovery --filter '(.)...{vpc}'
 (../shared)...{vpc}...(.)
 ```
 
-Any configuration that is discovered outside the boundary, whether a dependent or a dependency, is not read, parsed nor returned. The boundary must be an existing directory. Relative paths are resolved against the working directory, and a dependent-direction boundary must contain the working directory.
+Any configuration that is discovered outside the boundary, whether a dependent or a dependency, is not read, parsed, or returned. The boundary must be an existing directory. Relative paths are resolved against the working directory, and a dependent-direction boundary must contain the working directory.
 
-A boundary bounds discovery traversal rather than filtering results, so an in-boundary unit reachable only by passing through an out-of-boundary unit is intentionally excluded (e.g. `a` --> `b` --> `c`, and yo`b` is not part of the boundary, will prevent graph traversal from `a` to reach `c` and vice-versa).
+A boundary bounds discovery traversal rather than filtering results, so an in-boundary unit reachable only by passing through an out-of-boundary unit is intentionally excluded. Given `a` --> `b` --> `c`, if `b` is outside the boundary, traversal from `a` cannot reach `c`, and vice-versa.
+
+Because the boundary operand claims `(` and `)`, those characters are no longer read as part of a unit name or path. Wrap a name or path that contains them in braces (e.g. `{./weird(name)}`) to keep it literal.
 
 The experiment also unlocks the [`--discovery-boundary`](/reference/cli/commands/find#discovery-boundary) flag (env: `TG_DISCOVERY_BOUNDARY`), which applies one boundary to every `--filter` expression on the command, in both directions:
 

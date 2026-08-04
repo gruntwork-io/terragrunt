@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsNegated(t *testing.T) {
+func TestIsPureNegation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -54,7 +54,7 @@ func TestIsNegated(t *testing.T) {
 					mustPath(t, "./bar"),
 				)
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "infix with non-negated left",
@@ -69,13 +69,26 @@ func TestIsNegated(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name: "infix with both operands negated",
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+
+				return filter.NewInfixExpression(
+					filter.NewPrefixExpression("!", mustPath(t, "./foo")),
+					"|",
+					filter.NewPrefixExpression("!", mustPath(t, "./bar")),
+				)
+			},
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := filter.IsNegated(tt.exprFn(t))
+			result := filter.IsPureNegation(tt.exprFn(t))
 			assert.Equal(t, tt.expected, result)
 		})
 	}

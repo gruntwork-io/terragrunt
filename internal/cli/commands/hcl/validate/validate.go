@@ -105,7 +105,7 @@ func RunValidate(
 	opts.NonInteractive = true
 
 	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,
@@ -301,7 +301,7 @@ func RunValidateInputs(
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,

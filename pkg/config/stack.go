@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -169,7 +170,13 @@ func GenerateStackFile(
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      cs.Enabled,
 		casInstance:     cs.Instance,
+		ociEnabled:      pctx.Experiments.Evaluate(experiment.OCI),
 		strictControls:  pctx.StrictControls,
+	}
+
+	// One getter per stack, so every component shares its credential resolution.
+	if genOpts.ociEnabled {
+		genOpts.ociGetter = getter.NewOCIGetter(l, pctx.Venv)
 	}
 
 	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
@@ -421,6 +428,7 @@ func setupCAS(l log.Logger, v *venv.Venv, enabled bool, cloneDepth int) (casSetu
 type generateOpts struct {
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	casInstance     *cas.CAS
+	ociGetter       *getter.OCIGetter
 	sourceMap       map[string]string
 	strictControls  strict.Controls
 	rootWorkingDir  string
@@ -432,6 +440,7 @@ type generateOpts struct {
 	logShowAbsPaths bool
 	noStackValidate bool
 	casEnabled      bool
+	ociEnabled      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -756,6 +765,11 @@ func fetchComponentSource(
 ) error {
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.strictControls)
 
+	isOCI := isOCISource(source)
+	if isOCI && !opts.ociEnabled {
+		return OCIExperimentRequiredError{Kind: kindStr, Name: cmp.name}
+	}
+
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
 			return fmt.Errorf(
@@ -794,7 +808,8 @@ func fetchComponentSource(
 		return nil
 	}
 
-	if opts.casEnabled {
+	// CAS is git-backed, so an oci:// source goes straight to the getter.
+	if opts.casEnabled && !isOCI {
 		casErr := fetchViaCAS(ctx, l, v, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {
 			return nil
@@ -820,7 +835,7 @@ func fetchComponentSource(
 		})
 	}
 
-	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
+	if err := copyFiles(ctx, l, v, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
 		return fmt.Errorf(
 			"failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
@@ -920,13 +935,19 @@ func isCASProtocol(source string) bool {
 // The function checks if the source is local or remote. If local, it copies the
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
-func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
+func copyFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	identifier, sourceDir, src, dest string,
+) error {
 	if !isLocal(l, sourceDir, src) {
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
 			return fmt.Errorf("failed to create directory %s for %s %w", dest, identifier, err)
 		}
 
-		if _, err := getter.GetAny(ctx, dest, src); err != nil {
+		if _, err := getter.GetAny(ctx, dest, src, stackGetterOptions(l, v, opts)...); err != nil {
 			return fmt.Errorf("failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
 
@@ -954,6 +975,43 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 	}
 
 	return nil
+}
+
+// OCIExperimentRequiredError reports an oci:// component source used without the oci experiment.
+type OCIExperimentRequiredError struct {
+	Kind string
+	Name string
+}
+
+func (err OCIExperimentRequiredError) Error() string {
+	return fmt.Sprintf(
+		"oci:// source on %s %q requires the oci experiment (e.g. --experiment=oci)",
+		err.Kind,
+		err.Name,
+	)
+}
+
+// isOCISource reports whether source is an oci reference, in the oci:// or oci:: form.
+func isOCISource(source string) bool {
+	// go-getter matches the forced token exactly, so only the URL scheme folds.
+	if strings.HasPrefix(source, getter.SchemeOCI+"::") {
+		return true
+	}
+
+	scheme, _, found := strings.Cut(source, "://")
+
+	return found && strings.EqualFold(scheme, getter.SchemeOCI)
+}
+
+// stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.
+func stackGetterOptions(l log.Logger, v *venv.Venv, opts *generateOpts) []getter.Option {
+	clientOpts := []getter.Option{getter.WithLogger(l), getter.WithHTTP(v.HTTP)}
+
+	if opts.ociGetter != nil {
+		clientOpts = append(clientOpts, getter.WithOCI(opts.ociGetter))
+	}
+
+	return clientOpts
 }
 
 // isLocal determines if a given source path is local or remote.
@@ -1058,6 +1116,10 @@ func ParseStackConfig(
 		parser = parser.WithValues(values)
 	}
 
+	if err := ValidateExpansionExperiment(parser.Experiments, file); err != nil {
+		return nil, err
+	}
+
 	if err := processLocals(ctx, l, parser, file); err != nil {
 		return nil, err
 	}
@@ -1094,6 +1156,7 @@ func ParseStackConfig(
 		stackDir,
 		evalParsingContext,
 		parser.ParserOptions,
+		parser.Experiments,
 	); err != nil {
 		return nil, err
 	}
@@ -1106,6 +1169,7 @@ func ParseStackConfig(
 		filepath.Base(file.ConfigPath),
 		evalParsingContext,
 		parser.ParserOptions,
+		parser.Experiments,
 	); err != nil {
 		return nil, err
 	}
@@ -1383,6 +1447,7 @@ func processStackConfigIncludes(
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
+	experiments experiment.Experiments,
 ) error {
 	for _, inc := range config.Includes {
 		includePath := inc.Path
@@ -1393,6 +1458,10 @@ func processStackConfigIncludes(
 		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, includePath)
 		if err != nil {
 			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
+		}
+
+		if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+			return err
 		}
 
 		included := &StackConfigFile{}
@@ -1448,6 +1517,7 @@ func mergeStackAutoIncludeFile(
 	stackDir, stackFileName string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
+	experiments experiment.Experiments,
 ) error {
 	// Never merge the autoinclude file into itself.
 	if stackFileName == inthclparse.AutoIncludeStackFile {
@@ -1482,6 +1552,10 @@ func mergeStackAutoIncludeFile(
 		filepath.Base(stackDir),
 	); typed != nil {
 		return *typed
+	}
+
+	if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+		return err
 	}
 
 	included := &StackConfigFile{}

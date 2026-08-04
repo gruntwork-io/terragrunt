@@ -791,8 +791,6 @@ func worktreeStacksToGenerate(
 }
 
 // discoverStacks discovers stacks in a worktree.
-// User-provided filters from opts.Filters are included (restricted to stacks) so that
-// explicit exclusions like --filter '!./land-mine | type=stack' are respected.
 // When readFiles is true, all discovered stacks are parsed to populate their Reading
 // attribute (used by reading-affected detection).
 func discoverStacks(
@@ -803,11 +801,9 @@ func discoverStacks(
 	wt worktrees.Worktree,
 	readFiles bool,
 ) (component.Components, error) {
-	allFilters := slices.Concat(stackTypeFilter(), opts.Filters.RestrictToStacks())
-
 	d := discovery.NewDiscovery(wt.Path).
 		WithSuppressParseErrors().
-		WithFilters(allFilters)
+		WithFilters(StackDiscoveryFilters(opts.Filters))
 
 	if readFiles {
 		d = d.WithReadFiles()
@@ -891,6 +887,52 @@ func stacksReadingFiles(
 	}
 
 	return matched, nil
+}
+
+// StackDiscoveryFilters returns the filters that select which stacks a generation run
+// discovers, so that explicit exclusions like --filter '!./land-mine | type=stack' are
+// respected.
+//
+// Generation stays permissive until the user aims a filter at stacks, because a stack can
+// generate its units anywhere, so narrowing by a filter that never mentions stacks would drop
+// stacks the user still needs. Once a stack-targeted filter is present, every other filter is
+// narrowed to the stacks it matches and joins the union, rather than being dropped, which
+// would lose the stacks only that filter selects. Filters union, so a blanket type=stack
+// alongside them would select every stack and undo the exclusions.
+//
+// Git expressions are left out: they match on a component's Git reference, which discovery
+// only stamps on afterwards, so folding them in here would select nothing.
+func StackDiscoveryFilters(filters filter.Filters) filter.Filters {
+	stackFilters := filters.RestrictToStacks()
+	if len(stackFilters) == 0 {
+		return stackTypeFilter()
+	}
+
+	result := make(filter.Filters, 0, len(filters))
+	result = append(result, stackFilters...)
+
+	for _, f := range filters.ExcludingGitFilters() {
+		expr := f.Expression()
+		if expr.IsRestrictedToStacks() {
+			continue
+		}
+
+		// A filter that only excludes already subtracts from the union, so narrowing it to
+		// stacks would turn it into a selector and hand back what it set out to remove.
+		if filter.IsPureNegation(expr) {
+			result = append(result, f)
+
+			continue
+		}
+
+		attrExpr := filter.NewTypeExpression(component.StackKind)
+		result = append(result, filter.NewFilter(
+			filter.NewInfixExpression(expr, "|", attrExpr),
+			f.String(),
+		))
+	}
+
+	return result
 }
 
 // stackTypeFilter returns a filter.Filters that restricts to stack components.

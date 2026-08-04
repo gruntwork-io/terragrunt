@@ -96,7 +96,7 @@
 // ## Graph Boundary
 //
 // A boundary encloses graph traversal within a directory, in place of the
-// default outer limit (the git repository root for dependents, the declared
+// default outer limit (the Git repository root for dependents, the declared
 // path for dependencies). It occupies the same operand slot as depth, written
 // as a parenthesized directory:
 //
@@ -109,6 +109,14 @@
 // read nor returned, the same way a too-deep node is excluded by a depth bound.
 // The value must be an existing directory, resolved against the working
 // directory. This syntax is gated behind the bounded-discovery experiment.
+//
+// A dependent-direction boundary must be the working directory or one of its
+// parents, since the dependent walk starts at the working directory and moves
+// outward. A boundary that does not contain it is rejected before traversal.
+//
+// Reserving "(" and ")" for this operand means neither character can appear
+// bare in a name or path. Brace a value that contains one, as in
+// "{./weird(name)}".
 //
 // ## Numeric Directory Disambiguation
 //
@@ -186,16 +194,20 @@
 //	// Returns: all components in ./apps/* OR components named "db"
 //
 // Multiple filters are evaluated in two phases:
-//  1. Positive filters (non-negated) are evaluated and their results are unioned
-//  2. Negative filters (starting with !) are applied to remove matching components
+//  1. Selecting filters are evaluated and their results are unioned
+//  2. Filters that only exclude are applied to remove matching components
 //
-// The ExcludeByDefault() method signals whether filters operate in exclude-by-default
-// mode. This is true if ANY filter doesn't start with a negation expression:
+// A filter only excludes when every one of its operands is negated, such as !foo or
+// !foo | !bar. A filter like !foo | bar selects, because | intersects left to right and
+// the expression still has to match bar.
 //
-//	filters.ExcludeByDefault() // true if any filter is positive
+// The HasPositiveFilter() method signals whether filters operate in exclude-by-default
+// mode. This is true if ANY filter selects components:
+//
+//	filters.HasPositiveFilter() // true if any filter selects
 //
 // When true, discovery should start with an empty set and add matches.
-// When false (all filters are negated), discovery should start with all components
+// When false (every filter only excludes), discovery should start with all components
 // and remove matches.
 //
 // ## One-Shot Usage

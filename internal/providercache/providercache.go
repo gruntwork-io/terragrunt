@@ -302,7 +302,7 @@ func (pc *ProviderCache) warmUpCache(
 ) (*util.CmdOutput, error) {
 	var (
 		cacheRequestID = uuid.New().String()
-		commandsArgs   = convertToMultipleCommandsByPlatforms(args)
+		commandsArgs   = ConvertToMultipleCommandsByPlatforms(args)
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
@@ -793,23 +793,34 @@ func (pc *ProviderCache) providerCacheEnvironment(
 	return envs
 }
 
-// convertToMultipleCommandsByPlatforms converts `providers lock -platform=.. -platform=..` command into multiple commands that include only one platform.
+// ConvertToMultipleCommandsByPlatforms converts `providers lock -platform=.. -platform=..` command into multiple commands that include only one platform.
 // for example:
 // `providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=freebsd_amd64`
 // to
 // `providers lock -platform=linux_amd64`,
 // `providers lock -platform=darwin_arm64`,
 // `providers lock -platform=freebsd_amd64`
-func convertToMultipleCommandsByPlatforms(args []string) [][]string {
+//
+// Values given as a separate argument, like `providers lock -platform linux_amd64`, are normalized to the `-platform=linux_amd64` form.
+func ConvertToMultipleCommandsByPlatforms(args []string) [][]string {
+	const platformFlagWithValue = tf.FlagNamePlatform + "="
+
 	var (
 		filteredArgs = make([]string, 0, len(args))
 		platformArgs = make([]string, 0, len(args))
 	)
 
-	for _, arg := range args {
-		if strings.HasPrefix(arg, tf.FlagNamePlatform) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		switch {
+		case strings.HasPrefix(arg, platformFlagWithValue):
 			platformArgs = append(platformArgs, arg)
-		} else {
+		case arg == tf.FlagNamePlatform && i+1 < len(args):
+			// OpenTofu and Terraform read the value from the next argument, so consume it here rather than leaving it to be treated as a provider address.
+			i++
+			platformArgs = append(platformArgs, platformFlagWithValue+args[i])
+		default:
 			filteredArgs = append(filteredArgs, arg)
 		}
 	}

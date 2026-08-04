@@ -21,6 +21,7 @@ type DiscoveryCommandOptions struct {
 	Exclude           bool
 	Include           bool
 	Reading           bool
+	ParseStackConfigs bool
 	WithRequiresParse bool
 	WithRelationships bool
 }
@@ -39,7 +40,7 @@ type StackGenerateOptions struct {
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
-func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Discovery, error) {
+func NewForDiscoveryCommand(l log.Logger, fs vfs.FS, opts *DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
 		WithBreakCycles()
@@ -66,6 +67,10 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 
 	if opts.Reading {
 		d = d.WithReadFiles()
+	}
+
+	if opts.ParseStackConfigs {
+		d = d.WithParseStackConfigs()
 	}
 
 	if opts.QueueConstructAs != "" {
@@ -98,7 +103,7 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 	}
 
 	if opts.DiscoveryBoundary != "" {
-		boundary, err := resolveDiscoveryBoundary(vfs.NewOSFS(), opts.WorkingDir, opts.DiscoveryBoundary)
+		boundary, err := resolveDiscoveryBoundary(fs, opts.WorkingDir, opts.DiscoveryBoundary)
 		if err != nil {
 			return nil, err
 		}
@@ -110,7 +115,7 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 }
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) {
+func NewForHCLCommand(l log.Logger, fs vfs.FS, opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.Filters) > 0 {
@@ -118,7 +123,7 @@ func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) 
 	}
 
 	if opts.DiscoveryBoundary != "" {
-		boundary, err := resolveDiscoveryBoundary(vfs.NewOSFS(), opts.WorkingDir, opts.DiscoveryBoundary)
+		boundary, err := resolveDiscoveryBoundary(fs, opts.WorkingDir, opts.DiscoveryBoundary)
 		if err != nil {
 			return nil, err
 		}
