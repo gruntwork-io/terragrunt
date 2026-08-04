@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/ociregistry"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
@@ -1153,6 +1154,59 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 			assert.NotContains(t, logBuf.String(), casAttempt, "the CAS attempt must be skipped when the experiment is off")
 		})
 	}
+}
+
+// TestDownloadSourceOCIAgainstLocalRegistry downloads a published module end to end with the experiment on.
+func TestDownloadSourceOCIAgainstLocalRegistry(t *testing.T) {
+	t.Parallel()
+
+	registry := ociregistry.Start(t)
+	registry.PushModule(t, "terraform-modules/vpc", "1.0.0", map[string]string{
+		"main.tf": "output \"root\" {\n  value = \"root\"\n}\n",
+	})
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "oci://"+registry.Address()+"/terraform-modules/vpc?tag=1.0.0"),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OCI))
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	// Hermetic home so a developer's own credentials cannot authenticate the pull.
+	hermeticHome := t.TempDir()
+	v := venv.OSVenv().
+		WithEnv(map[string]string{"HOME": hermeticHome}).
+		WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
+	v.HTTP = registry.Client()
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		l,
+		v,
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tmpDir, "main.tf"))
 }
 
 // TestDownloadSourceWithCASGitSource tests CAS functionality with a Git source

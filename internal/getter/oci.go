@@ -650,10 +650,8 @@ func (g *OCIGetter) extractModuleWithLimits(
 		return fmt.Errorf("extracting OCI module archive: %w", err)
 	}
 
-	sourcePath, err := SubdirGlob(unzipPath, subDir)
-	if err != nil {
-		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
-	}
+	// Clients resolve //subdir themselves, so subDir stays literal and the Stat below guards it.
+	sourcePath := filepath.Join(unzipPath, subDir)
 
 	if _, err := g.FS.Stat(sourcePath); err != nil {
 		return ModuleDownloadErr{
