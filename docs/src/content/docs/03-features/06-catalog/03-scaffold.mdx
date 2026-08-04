@@ -6,6 +6,9 @@ sidebar:
   order: 3
 ---
 
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
 Terragrunt scaffolding can generate files for you automatically using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates.
 
 Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures an OpenTofu/Terraform module for deployment:
@@ -65,6 +68,14 @@ Important notes:
 
 ## Scaffolding units and stacks
 
+<Before version="1.1.3">
+
+`scaffold` reads every source as an OpenTofu/Terraform module, so pointing it at a unit or a stack writes a `terragrunt.hcl` whose `source` addresses that component's own directory, with no inputs and none of its files. Scaffold those from the [Catalog TUI](/features/catalog/tui) instead, by pressing `s` on one.
+
+</Before>
+
+<Since version="1.1.3">
+
 The example above generates a unit from an OpenTofu/Terraform module. A catalog can also store units and stacks. Those are already Terragrunt configurations, so they are copied verbatim from the catalog: `scaffold` copies their files into your working directory for you to edit in place (which is also what the [Catalog TUI](/features/catalog/tui) does when you press `s` on a unit/stack).
 
 ```bash
@@ -91,6 +102,42 @@ Required entries are the references used directly, and are yours to fill in. Opt
 Copying refuses to overwrite anything. A file that would land on a path that already exists stops the command before it writes, so a collision cannot leave you with a half-scaffolded component.
 
 Since the component is copied exactly as written, `--var` and `--var-file` do not apply to it; they configure template rendering, which a unit or stack does not go through. Set its values in `terragrunt.values.hcl` instead. A `TEMPLATE_URL` argument is ignored for the same reason.
+
+</Since>
+
+## Filling in values
+
+<Before version="1.1.3">
+
+`scaffold` writes a `# TODO` placeholder for every input, for you to fill in by hand. To be asked for the values instead, browse to the component in the [Catalog TUI](/features/catalog/tui#interactive-scaffold-form) and press `s`.
+
+</Before>
+
+<Since version="1.1.3">
+
+`scaffold` opens the same form the [Catalog TUI](/features/catalog/tui#interactive-scaffold-form) opens when you press `s`, so reaching a component from the command line asks for what browsing to it would. For a module or a template the form lists the source's variables; for a unit or a stack it lists the `values.*` references its configuration makes. Submitting writes what you filled in, and dismissing the form with `esc` writes nothing at all.
+
+The keybindings are the ones documented for [the form in the TUI](/features/catalog/tui#interactive-scaffold-form): `ctrl+d` writes immediately, leaving anything you skipped as a `# TODO` or `"TODO"` for you to fill in by hand.
+
+The form is skipped, leaving those placeholders throughout, when:
+
+- you pass `--non-interactive`,
+- `stdin` is not a terminal, as in a CI job or when another program runs the command, or
+- the source has no variables and makes no `values.*` references.
+
+Skipping it is a fallback rather than an error, so a pipeline that scaffolds without a terminal keeps working exactly as it did.
+
+```bash
+# Asks for the module's variables, when run in a terminal.
+terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql
+
+# Writes TODO placeholders, wherever it runs.
+terragrunt scaffold --non-interactive github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql
+```
+
+A custom boilerplate template's own variables are a separate set, and boilerplate still prompts for those itself, after the form.
+
+</Since>
 
 ## Custom templates for scaffolding
 

@@ -1,0 +1,18 @@
+---
+version: "v1.1.3"
+category: "new-features"
+---
+
+#### `scaffold` asks for values interactively
+
+Scaffolding from the command line wrote `# TODO` placeholders for every input and left you to fill them in by hand, while scaffolding the same component from the [Catalog TUI](/features/catalog/tui) opened a form and collected them. `terragrunt scaffold` now opens that same form:
+
+```bash
+terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql
+```
+
+For a module or a template it lists the source's variables; for a unit or a stack it lists the `values.*` references its configuration makes, which are written to `terragrunt.values.hcl`. Dismissing the form with `esc` writes nothing.
+
+The form is skipped, and the placeholders written as before, when you pass `--non-interactive`, when `stdin` is not a terminal, or when the source asks for nothing. A scaffold in a CI job, or one run by another program, therefore behaves exactly as it did.
+
+See [Scaffold](/features/catalog/scaffold) for the full behavior, and [the form's keybindings](/features/catalog/tui#interactive-scaffold-form) for driving it.

@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -289,10 +290,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, tea.Quit
 
-	case FormSubmitMsg:
+	case form.SubmitMsg:
 		return m.handleFormSubmit(msg.Values)
 
-	case FormCancelMsg:
+	case form.CancelMsg:
 		m.abandonForm()
 
 		m.State = m.priorState
@@ -635,11 +636,11 @@ func displayPath(baseDir, abs string) string {
 	return "." + string(filepath.Separator) + rel
 }
 
-// formReadyMsg is delivered once discovery has built a populated FormModel
+// formReadyMsg is delivered once discovery has built a populated form.Model
 // and (for module/template) the prepared scaffold.Plan, or (for unit/stack)
 // the captured component.ValuesReferences.
 type formReadyMsg struct {
-	form *FormModel
+	form *form.Model
 	plan *scaffold.Plan
 	refs *component.ValuesReferences
 }
@@ -710,10 +711,10 @@ func discoverModuleFields(
 		return formDiscoveryErrMsg{err: err}
 	}
 
-	fields := FieldsFromParsedVariables(plan.Required, plan.Optional)
+	fields := form.FieldsFromParsedVariables(plan.Required, plan.Optional)
 
 	return formReadyMsg{
-		form: NewFormModel(c, fields),
+		form: form.NewModel(c.Title(), fields),
 		plan: plan,
 	}
 }
@@ -737,17 +738,17 @@ func discoverValuesFields(c *Component) tea.Msg {
 		return formDiscoveryErrMsg{err: err}
 	}
 
-	fields := FieldsFromValuesReferences(refs)
+	fields := form.FieldsFromValuesReferences(refs)
 
 	return formReadyMsg{
-		form: NewFormModel(c, fields),
+		form: form.NewModel(c.Title(), fields),
 		refs: &refs,
 	}
 }
 
 // updateForm routes messages while the form is on screen. It delegates
-// keypresses (and any other input) to the embedded FormModel, which may
-// in turn emit FormSubmitMsg or FormCancelMsg for the outer Update.
+// keypresses (and any other input) to the embedded form.Model, which may
+// in turn emit form.SubmitMsg or form.CancelMsg for the outer Update.
 func updateForm(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	if m.form == nil {
 		// Discovery is still in flight. Swallow input until the
