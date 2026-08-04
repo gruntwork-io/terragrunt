@@ -39,12 +39,6 @@ var ociDockerHubRegistries = []string{
 	"registry-1.docker.io",
 }
 
-// ErrOCIHelperMalformedOutput reports a credential helper whose output is not valid JSON.
-var ErrOCIHelperMalformedOutput = errors.New("oci credential helper returned malformed output")
-
-// ErrOCIAmbientConfigFile reports a docker_style_config_files entry that cannot be read.
-var ErrOCIAmbientConfigFile = errors.New("cannot read docker_style_config_files entry")
-
 const (
 	// ociCredentialHelperPrefix is the docker-credential binary name prefix.
 	ociCredentialHelperPrefix = "docker-credential-"
@@ -61,26 +55,6 @@ const (
 	// ociDockerHubIndexServer is the server address helpers store Docker Hub creds under.
 	ociDockerHubIndexServer = "https://index.docker.io/v1/"
 )
-
-// OCICredentialHelperError reports a helper failure, carrying stderr diagnostics but never the secret stdout.
-type OCICredentialHelperError struct {
-	Err      error
-	Helper   string
-	Registry string
-	Stderr   string
-}
-
-func (err OCICredentialHelperError) Error() string {
-	if err.Stderr != "" {
-		return fmt.Sprintf("oci credential helper %q for %s: %v: %s", err.Helper, err.Registry, err.Err, err.Stderr)
-	}
-
-	return fmt.Sprintf("oci credential helper %q for %s: %v", err.Helper, err.Registry, err.Err)
-}
-
-func (err OCICredentialHelperError) Unwrap() error {
-	return err.Err
-}
 
 // OCIRemoteStore adapts oras' by-value Fetch to the pointer-taking [OCIRepositoryStore] seam.
 type OCIRemoteStore struct {
@@ -276,75 +250,96 @@ func ociSelectCredentialCandidate(
 ) ociCredentialCandidate {
 	var best ociCredentialCandidate
 
-	// CLI-config oci_credentials blocks rank by repository-prefix specificity.
 	for i := range tofu.repos {
 		repo := &tofu.repos[i]
 		if !repo.matches(hostport, repositoryName) {
 			continue
 		}
 
-		if cand := ociTofuCandidate(repo, hostport); ociOutranks(&cand, &best) {
-			best = cand
-		}
+		cand := ociTofuCandidate(repo, hostport)
+		keepBestCandidate(&best, &cand)
 	}
 
-	// The oci_default_credentials helper is a global-specificity CLI source.
-	if tofu.defaultHelper != "" {
-		cand := ociCredentialCandidate{
-			helper: &ociHelperEntry{
-				suffix:        tofu.defaultHelper,
-				serverAddress: ociTofuHelperServerAddress(hostport),
-				explicit:      true,
-			},
-			specificity:   ociGlobalSpecificity,
-			fromCLIConfig: true,
-		}
-		if ociOutranks(&cand, &best) {
-			best = cand
-		}
-	}
+	defaultHelper := ociTofuDefaultHelperCandidate(tofu, hostport)
+	keepBestCandidate(&best, &defaultHelper)
 
 	for _, ambient := range stores {
-		// The most specific inline key that resolves in this file.
-		for _, key := range ociCredentialKeys(hostport, repositoryName) {
-			cred := ociCredentialFromAmbientStore(ctx, l, ambient, key)
-			if cred == auth.EmptyCredential {
-				continue
-			}
+		inline := ociAmbientInlineCandidate(ctx, l, ambient, hostport, repositoryName)
+		keepBestCandidate(&best, &inline)
 
-			cand := ociCredentialCandidate{static: cred, specificity: ociInlineSpecificity(key)}
-			if ociOutranks(&cand, &best) {
-				best = cand
-			}
+		helper := ociAmbientHelperCandidate(ambient, hostport)
+		keepBestCandidate(&best, &helper)
 
-			break
-		}
-
-		// A per-registry credHelpers entry wins a tie with a domain inline login.
-		entry, hasHelper := ambient.credHelpers[ociCanonicalAuthKey(hostport)]
-		if hasHelper {
-			winner := entry
-			cand := ociCredentialCandidate{helper: &winner, specificity: ociDomainSpecificity}
-
-			if ociOutranks(&cand, &best) {
-				best = cand
-			}
-		}
-
-		// The global credsStore is the least specific source.
-		if ambient.credsStore != "" {
-			cand := ociCredentialCandidate{
-				helper:      &ociHelperEntry{suffix: ambient.credsStore, serverAddress: ociHelperServerAddress(hostport)},
-				specificity: ociGlobalSpecificity,
-			}
-
-			if ociOutranks(&cand, &best) {
-				best = cand
-			}
-		}
+		credsStore := ociAmbientCredsStoreCandidate(ambient, hostport)
+		keepBestCandidate(&best, &credsStore)
 	}
 
 	return best
+}
+
+// keepBestCandidate replaces best with cand when cand outranks it, ignoring the no-source zero candidate.
+func keepBestCandidate(best, cand *ociCredentialCandidate) {
+	if cand.specificity != 0 && ociOutranks(cand, best) {
+		*best = *cand
+	}
+}
+
+// ociTofuDefaultHelperCandidate ranks the oci_default_credentials helper as a global-specificity CLI source.
+func ociTofuDefaultHelperCandidate(tofu *ociTofuCredentials, hostport string) ociCredentialCandidate {
+	if tofu.defaultHelper == "" {
+		return ociCredentialCandidate{}
+	}
+
+	return ociCredentialCandidate{
+		helper: &ociHelperEntry{
+			suffix:        tofu.defaultHelper,
+			serverAddress: ociTofuHelperServerAddress(hostport),
+			explicit:      true,
+		},
+		specificity:   ociGlobalSpecificity,
+		fromCLIConfig: true,
+	}
+}
+
+// ociAmbientInlineCandidate ranks the most specific inline login that resolves in one ambient file.
+func ociAmbientInlineCandidate(
+	ctx context.Context,
+	l log.Logger,
+	ambient ociAmbientStore,
+	hostport, repositoryName string,
+) ociCredentialCandidate {
+	for _, key := range ociCredentialKeys(hostport, repositoryName) {
+		cred := ociCredentialFromAmbientStore(ctx, l, ambient, key)
+		if cred == auth.EmptyCredential {
+			continue
+		}
+
+		return ociCredentialCandidate{static: cred, specificity: ociInlineSpecificity(key)}
+	}
+
+	return ociCredentialCandidate{}
+}
+
+// ociAmbientHelperCandidate ranks a per-registry credHelpers entry, which wins a tie with a domain inline login.
+func ociAmbientHelperCandidate(ambient ociAmbientStore, hostport string) ociCredentialCandidate {
+	entry, hasHelper := ambient.credHelpers[ociCanonicalAuthKey(hostport)]
+	if !hasHelper {
+		return ociCredentialCandidate{}
+	}
+
+	return ociCredentialCandidate{helper: &entry, specificity: ociDomainSpecificity}
+}
+
+// ociAmbientCredsStoreCandidate ranks the file's global credsStore, the least specific source.
+func ociAmbientCredsStoreCandidate(ambient ociAmbientStore, hostport string) ociCredentialCandidate {
+	if ambient.credsStore == "" {
+		return ociCredentialCandidate{}
+	}
+
+	return ociCredentialCandidate{
+		helper:      &ociHelperEntry{suffix: ambient.credsStore, serverAddress: ociHelperServerAddress(hostport)},
+		specificity: ociGlobalSpecificity,
+	}
 }
 
 // ociExecuteCredentialCandidate runs the winning source now, with an explicit helper fatal and credsStore best-effort.
@@ -383,7 +378,7 @@ func ociHelperServerAddress(hostport string) string {
 	return hostport
 }
 
-// ociTofuHelperServerAddress builds the CLI-config helper address: https:// plus the host, unrewritten.
+// ociTofuHelperServerAddress builds the fixed https:// address tofu sends; the registry client never speaks plain HTTP.
 func ociTofuHelperServerAddress(hostport string) string {
 	return "https://" + hostport
 }
@@ -395,12 +390,12 @@ func ociCredentialFromHelper(
 	entry ociHelperEntry,
 	timeout time.Duration,
 ) (auth.Credential, error) {
-	// A path separator would make exec.LookPath run a non-PATH binary.
+	// The name is only the suffix of docker-credential-<name>, so a separator would run a non-PATH binary.
 	if !ociValidHelperName(entry.suffix) {
 		return auth.EmptyCredential, OCICredentialHelperError{
 			Helper:   entry.suffix,
 			Registry: entry.serverAddress,
-			Err:      errOCIInvalidHelperName,
+			Err:      ErrOCIInvalidHelperName,
 		}
 	}
 
@@ -547,7 +542,7 @@ func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) 
 		file, err := ociAuthFile(v, candidate)
 		if err != nil {
 			if explicit {
-				return nil, fmt.Errorf("%w %s: %w", ErrOCIAmbientConfigFile, candidate, err)
+				return nil, OCIAmbientConfigFileError{Path: candidate, Err: err}
 			}
 
 			if !errors.Is(err, iofs.ErrNotExist) {
