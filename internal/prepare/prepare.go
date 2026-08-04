@@ -213,7 +213,7 @@ func PrepareInputsAsEnvVars(
 	runOpts := configbridge.NewRunOptions(opts)
 
 	// Check for terraform code
-	if err := run.CheckFolderContainsTerraformCode(runOpts); err != nil {
+	if err := run.CheckFolderContainsTerraformCode(v.FS, runOpts); err != nil {
 		return err
 	}
 
@@ -233,7 +233,7 @@ func PrepareInit(
 	runOpts := configbridge.NewRunOptions(opts)
 
 	// Check for terraform code
-	if err := run.CheckFolderContainsTerraformCode(runOpts); err != nil {
+	if err := run.CheckFolderContainsTerraformCode(v.FS, runOpts); err != nil {
 		return err
 	}
 

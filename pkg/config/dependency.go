@@ -38,10 +38,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -1524,13 +1526,13 @@ func getTerragruntOutputJSONFromRemoteState(
 		return nil, err
 	}
 
-	tempWorkDir, err := os.MkdirTemp(pctx.DownloadDir, "")
+	tempWorkDir, err := vfs.MkdirTemp(pctx.Venv.FS, pctx.DownloadDir, "")
 	if err != nil {
 		return nil, err
 	}
 
 	defer func(path string) {
-		err := os.RemoveAll(path)
+		err := pctx.Venv.FS.RemoveAll(path)
 		if err != nil {
 			l.Warnf("Failed to remove %s: %v", path, err)
 		}
@@ -1598,7 +1600,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
-	if err := CopyLockFile(
+	if err := runcfg.CopyLockFile(
 		l,
 		pctx.Venv.FS,
 		pctx.RootWorkingDir,

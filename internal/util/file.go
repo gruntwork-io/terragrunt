@@ -154,10 +154,10 @@ func GrepFilesWithSuffix(fsys vfs.FS, regex *regexp.Regexp, rootDir, suffix stri
 }
 
 // FindTFFiles walks through the directory and returns all OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
-func FindTFFiles(rootPath string) ([]string, error) {
+func FindTFFiles(fsys vfs.FS, rootPath string) ([]string, error) {
 	var terraformFiles []string
 
-	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDir(fsys, rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -213,10 +213,10 @@ func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error
 
 // DirContainsTFFiles checks if the given directory contains any
 // Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
-func DirContainsTFFiles(dirPath string) (bool, error) {
+func DirContainsTFFiles(fsys vfs.FS, dirPath string) (bool, error) {
 	var found bool
 
-	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDir(fsys, dirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

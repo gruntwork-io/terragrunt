@@ -1486,14 +1486,18 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 	t.Parallel()
 
+	// Remote hosts use the reserved .invalid TLD so no request leaves the
+	// machine. A source the gate admits still reaches the download step and
+	// fails there on the unreachable host.
 	testCases := []struct {
-		name     string
-		source   string
-		rejected bool
+		name            string
+		source          string
+		rejected        bool
+		reachesDownload bool
 	}{
 		{
 			name:     "git source needs the real disk",
-			source:   "git::https://github.com/gruntwork-io/terragrunt.git//foo",
+			source:   "git::https://github.invalid/gruntwork-io/terragrunt.git//foo",
 			rejected: true,
 		},
 		{
@@ -1507,9 +1511,16 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 			rejected: false,
 		},
 		{
-			name:     "tfr source stays on the venv filesystem",
-			source:   "tfr://registry.opentofu.org/foo/bar/baz?version=1.0.0",
-			rejected: false,
+			name:            "tfr source stays on the venv filesystem",
+			source:          "tfr://registry.invalid/foo/bar/baz?version=1.0.0",
+			rejected:        false,
+			reachesDownload: true,
+		},
+		{
+			name:            "oci source stays on the venv filesystem",
+			source:          "oci://registry.invalid/foo/bar:1.0.0",
+			rejected:        false,
+			reachesDownload: true,
 		},
 	}
 
@@ -1536,6 +1547,13 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 				report.NewReport(),
 			)
 			assert.Equal(t, tc.rejected, errors.Is(err, run.ErrNonOSFilesystem))
+
+			if tc.reachesDownload {
+				var downloadErr run.DownloadingTerraformSourceErr
+
+				require.ErrorAs(t, err, &downloadErr,
+					"the gate must admit this source and let it fail at the download step")
+			}
 		})
 	}
 }

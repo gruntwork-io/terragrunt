@@ -270,14 +270,7 @@ func (backend *Backend) Delete(
 			tableName,
 			tableKey,
 		)
-		if yes, err := shell.PromptUserForYesNo(
-			ctx,
-			l,
-			prompt,
-			opts.NonInteractive,
-			v.Reader,
-			v.Writers.ErrWriter,
-		); err != nil {
+		if yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive); err != nil {
 			return err
 		} else if yes {
 			if err := client.DeleteTableItemIfNecessary(ctx, l, tableName, tableKey); err != nil {
@@ -291,14 +284,7 @@ func (backend *Backend) Delete(
 		bucketName,
 		bucketKey,
 	)
-	if yes, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Reader,
-		v.Writers.ErrWriter,
-	); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteS3ObjectIfNecessary(ctx, l, bucketName, bucketKey)
@@ -335,14 +321,7 @@ func (backend *Backend) DeleteBucket(
 			"DynamoDB table %s will be completely deleted. Do you want to continue?",
 			tableName,
 		)
-		if yes, err := shell.PromptUserForYesNo(
-			ctx,
-			l,
-			prompt,
-			opts.NonInteractive,
-			v.Reader,
-			v.Writers.ErrWriter,
-		); err != nil {
+		if yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive); err != nil {
 			return err
 		} else if yes {
 			if err := client.DeleteTableIfNecessary(ctx, l, tableName); err != nil {
@@ -355,14 +334,7 @@ func (backend *Backend) DeleteBucket(
 		"S3 bucket %s will be completely deleted. Do you want to continue?",
 		bucketName,
 	)
-	if yes, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Reader,
-		v.Writers.ErrWriter,
-	); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteS3BucketIfNecessary(ctx, l, bucketName)

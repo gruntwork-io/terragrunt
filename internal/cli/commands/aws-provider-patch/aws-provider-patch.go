@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -126,7 +125,7 @@ func runAwsProviderPatch(
 		return MissingOverrideAttrError(OverrideAttrFlagName)
 	}
 
-	terraformFilesInModules, err := findAllTerraformFilesInModules(env, opts)
+	terraformFilesInModules, err := findAllTerraformFilesInModules(fsys, env, opts)
 	if err != nil {
 		return err
 	}
@@ -134,13 +133,13 @@ func runAwsProviderPatch(
 	for _, terraformFile := range terraformFilesInModules {
 		l.Debugf("Looking at file %s", terraformFile)
 
-		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
+		originalTerraformFileContents, err := vfs.ReadFile(fsys, terraformFile)
 		if err != nil {
 			return err
 		}
 
 		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(
-			originalTerraformFileContents,
+			string(originalTerraformFileContents),
 			terraformFile,
 			opts.AwsProviderPatchOverrides,
 		)
@@ -183,16 +182,22 @@ type TerraformModule struct {
 // NOTE: this method supports *.tf and *.tofu files. Terraform/OpenTofu code defined in *.json files is not currently
 // supported.
 func findAllTerraformFilesInModules(
+	fsys vfs.FS,
 	env map[string]string,
 	opts *options.TerragruntOptions,
 ) ([]string, error) {
 	modulesJSONPath := filepath.Join(opts.DataDir(env), "modules", "modules.json")
 
-	if !util.FileExists(modulesJSONPath) {
+	exists, err := vfs.FileExists(fsys, modulesJSONPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
 		return nil, nil
 	}
 
-	modulesJSONContents, err := os.ReadFile(modulesJSONPath)
+	modulesJSONContents, err := vfs.ReadFile(fsys, modulesJSONPath)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +216,7 @@ func findAllTerraformFilesInModules(
 				moduleAbsPath = filepath.Join(opts.WorkingDir, moduleAbsPath)
 			}
 
-			moduleFiles, err := util.FindTFFiles(moduleAbsPath)
+			moduleFiles, err := util.FindTFFiles(fsys, moduleAbsPath)
 			if err != nil {
 				return nil, err
 			}

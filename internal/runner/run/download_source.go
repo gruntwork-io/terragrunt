@@ -444,7 +444,7 @@ func AlreadyHaveLatestCode(
 		}
 	}
 
-	hasFiles, err := util.DirContainsTFFiles(terraformSource.WorkingDir)
+	hasFiles, err := util.DirContainsTFFiles(v.FS, terraformSource.WorkingDir)
 	if err != nil {
 		return false, err
 	}

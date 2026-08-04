@@ -195,7 +195,7 @@ func Run(
 		}
 	}
 
-	if err := CheckFolderContainsTerraformCode(updatedOpts); err != nil {
+	if err := CheckFolderContainsTerraformCode(v.FS, updatedOpts); err != nil {
 		return err
 	}
 
@@ -488,8 +488,8 @@ func SetTerragruntInputsAsEnvVars(
 }
 
 // CheckFolderContainsTerraformCode checks if the folder contains Terraform/OpenTofu code
-func CheckFolderContainsTerraformCode(opts *Options) error {
-	found, err := util.DirContainsTFFiles(opts.CacheDir)
+func CheckFolderContainsTerraformCode(fsys vfs.FS, opts *Options) error {
+	found, err := util.DirContainsTFFiles(fsys, opts.CacheDir)
 	if err != nil {
 		return err
 	}

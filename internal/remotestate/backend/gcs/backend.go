@@ -227,14 +227,7 @@ func (backend *Backend) Delete(
 		bucketName,
 		prefix,
 	)
-	if yes, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Reader,
-		v.Writers.ErrWriter,
-	); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteGCSObjectIfNecessary(ctx, l, bucketName, prefix)
@@ -267,14 +260,7 @@ func (backend *Backend) DeleteBucket(
 		"GCS bucket %s will be completely deleted. Do you want to continue?",
 		bucketName,
 	)
-	if yes, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Reader,
-		v.Writers.ErrWriter,
-	); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteGCSBucketIfNecessary(ctx, l, bucketName)
