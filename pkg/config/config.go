@@ -1537,6 +1537,9 @@ func ParseConfig(
 		pctx = pctx.WithLocals(baseBlocks.Locals)
 	}
 
+	// Pre-read autoinclude input keys so values.* references that will be overridden don't fail during decode.
+	pctx = injectAutoIncludeValuePlaceholders(l, pctx)
+
 	if pctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
@@ -2576,6 +2579,100 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 	}
 
 	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
+}
+
+// injectAutoIncludeValuePlaceholders pre-reads the sibling autoinclude's inputs keys and injects cty.DynamicVal placeholders for any key not already present in pctx.Values, so the main decode does not fail on values.X references that the autoinclude will override.
+func injectAutoIncludeValuePlaceholders(l log.Logger, pctx *ParsingContext) *ParsingContext {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
+		return pctx
+	}
+
+	if pctx.Venv == nil || pctx.Venv.FS == nil {
+		return pctx
+	}
+
+	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
+
+	data, err := vfs.ReadFile(pctx.Venv.FS, autoIncludePath)
+	if err != nil {
+		l.Debugf("Could not read autoinclude %s for value placeholders: %v", autoIncludePath, err)
+		return pctx
+	}
+
+	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		l.Debugf("Could not parse autoinclude %s for value placeholders: %v", autoIncludePath, diags)
+		return pctx
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return pctx
+	}
+
+	inputsAttr, hasInputs := body.Attributes[MetadataInputs]
+	if !hasInputs {
+		return pctx
+	}
+
+	// Extract the top-level keys from the inputs map expression.
+	keys := autoIncludeInputKeys(inputsAttr.Expr)
+	if len(keys) == 0 {
+		return pctx
+	}
+
+	// Build augmented values with placeholders for missing keys.
+	existing := map[string]cty.Value{}
+
+	if pctx.Values != nil && *pctx.Values != cty.NilVal &&
+		pctx.Values.IsKnown() && pctx.Values.Type().IsObjectType() {
+		if m := pctx.Values.AsValueMap(); m != nil {
+			existing = m
+		}
+	}
+
+	augmented := false
+
+	for _, key := range keys {
+		if _, exists := existing[key]; exists {
+			continue
+		}
+
+		existing[key] = cty.DynamicVal
+		augmented = true
+	}
+
+	if !augmented {
+		return pctx
+	}
+
+	l.Debugf("Injected autoinclude value placeholders for keys not in values file")
+
+	result := cty.ObjectVal(existing)
+
+	return pctx.WithValues(&result)
+}
+
+// autoIncludeInputKeys extracts the top-level attribute names from an inputs map expression.
+func autoIncludeInputKeys(expr hclsyntax.Expression) []string {
+	objExpr, ok := expr.(*hclsyntax.ObjectConsExpr)
+	if !ok {
+		return nil
+	}
+
+	keys := make([]string, 0, len(objExpr.Items))
+
+	for _, item := range objExpr.Items {
+		// Static key: a literal or template expression that evaluates to a string without variables.
+		val, diags := item.KeyExpr.Value(nil)
+		if diags.HasErrors() || !val.IsKnown() || val.Type() != cty.String {
+			continue
+		}
+
+		keys = append(keys, val.AsString())
+	}
+
+	return keys
 }
 
 // mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.

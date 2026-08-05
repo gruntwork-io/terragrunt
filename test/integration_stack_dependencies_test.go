@@ -71,6 +71,7 @@ const (
 	testFixtureStackDepsHCLValidateAutoInc       = "fixtures/stacks/stack-deps-hclvalidate-autoinclude"
 	testFixtureStackDepsAutoIncTemplateLiteral   = "fixtures/stacks/stack-deps-autoinclude-template-literal"
 	testFixtureStackDepsAutoIncObjectKey         = "fixtures/stacks/stack-deps-autoinclude-object-key"
+	testFixtureStackDepsAutoIncValuesOverride    = "fixtures/stacks/stack-deps-autoinclude-values-override"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -1985,4 +1986,31 @@ func TestStackDepsHCLValidateAcceptsValidAutoInclude(t *testing.T) {
 		"terragrunt hcl validate --working-dir "+rootPath,
 	)
 	require.NoError(t, err, "a well-formed autoinclude block must pass hcl validate")
+}
+
+// TestStackDepsAutoIncludeValuesOverride pins that a unit whose inputs reference values.X succeeds when the autoinclude overrides that key, even though the stack's values block does not define X.
+func TestStackDepsAutoIncludeValuesOverride(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncValuesOverride)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncValuesOverride)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncValuesOverride)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt list --dag --working-dir "+rootPath,
+	)
+	require.NoError(t, err, "stack generate + list --dag must succeed when autoinclude overrides a values.* input")
+	assert.Contains(t, stdout, "subnet", "subnet unit must appear in the DAG listing")
+	assert.Contains(t, stdout, "vpc", "vpc unit must appear in the DAG listing")
 }
