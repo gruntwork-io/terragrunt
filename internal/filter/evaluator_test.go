@@ -1977,3 +1977,80 @@ func TestEvaluate_GraphExpression_DiscoveryBoundary(t *testing.T) {
 		})
 	}
 }
+
+// Test that a boundary still contains components the filesystem walk recorded
+// under a symlinked working directory. Discovery hands the boundary over
+// resolved, so an unresolved component path only compares as inside if
+// evaluation reconciles the two spellings.
+func TestEvaluate_GraphExpression_BoundaryUnderSymlinkedWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	// The walk spells paths the way Terragrunt was invoked, /link/repo, while
+	// dependency paths come back from config parsing as /real/repo.
+	const (
+		workingDir         = "/link/repo"
+		resolvedWorkingDir = "/real/repo"
+	)
+
+	app := component.NewUnit(workingDir + "/prod/app")
+	db := component.NewUnit(workingDir + "/prod/db")
+	dns := component.NewUnit(resolvedWorkingDir + "/shared/dns")
+
+	app.AddDependency(db)
+	app.AddDependency(dns)
+
+	comps := component.Components{app, db, dns}
+
+	testCases := []struct {
+		name     string
+		expr     *filter.GraphExpression
+		expected []string
+	}{
+		{
+			name: "dependency inside the boundary survives",
+			expr: &filter.GraphExpression{
+				Target:       mustAttr(t, "name", "app"),
+				Dependencies: filter.GraphBound{Include: true},
+			},
+			expected: []string{app.Path(), db.Path()},
+		},
+		{
+			name: "dependent inside the boundary survives",
+			expr: &filter.GraphExpression{
+				Target:     mustAttr(t, "name", "db"),
+				Dependents: filter.GraphBound{Include: true},
+			},
+			expected: []string{db.Path(), app.Path()},
+		},
+		{
+			name: "inline operand under the symlinked working directory holds",
+			expr: &filter.GraphExpression{
+				Target:       mustAttr(t, "name", "app"),
+				Dependencies: filter.GraphBound{Include: true, Boundary: "./prod"},
+			},
+			expected: []string{app.Path(), db.Path()},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			evalCtx := filter.EvaluationContext{
+				WorkingDir:         workingDir,
+				ResolvedWorkingDir: resolvedWorkingDir,
+				DiscoveryBoundary:  resolvedWorkingDir + "/prod",
+			}
+
+			result, err := filter.Evaluate(log.New(), evalCtx, tc.expr, comps)
+			require.NoError(t, err)
+
+			paths := make([]string, len(result))
+			for i, c := range result {
+				paths[i] = c.Path()
+			}
+
+			assert.ElementsMatch(t, tc.expected, paths)
+		})
+	}
+}

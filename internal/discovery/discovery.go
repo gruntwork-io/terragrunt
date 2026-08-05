@@ -31,6 +31,16 @@ func (d *Discovery) Discover(
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
 
+	// A working directory that cannot be walked to discovers nothing, which is
+	// reported as an empty result rather than an error, so it keeps the
+	// spelling it was given and comparisons against it stay consistent.
+	resolvedWorkingDir, resolveErr := resolveDir(v.FS, d.workingDir)
+	if resolveErr != nil {
+		resolvedWorkingDir = filepath.Clean(d.workingDir)
+	}
+
+	d.resolvedWorkingDir = resolvedWorkingDir
+
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
 	if d.discoveryBoundary != "" {

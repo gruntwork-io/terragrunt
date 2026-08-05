@@ -461,18 +461,33 @@ func (d *Discovery) dependentWalkBoundary() string {
 }
 
 // evaluationContext hands filter evaluation the settings its graph traversal
-// has to honor. Discover resolves the boundary before any phase runs, so this
-// carries the absolute path rather than the raw user input.
+// has to honor. Discover resolves the boundary and the working directory before
+// any phase runs, so this carries absolute paths rather than raw user input.
 func (d *Discovery) evaluationContext() filter.EvaluationContext {
 	return filter.EvaluationContext{
-		WorkingDir:        d.workingDir,
-		DiscoveryBoundary: d.discoveryBoundary,
+		WorkingDir:         d.workingDir,
+		ResolvedWorkingDir: d.resolvedWorkingDir,
+		DiscoveryBoundary:  d.discoveryBoundary,
 	}
 }
 
+// resolveDir canonicalizes dir through the discovery filesystem, so that the
+// paths a boundary is compared against are resolved by the same filesystem that
+// produced them rather than by the OS underneath it. Resolution fails on a
+// directory that cannot be walked to, so callers that do not require dir to
+// exist have to say what an unwalkable path means to them.
+func resolveDir(fsys vfs.FS, dir string) (string, error) {
+	resolved, err := vfs.EvalSymlinks(fsys, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Clean(resolved), nil
+}
+
 // validateBoundaryDir reports whether resolved names an existing directory.
-func validateBoundaryDir(fs vfs.FS, resolved string) error {
-	info, err := fs.Stat(resolved)
+func validateBoundaryDir(fsys vfs.FS, resolved string) error {
+	info, err := fsys.Stat(resolved)
 	if err != nil {
 		return NewDiscoveryBoundaryDirError(resolved, err)
 	}
@@ -496,10 +511,10 @@ func absBoundary(workingDir, boundary string) string {
 // resolveGraphBoundary canonicalizes a raw "(dir)" boundary value against
 // the working directory and validates that it points at an existing directory.
 // Returns the resolved absolute path.
-func resolveGraphBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
+func resolveGraphBoundary(fsys vfs.FS, workingDir, boundary string) (string, error) {
 	resolved := absBoundary(workingDir, boundary)
 
-	if err := validateBoundaryDir(fs, resolved); err != nil {
+	if err := validateBoundaryDir(fsys, resolved); err != nil {
 		return "", err
 	}
 
@@ -572,16 +587,21 @@ func boundaryEnclosureFor(filters filter.Filters) boundaryEnclosure {
 // it to contain the working directory only when enclosure demands it. Returns the
 // resolved absolute path.
 func resolveDiscoveryBoundary(
-	fs vfs.FS,
+	fsys vfs.FS,
 	workingDir, boundary string,
 	enclosure boundaryEnclosure,
 ) (string, error) {
-	resolved, err := util.CanonicalResolvedPath(boundary, workingDir)
+	canonical, err := util.CanonicalPath(boundary, workingDir)
 	if err != nil {
 		return "", NewDiscoveryBoundaryDirError(boundary, err)
 	}
 
-	if err := validateBoundaryDir(fs, resolved); err != nil {
+	resolved, err := resolveDir(fsys, canonical)
+	if err != nil {
+		return "", NewDiscoveryBoundaryDirError(canonical, err)
+	}
+
+	if err := validateBoundaryDir(fsys, resolved); err != nil {
 		return "", err
 	}
 
@@ -589,7 +609,14 @@ func resolveDiscoveryBoundary(
 		return resolved, nil
 	}
 
-	resolvedWorkingDir := util.ResolvePath(workingDir)
+	// Enclosure asks where the working directory sits, not whether it exists,
+	// and discovery answers a working directory that holds nothing with an
+	// empty result rather than an error. A path that cannot be walked to keeps
+	// the spelling it was given.
+	resolvedWorkingDir, err := resolveDir(fsys, workingDir)
+	if err != nil {
+		resolvedWorkingDir = filepath.Clean(workingDir)
+	}
 
 	rel, err := filepath.Rel(resolved, resolvedWorkingDir)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {

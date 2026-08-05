@@ -40,7 +40,7 @@ type StackGenerateOptions struct {
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
-func NewForDiscoveryCommand(l log.Logger, fs vfs.FS, opts *DiscoveryCommandOptions) (*Discovery, error) {
+func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
 		WithBreakCycles()
@@ -104,7 +104,7 @@ func NewForDiscoveryCommand(l log.Logger, fs vfs.FS, opts *DiscoveryCommandOptio
 
 	if opts.DiscoveryBoundary != "" {
 		boundary, err := resolveDiscoveryBoundary(
-			fs,
+			fsys,
 			opts.WorkingDir,
 			opts.DiscoveryBoundary,
 			boundaryEnclosureFor(opts.Filters),
@@ -120,7 +120,7 @@ func NewForDiscoveryCommand(l log.Logger, fs vfs.FS, opts *DiscoveryCommandOptio
 }
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(l log.Logger, fs vfs.FS, opts HCLCommandOptions) (*Discovery, error) {
+func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.Filters) > 0 {
@@ -129,7 +129,7 @@ func NewForHCLCommand(l log.Logger, fs vfs.FS, opts HCLCommandOptions) (*Discove
 
 	if opts.DiscoveryBoundary != "" {
 		boundary, err := resolveDiscoveryBoundary(
-			fs,
+			fsys,
 			opts.WorkingDir,
 			opts.DiscoveryBoundary,
 			boundaryEnclosureFor(opts.Filters),

@@ -31,6 +31,7 @@ const (
 type graphTraversalParams struct {
 	resultSet   map[string]component.Component
 	visited     map[string]int
+	evalCtx     EvaluationContext
 	boundary    string
 	direction   GraphDirection
 	warnOnLimit bool
@@ -39,8 +40,32 @@ type graphTraversalParams struct {
 // EvaluationContext carries the discovery settings that graph traversal has to
 // honor. The zero value traverses the whole component graph.
 type EvaluationContext struct {
-	WorkingDir        string
-	DiscoveryBoundary string
+	WorkingDir         string
+	ResolvedWorkingDir string
+	DiscoveryBoundary  string
+}
+
+// canonical restates a path under the working directory in the spelling symlink
+// resolution gave that directory. A directory reaches evaluation under two
+// names whenever the working directory is itself reached through a symlink: the
+// filesystem walk keeps the name Terragrunt was invoked with, while dependency
+// paths come back from config parsing resolved. Those two names never compare
+// equal, which leaves every component looking out of bounds, and substituting
+// the prefix settles it without evaluation having to reach for a filesystem it
+// cannot see.
+func (c EvaluationContext) canonical(path string) string {
+	clean := filepath.Clean(path)
+
+	if c.WorkingDir == "" || c.ResolvedWorkingDir == "" || c.ResolvedWorkingDir == c.WorkingDir {
+		return clean
+	}
+
+	rel, err := filepath.Rel(c.WorkingDir, clean)
+	if err != nil || climbsOut(rel) {
+		return clean
+	}
+
+	return filepath.Join(c.ResolvedWorkingDir, rel)
 }
 
 // graphBoundary returns the directory confining traversal for one direction of
@@ -49,28 +74,39 @@ type EvaluationContext struct {
 // directory the same way discovery resolves it.
 func (c EvaluationContext) graphBoundary(bound GraphBound) string {
 	if bound.Boundary == "" {
-		return c.DiscoveryBoundary
+		if c.DiscoveryBoundary == "" {
+			return ""
+		}
+
+		return c.canonical(c.DiscoveryBoundary)
 	}
 
 	if filepath.IsAbs(bound.Boundary) {
-		return filepath.Clean(bound.Boundary)
+		return c.canonical(bound.Boundary)
 	}
 
-	return filepath.Clean(filepath.Join(c.WorkingDir, bound.Boundary))
+	return c.canonical(filepath.Join(c.WorkingDir, bound.Boundary))
 }
 
-// outsideBoundary reports whether path falls outside boundary. An empty
+// outsideBoundary reports whether path falls outside boundary. Both are
+// expected to have been through [EvaluationContext.canonical]. An empty
 // boundary bounds nothing.
 func outsideBoundary(boundary, path string) bool {
 	if boundary == "" {
 		return false
 	}
 
-	rel, err := filepath.Rel(boundary, filepath.Clean(path))
+	rel, err := filepath.Rel(boundary, path)
 	if err != nil {
 		return true
 	}
 
+	return climbsOut(rel)
+}
+
+// climbsOut reports whether a relative path leaves the directory it was
+// computed against.
+func climbsOut(rel string) bool {
 	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
@@ -385,6 +421,7 @@ func evaluateGraphExpression(
 		params := &graphTraversalParams{
 			resultSet:   resultSet,
 			visited:     make(map[string]int),
+			evalCtx:     evalCtx,
 			boundary:    evalCtx.graphBoundary(expr.Dependencies),
 			direction:   GraphDirectionDependencies,
 			warnOnLimit: warnOnLimit,
@@ -407,6 +444,7 @@ func evaluateGraphExpression(
 		params := &graphTraversalParams{
 			resultSet:   resultSet,
 			visited:     make(map[string]int),
+			evalCtx:     evalCtx,
 			boundary:    evalCtx.graphBoundary(expr.Dependents),
 			direction:   GraphDirectionDependents,
 			warnOnLimit: warnOnLimit,
@@ -495,7 +533,7 @@ func traverseGraph(
 		// A component reachable only by passing through the boundary is
 		// excluded along with the hop that leaves it, so traversal stops here
 		// rather than skipping the hop and continuing past it.
-		if outsideBoundary(params.boundary, relatedPath) {
+		if outsideBoundary(params.boundary, params.evalCtx.canonical(relatedPath)) {
 			l.Debugf(
 				"%s %s is outside discovery boundary %s; skipping",
 				params.direction,
