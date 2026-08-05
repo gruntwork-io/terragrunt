@@ -521,44 +521,6 @@ func resolveGraphBoundary(fsys vfs.FS, workingDir, boundary string) (string, err
 	return resolved, nil
 }
 
-// relationshipBoundaries returns every directory a filter on this run could
-// confine graph traversal to. Relationship discovery holds no filter expression,
-// so it may only skip a dependency falling outside all of them; evaluation
-// applies the exact per-expression boundary afterwards.
-func (d *Discovery) relationshipBoundaries() []string {
-	// Without the flag, an expression carrying no inline operand is unbounded,
-	// and pruning it to another expression's operand would rob it of
-	// dependencies it may reach.
-	if d.discoveryBoundary == "" {
-		return nil
-	}
-
-	inline := d.filters.GraphBoundaries()
-	boundaries := make([]string, 0, len(inline)+1)
-	boundaries = append(boundaries, d.discoveryBoundary)
-
-	// An inline operand overrides the flag, so it can reach wider than it.
-	for _, raw := range inline {
-		boundaries = append(boundaries, absBoundary(d.workingDir, raw))
-	}
-
-	slices.Sort(boundaries)
-
-	return slices.Compact(boundaries)
-}
-
-// outsideBoundaries reports whether path falls outside every one of boundaries.
-// No boundaries means nothing is out of bounds.
-func outsideBoundaries(boundaries []string, path string) bool {
-	if len(boundaries) == 0 {
-		return false
-	}
-
-	return !slices.ContainsFunc(boundaries, func(boundary string) bool {
-		return !isExternal(boundary, path)
-	})
-}
-
 // boundaryEnclosure states whether a discovery boundary has to enclose the
 // working directory to be usable.
 type boundaryEnclosure int

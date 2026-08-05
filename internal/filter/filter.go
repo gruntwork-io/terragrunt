@@ -77,31 +77,6 @@ func (f *Filter) HasGraphBoundary() bool {
 	return found
 }
 
-// GraphBoundaries returns every inline "(dir)" boundary operand in the filter,
-// unresolved and in no particular order.
-func (f *Filter) GraphBoundaries() []string {
-	var boundaries []string
-
-	WalkExpressions(f.expr, func(e Expression) bool {
-		g, ok := e.(*GraphExpression)
-		if !ok {
-			return true
-		}
-
-		if g.Dependents.Boundary != "" {
-			boundaries = append(boundaries, g.Dependents.Boundary)
-		}
-
-		if g.Dependencies.Boundary != "" {
-			boundaries = append(boundaries, g.Dependencies.Boundary)
-		}
-
-		return true
-	})
-
-	return boundaries
-}
-
 // HasDependents reports whether any graph expression in the filter traverses
 // the dependent direction.
 func (f *Filter) HasDependents() bool {

@@ -227,6 +227,8 @@ func (d *Discovery) Discover(
 		components = filtered
 	}
 
+	components = d.dropOutsideBoundary(l, components)
+
 	cycleCheckErr := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "discovery_cycle_check", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
@@ -815,6 +817,56 @@ func (d *Discovery) applyQueueFilters(
 	components = d.applyExcludeModules(opts, components)
 
 	return components
+}
+
+// dropOutsideBoundary removes the components graph traversal reached across the
+// discovery boundary from what discovery returns. Their configurations were
+// still read and the edges pointing at them still stand, so the components that
+// do run can be ordered against them and can fetch their outputs. Components the
+// filesystem walk found are left alone, boundary or not: the boundary says how
+// far a run may follow the graph, not where discovery starts.
+func (d *Discovery) dropOutsideBoundary(l log.Logger, components component.Components) component.Components {
+	if d.discoveryBoundary == "" {
+		return components
+	}
+
+	// An inline "(dir)" operand overrides the flag for the expression carrying
+	// it, and evaluation has already honored that. Applying the flag again here
+	// would undo an operand that reaches wider than it.
+	if d.filters.HasGraphBoundary() {
+		return components
+	}
+
+	kept := make(component.Components, 0, len(components))
+
+	for _, c := range components {
+		if reachedByTraversal(c) && isExternal(d.discoveryBoundary, c.Path()) {
+			l.Debugf(
+				"Discovery: %s was reached across discovery boundary %s; not returning it",
+				c.Path(),
+				d.discoveryBoundary,
+			)
+
+			continue
+		}
+
+		kept = append(kept, c)
+	}
+
+	return kept
+}
+
+// reachedByTraversal reports whether a component entered discovery by following
+// the dependency graph rather than by being walked to.
+func reachedByTraversal(c component.Component) bool {
+	dctx := c.DiscoveryContext()
+	if dctx == nil {
+		return false
+	}
+
+	origin := dctx.Origin()
+
+	return origin == component.OriginGraphDiscovery || origin == component.OriginRelationshipDiscovery
 }
 
 // applyExcludeModules marks units (and optionally their dependencies) excluded via terragrunt exclude blocks.

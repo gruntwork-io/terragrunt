@@ -375,33 +375,76 @@ func TestDiscoveryBoundary_DependencyDirectionOutsideWorkingDir(t *testing.T) {
 	}
 }
 
-// Test that relationship discovery stops at the boundary rather than leaving the
-// pruning to filter evaluation. Evaluation drops out-of-boundary components from
-// the result either way, so the observable difference is on the kept components:
-// their dependency edges no longer point across the boundary, which is what shows
-// the out-of-boundary configuration was never read.
-func TestDiscoveryBoundary_RelationshipDiscoveryStopsAtBoundary(t *testing.T) {
+// Test that a run carrying no filter keeps every component the filesystem walk
+// found, boundary or not, and only withholds what traversal reached across the
+// boundary. A component that stays in the run has to keep the edges that order
+// it, so an edge may only be withheld along with the component it points at.
+func TestDiscoveryBoundary_UnfilteredRunWithholdsOnlyWhatTraversalReached(t *testing.T) {
+	t.Parallel()
+
+	f, v := newBoundaryFixture(t)
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = f.stagingDir
+	opts.RootWorkingDir = f.stagingDir
+
+	configs, err := discovery.NewDiscovery(f.stagingDir).
+		WithRelationships().
+		WithDiscoveryBoundary(".").
+		Discover(t.Context(), logger.CreateLogger(), v, opts)
+	require.NoError(t, err)
+
+	// production/external is edge's dependency, reached across the boundary.
+	assert.ElementsMatch(
+		t,
+		[]string{f.vpcDir, f.appDir, f.edgeDir},
+		configs.Filter(component.UnitKind).Paths(),
+	)
+
+	var edge component.Component
+
+	for _, c := range configs {
+		if c.Path() == f.edgeDir {
+			edge = c
+		}
+	}
+
+	require.NotNil(t, edge)
+
+	depPaths := make([]string, 0, len(edge.Dependencies()))
+	for _, dep := range edge.Dependencies() {
+		depPaths = append(depPaths, dep.Path())
+	}
+
+	assert.Equal(t, []string{f.externalDir}, depPaths, "the edge that orders edge against its dependency stands")
+}
+
+// Test that a dependency the boundary excludes is still read and still linked.
+// Dropping the edge would leave a run unable to order itself against that
+// dependency or fetch its outputs, so the boundary has to keep the edge while
+// keeping the component itself out of what discovery returns.
+func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name         string
-		query        string
-		boundary     string
-		expectedDeps []string
+		name     string
+		query    string
+		boundary string
+		returned []string
 	}{
 		{
-			name:         "flag boundary prunes the crossing edge",
-			query:        "{%[1]s}...",
-			boundary:     ".",
-			expectedDeps: nil,
+			name:     "flag boundary keeps the crossing edge out of the result",
+			query:    "{%[1]s}...",
+			boundary: ".",
+			returned: []string{"edge"},
 		},
 		{
-			// The inline operand overrides the flag and reaches wider, so
-			// relationship discovery must not have pruned to the flag.
-			name:         "wider inline operand keeps the crossing edge",
-			query:        "{%[1]s}...(..)",
-			boundary:     ".",
-			expectedDeps: []string{"external"},
+			// The inline operand overrides the flag and reaches wider, so the
+			// dependency it reaches is returned as well as linked.
+			name:     "wider inline operand returns what it reaches",
+			query:    "{%[1]s}...(..)",
+			boundary: ".",
+			returned: []string{"edge", "external"},
 		},
 	}
 
@@ -411,10 +454,10 @@ func TestDiscoveryBoundary_RelationshipDiscoveryStopsAtBoundary(t *testing.T) {
 
 			f, v := newBoundaryFixture(t)
 
-			byName := map[string]string{"external": f.externalDir}
-			expected := make([]string, len(tc.expectedDeps))
+			byName := map[string]string{"edge": f.edgeDir, "external": f.externalDir}
+			expected := make([]string, len(tc.returned))
 
-			for i, n := range tc.expectedDeps {
+			for i, n := range tc.returned {
 				expected[i] = byName[n]
 			}
 
@@ -434,6 +477,8 @@ func TestDiscoveryBoundary_RelationshipDiscoveryStopsAtBoundary(t *testing.T) {
 				Discover(t.Context(), logger.CreateLogger(), v, opts)
 			require.NoError(t, err)
 
+			assert.ElementsMatch(t, expected, configs.Filter(component.UnitKind).Paths())
+
 			var edge component.Component
 
 			for _, c := range configs {
@@ -449,7 +494,12 @@ func TestDiscoveryBoundary_RelationshipDiscoveryStopsAtBoundary(t *testing.T) {
 				depPaths = append(depPaths, dep.Path())
 			}
 
-			assert.ElementsMatch(t, expected, depPaths)
+			assert.Equal(
+				t,
+				[]string{f.externalDir},
+				depPaths,
+				"the dependency stays linked whether or not the boundary returns it",
+			)
 		})
 	}
 }

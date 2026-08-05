@@ -30,7 +30,6 @@ type relationshipTraversalState struct {
 	discovery                *Discovery
 	allComponents            *component.Components
 	interTransientComponents *component.ThreadSafeComponents
-	boundaries               []string
 }
 
 // NewRelationshipPhase creates a new RelationshipPhase.
@@ -91,7 +90,6 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 		discovery:                discovery,
 		allComponents:            &input.Components,
 		interTransientComponents: interTransientComponents,
-		boundaries:               discovery.relationshipBoundaries(),
 	}
 
 	var (
@@ -190,14 +188,10 @@ func (p *RelationshipPhase) discoverRelationships(
 	depsToDiscover := make(component.Components, 0, len(paths))
 
 	for _, path := range paths {
-		// Skipping before the component is materialized is what keeps an
-		// out-of-boundary dependency from being read and parsed at all.
-		if outsideBoundaries(state.boundaries, path) {
-			l.Debugf("Dependency %s is outside every discovery boundary; skipping", path)
-
-			continue
-		}
-
+		// The boundary is deliberately not applied here: a dependency outside it
+		// is still read and linked, so the units that do run can order against
+		// it and fetch its outputs. [Discovery.dropOutsideBoundary] decides what
+		// is returned.
 		dep, created := p.dependencyToDiscover(
 			c,
 			path,

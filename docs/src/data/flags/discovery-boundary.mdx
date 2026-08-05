@@ -13,9 +13,11 @@ import { Aside } from '@astrojs/starlight/components';
 This flag is gated behind the [`bounded-discovery`](/reference/experiments/active#bounded-discovery) experiment. Enable it with `--experiment=bounded-discovery` (or `TG_EXPERIMENT=bounded-discovery`); otherwise setting `--discovery-boundary` returns an error. The flag's behavior may change while the experiment is in progress.
 </Aside>
 
-Filter expressions that traverse the dependency graph reach beyond the working directory. Dependents (`...{unit}`) can live anywhere, so Terragrunt searches from the working directory up to the git repository root; dependencies (`{unit}...`) are declared by path and can point anywhere. Either way, Terragrunt reads and parses every configuration it touches along the way.
+Filter expressions that traverse the dependency graph reach beyond the working directory. Dependents (`...{unit}`) can live anywhere, so Terragrunt searches from the working directory up to the git repository root; dependencies (`{unit}...`) are declared by path and can point anywhere.
 
-The `--discovery-boundary` flag is a single enclosure for that traversal: it replaces the git repository root as the outer limit, and any configuration that resolves outside it, whether a dependent or a dependency, is neither read nor parsed nor returned. Configurations inside the boundary are discovered as usual.
+The `--discovery-boundary` flag is a single enclosure for that traversal: it replaces the git repository root as the outer limit, and a configuration that traversal reaches outside it is not returned, so `find` does not list it and `run --all` does not run it. Configurations inside the boundary are discovered as usual.
+
+The boundary decides which configurations a command acts on, not which ones Terragrunt may read. A unit inside the boundary can declare a dependency outside it, and that dependency is still read and parsed: Terragrunt needs its configuration to fetch the outputs the dependent unit consumes, and it needs the dependency edge to order the units that do run. What the boundary withholds is the unit itself, which is left for a separate run to apply, the same way a dependency outside the working directory is treated today.
 
 This matters in monorepos where environments are isolated from each other. When sibling environments cannot be parsed independently, the default search fails or wastes work reaching into them:
 
@@ -51,5 +53,7 @@ terragrunt find --filter '{./prod/app}...' --discovery-boundary ./prod
 ```
 
 The boundary must be an existing directory. Relative paths are resolved against the working directory.
+
+The boundary applies to what traversal reaches, so a command that names no filter keeps every configuration under the working directory even when the boundary sits below it. Narrow the working directory itself, with `--working-dir`, to change where discovery starts.
 
 Where the boundary may sit depends on the directions the filters traverse. Dependent traversal searches upward from the working directory, so a boundary that excludes the working directory could never take effect; filters that traverse dependents require the boundary to be the working directory or one of its parents. Dependency traversal follows declared paths outward from the units a filter matched and never consults the working directory, so filters that traverse only dependencies accept any directory, including one below the working directory. That is the same rule the inline `(dir)` operand follows.
