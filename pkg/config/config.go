@@ -2591,50 +2591,16 @@ func injectAutoIncludeValuePlaceholders(l log.Logger, pctx *ParsingContext) *Par
 		return pctx
 	}
 
-	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
-
-	data, err := vfs.ReadFile(pctx.Venv.FS, autoIncludePath)
-	if err != nil {
-		l.Debugf("Could not read autoinclude %s for value placeholders: %v", autoIncludePath, err)
-		return pctx
-	}
-
-	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
-	if diags.HasErrors() {
-		l.Debugf("Could not parse autoinclude %s for value placeholders: %v", autoIncludePath, diags)
-		return pctx
-	}
-
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return pctx
-	}
-
-	inputsAttr, hasInputs := body.Attributes[MetadataInputs]
-	if !hasInputs {
-		return pctx
-	}
-
-	// Extract the top-level keys from the inputs map expression.
-	keys := autoIncludeInputKeys(inputsAttr.Expr)
+	keys := readAutoIncludeInputKeys(pctx.Venv.FS, pctx.TrackInclude.AutoIncludeOverride.Path)
 	if len(keys) == 0 {
 		return pctx
 	}
 
-	// Build augmented values with placeholders for missing keys.
-	existing := map[string]cty.Value{}
-
-	if pctx.Values != nil && *pctx.Values != cty.NilVal &&
-		pctx.Values.IsKnown() && pctx.Values.Type().IsObjectType() {
-		if m := pctx.Values.AsValueMap(); m != nil {
-			existing = m
-		}
-	}
-
+	existing := existingValues(pctx.Values)
 	augmented := false
 
 	for _, key := range keys {
-		if _, exists := existing[key]; exists {
+		if _, ok := existing[key]; ok {
 			continue
 		}
 
@@ -2651,6 +2617,44 @@ func injectAutoIncludeValuePlaceholders(l log.Logger, pctx *ParsingContext) *Par
 	result := cty.ObjectVal(existing)
 
 	return pctx.WithValues(&result)
+}
+
+// readAutoIncludeInputKeys parses the autoinclude file and returns the top-level input key names. Failures are silent: the real parse in mergeAutoIncludeIfPresent surfaces them.
+func readAutoIncludeInputKeys(fsys vfs.FS, path string) []string {
+	data, err := vfs.ReadFile(fsys, path)
+	if err != nil {
+		return nil
+	}
+
+	file, diags := hclsyntax.ParseConfig(data, path, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	inputsAttr, hasInputs := body.Attributes[MetadataInputs]
+	if !hasInputs {
+		return nil
+	}
+
+	return autoIncludeInputKeys(inputsAttr.Expr)
+}
+
+// existingValues extracts the current values map, returning an empty map when values are nil or not an object.
+func existingValues(values *cty.Value) map[string]cty.Value {
+	if values == nil || *values == cty.NilVal || !values.IsKnown() || !values.Type().IsObjectType() {
+		return map[string]cty.Value{}
+	}
+
+	if m := values.AsValueMap(); m != nil {
+		return m
+	}
+
+	return map[string]cty.Value{}
 }
 
 // autoIncludeInputKeys extracts the top-level attribute names from an inputs map expression.
