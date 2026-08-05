@@ -43,3 +43,17 @@ func New() *venv.Venv {
 		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
+
+// NewWithOSFS returns [New] with the real filesystem swapped in, for tests
+// whose fixtures live on disk but which need nothing else live.
+func NewWithOSFS() *venv.Venv {
+	return New().WithFS(vfs.NewOSFS())
+}
+
+// NewOSWithEmptyEnv returns the OS-backed bundle with an empty environment, so
+// a variable set on the machine running the suite cannot reach the code under
+// test. Tests that drive the real filesystem and real subprocesses need it;
+// prefer [NewWithOSFS] when only the filesystem has to be real.
+func NewOSWithEmptyEnv() *venv.Venv {
+	return venv.OSVenv().WithEnv(map[string]string{})
+}

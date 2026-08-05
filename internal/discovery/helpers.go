@@ -340,6 +340,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 func storeStackConfigs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) {
@@ -359,7 +360,7 @@ func storeStackConfigs(
 		// A fresh context per stack scopes it to that stack's file and values, so
 		// a config referencing values.* parses instead of failing on missing
 		// values (and shows its definitions in consumers like browse).
-		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		values, err := config.ReadValues(ctx, pctx, l, stackDir)
 		if err != nil {
@@ -389,8 +390,7 @@ func stackDependencyPaths(
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(

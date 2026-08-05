@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -198,7 +199,7 @@ func TestParseConfigStringExpansionRequiresExperiment(t *testing.T) {
 	skipInExperimentMode(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -244,7 +245,7 @@ func TestReadStackConfigStringExpansionRequiresExperiment(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, config.DefaultStackFile)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultStackFile)
 
 			_, err := config.ReadStackConfigString(
 				ctx,
@@ -288,7 +289,7 @@ include "extra" {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, stackPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackPath)
 	pctx.Venv.FS = fsys
 
 	_, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
@@ -563,7 +564,7 @@ func newExpansionParsingContext(
 ) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
-	ctx, pctx := newTestParsingContext(tb, configPath)
+	ctx, pctx := newTestParsingContext(tb, venvtest.NewOSWithEmptyEnv(), configPath)
 	require.NoError(tb, pctx.Experiments.EnableExperiment(experiment.BlockIteration))
 
 	return ctx, pctx

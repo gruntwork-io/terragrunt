@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,7 +68,7 @@ var terragruntFuncNames = []string{
 func newStackParsePctx(t *testing.T, baseDir string) *config.ParsingContext {
 	t.Helper()
 
-	_, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger())
+	_, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv())
 	pctx.TerragruntConfigPath = filepath.Join(baseDir, "terragrunt.hcl")
 	pctx.WorkingDir = baseDir
 	pctx.MaxFoldersToCheck = 100
