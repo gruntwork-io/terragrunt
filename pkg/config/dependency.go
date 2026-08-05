@@ -53,6 +53,10 @@ import (
 const (
 	renderJSONCommand = "render-json"
 	renderCommand     = "render"
+
+	// downloadDirPerms is the mode given to the download directory when the
+	// dependency-output flow has to create it.
+	downloadDirPerms = 0o700
 )
 
 type Dependencies []Dependency
@@ -1522,7 +1526,11 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Create working directory where we will run terraform in. We will create the temporary directory in the download
 	// directory for consistency with other file generation capabilities of terragrunt. Make sure it is cleaned up
 	// before the function returns.
-	if err := util.EnsureDirectory(pctx.DownloadDir); err != nil {
+	//
+	// The parent has to be created on the venv filesystem rather than the host:
+	// MkdirTemp below and CopyLockFile further down both work through it, and a
+	// memory-backed filesystem has no parent to place the temp dir in otherwise.
+	if err := pctx.Venv.FS.MkdirAll(pctx.DownloadDir, downloadDirPerms); err != nil {
 		return nil, err
 	}
 

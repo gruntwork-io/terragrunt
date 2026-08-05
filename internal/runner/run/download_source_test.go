@@ -37,6 +37,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -1486,9 +1487,9 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 	t.Parallel()
 
-	// Remote hosts use the reserved .invalid TLD so no request leaves the
-	// machine. A source the gate admits still reaches the download step and
-	// fails there on the unreachable host.
+	// The venv carries a no-network HTTP client, so a source the gate admits
+	// reaches the download step and fails there on the same error every run,
+	// with no DNS lookup of the reserved .invalid hosts below.
 	testCases := []struct {
 		name            string
 		source          string
@@ -1533,6 +1534,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 
 			v := venv.OSVenv()
 			v.FS = vfs.NewMemMapFS()
+			v.HTTP = vhttp.NewNoNetworkClient()
 
 			l := logger.CreateLogger()
 			l.SetOptions(log.WithOutput(io.Discard))

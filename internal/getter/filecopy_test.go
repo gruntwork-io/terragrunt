@@ -2,6 +2,7 @@ package getter_test
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,11 +15,24 @@ import (
 	getter "github.com/hashicorp/go-getter/v2"
 )
 
+// fileSourceURL renders a filesystem path the way Terragrunt hands a local
+// source to the getter client: tf.ToSourceURL parses the detector's
+// `file://<path>` output into a *url.URL and the client is given its String(),
+// so any space arrives percent-encoded. Building it through url.URL keeps the
+// result a valid URI on Windows too, where the path is `C:/...` rather than
+// `/...`.
+func fileSourceURL(path string) string {
+	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
+
+	return u.String()
+}
+
 // TestFileCopyGetterHandlesSpacesInLocalPaths pins that a local source whose
-// path contains spaces still resolves. The URL reaching the getter carries
-// that path percent-encoded (`file:///projects/my%20local%20module`), so
-// recovering the filesystem path from it is the getter's job, and it has to
-// arrive at the same answer go-getter's own FileGetter would.
+// path contains spaces still resolves. Recovering the filesystem path from the
+// URL is the getter's job, and it has to arrive at the same answer go-getter's
+// own FileGetter would — from the percent-encoded form Terragrunt produces and
+// from the raw form a hand-written `file://` source carries, which url.Parse
+// leaves in RawPath.
 func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 	t.Parallel()
 
@@ -41,24 +55,31 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 	}{
 		{
 			name: "single file",
-			src:  "file://" + filepath.Join(srcDir, "main.tf"),
+			src:  fileSourceURL(filepath.Join(srcDir, "main.tf")),
 			dst:  filepath.Join(base, "out-file", "main.tf"),
 			mode: getter.ModeFile,
 			want: filepath.Join(base, "out-file", "main.tf"),
 		},
 		{
 			name: "directory",
-			src:  "file://" + srcDir,
+			src:  fileSourceURL(srcDir),
 			dst:  filepath.Join(base, "out-dir"),
 			mode: getter.ModeDir,
 			want: filepath.Join(base, "out-dir", "main.tf"),
 		},
 		{
 			name: "mode decided by the getter",
-			src:  "file://" + srcDir,
+			src:  fileSourceURL(srcDir),
 			dst:  filepath.Join(base, "out-any"),
 			mode: getter.ModeAny,
 			want: filepath.Join(base, "out-any", "main.tf"),
+		},
+		{
+			name: "unencoded spaces",
+			src:  "file://" + filepath.ToSlash(srcDir),
+			dst:  filepath.Join(base, "out-raw"),
+			mode: getter.ModeAny,
+			want: filepath.Join(base, "out-raw", "main.tf"),
 		},
 	}
 
