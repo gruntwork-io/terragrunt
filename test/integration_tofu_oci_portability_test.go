@@ -4,6 +4,7 @@ package test_test
 
 import (
 	"encoding/json"
+	"io"
 	"io/fs"
 	"net/url"
 	"os"
@@ -22,7 +23,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/ociregistry"
 )
@@ -81,7 +84,7 @@ func TestTofuOCIModulePortability(t *testing.T) {
 	}
 }
 
-// TestTofuOCIMovedTagReResolution pins that both tools serve the new content after a tag moves, never a stale cache.
+// TestTofuOCIMovedTagReResolution pins that clean installs after a tag moves serve the new content in both tools.
 func TestTofuOCIMovedTagReResolution(t *testing.T) {
 	t.Parallel()
 
@@ -90,7 +93,7 @@ func TestTofuOCIMovedTagReResolution(t *testing.T) {
 
 	source := "oci://" + registry.Address() + "/" + tofuOCIPortabilityRepository + "?tag=1.0.0"
 
-	// One venv for both rounds, so the second pull must re-resolve through the same CAS store.
+	// Each round installs clean; the CAS store under the process cache dir carries over, so a stale entry would surface.
 	v := portabilityVenv(t, registry)
 
 	require.Equal(t, tofuOCIPortabilityFiles, tofuOCIModuleTree(t, registry, source))
@@ -131,13 +134,15 @@ func tofuOCIModuleTree(t *testing.T, registry *ociregistry.Registry, source stri
 	cliConfig := filepath.Join(home, "cli.tfrc")
 	require.NoError(t, os.WriteFile(cliConfig, nil, 0o600))
 
-	cmd := exec.CommandContext(t.Context(), "tofu", "get")
+	cmd := exec.CommandContext(t.Context(), helpers.TofuBinary, "get")
 	cmd.Dir = workDir
 
+	// os/exec deduplicates keeping later values, so these override any ambient copies.
 	cmd.Env = append(os.Environ(),
 		"HOME="+home,
 		"XDG_CONFIG_HOME="+filepath.Join(home, ".config"),
 		"TF_CLI_CONFIG_FILE="+cliConfig,
+		"TF_DATA_DIR="+filepath.Join(workDir, ".terraform"),
 		"SSL_CERT_FILE="+certFile,
 	)
 
@@ -175,9 +180,12 @@ func terragruntOCIModuleTree(t *testing.T, v *venv.Venv, source string) map[stri
 		},
 	}
 
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
-		logger.CreateLogger(),
+		l,
 		v,
 		src,
 		configbridge.NewRunOptions(opts),
@@ -221,6 +229,11 @@ func tofuInstalledModuleDir(t *testing.T, workDir string) string {
 	for _, module := range manifest.Modules {
 		if module.Key != "vpc" {
 			continue
+		}
+
+		// A pinned absolute TF_DATA_DIR makes tofu record absolute module dirs.
+		if filepath.IsAbs(module.Dir) {
+			return module.Dir
 		}
 
 		return filepath.Join(workDir, module.Dir)
