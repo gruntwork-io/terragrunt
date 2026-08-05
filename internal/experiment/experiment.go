@@ -103,6 +103,10 @@ const (
 	BlockIteration = "block-iteration"
 	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
 	BrowseTUI = "browse-tui"
+	// TerragruntRC gates reading the `.terragruntrc` file, which supplies environment
+	// variables and CLI flag defaults from a file that can be committed to a repository
+	// instead of being exported by every engineer.
+	TerragruntRC = "terragruntrc"
 )
 
 const (
@@ -214,6 +218,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: BrowseTUI,
+		},
+		{
+			Name: TerragruntRC,
 		},
 	}
 }
