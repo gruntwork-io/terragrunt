@@ -139,7 +139,7 @@ func WriteToFile(
 		targetPath = filepath.Join(basePath, config.Path)
 	}
 
-	targetInfo, statErr := v.FS.Stat(targetPath)
+	targetInfo, statErr := vfs.Lstat(v.FS, targetPath)
 	if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
 		return statErr
 	}
@@ -205,6 +205,7 @@ func WriteToFile(
 
 	// A surviving target may be a read-only hard link into the store, and even a
 	// writable one would block a fresh link and silently degrade it into a copy.
+	// A symlink must go too, or the write follows it to its destination.
 	if targetFileExists && !targetInfo.IsDir() {
 		if err := v.FS.Remove(targetPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
@@ -354,6 +355,18 @@ func shouldRemoveWithFileExists(
 // generated string will be prefixed with the configured comment prefix, the check needs to see if the first line ends
 // with the signature string.
 func fileWasGeneratedByTerragrunt(v *venv.Venv, path string) (generated bool, err error) {
+	info, err := vfs.Lstat(v.FS, path)
+	if err != nil {
+		return false, err
+	}
+
+	// Generation only ever writes a regular file or links one into place, so a
+	// symlink came from elsewhere. Reading through it would check a signature
+	// belonging to the destination, while the caller replaces the link itself.
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return false, nil
+	}
+
 	file, err := v.FS.Open(path)
 	if err != nil {
 		return false, err
