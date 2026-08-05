@@ -103,6 +103,10 @@ const (
 	BlockIteration = "block-iteration"
 	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
 	BrowseTUI = "browse-tui"
+	// OverwriteTerragruntOrSkip gates the "overwrite_terragrunt_or_skip" value for the
+	// if_exists attribute of generate blocks, which leaves a file terragrunt did not
+	// generate as-is instead of erroring out.
+	OverwriteTerragruntOrSkip = "overwrite-terragrunt-or-skip"
 )
 
 const (
@@ -214,6 +218,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: BrowseTUI,
+		},
+		{
+			Name: OverwriteTerragruntOrSkip,
 		},
 	}
 }
