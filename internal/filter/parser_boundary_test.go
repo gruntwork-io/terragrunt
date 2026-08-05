@@ -293,3 +293,28 @@ func TestParser_GraphBoundaryErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestFilters_GraphBoundaries(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		query    string
+		expected []string
+	}{
+		{query: "{./apps/foo}", expected: nil},
+		{query: "...{./apps/foo}...", expected: nil},
+		{query: "{./apps/foo}...(./a)", expected: []string{"./a"}},
+		{query: "(./a)...{./apps/foo}", expected: []string{"./a"}},
+		{query: "(./a)...{./apps/foo}...(./b)", expected: []string{"./a", "./b"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			t.Parallel()
+
+			f, err := filter.Parse(tc.query)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tc.expected, filter.Filters{f}.GraphBoundaries())
+		})
+	}
+}

@@ -1,6 +1,7 @@
 package discovery_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -370,6 +371,85 @@ func TestDiscoveryBoundary_DependencyDirectionOutsideWorkingDir(t *testing.T) {
 			configs, err := f.discover(t, v, "{"+f.edgeDir+"}...", tc.boundary)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, paths, configs.Filter(component.UnitKind).Paths())
+		})
+	}
+}
+
+// Test that relationship discovery stops at the boundary rather than leaving the
+// pruning to filter evaluation. Evaluation drops out-of-boundary components from
+// the result either way, so the observable difference is on the kept components:
+// their dependency edges no longer point across the boundary, which is what shows
+// the out-of-boundary configuration was never read.
+func TestDiscoveryBoundary_RelationshipDiscoveryStopsAtBoundary(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		query        string
+		boundary     string
+		expectedDeps []string
+	}{
+		{
+			name:         "flag boundary prunes the crossing edge",
+			query:        "{%[1]s}...",
+			boundary:     ".",
+			expectedDeps: nil,
+		},
+		{
+			// The inline operand overrides the flag and reaches wider, so
+			// relationship discovery must not have pruned to the flag.
+			name:         "wider inline operand keeps the crossing edge",
+			query:        "{%[1]s}...(..)",
+			boundary:     ".",
+			expectedDeps: []string{"external"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f, v := newBoundaryFixture(t)
+
+			byName := map[string]string{"external": f.externalDir}
+			expected := make([]string, len(tc.expectedDeps))
+
+			for i, n := range tc.expectedDeps {
+				expected[i] = byName[n]
+			}
+
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = f.stagingDir
+			opts.RootWorkingDir = f.stagingDir
+
+			query := fmt.Sprintf(tc.query, f.edgeDir)
+
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
+			require.NoError(t, err)
+
+			configs, err := discovery.NewDiscovery(f.stagingDir).
+				WithFilters(filters).
+				WithRelationships().
+				WithDiscoveryBoundary(tc.boundary).
+				Discover(t.Context(), logger.CreateLogger(), v, opts)
+			require.NoError(t, err)
+
+			var edge component.Component
+
+			for _, c := range configs {
+				if c.Path() == f.edgeDir {
+					edge = c
+				}
+			}
+
+			require.NotNil(t, edge, "edge should always be discovered; it is the filter target")
+
+			depPaths := make([]string, 0, len(edge.Dependencies()))
+			for _, dep := range edge.Dependencies() {
+				depPaths = append(depPaths, dep.Path())
+			}
+
+			assert.ElementsMatch(t, expected, depPaths)
 		})
 	}
 }

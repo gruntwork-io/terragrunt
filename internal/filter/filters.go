@@ -92,6 +92,18 @@ func (f Filters) HasGraphBoundary() bool {
 	return false
 }
 
+// GraphBoundaries returns every inline "(dir)" boundary operand across all
+// filters, unresolved and in no particular order.
+func (f Filters) GraphBoundaries() []string {
+	var boundaries []string
+
+	for _, filter := range f {
+		boundaries = append(boundaries, filter.GraphBoundaries()...)
+	}
+
+	return boundaries
+}
+
 // HasDependents reports whether any filter traverses the dependent direction.
 func (f Filters) HasDependents() bool {
 	for _, filter := range f {
