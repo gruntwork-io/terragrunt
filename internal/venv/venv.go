@@ -16,6 +16,7 @@
 package venv
 
 import (
+	"bufio"
 	"errors"
 	"io"
 	"maps"
@@ -80,13 +81,16 @@ type Platform struct {
 // inputs contributions resolve. Writers is held as a pointer so per-call
 // overrides via [writer.Writers.WithWriter] and [writer.Writers.WithErrWriter]
 // produce fresh pointers without mutating the caller's value; never mutate its
-// fields in place, since shallow-copied Venvs share the pointer.
+// fields in place, since shallow-copied Venvs share the pointer. Reader is
+// buffered once and held as a pointer for the same reason: a run that prompts
+// more than once must keep reading from a single buffer, or the first prompt's
+// read-ahead swallows the input the next prompt is waiting for.
 type Venv struct {
 	FS       vfs.FS
 	Exec     vexec.Exec
 	HTTP     vhttp.Client
 	Sops     vsops.Decrypter
-	Reader   io.Reader
+	Reader   *bufio.Reader
 	Env      map[string]string
 	Platform *Platform
 	Writers  *writer.Writers
@@ -95,7 +99,7 @@ type Venv struct {
 // WithReader returns a copy of v that reads console input from r.
 func (v *Venv) WithReader(r io.Reader) *Venv {
 	c := *v
-	c.Reader = r
+	c.Reader = bufio.NewReader(r)
 
 	return &c
 }
@@ -285,7 +289,7 @@ func OSVenv() *Venv {
 		Exec:   vexec.NewOSExec(),
 		HTTP:   vhttp.NewOSClient(),
 		Sops:   vsops.NewOSDecrypter(),
-		Reader: os.Stdin,
+		Reader: bufio.NewReader(os.Stdin),
 		Env:    ParseEnviron(os.Environ()),
 		Platform: &Platform{
 			UserHomeDir: os.UserHomeDir,

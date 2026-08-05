@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"bufio"
 	"context"
 	"strings"
 
@@ -18,6 +17,8 @@ func PromptUserForInput(
 	prompt string,
 	nonInteractive bool,
 ) (string, error) {
+	v.RequireReader()
+
 	errWriter := v.Writers.ErrWriter
 
 	// We are writing directly to ErrWriter so the prompt is always visible
@@ -45,13 +46,11 @@ func PromptUserForInput(
 
 	exec.PrepareStdinForPrompt(l)
 
-	reader := bufio.NewReader(v.Reader)
-
 	inputCh := make(chan string)
 	errCh := make(chan error)
 
 	go func() {
-		input, err := reader.ReadString('\n')
+		input, err := v.Reader.ReadString('\n')
 		if err != nil {
 			errCh <- err
 			return

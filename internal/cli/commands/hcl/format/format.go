@@ -273,7 +273,7 @@ func formatTgHCL(
 	}
 
 	if fileUpdated {
-		l.Infof("%s was updated", tgHclFile)
+		l.Debugf("Updating %s", tgHclFile)
 		return vfs.WriteFile(fsys, tgHclFile, newContents, info.Mode())
 	}
 

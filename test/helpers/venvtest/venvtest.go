@@ -5,6 +5,7 @@
 package venvtest
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"runtime"
@@ -31,7 +32,7 @@ func New() *venv.Venv {
 		FS:     vfs.NewMemMapFS(),
 		HTTP:   vhttp.NewNoNetworkClient(),
 		Sops:   vsops.NewMemDecrypter(func(string, string) ([]byte, error) { return nil, nil }),
-		Reader: strings.NewReader(""),
+		Reader: bufio.NewReader(strings.NewReader("")),
 		Env:    map[string]string{},
 		Platform: &venv.Platform{
 			UserHomeDir: func() (string, error) {
