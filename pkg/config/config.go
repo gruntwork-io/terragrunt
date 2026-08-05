@@ -2580,7 +2580,6 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
 }
 
-// padMissingValueKeys adds cty.DynamicVal for any values.X reference in the unit HCL that is not already defined in pctx.Values.
 // hasSiblingAutoInclude reports whether a sibling autoinclude is registered for this parse.
 func hasSiblingAutoInclude(pctx *ParsingContext) bool {
 	return pctx.TrackInclude != nil && pctx.TrackInclude.AutoIncludeOverride != nil
