@@ -1250,7 +1250,12 @@ func injectStackComponentRefs(
 	// stack.<name>.path can resolve against the base components, matching how the full decode resolves them.
 	setStackComponentRefVars(evalCtx, stackDir, headers.Units, headers.Stacks)
 
-	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(fsys, stackDir, evalCtx, parserOpts)
+	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(
+		fsys,
+		stackDir,
+		evalCtx,
+		parserOpts,
+	)
 	if err != nil {
 		return err
 	}
@@ -1428,7 +1433,12 @@ func pruneOverriddenStackAutoIncludes(
 		return nil
 	}
 
-	unitNames, stackNames, err := stackAutoIncludeComponentNames(fsys, stackDir, evalCtx, parserOpts)
+	unitNames, stackNames, err := stackAutoIncludeComponentNames(
+		fsys,
+		stackDir,
+		evalCtx,
+		parserOpts,
+	)
 	if err != nil {
 		return err
 	}

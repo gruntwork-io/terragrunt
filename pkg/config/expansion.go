@@ -9,10 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
-// ExpansionBlockName is the block that declares count/for_each iteration inside a
-// dependency, unit, or stack block.
-const ExpansionBlockName = "expansion"
-
 // expansionCapableBlocks are the block types an expansion block may appear in.
 var expansionCapableBlocks = []string{MetadataDependency, MetadataUnit, MetadataStack}
 
@@ -42,7 +38,7 @@ func ValidateExpansionExperiment(experiments experiment.Experiments, file *hclpa
 		}
 
 		if !slices.ContainsFunc(block.Body.Blocks, func(inner *hclsyntax.Block) bool {
-			return inner.Type == ExpansionBlockName
+			return inner.Type == hclparse.ExpansionBlockName
 		}) {
 			continue
 		}
