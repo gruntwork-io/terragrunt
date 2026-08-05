@@ -88,9 +88,14 @@ type Dependency struct {
 //   - For MockOutputs, the two maps will be deeply merged together. This means that maps are recursively merged, while
 //     lists are concatenated together.
 //   - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
+//   - For Expansion, the source block replaces the target block outright.
 //
 // Note that RenderedOutputs is ignored in the deep merge operation.
 func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
+	if sourceDepConfig.Expansion != nil {
+		dep.Expansion = sourceDepConfig.Expansion
+	}
+
 	if sourceDepConfig.ConfigPath.AsString() != "" {
 		dep.ConfigPath = sourceDepConfig.ConfigPath
 	}

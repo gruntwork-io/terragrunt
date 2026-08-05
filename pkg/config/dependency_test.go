@@ -295,3 +295,67 @@ dependency "enabled" {
 	// Only enabled dependency should be in the paths
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 }
+
+// TestDependencyDeepMergeExpansion pins that an expansion block survives the deep
+// merge an include performs. DeepMerge copies field by field, so a field it does not
+// name is dropped silently rather than caught by the compiler.
+func TestDependencyDeepMergeExpansion(t *testing.T) {
+	t.Parallel()
+
+	forEach := hclparse.ExpansionBlock{
+		ForEach: new(cty.SetVal([]cty.Value{cty.StringVal("web")})),
+	}
+	count := hclparse.ExpansionBlock{Count: new(cty.NumberIntVal(2))}
+
+	testCases := []struct {
+		target   *hclparse.ExpansionBlock
+		source   *hclparse.ExpansionBlock
+		expected *hclparse.ExpansionBlock
+		name     string
+	}{
+		{
+			name:     "source expansion is adopted when the target has none",
+			target:   nil,
+			source:   &forEach,
+			expected: &forEach,
+		},
+		{
+			name:     "target expansion is retained when the source has none",
+			target:   &forEach,
+			source:   nil,
+			expected: &forEach,
+		},
+		{
+			name:     "source expansion replaces the target expansion",
+			target:   &count,
+			source:   &forEach,
+			expected: &forEach,
+		},
+		{
+			name:     "neither side expands",
+			target:   nil,
+			source:   nil,
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dep := config.Dependency{
+				Name:       "vpc",
+				ConfigPath: cty.StringVal("../vpc"),
+				Expansion:  tc.target,
+			}
+			source := config.Dependency{
+				Name:       "vpc",
+				ConfigPath: cty.StringVal("../vpc"),
+				Expansion:  tc.source,
+			}
+
+			require.NoError(t, dep.DeepMerge(&source))
+			assert.Equal(t, tc.expected, dep.Expansion)
+		})
+	}
+}
