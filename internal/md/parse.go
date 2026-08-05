@@ -1,6 +1,7 @@
 package md
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -36,7 +37,8 @@ func Parse(source string) *Doc {
 
 // Headings returns the text of every heading in the document, in the order it
 // writes them, so a caller can ask what a document is made of rather than
-// which lines it happens to contain.
+// which lines it happens to contain. A heading reads as [Block.Text] does,
+// which is also how [Doc.BlockAfter] names one.
 func (d *Doc) Headings() []string {
 	var titles []string
 
@@ -46,7 +48,7 @@ func (d *Doc) Headings() []string {
 			return false
 		}
 
-		titles = append(titles, d.headingText(heading))
+		titles = append(titles, d.text(heading))
 
 		return true
 	})
@@ -114,25 +116,36 @@ func (d *Doc) TableRowCells() []int {
 	return rows
 }
 
-// BlockAfter returns the block that follows the heading titled title. It
-// reports false when the document holds no such heading, and when the heading
-// closes the document.
+// BlockAfter returns the block that follows the heading titled title, matching
+// the headings [Doc.Headings] reports and taking the first of them. It reports
+// false when the document holds no such heading, and when the heading closes
+// whatever holds it.
 func (d *Doc) BlockAfter(title string) (Block, bool) {
-	for n := d.root.FirstChild(); n != nil; n = n.NextSibling() {
+	var (
+		block Block
+		found bool
+	)
+
+	walk(d.root, func(n ast.Node) bool {
+		if found {
+			return true
+		}
+
 		heading, ok := n.(*ast.Heading)
-		if !ok || d.headingText(heading) != title {
-			continue
+		if !ok || d.text(heading) != title {
+			return false
 		}
 
-		next := n.NextSibling()
-		if next == nil {
-			return Block{}, false
+		found = true
+
+		if next := heading.NextSibling(); next != nil {
+			block = Block{doc: d, node: next}
 		}
 
-		return Block{doc: d, node: next}, true
-	}
+		return true
+	})
 
-	return Block{}, false
+	return block, block.node != nil
 }
 
 // Block is one of the blocks a document is built from: a paragraph, a fenced
@@ -158,12 +171,6 @@ func (b Block) Text() string {
 // parser. A parser per document keeps concurrent reads off a shared one.
 func newParser() parser.Parser {
 	return goldmark.New(goldmark.WithExtensions(extension.Table)).Parser()
-}
-
-// headingText returns a heading's own lines, which is the source text between
-// the marker that opens the heading and the end of it.
-func (d *Doc) headingText(heading *ast.Heading) string {
-	return string(heading.Lines().Value(d.source))
 }
 
 // text returns the text under n as a reader sees it: an escape resolves to the
@@ -210,7 +217,15 @@ func (d *Doc) spanText(span *ast.CodeSpan) string {
 			continue
 		}
 
-		content.Write(node.Value(d.source))
+		// A span written across lines holds one line per node, and the line
+		// ending reaches the reader as a space rather than as a break.
+		line, wrapped := bytes.CutSuffix(node.Value(d.source), []byte("\n"))
+
+		content.Write(line)
+
+		if wrapped {
+			content.WriteString(" ")
+		}
 	}
 
 	return content.String()

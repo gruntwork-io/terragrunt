@@ -29,6 +29,37 @@ Creates a VPC.
 	assert.Equal(t, []string{"Catalog", "VPC", "app"}, doc.Headings())
 }
 
+// TestDocHeadingsReadAsWritten covers a heading holding more than a word: it
+// reads as the reader sees it, so that a caller naming one to [md.Doc.BlockAfter]
+// names it the same way.
+func TestDocHeadingsReadAsWritten(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		doc  string
+		want []string
+	}{
+		{name: "escaped pipe", doc: `# A \| B`, want: []string{"A | B"}},
+		{name: "code span", doc: backticks("# The ~vpc~ module"), want: []string{"The vpc module"}},
+		{name: "setext", doc: "VPC\n===\n", want: []string{"VPC"}},
+		{name: "setext across lines", doc: "VPC\n  and subnets\n===\n", want: []string{"VPC\nand subnets"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc := md.Parse(tc.doc)
+
+			require.Equal(t, tc.want, doc.Headings())
+
+			_, ok := doc.BlockAfter(tc.want[0])
+			assert.False(t, ok, "the heading closes the document")
+		})
+	}
+}
+
 func TestDocCodeSpans(t *testing.T) {
 	t.Parallel()
 
@@ -56,6 +87,11 @@ func TestDocCodeSpans(t *testing.T) {
 			name: "an escape inside a span is text of its own",
 			doc:  backticks(`~a \| b~`),
 			want: []string{`a \| b`},
+		},
+		{
+			name: "a span written across lines reads as one line",
+			doc:  backticks("~a\nb~"),
+			want: []string{"a b"},
 		},
 		{
 			name: "a fenced block is not a span",
@@ -132,6 +168,10 @@ func TestDocBlockAfter(t *testing.T) {
 
 Creates a VPC.
 
+> ## Quoted
+>
+> Held by the quote.
+
 ## app
 `
 
@@ -142,6 +182,7 @@ Creates a VPC.
 		found   bool
 	}{
 		{name: "prose", heading: "VPC", want: md.KindParagraph, found: true},
+		{name: "a heading a quote holds", heading: "Quoted", want: md.KindParagraph, found: true},
 		{name: "another section", heading: "Catalog", want: "Heading", found: true},
 		{name: "the heading closes the document", heading: "app", found: false},
 		{name: "no such heading", heading: "missing", found: false},
