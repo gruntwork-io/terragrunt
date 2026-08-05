@@ -8,3 +8,5 @@ category: "bug-fixes"
 A `dependency` block that reads outputs from a stack (its `config_path` points at a `terragrunt.stack.hcl` directory) used to fail when a unit in that stack had no state yet, even when the dependency declared `mock_outputs`. This blocked commands like `plan` and `validate` against a stack that hadn't been applied.
 
 Such a dependency now falls back to `mock_outputs` for the units that have no state yet. In a partially applied stack, applied units resolve to their real outputs while the rest use their mocks.
+
+Mocks for a stack dependency are keyed by unit name, so `mock_outputs` has to be a map or object. Declaring it as any other type now reports that directly, instead of leaving the units it can't cover out of the stack outputs.

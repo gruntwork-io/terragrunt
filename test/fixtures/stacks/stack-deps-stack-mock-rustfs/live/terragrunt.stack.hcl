@@ -12,3 +12,8 @@ unit "strict" {
   source = "../units/strict"
   path   = "strict"
 }
+
+unit "malformed" {
+  source = "../units/malformed"
+  path   = "malformed"
+}

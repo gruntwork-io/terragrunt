@@ -317,6 +317,23 @@ func (err StackUnitOutputFetchError) Unwrap() error {
 	return err.Err
 }
 
+// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs that
+// isn't keyed by unit name, so no unit can be matched against it.
+type StackMockOutputsTypeError struct {
+	DependencyName string
+	UnitName       string
+	Actual         string
+}
+
+func (err StackMockOutputsTypeError) Error() string {
+	return fmt.Sprintf(
+		"mock_outputs for dependency %s must be a map or object keyed by stack unit name (e.g. { %s = { ... } }), but got %s",
+		err.DependencyName,
+		err.UnitName,
+		err.Actual,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string

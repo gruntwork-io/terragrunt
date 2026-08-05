@@ -102,9 +102,9 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 
 // TestRustFSStackDependencyMockOutputs covers stack dependency mock resolution against a live S3
 // API, where a unit that hasn't been applied yet fails with a real NoSuchKey. It pins that a
-// map-typed mock_outputs resolves for such a unit, and that a unit whose mocks
-// mock_outputs_allowed_terraform_commands rules out for the current command fails loudly instead of
-// being dropped from the aggregated stack outputs.
+// map-typed mock_outputs resolves for such a unit, and that a unit is never dropped silently from
+// the aggregated stack outputs: neither when mock_outputs_allowed_terraform_commands rules its mocks
+// out for the current command, nor when mock_outputs can't be keyed by unit name at all.
 func TestRustFSStackDependencyMockOutputs(t *testing.T) { //nolint: paralleltest
 	rustfsAddr := setupRustFS(t)
 
@@ -189,6 +189,24 @@ func TestRustFSStackDependencyMockOutputs(t *testing.T) { //nolint: paralleltest
 		"validate is in mock_outputs_allowed_terraform_commands, so the mock must stand in; stderr=%s",
 		stderr,
 	)
+
+	malformedPath := filepath.Join(stackPath, "malformed")
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir "+malformedPath,
+	)
+
+	var mockTypeErr config.StackMockOutputsTypeError
+
+	require.ErrorAs(
+		t,
+		err,
+		&mockTypeErr,
+		"mock_outputs that can't be keyed by unit name must fail rather than drop the unit; stderr=%s",
+		stderr,
+	)
+	assert.Equal(t, "networking", mockTypeErr.DependencyName)
 }
 
 func setupRustFS(t *testing.T) string {

@@ -917,7 +917,12 @@ func collectStackUnitOutputs(
 				return nil, StackUnitOutputFetchError{UnitName: unit.Name, Err: err}
 			}
 
-			if mock, ok := unitMockOutput(dependencyConfig, unit.Name); ok {
+			mock, ok, mockErr := unitMockOutput(dependencyConfig, unit.Name)
+			if mockErr != nil {
+				return nil, mockErr
+			}
+
+			if ok {
 				unitOutputs[unit.Name] = mock
 				continue
 			}
@@ -957,24 +962,30 @@ func collectStackUnitOutputs(
 // ones fall back to their mock.
 //
 // Callers are responsible for checking that mocks are allowed for the current command. ok is false
-// when mock_outputs is absent, isn't keyed by unit name, or isn't a map or object.
-func unitMockOutput(dep *Dependency, unitName string) (cty.Value, bool) {
+// when mock_outputs is absent or declares no entry for the unit. A mock_outputs that can't be keyed
+// by unit name at all is a config error rather than a missing mock, so it returns an error instead
+// of leaving the caller to drop the unit and surface the mistake as an unresolved attribute later.
+func unitMockOutput(dep *Dependency, unitName string) (cty.Value, bool, error) {
 	if dep.MockOutputs == nil {
-		return cty.NilVal, false
+		return cty.NilVal, false, nil
 	}
 
 	mock := *dep.MockOutputs
 	if mock.IsNull() || !mock.IsKnown() {
-		return cty.NilVal, false
+		return cty.NilVal, false, nil
 	}
 
 	if mockType := mock.Type(); !mockType.IsObjectType() && !mockType.IsMapType() {
-		return cty.NilVal, false
+		return cty.NilVal, false, StackMockOutputsTypeError{
+			DependencyName: dep.Name,
+			UnitName:       unitName,
+			Actual:         mockType.FriendlyName(),
+		}
 	}
 
 	unitMock, ok := mock.AsValueMap()[unitName]
 
-	return unitMock, ok
+	return unitMock, ok, nil
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
