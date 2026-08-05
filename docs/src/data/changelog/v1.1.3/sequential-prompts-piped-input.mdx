@@ -1,0 +1,8 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Answer every prompt when input is piped in
+
+A run that asks for confirmation more than once, such as `terragrunt backend delete` prompting for both the lock table entry and the state object, used to read only the first answer when the answers were piped in rather than typed. The remaining answers were discarded while reading ahead, and the next prompt failed with an end-of-input error. Every prompt in a run now reads from the same input, so piping `yes` for each one works.
