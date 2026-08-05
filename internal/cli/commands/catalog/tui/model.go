@@ -17,6 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -118,7 +119,7 @@ type Model struct {
 	scaffoldPlan *scaffold.Plan
 	// valuesRefs holds the `values.*` references collected from a copyable
 	// unit/stack, used to build that component's values form.
-	valuesRefs *ValuesReferences
+	valuesRefs *component.ValuesReferences
 	// terminalErr is the failure that ended the session (a scaffold, copy,
 	// or form-discovery error). Run returns it so the catalog command exits
 	// nonzero; a deliberate quit leaves it nil.

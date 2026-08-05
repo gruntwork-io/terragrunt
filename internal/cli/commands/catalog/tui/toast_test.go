@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -71,7 +72,7 @@ func TestToastsCarryOverToListModel(t *testing.T) {
 	// The first component swaps the welcome model for the streaming list
 	// model; the active toast must survive the swap.
 	entry := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/gruntwork-io/test-repo-1",
 		"modules/aws-vpc",
 		"# AWS VPC Module",

@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 )
 
 // vpcReadme carries every piece of metadata an entry can pick up from a
@@ -59,7 +60,7 @@ func entryCases() []entryCase {
 			name: "module with full readme metadata",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindModule,
+					component.KindModule,
 					"github.com/acme/repo",
 					"modules/vpc",
 					vpcReadme,
@@ -81,7 +82,7 @@ func entryCases() []entryCase {
 			name: "template without a readme",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindTemplate,
+					component.KindTemplate,
 					"github.com/acme/repo?ref=v2",
 					"templates/service",
 					"",
@@ -100,7 +101,7 @@ func entryCases() []entryCase {
 			name: "unit is copyable",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindUnit,
+					component.KindUnit,
 					"github.com/acme/repo",
 					"units/app",
 					"",
@@ -120,7 +121,7 @@ func entryCases() []entryCase {
 			name: "stack is copyable",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindStack,
+					component.KindStack,
 					"github.com/acme/repo",
 					"stacks/prod",
 					"",
@@ -140,7 +141,7 @@ func entryCases() []entryCase {
 			name: "repository root component",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindModule,
+					component.KindModule,
 					"github.com/acme/repo",
 					"",
 					rootReadme,
@@ -193,7 +194,7 @@ func TestJSONLRendererOmitsUnsetFields(t *testing.T) {
 			name: "entry without optional metadata",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindModule,
+					component.KindModule,
 					"github.com/acme/repo",
 					"modules/vpc",
 					"",
@@ -205,7 +206,7 @@ func TestJSONLRendererOmitsUnsetFields(t *testing.T) {
 			name: "entry with every field populated",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindUnit,
+					component.KindUnit,
 					"github.com/acme/repo",
 					"units/app",
 					vpcReadme,
@@ -239,7 +240,7 @@ func TestJSONLRendererKeepsReadmeMarkupUnescaped(t *testing.T) {
 
 	entry := tui.NewComponentEntry(
 		tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/acme/repo",
 			"modules/vpc",
 			"---\nname: VPC\n---\n\nUse a & b, and keep 1 < 2.\n",
@@ -265,7 +266,7 @@ func TestJSONLRendererKeepsReadmeBodyVerbatim(t *testing.T) {
 
 	entry := tui.NewComponentEntry(
 		tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/acme/repo",
 			"modules/vpc",
 			frontmatter+body,

@@ -66,12 +66,6 @@ type ContextLocker interface {
 	LockContext(ctx context.Context, name string) (Unlocker, error)
 }
 
-// ErrNoHardLink is returned when a filesystem does not support hard links.
-var ErrNoHardLink = errors.New("hard link not supported")
-
-// ErrNoLock is returned when a filesystem does not support locking.
-var ErrNoLock = errors.New("locking not supported")
-
 const maxSymlinkEvaluations = 255
 
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
@@ -714,23 +708,6 @@ const defaultZipDirMode os.FileMode = 0755
 // maxSymlinkTargetSize bounds a symlink target read, far above any real path.
 const maxSymlinkTargetSize = 4096
 
-// ZipDecompressedSizeLimitError reports an extraction exceeding its configured decompressed size limit.
-type ZipDecompressedSizeLimitError struct {
-	// Name is the archive entry whose extraction breached the limit.
-	Name string
-	// Size is the entry's declared uncompressed size in bytes.
-	Size uint64
-	// Limit is the configured total decompressed size limit in bytes.
-	Limit int64
-}
-
-func (err ZipDecompressedSizeLimitError) Error() string {
-	return fmt.Sprintf(
-		"extracting file %q breached the total decompressed size limit of %d (entry size %d)",
-		err.Name, err.Limit, err.Size,
-	)
-}
-
 // ZipDecompressor handles zip archive extraction with configurable limits.
 type ZipDecompressor struct {
 	// FileSizeLimit limits total decompressed size in bytes. Zero means no limit.
@@ -1299,10 +1276,17 @@ func sanitizeZipPath(dst, name string) (string, error) {
 }
 
 // ValidateSymlinkTarget reports whether a symbolic link whose path is linkPath
-// and whose stored target is target would resolve inside dst. Absolute targets
-// and dot-dot targets that climb above dst are rejected so callers can safely
-// materialize symlinks from untrusted sources (zip archives, fetched tarballs,
-// git trees) without letting them escape the destination directory.
+// and whose stored target is target names a path inside dst. Absolute targets
+// and dot-dot targets that climb above dst are rejected, so a symlink from an
+// untrusted source (zip archives, fetched tarballs, git trees) cannot name a
+// path outside the destination directory.
+//
+// Only the target the link stores is examined, which is all there is to go on
+// when the link is being recorded or recreated rather than followed. When the
+// target may itself be a symlink the same untrusted source controls, this is
+// not sufficient on its own: the chain can leave dst through a link stored
+// elsewhere. Callers that follow such a link must also check where it lands,
+// with [ValidateResolvedSymlinkTarget].
 func ValidateSymlinkTarget(dst, linkPath, target string) error {
 	// Resolve the target relative to the link's directory
 	absTarget := target
@@ -1315,10 +1299,38 @@ func ValidateSymlinkTarget(dst, linkPath, target string) error {
 
 	// Ensure it stays within dst
 	if !strings.HasPrefix(absTarget, cleanDst+string(os.PathSeparator)) && absTarget != cleanDst {
-		return fmt.Errorf("symlink target escapes destination: %s -> %s", linkPath, target)
+		return fmt.Errorf("%w: %s -> %s", ErrSymlinkEscapes, linkPath, target)
 	}
 
 	return nil
+}
+
+// ValidateResolvedSymlinkTarget reports whether the link at linkPath still
+// lands inside root once its whole chain is followed. Use it before
+// dereferencing a link from an untrusted source: [ValidateSymlinkTarget]
+// examines only the target a link stores, so a chain that leaves root through
+// a link stored somewhere else passes it.
+//
+// root is resolved as well, so a link is not reported as escaping merely
+// because an ancestor of root is itself a symlink, as /var is on macOS.
+//
+// A chain that cannot be resolved at all, because it dangles, returns the
+// resolution error rather than an escape. Callers that need to tell a hostile
+// link from a broken one should check the stored target with
+// [ValidateSymlinkTarget] first, which classifies a dangling link by the path
+// it names.
+func ValidateResolvedSymlinkTarget(fsys FS, root, linkPath string) error {
+	resolved, err := EvalSymlinks(fsys, linkPath)
+	if err != nil {
+		return err
+	}
+
+	resolvedRoot, err := EvalSymlinks(fsys, root)
+	if err != nil {
+		return err
+	}
+
+	return ValidateSymlinkTarget(resolvedRoot, linkPath, resolved)
 }
 
 // extractSymlink extracts a symlink from a zip file.

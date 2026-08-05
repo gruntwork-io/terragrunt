@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -229,7 +230,7 @@ func TestStreamConcurrentProducersWithRacing(t *testing.T) {
 
 func testEntry(dir string) *tui.ComponentEntry {
 	component := tui.NewComponentForTest(
-		tui.ComponentKindModule, "github.com/acme/repo", dir, "",
+		component.KindModule, "github.com/acme/repo", dir, "",
 	)
 
 	return tui.NewComponentEntry(component).WithSource("github.com/acme/repo")

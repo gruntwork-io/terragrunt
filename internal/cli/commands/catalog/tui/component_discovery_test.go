@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -41,7 +42,7 @@ func TestDiscoverComponents_WithCustomFS(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 	assert.Equal(t, "foo", components[0].Dir)
-	assert.Equal(t, tui.ComponentKindModule, components[0].Kind)
+	assert.Equal(t, component.KindModule, components[0].Kind)
 }
 
 // newFakeRepo creates a bare-minimum cloned repo on the given fsys that
@@ -146,17 +147,17 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
-	got := map[string]tui.ComponentKind{}
+	got := map[string]component.Kind{}
 	for _, c := range components {
 		got[c.Dir] = c.Kind
 	}
 
-	want := map[string]tui.ComponentKind{
-		"foo":         tui.ComponentKindModule,
-		"bar":         tui.ComponentKindTemplate,
-		"baz":         tui.ComponentKindTemplate,
-		"qux":         tui.ComponentKindTemplate,
-		"modules/vpc": tui.ComponentKindModule,
+	want := map[string]component.Kind{
+		"foo":         component.KindModule,
+		"bar":         component.KindTemplate,
+		"baz":         component.KindTemplate,
+		"qux":         component.KindTemplate,
+		"modules/vpc": component.KindModule,
 	}
 
 	assert.Equal(t, want, got, "unexpected component classification")
@@ -244,18 +245,18 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
-	got := map[string]tui.ComponentKind{}
+	got := map[string]component.Kind{}
 	for _, c := range components {
 		got[c.Dir] = c.Kind
 	}
 
-	want := map[string]tui.ComponentKind{
-		"unit-a":          tui.ComponentKindUnit,
-		"stack-a":         tui.ComponentKindStack,
-		"mixed-unit":      tui.ComponentKindUnit,
-		"mixed-stack":     tui.ComponentKindStack,
-		"templated-stack": tui.ComponentKindTemplate,
-		"templated-unit":  tui.ComponentKindTemplate,
+	want := map[string]component.Kind{
+		"unit-a":          component.KindUnit,
+		"stack-a":         component.KindStack,
+		"mixed-unit":      component.KindUnit,
+		"mixed-stack":     component.KindStack,
+		"templated-stack": component.KindTemplate,
+		"templated-unit":  component.KindTemplate,
 	}
 
 	assert.Equal(t, want, got)
@@ -287,7 +288,7 @@ func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, components, 1, "only the root template should surface")
-	assert.Equal(t, tui.ComponentKindTemplate, components[0].Kind)
+	assert.Equal(t, component.KindTemplate, components[0].Kind)
 	assert.Empty(t, components[0].Dir, "root component should have an empty Dir")
 }
 
@@ -324,14 +325,14 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
-	got := map[string]tui.ComponentKind{}
+	got := map[string]component.Kind{}
 	for _, c := range components {
 		got[c.Dir] = c.Kind
 	}
 
-	want := map[string]tui.ComponentKind{
-		"foo":       tui.ComponentKindModule,
-		"test/keep": tui.ComponentKindModule,
+	want := map[string]component.Kind{
+		"foo":       component.KindModule,
+		"test/keep": component.KindModule,
 	}
 
 	assert.Equal(
@@ -369,14 +370,14 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 		Discover(fsys, repo)
 	require.NoError(t, err)
 
-	got := map[string]tui.ComponentKind{}
+	got := map[string]component.Kind{}
 	for _, c := range components {
 		got[c.Dir] = c.Kind
 	}
 
-	want := map[string]tui.ComponentKind{
-		"foo":        tui.ComponentKindModule,
-		"stash/keep": tui.ComponentKindModule,
+	want := map[string]component.Kind{
+		"foo":        component.KindModule,
+		"stash/keep": component.KindModule,
 	}
 
 	assert.Equal(
@@ -436,7 +437,7 @@ func TestComponent_TerraformSourcePath(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := tui.NewComponentForTest(tui.ComponentKindModule, tc.cloneURL, tc.dir, "")
+			c := tui.NewComponentForTest(component.KindModule, tc.cloneURL, tc.dir, "")
 			assert.Equal(t, tc.want, c.TerraformSourcePath())
 		})
 	}
@@ -464,7 +465,7 @@ func TestComponentDiscovery_WithWalkWithSymlinksIsChainable(t *testing.T) {
 	components, err := cd.Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
-	assert.Equal(t, tui.ComponentKindModule, components[0].Kind)
+	assert.Equal(t, component.KindModule, components[0].Kind)
 }
 
 // TestComponentFilterValueReturnsTitle exercises Component.FilterValue and
@@ -474,7 +475,7 @@ func TestComponentFilterValueReturnsTitle(t *testing.T) {
 	t.Parallel()
 
 	c := tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/gruntwork-io/repo",
 		"modules/vpc",
 		"",
