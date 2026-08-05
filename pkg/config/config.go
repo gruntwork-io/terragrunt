@@ -2646,7 +2646,7 @@ func readAutoIncludeInputKeys(fsys vfs.FS, path string) []string {
 
 // existingValues extracts the current values map, returning an empty map when values are nil or not an object.
 func existingValues(values *cty.Value) map[string]cty.Value {
-	if values == nil || *values == cty.NilVal || !values.IsKnown() || !values.Type().IsObjectType() {
+	if values == nil || *values == cty.NilVal || values.IsNull() || !values.IsKnown() || !values.Type().IsObjectType() {
 		return map[string]cty.Value{}
 	}
 
@@ -2677,10 +2677,12 @@ func autoIncludeInputKeys(expr hclsyntax.Expression) []string {
 
 // objectConsKeyName returns the static string name of an object-constructor key expression, or "" when the key is dynamic.
 func objectConsKeyName(expr hclsyntax.Expression) string {
-	// HCL wraps object keys in ObjectConsKeyExpr; unwrap to reach the identifier or literal.
+	// HCL wraps object keys in ObjectConsKeyExpr; ForceNonLiteral is true for parenthesized dynamic keys like (var_name), false for unquoted literal identifiers.
 	if kw, ok := expr.(*hclsyntax.ObjectConsKeyExpr); ok {
-		if st, ok := kw.Wrapped.(*hclsyntax.ScopeTraversalExpr); ok && len(st.Traversal) == 1 {
-			return st.Traversal.RootName()
+		if !kw.ForceNonLiteral {
+			if st, ok := kw.Wrapped.(*hclsyntax.ScopeTraversalExpr); ok && len(st.Traversal) == 1 {
+				return st.Traversal.RootName()
+			}
 		}
 
 		expr = kw.Wrapped
