@@ -12,6 +12,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	extast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
@@ -229,6 +230,9 @@ func TestMarkdownRendererKeepsDescriptionOutOfTheDocumentStructure(t *testing.T)
 		{name: "thematic break", description: "---"},
 		{name: "quote", description: "> Creates a VPC."},
 		{name: "list", description: "- Creates a VPC."},
+		{name: "ordered list", description: "1. Creates a VPC."},
+		{name: "ordered list with a parenthesis", description: "1) Creates a VPC."},
+		{name: "ordered list numbered past one", description: "97. Creates a VPC."},
 		{name: "html", description: "<p>Creates a VPC.</p>"},
 	}
 
@@ -260,6 +264,141 @@ func TestMarkdownRendererKeepsDescriptionOutOfTheDocumentStructure(t *testing.T)
 				blockAfter(t, buf.String(), "VPC"),
 				"the description opens the section as prose",
 			)
+		})
+	}
+}
+
+// TestMarkdownRendererKeepsNumberedDescriptionsReadable reads a numbered
+// description back as the reader sees it: the escape an ordered-list marker
+// needs must not survive into the text, and a description that merely opens
+// with a number must not pick one up at all.
+func TestMarkdownRendererKeepsNumberedDescriptionsReadable(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		description string
+	}{
+		{name: "ordered list", description: "1. Creates a VPC."},
+		{name: "ordered list with a parenthesis", description: "1) Creates a VPC."},
+		{name: "decimal", description: "1.5x the throughput of the last one."},
+		{name: "version", description: "1.2.3 of the VPC module."},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			entry := tui.NewComponentEntry(
+				tui.NewComponentForTest(
+					component.KindModule,
+					"github.com/acme/repo",
+					"modules/vpc",
+					"---\nname: VPC\ndescription: \""+tc.description+"\"\n---\n",
+				),
+			).WithSource("github.com/acme/repo")
+
+			var buf bytes.Buffer
+
+			require.NoError(t, format.NewMarkdownRenderer().Entry(&buf, entry))
+
+			assert.Equal(t, tc.description, prose(t, buf.String(), "VPC"))
+		})
+	}
+}
+
+// TestMarkdownRendererKeepsBackticksInsideCodeSpans covers a value the
+// component wrote landing in a code span: a backtick run within one can close
+// the span early, spilling the rest of the value into the row as text.
+func TestMarkdownRendererKeepsBackticksInsideCodeSpans(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		tag  string
+	}{
+		{name: "within", tag: backticks("net~work")},
+		{name: "leading", tag: backticks("~network")},
+		{name: "trailing", tag: backticks("network~")},
+		{name: "surrounding", tag: backticks("~network~")},
+		{name: "run", tag: backticks("net~~~work")},
+		{name: "nothing else", tag: backticks("~")},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			entry := tui.NewComponentEntry(
+				tui.NewComponentForTest(
+					component.KindModule,
+					"github.com/acme/repo",
+					"modules/vpc",
+					"---\nname: VPC\ntags:\n  - \""+tc.tag+"\"\n---\n",
+				),
+			).WithSource("github.com/acme/repo")
+
+			var buf bytes.Buffer
+
+			require.NoError(t, format.NewMarkdownRenderer().Entry(&buf, entry))
+
+			assert.Contains(t, codeSpans(t, buf.String()), tc.tag)
+			assert.Equal(
+				t,
+				[]int{2, 2, 2, 2, 1},
+				tableRows(t, buf.String()),
+				"four field rows of two cells, then the tag in a table one cell wide",
+			)
+		})
+	}
+}
+
+// TestMarkdownRendererLinksOnlyURLs covers the URL field, which discovery
+// fills from the repository's remote and falls back to a filesystem path
+// without one. Angle brackets make a link of a URL and literal text of a path.
+func TestMarkdownRendererLinksOnlyURLs(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		url      string
+		wantLink bool
+	}{
+		{
+			name:     "remote",
+			url:      "https://github.com/acme/repo/tree/main/modules/vpc",
+			wantLink: true,
+		},
+		{name: "path", url: "/Users/jane/modules/vpc", wantLink: false},
+		{name: "path holding a space", url: "/Users/jane/My Modules/vpc", wantLink: false},
+		{name: "windows path", url: `C:\Users\jane\modules\vpc`, wantLink: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			entry := tui.NewComponentEntry(
+				tui.NewComponentForTest(
+					component.KindModule,
+					"github.com/acme/repo",
+					"modules/vpc",
+					vpcReadme,
+				).WithURL(tc.url),
+			).WithSource("github.com/acme/repo")
+
+			var buf bytes.Buffer
+
+			require.NoError(t, format.NewMarkdownRenderer().Entry(&buf, entry))
+
+			if tc.wantLink {
+				assert.Equal(t, []string{tc.url}, autolinks(t, buf.String()))
+
+				return
+			}
+
+			assert.Empty(t, autolinks(t, buf.String()), "a path is not a link")
+			assert.Contains(t, codeSpans(t, buf.String()), tc.url)
 		})
 	}
 }
@@ -547,10 +686,105 @@ func headings(t *testing.T, doc string) []string {
 func blockAfter(t *testing.T, doc, heading string) ast.NodeKind {
 	t.Helper()
 
-	source := []byte(doc)
-	document := goldmark.DefaultParser().Parse(text.NewReader(source))
+	return nodeAfter(t, []byte(doc), heading).Kind()
+}
 
-	var found ast.Node
+// prose returns the text of the paragraph that follows the given heading, as
+// the reader sees it. The value goes back through a renderer because the
+// parser leaves an escape where the renderer wrote it.
+func prose(t *testing.T, doc, heading string) string {
+	t.Helper()
+
+	source := []byte(doc)
+
+	block := nodeAfter(t, source, heading)
+	require.Equal(t, ast.KindParagraph, block.Kind(), "the block after %q is not prose", heading)
+
+	var buf strings.Builder
+
+	require.NoError(t, markdown().Renderer().Render(&buf, source, block))
+
+	return strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(buf.String()), "<p>"), "</p>")
+}
+
+// codeSpans parses doc as Markdown and returns the content of every code span
+// in it, so a test can assert what a value became rather than which
+// characters it was written as.
+func codeSpans(t *testing.T, doc string) []string {
+	t.Helper()
+
+	source := []byte(doc)
+
+	var spans []string
+
+	err := ast.Walk(
+		markdownParser().Parse(text.NewReader(source)),
+		func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+			span, ok := n.(*ast.CodeSpan)
+			if !ok || !entering {
+				return ast.WalkContinue, nil
+			}
+
+			spans = append(spans, inlineText(t, source, span))
+
+			return ast.WalkSkipChildren, nil
+		},
+	)
+	require.NoError(t, err)
+
+	return spans
+}
+
+// autolinks parses doc as Markdown and returns the target of every autolink in
+// it, so a test can assert that a value became a link rather than text that
+// merely looks like one.
+func autolinks(t *testing.T, doc string) []string {
+	t.Helper()
+
+	source := []byte(doc)
+
+	var targets []string
+
+	err := ast.Walk(
+		markdownParser().Parse(text.NewReader(source)),
+		func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+			link, ok := n.(*ast.AutoLink)
+			if !ok || !entering {
+				return ast.WalkContinue, nil
+			}
+
+			targets = append(targets, string(link.URL(source)))
+
+			return ast.WalkSkipChildren, nil
+		},
+	)
+	require.NoError(t, err)
+
+	return targets
+}
+
+// inlineText joins the text nodes under n. A code span holds its content
+// literally, so its text needs no renderer to resolve.
+func inlineText(t *testing.T, source []byte, n ast.Node) string {
+	t.Helper()
+
+	var content strings.Builder
+
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		txt, ok := c.(*ast.Text)
+		require.True(t, ok, "%s holds a %s rather than text", n.Kind(), c.Kind())
+
+		content.Write(txt.Value(source))
+	}
+
+	return content.String()
+}
+
+// nodeAfter returns the block that follows the given heading.
+func nodeAfter(t *testing.T, source []byte, heading string) ast.Node {
+	t.Helper()
+
+	document := markdownParser().Parse(text.NewReader(source))
 
 	for n := document.FirstChild(); n != nil; n = n.NextSibling() {
 		h, ok := n.(*ast.Heading)
@@ -558,17 +792,28 @@ func blockAfter(t *testing.T, doc, heading string) ast.NodeKind {
 			continue
 		}
 
-		found = n
+		next := n.NextSibling()
+		require.NotNil(t, next, "heading %q closes the document", heading)
 
-		break
+		return next
 	}
 
-	require.NotNil(t, found, "no heading %q in %s", heading, doc)
+	require.Fail(t, "no such heading", "%q in %s", heading, source)
 
-	next := found.NextSibling()
-	require.NotNil(t, next, "heading %q closes the document", heading)
+	return nil
+}
 
-	return next.Kind()
+// markdown builds the Markdown the helpers read a rendered document back
+// with. Tables are the one extension the renderer writes; linkification in
+// particular stays off, so a test asking whether a value became a link is
+// answered by the document rather than by the parser.
+func markdown() goldmark.Markdown {
+	return goldmark.New(goldmark.WithExtensions(extension.Table))
+}
+
+// markdownParser is [markdown]'s parser.
+func markdownParser() parser.Parser {
+	return markdown().Parser()
 }
 
 // tableRows parses doc as GitHub-flavored Markdown and returns the number of
