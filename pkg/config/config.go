@@ -512,6 +512,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			genBody.SetAttributeValue("hcl_fmt", goboolToCty(*gen.HclFmt))
 		}
 
+		if gen.Mutable != nil {
+			genBody.SetAttributeValue("mutable", goboolToCty(*gen.Mutable))
+		}
+
 		rootBody.AppendBlock(genBlock)
 	}
 
@@ -814,6 +818,7 @@ type terragruntGenerateBlock struct {
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
 	Disable          *bool   `hcl:"disable,attr"           mapstructure:"disable"`
 	HclFmt           *bool   `hcl:"hcl_fmt,attr"           mapstructure:"hcl_fmt"`
+	Mutable          *bool   `hcl:"mutable,attr"           mapstructure:"mutable"`
 	Name             string  `hcl:",label"                 mapstructure:",omitempty"`
 	Path             string  `hcl:"path,attr"              mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr"         mapstructure:"if_exists"`
@@ -2089,8 +2094,18 @@ func convertToTerragruntConfig(
 			return nil, err
 		}
 
+		if block.Mutable != nil && !pctx.Experiments.Evaluate(experiment.MutableGenerate) {
+			errs = append(errs, MutableGenerateRequiresExperimentError{
+				ConfigPath: configPath,
+				BlockName:  block.Name,
+			})
+
+			continue
+		}
+
 		genConfig := codegen.GenerateConfig{
 			HclFmt:        block.HclFmt,
+			Mutable:       block.Mutable,
 			Path:          block.Path,
 			IfExists:      ifExists,
 			IfExistsStr:   block.IfExists,

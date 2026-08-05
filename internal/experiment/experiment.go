@@ -103,6 +103,11 @@ const (
 	BlockIteration = "block-iteration"
 	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
 	BrowseTUI = "browse-tui"
+	// MutableGenerate gates the mutable attribute on the generate block and the
+	// default it changes: generated files are deduplicated through
+	// content-addressable storage and hard-linked into each working directory
+	// rather than written per unit.
+	MutableGenerate = "mutable-generate"
 )
 
 const (
@@ -214,6 +219,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: BrowseTUI,
+		},
+		{
+			Name: MutableGenerate,
 		},
 	}
 }

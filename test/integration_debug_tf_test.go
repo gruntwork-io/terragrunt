@@ -200,6 +200,7 @@ func TestTFRenderJSONConfig(t *testing.T) {
 					"if_exists":         "overwrite_terragrunt",
 					"if_disabled":       "skip",
 					"hcl_fmt":           nil,
+					"mutable":           nil,
 					"contents": `provider "aws" {
   region = "us-east-1"
 }

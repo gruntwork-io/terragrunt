@@ -2147,6 +2147,102 @@ func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
 	assert.False(t, *generateConfig.HclFmt)
 }
 
+// TestParseConfigGenerateBlockWithMutable verifies that mutable is parsed from generate blocks
+// once the gating experiment is enabled.
+func TestParseConfigGenerateBlockWithMutable(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate "test" {
+  path = "test.tf"
+  if_exists = "overwrite"
+  contents = "test = 1"
+  mutable = true
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MutableGenerate))
+
+	terragruntConfig, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	require.NotNil(t, generateConfig.Mutable)
+	assert.True(t, *generateConfig.Mutable)
+}
+
+// TestParseConfigGenerateAttrWithMutable verifies that mutable is parsed from generate attribute maps.
+func TestParseConfigGenerateAttrWithMutable(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate = {
+  test = {
+    path = "test.tf"
+    if_exists = "overwrite"
+    contents = "test = 1"
+    mutable = false
+  }
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MutableGenerate))
+
+	terragruntConfig, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	require.NotNil(t, generateConfig.Mutable)
+	assert.False(t, *generateConfig.Mutable)
+}
+
+// TestParseConfigGenerateBlockMutableRequiresExperiment verifies that mutable is rejected
+// until the experiment that gates it is enabled.
+func TestParseConfigGenerateBlockMutableRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate "test" {
+  path = "test.tf"
+  if_exists = "overwrite"
+  contents = "test = 1"
+  mutable = false
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+
+	_, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+
+	var experimentErr config.MutableGenerateRequiresExperimentError
+	require.ErrorAs(t, err, &experimentErr)
+	assert.Equal(t, "test", experimentErr.BlockName)
+}
+
 // TestParseConfigWithMissingIfExists verifies that generate blocks require the if_exists attribute.
 func TestParseConfigWithMissingIfExists(t *testing.T) {
 	t.Parallel()

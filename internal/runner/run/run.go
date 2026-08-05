@@ -18,7 +18,9 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
@@ -183,7 +185,7 @@ func Run(
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = GenerateConfig(l, v.FS, updatedOpts, cfg); err != nil {
+	if err = GenerateConfig(ctx, l, v, updatedOpts, cfg); err != nil {
 		return err
 	}
 
@@ -209,28 +211,36 @@ func Run(
 }
 
 // GenerateConfig handles code generation using config types (for backwards compatibility).
-func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfig) error {
+func GenerateConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
 	actualLock := rawActualLock.(*sync.Mutex)
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
+	writeOpts := generateWriteOptions(l, opts)
+
 	for _, genCfg := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts.CacheDir, &genCfg); err != nil {
+		if err := codegen.WriteToFile(ctx, l, v, opts.CacheDir, &genCfg, writeOpts...); err != nil {
 			return err
 		}
 	}
 
 	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
-		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.CacheDir); err != nil {
+		if err := cfg.RemoteState.GenerateOpenTofuCode(ctx, l, v, opts.CacheDir); err != nil {
 			return err
 		}
 	} else if cfg.RemoteState.Config != nil {
 		// We use else if here because we don't need to check the backend configuration is defined when the remote state
 		// block has a `generate` attribute configured.
 		if err := checkTerraformCodeDefinesBackend(
-			fs,
+			v.FS,
 			opts,
 			cfg.RemoteState.BackendName,
 		); err != nil {
@@ -239,6 +249,26 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 	}
 
 	return nil
+}
+
+// generateWriteOptions decides whether generated files are deduplicated through
+// the CAS store.
+//
+// A CAS that cannot be initialized is not fatal: generation falls back to direct
+// writes, matching how source downloads degrade.
+func generateWriteOptions(l log.Logger, opts *Options) []codegen.WriteOption {
+	if opts.NoCAS || !opts.Experiments.Evaluate(experiment.MutableGenerate) {
+		return nil
+	}
+
+	c, err := cas.New()
+	if err != nil {
+		l.Warnf("Failed to initialize CAS: %v. Generated files will not be deduplicated.", err)
+
+		return nil
+	}
+
+	return []codegen.WriteOption{codegen.WithContentStore(cas.NewContent(c.BlobStore()))}
 }
 
 // Runs tofu/terraform with the given options and CLI args.

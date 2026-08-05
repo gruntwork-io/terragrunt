@@ -440,6 +440,21 @@ func (err VersionAttributeRequiresExperimentError) Error() string {
 	)
 }
 
+// MutableGenerateRequiresExperimentError is returned when a generate block sets the
+// mutable attribute without the mutable-generate experiment enabled.
+type MutableGenerateRequiresExperimentError struct {
+	ConfigPath string
+	BlockName  string
+}
+
+func (err MutableGenerateRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"the generate block %q in %s sets the mutable attribute, which requires the 'mutable-generate' experiment; enable it with --experiment mutable-generate",
+		err.BlockName,
+		err.ConfigPath,
+	)
+}
+
 // VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
 // version attribute but its source is not a tfr:// registry URL, where a version
 // constraint has no meaning.

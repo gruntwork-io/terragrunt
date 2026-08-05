@@ -218,10 +218,15 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 }
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
-func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, workingDir string) error {
+func (remote *RemoteState) GenerateOpenTofuCode(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	workingDir string,
+) error {
 	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
-	return remote.Config.GenerateOpenTofuCode(l, workingDir, backendConfig)
+	return remote.Config.GenerateOpenTofuCode(ctx, l, v, workingDir, backendConfig)
 }
 
 func (remote *RemoteState) pullState(

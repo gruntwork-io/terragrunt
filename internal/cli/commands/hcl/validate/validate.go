@@ -382,6 +382,7 @@ func RunValidateInputs(
 
 		// Generate config
 		if err := prepare.PrepareGenerate(
+			ctx,
 			l,
 			unitV,
 			updatedOpts,
