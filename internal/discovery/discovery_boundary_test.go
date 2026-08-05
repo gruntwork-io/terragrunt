@@ -211,18 +211,34 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 
 	f, v := newBoundaryFixture(t)
 
+	newForDiscoveryCommand := func(t *testing.T, query, boundary string) (*discovery.Discovery, error) {
+		t.Helper()
+
+		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
+		require.NoError(t, err)
+
+		return discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
+			WorkingDir:        f.stagingDir,
+			DiscoveryBoundary: boundary,
+			Filters:           filters,
+		})
+	}
+
 	testCases := []struct {
 		errAs    any
 		name     string
+		query    string
 		boundary string
 	}{
 		{
 			name:     "nonexistent boundary",
+			query:    "...{" + f.vpcDir + "}",
 			boundary: filepath.Join(f.repoRoot, "does-not-exist"),
 			errAs:    &discovery.DiscoveryBoundaryDirError{},
 		},
 		{
-			name:     "boundary does not contain working directory",
+			name:     "dependent direction cannot start outside the boundary",
+			query:    "...{" + f.vpcDir + "}",
 			boundary: f.consumerDir,
 			errAs:    &discovery.DiscoveryBoundaryScopeError{},
 		},
@@ -232,10 +248,7 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
-				WorkingDir:        f.stagingDir,
-				DiscoveryBoundary: tc.boundary,
-			})
+			_, err := newForDiscoveryCommand(t, tc.query, tc.boundary)
 			require.ErrorAs(t, err, tc.errAs)
 		})
 	}
@@ -243,11 +256,120 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 	t.Run("valid boundary", func(t *testing.T) {
 		t.Parallel()
 
-		d, err := discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
-			WorkingDir:        f.stagingDir,
-			DiscoveryBoundary: "..",
-		})
+		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", "..")
 		require.NoError(t, err)
 		require.NotNil(t, d)
 	})
+
+	t.Run("dependency direction accepts a boundary outside the working directory", func(t *testing.T) {
+		t.Parallel()
+
+		d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir)
+		require.NoError(t, err)
+		require.NotNil(t, d)
+	})
+}
+
+// Test that the boundary survives filter evaluation when relationships are
+// discovered, as the runner pool does for `run --all`. Components kept by the
+// graph phase still carry edges pointing across the boundary, so evaluation
+// has to refuse to follow them rather than growing the set back.
+func TestDiscoveryBoundary_SurvivesFilterEvaluationWithRelationships(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		boundary string
+		expected []string
+	}{
+		{
+			name:     "unbounded traversal reaches the sibling environment",
+			boundary: "",
+			expected: []string{"edge", "external"},
+		},
+		{
+			name:     "bounded traversal stops at the boundary",
+			boundary: ".",
+			expected: []string{"edge"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f, v := newBoundaryFixture(t)
+
+			byName := map[string]string{"edge": f.edgeDir, "external": f.externalDir}
+			paths := make([]string, len(tc.expected))
+
+			for i, n := range tc.expected {
+				paths[i] = byName[n]
+			}
+
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = f.stagingDir
+			opts.RootWorkingDir = f.stagingDir
+
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{" + f.edgeDir + "}..."})
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(f.stagingDir).WithFilters(filters).WithRelationships()
+
+			if tc.boundary != "" {
+				d = d.WithDiscoveryBoundary(tc.boundary)
+			}
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, paths, configs.Filter(component.UnitKind).Paths())
+		})
+	}
+}
+
+// Test that a boundary the working directory sits outside of is accepted and
+// honored for dependency-direction filters, matching what the equivalent
+// inline "(dir)" operand already does.
+func TestDiscoveryBoundary_DependencyDirectionOutsideWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	f, v := newBoundaryFixture(t)
+
+	// environments/production holds edge's dependency but not the working
+	// directory (environments/staging).
+	productionDir := filepath.Dir(f.externalDir)
+
+	testCases := []struct {
+		name     string
+		boundary string
+		expected []string
+	}{
+		{
+			name:     "dependency inside the boundary is traversed",
+			boundary: productionDir,
+			expected: []string{"edge", "external"},
+		},
+		{
+			name:     "dependency outside the boundary is pruned",
+			boundary: f.consumerDir,
+			expected: []string{"edge"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			byName := map[string]string{"edge": f.edgeDir, "external": f.externalDir}
+			paths := make([]string, len(tc.expected))
+
+			for i, n := range tc.expected {
+				paths[i] = byName[n]
+			}
+
+			configs, err := f.discover(t, v, "{"+f.edgeDir+"}...", tc.boundary)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, paths, configs.Filter(component.UnitKind).Paths())
+		})
+	}
 }

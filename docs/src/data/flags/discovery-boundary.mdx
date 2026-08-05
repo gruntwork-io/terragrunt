@@ -45,6 +45,11 @@ terragrunt run --all plan --filter '...{vpc}' --discovery-boundary ..
 
 # Equivalent, via environment variable
 TG_DISCOVERY_BOUNDARY=. terragrunt find --filter '...{vpc}'
+
+# From the repository root, keep app's dependencies within prod
+terragrunt find --filter '{./prod/app}...' --discovery-boundary ./prod
 ```
 
-The boundary must be an existing directory that is the working directory or one of its parents. Relative paths are resolved against the working directory.
+The boundary must be an existing directory. Relative paths are resolved against the working directory.
+
+Where the boundary may sit depends on the directions the filters traverse. Dependent traversal searches upward from the working directory, so a boundary that excludes the working directory could never take effect; filters that traverse dependents require the boundary to be the working directory or one of its parents. Dependency traversal follows declared paths outward from the units a filter matched and never consults the working directory, so filters that traverse only dependencies accept any directory, including one below the working directory. That is the same rule the inline `(dir)` operand follows.

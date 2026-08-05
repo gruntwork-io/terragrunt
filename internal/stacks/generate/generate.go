@@ -866,7 +866,7 @@ func stacksReadingFiles(
 	matched := make([]*component.Stack, 0, len(readingFilters))
 
 	for _, f := range readingFilters {
-		evaluated, err := filter.Evaluate(l, f.Expression(), components)
+		evaluated, err := filter.Evaluate(l, filter.EvaluationContext{}, f.Expression(), components)
 		if err != nil {
 			return nil, err
 		}

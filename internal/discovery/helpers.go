@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -459,6 +460,16 @@ func (d *Discovery) dependentWalkBoundary() string {
 	return d.gitRoot
 }
 
+// evaluationContext hands filter evaluation the settings its graph traversal
+// has to honor. Discover resolves the boundary before any phase runs, so this
+// carries the absolute path rather than the raw user input.
+func (d *Discovery) evaluationContext() filter.EvaluationContext {
+	return filter.EvaluationContext{
+		WorkingDir:        d.workingDir,
+		DiscoveryBoundary: d.discoveryBoundary,
+	}
+}
+
 // validateBoundaryDir reports whether resolved names an existing directory.
 func validateBoundaryDir(fs vfs.FS, resolved string) error {
 	info, err := fs.Stat(resolved)
@@ -491,10 +502,38 @@ func resolveGraphBoundary(fs vfs.FS, workingDir, boundary string) (string, error
 	return resolved, nil
 }
 
+// boundaryEnclosure states whether a discovery boundary has to enclose the
+// working directory to be usable.
+type boundaryEnclosure int
+
+const (
+	boundaryEnclosureOptional boundaryEnclosure = iota
+	boundaryEnclosureRequired
+)
+
+// boundaryEnclosureFor reports what the given filters demand of a discovery
+// boundary. Only the dependent walk starts at the working directory, so only
+// it is defeated by a boundary that excludes the working directory. Dependency
+// traversal starts at the matched components and follows their declared
+// dependencies, so a boundary narrower than the working directory prunes that
+// walk exactly as the inline "(dir)" operand does.
+func boundaryEnclosureFor(filters filter.Filters) boundaryEnclosure {
+	if filters.HasDependents() {
+		return boundaryEnclosureRequired
+	}
+
+	return boundaryEnclosureOptional
+}
+
 // resolveDiscoveryBoundary canonicalizes a user-supplied discovery boundary against
-// the working directory and validates that it is an existing directory that
-// contains the working directory. Returns the resolved absolute path.
-func resolveDiscoveryBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
+// the working directory and validates that it is an existing directory, requiring
+// it to contain the working directory only when enclosure demands it. Returns the
+// resolved absolute path.
+func resolveDiscoveryBoundary(
+	fs vfs.FS,
+	workingDir, boundary string,
+	enclosure boundaryEnclosure,
+) (string, error) {
 	resolved, err := util.CanonicalResolvedPath(boundary, workingDir)
 	if err != nil {
 		return "", NewDiscoveryBoundaryDirError(boundary, err)
@@ -502,6 +541,10 @@ func resolveDiscoveryBoundary(fs vfs.FS, workingDir, boundary string) (string, e
 
 	if err := validateBoundaryDir(fs, resolved); err != nil {
 		return "", err
+	}
+
+	if enclosure == boundaryEnclosureOptional {
+		return resolved, nil
 	}
 
 	resolvedWorkingDir := util.ResolvePath(workingDir)

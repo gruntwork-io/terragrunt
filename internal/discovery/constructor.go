@@ -103,7 +103,12 @@ func NewForDiscoveryCommand(l log.Logger, fs vfs.FS, opts *DiscoveryCommandOptio
 	}
 
 	if opts.DiscoveryBoundary != "" {
-		boundary, err := resolveDiscoveryBoundary(fs, opts.WorkingDir, opts.DiscoveryBoundary)
+		boundary, err := resolveDiscoveryBoundary(
+			fs,
+			opts.WorkingDir,
+			opts.DiscoveryBoundary,
+			boundaryEnclosureFor(opts.Filters),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +128,12 @@ func NewForHCLCommand(l log.Logger, fs vfs.FS, opts HCLCommandOptions) (*Discove
 	}
 
 	if opts.DiscoveryBoundary != "" {
-		boundary, err := resolveDiscoveryBoundary(fs, opts.WorkingDir, opts.DiscoveryBoundary)
+		boundary, err := resolveDiscoveryBoundary(
+			fs,
+			opts.WorkingDir,
+			opts.DiscoveryBoundary,
+			boundaryEnclosureFor(opts.Filters),
+		)
 		if err != nil {
 			return nil, err
 		}

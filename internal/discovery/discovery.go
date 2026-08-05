@@ -34,7 +34,12 @@ func (d *Discovery) Discover(
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
 	if d.discoveryBoundary != "" {
-		boundary, boundaryErr := resolveDiscoveryBoundary(v.FS, d.workingDir, d.discoveryBoundary)
+		boundary, boundaryErr := resolveDiscoveryBoundary(
+			v.FS,
+			d.workingDir,
+			d.discoveryBoundary,
+			boundaryEnclosureFor(d.filters),
+		)
 		if boundaryErr != nil {
 			return nil, boundaryErr
 		}
@@ -198,7 +203,7 @@ func (d *Discovery) Discover(
 			len(components),
 		)
 
-		filtered, err := d.filters.Evaluate(l, components)
+		filtered, err := d.filters.Evaluate(l, d.evaluationContext(), components)
 		if err != nil {
 			return components, err
 		}

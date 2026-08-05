@@ -14,4 +14,9 @@ cd environments/staging
 terragrunt run --all plan --experiment bounded-discovery --filter '...{vpc}' --discovery-boundary .
 ```
 
-Any configuration that resolves outside the boundary, whether a dependent or a dependency, is neither read nor parsed nor returned; configurations inside it are discovered as usual. The boundary must be an existing directory that contains the working directory; relative paths are resolved against the working directory.
+Any configuration that resolves outside the boundary, whether a dependent or a dependency, is neither read nor parsed nor returned; configurations inside it are discovered as usual. The boundary must be an existing directory, and relative paths are resolved against the working directory. Dependent traversal searches upward from the working directory, so filters that use it also need the boundary to be the working directory or one of its parents. Dependency traversal follows declared paths from the units a filter matched, so dependency-only filters accept any directory, including one below the working directory:
+
+```bash
+# From the repository root, follow app's dependencies but keep them within prod
+terragrunt find --experiment bounded-discovery --filter '{./prod/app}...' --discovery-boundary ./prod
+```
