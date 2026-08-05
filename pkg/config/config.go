@@ -2587,10 +2587,6 @@ func injectAutoIncludeValuePlaceholders(l log.Logger, pctx *ParsingContext) *Par
 		return pctx
 	}
 
-	if pctx.Venv == nil || pctx.Venv.FS == nil {
-		return pctx
-	}
-
 	keys := readAutoIncludeInputKeys(pctx.Venv.FS, pctx.TrackInclude.AutoIncludeOverride.Path)
 	if len(keys) == 0 {
 		return pctx
