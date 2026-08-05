@@ -11,16 +11,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// testBlock mirrors the shape the real dependency/unit/stack structs take once
-// OSS-3968 lands: an expansion block field plus ordinary attributes.
 type testBlock struct {
-	Expansion *testExpansion `hcl:"expansion,block"`
-	Path      string         `hcl:"path,attr"`
-}
-
-type testExpansion struct {
-	ForEach *cty.Value `hcl:"for_each,attr"`
-	Count   *cty.Value `hcl:"count,attr"`
+	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
+	Path      string                   `hcl:"path,attr"`
 }
 
 func TestExpandBlockUnexpanded(t *testing.T) {

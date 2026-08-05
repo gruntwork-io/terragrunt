@@ -46,10 +46,18 @@ func WithMaxInstances(maxInstances int) ExpandOption {
 	}
 }
 
-// Instance is one decoded product of expanding a block. A block with no expansion
-// block yields a single Instance with both keys nil.
-type Instance struct {
-	Value      any
+// ExpansionBlock is the decoded expansion sub-block of a dependency, unit, or stack
+// block. It stays nil unless the block declares expansion.
+type ExpansionBlock struct {
+	ForEach *cty.Value `hcl:"for_each,attr"`
+	Count   *cty.Value `hcl:"count,attr"`
+
+	InstanceKey
+}
+
+// InstanceKey identifies which expansion element produced a decoded block. It carries
+// no hcl tags: expansion assigns it, so a config cannot write it.
+type InstanceKey struct {
 	EachKey    *string
 	CountIndex *int
 }
@@ -61,15 +69,22 @@ type Instance struct {
 // Addresses are built from this in more than one place (the dependency cty map,
 // stack output), so keeping the stringification here is what stops those surfaces
 // from drifting apart.
-func (inst Instance) Key() string {
+func (key InstanceKey) Key() string {
 	switch {
-	case inst.EachKey != nil:
-		return *inst.EachKey
-	case inst.CountIndex != nil:
-		return strconv.Itoa(*inst.CountIndex)
+	case key.EachKey != nil:
+		return *key.EachKey
+	case key.CountIndex != nil:
+		return strconv.Itoa(*key.CountIndex)
 	default:
 		return ""
 	}
+}
+
+// Instance is one decoded product of expanding a block. A block with no expansion
+// block yields a single Instance with both keys nil.
+type Instance struct {
+	Value any
+	InstanceKey
 }
 
 // ExpandBlock decodes block once per iteration element, returning one Instance per
@@ -226,7 +241,10 @@ func expandCount(
 			return nil, err
 		}
 
-		instances = append(instances, Instance{Value: value, CountIndex: new(index)})
+		instances = append(instances, Instance{
+			Value:       value,
+			InstanceKey: InstanceKey{CountIndex: new(index)},
+		})
 	}
 
 	return instances, nil
@@ -292,7 +310,10 @@ func expandForEach(
 			return nil, err
 		}
 
-		instances = append(instances, Instance{Value: value, EachKey: new(key)})
+		instances = append(instances, Instance{
+			Value:       value,
+			InstanceKey: InstanceKey{EachKey: new(key)},
+		})
 	}
 
 	return instances, nil
