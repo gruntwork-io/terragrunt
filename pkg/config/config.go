@@ -2663,16 +2663,37 @@ func autoIncludeInputKeys(expr hclsyntax.Expression) []string {
 	keys := make([]string, 0, len(objExpr.Items))
 
 	for _, item := range objExpr.Items {
-		// Static key: a literal or template expression that evaluates to a string without variables.
-		val, diags := item.KeyExpr.Value(nil)
-		if diags.HasErrors() || !val.IsKnown() || val.Type() != cty.String {
-			continue
+		if name := objectConsKeyName(item.KeyExpr); name != "" {
+			keys = append(keys, name)
 		}
-
-		keys = append(keys, val.AsString())
 	}
 
 	return keys
+}
+
+// objectConsKeyName returns the static string name of an object-constructor key expression, or "" when the key is dynamic.
+func objectConsKeyName(expr hclsyntax.Expression) string {
+	// HCL wraps object keys in ObjectConsKeyExpr; unwrap to reach the identifier or literal.
+	if kw, ok := expr.(*hclsyntax.ObjectConsKeyExpr); ok {
+		if st, ok := kw.Wrapped.(*hclsyntax.ScopeTraversalExpr); ok && len(st.Traversal) == 1 {
+			return st.Traversal.RootName()
+		}
+
+		expr = kw.Wrapped
+	}
+
+	// Bare traversal (single-segment identifier like vpc_id).
+	if st, ok := expr.(*hclsyntax.ScopeTraversalExpr); ok && len(st.Traversal) == 1 {
+		return st.Traversal.RootName()
+	}
+
+	// Quoted string or template literal that evaluates without variables.
+	val, diags := expr.Value(nil)
+	if diags.HasErrors() || !val.IsKnown() || val.Type() != cty.String {
+		return ""
+	}
+
+	return val.AsString()
 }
 
 // mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.
