@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"encoding/pem"
 	"io"
 	"maps"
 	"net/http"
@@ -88,6 +89,11 @@ func (r *Registry) Address() string {
 // Client returns an HTTP client that trusts the registry's certificate.
 func (r *Registry) Client() *http.Client {
 	return r.server.Client()
+}
+
+// CertPEM returns the registry's certificate, so a child process can trust it through SSL_CERT_FILE.
+func (r *Registry) CertPEM() []byte {
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: r.server.Certificate().Raw})
 }
 
 // PushModule packs files into a module zip, publishes it under repo and tag, and returns the manifest descriptor.
