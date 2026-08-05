@@ -1,0 +1,10 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Fix relative paths in `mark_as_read` and `mark_glob_as_read` when called from an included configuration
+
+A relative path passed to `mark_as_read` or `mark_glob_as_read` was resolved against the directory of the unit being parsed rather than the directory of the configuration file containing the call. When the call lived in a configuration pulled in by an `include` block, the recorded path pointed under the including unit's directory instead of the included file's own directory, so `file` read one path while Terragrunt tracked another.
+
+Units reading a shared file this way were missed by `--queue-include-units-reading` and by `find`, `list`, and `run` filters such as `reading=` and `--filter-affected`, with no error to indicate it. Both functions now resolve relative paths the same way `file` does, so a shared configuration can mark the files it reads without spelling out an absolute path. Calls outside an `include` are unaffected, since there the two directories are the same.
