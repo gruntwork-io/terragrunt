@@ -11,7 +11,7 @@ import (
 type Entry struct {
 	Kind            string   `json:"kind"`
 	Title           string   `json:"title"`
-	Description     string   `json:"description"`
+	Description     string   `json:"description,omitempty"`
 	Source          string   `json:"source"`
 	Dir             string   `json:"dir,omitempty"`
 	Version         string   `json:"version,omitempty"`
@@ -19,7 +19,6 @@ type Entry struct {
 	ComponentSource string   `json:"component_source"`
 	Doc             string   `json:"doc,omitempty"`
 	Tags            []string `json:"tags,omitempty"`
-	Copyable        bool     `json:"copyable,omitempty"`
 }
 
 // NewEntry converts a discovered component into its serialized form.
@@ -29,7 +28,7 @@ func NewEntry(e *tui.ComponentEntry) *Entry {
 	return &Entry{
 		Kind:            c.Kind.String(),
 		Title:           c.Title(),
-		Description:     c.Description(),
+		Description:     c.DocDescription(),
 		Source:          e.Source,
 		Dir:             c.Dir,
 		Version:         e.Version,
@@ -37,6 +36,5 @@ func NewEntry(e *tui.ComponentEntry) *Entry {
 		ComponentSource: c.TerraformSourcePath(),
 		Doc:             c.Content(false),
 		Tags:            e.Tags(),
-		Copyable:        c.Kind.IsCopyable(),
 	}
 }

@@ -29,7 +29,7 @@ func TestOptionsValidate(t *testing.T) {
 	}{
 		{name: "tui", format: catalog.FormatTUI},
 		{name: "jsonl", format: catalog.FormatJSONL},
-		{name: "markdown is not implemented yet", format: "md", wantErr: true},
+		{name: "md", format: catalog.FormatMD},
 		{name: "unknown format", format: "yaml", wantErr: true},
 		{name: "empty format", format: "", wantErr: true},
 	}
