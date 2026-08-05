@@ -88,6 +88,28 @@ dependency "a" {
 	assert.ElementsMatch(t, []string{"../web/frontend", "../api/backend"}, paths)
 }
 
+// TestExpandBlockForEachMapNullValue pins that the concreteness check on element keys
+// leaves values alone: a map key is concrete no matter what it maps to, so a null
+// value only fails the body that dereferences it.
+func TestExpandBlockForEachMapNullValue(t *testing.T) {
+	t.Parallel()
+
+	instances, err := expand(t, `
+dependency "a" {
+  expansion {
+    for_each = local.service_map_with_null_value
+  }
+
+  path = "../${each.key}"
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+
+	assert.Equal(t, []string{"web"}, keysOf(instances))
+	assert.Equal(t, "../web", instances[0].Value.(*testBlock).Path)
+}
+
 func TestExpandBlockCount(t *testing.T) {
 	t.Parallel()
 
@@ -287,9 +309,10 @@ dependency "a" {
 	}
 }
 
-// TestExpandBlockRejectsNonConcreteValues pins that unknown and null meta-args are
-// reported rather than crashing. cty's LengthInt and ElementIterator panic on both,
-// and a for_each fed from a dependency output can be either.
+// TestExpandBlockRejectsNonConcreteValues pins that unknown and null values are
+// reported rather than crashing, both when the meta-arg itself is non-concrete and
+// when a concrete set carries a non-concrete element. cty panics on both in either
+// position, and a for_each fed from a dependency output can be either.
 func TestExpandBlockRejectsNonConcreteValues(t *testing.T) {
 	t.Parallel()
 
@@ -316,6 +339,21 @@ func TestExpandBlockRejectsNonConcreteValues(t *testing.T) {
 		{
 			name:   "null count",
 			attr:   "count = local.null_count",
+			target: new(hclparse.NullExpansionValueError),
+		},
+		{
+			name:   "unknown for_each element",
+			attr:   "for_each = local.services_with_unknown_element",
+			target: new(hclparse.UnknownExpansionValueError),
+		},
+		{
+			name:   "null for_each element",
+			attr:   "for_each = local.services_with_null_element",
+			target: new(hclparse.NullExpansionValueError),
+		},
+		{
+			name:   "null numeric for_each element",
+			attr:   "for_each = local.numeric_keys_with_null_element",
 			target: new(hclparse.NullExpansionValueError),
 		},
 	}
@@ -555,6 +593,21 @@ func expand(
 				"null_services":    cty.NullVal(cty.Set(cty.String)),
 				"unknown_count":    cty.UnknownVal(cty.Number),
 				"null_count":       cty.NullVal(cty.Number),
+				"services_with_unknown_element": cty.SetVal([]cty.Value{
+					cty.StringVal("web"),
+					cty.UnknownVal(cty.String),
+				}),
+				"services_with_null_element": cty.SetVal([]cty.Value{
+					cty.StringVal("web"),
+					cty.NullVal(cty.String),
+				}),
+				"numeric_keys_with_null_element": cty.SetVal([]cty.Value{
+					cty.NumberIntVal(1),
+					cty.NullVal(cty.Number),
+				}),
+				"service_map_with_null_value": cty.MapVal(map[string]cty.Value{
+					"web": cty.NullVal(cty.String),
+				}),
 			}),
 		},
 	}
