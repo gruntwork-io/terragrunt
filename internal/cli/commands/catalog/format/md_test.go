@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 )
 
 func TestMarkdownRendererEntry(t *testing.T) {
@@ -30,7 +31,7 @@ func TestMarkdownRendererEntry(t *testing.T) {
 			name: "module with full readme metadata",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindModule,
+					component.KindModule,
 					"github.com/acme/repo",
 					"modules/vpc",
 					vpcReadme,
@@ -63,7 +64,7 @@ Body text.
 			name: "unit without a readme has no description and no tags",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindUnit,
+					component.KindUnit,
 					"github.com/acme/repo",
 					"units/app",
 					"",
@@ -84,7 +85,7 @@ Body text.
 			name: "repository root component",
 			entry: tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindModule,
+					component.KindModule,
 					"github.com/acme/repo",
 					"",
 					rootReadme,
@@ -128,7 +129,7 @@ func TestMarkdownRendererEntryTables(t *testing.T) {
 
 	entry := tui.NewComponentEntry(
 		tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/acme/repo",
 			"modules/vpc",
 			vpcReadme,
@@ -194,7 +195,7 @@ name: VPC
 
 	entry := tui.NewComponentEntry(
 		tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/acme/repo",
 			"modules/vpc",
 			readme,
@@ -237,7 +238,7 @@ func TestMarkdownRendererKeepsDescriptionOutOfTheDocumentStructure(t *testing.T)
 
 			entry := tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindModule,
+					component.KindModule,
 					"github.com/acme/repo",
 					"modules/vpc",
 					"---\nname: VPC\ndescription: \""+tc.description+"\"\n---\n\nBody.\n",
@@ -308,7 +309,7 @@ inputs = {}
 
 			entry := tui.NewComponentEntry(
 				tui.NewComponentForTest(
-					tui.ComponentKindModule,
+					component.KindModule,
 					"github.com/acme/repo",
 					"modules/vpc",
 					"---\nname: VPC\n---\n\n"+tc.body,
@@ -331,7 +332,7 @@ func TestMarkdownRendererFencesNonMarkdownReadme(t *testing.T) {
 	t.Parallel()
 
 	component := tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/acme/repo",
 		"modules/vpc",
 		"",
@@ -380,7 +381,7 @@ inputs = {
 
 	entry := tui.NewComponentEntry(
 		tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/acme/repo",
 			"modules/vpc",
 			frontmatter+body,
@@ -429,7 +430,7 @@ func TestMarkdownRendererIndexEscapesPipes(t *testing.T) {
 
 	entry := tui.NewComponentEntry(
 		tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/acme/repo",
 			"modules/vpc",
 			`---
