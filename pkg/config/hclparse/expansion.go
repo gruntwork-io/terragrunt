@@ -24,6 +24,8 @@ const (
 	eachKeyAttrName    = "key"
 	eachValueAttrName  = "value"
 	countIndexAttrName = "index"
+
+	forEachElementLabel = forEachAttrName + " element"
 )
 
 // DefaultMaxInstances bounds how many instances a single block may expand into,
@@ -319,7 +321,8 @@ func expandForEach(
 	return instances, nil
 }
 
-// requireConcrete rejects meta-arg values that cannot be iterated or converted.
+// requireConcrete rejects expansion values that cannot be iterated, converted, or
+// stringified.
 func requireConcrete(value cty.Value, attr string, subject *hcl.Range) error {
 	if !value.IsKnown() {
 		return UnknownExpansionValueError{Attr: attr, Subject: subject}
@@ -334,6 +337,13 @@ func requireConcrete(value cty.Value, attr string, subject *hcl.Range) error {
 
 // expansionKey renders a for_each element key as the string used in addresses.
 func expansionKey(key cty.Value, subject *hcl.Range) (string, error) {
+	// A set's elements are its own keys, so an unknown or null element reaches here
+	// having satisfied the collection-level check in expandForEach. AsString and
+	// AsBigFloat panic on both.
+	if err := requireConcrete(key, forEachElementLabel, subject); err != nil {
+		return "", err
+	}
+
 	switch key.Type() {
 	case cty.String:
 		return key.AsString(), nil
