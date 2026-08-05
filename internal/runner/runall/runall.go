@@ -241,13 +241,7 @@ func RunAllOnStack(
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(
-			ctx,
-			l,
-			prompt,
-			opts.NonInteractive,
-			v.Writers.ErrWriter,
-		)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 		if err != nil {
 			return err
 		}

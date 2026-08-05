@@ -108,6 +108,49 @@ func FileExists(vfs FS, path string) (bool, error) {
 	return false, err
 }
 
+// IsDir reports whether path is a directory on the given filesystem,
+// following symlinks. A path that cannot be stat'd is not a directory.
+func IsDir(fsys FS, path string) bool {
+	info, err := fsys.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// CopyFile copies a file from source to destination on the given filesystem,
+// preserving the source's permissions.
+func CopyFile(fsys FS, source, destination string) error {
+	file, err := fsys.Open(source)
+	if err != nil {
+		return err
+	}
+
+	err = WriteFileWithSamePermissions(fsys, source, destination, file)
+
+	return errors.Join(err, file.Close())
+}
+
+// WriteFileWithSamePermissions writes contents to destination using the same
+// permissions as the file at source.
+func WriteFileWithSamePermissions(fsys FS, source, destination string, contents io.Reader) error {
+	fileInfo, err := fsys.Stat(source)
+	if err != nil {
+		return err
+	}
+
+	// CAS may place read-only files at the destination, which would block a plain open.
+	if err := fsys.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	file, err := fsys.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileInfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(file, contents)
+
+	return errors.Join(err, file.Close())
+}
+
 // Lstat returns the FileInfo for the named path without following symlinks.
 // Filesystems that do not implement afero.Lstater fall back to Stat.
 func Lstat(fsys FS, path string) (os.FileInfo, error) {

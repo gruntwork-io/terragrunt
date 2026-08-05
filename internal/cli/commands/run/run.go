@@ -302,13 +302,7 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(
-			ctx,
-			l,
-			prompt,
-			opts.NonInteractive,
-			v.Writers.ErrWriter,
-		)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 		if err != nil {
 			l.Error(err)
 			return false

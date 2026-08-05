@@ -88,13 +88,7 @@ func (client *Client) CreateGCSBucketIfNecessary(
 		bucketName,
 	)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}

@@ -38,10 +38,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -51,6 +53,10 @@ import (
 const (
 	renderJSONCommand = "render-json"
 	renderCommand     = "render"
+
+	// downloadDirPerms is the mode given to the download directory when the
+	// dependency-output flow has to create it.
+	downloadDirPerms = 0o700
 )
 
 type Dependencies []Dependency
@@ -1522,17 +1528,21 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Create working directory where we will run terraform in. We will create the temporary directory in the download
 	// directory for consistency with other file generation capabilities of terragrunt. Make sure it is cleaned up
 	// before the function returns.
-	if err := util.EnsureDirectory(pctx.DownloadDir); err != nil {
+	//
+	// The parent has to be created on the venv filesystem rather than the host:
+	// MkdirTemp below and CopyLockFile further down both work through it, and a
+	// memory-backed filesystem has no parent to place the temp dir in otherwise.
+	if err := pctx.Venv.FS.MkdirAll(pctx.DownloadDir, downloadDirPerms); err != nil {
 		return nil, err
 	}
 
-	tempWorkDir, err := os.MkdirTemp(pctx.DownloadDir, "")
+	tempWorkDir, err := vfs.MkdirTemp(pctx.Venv.FS, pctx.DownloadDir, "")
 	if err != nil {
 		return nil, err
 	}
 
 	defer func(path string) {
-		err := os.RemoveAll(path)
+		err := pctx.Venv.FS.RemoveAll(path)
 		if err != nil {
 			l.Warnf("Failed to remove %s: %v", path, err)
 		}
@@ -1600,8 +1610,9 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
-	if err := CopyLockFile(
+	if err := runcfg.CopyLockFile(
 		l,
+		pctx.Venv.FS,
 		pctx.RootWorkingDir,
 		pctx.LogShowAbsPaths,
 		terragruntDir,

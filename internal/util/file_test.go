@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	tglog "github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -161,7 +162,7 @@ func TestFileManifest(t *testing.T) {
 
 	// create a manifest
 	l := logger.CreateLogger()
-	manifest := util.NewFileManifest(dir, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), dir, testManifestName)
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
@@ -201,7 +202,7 @@ func TestFileManifestCleanRejectsOutOfRootEntry(t *testing.T) {
 
 	writeManifest(t, manifestPath, sentinel)
 
-	manifest := util.NewFileManifest(root, manifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, manifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	assert.FileExists(t, sentinel, "out-of-root manifest entry must be ignored")
@@ -219,7 +220,7 @@ func TestFileManifestCleanRemovesInRootEntry(t *testing.T) {
 	manifestName := testManifestName
 	writeManifest(t, filepath.Join(root, manifestName), staleFile)
 
-	manifest := util.NewFileManifest(root, manifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, manifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	assert.NoFileExists(t, staleFile, "in-root manifest entry must still be cleaned")
@@ -237,7 +238,7 @@ func TestFileManifestCleanRemovesRelativeInRootEntry(t *testing.T) {
 	manifestName := testManifestName
 	writeManifest(t, filepath.Join(root, manifestName), "stale.tf")
 
-	manifest := util.NewFileManifest(root, manifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, manifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	assert.NoFileExists(t, staleFile, "relative in-root manifest entry must still be cleaned")
@@ -255,7 +256,7 @@ func TestFileManifestCleanRejectsCreatedOutOfRootEntries(t *testing.T) {
 	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
 
 	root := helpers.TmpDirWOSymlinks(t)
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Create())
 	require.NoError(t, manifest.AddFile(sentinel))
 	require.NoError(t, manifest.Close())
@@ -283,7 +284,7 @@ func TestFileManifestCleanRejectsSymlinkEscapes(t *testing.T) {
 		t.Skipf("symlinks are not available: %v", err)
 	}
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Create())
 	require.NoError(t, manifest.AddFile(filepath.Join(root, "link", "sentinel.txt")))
 	require.NoError(t, manifest.Close())
@@ -319,7 +320,7 @@ func TestFileManifestCleanRejectsSymlinkedManifestRoot(t *testing.T) {
 		filepath.Join(rootLink, "sentinel.txt"),
 	)
 
-	manifest := util.NewFileManifest(rootLink, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), rootLink, testManifestName)
 	require.ErrorContains(t, manifest.Clean(l), "must not contain symlinks")
 
 	assert.FileExists(
@@ -350,7 +351,7 @@ func TestFileManifestCleanAllowsSymlinkedManifestRootAncestor(t *testing.T) {
 
 	writeManifest(t, filepath.Join(root, testManifestName), staleFile)
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	assert.NoFileExists(
@@ -368,7 +369,7 @@ func TestFileManifestCleanRejectsNonDirectoryManifestRoot(t *testing.T) {
 	rootFile := filepath.Join(helpers.TmpDirWOSymlinks(t), "manifest-root-file")
 	require.NoError(t, os.WriteFile(rootFile, []byte("not a directory"), 0o600))
 
-	manifest := util.NewFileManifest(rootFile, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), rootFile, testManifestName)
 	require.ErrorContains(t, manifest.Clean(l), "must be a directory")
 }
 
@@ -386,7 +387,7 @@ func TestFileManifestCleanRemovesManifestNamedDirectory(t *testing.T) {
 		os.WriteFile(filepath.Join(manifestDir, "trapped.tf"), []byte("trap"), 0o600),
 	)
 
-	manifest := util.NewFileManifest(root, manifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, manifestName)
 	require.NoError(t, manifest.Clean(l))
 	require.NoDirExists(t, manifestDir)
 }
@@ -406,7 +407,7 @@ func TestFileManifestCleanRemovesNestedManifestNamedDirectory(t *testing.T) {
 		os.WriteFile(filepath.Join(nestedManifestDir, "trapped.tf"), []byte("trap"), 0o600),
 	)
 
-	manifest := util.NewFileManifest(root, manifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, manifestName)
 	require.NoError(t, manifest.Create())
 	require.NoError(t, manifest.AddDirectory(nestedDir))
 	require.NoError(t, manifest.Close())
@@ -430,7 +431,7 @@ func TestFileManifestCleanBreaksDirectoryCycle(t *testing.T) {
 	writeDirectoryManifest(t, manifestPath, nestedDir)
 	writeDirectoryManifest(t, nestedManifestPath, nestedDir)
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	require.NoFileExists(t, manifestPath)
@@ -447,7 +448,7 @@ func TestFileManifestCleanRemovesInvalidManifest(t *testing.T) {
 	manifestPath := filepath.Join(root, testManifestName)
 	writeInvalidGobManifest(t, manifestPath)
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	require.NoFileExists(t, manifestPath)
@@ -468,7 +469,7 @@ func TestFileManifestCleanProcessesPartialManifest(t *testing.T) {
 
 	writePartialInvalidManifest(t, manifestPath, staleFile)
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	require.NoFileExists(t, staleFile)
@@ -495,7 +496,7 @@ func TestFileManifestCleanContinuesAfterEntryCleanupError(t *testing.T) {
 	writeManifestEntryList(t, manifestPath, manifestFile(lockedDir), manifestDir(nestedDir))
 	writeManifest(t, nestedManifestPath, nestedStaleFile)
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	require.DirExists(t, lockedDir)
@@ -523,7 +524,7 @@ func TestFileManifestCleanProcessesDecodedDirFromPartialManifest(t *testing.T) {
 	writePartialInvalidManifestEntryList(t, manifestPath, manifestDir(nestedDir))
 	writeManifest(t, nestedManifestPath, nestedStaleFile)
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	require.NoFileExists(t, nestedStaleFile)
@@ -548,7 +549,7 @@ func TestFileManifestCleanTreatsUnexpectedEOFAsEOF(t *testing.T) {
 		manifestFile(filepath.Join(root, "partial.tf")),
 	)
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	require.NoFileExists(t, staleFile)
@@ -573,7 +574,7 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 
 	writeManifestEntryList(t, manifestPath, entries...)
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "exceeded 100000 manifests")
@@ -593,6 +594,7 @@ func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
 	writeRepeatedManifestEntry(t, manifestPath, testMaxFileManifestEntries+1, manifestFile(""))
 
 	manifest := util.NewFileManifest(
+		vfs.NewOSFS(),
 		root,
 		testManifestName,
 		util.WithMaxManifestEntries(testMaxFileManifestEntries),
@@ -857,6 +859,7 @@ func runCopyFolderContentsCase(
 		t,
 		util.CopyFolderContents(
 			logger.CreateLogger(),
+			vfs.NewOSFS(),
 			source,
 			destination,
 			".terragrunt-test",
@@ -1027,6 +1030,7 @@ func TestFastCopyPreservesModeOfDirsHoldingIncludes(t *testing.T) {
 
 	require.NoError(t, util.CopyFolderContents(
 		logger.CreateLogger(),
+		vfs.NewOSFS(),
 		source,
 		destination,
 		testManifestName,
@@ -1166,7 +1170,7 @@ func TestMoveFile(t *testing.T) {
 	dst := filepath.Join(tempDir, "dst.txt")
 
 	require.NoError(t, os.WriteFile(src, []byte("test"), 0o644))
-	require.NoError(t, util.MoveFile(src, dst))
+	require.NoError(t, util.MoveFile(vfs.NewOSFS(), src, dst))
 
 	// Verify the file was moved
 	_, err := os.Stat(src)
@@ -1296,6 +1300,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 
 		err := util.CopyFolderContents(
 			l,
+			vfs.NewOSFS(),
 			source,
 			filepath.Join(source, "nested"),
 			".terragrunt-test",
@@ -1308,7 +1313,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 	t.Run("destination equals source", func(t *testing.T) {
 		t.Parallel()
 
-		err := util.CopyFolderContents(l, source, source, ".terragrunt-test")
+		err := util.CopyFolderContents(l, vfs.NewOSFS(), source, source, ".terragrunt-test")
 
 		var sameErr util.CopySourceEqualsDestinationError
 		require.ErrorAs(t, err, &sameErr)
@@ -1321,7 +1326,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 
 		t.Cleanup(func() { _ = os.RemoveAll(dest) })
 
-		require.NoError(t, util.CopyFolderContents(l, source, dest, ".terragrunt-test"))
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), source, dest, ".terragrunt-test"))
 	})
 
 	t.Run("destination sharing a prefix with source is allowed", func(t *testing.T) {
@@ -1331,7 +1336,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 
 		t.Cleanup(func() { _ = os.RemoveAll(dest) })
 
-		require.NoError(t, util.CopyFolderContents(l, source, dest, ".terragrunt-test"))
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), source, dest, ".terragrunt-test"))
 	})
 
 	// filepath.Rel can produce pure-`..` relative paths when destination
@@ -1345,7 +1350,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		require.NoError(t, os.MkdirAll(nestedSource, 0o700))
 
 		dest := filepath.Dir(nestedSource)
-		require.NoError(t, util.CopyFolderContents(l, nestedSource, dest, ".terragrunt-test"))
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), nestedSource, dest, ".terragrunt-test"))
 	})
 
 	t.Run("destination is grandparent of source is allowed", func(t *testing.T) {
@@ -1355,7 +1360,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		require.NoError(t, os.MkdirAll(nestedSource, 0o700))
 
 		dest := filepath.Dir(filepath.Dir(nestedSource))
-		require.NoError(t, util.CopyFolderContents(l, nestedSource, dest, ".terragrunt-test"))
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), nestedSource, dest, ".terragrunt-test"))
 	})
 
 	// Dest inside source is the typical Terragrunt source-copy shape:
@@ -1366,7 +1371,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		t.Parallel()
 
 		nested := filepath.Join(source, util.TerragruntCacheDir, "h1", "h2")
-		require.NoError(t, util.CopyFolderContents(l, source, nested, ".terragrunt-test"))
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), source, nested, ".terragrunt-test"))
 	})
 
 	// dest = source/<unit>/.terragrunt-cache/<h>/<h> is the integration
@@ -1380,7 +1385,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 			t.Parallel()
 
 			nested := filepath.Join(source, "live", "child", util.TerragruntCacheDir, "h1", "h2")
-			require.NoError(t, util.CopyFolderContents(l, source, nested, ".terragrunt-test"))
+			require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), source, nested, ".terragrunt-test"))
 		},
 	)
 
@@ -1392,7 +1397,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 			nested := filepath.Join(source, "live", "child", util.TerragruntCacheDir, "fast", "h2")
 			require.NoError(
 				t,
-				util.CopyFolderContents(l, source, nested, ".terragrunt-test", util.WithFastCopy()),
+				util.CopyFolderContents(l, vfs.NewOSFS(), source, nested, ".terragrunt-test", util.WithFastCopy()),
 			)
 		},
 	)
@@ -1406,6 +1411,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 
 		err := util.CopyFolderContents(
 			l,
+			vfs.NewOSFS(),
 			source,
 			filepath.Join(source, "fastnested"),
 			".terragrunt-test",
@@ -1424,7 +1430,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 			nested := filepath.Join(source, util.TerragruntCacheDir, "fast", "h2")
 			require.NoError(
 				t,
-				util.CopyFolderContents(l, source, nested, ".terragrunt-test", util.WithFastCopy()),
+				util.CopyFolderContents(l, vfs.NewOSFS(), source, nested, ".terragrunt-test", util.WithFastCopy()),
 			)
 		},
 	)
@@ -1441,6 +1447,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 
 			err := util.CopyFolderContents(
 				l,
+				vfs.NewOSFS(),
 				source,
 				filepath.Join(source, ".generated", "dest"),
 				".terragrunt-test",
@@ -1456,7 +1463,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 	t.Run("relative source is rejected", func(t *testing.T) {
 		t.Parallel()
 
-		err := util.CopyFolderContents(l, "relative/source", t.TempDir(), ".terragrunt-test")
+		err := util.CopyFolderContents(l, vfs.NewOSFS(), "relative/source", t.TempDir(), ".terragrunt-test")
 
 		var notAbsErr util.CopySourceNotAbsoluteError
 		require.ErrorAs(t, err, &notAbsErr)
@@ -1465,7 +1472,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 	t.Run("relative destination is rejected", func(t *testing.T) {
 		t.Parallel()
 
-		err := util.CopyFolderContents(l, t.TempDir(), "relative/destination", ".terragrunt-test")
+		err := util.CopyFolderContents(l, vfs.NewOSFS(), t.TempDir(), "relative/destination", ".terragrunt-test")
 
 		var notAbsErr util.CopyDestinationNotAbsoluteError
 		require.ErrorAs(t, err, &notAbsErr)
@@ -1533,7 +1540,7 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 	for b.Loop() {
 		require.NoError(
 			b,
-			util.CopyFolderContents(l, source, b.TempDir(), ".terragrunt-test", copyOpts...),
+			util.CopyFolderContents(l, vfs.NewOSFS(), source, b.TempDir(), ".terragrunt-test", copyOpts...),
 		)
 	}
 }

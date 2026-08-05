@@ -9,22 +9,25 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // RunWithExitCode executes the CLI and returns the process exit code; em and reporter must be non-nil.
 func (app *App) RunWithExitCode(
+	l log.Logger,
+	v *venv.Venv,
 	args []string,
 	em *tf.DetailedExitCodeMap,
 	reporter *panicreport.Reporter,
 ) int {
-	ctx := log.ContextWithLogger(context.Background(), app.l)
+	ctx := log.ContextWithLogger(context.Background(), l)
 	ctx = tf.ContextWithDetailedExitCode(ctx, em)
 
-	err := app.RunContext(ctx, args)
+	err := app.RunContext(ctx, l, v, args)
 	detailed := app.opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode)
 
-	return ExitCodeFor(app.l, args, app.Version, err, em.Final(detailed), reporter)
+	return ExitCodeFor(l, args, app.Version, err, em.Final(detailed), reporter)
 }
 
 // ExitCodeFor maps a CLI run result to a process exit code; reporter must be non-nil.

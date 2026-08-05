@@ -887,6 +887,7 @@ func fetchViaCAS(
 	// to its own temp dir, so failures before this point never touch dest.
 	if copyErr := util.CopyFolderContentsWithFilter(
 		l,
+		v.FS,
 		result.ContentDir,
 		dest,
 		manifestName,
@@ -894,7 +895,7 @@ func fetchViaCAS(
 			return true
 		},
 	); copyErr != nil {
-		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil &&
+		if cleanupErr := v.FS.RemoveAll(dest); cleanupErr != nil &&
 			!errors.Is(cleanupErr, os.ErrNotExist) {
 			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
 		}
@@ -979,6 +980,7 @@ func copyFiles(
 
 	if err := util.CopyFolderContentsWithFilter(
 		l,
+		v.FS,
 		localSrc,
 		cp.dest,
 		manifestName,

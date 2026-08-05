@@ -154,10 +154,10 @@ func GrepFilesWithSuffix(fsys vfs.FS, regex *regexp.Regexp, rootDir, suffix stri
 }
 
 // FindTFFiles walks through the directory and returns all OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
-func FindTFFiles(rootPath string) ([]string, error) {
+func FindTFFiles(fsys vfs.FS, rootPath string) ([]string, error) {
 	var terraformFiles []string
 
-	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDir(fsys, rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -213,10 +213,10 @@ func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error
 
 // DirContainsTFFiles checks if the given directory contains any
 // Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
-func DirContainsTFFiles(dirPath string) (bool, error) {
+func DirContainsTFFiles(fsys vfs.FS, dirPath string) (bool, error) {
 	var found bool
 
-	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDir(fsys, dirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -383,6 +383,7 @@ func WithFastCopy() CopyOption {
 // [WithIncludeInCopy], [WithExcludeFromCopy], and [WithFastCopy].
 func CopyFolderContents(
 	l log.Logger,
+	fsys vfs.FS,
 	source, destination, manifestFile string,
 	opts ...CopyOption,
 ) error {
@@ -412,6 +413,7 @@ func CopyFolderContents(
 
 		return copyFolderContentsFast(
 			l,
+			fsys,
 			source,
 			destination,
 			manifestFile,
@@ -425,7 +427,7 @@ func CopyFolderContents(
 		return err
 	}
 
-	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
+	return CopyFolderContentsWithFilter(l, fsys, source, destination, manifestFile, filter)
 }
 
 // CopyFilter reports whether a copy configured with the same [CopyOption]
@@ -593,6 +595,7 @@ func fastCopyIncludesEntry(
 // [vfs.WalkDirParallel].
 func copyFolderContentsFast(
 	l log.Logger,
+	fsys vfs.FS,
 	source,
 	destination,
 	manifestFile string,
@@ -610,11 +613,11 @@ func copyFolderContentsFast(
 	}
 
 	const ownerReadWriteExecutePerms = 0o700
-	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
+	if err := fsys.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return err
 	}
 
-	manifest := NewFileManifest(destination, manifestFile)
+	manifest := NewFileManifest(fsys, destination, manifestFile)
 	if err := manifest.Clean(l); err != nil {
 		return err
 	}
@@ -662,7 +665,7 @@ func copyFolderContentsFast(
 		// the walkFn treats a directory symlink as a directory and
 		// matches the legacy copy semantics.
 		if !isDir && d.Type()&fs.ModeSymlink != 0 {
-			targetInfo, err := os.Stat(absolutePath)
+			targetInfo, err := fsys.Stat(absolutePath)
 			if err != nil {
 				return err
 			}
@@ -695,7 +698,7 @@ func copyFolderContentsFast(
 			// still be descended into even when TerragruntExcludes
 			// would reject it.
 			if isDir && include.isAncestor(rel) {
-				info, err := os.Stat(absolutePath)
+				info, err := fsys.Stat(absolutePath)
 				if err != nil {
 					return err
 				}
@@ -725,11 +728,11 @@ func copyFolderContentsFast(
 			// A sibling file-copy worker may have created `dest`
 			// already with default perms. Chmod forces the source's
 			// mode.
-			if err := os.MkdirAll(dest, info.Mode().Perm()); err != nil {
+			if err := fsys.MkdirAll(dest, info.Mode().Perm()); err != nil {
 				return err
 			}
 
-			if err := os.Chmod(dest, info.Mode().Perm()); err != nil {
+			if err := fsys.Chmod(dest, info.Mode().Perm()); err != nil {
 				return err
 			}
 
@@ -737,11 +740,11 @@ func copyFolderContentsFast(
 		}
 
 		parentDir := filepath.Dir(dest)
-		if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
+		if err := fsys.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 			return err
 		}
 
-		if err := CopyFile(absolutePath, dest); err != nil {
+		if err := vfs.CopyFile(fsys, absolutePath, dest); err != nil {
 			return err
 		}
 
@@ -752,7 +755,7 @@ func copyFolderContentsFast(
 	}
 
 	if err := vfs.WalkDirParallel(
-		vfs.NewOSFS(),
+		fsys,
 		source,
 		walkFn,
 		vfs.WithFollowSymlinks(),
@@ -760,20 +763,20 @@ func copyFolderContentsFast(
 		return err
 	}
 
-	return applyDirModes(destination, ancestorModes)
+	return applyDirModes(fsys, destination, ancestorModes)
 }
 
 // applyDirModes sets the mode of each source-relative directory in modes,
 // skipping those that never made it into destination. Deeper directories
 // are handled first, so a mode that drops traversal on a parent cannot
 // lock out the children still waiting for theirs.
-func applyDirModes(destination string, modes map[string]fs.FileMode) error {
+func applyDirModes(fsys vfs.FS, destination string, modes map[string]fs.FileMode) error {
 	rels := slices.SortedFunc(maps.Keys(modes), func(a, b string) int {
 		return strings.Count(b, "/") - strings.Count(a, "/")
 	})
 
 	for _, rel := range rels {
-		err := os.Chmod(filepath.Join(destination, rel), modes[rel])
+		err := fsys.Chmod(filepath.Join(destination, rel), modes[rel])
 
 		// Nothing under the directory was copied, so it does not exist.
 		if errors.Is(err, fs.ErrNotExist) {
@@ -918,6 +921,7 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
 func CopyFolderContentsWithFilter(
 	l log.Logger,
+	fsys vfs.FS,
 	source, destination, manifestFile string,
 	filter func(absolutePath string) bool,
 ) error {
@@ -926,11 +930,11 @@ func CopyFolderContentsWithFilter(
 	}
 
 	const ownerReadWriteExecutePerms = 0o700
-	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
+	if err := fsys.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return err
 	}
 
-	manifest := NewFileManifest(destination, manifestFile)
+	manifest := NewFileManifest(fsys, destination, manifestFile)
 	if err := manifest.Clean(l); err != nil {
 		return err
 	}
@@ -946,38 +950,36 @@ func CopyFolderContentsWithFilter(
 		}
 	}(manifest)
 
-	// Why use filepath.Glob here? The original implementation used os.ReadDir, but that method calls lstat on all
-	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
-	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
-	files, err := filepath.Glob(source + "/*")
+	// Read the directory a level at a time rather than walking it. filepath.Walk
+	// ignores symlinks, and a full walk would lstat entries this copy is going to
+	// skip anyway.
+	entries, err := vfs.ReadDirEntries(fsys, source)
 	if err != nil {
 		return err
 	}
 
-	for _, file := range files {
-		fileRelativePath, err := filepath.Rel(source, file)
-		if err != nil {
-			return fmt.Errorf("relativize %q against source %q: %w", file, source, err)
-		}
+	for _, entry := range entries {
+		file := filepath.Join(source, entry.Name())
 
 		if !filter(file) {
 			continue
 		}
 
-		dest := filepath.Join(destination, fileRelativePath)
+		dest := filepath.Join(destination, entry.Name())
 
-		if IsDir(file) {
-			info, err := os.Lstat(file)
+		if vfs.IsDir(fsys, file) {
+			info, err := vfs.Lstat(fsys, file)
 			if err != nil {
 				return err
 			}
 
-			if err := os.MkdirAll(dest, info.Mode()); err != nil {
+			if err := fsys.MkdirAll(dest, info.Mode()); err != nil {
 				return err
 			}
 
 			if err := CopyFolderContentsWithFilter(
 				l,
+				fsys,
 				file,
 				dest,
 				manifestFile,
@@ -993,11 +995,11 @@ func CopyFolderContentsWithFilter(
 			parentDir := filepath.Dir(dest)
 
 			const ownerReadWriteExecutePerms = 0o700
-			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
+			if err := fsys.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 				return err
 			}
 
-			if err := CopyFile(file, dest); err != nil {
+			if err := vfs.CopyFile(fsys, file, dest); err != nil {
 				return err
 			}
 
@@ -1014,17 +1016,19 @@ func CopyFolderContentsWithFilter(
 // contents of the source folder into it using the provided filter, and returns
 // the path to the temp directory.
 func CopyFolderToTemp(
+	fsys vfs.FS,
 	source string,
 	tempPrefix string,
 	filter func(path string) bool,
 ) (string, error) {
-	dest, err := os.MkdirTemp("", tempPrefix)
+	dest, err := vfs.MkdirTemp(fsys, "", tempPrefix)
 	if err != nil {
 		return "", err
 	}
 
 	if err := CopyFolderContentsWithFilter(
 		log.New(),
+		fsys,
 		source,
 		dest,
 		".copymanifest",
@@ -1161,41 +1165,6 @@ func TerragruntExcludes(path string) bool {
 	return false
 }
 
-// CopyFile copies a file from source to destination.
-func CopyFile(source string, destination string) error {
-	file, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-
-	err = WriteFileWithSamePermissions(source, destination, file)
-
-	return errors.Join(err, file.Close())
-}
-
-// WriteFileWithSamePermissions writes a file to the given destination with the given contents
-// using the same permissions as the file at source.
-func WriteFileWithSamePermissions(source string, destination string, contents io.Reader) error {
-	fileInfo, err := os.Stat(source)
-	if err != nil {
-		return err
-	}
-
-	// CAS may place read-only files at the destination, which would block a plain open.
-	if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-
-	file, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileInfo.Mode())
-	if err != nil {
-		return err
-	}
-
-	_, err = io.Copy(file, contents)
-
-	return errors.Join(err, file.Close())
-}
-
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
 // E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
@@ -1261,7 +1230,8 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // subsequent runs.
 type fileManifest struct {
 	encoder        *gob.Encoder
-	fileHandle     *os.File
+	fsys           vfs.FS
+	fileHandle     vfs.File
 	ManifestFolder string
 	ManifestFile   string
 	maxEntries     int
@@ -1289,7 +1259,7 @@ const (
 func (manifest *fileManifest) Clean(l log.Logger) error {
 	rootDir := filepath.Clean(manifest.ManifestFolder)
 
-	rootExists, err := manifestRootExistsWithoutSymlinks(vfs.NewOSFS(), rootDir)
+	rootExists, err := manifestRootExistsWithoutSymlinks(manifest.fsys, rootDir)
 	if err != nil {
 		return err
 	}
@@ -1303,7 +1273,7 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 		return fmt.Errorf("manifest path %q must stay inside %q", manifest.ManifestFile, rootDir)
 	}
 
-	return manifest.clean(l, vfs.NewOSFS(), rootDir, manifestRelPath)
+	return manifest.clean(l, manifest.fsys, rootDir, manifestRelPath)
 }
 
 // clean reads manifests and removes their entries using root-confined vfs operations.
@@ -1644,7 +1614,7 @@ func isFileManifestDecodeDone(err error) bool {
 func (manifest *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0o644
 
-	fileHandle, err := os.OpenFile(
+	fileHandle, err := manifest.fsys.OpenFile(
 		filepath.Join(manifest.ManifestFolder, manifest.ManifestFile),
 		os.O_CREATE|os.O_WRONLY|os.O_TRUNC,
 		ownerWriteGlobalReadPerms,
@@ -1688,11 +1658,13 @@ func WithMaxManifestEntries(maxEntries int) FileManifestOption {
 }
 
 func NewFileManifest(
+	fsys vfs.FS,
 	manifestFolder string,
 	manifestFile string,
 	opts ...FileManifestOption,
 ) *fileManifest {
 	manifest := &fileManifest{
+		fsys:           fsys,
 		ManifestFolder: manifestFolder,
 		ManifestFile:   manifestFile,
 		maxEntries:     maxFileManifestEntries,
@@ -2032,15 +2004,15 @@ func ResolvePath(path string) string {
 // MoveFile attempts to rename a file from source to destination, if this fails
 // due to invalid cross-device link it falls back to copying the file contents
 // and deleting the original file.
-func MoveFile(source string, destination string) error {
-	if renameErr := os.Rename(source, destination); renameErr != nil {
+func MoveFile(fsys vfs.FS, source string, destination string) error {
+	if renameErr := fsys.Rename(source, destination); renameErr != nil {
 		var sysErr syscall.Errno
 		if errors.As(renameErr, &sysErr) && sysErr == syscall.EXDEV {
-			if moveErr := CopyFile(source, destination); moveErr != nil {
+			if moveErr := vfs.CopyFile(fsys, source, destination); moveErr != nil {
 				return moveErr
 			}
 
-			return os.Remove(source)
+			return fsys.Remove(source)
 		}
 
 		return renameErr

@@ -49,5 +49,6 @@ func run() (code int) {
 		return 1
 	}
 
-	return cli.NewApp(l, opts, v).RunWithExitCode(os.Args, tf.NewDetailedExitCodeMap(), reporter)
+	return cli.NewApp(l, opts, v).
+		RunWithExitCode(l, v, os.Args, tf.NewDetailedExitCodeMap(), reporter)
 }
