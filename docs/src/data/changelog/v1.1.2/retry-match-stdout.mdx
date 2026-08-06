@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### `retryable_errors` now match diagnostics emitted on stdout
+
+The `errors` block's retry and ignore matching only inspected a failed command's stderr and the underlying error, so `retryable_errors` never matched diagnostics that OpenTofu/Terraform wrote to stdout. This most affected remote/cloud-backend runs (the `cloud {}` block), where the remote run's log — including messages such as `Error: Failed to install provider ...` from a transient registry or TLS failure — is streamed to the local process's stdout while the local error is only `exit status 1`. Such transient failures were never retried, regardless of the configured pattern.
+
+Matching now also considers stdout, consistent with hook matching and error reporting. The command string and its flags remain excluded, so flag names such as `-lock-timeout` still do not cause false matches.
