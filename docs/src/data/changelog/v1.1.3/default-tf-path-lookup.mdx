@@ -1,0 +1,10 @@
+---
+version: "v1.1.3"
+category: "performance-improvements"
+---
+
+#### Faster startup when `--tf-path` is not set
+
+When you don't set [`--tf-path`](/reference/cli/commands/run#tf-path), Terragrunt picks the binary it wraps by looking for `tofu` on your `PATH` and falling back to `terraform` when it isn't there. Terragrunt used to make that choice by running `tofu -version`, which meant launching a process at the start of every command, including commands like `find` and `list` that never run the binary. That process launch is gone, and a `terragrunt --version` benchmark runs roughly 1.7x faster as a result.
+
+This changes what happens when `tofu` is on your `PATH` but can't run: Terragrunt now selects it and reports the failure rather than silently falling back to `terraform`. Set `--tf-path` or `TG_TF_PATH` to pick the binary yourself.
