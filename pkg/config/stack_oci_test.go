@@ -59,8 +59,7 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) 
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
 
-	_, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
-	pctx.Venv = v
+	_, pctx := config.NewParsingContext(t.Context(), l, v, config.WithStrictControls(controls.New()))
 	pctx.TerragruntStackConfigPath = stackPath
 	pctx.RootWorkingDir = filepath.Dir(stackPath)
 	pctx.WorkingDir = filepath.Dir(stackPath)

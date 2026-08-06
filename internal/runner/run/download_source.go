@@ -172,6 +172,11 @@ func DownloadTerraformSource(
 // (git, hg, smb) or writes through os, so on a virtual filesystem it would
 // silently touch the real disk.
 //
+// A cas:: source belongs with the rejected ones rather than alongside tfr and
+// oci: the store it reads and writes is a real git repository on disk, which
+// is why [github.com/gruntwork-io/terragrunt/internal/cas] refuses a non-OS
+// filesystem itself.
+//
 // It panics with [ErrNilSource] on a nil source, so the contract fails where
 // it is broken rather than at whichever field is read first.
 func requireOSFilesystemForSource(fsys vfs.FS, src *tf.Source) error {

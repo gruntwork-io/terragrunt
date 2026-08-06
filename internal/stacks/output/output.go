@@ -133,8 +133,7 @@ func StackOutput(
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
 
-		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-		pctx = pctx.WithVenv(v)
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {

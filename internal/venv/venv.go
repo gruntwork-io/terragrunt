@@ -96,7 +96,10 @@ type Venv struct {
 	Writers  *writer.Writers
 }
 
-// WithReader returns a copy of v that reads console input from r.
+// WithReader returns a copy of v that reads console input from r, buffered so
+// that every consumer shares one position in the stream. A consumer that wraps
+// its own buffer around [Venv.Reader] strands whatever that buffer read past
+// the bytes it needed.
 func (v *Venv) WithReader(r io.Reader) *Venv {
 	c := *v
 	c.Reader = bufio.NewReader(r)
@@ -278,7 +281,7 @@ func (v *Venv) RequireUserHomeDir() {
 // OS streams.
 //
 // It returns a *[Venv] so the bundle is threaded by pointer through every
-// downstream call — small parameter, no copying. Shallow-copying a
+// downstream call: small parameter, no copying. Shallow-copying a
 // pointed-to [Venv] (via `local := *v`) still shares the Env map with the
 // original, so callers must go through [Venv.WithEnvCloned] before mutating
 // environment variables; writer swaps stay independent because

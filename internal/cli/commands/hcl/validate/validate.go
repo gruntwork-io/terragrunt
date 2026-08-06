@@ -161,8 +161,7 @@ func RunValidate(
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 
-			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser = parser.WithVenv(componentV)
+			ctx, parser := configbridge.NewParsingContext(ctx, l, componentV, parseOpts)
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -213,8 +212,7 @@ func RunValidate(
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx = pctx.WithVenv(componentV)
+		_, pctx := configbridge.NewParsingContext(ctx, l, componentV, parseOpts)
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
