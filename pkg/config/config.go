@@ -1818,13 +1818,15 @@ func decodeAsTerragruntConfigFile(
 
 		ok := errors.As(err, &diagErr)
 
-		// in case of render-json command and inputs reference error, we update the inputs with default value
-		if (!ok || !isRenderJSONCommand(pctx) || !isAttributeAccessError(diagErr)) &&
-			(!ok || !isRenderCommand(pctx) || !isAttributeAccessError(diagErr)) {
+		// Suppress attribute access errors when a sibling autoinclude will merge on top, or during render-json/render commands; the autoinclude merge replaces the affected inputs.
+		canSuppress := ok && isAttributeAccessError(diagErr) &&
+			(isRenderJSONCommand(pctx) || isRenderCommand(pctx) || hasSiblingAutoInclude(pctx))
+
+		if !canSuppress {
 			return &terragruntConfig, err
 		}
 
-		l.Warnf("Failed to decode inputs %v", diagErr)
+		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
 	if terragruntConfig.Inputs != nil {
@@ -2591,6 +2593,11 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 	}
 
 	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
+}
+
+// hasSiblingAutoInclude reports whether a sibling autoinclude is registered for this parse.
+func hasSiblingAutoInclude(pctx *ParsingContext) bool {
+	return pctx.TrackInclude != nil && pctx.TrackInclude.AutoIncludeOverride != nil
 }
 
 // mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.

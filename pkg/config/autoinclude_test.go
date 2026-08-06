@@ -1362,3 +1362,44 @@ unit "app" {
 	require.ErrorAs(t, err, &localsErr)
 	assert.Equal(t, "app", localsErr.Component)
 }
+
+// Autoinclude inputs that override a unit input referencing a values.* key not present in the values file must not fail.
+func TestMergeAutoInclude_ValuesPlaceholderForOverriddenInputs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// Unit references values.vpc_id (not in values file) and values.cidr (in values file).
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+inputs = {
+  vpc_id = values.vpc_id
+  cidr   = values.cidr
+}
+`), 0644))
+
+	// Values file defines only cidr, not vpc_id.
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.values.hcl"), []byte(`
+cidr = "10.0.0.0/16"
+`), 0644))
+
+	// Autoinclude overrides vpc_id with a literal (in real usage this would be dependency.*.outputs.*).
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+inputs = {
+  vpc_id = "from-autoinclude"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err, "parsing must not fail on values.vpc_id when autoinclude overrides vpc_id")
+	require.NotNil(t, parsed)
+
+	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"], "autoinclude must win for vpc_id")
+	assert.Equal(t, "10.0.0.0/16", parsed.Inputs["cidr"], "original values.cidr must survive")
+}
