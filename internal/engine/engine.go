@@ -388,7 +388,7 @@ func downloadEngine(
 		// Create download client and download assets
 		downloadClient := github.NewGitHubReleasesDownloadClient(github.WithLogger(l))
 
-		result, err := downloadClient.DownloadReleaseAssets(ctx, assets)
+		result, err := downloadClient.DownloadReleaseAssets(ctx, v, assets)
 		if err != nil {
 			return fmt.Errorf("failed to download engine assets: %w", err)
 		}

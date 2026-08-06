@@ -106,6 +106,7 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 		g.Venv.RequireExec()
 
 		g.fetchers = DefaultGenericFetchers(
+			g.Venv,
 			slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
 		g.resolvers = DefaultSourceResolvers(c, g.Venv.Exec, opts...)
 	}
@@ -561,8 +562,10 @@ func pinnedOCIURL(rawURL, digestValue string) string {
 // default protocol set is available for [RegistryGetter]'s delegated
 // archive download. Every other scheme uses a single-getter client.
 func defaultInnerClientBuilder(bare getter.Getter, scheme string) *getter.Client {
-	if scheme == SchemeTFR {
-		return NewClient(WithCustomGettersPrepended(bare))
+	// The bare tfr getter carries the venv its delegated archive download
+	// needs; the fallback client builds s3 and gcs getters that require one.
+	if tfr, ok := bare.(*RegistryGetter); ok && scheme == SchemeTFR {
+		return NewClient(tfr.Venv, WithCustomGettersPrepended(bare))
 	}
 
 	return &getter.Client{Getters: []getter.Getter{bare}}

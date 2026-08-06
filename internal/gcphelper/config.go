@@ -40,18 +40,11 @@ type GCPSessionConfig struct {
 // GCPConfigBuilder constructs GCP client options using the builder pattern.
 type GCPConfigBuilder struct {
 	sessionConfig *GCPSessionConfig
-	venv          *venv.Venv
 }
 
-// NewGCPConfigBuilder creates a new GCPConfigBuilder whose GCS requests, and
-// the OAuth token exchanges behind them, ride v's HTTP client. Credentials
-// resolve against v's environment and filesystem.
-func NewGCPConfigBuilder(v *venv.Venv) *GCPConfigBuilder {
-	v.RequireEnv()
-	v.RequireFS()
-	v.RequireHTTP()
-
-	return &GCPConfigBuilder{venv: v}
+// NewGCPConfigBuilder creates a new GCPConfigBuilder.
+func NewGCPConfigBuilder() *GCPConfigBuilder {
+	return &GCPConfigBuilder{}
 }
 
 // WithSessionConfig sets the GCP session configuration.
@@ -61,10 +54,17 @@ func (b *GCPConfigBuilder) WithSessionConfig(config *GCPSessionConfig) *GCPConfi
 }
 
 // BuildGCSClient builds a GCS storage client from the configured options.
-func (b *GCPConfigBuilder) BuildGCSClient(ctx context.Context) (*storage.Client, error) {
-	ctx = b.withOAuthClient(ctx)
+func (b *GCPConfigBuilder) BuildGCSClient(
+	ctx context.Context,
+	v *venv.Venv,
+) (*storage.Client, error) {
+	v.RequireEnv()
+	v.RequireFS()
+	v.RequireHTTP()
 
-	clientOpts, err := b.Build(ctx)
+	ctx = withOAuthClient(ctx, v)
+
+	clientOpts, err := b.Build(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (b *GCPConfigBuilder) BuildGCSClient(ctx context.Context) (*storage.Client,
 	// Auth is layered over the venv's transport rather than the venv client
 	// being passed straight to storage.NewClient: a bare client carries no
 	// credentials, so every request would go out unauthenticated.
-	trans, err := htransport.NewTransport(ctx, b.venv.HTTP.Transport, clientOpts...)
+	trans, err := htransport.NewTransport(ctx, v.HTTP.Transport, clientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error building GCS transport: %w", err)
 	}
@@ -89,21 +89,24 @@ func (b *GCPConfigBuilder) BuildGCSClient(ctx context.Context) (*storage.Client,
 	return gcsClient, nil
 }
 
-// withOAuthClient points the oauth2 library at c. oauth2 mints tokens through
-// http.DefaultClient otherwise, independently of the transport the API client
-// is built on.
-func (b *GCPConfigBuilder) withOAuthClient(ctx context.Context) context.Context {
-	return context.WithValue(ctx, oauth2.HTTPClient, b.venv.HTTP)
+// withOAuthClient points the oauth2 library at v's client. oauth2 mints tokens
+// through http.DefaultClient otherwise, independently of the transport the API
+// client is built on.
+func withOAuthClient(ctx context.Context, v *venv.Venv) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, v.HTTP)
 }
 
 // Build returns GCP client options from the configured session config and env.
-func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, error) {
+func (b *GCPConfigBuilder) Build(
+	ctx context.Context,
+	v *venv.Venv,
+) ([]option.ClientOption, error) {
 	gcpCfg := b.sessionConfig
-	env := b.venv.Env
+	env := v.Env
 
 	var clientOpts []option.ClientOption
 
-	envCreds, err := createGCPCredentialsFromEnv(b.venv.FS, env)
+	envCreds, err := createGCPCredentialsFromEnv(v.FS, env)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +115,7 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
-		credOpt, err := credentialsFileOption(b.venv.FS, gcpCfg.Credentials)
+		credOpt, err := credentialsFileOption(v.FS, gcpCfg.Credentials)
 		if err != nil {
 			return nil, err
 		}
@@ -165,21 +168,21 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 // createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in env
 // It looks for GOOGLE_APPLICATION_CREDENTIALS and returns a ClientOption that can be used
 // with Google Cloud clients. Returns nil if the environment variable is not set.
-func createGCPCredentialsFromEnv(fs vfs.FS, env map[string]string) (option.ClientOption, error) {
+func createGCPCredentialsFromEnv(fsys vfs.FS, env map[string]string) (option.ClientOption, error) {
 	credentialsFile := env["GOOGLE_APPLICATION_CREDENTIALS"]
 	if credentialsFile == "" {
 		return nil, nil
 	}
 
-	return credentialsFileOption(fs, credentialsFile)
+	return credentialsFileOption(fsys, credentialsFile)
 }
 
 // credentialsFileOption reads a GCP credentials JSON file, detects its type,
 // and returns the appropriate ClientOption. The parsed bytes are handed to the
-// SDK rather than the path, so the file is read once, through fs, instead of
+// SDK rather than the path, so the file is read once, through fsys, instead of
 // the SDK opening it again off the real disk.
-func credentialsFileOption(fs vfs.FS, filename string) (option.ClientOption, error) {
-	data, err := vfs.ReadFile(fs, filename)
+func credentialsFileOption(fsys vfs.FS, filename string) (option.ClientOption, error) {
+	data, err := vfs.ReadFile(fsys, filename)
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials file %s: %w", filename, err)
 	}

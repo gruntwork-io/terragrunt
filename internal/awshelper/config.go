@@ -2,6 +2,7 @@
 package awshelper
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strconv"
@@ -27,6 +28,10 @@ import (
 const (
 	// Minimum ARN parts required for a valid ARN
 	minARNParts = 2
+
+	// defaultAWSRegion is used when neither the session config nor the
+	// environment names one.
+	defaultAWSRegion = "us-east-1"
 )
 
 // AwsSessionConfig is a representation of the configuration options for an AWS Config
@@ -45,14 +50,14 @@ type AwsSessionConfig struct {
 }
 
 type tokenFetcher struct {
-	fs    vfs.FS
+	fsys  vfs.FS
 	token string
 }
 
 // FetchToken implements the token fetcher interface.
 // Supports providing a token value or the path to a token on disk
 func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
-	exists, err := vfs.FileExists(f.fs, f.token)
+	exists, err := vfs.FileExists(f.fsys, f.token)
 	if err != nil {
 		return nil, fmt.Errorf("checking web identity token path %s: %w", f.token, err)
 	}
@@ -62,26 +67,19 @@ func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
 		return []byte(f.token), nil
 	}
 
-	return vfs.ReadFile(f.fs, f.token)
+	return vfs.ReadFile(f.fsys, f.token)
 }
 
 // AWSConfigBuilder builds an AWS config using the builder pattern.
 // Use NewAwsConfigBuilder to create, chain With* methods for optional parameters, then call Build().
 type AWSConfigBuilder struct {
 	sessionConfig *AwsSessionConfig
-	venv          *venv.Venv
 	iamRoleOpts   iam.RoleOptions
 }
 
-// NewAWSConfigBuilder creates a new builder for AWS config. Every AWS call
-// made through the resulting config rides v's HTTP client, and credentials
-// resolve against v's environment.
-func NewAWSConfigBuilder(v *venv.Venv) *AWSConfigBuilder {
-	v.RequireEnv()
-	v.RequireFS()
-	v.RequireHTTP()
-
-	return &AWSConfigBuilder{venv: v}
+// NewAWSConfigBuilder creates a new builder for AWS config.
+func NewAWSConfigBuilder() *AWSConfigBuilder {
+	return &AWSConfigBuilder{}
 }
 
 // WithSessionConfig sets the AWS session configuration (region, profile, credentials file, etc.).
@@ -97,16 +95,24 @@ func (b *AWSConfigBuilder) WithIAMRoleOptions(opts iam.RoleOptions) *AWSConfigBu
 }
 
 // Build creates the AWS config from the builder's configuration.
-func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config, error) {
+func (b *AWSConfigBuilder) Build(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+) (aws.Config, error) {
+	v.RequireEnv()
+	v.RequireFS()
+	v.RequireHTTP()
+
 	var configOptions []func(*config.LoadOptions) error
 
 	configOptions = append(
 		configOptions,
 		config.WithAppID("terragrunt/"+version.GetVersion()),
-		config.WithHTTPClient(b.venv.HTTP),
+		config.WithHTTPClient(v.HTTP),
 	)
 
-	envCreds := createCredentialsFromEnv(b.venv.Env)
+	envCreds := createCredentialsFromEnv(v.Env)
 
 	if envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
@@ -121,16 +127,12 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 
 	// Prioritize configured region over environment variables
 	// This fixes the issue where AWS_REGION/AWS_DEFAULT_REGION env vars override the backend config region
-	var region string
-	if b.sessionConfig != nil && b.sessionConfig.Region != "" {
-		region = b.sessionConfig.Region
-	} else {
-		region = getRegionFromEnv(b.venv.Env)
+	var configured string
+	if b.sessionConfig != nil {
+		configured = b.sessionConfig.Region
 	}
 
-	if region == "" {
-		region = "us-east-1"
-	}
+	region := cmp.Or(configured, getRegionFromEnv(v.Env), defaultAWSRegion)
 
 	configOptions = append(configOptions, config.WithRegion(region))
 
@@ -164,9 +166,9 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 	if mergedIAMRoleOptions.WebIdentityToken != "" {
 		l.Debugf("Assuming role %s using WebIdentity token", mergedIAMRoleOptions.RoleARN)
 		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(
+			v.FS,
 			cfg,
 			mergedIAMRoleOptions,
-			b.venv.FS,
 		)
 
 		return cfg, nil
@@ -184,8 +186,12 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 
 // BuildS3Client creates an S3 client from the builder's configuration.
 // The session config (set via WithSessionConfig) provides S3-specific options like custom endpoint and path style.
-func (b *AWSConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3.Client, error) {
-	cfg, err := b.Build(ctx, l)
+func (b *AWSConfigBuilder) BuildS3Client(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+) (*s3.Client, error) {
+	cfg, err := b.Build(ctx, l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -213,11 +219,7 @@ func (b *AWSConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3
 
 // getRegionFromEnv extracts region from environment variables.
 func getRegionFromEnv(env map[string]string) string {
-	if region := env["AWS_REGION"]; region != "" {
-		return region
-	}
-
-	return env["AWS_DEFAULT_REGION"]
+	return cmp.Or(env["AWS_REGION"], env["AWS_DEFAULT_REGION"])
 }
 
 // getMergedIAMRoleOptions merges IAM role options from awsCfg and the provided IAM role options.
@@ -251,18 +253,15 @@ func getExternalID(awsCfg *AwsSessionConfig) string {
 // AssumeIamRole assumes an IAM role and returns the credentials.
 func AssumeIamRole(
 	ctx context.Context,
+	v *venv.Venv,
 	iamRoleOpts iam.RoleOptions,
 	externalID string,
-	v *venv.Venv,
 ) (*types.Credentials, error) {
 	v.RequireEnv()
 	v.RequireFS()
 	v.RequireHTTP()
 
-	region := getRegionFromEnv(v.Env)
-	if region == "" {
-		region = "us-east-1"
-	}
+	region := cmp.Or(getRegionFromEnv(v.Env), defaultAWSRegion)
 
 	// Set user agent to include terragrunt version
 	//nolint:forbidigo // This is the wrapper the rule points callers at; WithHTTPClient below carries the venv's client.
@@ -290,7 +289,7 @@ func AssumeIamRole(
 
 	if iamRoleOpts.WebIdentityToken != "" {
 		// Use sts AssumeRoleWithWebIdentity
-		tb, err := tokenFetcher{fs: v.FS, token: iamRoleOpts.WebIdentityToken}.FetchToken(ctx)
+		tb, err := tokenFetcher{fsys: v.FS, token: iamRoleOpts.WebIdentityToken}.FetchToken(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error reading web identity token file: %w", err)
 		}
@@ -428,9 +427,9 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 
 //nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
 func getWebIdentityCredentialsFromIAMRoleOptions(
+	fsys vfs.FS,
 	cfg aws.Config,
 	iamRoleOptions iam.RoleOptions,
-	fs vfs.FS,
 ) aws.CredentialsProviderFunc {
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
@@ -441,7 +440,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(
 	return func(ctx context.Context) (aws.Credentials, error) {
 		stsClient := sts.NewFromConfig(cfg)
 
-		token, err := tokenFetcher{fs: fs, token: iamRoleOptions.WebIdentityToken}.FetchToken(ctx)
+		token, err := tokenFetcher{fsys: fsys, token: iamRoleOptions.WebIdentityToken}.FetchToken(ctx)
 		if err != nil {
 			return aws.Credentials{}, err
 		}

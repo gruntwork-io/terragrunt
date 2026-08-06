@@ -134,22 +134,28 @@ func (r *GCSResolver) client(ctx context.Context) (GCSClient, error) {
 		return r.NewClient(ctx)
 	}
 
-	// Google's auth is layered over the venv transport rather than the venv
-	// client replacing it, so ADC still authenticates the probe.
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, r.HTTPClient)
-
-	trans, err := htransport.NewTransport(ctx, r.HTTPClient.Transport)
-	if err != nil {
-		return nil, err
-	}
-
-	//nolint:forbidigo // trans is built on the venv's transport, which is what the rule protects.
-	c, err := storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Transport: trans}))
+	c, err := newVenvGCSClient(ctx, r.HTTPClient)
 	if err != nil {
 		return nil, err
 	}
 
 	return &storageClientAdapter{c: c}, nil
+}
+
+// newVenvGCSClient builds a GCS client whose API calls and OAuth token
+// exchanges both ride c. Google's auth is layered over c's transport rather
+// than c replacing it: a bare client carries no credentials, so every request
+// would go out unauthenticated.
+func newVenvGCSClient(ctx context.Context, c vhttp.Client) (*storage.Client, error) {
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c)
+
+	trans, err := htransport.NewTransport(ctx, c.Transport)
+	if err != nil {
+		return nil, err
+	}
+
+	//nolint:forbidigo // trans is built on the venv's transport, which is what the rule protects.
+	return storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Transport: trans}))
 }
 
 // pickGCSCacheKey walks the cascade MD5 → CRC32C and returns the
