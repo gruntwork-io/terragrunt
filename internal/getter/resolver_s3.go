@@ -223,7 +223,7 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 			// host belongs to a different AWS service (e.g.
 			// iam.amazonaws.com) and we must not silently parse it
 			// as path-style S3 with a bogus region.
-			region, ok := s3RegionFromHostLabel(hostParts[0])
+			region, ok := S3RegionFromHostLabel(hostParts[0])
 			if !ok {
 				return s3Target{}, fmt.Errorf("%w: %q", ErrS3UnrecognizedURL, u.String())
 			}
@@ -263,7 +263,7 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 			// hostParts[1] must identify S3 the same way as the
 			// path-style case, otherwise the host belongs to a
 			// non-S3 service (e.g. bucket.iam.amazonaws.com).
-			region, ok := s3RegionFromHostLabel(hostParts[1])
+			region, ok := S3RegionFromHostLabel(hostParts[1])
 			if !ok {
 				return s3Target{}, fmt.Errorf("%w: %q", ErrS3UnrecognizedURL, u.String())
 			}
@@ -308,13 +308,13 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 	return s3Target{Region: region, Bucket: pathParts[1], Key: pathParts[2], Version: version}, nil
 }
 
-// s3RegionFromHostLabel parses an S3-identifying host label and
+// S3RegionFromHostLabel parses an S3-identifying host label and
 // returns the AWS region it encodes. The exact label "s3" is the
 // global path-style endpoint and maps to us-east-1. A label of the
 // form "s3-<region>" maps to that region. Any other label is rejected
 // (ok = false) so non-S3 amazonaws.com hosts (iam, sts, ec2, ...) do
 // not silently parse as S3 with a bogus region.
-func s3RegionFromHostLabel(label string) (region string, ok bool) {
+func S3RegionFromHostLabel(label string) (region string, ok bool) {
 	if label == "s3" {
 		return "us-east-1", true
 	}
@@ -356,17 +356,17 @@ func canonicalAWSS3HTTPSURL(u *url.URL) (string, bool) {
 
 	canonical := *u
 	canonical.Scheme = "https"
-	canonical.Host = s3HostLabelForRegion(target.Region) + ".amazonaws.com"
+	canonical.Host = S3HostLabelForRegion(target.Region) + ".amazonaws.com"
 	canonical.Path = "/" + target.Bucket + "/" + target.Key
 
 	return canonical.String(), true
 }
 
-// s3HostLabelForRegion returns the path-style host label for an AWS
+// S3HostLabelForRegion returns the path-style host label for an AWS
 // region. us-east-1 maps to the global "s3" label so probes against
 // region-unspecified URLs stay on the global endpoint instead of
 // silently shifting to us-east-1's regional form.
-func s3HostLabelForRegion(region string) string {
+func S3HostLabelForRegion(region string) string {
 	if region == "us-east-1" {
 		return "s3"
 	}
