@@ -2,6 +2,7 @@ package getter
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
@@ -23,11 +24,12 @@ type SourceResolver = cas.SourceResolver
 // so the probe and the fetch resolve against the same registry host, and
 // [WithDispatchEnv] so the probe carries the same registry credentials.
 //
-// The http, https, and tfr resolvers all probe over c. [CASGetter]
-// callers normally go through [WithDefaultGenericDispatch], which
-// supplies the venv's client.
+// The http, https, and tfr resolvers all probe over c, and the hg resolver
+// spawns `hg` through e. [CASGetter] callers normally go through
+// [WithDefaultGenericDispatch], which supplies the venv's client and executor.
 func DefaultSourceResolvers(
 	c vhttp.Client,
+	e vexec.Exec,
 	opts ...GenericFetcherOption,
 ) map[string]SourceResolver {
 	var cfg genericFetcherConfig
@@ -61,7 +63,7 @@ func DefaultSourceResolvers(
 		SchemeHTTPS: httpsRes,
 		SchemeS3:    NewS3Resolver(),
 		SchemeGCS:   NewGCSResolver(),
-		SchemeHg:    NewHgResolver(),
+		SchemeHg:    NewHgResolver(e),
 		SchemeTFR:   tfr,
 	}
 

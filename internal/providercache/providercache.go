@@ -139,7 +139,7 @@ func (pc *ProviderCache) Init(
 	}
 
 	// Pass filesystem to LoadUserConfig
-	cliCfg, err := cliconfig.LoadUserConfig(cliconfig.WithFS(v.FS))
+	cliCfg, err := cliconfig.LoadUserConfig(v.FS)
 	if err != nil {
 		return err
 	}
@@ -156,8 +156,8 @@ func (pc *ProviderCache) Init(
 		userProviderDir,
 		cliCfg.CredentialsSource(),
 		l,
-		services.WithFS(v.FS),
-		services.WithHTTPClient(v.HTTP),
+		v.FS,
+		v.HTTP,
 	)
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, v.HTTP, cliCfg.CredentialsSource())
 

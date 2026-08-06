@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -134,6 +135,8 @@ func startProviderCacheRun(t *testing.T, registryName, upstreamURL string) *prov
 		helpers.TmpDirWOSymlinks(t),
 		nil,
 		l,
+		vfs.NewOSFS(),
+		vhttp.NewOSClient(),
 	)
 
 	// The pre-populated discovery cache points version and platform lookups at

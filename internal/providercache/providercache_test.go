@@ -157,7 +157,8 @@ func testProviderCache(t *testing.T, c vhttp.Client) {
 				pluginCacheDir,
 				nil,
 				l,
-				services.WithHTTPClient(c),
+				vfs.NewOSFS(),
+				c,
 			)
 			providerHandler := handlers.NewDirectProviderHandler(
 				l,

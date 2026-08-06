@@ -36,7 +36,7 @@ func run() (code int) {
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	reporter := panicreport.New()
+	reporter := panicreport.New(v.FS)
 	// Recover panics here so main owns os.Exit and any future main-level defers still run.
 	defer func() {
 		if reporter.PanicHandler(recover(), l, version.GetVersion, os.Args) {

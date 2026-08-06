@@ -20,7 +20,7 @@ const (
 	JSONFlagName           = "json"
 )
 
-func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
@@ -89,7 +89,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 	}
 
 	flagSet = flagSet.Add(shared.NewQueueFlags(opts, nil)...)
-	flagSet = flagSet.Add(shared.NewFilterFlags(l, opts)...)
+	flagSet = flagSet.Add(shared.NewFilterFlags(l, opts, v)...)
 
 	return flagSet
 }
@@ -98,7 +98,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	cmd := &clihelper.Command{
 		Name:                         CommandName,
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",
-		Flags:                        NewFlags(l, opts),
+		Flags:                        NewFlags(l, opts, v),
 		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, v, opts.OptionsFromContext(ctx))

@@ -151,7 +151,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	prefix := flags.Prefix{CommandName}
 	renderOpts := NewOptions(opts)
 
-	cmdFlags := append(runcmd.NewFlags(l, opts, nil), NewFlags(renderOpts, prefix)...)
+	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(renderOpts, prefix)...)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, prefix))
 
 	cmd := &clihelper.Command{
