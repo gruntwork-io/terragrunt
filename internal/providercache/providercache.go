@@ -116,7 +116,7 @@ func (pc *ProviderCache) Init(
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
 	if pcOpts.Dir == "" {
-		cacheDir, err := util.EnsureCacheDir()
+		cacheDir, err := util.EnsureCacheDir(v)
 		if err != nil {
 			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
@@ -156,8 +156,7 @@ func (pc *ProviderCache) Init(
 		userProviderDir,
 		cliCfg.CredentialsSource(),
 		l,
-		v.FS,
-		v.HTTP,
+		v,
 	)
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, v.HTTP, cliCfg.CredentialsSource())
 
@@ -242,7 +241,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 	var skipRunTargetCommand bool
 
 	lockfilePath := filepath.Join(tfOpts.ShellOptions.WorkingDir, tf.TerraformLockFile)
-	lockfileExists := util.FileExists(lockfilePath)
+	lockfileExists := vfs.Exists(v.FS, lockfilePath)
 
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 	switch {

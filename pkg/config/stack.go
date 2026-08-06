@@ -416,7 +416,7 @@ func setupCAS(l log.Logger, v *venv.Venv, enabled bool, cloneDepth int) (casSetu
 		return casSetup{}, err
 	}
 
-	c, err := cas.New(cas.WithCloneDepth(cloneDepth))
+	c, err := cas.New(v, cas.WithCloneDepth(cloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", err)
 		return casSetup{}, nil
@@ -739,7 +739,7 @@ func generateComponent(
 		return err
 	}
 
-	if err := writeValues(l, cmp.values, dest); err != nil {
+	if err := writeValues(l, v.FS, cmp.values, dest); err != nil {
 		return fmt.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
@@ -1664,7 +1664,7 @@ func stackName(s *Stack) string {
 }
 
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
-func writeValues(l log.Logger, values *cty.Value, directory string) error {
+func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string) error {
 	if values == nil {
 		l.Debugf("No values to write in %s", directory)
 		return nil
@@ -1690,7 +1690,7 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 		return errors.New("writeValues: unit directory path cannot be empty")
 	}
 
-	if err := os.MkdirAll(directory, unitDirPerm); err != nil {
+	if err := fsys.MkdirAll(directory, unitDirPerm); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", directory, err)
 	}
 
@@ -1724,13 +1724,13 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 	}
 
 	// CAS may materialize the target as a read-only hard link, so remove it before writing
-	if util.IsFile(filePath) {
-		if err := os.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if vfs.IsFile(fsys, filePath) {
+		if err := fsys.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("failed to remove values file %s before writing: %w", filePath, err)
 		}
 	}
 
-	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
+	if err := vfs.WriteFile(fsys, filePath, file.Bytes(), valueFilePerm); err != nil {
 		return fmt.Errorf("failed to write values file %s: %w", filePath, err)
 	}
 

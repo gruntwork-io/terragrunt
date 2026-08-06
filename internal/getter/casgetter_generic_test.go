@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // tarballHandler serves the supplied tar.gz bytes with a stable ETag and
@@ -94,7 +95,7 @@ func TestCASGetter_HTTPArchiveCachesSecondRun(t *testing.T) {
 	defer srv.Close()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -162,7 +163,7 @@ func TestCASGetter_HTTPArchiveFalseSkipsExtraction(t *testing.T) {
 	defer srv.Close()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -217,7 +218,7 @@ func TestCASGetter_HTTPMissingETagFallsBackToContentHash(t *testing.T) {
 	defer srv.Close()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

@@ -37,7 +37,7 @@ func Run(
 		return err
 	}
 
-	runCfg := prepared.Cfg.ToRunConfig(l)
+	runCfg := prepared.Cfg.ToRunConfig(l, v.FS)
 
 	// Generate config
 	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {

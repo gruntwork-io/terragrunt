@@ -182,7 +182,7 @@ func TestFileManifest(t *testing.T) {
 	assert.NoError(t, manifest.Clean(l))
 	// test if the files have been deleted
 	for _, file := range testfiles {
-		assert.False(t, util.FileExists(file))
+		assert.NoFileExists(t, file)
 	}
 }
 
@@ -1072,7 +1072,7 @@ func TestEmptyDir(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			emptyValue, err := util.IsDirectoryEmpty(tc.path)
+			emptyValue, err := vfs.IsDirectoryEmpty(vfs.NewOSFS(), tc.path)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectEmpty, emptyValue, "For path %s", tc.path)
 		})

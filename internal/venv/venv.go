@@ -68,10 +68,20 @@ var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset
 // when UserHomeDir is nil.
 var ErrVenvUserHomeDirUnset = errors.New("venv.Venv.Platform.UserHomeDir is required but unset")
 
+// ErrVenvUserCacheDirUnset is the panic value [Venv.RequireUserCacheDir] raises
+// when UserCacheDir is nil.
+var ErrVenvUserCacheDirUnset = errors.New("venv.Venv.Platform.UserCacheDir is required but unset")
+
+// ErrVenvTempDirUnset is the panic value [Venv.RequireTempDir] raises when
+// TempDir is nil.
+var ErrVenvTempDirUnset = errors.New("venv.Venv.Platform.TempDir is required but unset")
+
 // Platform carries the operating-system handles used below the CLI boundary.
 type Platform struct {
-	UserHomeDir func() (string, error)
-	GOOS        string
+	UserHomeDir  func() (string, error)
+	UserCacheDir func() (string, error)
+	TempDir      func() string
+	GOOS         string
 }
 
 // Venv is the root virtualized environment. It carries the filesystem,
@@ -283,6 +293,20 @@ func (v *Venv) RequireUserHomeDir() {
 	}
 }
 
+// RequireUserCacheDir panics with [ErrVenvUserCacheDirUnset] when UserCacheDir is nil.
+func (v *Venv) RequireUserCacheDir() {
+	if v.Platform == nil || v.Platform.UserCacheDir == nil {
+		panic(ErrVenvUserCacheDirUnset)
+	}
+}
+
+// RequireTempDir panics with [ErrVenvTempDirUnset] when TempDir is nil.
+func (v *Venv) RequireTempDir() {
+	if v.Platform == nil || v.Platform.TempDir == nil {
+		panic(ErrVenvTempDirUnset)
+	}
+}
+
 // OSVenv builds the production [Venv]: the real OS filesystem, the real OS
 // process executor, the real outbound HTTP client, platform handles, a
 // snapshot of the OS environment, and stdin/stdout/stderr wired to the real
@@ -303,8 +327,10 @@ func OSVenv() *Venv {
 		Reader: bufio.NewReader(os.Stdin),
 		Env:    ParseEnviron(os.Environ()),
 		Platform: &Platform{
-			UserHomeDir: os.UserHomeDir,
-			GOOS:        runtime.GOOS,
+			UserHomeDir:  os.UserHomeDir,
+			UserCacheDir: os.UserCacheDir,
+			TempDir:      os.TempDir,
+			GOOS:         runtime.GOOS,
 		},
 		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}

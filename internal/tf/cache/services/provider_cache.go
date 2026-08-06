@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -526,13 +527,13 @@ type ProviderServiceOption func(*ProviderService)
 type ProviderService struct {
 	logger log.Logger
 
-	// fs is the filesystem for file operations.
-	fs vfs.FS
+	// venv supplies the filesystem, outbound HTTP client, and temp-directory
+	// handle every cached provider is fetched and unpacked through.
+	venv *venv.Venv
 
 	initErr               error
 	providerCacheWarmUpCh chan *ProviderCache
 	credsSource           *cliconfig.CredentialsSource
-	httpClient            vhttp.Client
 
 	// tempDir is a predictable temporary directory for provider lock files.
 	tempDir string
@@ -556,12 +557,12 @@ type ProviderService struct {
 
 // FS returns the configured filesystem.
 func (service *ProviderService) FS() vfs.FS {
-	return service.fs
+	return service.venv.FS
 }
 
 // HTTPClient returns the configured HTTP client.
 func (service *ProviderService) HTTPClient() vhttp.Client {
-	return service.httpClient
+	return service.venv.HTTP
 }
 
 func NewProviderService(
@@ -569,8 +570,7 @@ func NewProviderService(
 	userCacheDir string,
 	credsSource *cliconfig.CredentialsSource,
 	l log.Logger,
-	fsys vfs.FS,
-	c vhttp.Client,
+	v *venv.Venv,
 	opts ...ProviderServiceOption,
 ) *ProviderService {
 	service := &ProviderService{
@@ -579,8 +579,7 @@ func NewProviderService(
 		providerCacheWarmUpCh: make(chan *ProviderCache, providerCacheWarmUpChBufferSize),
 		credsSource:           credsSource,
 		logger:                l,
-		fs:                    fsys,
-		httpClient:            c,
+		venv:                  v,
 	}
 
 	for _, opt := range opts {
@@ -759,7 +758,7 @@ func (service *ProviderService) init() error {
 		return err
 	}
 
-	tempDir, err := util.EnsureTempDir()
+	tempDir, err := util.EnsureTempDir(service.venv)
 	if err != nil {
 		return err
 	}

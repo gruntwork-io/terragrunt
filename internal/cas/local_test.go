@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const osWindows = "windows"
@@ -292,7 +293,7 @@ func newCAS(t *testing.T) (*cas.CAS, *venv.Venv) {
 	t.Helper()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

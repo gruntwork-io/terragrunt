@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestCASGetter_ForcedThreadedToInnerClient pins the wiring fix that
@@ -38,7 +39,7 @@ func TestCASGetter_ForcedThreadedToInnerClient(t *testing.T) {
 	stub := &forcedRequiredGetter{scheme: scheme}
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -92,7 +93,7 @@ func TestCASGetter_GetCanonicalizesForcedAlias(t *testing.T) {
 	stub := &forcedRequiredGetter{scheme: getter.SchemeGCS}
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

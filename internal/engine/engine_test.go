@@ -77,7 +77,9 @@ func TestRun_NonOSBackedExecReturnsSentinel(t *testing.T) {
 		CacheDir: t.TempDir(),
 	}
 
-	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	// The engine source is a real file on disk, so the venv must see the real
+	// filesystem for Run to treat it as a local engine instead of a download.
+	v := venvtest.NewWithOSFS().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{}
 	})
 

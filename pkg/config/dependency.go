@@ -383,9 +383,13 @@ func decodeDependencies(
 			return &updatedDependencies, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 
-		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), pctx.TerragruntConfigPath)
+		depPath := getCleanedTargetConfigPath(
+			pctx.Venv.FS,
+			dep.ConfigPath.AsString(),
+			pctx.TerragruntConfigPath,
+		)
 
-		if !util.FileExists(depPath) {
+		if !vfs.Exists(pctx.Venv.FS, depPath) {
 			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 
 			continue
@@ -515,10 +519,14 @@ func checkForDependencyBlockCycles(
 			return DependencyInvalidConfigPathError{DependencyName: dependency.Name}
 		}
 
-		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
+		dependencyPath := getCleanedTargetConfigPath(
+			pctx.Venv.FS,
+			dependency.ConfigPath.AsString(),
+			configPath,
+		)
 
 		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
-		if !util.FileExists(dependencyPath) {
+		if !vfs.Exists(pctx.Venv.FS, dependencyPath) {
 			continue
 		}
 
@@ -570,10 +578,10 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	for _, dependency := range dependencyPaths {
-		dependencyPath := getCleanedTargetConfigPath(dependency, dependencyPath)
+		dependencyPath := getCleanedTargetConfigPath(pctx.Venv.FS, dependency, dependencyPath)
 
 		// Skip cycle checking for nonexistent dependency targets such as stack directories.
-		if !util.FileExists(dependencyPath) {
+		if !vfs.Exists(pctx.Venv.FS, dependencyPath) {
 			continue
 		}
 
@@ -785,6 +793,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
 	targetConfig := getCleanedTargetConfigPath(
+		pctx.Venv.FS,
 		dependencyConfig.ConfigPath.AsString(),
 		pctx.TerragruntConfigPath,
 	)
@@ -840,6 +849,7 @@ func getTerragruntOutput(
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(
+		pctx.Venv.FS,
 		dependencyConfig.ConfigPath.AsString(),
 		pctx.TerragruntConfigPath,
 	)
@@ -851,7 +861,7 @@ func getTerragruntOutput(
 		return stackOutput, stackOutput == nil, err
 	}
 
-	if !util.FileExists(targetConfigPath) {
+	if !vfs.Exists(pctx.Venv.FS, targetConfigPath) {
 		return nil, true, DependencyConfigNotFound{Path: targetConfigPath}
 	}
 
@@ -906,7 +916,7 @@ func collectStackUnitOutputs(
 		unitDir := unit.GeneratedPath(stackDir)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
-		if !util.FileExists(unitConfigPath) {
+		if !vfs.Exists(pctx.Venv.FS, unitConfigPath) {
 			l.Warnf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
 
 			continue
@@ -1009,7 +1019,7 @@ func tryGetStackOutput(
 		return nil, false, nil
 	}
 
-	if !util.FileExists(stackFilePath) {
+	if !vfs.Exists(pctx.Venv.FS, stackFilePath) {
 		return nil, false, nil
 	}
 
@@ -1529,7 +1539,7 @@ func terragruntAlreadyInit(
 	// NOTE: if the ref changes, the workingDir would be different as the download dir includes a base64 encoded hash of
 	// the source URL with ref. This would ensure that this routine would not return true if the new ref is not already
 	// init-ed.
-	return util.FileExists(filepath.Join(workingDir, ".terraform")), workingDir, nil
+	return vfs.Exists(pctx.Venv.FS, filepath.Join(workingDir, ".terraform")), workingDir, nil
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
@@ -1875,7 +1885,7 @@ func runTerragruntOutputJSON(
 		return nil, err
 	}
 
-	runCfg := cfg.ToRunConfig(l)
+	runCfg := cfg.ToRunConfig(l, pctx.Venv.FS)
 
 	credsGetter := creds.NewGetter()
 	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(

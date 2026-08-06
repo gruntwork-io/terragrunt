@@ -224,7 +224,7 @@ func GenerateConfig(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	writeOpts := generateWriteOptions(l, opts)
+	writeOpts := generateWriteOptions(l, v, opts)
 
 	for _, genCfg := range cfg.GenerateConfigs {
 		if err := codegen.WriteToFile(ctx, l, v, opts.CacheDir, &genCfg, writeOpts...); err != nil {
@@ -256,12 +256,12 @@ func GenerateConfig(
 //
 // A CAS that cannot be initialized is not fatal: generation falls back to direct
 // writes, matching how source downloads degrade.
-func generateWriteOptions(l log.Logger, opts *Options) []codegen.WriteOption {
+func generateWriteOptions(l log.Logger, v *venv.Venv, opts *Options) []codegen.WriteOption {
 	if opts.NoCAS || !opts.Experiments.Evaluate(experiment.MutableGenerate) {
 		return nil
 	}
 
-	c, err := cas.New()
+	c, err := cas.New(v)
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Generated files will not be deduplicated.", err)
 
@@ -297,7 +297,7 @@ func runTerragruntWithConfig(
 	}
 
 	if len(cfg.Terraform.ExtraArgs) > 0 {
-		args := FilterTerraformExtraArgs(l, opts, cfg)
+		args := FilterTerraformExtraArgs(l, v.FS, opts, cfg)
 
 		opts.InsertTerraformCliArgs(args...)
 
@@ -541,7 +541,7 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 	}
 
 	// Check for backend definitions in .tf and .tofu files using WalkDir
-	definesBackend, err := util.RegexFoundInTFFiles(opts.CacheDir, terraformBackendRegexp)
+	definesBackend, err := util.RegexFoundInTFFiles(fs, opts.CacheDir, terraformBackendRegexp)
 	if err != nil {
 		return err
 	}
@@ -579,13 +579,13 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 }
 
 // Returns true if we need to run `terraform init` to download providers
-func providersNeedInit(opts *Options, env map[string]string) bool {
+func providersNeedInit(fsys vfs.FS, opts *Options, env map[string]string) bool {
 	pluginsPath := filepath.Join(opts.DataDir(env), "plugins")
 	providersPath := filepath.Join(opts.DataDir(env), "providers")
 	terraformLockPath := filepath.Join(opts.CacheDir, tf.TerraformLockFile)
 
-	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) ||
-		!util.FileExists(terraformLockPath)
+	return (!vfs.Exists(fsys, pluginsPath) && !vfs.Exists(fsys, providersPath)) ||
+		!vfs.Exists(fsys, terraformLockPath)
 }
 
 // prepareInitOptions clones opts for a `terraform init` invocation. The
@@ -620,14 +620,14 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, bool
 // Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
-func modulesNeedInit(opts *Options, env map[string]string) (bool, error) {
+func modulesNeedInit(fsys vfs.FS, opts *Options, env map[string]string) (bool, error) {
 	modulesPath := filepath.Join(opts.DataDir(env), "modules")
-	if util.FileExists(modulesPath) {
+	if vfs.Exists(fsys, modulesPath) {
 		return false, nil
 	}
 
 	// Check for module definitions in .tf and .tofu files using WalkDir
-	hasModuleDefinition, err := util.RegexFoundInTFFiles(opts.CacheDir, ModuleRegex)
+	hasModuleDefinition, err := util.RegexFoundInTFFiles(fsys, opts.CacheDir, ModuleRegex)
 	if err != nil {
 		return false, err
 	}
@@ -669,7 +669,7 @@ func remoteStateNeedsInit(
 }
 
 // FilterTerraformExtraArgs extracts terraform extra arguments using runcfg types.
-func FilterTerraformExtraArgs(l log.Logger, opts *Options, cfg *runcfg.RunConfig) []string {
+func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *runcfg.RunConfig) []string {
 	out := []string{}
 	cmd := opts.TerraformCliArgs.First()
 
@@ -679,7 +679,7 @@ func FilterTerraformExtraArgs(l log.Logger, opts *Options, cfg *runcfg.RunConfig
 			if cmd == argCmd {
 				lastArg := opts.TerraformCliArgs.Last()
 				skipVars := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) &&
-					util.IsFile(lastArg)
+					vfs.IsFile(fsys, lastArg)
 
 				if len(arg.Arguments) > 0 {
 					if skipVars {
@@ -819,15 +819,15 @@ func needsInitRunCfg(
 
 	// Marker check lives here, not in modulesNeedInit, so a populated .terraform/modules/
 	// can't short-circuit past it. Refs: #1921, #6058.
-	if util.FileExists(filepath.Join(opts.CacheDir, ModuleInitRequiredFile)) {
+	if vfs.Exists(v.FS, filepath.Join(opts.CacheDir, ModuleInitRequiredFile)) {
 		return true, nil
 	}
 
-	if providersNeedInit(opts, v.Env) {
+	if providersNeedInit(v.FS, opts, v.Env) {
 		return true, nil
 	}
 
-	modulesNeedsInit, err := modulesNeedInit(opts, v.Env)
+	modulesNeedsInit, err := modulesNeedInit(v.FS, opts, v.Env)
 	if err != nil {
 		return false, err
 	}
@@ -884,8 +884,8 @@ func runTerraformInitRunCfg(
 	}
 
 	moduleNeedInit := filepath.Join(opts.CacheDir, ModuleInitRequiredFile)
-	if util.FileExists(moduleNeedInit) {
-		return os.Remove(moduleNeedInit)
+	if vfs.Exists(v.FS, moduleNeedInit) {
+		return v.FS.Remove(moduleNeedInit)
 	}
 
 	return nil

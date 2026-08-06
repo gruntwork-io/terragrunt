@@ -1091,7 +1091,7 @@ func (args *TerraformExtraArguments) String() string {
 		args.EnvVars)
 }
 
-func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
+func (args *TerraformExtraArguments) GetVarFiles(l log.Logger, fsys vfs.FS) []string {
 	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
@@ -1104,7 +1104,7 @@ func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
 	// duplicates.
 	if args.OptionalVarFiles != nil {
 		for _, file := range util.RemoveDuplicatesKeepLast(*args.OptionalVarFiles) {
-			if util.FileExists(file) {
+			if vfs.Exists(fsys, file) {
 				varFiles = append(varFiles, file)
 			} else {
 				l.Debugf("Skipping var-file %s as it does not exist", file)
@@ -2270,7 +2270,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 			fullPath = path.Join(ctx.WorkingDir, fullPath)
 		}
 
-		if !util.IsDir(fullPath) {
+		if !vfs.IsDir(ctx.Venv.FS, fullPath) {
 			missingDependencies = append(
 				missingDependencies,
 				fmt.Sprintf("%s (%s)", dependencyPath, fullPath),
