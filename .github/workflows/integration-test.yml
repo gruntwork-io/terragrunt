@@ -114,6 +114,7 @@ jobs:
                 AZURE_TENANT_ID,
                 TG_AZURE_TEST_STORAGE_ACCOUNT,
                 TG_AZURE_TEST_SUBSCRIPTION_ID,
+                ARM_ACCESS_KEY,
               ]
           - name: Azure Integration
             os: ubuntu

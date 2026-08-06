@@ -317,11 +317,36 @@ func buildAzureADConfig(
 	}
 
 	out.Method = AuthMethodAzureAD
-	out.Credential = defaultCred
+	out.Credential = chainedCredential(defaultCred, resolved.TenantID, l)
 
 	l.Debugf("azurehelper: using Azure AD authentication (%s)", reason)
 
 	return out, validate(out, resolved)
+}
+
+// chainedCredential tries the Azure CLI credential before the default chain.
+// DefaultAzureCredential reaches the CLI only after probing the instance
+// metadata endpoint, which costs about 100 seconds on a host that has no
+// managed identity, so an interactive `az login` session would otherwise
+// appear to hang before it is ever consulted.
+func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l log.Logger) azcore.TokenCredential {
+	cliCred, err := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{
+		TenantID: tenantID,
+	})
+	if err != nil {
+		l.Debugf("azurehelper: Azure CLI credential unavailable, using DefaultAzureCredential only: %v", err)
+
+		return defaultCred
+	}
+
+	chain, err := azidentity.NewChainedTokenCredential([]azcore.TokenCredential{cliCred, defaultCred}, nil)
+	if err != nil {
+		l.Debugf("azurehelper: failed to build CLI credential chain, using DefaultAzureCredential only: %v", err)
+
+		return defaultCred
+	}
+
+	return chain
 }
 
 // BuildBlobClient is a convenience that calls Build and then constructs a
