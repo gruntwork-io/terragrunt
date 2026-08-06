@@ -152,9 +152,11 @@ func (g *S3Getter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
+	prefix := listPrefix(target.Key)
+
 	pages := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(target.Bucket),
-		Prefix: aws.String(target.Key),
+		Prefix: aws.String(prefix),
 	})
 
 	for pages.HasMorePages() {
@@ -171,7 +173,7 @@ func (g *S3Getter) Get(ctx context.Context, req *getter.Request) error {
 				continue
 			}
 
-			dst := ObjectDst(req.Dst, target.Key, key)
+			dst := ObjectDst(req.Dst, prefix, key)
 
 			body, err := g.object(ctx, client, &target, key, "")
 			if err != nil {

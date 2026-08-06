@@ -131,7 +131,8 @@ func (g *GCSGetter) Get(ctx context.Context, req *getter.Request) (retErr error)
 		return err
 	}
 
-	objects := client.Bucket(bucket).Objects(ctx, &storage.Query{Prefix: object})
+	prefix := listPrefix(object)
+	objects := client.Bucket(bucket).Objects(ctx, &storage.Query{Prefix: prefix})
 
 	for {
 		attrs, err := objects.Next()
@@ -153,7 +154,7 @@ func (g *GCSGetter) Get(ctx context.Context, req *getter.Request) (retErr error)
 			return err
 		}
 
-		dst := ObjectDst(req.Dst, object, attrs.Name)
+		dst := ObjectDst(req.Dst, prefix, attrs.Name)
 		if err := WriteGetterObject(g.v.FS, req, dst, body); err != nil {
 			return err
 		}

@@ -130,6 +130,13 @@ func WriteGetterObject(
 	return fsys.Chmod(dst, req.Mode(objectFileMode))
 }
 
+// listPrefix returns the listing prefix for a directory download. Get is only
+// reached once Mode has decided the key names a directory, which it does by
+// finding keys below `<key>/`.
+func listPrefix(key string) string {
+	return strings.TrimSuffix(key, "/") + "/"
+}
+
 // closeOnSuccess closes c, reporting its error through retErr only when the
 // operation otherwise succeeded. On failure the primary error already explains
 // the outcome, and joining a close error would bury it.
