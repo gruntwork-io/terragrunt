@@ -1,17 +1,15 @@
 package git
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"strings"
 )
 
-const (
-	// The minimum number of parts in the stdout of the `git ls-tree` command
-	minTreePartsLength = 4
-)
+// newline is hoisted so splitting and counting entries do not allocate a
+// separator on every parse.
+var newline = []byte{'\n'}
 
 // Tree entry types as printed by `git ls-tree` and carried in
 // [TreeEntry.Type].
@@ -73,29 +71,19 @@ func (t *Tree) Data() []byte {
 
 // ParseTree parses the stdout of git ls-tree [-r] into a Tree object.
 func ParseTree(output []byte, path string) (*Tree, error) {
-	entries := make([]TreeEntry, 0, bytes.Count(output, []byte("\n"))+1)
+	entries := make([]TreeEntry, 0, bytes.Count(output, newline)+1)
 
-	scanner := bufio.NewScanner(bytes.NewReader(output))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
+	for line := range bytes.SplitSeq(output, newline) {
+		if len(line) == 0 {
 			continue
 		}
 
-		entry, err := ParseTreeEntry(line)
+		entry, err := ParseTreeEntry(string(line))
 		if err != nil {
 			return nil, err
 		}
 
 		entries = append(entries, entry)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, &WrappedError{
-			Op:      "parse_tree",
-			Context: "failed to read tree output",
-			Err:     err,
-		}
 	}
 
 	return &Tree{
@@ -105,22 +93,54 @@ func ParseTree(output []byte, path string) (*Tree, error) {
 	}, nil
 }
 
-// ParseTreeEntry parses a single line from git ls-tree output
+// ParseTreeEntry parses a single "<mode> <type> <hash>\t<path>" line from git
+// ls-tree output. A space is accepted in place of the tab so trees written by
+// [Tree.Write] round-trip.
 func ParseTreeEntry(line string) (TreeEntry, error) {
-	// Format: <mode> <type> <hash> <path>
-	parts := strings.Fields(line)
-	if len(parts) < minTreePartsLength {
-		return TreeEntry{}, &WrappedError{
-			Op:      "parse_tree_entry",
-			Context: "invalid tree entry format",
-			Err:     ErrParseTree,
-		}
+	mode, rest, ok := strings.Cut(line, " ")
+	if !ok {
+		return TreeEntry{}, errInvalidTreeEntry()
+	}
+
+	typ, rest, ok := strings.Cut(rest, " ")
+	if !ok {
+		return TreeEntry{}, errInvalidTreeEntry()
+	}
+
+	hash, path, ok := cutHashFromPath(rest)
+	if !ok || path == "" {
+		return TreeEntry{}, errInvalidTreeEntry()
 	}
 
 	return TreeEntry{
-		Mode: parts[0],
-		Type: parts[1],
-		Hash: parts[2],
-		Path: strings.Join(parts[3:], " "), // Handle paths with spaces
+		Mode: mode,
+		Type: typ,
+		Hash: hash,
+		Path: path,
 	}, nil
+}
+
+// cutHashFromPath splits a hash from the path that follows it, accepting
+// either delimiter git may have used. strings.IndexAny would read more
+// naturally but scans a byte at a time, whereas each IndexByte call is
+// vectorized, so two passes beat one.
+func cutHashFromPath(s string) (hash, path string, found bool) {
+	i := strings.IndexByte(s, '\t')
+	if j := strings.IndexByte(s, ' '); j >= 0 && (i < 0 || j < i) {
+		i = j
+	}
+
+	if i < 0 {
+		return s, "", false
+	}
+
+	return s[:i], s[i+1:], true
+}
+
+func errInvalidTreeEntry() error {
+	return &WrappedError{
+		Op:      "parse_tree_entry",
+		Context: "invalid tree entry format",
+		Err:     ErrParseTree,
+	}
 }
