@@ -61,8 +61,8 @@ func DefaultSourceResolvers(
 	resolvers := map[string]SourceResolver{
 		SchemeHTTP:  httpRes,
 		SchemeHTTPS: httpsRes,
-		SchemeS3:    NewS3Resolver(),
-		SchemeGCS:   NewGCSResolver(),
+		SchemeS3:    NewS3Resolver(c),
+		SchemeGCS:   NewGCSResolver(c),
 		SchemeHg:    NewHgResolver(e),
 		SchemeTFR:   tfr,
 	}
