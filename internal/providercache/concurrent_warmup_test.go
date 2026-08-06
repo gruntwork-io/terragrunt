@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -120,7 +121,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
-	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
+	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l, vfs.NewOSFS(), vhttp.NewOSClient())
 
 	// The pre-populated discovery cache points version and platform lookups at
 	// the fake upstream over plain HTTP, without DNS lookups.

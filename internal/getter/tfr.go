@@ -55,29 +55,19 @@ func (r *RegistryGetter) auth() RegistryAuth {
 	return RegistryAuth{Env: r.Env, ReadUserConfig: vfs.IsOSFS(r.FS)}
 }
 
-// NewRegistryGetter returns a [RegistryGetter] configured with sensible
-// defaults: a [vhttp.NewOSClient] for registry-protocol requests, the
-// supplied logger for diagnostic output, the supplied filesystem for
-// archive expansion, and [tfimpl.OpenTofu] as the default implementation.
-// A logger is required because this package does not consistently guard
-// against a nil logger, so requiring one at construction time prevents
-// nil-pointer panics at call time. Use the With* methods to customize
-// other behavior.
-func NewRegistryGetter(l log.Logger, fs vfs.FS) *RegistryGetter {
+// NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol
+// requests through c, logs diagnostics to l, expands archives onto fs, and
+// defaults to [tfimpl.OpenTofu]. A logger is required because this package
+// does not consistently guard against a nil logger, so requiring one at
+// construction time prevents nil-pointer panics at call time. Use the With*
+// methods to customize other behavior.
+func NewRegistryGetter(l log.Logger, fs vfs.FS, c vhttp.Client) *RegistryGetter {
 	return &RegistryGetter{
-		HTTPClient:         vhttp.NewOSClient(),
+		HTTPClient:         c,
 		Logger:             l,
 		FS:                 fs,
 		TofuImplementation: tfimpl.OpenTofu,
 	}
-}
-
-// WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests that swap in a [vhttp.NewMemClient] handler
-// or for callers that need custom transport configuration.
-func (r *RegistryGetter) WithHTTPClient(c vhttp.Client) *RegistryGetter {
-	r.HTTPClient = c
-	return r
 }
 
 // WithTofuImplementation selects which default registry domain is used when

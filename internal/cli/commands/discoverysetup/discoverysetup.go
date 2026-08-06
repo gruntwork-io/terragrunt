@@ -27,7 +27,7 @@ func Worktrees(
 	opts *options.TerragruntOptions,
 	d *discovery.Discovery,
 ) (*discovery.Discovery, func(context.Context), error) {
-	wts, err := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+	wts, err := worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 		WorkingDir:     opts.WorkingDir,
 		GitExpressions: opts.Filters.UniqueGitFilters(),
 		Experiments:    opts.Experiments,

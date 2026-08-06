@@ -103,9 +103,11 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 			c = g.Venv.HTTP
 		}
 
+		g.Venv.RequireExec()
+
 		g.fetchers = DefaultGenericFetchers(
 			slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
-		g.resolvers = DefaultSourceResolvers(c, opts...)
+		g.resolvers = DefaultSourceResolvers(c, g.Venv.Exec, opts...)
 	}
 }
 

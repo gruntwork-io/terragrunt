@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -678,7 +677,7 @@ func discoverFormCmd(
 ) tea.Cmd {
 	return func() tea.Msg {
 		if c.Kind.IsCopyable() {
-			return discoverValuesFields(c)
+			return discoverValuesFields(v, c)
 		}
 
 		return discoverModuleFields(ctx, l, v, opts, c)
@@ -720,7 +719,7 @@ func discoverModuleFields(
 // discoverValuesFields walks the unit/stack's HCL for `values.*` refs and
 // returns a formReadyMsg. CollectValuesReferences operates on the already
 // cloned local copy, so there's no download.
-func discoverValuesFields(c *Component) tea.Msg {
+func discoverValuesFields(v *venv.Venv, c *Component) tea.Msg {
 	configName := c.Kind.ConfigFile()
 	if configName == "" {
 		return formDiscoveryErrMsg{
@@ -729,7 +728,7 @@ func discoverValuesFields(c *Component) tea.Msg {
 	}
 
 	refs, err := component.CollectValuesReferences(
-		vfs.NewOSFS(),
+		v.FS,
 		filepath.Join(c.Repo.Path(), c.Dir, configName),
 	)
 	if err != nil {
