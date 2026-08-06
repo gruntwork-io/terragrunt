@@ -236,6 +236,174 @@ func TestNewRunnerPoolStack_FilterAllowDestroy(t *testing.T) {
 	require.True(t, foundVPC, "expected /tmp/test/vpc unit in stack")
 }
 
+func TestFilterDiscoveredUnits_PrunesAndAugments(t *testing.T) {
+	t.Parallel()
+
+	const root = "/tmp/test"
+
+	unitPath := func(name string) string { return filepath.Join(root, name) }
+
+	// Resolved units: old is excluded, app was never discovered.
+	vpc := component.NewUnit(unitPath("vpc"))
+	db := component.NewUnit(unitPath("db"))
+	old := component.NewUnit(unitPath("old"))
+	app := component.NewUnit(unitPath("app"))
+
+	old.SetExcluded(true)
+	db.AddDependency(vpc)
+	app.AddDependency(db)
+	app.AddDependency(old)
+	app.AddDependency(component.NewStack(unitPath("stack")))
+
+	// Discovered components: a stack that must be dropped, an external vpc, and
+	// a db whose dependency on the excluded unit must be pruned.
+	discVPC := component.NewUnit(unitPath("vpc"))
+	discVPC.SetExternal()
+	discVPC.SetReading("shared.hcl")
+
+	discDB := component.NewUnit(unitPath("db"))
+	discDB.AddDependency(component.NewUnit(unitPath("vpc")))
+	discDB.AddDependency(component.NewUnit(unitPath("old")))
+
+	filtered := runnerpool.FilterDiscoveredUnits(
+		component.Components{component.NewStack(unitPath("stack")), discVPC, discDB},
+		[]*component.Unit{vpc, db, old, app},
+	)
+
+	byPath := make(map[string]component.Component, len(filtered))
+	for _, c := range filtered {
+		byPath[c.Path()] = c
+	}
+
+	require.Len(t, byPath, 3)
+	require.Contains(t, byPath, unitPath("vpc"))
+	require.Contains(t, byPath, unitPath("db"))
+	require.Contains(t, byPath, unitPath("app"))
+
+	assert.True(t, byPath[unitPath("vpc")].External())
+	assert.Equal(t, []string{"shared.hcl"}, byPath[unitPath("vpc")].Reading())
+
+	assert.Equal(t, []string{unitPath("vpc")}, dependencyPaths(byPath[unitPath("db")]))
+	assert.Equal(t, []string{unitPath("db")}, dependencyPaths(byPath[unitPath("app")]))
+}
+
+func TestNewRunnerPoolStack_PreventDestroyExcludesDependencies(t *testing.T) {
+	t.Parallel()
+
+	prevent := true
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{
+		PreventDestroy: &prevent,
+	})
+	app.AddDependency(vpc)
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	opts.TerraformCommand = "destroy"
+
+	runner, err := runnerpool.NewRunnerPoolStack(
+		context.Background(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{vpc, app},
+	)
+	require.NoError(t, err)
+
+	for _, unit := range runner.GetStack().Units {
+		assert.True(t, unit.Excluded(), "%s should be excluded", unit.Path())
+	}
+}
+
+func TestNewRunnerPoolStack_DestroyWithoutProtectedUnits(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	opts.TerraformCommand = "destroy"
+
+	runner, err := runnerpool.NewRunnerPoolStack(
+		context.Background(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{vpc},
+	)
+	require.NoError(t, err)
+	assert.False(t, runner.GetStack().Units[0].Excluded())
+}
+
+func TestNewRunnerPoolStack_FilterAllowDestroyKeepsUnit(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	vpc.SetDiscoveryContext(&component.DiscoveryContext{
+		Ref:  "abc123",
+		Cmd:  "apply",
+		Args: []string{"-destroy"},
+	})
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	opts.TerraformCommand = "apply"
+	opts.FilterAllowDestroy = true
+
+	runner, err := runnerpool.NewRunnerPoolStack(
+		context.Background(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{vpc},
+	)
+	require.NoError(t, err)
+	assert.False(t, runner.GetStack().Units[0].Excluded())
+}
+
+func TestNewRunnerPoolStack_UnitWithoutParsedConfig(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	runner, err := runnerpool.NewRunnerPoolStack(
+		context.Background(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{component.NewUnit("/tmp/test/vpc")},
+	)
+	require.NoError(t, err)
+	assert.Len(t, runner.GetStack().Units, 1)
+}
+
+func TestListStackDependentUnits_Transitive(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	db := component.NewUnit("/tmp/test/db").WithConfig(&config.TerragruntConfig{})
+	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
+
+	db.AddDependency(vpc)
+	app.AddDependency(db)
+
+	runner := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, db, app})
+
+	deps := runner.ListStackDependentUnits()
+	assert.ElementsMatch(t, []string{"/tmp/test/db", "/tmp/test/app"}, deps["/tmp/test/vpc"])
+	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/db"])
+}
+
+// dependencyPaths returns the paths of a component's direct dependencies.
+func dependencyPaths(c component.Component) []string {
+	paths := make([]string, 0, len(c.Dependencies()))
+	for _, dep := range c.Dependencies() {
+		paths = append(paths, dep.Path())
+	}
+
+	return paths
+}
+
 // buildTestRunner creates a Runner with simple unit components for testing.
 func buildTestRunner(t *testing.T, workDir string, unitPaths []string) *runnerpool.Runner {
 	t.Helper()

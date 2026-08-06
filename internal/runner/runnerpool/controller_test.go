@@ -155,6 +155,85 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	}
 }
 
+func TestRunnerPool_RunnerNotSet(t *testing.T) {
+	t.Parallel()
+
+	units := buildComponentUnits([]string{"A"}, nil)
+
+	q, err := queue.NewQueue(component.Components{units[0]})
+	require.NoError(t, err)
+
+	err = runnerpool.NewController(q, units).Run(t.Context(), logger.CreateLogger())
+	require.ErrorContains(t, err, "runner is not set")
+}
+
+func TestRunnerPool_NilQueueRunsNothing(t *testing.T) {
+	t.Parallel()
+
+	dagRunner := runnerpool.NewController(
+		nil,
+		buildComponentUnits([]string{"A"}, nil),
+		runnerpool.WithRunner(func(context.Context, *component.Unit) error { return nil }),
+		runnerpool.WithMaxConcurrency(0),
+	)
+	require.NoError(t, dagRunner.Run(t.Context(), logger.CreateLogger()))
+}
+
+func TestRunnerPool_UnitMissingFromDiscoveredUnits(t *testing.T) {
+	t.Parallel()
+
+	units := buildComponentUnits([]string{"A"}, nil)
+
+	q, err := queue.NewQueue(component.Components{units[0]})
+	require.NoError(t, err)
+
+	// The controller is handed no units, so the queue entry has nothing to run.
+	dagRunner := runnerpool.NewController(
+		q,
+		nil,
+		runnerpool.WithRunner(func(context.Context, *component.Unit) error { return nil }),
+	)
+
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	require.ErrorContains(t, err, "not found in discovered units")
+}
+
+func TestRunnerPool_ContextCancelled(t *testing.T) {
+	t.Parallel()
+
+	units := buildComponentUnits([]string{"A"}, nil)
+
+	q, err := queue.NewQueue(component.Components{units[0]})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	dagRunner := runnerpool.NewController(
+		q,
+		units,
+		runnerpool.WithRunner(func(context.Context, *component.Unit) error {
+			close(started)
+			<-release
+
+			return nil
+		}),
+	)
+
+	done := make(chan error, 1)
+
+	go func() { done <- dagRunner.Run(ctx, logger.CreateLogger()) }()
+
+	<-started
+	// Cancelling while the only task is in flight leaves readyCh empty, so the
+	// controller takes its cancellation branch and waits for the task.
+	cancel()
+	close(release)
+
+	require.NoError(t, <-done)
+}
+
 // Helper to build a more complex dependency graph:
 //
 //	   A
