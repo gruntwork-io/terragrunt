@@ -32,8 +32,7 @@ func runDelete(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	if err != nil || remoteState == nil {

@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"io"
 	"runtime"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -47,10 +49,17 @@ func Run(
 	}
 
 	tempDirs := tui.NewTempDirTracker(v.FS)
+
+	streamCtx, stopStream := context.WithCancel(ctx)
+	defer stopStream()
+
+	stopNotify := notifyBrokenPipe(ctx, stopStream)
+	defer stopNotify()
+
 	defer tempDirs.Cleanup(l)
 
 	return Stream(
-		ctx, l, v.Writers.Writer, renderer,
+		streamCtx, l, v.Writers.Writer, renderer,
 		newLoadFunc(l, v, opts.TerragruntOptions, tempDirs, repoURL),
 	)
 }
@@ -74,9 +83,17 @@ func runTUI(
 	tempDirs := tui.NewTempDirTracker(v.FS)
 	defer tempDirs.Cleanup(l)
 
+	// While the TUI owns the alt screen, anything the background loaders write
+	// to the log stream would draw over it, so they get a muted clone of the
+	// logger and their warn-or-worse entries surface as toasts in the TUI. The
+	// original logger stays with the TUI itself for work that runs while the
+	// terminal is released (scaffolding) and for post-exit messages.
+	warnCh := make(chan viewtui.Warning, viewtui.WarnChannelBuffer)
+	loadLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(viewtui.NewWarnHook(warnCh)))
+
 	return tui.Run(
-		ctx, l, v, opts, v.Writers.ErrWriter,
-		newLoadFunc(l, v, opts, tempDirs, repoURL),
+		ctx, l, v, opts, warnCh,
+		newLoadFunc(loadLogger, v, opts, tempDirs, repoURL),
 	)
 }
 
@@ -113,11 +130,11 @@ func discoverAndLoad(
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return discoverCatalogConfigURLs(gctx, l, opts, urlCh)
+		return discoverCatalogConfigURLs(gctx, l, v, opts, urlCh)
 	})
 
 	g.Go(func() error {
-		return discoverSourceFileURLs(gctx, l, opts, urlCh)
+		return discoverSourceFileURLs(gctx, l, v, opts, urlCh)
 	})
 
 	go func() {
@@ -197,10 +214,11 @@ func discoverAndLoad(
 func discoverCatalogConfigURLs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
@@ -224,10 +242,11 @@ func discoverCatalogConfigURLs(
 func discoverSourceFileURLs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
-	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
 	if err != nil {

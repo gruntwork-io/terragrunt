@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -68,7 +69,10 @@ type StackConfig struct {
 
 // Unit represents unit from a stack file.
 type Unit struct {
-	Remain              hcl.Body   `hcl:",remain"`
+	Remain hcl.Body `hcl:",remain"`
+
+	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
+
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
@@ -86,7 +90,10 @@ func (u *Unit) GeneratedPath(stackDir string) string {
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
-	Remain              hcl.Body   `hcl:",remain"`
+	Remain hcl.Body `hcl:",remain"`
+
+	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
+
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
@@ -169,7 +176,13 @@ func GenerateStackFile(
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      cs.Enabled,
 		casInstance:     cs.Instance,
+		ociEnabled:      pctx.Experiments.Evaluate(experiment.OCI),
 		strictControls:  pctx.StrictControls,
+	}
+
+	// One getter per stack, so every component shares its credential resolution.
+	if genOpts.ociEnabled {
+		genOpts.ociGetter = getter.NewOCIGetter(l, pctx.Venv)
 	}
 
 	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
@@ -421,6 +434,7 @@ func setupCAS(l log.Logger, v *venv.Venv, enabled bool, cloneDepth int) (casSetu
 type generateOpts struct {
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	casInstance     *cas.CAS
+	ociGetter       *getter.OCIGetter
 	sourceMap       map[string]string
 	strictControls  strict.Controls
 	rootWorkingDir  string
@@ -432,6 +446,7 @@ type generateOpts struct {
 	logShowAbsPaths bool
 	noStackValidate bool
 	casEnabled      bool
+	ociEnabled      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -756,6 +771,11 @@ func fetchComponentSource(
 ) error {
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.strictControls)
 
+	isOCI := isOCISource(source)
+	if isOCI && !opts.ociEnabled {
+		return OCIExperimentRequiredError{Kind: kindStr, Name: cmp.name}
+	}
+
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
 			return fmt.Errorf(
@@ -794,7 +814,8 @@ func fetchComponentSource(
 		return nil
 	}
 
-	if opts.casEnabled {
+	// oci:// has no git remote, so the CAS clone can only fail; other non-git schemes still fall through to the getter.
+	if opts.casEnabled && !isOCI {
 		casErr := fetchViaCAS(ctx, l, v, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {
 			return nil
@@ -820,7 +841,8 @@ func fetchComponentSource(
 		})
 	}
 
-	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
+	cp := componentCopy{identifier: cmp.name, sourceDir: cmp.sourceDir, src: source, dest: dest}
+	if err := copyFiles(ctx, l, v, opts, cp); err != nil {
 		return fmt.Errorf(
 			"failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
@@ -851,7 +873,7 @@ func fetchViaCAS(
 	opts *generateOpts,
 	sourceDir, kindStr, source, dest string,
 ) error {
-	resolvedSource := resolveLocalCASSource(l, sourceDir, source)
+	resolvedSource := resolveLocalCASSource(v.FS, sourceDir, source)
 
 	result, err := opts.casInstance.ProcessStackComponent(ctx, l, v, resolvedSource, kindStr)
 	if err != nil {
@@ -865,6 +887,7 @@ func fetchViaCAS(
 	// to its own temp dir, so failures before this point never touch dest.
 	if copyErr := util.CopyFolderContentsWithFilter(
 		l,
+		v.FS,
 		result.ContentDir,
 		dest,
 		manifestName,
@@ -872,7 +895,7 @@ func fetchViaCAS(
 			return true
 		},
 	); copyErr != nil {
-		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil &&
+		if cleanupErr := v.FS.RemoveAll(dest); cleanupErr != nil &&
 			!errors.Is(cleanupErr, os.ErrNotExist) {
 			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
 		}
@@ -888,13 +911,13 @@ func fetchViaCAS(
 // rather than the process CWD. Remote sources, absolute paths, and any source
 // that doesn't look like a local path are returned unchanged. The "//" subdir
 // suffix used by go-getter is preserved.
-func resolveLocalCASSource(l log.Logger, sourceDir, source string) string {
+func resolveLocalCASSource(fsys vfs.FS, sourceDir, source string) string {
 	if source == "" || sourceDir == "" {
 		return source
 	}
 
 	basePath, subdir := getter.SourceDirSubdir(source)
-	if filepath.IsAbs(basePath) || !isLocal(l, sourceDir, basePath) {
+	if filepath.IsAbs(basePath) || !isLocal(fsys, sourceDir, basePath) {
 		return source
 	}
 
@@ -915,45 +938,97 @@ func isCASProtocol(source string) bool {
 	return strings.HasPrefix(source, cas.CASProtocolPrefix)
 }
 
+// componentCopy names one component fetch: its identifier, source directory, source, and destination.
+type componentCopy struct {
+	identifier string
+	sourceDir  string
+	src        string
+	dest       string
+}
+
 // copyFiles copies files or directories from a source to a destination path.
 //
 // The function checks if the source is local or remote. If local, it copies the
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
-func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
-	if !isLocal(l, sourceDir, src) {
-		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
-			return fmt.Errorf("failed to create directory %s for %s %w", dest, identifier, err)
+func copyFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	cp componentCopy,
+) error {
+	if !isLocal(v.FS, cp.sourceDir, cp.src) {
+		if err := v.FS.MkdirAll(cp.dest, os.ModePerm); err != nil {
+			return fmt.Errorf("failed to create directory %s for %s %w", cp.dest, cp.identifier, err)
 		}
 
-		if _, err := getter.GetAny(ctx, dest, src); err != nil {
-			return fmt.Errorf("failed to fetch %s %s for %s %w", src, dest, identifier, err)
+		if _, err := getter.GetAny(ctx, cp.dest, cp.src, stackGetterOptions(l, v, opts)...); err != nil {
+			return fmt.Errorf("failed to fetch %s %s for %s %w", cp.src, cp.dest, cp.identifier, err)
 		}
 
 		return nil
 	}
 
-	localSrc := src
+	localSrc := cp.src
 
-	if !filepath.IsAbs(src) {
-		localSrc = filepath.Join(sourceDir, src)
+	if !filepath.IsAbs(cp.src) {
+		localSrc = filepath.Join(cp.sourceDir, cp.src)
 	}
 
 	localSrc = filepath.Clean(localSrc)
 
 	if err := util.CopyFolderContentsWithFilter(
 		l,
+		v.FS,
 		localSrc,
-		dest,
+		cp.dest,
 		manifestName,
 		func(absolutePath string) bool {
 			return true
 		},
 	); err != nil {
-		return fmt.Errorf("failed to copy %s to %s %w", localSrc, dest, err)
+		return fmt.Errorf("failed to copy %s to %s %w", localSrc, cp.dest, err)
 	}
 
 	return nil
+}
+
+// OCIExperimentRequiredError reports an oci:// component source used without the oci experiment.
+type OCIExperimentRequiredError struct {
+	Kind string
+	Name string
+}
+
+func (err OCIExperimentRequiredError) Error() string {
+	return fmt.Sprintf(
+		"oci:// source on %s %q requires the oci experiment (e.g. --experiment=oci)",
+		err.Kind,
+		err.Name,
+	)
+}
+
+// isOCISource reports whether source is an oci reference, in the oci:// or oci:: form.
+func isOCISource(source string) bool {
+	// go-getter matches the forced token exactly, so only the URL scheme folds.
+	if strings.HasPrefix(source, getter.SchemeOCI+"::") {
+		return true
+	}
+
+	scheme, _, found := strings.Cut(source, "://")
+
+	return found && strings.EqualFold(scheme, getter.SchemeOCI)
+}
+
+// stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.
+func stackGetterOptions(l log.Logger, v *venv.Venv, opts *generateOpts) []getter.Option {
+	clientOpts := []getter.Option{getter.WithLogger(l), getter.WithHTTP(v.HTTP)}
+
+	if opts.ociGetter != nil {
+		clientOpts = append(clientOpts, getter.WithOCI(opts.ociGetter))
+	}
+
+	return clientOpts
 }
 
 // isLocal determines if a given source path is local or remote.
@@ -963,13 +1038,11 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 // looks like an absolute path but does not exist is treated as remote so the
 // caller can produce a meaningful fetch error rather than silently copying
 // from an empty directory.
-func isLocal(_ log.Logger, workingDir, src string) bool {
-	if util.FileExists(src) {
-		return true
-	}
-
-	if util.FileExists(filepath.Join(workingDir, src)) {
-		return true
+func isLocal(fsys vfs.FS, workingDir, src string) bool {
+	for _, candidate := range []string{src, filepath.Join(workingDir, src)} {
+		if exists, err := vfs.FileExists(fsys, candidate); err == nil && exists {
+			return true
+		}
 	}
 
 	return strings.HasPrefix(src, "file://")
@@ -1058,6 +1131,10 @@ func ParseStackConfig(
 		parser = parser.WithValues(values)
 	}
 
+	if err := ValidateExpansionExperiment(parser.Experiments, file); err != nil {
+		return nil, err
+	}
+
 	if err := processLocals(ctx, l, parser, file); err != nil {
 		return nil, err
 	}
@@ -1094,6 +1171,7 @@ func ParseStackConfig(
 		stackDir,
 		evalParsingContext,
 		parser.ParserOptions,
+		parser.Experiments,
 	); err != nil {
 		return nil, err
 	}
@@ -1106,6 +1184,7 @@ func ParseStackConfig(
 		filepath.Base(file.ConfigPath),
 		evalParsingContext,
 		parser.ParserOptions,
+		parser.Experiments,
 	); err != nil {
 		return nil, err
 	}
@@ -1179,7 +1258,12 @@ func injectStackComponentRefs(
 	// stack.<name>.path can resolve against the base components, matching how the full decode resolves them.
 	setStackComponentRefVars(evalCtx, stackDir, headers.Units, headers.Stacks)
 
-	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(fsys, stackDir, evalCtx, parserOpts)
+	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(
+		fsys,
+		stackDir,
+		evalCtx,
+		parserOpts,
+	)
 	if err != nil {
 		return err
 	}
@@ -1357,7 +1441,12 @@ func pruneOverriddenStackAutoIncludes(
 		return nil
 	}
 
-	unitNames, stackNames, err := stackAutoIncludeComponentNames(fsys, stackDir, evalCtx, parserOpts)
+	unitNames, stackNames, err := stackAutoIncludeComponentNames(
+		fsys,
+		stackDir,
+		evalCtx,
+		parserOpts,
+	)
 	if err != nil {
 		return err
 	}
@@ -1383,6 +1472,7 @@ func processStackConfigIncludes(
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
+	experiments experiment.Experiments,
 ) error {
 	for _, inc := range config.Includes {
 		includePath := inc.Path
@@ -1393,6 +1483,10 @@ func processStackConfigIncludes(
 		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, includePath)
 		if err != nil {
 			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
+		}
+
+		if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+			return err
 		}
 
 		included := &StackConfigFile{}
@@ -1448,6 +1542,7 @@ func mergeStackAutoIncludeFile(
 	stackDir, stackFileName string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
+	experiments experiment.Experiments,
 ) error {
 	// Never merge the autoinclude file into itself.
 	if stackFileName == inthclparse.AutoIncludeStackFile {
@@ -1482,6 +1577,10 @@ func mergeStackAutoIncludeFile(
 		filepath.Base(stackDir),
 	); typed != nil {
 		return *typed
+	}
+
+	if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+		return err
 	}
 
 	included := &StackConfigFile{}

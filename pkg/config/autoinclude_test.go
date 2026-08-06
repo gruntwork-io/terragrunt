@@ -12,6 +12,7 @@ import (
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +56,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -119,7 +120,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -199,7 +200,7 @@ include "base" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -250,7 +251,7 @@ include "common" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -331,7 +332,7 @@ dependency "leak" {
 `), 0644),
 	)
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -384,7 +385,7 @@ exclude {
 
 	l := logger.CreateLogger()
 
-	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
+	ctxFull, pctxFull := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
@@ -398,7 +399,7 @@ exclude {
 		"autoinclude exclude must win in full parse",
 	)
 
-	ctxPartial, pctxPartial := newTestParsingContext(t, cfgPath)
+	ctxPartial, pctxPartial := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
 
@@ -431,7 +432,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 
 	l := logger.CreateLogger()
 
@@ -461,7 +462,7 @@ inputs = {
 }
 `), 0644))
 
-	// Autoinclude with overlapping inputs — should win on conflicts
+	// Autoinclude with overlapping inputs, which should win on conflicts
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
 inputs = {
@@ -470,7 +471,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 
 	l := logger.CreateLogger()
 
@@ -511,7 +512,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 
 	l := logger.CreateLogger()
 
@@ -559,7 +560,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
 		WithSkipOutputsResolution()
@@ -617,7 +618,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -661,7 +662,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, autoIncludePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -697,7 +698,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -757,7 +758,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
+	ctxFull, pctxFull := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
@@ -778,7 +779,7 @@ inputs = {
 		"autoinclude terraform source must win in full parse",
 	)
 
-	ctxPartial, pctxPartial := newTestParsingContext(t, cfgPath)
+	ctxPartial, pctxPartial := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
 
@@ -835,7 +836,7 @@ errors {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(
 		config.DependencyBlock,
@@ -902,7 +903,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock).WithSkipOutputsResolution()
 
@@ -967,7 +968,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, autoIncludePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
@@ -1006,7 +1007,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
 	ctx = context.WithValue(
 		ctx,
@@ -1097,7 +1098,7 @@ remote_state {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
 	ctx = context.WithValue(
 		ctx,
@@ -1181,7 +1182,7 @@ dependency "bar" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock).
 		WithSkipOutputsResolution()
@@ -1226,7 +1227,7 @@ stack "networking" {
 `), 0644))
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -1294,7 +1295,7 @@ inputs = {
 `), 0644))
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -1340,7 +1341,7 @@ unit "app" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -1361,4 +1362,45 @@ unit "app" {
 	var localsErr inthclparse.AutoIncludeLocalsBlockError
 	require.ErrorAs(t, err, &localsErr)
 	assert.Equal(t, "app", localsErr.Component)
+}
+
+// Autoinclude inputs that override a unit input referencing a values.* key not present in the values file must not fail.
+func TestMergeAutoInclude_ValuesPlaceholderForOverriddenInputs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// Unit references values.vpc_id (not in values file) and values.cidr (in values file).
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+inputs = {
+  vpc_id = values.vpc_id
+  cidr   = values.cidr
+}
+`), 0644))
+
+	// Values file defines only cidr, not vpc_id.
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.values.hcl"), []byte(`
+cidr = "10.0.0.0/16"
+`), 0644))
+
+	// Autoinclude overrides vpc_id with a literal (in real usage this would be dependency.*.outputs.*).
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+inputs = {
+  vpc_id = "from-autoinclude"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err, "parsing must not fail on values.vpc_id when autoinclude overrides vpc_id")
+	require.NotNil(t, parsed)
+
+	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"], "autoinclude must win for vpc_id")
+	assert.Equal(t, "10.0.0.0/16", parsed.Inputs["cidr"], "original values.cidr must survive")
 }

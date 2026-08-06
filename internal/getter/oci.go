@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
@@ -286,6 +287,15 @@ type OCIGetter struct {
 }
 
 var _ getter.Getter = (*OCIGetter)(nil)
+
+// NewOCIGetter returns the oci:// getter wired to the default credential store.
+func NewOCIGetter(l log.Logger, v *venv.Venv) *OCIGetter {
+	return &OCIGetter{
+		NewStore: NewOCIRepositoryStore(l, v),
+		Logger:   l,
+		FS:       v.FS,
+	}
+}
 
 // Mode reports directory mode for all oci sources, since oci always
 // downloads a module directory.
@@ -640,10 +650,8 @@ func (g *OCIGetter) extractModuleWithLimits(
 		return fmt.Errorf("extracting OCI module archive: %w", err)
 	}
 
-	sourcePath, err := SubdirGlob(unzipPath, subDir)
-	if err != nil {
-		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
-	}
+	// Clients resolve //subdir themselves, so subDir stays literal and the Stat below guards it.
+	sourcePath := filepath.Join(unzipPath, subDir)
 
 	if _, err := g.FS.Stat(sourcePath); err != nil {
 		return ModuleDownloadErr{

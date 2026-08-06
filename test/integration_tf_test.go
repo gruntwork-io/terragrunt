@@ -801,73 +801,95 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheMultiplePlatforms)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheMultiplePlatforms)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheMultiplePlatforms)
 
-	providerCacheDir := helpers.TmpDirWOSymlinks(t)
-
-	var (
-		platforms     = []string{"linux_amd64", "darwin_arm64"}
-		platformsArgs = make([]string, 0, len(platforms))
-	)
-
-	for _, platform := range platforms {
-		platformsArgs = append(platformsArgs, "-platform="+platform)
+	// OpenTofu and Terraform accept the platform value attached to the flag or as the argument that follows it.
+	testCases := []struct {
+		name               string
+		flagValueSeparator string
+	}{
+		{
+			name:               "attached value",
+			flagValueSeparator: "=",
+		},
+		{
+			name:               "separate value",
+			flagValueSeparator: " ",
+		},
 	}
 
-	helpers.RunTerragrunt(
-		t,
-		fmt.Sprintf(
-			"terragrunt run --all --no-auto-init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
-			providerCacheDir,
-			rootPath,
-		)+" -- providers lock "+strings.Join(
-			platformsArgs,
-			" ",
-		),
-	)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	providers := []string{
-		"hashicorp/null/3.2.3",
-		"hashicorp/local/2.5.2",
-	}
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheMultiplePlatforms)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheMultiplePlatforms)
 
-	registryName := "registry.opentofu.org"
-	if isTerraform(t.Context()) {
-		registryName = "registry.terraform.io"
-	}
+			providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
-	for _, appName := range []string{"app1", "app2", "app3"} {
-		appPath := filepath.Join(rootPath, appName)
-		assert.True(t, util.FileExists(appPath))
-
-		lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
-		lockfileContent, err := os.ReadFile(lockfilePath)
-		require.NoError(t, err)
-
-		lockfile, diags := hclwrite.ParseConfig(
-			lockfileContent,
-			lockfilePath,
-			hcl.Pos{Line: 1, Column: 1},
-		)
-		assert.False(t, diags.HasErrors())
-		assert.NotNil(t, lockfile)
-
-		for _, provider := range providers {
-			provider := path.Join(registryName, provider)
-
-			providerBlock := lockfile.Body().
-				FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
-			assert.NotNil(t, providerBlock)
-
-			providerPath := filepath.Join(providerCacheDir, provider)
-			assert.True(t, util.FileExists(providerPath))
+			var (
+				platforms     = []string{"linux_amd64", "darwin_arm64"}
+				platformsArgs = make([]string, 0, len(platforms))
+			)
 
 			for _, platform := range platforms {
-				platformPath := filepath.Join(providerPath, platform)
-				assert.True(t, util.FileExists(platformPath))
+				platformsArgs = append(platformsArgs, "-platform"+tc.flagValueSeparator+platform)
 			}
-		}
+
+			helpers.RunTerragrunt(
+				t,
+				fmt.Sprintf(
+					"terragrunt run --all --no-auto-init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
+					providerCacheDir,
+					rootPath,
+				)+" -- providers lock "+strings.Join(
+					platformsArgs,
+					" ",
+				),
+			)
+
+			providers := []string{
+				"hashicorp/null/3.2.3",
+				"hashicorp/local/2.5.2",
+			}
+
+			registryName := "registry.opentofu.org"
+			if isTerraform(t.Context()) {
+				registryName = "registry.terraform.io"
+			}
+
+			for _, appName := range []string{"app1", "app2", "app3"} {
+				appPath := filepath.Join(rootPath, appName)
+				assert.True(t, util.FileExists(appPath))
+
+				lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
+				lockfileContent, err := os.ReadFile(lockfilePath)
+				require.NoError(t, err)
+
+				lockfile, diags := hclwrite.ParseConfig(
+					lockfileContent,
+					lockfilePath,
+					hcl.Pos{Line: 1, Column: 1},
+				)
+				assert.False(t, diags.HasErrors())
+				assert.NotNil(t, lockfile)
+
+				for _, provider := range providers {
+					provider := path.Join(registryName, provider)
+
+					providerBlock := lockfile.Body().
+						FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+					assert.NotNil(t, providerBlock)
+
+					providerPath := filepath.Join(providerCacheDir, provider)
+					assert.True(t, util.FileExists(providerPath))
+
+					for _, platform := range platforms {
+						platformPath := filepath.Join(providerPath, platform)
+						assert.True(t, util.FileExists(platformPath))
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -3107,6 +3129,7 @@ func TestTFReadTerragruntConfigFull(t *testing.T) {
 				"path":              "provider.tf",
 				"if_exists":         "overwrite_terragrunt",
 				"hcl_fmt":           nil,
+				"mutable":           nil,
 				"if_disabled":       "skip",
 				"comment_prefix":    "# ",
 				"disable_signature": false,

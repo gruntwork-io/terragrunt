@@ -1,0 +1,37 @@
+---
+title: OCI
+description: How the CAS probes and deduplicates oci registry sources.
+slug: features/caching/cas/oci
+sidebar:
+  order: 10
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+OCI sources are part of the [`oci` experiment](/reference/experiments/active#oci). Enable it with `--experiment oci`.
+</Aside>
+
+## Overview
+
+An OCI reference resolves to an immutable manifest digest, which makes it an ideal cache key: a `?digest=` pin already is one, and a `?tag=` resolves to one with a single registry request. The CAS keys the module package by that manifest digest, so caching tracks content rather than the mutable tag.
+
+## The cheap probe
+
+A source pinned with `?digest=` needs no registry request at all: the digest itself is the cache key. A source using `?tag=` (or the implicit `latest`) resolves the tag to its current manifest digest with one metadata request, capped at ten seconds. A `//subdir` selector is stripped before the probe, so two requests that differ only by subdirectory share one key; the cached tree is the full module package, and the requested subdirectory is extracted when linking.
+
+## Cache key & deduplication
+
+The key is the manifest digest, so a tag and a digest pin that name the same manifest share one CAS entry, as do the same module pulled from the same registry by different configurations. Because tags are re-resolved on every probe, a re-pushed tag resolves to a new digest and misses the cache instead of serving stale content. File blobs are content-addressed.
+
+## Cache miss
+
+When the digest is not yet in the store, Terragrunt rewrites the fetch itself to `?digest=`, downloads the module package, ingests it, and links it into the target. Fetching by the resolved digest rather than the tag means a tag moving mid-fetch can never store the wrong content under the key.
+
+## Cache hit
+
+When the digest is already present, Terragrunt links the cached tree without contacting the registry beyond the tag resolution.
+
+## Fallback behavior
+
+A probe failure, such as an unreachable registry or an unresolvable tag, yields no key, and Terragrunt falls back to downloading and content-hashing the result; the underlying error surfaces on the real fetch attempt. `unit` and `stack` components with `oci://` sources do not use the CAS and always fetch directly.

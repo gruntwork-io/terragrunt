@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +30,7 @@ func TestWithDependencyConfigPath_CustomDownloadDir_Preserved(t *testing.T) {
 	customDownloadDir := filepath.Join(tmpDir, "custom-cache")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	_, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewOSWithEmptyEnv(), config.WithStrictControls(controls.New()))
 
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
 	pctx.TerragruntConfigPath = callerConfigPath
@@ -58,7 +59,7 @@ func TestWithDependencyConfigPath_DefaultDownloadDir_Updated(t *testing.T) {
 	depConfigPath := filepath.Join(tmpDir, "modules", "vpc", "terragrunt.hcl")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	_, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewOSWithEmptyEnv(), config.WithStrictControls(controls.New()))
 
 	// Set DownloadDir to the caller's default (no TG_DOWNLOAD_DIR override).
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
@@ -92,7 +93,7 @@ func TestWithDependencyConfigPath_CustomDownloadDir_NotDefaultForAnyModule(t *te
 	customDownloadDir := filepath.Join(tmpDir, ".terragrunt-cache")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	_, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewOSWithEmptyEnv(), config.WithStrictControls(controls.New()))
 
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
 	pctx.TerragruntConfigPath = callerConfigPath
@@ -106,4 +107,17 @@ func TestWithDependencyConfigPath_CustomDownloadDir_NotDefaultForAnyModule(t *te
 
 	assert.Equal(t, customDownloadDir, depCtx.DownloadDir,
 		"custom TG_DOWNLOAD_DIR must be preserved even when it shares the root tmpDir")
+}
+
+// TestNewParsingContextPanicsOnNilVenv pins the constructor's contract, so a
+// caller that passes no venv fails there rather than on a nil dereference deep
+// inside an HCL helper.
+func TestNewParsingContextPanicsOnNilVenv(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	require.PanicsWithValue(t, config.ErrParsingContextVenvNil, func() {
+		config.NewParsingContext(t.Context(), l, nil)
+	})
 }

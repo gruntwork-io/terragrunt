@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -310,7 +311,7 @@ func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	l := logger.CreateLogger()
 
 	template := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindTemplate,
+		component.KindTemplate,
 		"github.com/gruntwork-io/templates-repo",
 		"templates/unit",
 		"# Unit Template\nA boilerplate template.",
@@ -381,7 +382,7 @@ func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
 	const longSource = "github.com/gruntwork-io/terragrunt-scale-catalog-extra-long-path-that-must-be-abbreviated/subdir"
 
 	entry := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		longSource,
 		"modules/vpc",
 		"# VPC",

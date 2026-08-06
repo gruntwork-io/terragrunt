@@ -97,6 +97,17 @@ const (
 	// directory instead of the git repository root: dependencies and dependents
 	// resolving outside it are not discovered.
 	BoundedDiscovery = "bounded-discovery"
+	// BlockIteration gates the expansion block, which iterates a dependency, unit,
+	// or stack block over a count or for_each, along with the enabled attribute on
+	// unit and stack blocks.
+	BlockIteration = "block-iteration"
+	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
+	BrowseTUI = "browse-tui"
+	// MutableGenerate gates the mutable attribute on the generate block and the
+	// default it changes: generated files are deduplicated through
+	// content-addressable storage and hard-linked into each working directory
+	// rather than written per unit.
+	MutableGenerate = "mutable-generate"
 )
 
 const (
@@ -202,6 +213,15 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: BoundedDiscovery,
+		},
+		{
+			Name: BlockIteration,
+		},
+		{
+			Name: BrowseTUI,
+		},
+		{
+			Name: MutableGenerate,
 		},
 	}
 }

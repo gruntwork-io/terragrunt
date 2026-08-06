@@ -113,6 +113,22 @@ func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
 	}
 }
 
+// ColorizeKind colors a plain string according to a component kind. Unlike
+// Colorize, it doesn't split the string into directory and base, so it's
+// suited to coloring a bare label (e.g. a single path segment) by kind.
+// Kinds other than units and stacks (plain directories, read files) are
+// rendered with the dim path color.
+func (c *Colorizer) ColorizeKind(s string, kind component.Kind) string {
+	switch kind {
+	case component.UnitKind:
+		return c.unitColorizer(s)
+	case component.StackKind:
+		return c.stackColorizer(s)
+	default:
+		return c.pathColorizer(s)
+	}
+}
+
 // ColorizeType colors a component type label.
 func (c *Colorizer) ColorizeType(t component.Kind) string {
 	switch t {
@@ -134,10 +150,11 @@ func (c *Colorizer) ColorizeHeading(dep string) string {
 
 // TreeStyler applies styling to a tree.
 type TreeStyler struct {
-	entryStyle  lipgloss.Style
-	rootStyle   lipgloss.Style
-	colorizer   *Colorizer
-	shouldColor bool
+	entryStyle    lipgloss.Style
+	indenterStyle lipgloss.Style
+	rootStyle     lipgloss.Style
+	colorizer     *Colorizer
+	shouldColor   bool
 }
 
 // NewTreeStyler creates a new TreeStyler.
@@ -147,8 +164,14 @@ func NewTreeStyler(shouldColor bool) *TreeStyler {
 	return &TreeStyler{
 		shouldColor: shouldColor,
 		entryStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("8")).MarginRight(1),
-		rootStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("35")),
-		colorizer:   colorizer,
+		// indenterStyle matches entryStyle's color for the vertical continuation
+		// bars. PaddingRight(1) mirrors lipgloss's default indenter style: the
+		// indenter must stay as wide as the enumerator column (4 cells), or
+		// nested levels shift one column left and colored output diverges from
+		// the no-color rendering.
+		indenterStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("8")).PaddingRight(1),
+		rootStyle:     lipgloss.NewStyle().Foreground(lipgloss.Color("35")),
+		colorizer:     colorizer,
 	}
 }
 
@@ -168,7 +191,7 @@ func (s *TreeStyler) Style(t *tree.Tree) *tree.Tree {
 
 	return t.
 		EnumeratorStyle(s.entryStyle).
-		IndenterStyle(s.entryStyle).
+		IndenterStyle(s.indenterStyle).
 		RootStyle(s.rootStyle)
 }
 

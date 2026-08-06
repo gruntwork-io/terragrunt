@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -360,7 +361,7 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions())
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -403,7 +404,7 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions())
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -429,7 +430,7 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions())
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -1919,7 +1920,7 @@ func newStackDepsParsingContext(
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
 	opts.TerragruntConfigPath = configPath
 
-	return configbridge.NewParsingContext(t.Context(), l, opts)
+	return configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), opts)
 }
 
 // partialParseDiscovery partial parses a unit config the way discovery does, with the

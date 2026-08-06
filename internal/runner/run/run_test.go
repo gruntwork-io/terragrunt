@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -188,10 +189,14 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			fsys := vfs.NewMemMapFS()
+			tmpDir := "/work"
+
+			require.NoError(t, fsys.MkdirAll(tmpDir, 0755))
+
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
-				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
+				require.NoError(t, vfs.WriteFile(fsys, filePath, []byte(content), 0644))
 			}
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
@@ -199,7 +204,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(configbridge.NewRunOptions(opts))
+			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts))
 			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
 			}

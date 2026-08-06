@@ -115,6 +115,16 @@ func (server *Server) Listen(ctx context.Context) (net.Listener, error) {
 func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 	server.logger.Infof("Start Terragrunt Cache server")
 
+	// Initialize before serving, not alongside it: the listener is already
+	// accepting connections by the time Run is called, so a service still
+	// building its state in a goroutine can be handed a request that reads
+	// that state half-built.
+	for _, service := range server.services {
+		if err := service.Init(); err != nil {
+			return err
+		}
+	}
+
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	for _, service := range server.services {

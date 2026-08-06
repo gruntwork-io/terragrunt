@@ -518,7 +518,7 @@ func (rnr *Runner) Run(
 
 				unitRunner := common.NewUnitRunner(u)
 
-				// Get credentials BEFORE config parsing — sops_decrypt_file() and
+				// Get credentials BEFORE config parsing: sops_decrypt_file() and
 				// get_aws_account_id() in locals need auth-provider credentials
 				// available in v.Env during HCL evaluation.
 				// See https://github.com/gruntwork-io/terragrunt/issues/5515
@@ -549,9 +549,9 @@ func (rnr *Runner) Run(
 						parseCtx, pctx := configbridge.NewParsingContext(
 							readCtx,
 							unitLogger,
+							unitV,
 							unitOpts,
 						)
-						pctx = pctx.WithVenv(unitV)
 
 						var readErr error
 

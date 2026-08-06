@@ -31,6 +31,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -2679,6 +2680,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 	for i := range 20 {
 		err := util.CopyFolderContents(
 			logger.CreateLogger(),
+			vfs.NewOSFS(),
 			helpers.MustAbs(t, testFixtureParallelStateInit),
 			tmpEnvPath,
 			".terragrunt-test",

@@ -5,6 +5,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 type configKey byte
@@ -29,8 +31,12 @@ func GetRunVersionCache(ctx context.Context) *cache.Cache[string] {
 // WithModuleVersionResolver installs a shared tfr:// version-constraint
 // resolver so that units sharing a module source and constraint query the
 // registry once per run instead of once each.
-func WithModuleVersionResolver(ctx context.Context) context.Context {
-	return context.WithValue(ctx, moduleVersionResolverContextKey, getter.NewVersionResolver())
+func WithModuleVersionResolver(ctx context.Context, v *venv.Venv) context.Context {
+	resolver := getter.NewVersionResolver().
+		WithHTTPClient(v.HTTP).
+		WithAuth(getter.RegistryAuth{Env: v.Env, ReadUserConfig: vfs.IsOSFS(v.FS)})
+
+	return context.WithValue(ctx, moduleVersionResolverContextKey, resolver)
 }
 
 // ModuleVersionResolverFromContext returns the resolver installed by

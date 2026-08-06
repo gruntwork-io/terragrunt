@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -966,6 +967,7 @@ func TestTFStacksSourceMap(t *testing.T) {
 
 	if err := util.CopyFolderContentsWithFilter(
 		logger.CreateLogger(),
+		vfs.NewOSFS(),
 		filepath.Join(localTmpEnvPath, "fixtures"),
 		localTmpTest,
 		".terragrunt-test",

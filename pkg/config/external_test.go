@@ -1,6 +1,6 @@
 // This file validates that the pkg/config package is usable by external consumers
 // as a public API. All tests here use only the external (black-box) package name
-// `config_test` and import only public packages — no `internal/` imports are allowed.
+// `config_test` and import only public packages: no `internal/` imports are allowed.
 
 package config_test
 
@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -433,7 +434,7 @@ inputs = {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 	cfg, err := config.ParseConfigString(
 		ctx,
 		pctx,
@@ -468,7 +469,7 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	v := cty.ObjectVal(map[string]cty.Value{})
 
@@ -510,7 +511,7 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
@@ -550,7 +551,7 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	v := cty.ObjectVal(map[string]cty.Value{
 		"app_path": cty.StringVal("foo"),
@@ -576,7 +577,7 @@ unit "db" {
 
 // TestExternalReadValuesAndParseStackConfig validates that an external consumer
 // can read a terragrunt.values.hcl file from disk using ReadValues and feed the
-// result into ReadStackConfigString — no internal/ imports required.
+// result into ReadStackConfigString, with no internal/ imports required.
 func TestExternalReadValuesAndParseStackConfig(t *testing.T) {
 	t.Parallel()
 
@@ -594,7 +595,7 @@ region   = "us-west-2"
 	)
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	// Read values from the file on disk.
 	values, err := config.ReadValues(ctx, pctx, l, dir)
@@ -618,7 +619,7 @@ unit "app" {
 
 // TestExternalReadValuesAndParseConfig validates that an external consumer can
 // parse a regular terragrunt.hcl that references values.* when a
-// terragrunt.values.hcl file sits next to it — no internal/ imports required.
+// terragrunt.values.hcl file sits next to it, with no internal/ imports required.
 //
 // ParseConfig automatically calls ReadValues from the config file's directory,
 // so the configPath argument must point into the directory containing the
@@ -640,7 +641,7 @@ region = "eu-west-1"
 	)
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	// Use a configPath inside the temp dir so ParseConfig discovers the
 	// adjacent terragrunt.values.hcl automatically.

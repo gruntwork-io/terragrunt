@@ -128,7 +128,7 @@ func NewClassifier(filters Filters) *Classifier {
 			continue
 		}
 
-		if !IsNegated(expr) {
+		if !IsPureNegation(expr) {
 			c.hasPositiveFilters = true
 		}
 

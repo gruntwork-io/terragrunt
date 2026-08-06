@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,11 +32,10 @@ unit "app" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackPath)
-	pctx.Venv = pctx.Venv.WithFS(statErrorFS{
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv().WithFS(statErrorFS{
 		FS:       vfs.NewOSFS(),
 		failPath: filepath.Join(tmpDir, inthclparse.AutoIncludeStackFile),
-	})
+	}), stackPath)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackPath, nil)
 	require.ErrorIs(t, err, errStatFailed)
@@ -52,12 +52,12 @@ func TestReadValuesPropagatesStatError(t *testing.T) {
 
 	ctx, pctx := newTestParsingContext(
 		t,
+		venvtest.NewOSWithEmptyEnv().WithFS(statErrorFS{
+			FS:       vfs.NewOSFS(),
+			failPath: filepath.Join(tmpDir, "terragrunt.values.hcl"),
+		}),
 		filepath.Join(tmpDir, config.DefaultTerragruntConfigPath),
 	)
-	pctx.Venv = pctx.Venv.WithFS(statErrorFS{
-		FS:       vfs.NewOSFS(),
-		failPath: filepath.Join(tmpDir, "terragrunt.values.hcl"),
-	})
 
 	values, err := config.ReadValues(ctx, pctx, logger.CreateLogger(), tmpDir)
 	require.ErrorIs(t, err, errStatFailed)

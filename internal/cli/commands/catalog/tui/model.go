@@ -17,7 +17,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -97,6 +99,13 @@ type Model struct {
 	// errCh carries the loader's final result, drained after componentCh
 	// closes so completion is observed only after every component.
 	errCh chan error
+	// warnCh carries warnings captured from the background loaders. The
+	// welcome model arms the session's single listener and hands the channel
+	// over at the model swap; the Warning handler re-arms it here.
+	warnCh <-chan viewtui.Warning
+	// toasts is the stack of floating warning notifications composited over
+	// the view, carried over from the welcome model at the swap.
+	toasts viewtui.ToastStack
 	// mdRenderer is the cached glamour renderer for README markdown. It is
 	// reused while mdRendererWidth and mdRendererDark still match the
 	// current width and background, and rebuilt otherwise.
@@ -110,7 +119,7 @@ type Model struct {
 	scaffoldPlan *scaffold.Plan
 	// valuesRefs holds the `values.*` references collected from a copyable
 	// unit/stack, used to build that component's values form.
-	valuesRefs *ValuesReferences
+	valuesRefs *component.ValuesReferences
 	// terminalErr is the failure that ended the session (a scaffold, copy,
 	// or form-discovery error). Run returns it so the catalog command exits
 	// nonzero; a deliberate quit leaves it nil.

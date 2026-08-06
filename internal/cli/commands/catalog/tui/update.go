@@ -17,8 +17,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -145,7 +147,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 					}
 				}
 			default:
-				m.logger.Warnf("Unknown button pressed: %s", currentAction)
+				cmds = append(cmds, m.toasts.Push(fmt.Sprintf("Unknown button pressed: %s", currentAction)))
 			}
 
 		case key.Matches(msg, m.pagerKeys.ScaffoldInteractive):
@@ -210,6 +212,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loadErr = msg.Err
 			m.exitMessage = formatSourceFailureNotice(msg.Err, valuesBoxAccentYellow)
 		}
+
+		return m, nil
+	case viewtui.Warning:
+		return m, tea.Batch(m.toasts.Push(msg.Message), viewtui.ListenForWarnings(m.warnCh))
+	case viewtui.ToastExpired:
+		m.toasts.Drop(msg.ID)
 
 		return m, nil
 	case tea.BackgroundColorMsg:
@@ -397,7 +405,7 @@ type ScaffoldFinishedMsg struct {
 // Interactive distinguishes the form-submit path from the placeholder path.
 type CopyFinishedMsg struct {
 	Err         error
-	Result      CopyResult
+	Result      component.Result
 	Interactive bool
 }
 
@@ -475,12 +483,12 @@ func formatSourceFailureNotice(err error, accent string) string {
 // screen, so the box lands in the user's scrollback. interactive controls
 // the body copy: the form path tells the user which lines they still need
 // to revisit, while the placeholder path describes the full TODO flow.
-func formatCopyValuesMessage(r CopyResult, interactive bool) string {
+func formatCopyValuesMessage(r component.Result, interactive bool) string {
 	if r.References.IsEmpty() {
 		return ""
 	}
 
-	path := displayPath(r.WorkingDir, filepath.Join(r.WorkingDir, valuesFileName))
+	path := displayPath(r.Dir, filepath.Join(r.Dir, component.ValuesFileName))
 
 	switch {
 	case r.ValuesWritten:
@@ -517,7 +525,7 @@ func formatCopyValuesMessage(r CopyResult, interactive bool) string {
 			Bold(true).
 			Render("terragrunt.values.hcl left untouched")
 
-		summary := "Referenced values.* keys: " + strings.Join(r.References.allNames(), ", ")
+		summary := "Referenced values.* keys: " + strings.Join(r.References.AllNames(), ", ")
 
 		body := "An existing file was found at the destination, so no stub was written.\n" +
 			"Make sure each referenced key above has a real value before running terragrunt."
@@ -628,11 +636,11 @@ func displayPath(baseDir, abs string) string {
 
 // formReadyMsg is delivered once discovery has built a populated FormModel
 // and (for module/template) the prepared scaffold.Plan, or (for unit/stack)
-// the captured ValuesReferences.
+// the captured component.ValuesReferences.
 type formReadyMsg struct {
 	form *FormModel
 	plan *scaffold.Plan
-	refs *ValuesReferences
+	refs *component.ValuesReferences
 }
 
 // formDiscoveryErrMsg signals that the pre-form discovery step failed
@@ -658,7 +666,7 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 // discoverFormCmd runs the kind-appropriate variable discovery off the UI
 // thread. For module/template that means downloading the source and
 // parsing variables via scaffold.Prepare; for unit/stack it means reading
-// the source HCL and walking it via CollectValuesReferences. ctx is the
+// the source HCL and walking it via component.CollectValuesReferences. ctx is the
 // model's cancellable context so a Ctrl+C during discovery aborts the
 // download instead of running it to completion.
 func discoverFormCmd(
@@ -713,14 +721,14 @@ func discoverModuleFields(
 // returns a formReadyMsg. CollectValuesReferences operates on the already
 // cloned local copy, so there's no download.
 func discoverValuesFields(c *Component) tea.Msg {
-	configName := configFileForKind(c.Kind)
+	configName := c.Kind.ConfigFile()
 	if configName == "" {
 		return formDiscoveryErrMsg{
 			err: fmt.Errorf("component kind %q has no associated HCL file", c.Kind),
 		}
 	}
 
-	refs, err := CollectValuesReferences(
+	refs, err := component.CollectValuesReferences(
 		vfs.NewOSFS(),
 		filepath.Join(c.Repo.Path(), c.Dir, configName),
 	)

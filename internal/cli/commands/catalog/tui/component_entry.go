@@ -1,6 +1,10 @@
 package tui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+)
 
 // ComponentEntry wraps a *Component with display-only metadata that the
 // redesign TUI needs but that doesn't belong on the shared type.
@@ -34,7 +38,7 @@ func (e *ComponentEntry) WithSource(source string) *ComponentEntry {
 }
 
 // Kind returns the underlying component's kind.
-func (e *ComponentEntry) Kind() ComponentKind { return e.Component.Kind }
+func (e *ComponentEntry) Kind() component.Kind { return e.Component.Kind }
 
 // FilterValue implements list.Item by delegating to the inner Component.
 func (e *ComponentEntry) FilterValue() string { return e.Component.FilterValue() }
@@ -58,7 +62,7 @@ func (e *ComponentEntry) Tags() []string {
 
 // HasTagForKind reports whether any of the entry's tags case-insensitively
 // equals the canonical String() for kind. Singular only; no plural matching.
-func (e *ComponentEntry) HasTagForKind(kind ComponentKind) bool {
+func (e *ComponentEntry) HasTagForKind(kind component.Kind) bool {
 	target := kind.String()
 
 	for _, t := range e.Tags() {
