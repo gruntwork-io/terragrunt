@@ -81,7 +81,10 @@ func TestNewCommandBeforeGatesNonInteractiveFormats(t *testing.T) {
 			}
 
 			cmd := catalog.NewCommand(logger.CreateLogger(), opts, venvtest.New())
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args{"--" + catalog.FormatFlagName, tc.format}))
+			require.NoError(
+				t,
+				cmd.Flags.Parse(clihelper.Args{"--" + catalog.FormatFlagName, tc.format}, map[string]string{}),
+			)
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
 
@@ -119,6 +122,7 @@ func TestNewCommandActionLoadsThePositionalSource(t *testing.T) {
 
 	require.NoError(t, cmd.Flags.Parse(
 		clihelper.Args{"--" + catalog.FormatFlagName, catalog.FormatJSONL},
+		map[string]string{},
 	))
 	require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
 	require.NoError(t, cmd.Action(
@@ -190,6 +194,7 @@ func TestNewFlagsIgnoreFileAction(t *testing.T) {
 			flags := catalog.NewFlags(opts, nil)
 			require.NoError(t, flags.Parse(
 				clihelper.Args{"--" + catalog.IgnoreFileFlagName, tc.value(dir)},
+				map[string]string{},
 			))
 
 			err := flags.RunActions(t.Context(), &clihelper.Context{})

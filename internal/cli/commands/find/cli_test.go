@@ -134,7 +134,7 @@ func TestNewCommandBeforeResolvesFormatAndMode(t *testing.T) {
 			tgOpts.RootWorkingDir = root
 
 			cmd := find.NewCommand(newTestLogger(t), tgOpts, v)
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
 			if tc.wantErr {
@@ -192,7 +192,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 			}
 
 			flags := find.NewFlags(newTestLogger(t), find.NewOptions(tgOpts), venvtest.New(), nil)
-			require.NoError(t, flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := flags.RunActions(t.Context(), &clihelper.Context{})
 			if tc.wantErr {
@@ -234,7 +234,7 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 			opts := find.NewOptions(options.NewTerragruntOptions())
 
 			flags := find.NewFlags(newTestLogger(t), opts, venvtest.New(), nil)
-			require.NoError(t, flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
 			assert.Len(t, opts.Filters, tc.wantFilters)
 		})

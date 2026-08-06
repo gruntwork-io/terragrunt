@@ -47,11 +47,12 @@ type App struct {
 // NewApp creates the Terragrunt CLI App. The supplied [venv.Venv] is the
 // root virtualized environment; it is threaded through to the command
 // constructors and captured by their Action closures rather than held on
-// the App, so virtualized handlers stay function parameters.
+// the App, so virtualized handlers stay function parameters. Its environment
+// map is what env-var-backed flags resolve against.
 func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
 	terragruntCommands := commands.New(l, opts, v)
 
-	app := clihelper.NewApp()
+	app := clihelper.NewApp(v.Env)
 	app.Name = AppName
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://docs.terragrunt.com/."
 	app.Author = "Gruntwork <www.gruntwork.io>"

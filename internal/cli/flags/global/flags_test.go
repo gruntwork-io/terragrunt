@@ -42,7 +42,7 @@ func TestProfileFlagsParse(t *testing.T) {
 		"--profile-mem=mem.prof",
 		"--profile-goroutine=goroutine.prof",
 		"--profile-dir=profiles",
-	})
+	}, map[string]string{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "cpu.prof", opts.ProfileCPU)
@@ -56,7 +56,7 @@ func TestProfileFlagsParseSpaceForm(t *testing.T) {
 
 	opts := options.NewTerragruntOptions()
 
-	err := global.NewProfileFlags(opts, nil).Parse([]string{"--profile-cpu", "cpu.prof"})
+	err := global.NewProfileFlags(opts, nil).Parse([]string{"--profile-cpu", "cpu.prof"}, map[string]string{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "cpu.prof", opts.ProfileCPU)

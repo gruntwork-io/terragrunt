@@ -102,21 +102,21 @@ func (newFlag *Flag) Value() clihelper.FlagValue {
 }
 
 // Apply implements `clihelper.Flag` interface.
-func (newFlag *Flag) Apply(set *flag.FlagSet) error {
-	if err := newFlag.Flag.Apply(set); err != nil {
+func (newFlag *Flag) Apply(set *flag.FlagSet, env map[string]string) error {
+	if err := newFlag.Flag.Apply(set, env); err != nil {
 		return err
 	}
 
 	for _, deprecated := range newFlag.deprecatedFlags {
 		if deprecated.Flag == newFlag.Flag {
-			if err := clihelper.ApplyFlag(deprecated, set); err != nil {
+			if err := clihelper.ApplyFlag(deprecated, set, env); err != nil {
 				return err
 			}
 
 			continue
 		}
 
-		if err := deprecated.Apply(set); err != nil {
+		if err := deprecated.Apply(set, env); err != nil {
 			return err
 		}
 	}
@@ -152,14 +152,15 @@ func (newFlag *Flag) RunAction(ctx context.Context, cliCtx *clihelper.Context) e
 	return newFlag.Flag.RunAction(ctx, cliCtx)
 }
 
-// Parse parses the given `args` for the flag value and env vars values specified in the flag.
+// Parse parses the given `args` for the flag value and the values of the env
+// vars specified in the flag, resolved against `env`.
 // The value will be assigned to the `Destination` field.
 // The value can also be retrieved using `flag.Value().Get()`.
-func (newFlag *Flag) Parse(args clihelper.Args) error {
+func (newFlag *Flag) Parse(args clihelper.Args, env map[string]string) error {
 	flagSet := flag.NewFlagSet("", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	if err := newFlag.Apply(flagSet); err != nil {
+	if err := newFlag.Apply(flagSet, env); err != nil {
 		return err
 	}
 
