@@ -192,7 +192,10 @@ func TestCommandRun(t *testing.T) {
 
 			tc := tcFn(action, skip)
 
-			app := &clihelper.App{App: &urfaveCli.App{Writer: io.Discard}}
+			app := &clihelper.App{
+				App: &urfaveCli.App{Writer: io.Discard},
+				Env: map[string]string{},
+			}
 			cliCtx := clihelper.NewAppContext(app, tc.args)
 
 			err := tc.command.Run(t.Context(), cliCtx, tc.args)

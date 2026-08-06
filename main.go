@@ -44,7 +44,7 @@ func run() (code int) {
 		}
 	}()
 
-	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
+	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args, v.Env); err != nil {
 		l.Errorf("An error has occurred: %v", err)
 		return 1
 	}
