@@ -4,6 +4,9 @@ description: How the CAS probes and deduplicates oci registry sources.
 slug: features/caching/cas/oci
 sidebar:
   order: 10
+  badge:
+    variant: tip
+    text: exp
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -18,7 +21,7 @@ An OCI reference resolves to an immutable manifest digest, which makes it an ide
 
 ## The cheap probe
 
-A source pinned with `?digest=` needs no registry request at all: the digest itself is the cache key. A source using `?tag=` (or the implicit `latest`) resolves the tag to its current manifest digest with one metadata request, capped at ten seconds. A `//subdir` selector is stripped before the probe, so two requests that differ only by subdirectory share one key; the cached tree is the full module package, and the requested subdirectory is extracted when linking.
+A source pinned with `?digest=` skips the resolution request entirely: the digest itself is the cache key, though a cache miss still downloads the module package. A source using `?tag=` (or the implicit `latest`) resolves the tag to its current manifest digest with one metadata request, capped at ten seconds. A `//subdir` selector is stripped before the probe, so two requests that differ only by subdirectory share one key; the cached tree is the full module package, and the requested subdirectory is extracted when linking.
 
 ## Cache key & deduplication
 
@@ -34,4 +37,4 @@ When the digest is already present, Terragrunt links the cached tree without con
 
 ## Fallback behavior
 
-A probe failure, such as an unreachable registry or an unresolvable tag, yields no key, and Terragrunt falls back to downloading and content-hashing the result; the underlying error surfaces on the real fetch attempt. `unit` and `stack` components with `oci://` sources do not use the CAS and always fetch directly.
+A probe failure, such as an unreachable registry or an unresolvable tag, yields no key, and Terragrunt falls back to downloading and content-hashing the result; the underlying error surfaces on the real fetch attempt. `unit` and `stack` components with `oci://` sources always fetch directly: the CAS integration for stack generation clones sources through Git, and an OCI registry has no Git remote to clone.
