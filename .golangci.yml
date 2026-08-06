@@ -115,6 +115,15 @@ linters:
           msg: walk the venv's vfs.FS via vfs.WalkDir or vfs.WalkDirParallel instead of the real filesystem
         - pattern: ^(vfs\.NewOSFS|vexec\.NewOSExec|vhttp\.NewOSClient|vsops\.NewOSDecrypter)$
           msg: take the handle from the venv already in scope rather than building a fresh OS-backed one
+        # Cloud SDKs build their own transport when handed no client, so these
+        # entry points leak past the venv without any net/http call of our own
+        # for the rules above to catch.
+        - pattern: ^config\.LoadDefaultConfig$
+          pkg: ^github.com/aws/aws-sdk-go-v2/config$
+          msg: build AWS config via awshelper.NewAWSConfigBuilder so requests ride the venv's HTTP client
+        - pattern: ^storage\.NewClient$
+          pkg: ^cloud.google.com/go/storage$
+          msg: build the GCS client via gcphelper.NewGCPConfigBuilder so requests ride the venv's HTTP client
     errcheck:
       check-type-assertions: false
       check-blank: false
@@ -205,7 +214,7 @@ linters:
         path: ^pkg/options/options\.go$
       - linters:
           - forbidigo
-        path: ^(internal/awshelper/config\.go|internal/discovery/helpers\.go|internal/discovery/phase_worktree\.go|internal/engine/engine\.go|internal/engine/verification\.go|internal/gcphelper/config\.go|internal/getter/tfrhelpers\.go|internal/git/git\.go|internal/panicreport/panicreport\.go|internal/remotestate/remote_state\.go|internal/remotestate/terraform_state_file\.go|internal/report/writer\.go|internal/services/catalog/module/doc\.go|internal/services/catalog/module/module\.go|internal/shell/git\.go|internal/shell/run_cmd\.go|internal/stacks/clean/clean\.go|internal/tfimpl/tfimpl\.go|internal/util/file\.go|internal/util/lockfile\.go|internal/worktrees/worktrees\.go)$
+        path: ^(internal/discovery/helpers\.go|internal/discovery/phase_worktree\.go|internal/engine/engine\.go|internal/engine/verification\.go|internal/getter/tfrhelpers\.go|internal/git/git\.go|internal/panicreport/panicreport\.go|internal/remotestate/remote_state\.go|internal/remotestate/terraform_state_file\.go|internal/report/writer\.go|internal/services/catalog/module/doc\.go|internal/services/catalog/module/module\.go|internal/shell/git\.go|internal/shell/run_cmd\.go|internal/stacks/clean/clean\.go|internal/tfimpl/tfimpl\.go|internal/util/file\.go|internal/util/lockfile\.go|internal/worktrees/worktrees\.go)$
       # We end up with duplicated content in this package to save us from duplicating code in other packages.
       - linters:
           - dupl
