@@ -1,0 +1,131 @@
+---
+title: OCI Registries
+description: Learn how to source OpenTofu/Terraform modules from OCI registries.
+slug: features/units/oci
+sidebar:
+  order: 13
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Terragrunt can download modules from OCI Distribution registries such as Amazon ECR, GitHub Container Registry, Azure Container Registry, Google Artifact Registry, and self-hosted registries. A module published once is consumable by both `tofu` and Terragrunt with the same source string.
+
+<Aside type="tip" title="Experimental">
+  OCI sources are part of the [`oci` experiment](/reference/experiments/active#oci). Enable it with `--experiment oci` (or `TG_EXPERIMENT=oci`) until it graduates to general availability.
+</Aside>
+
+## Using OCI sources
+
+OCI sources take the form `oci://REGISTRY_HOST/REPOSITORY[//SUBDIR][?tag=TAG|?digest=DIGEST]`. The registry host may carry a port, and the repository may have multiple path segments.
+
+```hcl
+# terragrunt.hcl
+terraform {
+  source = "oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0"
+}
+```
+
+The same syntax works in the `unit` and `stack` blocks of a `terragrunt.stack.hcl`:
+
+```hcl
+# terragrunt.stack.hcl
+unit "vpc" {
+  source = "oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0"
+  path   = "vpc"
+}
+```
+
+- `?tag=` selects a tag; `?digest=sha256:...` pins an immutable manifest digest. Setting both is an error, and no other query parameters are accepted.
+- When neither is set, Terragrunt uses the `latest` tag.
+- `//SUBDIR` selects one directory from the module package, as with other source types: `oci://ghcr.io/acme/terraform-modules/vpc//modules/subnets?tag=1.0.0`.
+
+Prefer `?digest=` for production pins: a digest can never move, while a tag can be re-pushed.
+
+## Publishing modules
+
+Terragrunt downloads the same artifact shape OpenTofu defines for modules: an OCI image manifest whose artifact type is `application/vnd.opentofu.modulepkg`, carrying exactly one layer of media type `archive/zip` that holds the module files zipped at the archive root.
+
+[`oras`](https://oras.land) publishes that shape directly:
+
+```bash
+cd vpc-module
+zip -r module.zip .
+oras push ghcr.io/acme/terraform-modules/vpc:1.0.0 \
+  --artifact-type application/vnd.opentofu.modulepkg \
+  module.zip:archive/zip
+```
+
+`oras push` prints the manifest digest, which is the value to use in `?digest=` pins.
+
+## Authentication
+
+Terragrunt resolves registry credentials the way OpenTofu does, so one configuration serves both tools. When nothing matches a registry, Terragrunt pulls anonymously.
+
+### OpenTofu CLI configuration
+
+Credentials come from `oci_credentials` and `oci_default_credentials` blocks in OpenTofu's CLI configuration. Terragrunt reads the file named by `TF_CLI_CONFIG_FILE` or `TERRAFORM_CONFIG`; otherwise the first of `~/.tofurc`, `~/.terraformrc`, and (when `XDG_CONFIG_HOME` is set) `$XDG_CONFIG_HOME/opentofu/tofurc` that exists (on Windows, `%APPDATA%\tofu.rc` and `%APPDATA%\terraform.rc`). Unless one of those environment variables is set, Terragrunt also merges the `*.tfrc` and `*.tfrc.json` files in OpenTofu's configuration directory.
+
+```hcl
+# ~/.tofurc
+oci_credentials "ghcr.io" {
+  username = "octocat"
+  password = "ghp_example"
+}
+
+oci_credentials "registry.example.com/platform" {
+  access_token  = "example-access"
+  refresh_token = "example-refresh"
+}
+
+oci_default_credentials {
+  docker_credentials_helper = "osxkeychain"
+}
+```
+
+- A block label is a registry domain, optionally followed by a repository prefix that narrows which repositories it covers.
+- Each `oci_credentials` block configures exactly one credential style: `username` and `password`, `access_token` and `refresh_token`, or `docker_credentials_helper`.
+- A `docker_credentials_helper` can only be set for a whole registry, not a repository prefix.
+- A CLI configuration file that exists but is invalid is an error rather than being skipped, so a typo cannot silently change which credentials are sent. A missing file is simply not used.
+
+### Ambient Docker and containers files
+
+Terragrunt also reads the credential files container tools leave behind, in the same order OpenTofu uses:
+
+1. `$XDG_RUNTIME_DIR/containers/auth.json` (Linux, when `XDG_RUNTIME_DIR` is set)
+2. `$HOME/.config/containers/auth.json` (Windows and macOS)
+3. `$XDG_CONFIG_HOME/containers/auth.json`, or `$HOME/.config/containers/auth.json` when `XDG_CONFIG_HOME` is unset
+4. `$HOME/.docker/config.json`
+
+The `DOCKER_CONFIG` environment variable is not consulted, matching OpenTofu. Set `docker_style_config_files` in `oci_default_credentials` to replace the search list with explicit paths, or to an empty list to disable ambient discovery; `discover_ambient_credentials = false` disables it as well.
+
+### Credential helpers
+
+Both surfaces can name [Docker credential helpers](https://docs.docker.com/reference/cli/docker/login/#credential-helpers): `docker_credentials_helper` in the CLI configuration, and `credHelpers` or `credsStore` in a Docker config file. A helper named `NAME` runs as `docker-credential-NAME` found on `PATH`.
+
+For Amazon ECR, install [`docker-credential-ecr-login`](https://github.com/awslabs/amazon-ecr-credential-helper) and map your registry to it:
+
+```json
+# ~/.docker/config.json
+
+{
+  "credHelpers": {
+    "123456789012.dkr.ecr.us-east-1.amazonaws.com": "ecr-login"
+  }
+}
+```
+
+The helper mints a fresh token on every run from ambient AWS credentials, so ECR's short-lived passwords never need to be stored. The equivalent CLI-configuration form is an `oci_credentials` block for the registry with `docker_credentials_helper = "ecr-login"`.
+
+### Credential selection
+
+Terragrunt ranks every matching credential, from CLI configuration and ambient files together, by how specifically it names the repository being pulled: an entry naming the repository beats one naming only the registry, which beats a global fallback such as `credsStore` or the `oci_default_credentials` helper. When two candidates match equally, a CLI-configuration entry wins over an ambient one, and a helper wins over a stored password. Only the selected credential is used, and only its helper is executed.
+
+## Caching
+
+With [Content Addressable Storage](/features/caching/cas) enabled, `terraform.source` downloads are [cached by the resolved manifest digest](/features/caching/cas/oci). Tags are re-resolved each time Terragrunt downloads the source, so a re-pushed tag misses the cache and fetches the new content while unchanged tags keep hitting the same entry. On later runs of an already-downloaded unit, Terragrunt reuses `.terragrunt-cache` without contacting the registry; pass `--source-update` to pick up a re-pushed tag. `unit` and `stack` components fetch directly from the registry without the cache.
+
+## Limits
+
+- Manifests above 4 MiB and layers above 512 MiB are rejected; layers above 50 MiB log a warning before downloading.
+- Module archives are limited to 512 MiB and 10000 files when extracted.
+- Every downloaded blob is verified against the digest its manifest declares before use.
