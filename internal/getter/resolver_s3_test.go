@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -164,7 +165,7 @@ func TestS3Resolver_AcceptsModernURLForms(t *testing.T) {
 
 			var gotRegion string
 
-			r := getter.NewS3Resolver()
+			r := getter.NewS3Resolver(vhttp.NewNoNetworkClient())
 			r.NewClient = func(_ context.Context, region string) (getter.S3API, error) {
 				gotRegion = region
 				return head, nil
@@ -341,7 +342,7 @@ func TestS3Resolver_RejectsS3CompatibleURLWithoutKey(t *testing.T) {
 }
 
 func newS3ResolverWith(head getter.S3API) *getter.S3Resolver {
-	r := getter.NewS3Resolver()
+	r := getter.NewS3Resolver(vhttp.NewNoNetworkClient())
 	r.NewClient = func(_ context.Context, _ string) (getter.S3API, error) {
 		return head, nil
 	}
