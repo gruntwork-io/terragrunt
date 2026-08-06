@@ -147,3 +147,12 @@ func NewComponentForTest(kind component.Kind, cloneURL, dir, readme string) *Com
 		cloneURL: cloneURL,
 	}
 }
+
+// WithURL sets the URL [Component.URL] returns, which discovery derives from
+// the repository rather than from anything a test can pass to
+// [NewComponentForTest].
+func (c *Component) WithURL(url string) *Component {
+	c.url = url
+
+	return c
+}

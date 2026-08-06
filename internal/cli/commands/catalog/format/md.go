@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -232,9 +233,15 @@ func writeDoc(buf *bytes.Buffer, doc string, lang docLanguage) {
 // the first fence at least as long as the one that opened it, so a README
 // containing fences of its own needs a longer one around it.
 func docFence(doc string) string {
+	return strings.Repeat("`", max(minFenceLength, longestBacktickRun(doc)+1))
+}
+
+// longestBacktickRun returns the length of the longest unbroken run of
+// backticks in s.
+func longestBacktickRun(s string) int {
 	longest, run := 0, 0
 
-	for _, r := range doc {
+	for _, r := range s {
 		if r != '`' {
 			run = 0
 
@@ -245,7 +252,7 @@ func docFence(doc string) string {
 		longest = max(longest, run)
 	}
 
-	return strings.Repeat("`", max(minFenceLength, longest+1))
+	return longest
 }
 
 // oneLine collapses whitespace so that a value taken from README front matter
@@ -258,6 +265,11 @@ func oneLine(value string) string {
 // fence, a thematic break, a list, a quote, or raw HTML.
 const blockStarters = "#>`~<-_*+"
 
+// orderedListMarker matches the digits and delimiter that open an ordered
+// list. The trailing space is what tells a list item from a value such as
+// `1.5x the throughput`.
+var orderedListMarker = regexp.MustCompile(`^([0-9]{1,9})[.)]( |$)`)
+
 // paragraph renders a value as prose of its own, escaping a leading character
 // that would otherwise open a block. A value the component wrote must not add
 // a section to the document, or a fence that swallows the rest of it.
@@ -269,6 +281,12 @@ func paragraph(value string) string {
 
 	if strings.ContainsAny(line[:1], blockStarters) {
 		return `\` + line
+	}
+
+	// The escape above cannot reach an ordered list, which opens on the
+	// delimiter rather than on the first character of the line.
+	if m := orderedListMarker.FindStringSubmatch(line); m != nil {
+		return m[1] + `\` + line[len(m[1]):]
 	}
 
 	return line
@@ -284,23 +302,46 @@ func cell(value string) string {
 }
 
 // code wraps value in a code span, leaving an empty value empty so the caller
-// can drop its row.
+// can drop its row. The delimiter outruns every backtick run in the value,
+// because a run of its own length would close the span early. A backtick at
+// either end is held off with a space, which would otherwise merge into the
+// delimiter and lengthen it; a span padded at both ends gives the space back.
 func code(value string) string {
 	if value == "" {
 		return ""
 	}
 
-	return "`" + cell(value) + "`"
+	content := cell(value)
+	delimiter := strings.Repeat("`", longestBacktickRun(content)+1)
+
+	pad := ""
+	if strings.HasPrefix(content, "`") || strings.HasSuffix(content, "`") {
+		pad = " "
+	}
+
+	return delimiter + pad + content + pad + delimiter
 }
 
+// absoluteURI matches the scheme an autolink has to open with. The shortest
+// one is two characters, which is what keeps a Windows drive letter out.
+var absoluteURI = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.\-]{1,31}:`)
+
 // autolink wraps a URL in the angle brackets that make it a link without a
-// separate label.
-func autolink(url string) string {
-	if url == "" {
+// separate label. Discovery falls back to a filesystem path for a repository
+// with no remote, and brackets around a path reach the reader as literal text,
+// so a value that is not a URL is written as a code span instead.
+func autolink(value string) string {
+	line := oneLine(value)
+	if line == "" {
 		return ""
 	}
 
-	return "<" + cell(url) + ">"
+	// A space or an angle bracket ends an autolink.
+	if !absoluteURI.MatchString(line) || strings.ContainsAny(line, " <>") {
+		return code(line)
+	}
+
+	return "<" + cell(line) + ">"
 }
 
 // plural renders a count with the singular or plural form of unit.
