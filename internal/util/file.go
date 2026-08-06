@@ -3,7 +3,6 @@ package util
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
 	"io"
@@ -64,12 +63,6 @@ func FileOrData(maybePath string) (string, error) {
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-// FileNotExists returns true if the given file does not exist.
-func FileNotExists(path string) bool {
-	_, err := os.Stat(path)
-	return errors.Is(err, fs.ErrNotExist)
 }
 
 // EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
@@ -1143,13 +1136,6 @@ func assertCopyPathsSafe(source, destination string, filter func(absolutePath st
 	}
 }
 
-// IsSymLink returns true if the given file is a symbolic link
-// Per https://stackoverflow.com/a/18062079/2308858
-func IsSymLink(path string) bool {
-	fileInfo, err := os.Lstat(path)
-	return err == nil && fileInfo.Mode()&os.ModeSymlink != 0
-}
-
 func TerragruntExcludes(path string) bool {
 	if filepath.Base(path) == TerraformLockFile {
 		return false
@@ -1720,25 +1706,6 @@ func ListTfFiles(fsys vfs.FS, directoryPath string) ([]string, error) {
 	return tfFiles, nil
 }
 
-// IsDirectoryEmpty - returns true if the given path exists and is a empty directory.
-func IsDirectoryEmpty(dirPath string) (bool, error) {
-	dir, err := os.Open(dirPath)
-	if err != nil {
-		return false, err
-	}
-
-	defer func() {
-		_ = dir.Close()
-	}()
-
-	_, err = dir.Readdir(1)
-	if err == nil {
-		return false, nil
-	}
-
-	return true, nil
-}
-
 // EnsureCacheDir returns the global terragrunt cache directory for the current user.
 func EnsureCacheDir() (string, error) {
 	cacheDir, err := os.UserCacheDir()
@@ -1853,35 +1820,6 @@ func MatchSha256Checksum(file, filename []byte) []byte {
 	}
 
 	return checksum
-}
-
-// FileSHA256 calculates the SHA256 hash of the file at the given path.
-func FileSHA256(filePath string) ([]byte, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close() //nolint:errcheck
-
-	hash := sha256.New()
-	buffer := make([]byte, ChecksumReadBlock)
-
-	for {
-		n, err := file.Read(buffer)
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-
-		if n == 0 {
-			break
-		}
-
-		if _, err := hash.Write(buffer[:n]); err != nil {
-			return nil, err
-		}
-	}
-
-	return hash.Sum(nil), nil
 }
 
 // readerFunc is syntactic sugar for read interface.

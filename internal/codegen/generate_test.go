@@ -394,7 +394,7 @@ func TestGenerateDisabling(t *testing.T) {
 			require.NoError(t, err)
 
 			if tc.disabled {
-				assert.True(t, util.FileNotExists(tc.path))
+				assert.NoFileExists(t, tc.path)
 			} else {
 				assert.True(t, util.FileExists(tc.path))
 			}
@@ -724,7 +724,7 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 
 	l := logger.CreateLogger()
 	require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
-	assert.True(t, util.FileNotExists(targetPath))
+	assert.NoFileExists(t, targetPath)
 }
 
 // TestWriteToFileSignatureWithoutTrailingNewline verifies that a generated
@@ -771,7 +771,7 @@ func TestWriteToFileSignatureWithoutTrailingNewline(t *testing.T) {
 			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 
 			if tc.disable {
-				assert.True(t, util.FileNotExists(path))
+				assert.NoFileExists(t, path)
 
 				return
 			}

@@ -856,7 +856,7 @@ func TestTFStackApplyDestroyWithDependency(t *testing.T) {
 
 	// check that the data.txt file was deleted
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.True(t, util.FileNotExists(dataPath))
+	assert.NoFileExists(t, dataPath)
 }
 
 func TestTFStackOutputWithDependency(t *testing.T) {
@@ -919,7 +919,7 @@ func TestTFStackApplyStrictInclude(t *testing.T) {
 
 	// check that test file wasn't created
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.True(t, util.FileNotExists(dataPath))
+	assert.NoFileExists(t, dataPath)
 }
 
 func TestTFStackApplyStrictIncludeWithFilter(t *testing.T) {
@@ -948,7 +948,7 @@ func TestTFStackApplyStrictIncludeWithFilter(t *testing.T) {
 
 	// check that test file wasn't created
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.True(t, util.FileNotExists(dataPath))
+	assert.NoFileExists(t, dataPath)
 }
 
 func TestTFStacksSourceMap(t *testing.T) {
@@ -1721,7 +1721,7 @@ func TestTFStackOutputWithExclude(t *testing.T) {
 	// Verify no terraform was attempted for excluded units
 	for _, excluded := range []string{"excluded-app", "excluded-all"} {
 		tfDir := filepath.Join(rootPath, ".terragrunt-stack", excluded, ".terraform")
-		assert.True(t, util.FileNotExists(tfDir),
+		assert.NoDirExists(t, tfDir,
 			"excluded unit %s should not have .terraform directory", excluded)
 	}
 }

@@ -3003,7 +3003,7 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	// Check that output contains value defined in IAM role
 	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
-	assert.True(t, util.FileNotExists(filepath.Join(rootPath, identityArn+".txt")))
+	assert.NoFileExists(t, filepath.Join(rootPath, identityArn+".txt"))
 }
 
 func TestAwsTerragruntWorksWithIncludeShallowMerge(t *testing.T) {

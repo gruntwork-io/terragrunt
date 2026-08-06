@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -113,6 +114,61 @@ func FileExists(vfs FS, path string) (bool, error) {
 func IsDir(fsys FS, path string) bool {
 	info, err := fsys.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// checksumReadBlock is the block size FileSHA256 hashes with.
+const checksumReadBlock = 8192
+
+// IsFile reports whether path points to a regular file. A path that cannot be
+// stat'd is not a file.
+func IsFile(fsys FS, path string) bool {
+	info, err := fsys.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+// IsDirectoryEmpty reports whether path is a directory holding no entries.
+func IsDirectoryEmpty(fsys FS, path string) (retEmpty bool, retErr error) {
+	dir, err := fsys.Open(path)
+	if err != nil {
+		return false, err
+	}
+
+	defer func() {
+		if err := dir.Close(); err != nil && retErr == nil {
+			retEmpty, retErr = false, err
+		}
+	}()
+
+	// Reading a single entry is enough to answer the question, so a directory
+	// holding a million files costs the same as one holding one.
+	if _, err := dir.Readdir(1); err == nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// FileSHA256 returns the SHA256 of the file at path, read in fixed-size blocks
+// so hashing a large archive does not pull it entirely into memory.
+func FileSHA256(fsys FS, path string) (_ []byte, retErr error) {
+	file, err := fsys.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	hash := sha256.New()
+
+	if _, err := io.CopyBuffer(hash, file, make([]byte, checksumReadBlock)); err != nil {
+		return nil, err
+	}
+
+	return hash.Sum(nil), nil
 }
 
 // CopyFile copies a file from source to destination on the given filesystem,

@@ -268,7 +268,7 @@ func createInstance(
 		return nil, err
 	}
 
-	terragruntEngine, client, err := createEngine(ctx, l, v.Exec, execOptions)
+	terragruntEngine, client, err := createEngine(ctx, l, v, execOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +402,7 @@ func downloadEngine(
 			checksumSigFile != "" {
 			l.Infof("Verifying checksum for %s", downloadFile)
 
-			if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
+			if err := verifyFile(v.FS, downloadFile, checksumFile, checksumSigFile); err != nil {
 				return err
 			}
 		} else {
@@ -797,7 +797,7 @@ func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
 func createEngine(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v *venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*proto.EngineClient, *plugin.Client, error) {
 	if execOptions.EngineConfig == nil {
@@ -833,6 +833,7 @@ func createEngine(
 		if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 			util.FileExists(localChecksumSigFile) {
 			if err = verifyFile(
+				v.FS,
 				localEnginePath,
 				localChecksumFile,
 				localChecksumSigFile,
@@ -867,7 +868,7 @@ func createEngine(
 		// We use without cancel here to ensure that the plugin isn't killed when the main context is cancelled,
 		// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
 		// when the command is cancelled.
-		cmd := e.Command(context.WithoutCancel(ctx), localEnginePath)
+		cmd := v.Exec.Command(context.WithoutCancel(ctx), localEnginePath)
 		cmd.SetEnv([]string{fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel)})
 		cmd.SetCancel(func() error {
 			sig := signal.SignalFromContext(ctx)

@@ -196,7 +196,7 @@ func Prepare(
 	}
 
 	// scaffold only in empty directories
-	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
+	if empty, err := vfs.IsDirectoryEmpty(v.FS, opts.WorkingDir); !empty || err != nil {
 		if err != nil {
 			return nil, err
 		}
