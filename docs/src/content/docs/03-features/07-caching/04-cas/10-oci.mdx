@@ -17,7 +17,7 @@ OCI sources are part of the [`oci` experiment](/reference/experiments/active#oci
 
 ## Overview
 
-An OCI reference resolves to an immutable manifest digest, which makes it an ideal cache key: a `?digest=` pin already is one, and a `?tag=` resolves to one with a single registry request. The CAS keys the module package by that manifest digest, so caching tracks content rather than the mutable tag.
+An OCI reference resolves to an immutable manifest digest, which makes it an ideal cache key: a `?digest=` pin already is one, and a `?tag=` resolves to one with a single registry request. The CAS keys the module package by that manifest digest, so caching tracks content rather than the mutable tag. `unit` and `stack` components never use the CAS: stack generation clones sources through Git, and an OCI registry has no Git remote.
 
 ## The cheap probe
 
@@ -37,4 +37,4 @@ When the digest is already present, Terragrunt links the cached tree without con
 
 ## Fallback behavior
 
-A probe failure, such as an unreachable registry or an unresolvable tag, yields no key, and Terragrunt falls back to downloading and content-hashing the result; the underlying error surfaces on the real fetch attempt. `unit` and `stack` components with `oci://` sources always fetch directly: the CAS integration for stack generation clones sources through Git, and an OCI registry has no Git remote to clone.
+The cache never breaks a download that would otherwise succeed. Whenever a module cannot be served from the cache, Terragrunt simply downloads it from the registry as usual and the run continues. No configuration is needed for this.
