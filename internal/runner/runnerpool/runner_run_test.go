@@ -117,6 +117,7 @@ func TestRunnerRunFailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 
 	opts := newRunOpts(t, tmpDir, "plan")
 	opts.IgnoreDependencyErrors = true
+	opts.FailFast = false
 
 	l := thlogger.CreateLogger()
 
@@ -127,9 +128,13 @@ func TestRunnerRunFailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 
 	require.Error(t, rnr.Run(t.Context(), l, testVenv(), opts, r))
 
+	// app is scheduled and fails on its own config, but the runner reclassifies
+	// a failure behind a failed dependency as an early exit caused by it.
 	appRun, err := r.GetRun(app.Path())
 	require.NoError(t, err)
 	assert.Equal(t, report.ResultEarlyExit, appRun.Result)
+	require.NotNil(t, appRun.Cause)
+	assert.Equal(t, report.Cause(filepath.Base(vpc.Path())), *appRun.Cause)
 }
 
 func TestRunnerRunWithoutReport(t *testing.T) {
