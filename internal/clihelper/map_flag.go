@@ -4,13 +4,10 @@ import (
 	"context"
 	libflag "flag"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
 	"maps"
-
-	"github.com/urfave/cli/v2"
 )
 
 // MapJoin formats m as "key<kvSep>value" entries joined by entrySep, sorted
@@ -85,9 +82,9 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 }
 
 // Apply applies Flag settings to the given flag set.
-func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
+func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet, env map[string]string) error {
 	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
+		return ApplyFlag(flag, set, env)
 	}
 
 	if flag.Destination == nil {
@@ -105,16 +102,6 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 
 	if flag.KeyValSep == "" {
 		flag.KeyValSep = MapFlagKeyValSep
-	}
-
-	if flag.LookupEnvFunc == nil {
-		flag.LookupEnvFunc = func(key string) []string {
-			if val, ok := os.LookupEnv(key); ok {
-				return flag.Splitter(val, flag.EnvVarSep)
-			}
-
-			return nil
-		}
 	}
 
 	keyType := FlagVariable[K](new(genericVar[K]))
@@ -136,7 +123,16 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 		initialTextValue: value.String(),
 	}
 
-	return ApplyFlag(flag, set)
+	return ApplyFlag(flag, set, env)
+}
+
+// LookupEnv implements `Flag` interface.
+func (flag *MapFlag[K, V]) LookupEnv(envVar string, env map[string]string) []string {
+	if val, ok := env[envVar]; ok {
+		return flag.Splitter(val, flag.EnvVarSep)
+	}
+
+	return nil
 }
 
 // GetHidden returns true if the flag should be hidden from the help.
@@ -165,7 +161,7 @@ func (flag *MapFlag[K, V]) GetDefaultText() string {
 
 // String returns a readable representation of this value (for usage defaults).
 func (flag *MapFlag[K, V]) String() string {
-	return cli.FlagStringer(flag)
+	return stringifyFlag(flag)
 }
 
 // Names returns the names of the flag.

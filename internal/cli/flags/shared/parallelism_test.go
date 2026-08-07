@@ -37,7 +37,7 @@ func TestParallelismFlag(t *testing.T) {
 
 			// necessary in order to initialise GenericFlag internals
 			fs.SetOutput(io.Discard) // avoid panics on invalid values
-			f.Apply(fs)
+			f.Apply(fs, map[string]string{})
 
 			err := fs.Parse(it.args)
 

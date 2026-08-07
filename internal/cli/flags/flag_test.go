@@ -65,7 +65,7 @@ func TestFlag_TakesValue(t *testing.T) {
 
 			testFlag := flags.NewFlag(tc.flag)
 
-			err := testFlag.Apply(new(flag.FlagSet))
+			err := testFlag.Apply(new(flag.FlagSet), map[string]string{})
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expected, testFlag.TakesValue())
@@ -145,7 +145,7 @@ func TestFlag_Evaluate(t *testing.T) {
 			ctx = log.ContextWithLogger(ctx, logger)
 
 			for _, testFlag := range tc.flags {
-				err := testFlag.flag.Apply(new(flag.FlagSet))
+				err := testFlag.flag.Apply(new(flag.FlagSet), map[string]string{})
 				require.NoError(t, err)
 
 				if testFlag.arg != "" {
