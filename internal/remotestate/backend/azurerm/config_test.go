@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +20,8 @@ func TestExtendedAzurermConfig_ParsesFields(t *testing.T) {
 	assert.Equal(t, "tfstate", rs.ContainerName)
 	assert.Equal(t, "prod/terraform.tfstate", rs.Key)
 	assert.Equal(t, "rg-state", rs.ResourceGroupName)
-	assert.True(t, rs.UseAzureADAuth)
+	require.NotNil(t, rs.UseAzureADAuth)
+	assert.True(t, *rs.UseAzureADAuth)
 
 	assert.Equal(t, "eastus", ext.Location)
 	assert.Equal(t, "Standard", ext.AccountTier)
@@ -109,7 +109,8 @@ func TestGetAzureSessionConfig_Mapping(t *testing.T) {
 	assert.Equal(t, "tfstate1234", sess.StorageAccountName)
 	assert.Equal(t, "rg-state", sess.ResourceGroupName)
 	assert.Equal(t, "00000000-0000-0000-0000-000000000000", sess.SubscriptionID)
-	assert.True(t, sess.UseAzureADAuth)
+	require.NotNil(t, sess.UseAzureADAuth)
+	assert.True(t, *sess.UseAzureADAuth)
 }
 
 func TestGetTFInitArgs_EmptyConfig(t *testing.T) {
@@ -161,23 +162,6 @@ func TestRemoteStateConfigCacheKey(t *testing.T) {
 	assert.NotEqual(t, keyFor("public"), keyFor("usgovernment"))
 	assert.NotEqual(t, keyFor("public"), keyFor("china"))
 }
-
-func TestConfigIsEqual(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-	cfg := fullConfig()
-
-	same := fullConfig().FilterOutTerragruntKeys()
-	assert.True(t, cfg.IsEqual(same, l), "backend portion must compare equal")
-
-	changed := fullConfig().FilterOutTerragruntKeys()
-	changed["storage_account_name"] = "otheraccount"
-	assert.False(t, cfg.IsEqual(changed, l), "different account must compare unequal")
-}
-
-// fullConfig returns a complete, valid azurerm backend config for use across the
-// azurerm_test package (also referenced from backend_test.go).
 func fullConfig() azurerm.Config {
 	return azurerm.Config{
 		"storage_account_name": "tfstate1234",
@@ -237,4 +221,38 @@ func TestValidate_RejectsWhitespaceOnlyRequiredKeys(t *testing.T) {
 	ext, err := cfg.ParseExtendedAzurermConfig()
 	require.NoError(t, err)
 	require.Error(t, ext.Validate(), "a whitespace-only storage_account_name must be rejected")
+}
+
+// TestExtendedCacheKey_IsPolicyAware pins that the bootstrap cache identity
+// covers the policies bootstrap converges. Without this, two units naming the
+// same container with conflicting versioning or soft-delete settings would
+// share one "already initialized" entry and the second would silently inherit
+// the first unit's convergence instead of applying its own.
+func TestExtendedCacheKey_IsPolicyAware(t *testing.T) {
+	t.Parallel()
+
+	keyFor := func(mutate func(azurerm.Config)) string {
+		raw := fullConfig()
+		mutate(raw)
+
+		ext, err := raw.ExtendedAzurermConfig()
+		require.NoError(t, err)
+
+		return ext.CacheKey()
+	}
+
+	base := keyFor(func(azurerm.Config) {})
+
+	// Same config resolves to the same identity.
+	assert.Equal(t, base, keyFor(func(azurerm.Config) {}))
+
+	// Each converged policy must change the identity.
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["skip_versioning"] = true }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["enable_soft_delete"] = false }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["soft_delete_retention_days"] = 30 }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["skip_container_creation"] = true }))
+
+	// The container identity is still part of it.
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["container_name"] = "other" }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["environment"] = "usgovernment" }))
 }

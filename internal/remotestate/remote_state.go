@@ -135,6 +135,7 @@ func (remote *RemoteState) Migrate(
 			ctx,
 			l,
 			srcV,
+			dstV,
 			remote.BackendConfig,
 			dstRemote.BackendConfig,
 			&opts.Options,

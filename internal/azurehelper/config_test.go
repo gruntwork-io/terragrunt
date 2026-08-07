@@ -26,9 +26,9 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		cfg     azurehelper.AzureSessionConfig
 		name    string
 		want    azurehelper.AuthMethod
-		cfg     azurehelper.AzureSessionConfig
 		hasCred bool
 	}{
 		{
@@ -73,7 +73,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 			name: "msi when use_msi true",
 			cfg: azurehelper.AzureSessionConfig{
 				SubscriptionID: testSub,
-				UseMSI:         true,
+				UseMSI:         new(true),
 			},
 			want:    azurehelper.AuthMethodMSI,
 			hasCred: true,
@@ -85,8 +85,8 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 				TenantID:          "tid",
 				ClientID:          "cid",
 				OIDCTokenFilePath: "/var/run/secrets/azure/tokens/azure-identity-token",
-				UseOIDC:           true,
-				UseMSI:            true,
+				UseOIDC:           new(true),
+				UseMSI:            new(true),
 			},
 			want:    azurehelper.AuthMethodMSI,
 			hasCred: true,
@@ -95,7 +95,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 			name: "azuread default fallback",
 			cfg: azurehelper.AzureSessionConfig{
 				SubscriptionID: testSub,
-				UseAzureADAuth: true,
+				UseAzureADAuth: new(true),
 			},
 			want:    azurehelper.AuthMethodAzureAD,
 			hasCred: true,
@@ -163,15 +163,43 @@ func TestBuild_StorageAccountNameEnvFallback(t *testing.T) {
 	assert.Equal(t, "acct-from-env", cfg.AccountName)
 }
 
-func TestBuild_SubscriptionRequired(t *testing.T) {
+// TestBuild_SubscriptionNotRequiredForDataPlane pins that a Blob-only Entra
+// config builds without a subscription id. Blob data-plane access needs only
+// the account endpoint and a token; requiring a subscription here would reject
+// configurations the native azurerm backend accepts.
+func TestBuild_SubscriptionNotRequiredForDataPlane(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewAzureConfigBuilder().
+	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
-			UseMSI: true,
+			StorageAccountName: testAccount,
+			UseAzureADAuth:     new(true),
 		}).
 		WithVenv(isolatedEnv()).
 		Build(log.New())
+	require.NoError(t, err)
+	assert.Empty(t, cfg.SubscriptionID)
+}
+
+// TestSubscriptionRequiredAtArmBoundary pins that the requirement moved rather
+// than disappeared: the ARM clients still reject a missing subscription id.
+func TestSubscriptionRequiredAtArmBoundary(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			ResourceGroupName:  "rg",
+			UseAzureADAuth:     new(true),
+		}).
+		WithVenv(isolatedEnv()).
+		Build(log.New())
+	require.NoError(t, err)
+
+	_, err = azurehelper.NewStorageAccountClient(cfg)
+	require.ErrorIs(t, err, azurehelper.ErrSubscriptionIDRequired)
+
+	_, err = azurehelper.NewResourceGroupClient(cfg)
 	require.ErrorIs(t, err, azurehelper.ErrSubscriptionIDRequired)
 }
 
@@ -307,4 +335,37 @@ func isolatedEnv(pairs ...string) *venv.Venv {
 	}
 
 	return (&venv.Venv{}).WithEnv(m)
+}
+
+// TestBuild_CarriesAuthorizationMode pins that the blob authorization mode the
+// user asked for survives config resolution. The azurerm backend reads it to
+// decide between shared-key and Microsoft Entra authorization, matching the
+// native backend; if it were dropped, every identity would get Entra
+// authorization and those without a blob data-plane role would see 403s.
+func TestBuild_CarriesAuthorizationMode(t *testing.T) {
+	t.Parallel()
+
+	entra, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     testSub,
+			StorageAccountName: testAccount,
+			UseAzureADAuth:     new(true),
+		}).
+		WithVenv(isolatedEnv()).
+		Build(log.New())
+	require.NoError(t, err)
+	assert.True(t, entra.UseAzureADAuth, "use_azuread_auth must reach the resolved config")
+
+	sharedKey, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     testSub,
+			StorageAccountName: testAccount,
+			TenantID:           "tid",
+			ClientID:           "cid",
+			ClientSecret:       "sec",
+		}).
+		WithVenv(isolatedEnv()).
+		Build(log.New())
+	require.NoError(t, err)
+	assert.False(t, sharedKey.UseAzureADAuth, "an unset use_azuread_auth must not imply Entra authorization")
 }

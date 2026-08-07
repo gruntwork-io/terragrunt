@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -29,6 +30,10 @@ const (
 	defaultReplicationType = "LRS"
 	defaultAccessTier      = "Hot"
 	defaultSoftDeleteDays  = 7
+
+	// maxAccountListPages bounds the subscription account walk in
+	// FindResourceGroupForAccount.
+	maxAccountListPages = 100
 )
 
 // StorageAccountConfig is the input to (*StorageAccountClient).Create.
@@ -439,4 +444,75 @@ func isStatusCode(err error, status int) bool {
 	}
 
 	return respErr.StatusCode == status
+}
+
+// FindResourceGroupForAccount returns the resource group containing the named
+// storage account in cfg's subscription, by listing the subscription's accounts
+// and parsing the group out of the matching account's resource id.
+//
+// This exists so callers that know only a subscription and an account name (for
+// example integration tests, or a config that omits resource_group_name) do not
+// have to be told the group separately. It needs an ARM-capable credential, so
+// SAS-token and access-key configs cannot use it.
+func FindResourceGroupForAccount(ctx context.Context, cfg *AzureConfig, accountName string) (string, error) {
+	if accountName == "" {
+		panic(ErrStorageAccountRequired)
+	}
+
+	if cfg.SubscriptionID == "" {
+		return "", ErrSubscriptionIDRequired
+	}
+
+	if cfg.Credential == nil {
+		return "", &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "resource group lookup"}
+	}
+
+	client, err := armstorage.NewAccountsClient(
+		cfg.SubscriptionID, cfg.Credential,
+		&arm.ClientOptions{ClientOptions: cfg.ClientOptions},
+	)
+	if err != nil {
+		return "", fmt.Errorf("creating armstorage accounts client: %w", err)
+	}
+
+	pager := client.NewListPager(nil)
+
+	// Bound the walk rather than trust the service to terminate, mirroring
+	// ListBlobs. A subscription with more accounts than this is not a case
+	// this lookup is meant to serve.
+	for pages := 0; pager.More() && pages < maxAccountListPages; pages++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("listing storage accounts in subscription %q: %w", cfg.SubscriptionID, err)
+		}
+
+		for _, account := range page.Value {
+			if account == nil || account.Name == nil || account.ID == nil || *account.Name != accountName {
+				continue
+			}
+
+			group := resourceGroupFromID(*account.ID)
+			if group == "" {
+				return "", &UnparsableResourceIDError{ID: *account.ID}
+			}
+
+			return group, nil
+		}
+	}
+
+	return "", &StorageAccountNotFoundError{Account: accountName, SubscriptionID: cfg.SubscriptionID}
+}
+
+// resourceGroupFromID pulls the resource group out of an ARM resource id of the
+// form /subscriptions/<id>/resourceGroups/<group>/providers/... The segment
+// name is matched case-insensitively because ARM is inconsistent about it.
+func resourceGroupFromID(id string) string {
+	parts := strings.Split(id, "/")
+	for i, part := range parts {
+		if strings.EqualFold(part, "resourceGroups") && i+1 < len(parts) {
+			return parts[i+1]
+		}
+	}
+
+	return ""
 }
