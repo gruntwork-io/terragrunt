@@ -43,7 +43,7 @@ func TestVersionResolverMemoizesWithRacing(t *testing.T) {
 	server := httptest.NewTLSServer(mux)
 	t.Cleanup(server.Close)
 
-	resolver := getter.NewVersionResolver().WithHTTPClient(server.Client())
+	resolver := getter.NewVersionResolver(server.Client())
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 
 	var wg sync.WaitGroup

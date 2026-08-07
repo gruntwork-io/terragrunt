@@ -8,6 +8,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -34,7 +36,7 @@ func TestServerRunInitializesServicesBeforeServing(t *testing.T) {
 	server := cache.NewServer(
 		cache.WithHostname("127.0.0.1"),
 		cache.WithLogger(l),
-		cache.WithProviderService(services.NewProviderService("", t.TempDir(), nil, l)),
+		cache.WithProviderService(services.NewProviderService("", t.TempDir(), nil, l, vfs.NewOSFS(), vhttp.NewOSClient())),
 	)
 
 	ln, err := server.Listen(t.Context())

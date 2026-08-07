@@ -227,8 +227,7 @@ func newRegistryTestClient(t *testing.T, httpClient *http.Client, impl tfimpl.Ty
 
 	l := logger.CreateLogger()
 
-	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS()).
-		WithHTTPClient(httpClient).
+	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS(), httpClient).
 		WithTofuImplementation(impl)
 
 	return getter.NewClient(
