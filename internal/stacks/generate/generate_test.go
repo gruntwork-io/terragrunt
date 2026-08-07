@@ -147,7 +147,7 @@ func TestStackDiscoveryFilters(t *testing.T) {
 			parsed, err := filter.ParseFilterQueries(l, tt.filters)
 			require.NoError(t, err)
 
-			selected, err := generate.StackDiscoveryFilters(parsed).Evaluate(l, stacks)
+			selected, err := generate.StackDiscoveryFilters(parsed).Evaluate(l, filter.EvaluationContext{}, stacks)
 			require.NoError(t, err)
 
 			selectedPaths := make([]string, 0, len(selected))

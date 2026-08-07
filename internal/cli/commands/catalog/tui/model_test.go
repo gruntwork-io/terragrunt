@@ -822,7 +822,7 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 // TestModelPagerWToggleFlipsSoftWrapWithRacing exercises the `w` key in
 // PagerState: starting from default soft-wrap on, one press flips it
 // off, a second flips it back. The toggle also rebuilds the cached
-// glamour renderer, which is hard to inspect from outside, so we rely on
+// Markdown renderer, which is hard to inspect from outside, so we rely on
 // the visible softWrap accessor to verify the lifecycle.
 func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
 	t.Parallel()

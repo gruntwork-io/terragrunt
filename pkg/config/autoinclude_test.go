@@ -1392,7 +1392,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()

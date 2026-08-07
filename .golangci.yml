@@ -82,6 +82,21 @@ linters:
               desc: use github.com/gruntwork-io/terragrunt/internal/getter instead
             - pkg: github.com/hashicorp/go-getter/gcs/v2
               desc: use github.com/gruntwork-io/terragrunt/internal/getter instead
+        no-direct-markdown:
+          # Markdown parsing and rendering is confined to the internal/md
+          # package, which owns the libraries doing it. Everything else, tests
+          # included, reads and renders Markdown through internal/md, so what a
+          # document can be asked is chosen there and a library can be replaced
+          # without touching a caller.
+          list-mode: lax
+          files:
+            - $all
+            - "!**/internal/md/**"
+          deny:
+            - pkg: charm.land/glamour/v2
+              desc: use github.com/gruntwork-io/terragrunt/internal/md instead
+            - pkg: github.com/yuin/goldmark
+              desc: use github.com/gruntwork-io/terragrunt/internal/md instead
     dupl:
       threshold: 120
     errcheck:

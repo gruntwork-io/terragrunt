@@ -113,7 +113,7 @@ func (c *Component) TerraformSourcePath() string {
 }
 
 // IsMarkDown reports whether the component's README (if any) is Markdown,
-// which determines whether we render it through glamour.
+// which determines whether we render it as Markdown or as plain text.
 func (c *Component) IsMarkDown() bool {
 	if c.Doc == nil {
 		return false

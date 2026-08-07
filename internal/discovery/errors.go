@@ -191,7 +191,8 @@ type DiscoveryBoundaryScopeError struct {
 func (e DiscoveryBoundaryScopeError) Error() string {
 	return fmt.Sprintf(
 		"discovery boundary %q does not contain the working directory %q. "+
-			"The boundary must be the working directory or one of its parent directories.",
+			"Filters that traverse dependents search upward from the working directory, "+
+			"so their boundary must be the working directory or one of its parent directories.",
 		e.Boundary, e.WorkingDir,
 	)
 }

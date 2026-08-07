@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 
+	"github.com/gruntwork-io/terragrunt/internal/md"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
@@ -64,7 +65,8 @@ func themeFor(color ColorMode, dark bool) previewTheme {
 }
 
 // renderFilePreview reads and renders a file for the detail pane: Markdown
-// through glamour, everything else through chroma syntax highlighting. width is
+// through the Markdown renderer, everything else through chroma syntax
+// highlighting. width is
 // the pane's interior width, used for Markdown word-wrap. Only the file's first
 // previewLimit bytes are read, since the pane shows just its head. It returns a
 // short dimmed placeholder for files that can't or shouldn't be previewed.
@@ -106,7 +108,12 @@ func renderMarkdown(source string, width int, theme previewTheme) string {
 		return source
 	}
 
-	r, err := viewtui.NewMarkdownRenderer(width, theme == previewDark)
+	background := md.LightBackground
+	if theme == previewDark {
+		background = md.DarkBackground
+	}
+
+	r, err := md.NewTerminalRenderer(width, background)
 	if err != nil {
 		return source
 	}
