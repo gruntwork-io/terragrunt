@@ -108,6 +108,9 @@ const (
 	// content-addressable storage and hard-linked into each working directory
 	// rather than written per unit.
 	MutableGenerate = "mutable-generate"
+	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
+	// all dependency output resolution during a run.
+	OptionalDependencyOutputs = "optional-dependency-outputs"
 )
 
 const (
@@ -222,6 +225,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: MutableGenerate,
+		},
+		{
+			Name: OptionalDependencyOutputs,
 		},
 	}
 }
