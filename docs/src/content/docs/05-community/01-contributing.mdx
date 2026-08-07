@@ -294,22 +294,31 @@ az login
 
 The identity used for Azure tests must hold the following roles:
 
-- `Storage Blob Data Contributor` on the test storage account, because the tests authorize blob access with Microsoft Entra rather than an account key.
-- `Reader` on the subscription, so the resource group can be resolved from the storage account name.
+- `Storage Blob Data Contributor`, because the tests authorize blob access with Microsoft Entra rather than an account key.
+- `Storage Account Contributor`, because blob versioning and soft delete are management-plane properties of the account. Without it, `TestAzureBackendVersioningConverges` cannot converge them.
 
 You can assign these roles using the following Azure CLI commands:
 
 ```bash
-az role assignment create \
-  --assignee "<client-id>" \
-  --role "Storage Blob Data Contributor" \
-  --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account>"
+RG="/subscriptions/<subscription-id>/resourceGroups/<resource-group>"
 
 az role assignment create \
   --assignee "<client-id>" \
-  --role "Reader" \
-  --scope "/subscriptions/<subscription-id>"
+  --role "Storage Blob Data Contributor" \
+  --scope "$RG"
+
+az role assignment create \
+  --assignee "<client-id>" \
+  --role "Storage Account Contributor" \
+  --scope "$RG"
 ```
+
+Scoping both roles to the resource group also lets the tests resolve it from the storage account name, so no subscription-wide assignment is needed.
+
+An account key (`ARM_ACCESS_KEY`) authenticates the blob data plane and is enough for
+most of the suite, but it cannot reach the management plane at all, so
+`TestAzureBackendVersioningConverges` skips under it. Only an Entra identity runs the
+whole suite.
 
 The tests create and delete blob containers with unique names on each run; they never create or delete the storage account itself.
 
