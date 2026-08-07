@@ -5,7 +5,7 @@ category: "bug-fixes"
 
 #### Fix autoinclude inputs overriding unit inputs that reference undefined values
 
-Fixes an issue where unit inputs referencing undefined `values.*` attributes failed HCL decoding before autoinclude inputs could override them. Autoinclude input keys are now pre-read to inject placeholder values during decoding, so the autoinclude override takes effect as expected.
+Fixes an issue where unit inputs referencing undefined `values.*` attributes failed HCL decoding before autoinclude inputs could override them. When a sibling autoinclude is present, decoding now defers those attribute errors to the autoinclude merge, which overrides the affected inputs as expected.
 
 ```hcl
 # stacks/terragrunt.stack.hcl
@@ -33,7 +33,7 @@ unit "subnet" {
 ```hcl
 # units/subnet/terragrunt.hcl
 inputs = {
-  vpc_id     = values.vpc_id     # now resolves via placeholder, overridden by autoinclude
-  cidr_block = values.cidr_block  # still resolves from values file
+  vpc_id     = values.vpc_id     # decode deferred, overridden by autoinclude
+  cidr_block = values.cidr_block # still resolves from the values file
 }
 ```
