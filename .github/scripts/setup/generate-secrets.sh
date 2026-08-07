@@ -72,8 +72,14 @@ for SECRET in $SECRETS; do
 		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID='%s'\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "TG_AZURE_TEST_RESOURCE_GROUP" && -n "${TG_AZURE_TEST_RESOURCE_GROUP:-}" ]]; then
 		printf "export TG_AZURE_TEST_RESOURCE_GROUP='%s'\n" "${TG_AZURE_TEST_RESOURCE_GROUP}" >>"$ENV_FILE"
-	elif [[ "$SECRET" == "ARM_ACCESS_KEY" && -n "${ARM_ACCESS_KEY:-}" ]]; then
-		printf "export ARM_ACCESS_KEY='%s'\n" "${ARM_ACCESS_KEY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_CLIENT_ID" && -n "${ARM_CLIENT_ID:-}" ]]; then
+		printf "export ARM_CLIENT_ID='%s'\n" "${ARM_CLIENT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_CLIENT_SECRET" && -n "${ARM_CLIENT_SECRET:-}" ]]; then
+		printf "export ARM_CLIENT_SECRET='%s'\n" "${ARM_CLIENT_SECRET}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_TENANT_ID" && -n "${ARM_TENANT_ID:-}" ]]; then
+		printf "export ARM_TENANT_ID='%s'\n" "${ARM_TENANT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_SUBSCRIPTION_ID" && -n "${ARM_SUBSCRIPTION_ID:-}" ]]; then
+		printf "export ARM_SUBSCRIPTION_ID='%s'\n" "${ARM_SUBSCRIPTION_ID}" >>"$ENV_FILE"
 	fi
 done
 
