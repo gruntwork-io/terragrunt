@@ -25,7 +25,7 @@ var stylingEscape = regexp.MustCompile(`^\x1b\[[0-9;:]*m`)
 // assertOnlyStylingEscapes fails when content carries an escape sequence that
 // isn't ours, which is what an injected name or file body would look like once
 // it reached the screen. Callers must keep Markdown links out of their fixtures:
-// glamour renders those as OSC 8 hyperlinks, the one other escape a pane emits.
+// those render as OSC 8 hyperlinks, the one other escape a pane emits.
 func assertOnlyStylingEscapes(t *testing.T, content string) {
 	t.Helper()
 

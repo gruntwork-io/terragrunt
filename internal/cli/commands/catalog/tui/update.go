@@ -17,6 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/md"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -345,7 +346,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // renderComponentContent prepares the pager body, prepending tag pills
 // when configured. Markdown components run through the model's cached
-// glamour renderer, which may itself be (re)allocated.
+// renderer, which may itself be (re)allocated.
 func (m Model) renderComponentContent(
 	c *Component,
 	tagsStyle TagsDetailStyle,
@@ -370,21 +371,21 @@ func (m Model) renderComponentContent(
 		body += TagsMarkdownSection(tags)
 	}
 
-	md, err := renderer.Render(body)
+	rendered, err := renderer.Render(body)
 	if err != nil {
 		return m, "", err
 	}
 
 	if tagsStyle == TagsDetailStylePills {
 		if pills := RenderDetailTagPills(tags); pills != "" {
-			md = lipgloss.NewStyle().PaddingLeft(glamourDocumentMargin).Render(pills) + "\n\n" + md
+			rendered = lipgloss.NewStyle().PaddingLeft(md.DocumentMargin).Render(pills) + "\n\n" + rendered
 		}
 	}
 
-	return m, md, nil
+	return m, rendered, nil
 }
 
-// RendererErrMsg signals that the glamour markdown renderer failed to
+// RendererErrMsg signals that the Markdown renderer failed to
 // build or render a component's content.
 type RendererErrMsg struct{ Err error }
 

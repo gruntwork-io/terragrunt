@@ -119,8 +119,8 @@ func FuzzModel(f *testing.F) {
 }
 
 // FuzzFilePreview writes arbitrary bytes to a Markdown and a source file and
-// renders each, ensuring the binary sniff, chroma highlighting, and glamour
-// Markdown rendering stay panic-free on hostile input.
+// renders each, ensuring the binary sniff, chroma highlighting, and Markdown
+// rendering stay panic-free on hostile input.
 func FuzzFilePreview(f *testing.F) {
 	f.Add([]byte("inputs = {}\n"))
 	f.Add([]byte("# Title\n\n```\nunclosed fence"))
@@ -134,7 +134,7 @@ func FuzzFilePreview(f *testing.F) {
 
 		root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
 
-		// Color on so both glamour (Markdown) and chroma (source) actually render.
+		// Color on so both the Markdown and the source renderers actually render.
 		m := newModel(t, fs, root, tui.ColorEnabled)
 
 		m = press(t, m, 'l')
