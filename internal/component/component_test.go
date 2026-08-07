@@ -1,6 +1,9 @@
 package component_test
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -213,11 +216,14 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 
 	const goroutines = 10
 
-	// Concurrent writes tests
-	for range goroutines {
+	results := make([]component.Component, goroutines)
+
+	// Concurrent writes for the same path
+	for i := range goroutines {
 		wg.Go(func() {
 			unit := component.NewUnit("/test/path")
-			tsc.EnsureComponent(unit)
+			added, _ := tsc.EnsureComponent(unit)
+			results[i] = added
 		})
 	}
 
@@ -236,6 +242,124 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 
 	// Should have exactly one component despite concurrent adds
 	assert.Equal(t, 1, tsc.Len(), "should have exactly one component after concurrent adds")
+
+	canonical := tsc.FindByPath("/test/path")
+	require.NotNil(t, canonical)
+
+	for i := range goroutines {
+		assert.Same(t, canonical, results[i], "all concurrent Ensures should return the same instance")
+	}
+}
+
+func TestThreadSafeComponentsManyUniqueEnsure(t *testing.T) {
+	t.Parallel()
+
+	tsc := component.NewThreadSafeComponents(component.Components{})
+
+	const n = 200
+
+	units := make([]*component.Unit, n)
+	for i := range n {
+		// Unique absolute-style paths; ResolvePath falls back to the string when
+		// the path is not present on disk (no symlink resolution).
+		units[i] = component.NewUnit("/test/unit/" + strconv.Itoa(i))
+
+		added, wasAdded := tsc.EnsureComponent(units[i])
+		require.True(t, wasAdded)
+		assert.Same(t, units[i], added)
+	}
+
+	require.Equal(t, n, tsc.Len())
+
+	// Re-ensure returns the original instance and does not grow the set.
+	for i := range n {
+		added, wasAdded := tsc.EnsureComponent(component.NewUnit(units[i].Path()))
+		assert.False(t, wasAdded)
+		assert.Same(t, units[i], added)
+		assert.Same(t, units[i], tsc.FindByPath(units[i].Path()))
+	}
+
+	require.Equal(t, n, tsc.Len())
+
+	// Insertion order preserved.
+	got := tsc.ToComponents()
+	require.Len(t, got, n)
+	for i := range n {
+		assert.Same(t, units[i], got[i])
+	}
+}
+
+func TestThreadSafeComponentsSeedFirstWinsOnDuplicatePath(t *testing.T) {
+	t.Parallel()
+
+	first := component.NewUnit("/test/shared")
+	second := component.NewUnit("/test/shared")
+	tsc := component.NewThreadSafeComponents(component.Components{first, second})
+
+	// Seed keeps both entries in the slice (no silent seed dedupe).
+	require.Equal(t, 2, tsc.Len())
+	require.Len(t, tsc.ToComponents(), 2)
+
+	// Lookups and Ensure return the first seeded instance (IndexFunc / first-wins).
+	assert.Same(t, first, tsc.FindByPath("/test/shared"))
+
+	added, wasAdded := tsc.EnsureComponent(component.NewUnit("/test/shared"))
+	assert.False(t, wasAdded)
+	assert.Same(t, first, added)
+}
+
+func TestThreadSafeComponentsConcurrentDistinctPaths(t *testing.T) {
+	t.Parallel()
+
+	tsc := component.NewThreadSafeComponents(component.Components{})
+
+	var wg sync.WaitGroup
+
+	const n = 100
+
+	for i := range n {
+		wg.Go(func() {
+			unit := component.NewUnit("/test/distinct/" + strconv.Itoa(i))
+			tsc.EnsureComponent(unit)
+		})
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, n, tsc.Len())
+
+	for i := range n {
+		assert.NotNil(t, tsc.FindByPath("/test/distinct/"+strconv.Itoa(i)))
+	}
+}
+
+func TestThreadSafeComponentsSymlinkIdentity(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	realDir := filepath.Join(dir, "real")
+	require.NoError(t, os.Mkdir(realDir, 0o755))
+
+	linkDir := filepath.Join(dir, "link")
+	if err := os.Symlink(realDir, linkDir); err != nil {
+		t.Skipf("symlinks not supported: %v", err)
+	}
+
+	realUnit := component.NewUnit(realDir)
+	tsc := component.NewThreadSafeComponents(component.Components{})
+
+	added, wasAdded := tsc.EnsureComponent(realUnit)
+	require.True(t, wasAdded)
+	require.Same(t, realUnit, added)
+
+	// Second registration via the symlink path must collapse to the same identity.
+	viaLink, wasAdded := tsc.EnsureComponent(component.NewUnit(linkDir))
+	assert.False(t, wasAdded)
+	assert.Same(t, realUnit, viaLink)
+	assert.Equal(t, 1, tsc.Len())
+
+	assert.Same(t, realUnit, tsc.FindByPath(linkDir))
+	assert.Same(t, realUnit, tsc.FindByPath(realDir))
 }
 
 // TestUnitGuardConfigParseWithRacing verifies the parse runs exactly once when
