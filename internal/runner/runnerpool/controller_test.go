@@ -2,6 +2,7 @@ package runnerpool_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -155,6 +156,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	}
 }
 
+// TestRunnerPool_RunnerNotSet pins the typed error returned when a controller runs without a runner.
 func TestRunnerPool_RunnerNotSet(t *testing.T) {
 	t.Parallel()
 
@@ -164,21 +166,45 @@ func TestRunnerPool_RunnerNotSet(t *testing.T) {
 	require.NoError(t, err)
 
 	err = runnerpool.NewController(q, units).Run(t.Context(), logger.CreateLogger())
-	require.ErrorContains(t, err, "runner is not set")
+	require.ErrorIs(t, err, runnerpool.ErrRunnerNotSet)
 }
 
-func TestRunnerPool_NilQueueRunsNothing(t *testing.T) {
+// TestRunnerPool_NonPositiveConcurrencyRunsSerially pins that a non-positive concurrency is clamped to one worker.
+func TestRunnerPool_NonPositiveConcurrencyRunsSerially(t *testing.T) {
 	t.Parallel()
 
+	units := buildComponentUnits([]string{"A", "B"}, map[string][]string{"B": {"A"}})
+
+	q, err := queue.NewQueue(component.Components{units[0], units[1]})
+	require.NoError(t, err)
+
+	var (
+		mu  sync.Mutex
+		ran []string
+	)
+
 	dagRunner := runnerpool.NewController(
-		nil,
-		buildComponentUnits([]string{"A"}, nil),
-		runnerpool.WithRunner(func(context.Context, *component.Unit) error { return nil }),
+		q,
+		units,
+		runnerpool.WithRunner(func(_ context.Context, u *component.Unit) error {
+			mu.Lock()
+			defer mu.Unlock()
+
+			ran = append(ran, u.Path())
+
+			return nil
+		}),
 		runnerpool.WithMaxConcurrency(0),
 	)
 	require.NoError(t, dagRunner.Run(t.Context(), logger.CreateLogger()))
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Equal(t, []string{"A", "B"}, ran, "a non-positive concurrency runs units one at a time, in dependency order")
 }
 
+// TestRunnerPool_UnitMissingFromDiscoveredUnits pins the typed error returned when a queue entry has no unit.
 func TestRunnerPool_UnitMissingFromDiscoveredUnits(t *testing.T) {
 	t.Parallel()
 
@@ -195,7 +221,11 @@ func TestRunnerPool_UnitMissingFromDiscoveredUnits(t *testing.T) {
 	)
 
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.ErrorContains(t, err, "not found in discovered units")
+
+	var target runnerpool.UnitNotDiscoveredError
+
+	require.ErrorAs(t, err, &target)
+	assert.Equal(t, "A", target.UnitPath, "the error carries the path that had no discovered unit")
 }
 
 func TestRunnerPool_ContextCancelled(t *testing.T) {
