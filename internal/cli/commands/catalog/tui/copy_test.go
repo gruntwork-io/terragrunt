@@ -15,10 +15,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-// TestCopyCmdInstallsDiscoveredComponent covers what CopyCmd adds on top of
-// component.Install: resolving a discovered component's source directory
+// TestCopyCmdScaffoldsDiscoveredComponent covers what CopyCmd adds on top of
+// [component.Scaffold]: resolving a discovered component's source directory
 // inside its cloned repository, and its destination from the options.
-func TestCopyCmdInstallsDiscoveredComponent(t *testing.T) {
+func TestCopyCmdScaffoldsDiscoveredComponent(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()

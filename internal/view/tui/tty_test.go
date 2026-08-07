@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	tui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

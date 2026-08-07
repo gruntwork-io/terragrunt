@@ -12,16 +12,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// ErrNoTerminal reports that the catalog TUI cannot start because the
-// process has no interactive terminal to attach to (for example, in a CI
+// ErrNoTerminal reports that a terminal user interface cannot start because
+// the process has no interactive terminal to attach to (for example, in a CI
 // job or another environment without a controlling terminal).
-var ErrNoTerminal = errors.New("the catalog command requires an interactive terminal")
+var ErrNoTerminal = errors.New("an interactive terminal is required")
 
 // EnsureTTY verifies that the process can attach an interactive terminal,
 // mirroring bubbletea's input setup: a terminal stdin is used directly;
 // otherwise the controlling terminal is opened. It returns an error
-// wrapping [ErrNoTerminal] when neither is available, so the catalog
-// command can fail fast with a clear message instead of surfacing the
+// wrapping [ErrNoTerminal] when neither is available, so a caller can fail
+// fast, or fall back to a non-interactive path, instead of surfacing the
 // library's raw TTY error.
 //
 // isTerminal and openTTY are injected so tests can simulate environments

@@ -119,7 +119,7 @@ func Scaffold(
 		return Result{}, err
 	}
 
-	refs, err := CollectValuesReferences(fsys, filepath.Join(paths.Src, kind.ConfigFile()))
+	refs, err := Values(fsys, kind, paths.Src)
 	if err != nil {
 		return Result{}, err
 	}
@@ -153,6 +153,18 @@ func Scaffold(
 	result.ValuesSkipped = !written
 
 	return result, nil
+}
+
+// Values reports the `values.*` references the component of the given kind at
+// dir makes, which is what [Scaffold] writes its terragrunt.values.hcl from.
+// A kind with no configuration file of its own makes none.
+func Values(fsys vfs.FS, kind Kind, dir string) (ValuesReferences, error) {
+	configFile := kind.ConfigFile()
+	if configFile == "" {
+		return ValuesReferences{}, nil
+	}
+
+	return CollectValuesReferences(fsys, filepath.Join(dir, configFile))
 }
 
 // skipDuringCopy reports whether a directory name should be excluded from the
