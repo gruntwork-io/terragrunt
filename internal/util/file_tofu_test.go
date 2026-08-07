@@ -465,7 +465,7 @@ module "database" {
 			regex, err := regexp.Compile(tc.pattern)
 			require.NoError(t, err)
 
-			actual, err := util.RegexFoundInTFFiles(tmpDir, regex)
+			actual, err := util.RegexFoundInTFFiles(vfs.NewOSFS(), tmpDir, regex)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expected, actual, "For test case: %s", tc.description)
@@ -481,7 +481,7 @@ func TestRegexFoundInTFFilesErrorHandling(t *testing.T) {
 		t.Parallel()
 
 		regex := regexp.MustCompile("test")
-		_, err := util.RegexFoundInTFFiles("/non/existent/directory", regex)
+		_, err := util.RegexFoundInTFFiles(vfs.NewOSFS(), "/non/existent/directory", regex)
 		assert.Error(t, err)
 	})
 
@@ -505,7 +505,7 @@ func TestRegexFoundInTFFilesErrorHandling(t *testing.T) {
 		}()
 
 		regex := regexp.MustCompile("test")
-		_, err = util.RegexFoundInTFFiles(tmpDir, regex)
+		_, err = util.RegexFoundInTFFiles(vfs.NewOSFS(), tmpDir, regex)
 		// We expect an error due to permission denied, but don't fail the test
 		// if the OS doesn't enforce permission restrictions in the test environment
 		if err == nil {

@@ -31,6 +31,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 func TestTFTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
@@ -652,7 +654,7 @@ func TestTFTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheDirect)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheDirect)
 
-	cacheDir, err := util.EnsureCacheDir()
+	cacheDir, err := util.EnsureCacheDir(venv.OSVenv())
 	require.NoError(t, err)
 
 	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")
@@ -735,7 +737,7 @@ func TestTFTerragruntProviderCache(t *testing.T) {
 				assert.NotNil(t, providerBlock)
 
 				providerPath := filepath.Join(cacheWorkingDir, ".terraform/providers", provider)
-				assert.True(t, util.FileExists(providerPath))
+				assert.True(t, vfs.Exists(vfs.NewOSFS(), providerPath))
 
 				entries, err := os.ReadDir(providerPath)
 				require.NoError(t, err)

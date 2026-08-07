@@ -9,10 +9,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -338,7 +338,7 @@ func TestFmtGeneratedFile(t *testing.T) {
 			err := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 			require.NoError(t, err)
 
-			assert.True(t, util.FileExists(tc.path))
+			assert.FileExists(t, tc.path)
 
 			fileContent, err := os.ReadFile(tc.path)
 			require.NoError(t, err)
@@ -394,9 +394,9 @@ func TestGenerateDisabling(t *testing.T) {
 			require.NoError(t, err)
 
 			if tc.disabled {
-				assert.True(t, util.FileNotExists(tc.path))
+				assert.NoFileExists(t, tc.path)
 			} else {
-				assert.True(t, util.FileExists(tc.path))
+				assert.FileExists(t, tc.path)
 			}
 		})
 	}
@@ -724,7 +724,7 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 
 	l := logger.CreateLogger()
 	require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
-	assert.True(t, util.FileNotExists(targetPath))
+	assert.NoFileExists(t, targetPath)
 }
 
 // TestWriteToFileSignatureWithoutTrailingNewline verifies that a generated
@@ -771,7 +771,7 @@ func TestWriteToFileSignatureWithoutTrailingNewline(t *testing.T) {
 			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 
 			if tc.disable {
-				assert.True(t, util.FileNotExists(path))
+				assert.NoFileExists(t, path)
 
 				return
 			}
@@ -1138,7 +1138,7 @@ func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
 func newTestContentStore(t *testing.T, dir string) *cas.Content {
 	t.Helper()
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(dir, "cas")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(dir, "cas")))
 	require.NoError(t, err)
 
 	return cas.NewContent(c.BlobStore())

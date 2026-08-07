@@ -28,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -185,7 +184,7 @@ func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 	assert.FileExists(t, filepath.Join(targetPath, "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(targetPath, "custom-template.txt"))
 
-	content, err := util.ReadFileAsString(filepath.Join(targetPath, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(targetPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 	assert.Contains(t, content, "# Custom local template")
 }

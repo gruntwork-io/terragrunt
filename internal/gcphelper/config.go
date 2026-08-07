@@ -135,7 +135,7 @@ func (b *GCPConfigBuilder) Build(
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
 	} else if env["GOOGLE_CREDENTIALS"] != "" {
 		// Use GOOGLE_CREDENTIALS from environment (can be file path or JSON content)
-		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, env)
+		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, v)
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +224,7 @@ func credentialsTypeFromString(t string) (option.CredentialsType, error) {
 // This can be either a file path or the JSON content directly (to mirror how Terraform works).
 func createGCPCredentialsFromGoogleCredentialsEnv(
 	ctx context.Context,
-	env map[string]string,
+	v *venv.Venv,
 ) (option.ClientOption, error) {
 	var account = struct {
 		PrivateKeyID string `json:"private_key_id"`
@@ -234,9 +234,9 @@ func createGCPCredentialsFromGoogleCredentialsEnv(
 	}{}
 
 	// to mirror how Terraform works, we have to accept either the file path or the contents
-	creds := env["GOOGLE_CREDENTIALS"]
+	creds := v.Env["GOOGLE_CREDENTIALS"]
 
-	contents, err := util.FileOrData(creds)
+	contents, err := util.FileOrData(v, creds)
 	if err != nil {
 		return nil, fmt.Errorf("error loading credentials: %w", err)
 	}

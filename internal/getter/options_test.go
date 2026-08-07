@@ -29,7 +29,7 @@ import (
 func TestWithCASRegistersCASGetter(t *testing.T) {
 	t.Parallel()
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -54,7 +54,7 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 	t.Parallel()
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

@@ -53,7 +53,7 @@ func runSingle(
 		return err
 	}
 
-	runCfg := prepared.Cfg.ToRunConfig(l)
+	runCfg := prepared.Cfg.ToRunConfig(l, v.FS)
 
 	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {
 		return err

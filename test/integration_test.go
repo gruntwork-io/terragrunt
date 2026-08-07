@@ -442,9 +442,9 @@ func TestTerragruntFullLockfile(t *testing.T) {
 			helpers.RunTerragrunt(t, cmd)
 
 			lockfilePath := filepath.Join(rootPath, ".terraform.lock.hcl")
-			require.True(
+			require.FileExists(
 				t,
-				util.FileExists(lockfilePath),
+				lockfilePath,
 				"expected lock file to exist at %s",
 				lockfilePath,
 			)

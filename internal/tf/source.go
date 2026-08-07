@@ -139,7 +139,7 @@ func (src Source) encodeLocalSourceVersion(
 	sourceHash := sha256.New()
 	sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
 
-	copied, err := util.NewCopyFilter(l, sourceDir, copyOpts...)
+	copied, err := util.NewCopyFilter(l, fsys, sourceDir, copyOpts...)
 	if err != nil {
 		return "", err
 	}

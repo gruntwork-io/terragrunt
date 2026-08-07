@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -859,7 +860,7 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 
 			for _, appName := range []string{"app1", "app2", "app3"} {
 				appPath := filepath.Join(rootPath, appName)
-				assert.True(t, util.FileExists(appPath))
+				assert.DirExists(t, appPath)
 
 				lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
 				lockfileContent, err := os.ReadFile(lockfilePath)
@@ -881,11 +882,11 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 					assert.NotNil(t, providerBlock)
 
 					providerPath := filepath.Join(providerCacheDir, provider)
-					assert.True(t, util.FileExists(providerPath))
+					assert.True(t, vfs.Exists(vfs.NewOSFS(), providerPath))
 
 					for _, platform := range platforms {
 						platformPath := filepath.Join(providerPath, platform)
-						assert.True(t, util.FileExists(platformPath))
+						assert.True(t, vfs.Exists(vfs.NewOSFS(), platformPath))
 					}
 				}
 			}
@@ -4195,7 +4196,7 @@ func TestTFAutoInitWhenSourceIsChanged(t *testing.T) {
 
 	terragruntHcl := filepath.Join(testPath, "terragrunt.hcl")
 
-	contents, err := util.ReadFileAsString(terragruntHcl)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), terragruntHcl)
 	if err != nil {
 		require.NoError(t, err)
 	}

@@ -574,7 +574,7 @@ func (rnr *Runner) Run(
 					unitOpts.TFPath = cfg.TerraformBinary
 				}
 
-				runCfg := cfg.ToRunConfig(unitLogger)
+				runCfg := cfg.ToRunConfig(unitLogger, unitV.FS)
 
 				err = telemetry.TelemeterFromContext(childCtx).
 					Collect(childCtx, unitLogger, "unit_run", map[string]any{
