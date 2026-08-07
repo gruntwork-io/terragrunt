@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // startSubmoduleServer commits the given files to a fresh test server,
@@ -62,7 +63,7 @@ func TestCAS_CloneRepoWithSubmodule(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	assertClone := func(t *testing.T, targetPath string) {
@@ -134,7 +135,7 @@ func TestCAS_CloneRepoWithNestedSubmodules(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
 	err = c.Clone(
@@ -184,7 +185,7 @@ func TestCAS_CloneRepoWithUnregisteredGitlink(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
 	err = c.Clone(
@@ -255,7 +256,7 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
 	err = c.Clone(

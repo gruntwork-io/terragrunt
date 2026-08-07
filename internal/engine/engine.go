@@ -310,7 +310,7 @@ func downloadEngine(
 		return nil
 	}
 
-	if util.FileExists(e.Source) {
+	if vfs.Exists(v.FS, e.Source) {
 		// if source is a file, no need to download, exit
 		return nil
 	}
@@ -341,16 +341,16 @@ func downloadEngine(
 			}
 		}
 
-		path, err := engineDir(execOptions)
+		path, err := engineDir(v, execOptions)
 		if err != nil {
 			return err
 		}
 
-		if ensureErr := util.EnsureDirectory(path); ensureErr != nil {
+		if ensureErr := vfs.EnsureDirectory(v.FS, path); ensureErr != nil {
 			return ensureErr
 		}
 
-		localEngineFile := filepath.Join(path, engineFileName(e))
+		localEngineFile := filepath.Join(path, engineFileName(v.FS, e))
 
 		// lock downloading process for only one instance
 		locks, err := downloadLocksFromContext(ctx)
@@ -362,11 +362,11 @@ func downloadEngine(
 		locks.Lock(localEngineFile)
 		defer locks.Unlock(localEngineFile)
 
-		if util.FileExists(localEngineFile) {
+		if vfs.Exists(v.FS, localEngineFile) {
 			return nil
 		}
 
-		downloadFile := filepath.Join(path, enginePackageName(e))
+		downloadFile := filepath.Join(path, enginePackageName(v.FS, e))
 
 		// Prepare download assets
 		assets := &github.ReleaseAssets{
@@ -530,9 +530,9 @@ func extractArchiveWithLimits(
 }
 
 // engineDir returns the directory path where engine files are stored.
-func engineDir(opts *ExecutionOptions) (string, error) {
+func engineDir(v *venv.Venv, opts *ExecutionOptions) (string, error) {
 	engine := opts.EngineConfig
-	if util.FileExists(engine.Source) {
+	if vfs.Exists(v.FS, engine.Source) {
 		return filepath.Dir(engine.Source), nil
 	}
 
@@ -552,7 +552,7 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 		), nil
 	}
 
-	cacheDir, err := util.EnsureCacheDir()
+	cacheDir, err := util.EnsureCacheDir(v)
 	if err != nil {
 		return "", err
 	}
@@ -569,9 +569,9 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 }
 
 // engineFileName returns the file name for the engine.
-func engineFileName(e *EngineConfig) string {
+func engineFileName(fsys vfs.FS, e *EngineConfig) string {
 	engineName := filepath.Base(e.Source)
-	if util.FileExists(e.Source) {
+	if vfs.Exists(fsys, e.Source) {
 		// return file name if source is absolute path
 		return engineName
 	}
@@ -598,8 +598,8 @@ func engineChecksumSigName(e *EngineConfig) string {
 }
 
 // enginePackageName returns the package name for the engine.
-func enginePackageName(e *EngineConfig) string {
-	return engineFileName(e) + ".zip"
+func enginePackageName(fsys vfs.FS, e *EngineConfig) string {
+	return engineFileName(fsys, e) + ".zip"
 }
 
 func isDirectURL(source string) bool {
@@ -819,19 +819,19 @@ func createEngine(
 		"version":   execOptions.EngineConfig.Version,
 		"cache_dir": execOptions.CacheDir,
 	}, func(ctx context.Context, l log.Logger) error {
-		path, err := engineDir(execOptions)
+		path, err := engineDir(v, execOptions)
 		if err != nil {
 			return err
 		}
 
-		localEnginePath := filepath.Join(path, engineFileName(execOptions.EngineConfig))
+		localEnginePath := filepath.Join(path, engineFileName(v.FS, execOptions.EngineConfig))
 		localChecksumFile := filepath.Join(path, engineChecksumName(execOptions.EngineConfig))
 		localChecksumSigFile := filepath.Join(path, engineChecksumSigName(execOptions.EngineConfig))
 
 		// validate engine before loading if verification is not disabled
 		skipCheck := execOptions.EngineOptions.SkipChecksumCheck
-		if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
-			util.FileExists(localChecksumSigFile) {
+		if !skipCheck && vfs.Exists(v.FS, localEnginePath) && vfs.Exists(v.FS, localChecksumFile) &&
+			vfs.Exists(v.FS, localChecksumSigFile) {
 			if err = verifyFile(
 				v.FS,
 				localEnginePath,

@@ -514,7 +514,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			},
 		}
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, configbridge.NewRunOptions(tc.options), &config)
+		out := run.FilterTerraformExtraArgs(l, vfs.NewOSFS(), configbridge.NewRunOptions(tc.options), &config)
 		assert.Equal(t, tc.expectedArgs, out)
 	}
 }
@@ -562,7 +562,7 @@ func mockExtraArgs(
 	// Include OptionalVarFiles only if they exist
 	if len(optionalVarFiles) > 0 {
 		for _, file := range util.RemoveDuplicatesKeepLast(optionalVarFiles) {
-			if !util.FileExists(file) {
+			if !vfs.Exists(vfs.NewOSFS(), file) {
 				continue
 			}
 

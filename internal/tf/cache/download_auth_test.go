@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -39,7 +39,7 @@ func TestDownloadRouteRequiresSecretSegment(t *testing.T) {
 		cache.WithHostname("127.0.0.1"),
 		cache.WithToken(token),
 		cache.WithLogger(l),
-		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, vfs.NewOSFS(), vhttp.NewOSClient())),
+		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, venv.OSVenv())),
 		cache.WithProxyProviderHandler(
 			handlers.NewProxyProviderHandler(l, vhttp.NewNoNetworkClient(), nil),
 		),
@@ -109,7 +109,7 @@ func TestDownloadSegmentIsRedactedFromLogs(t *testing.T) {
 	server := cache.NewServer(
 		cache.WithHostname("127.0.0.1"),
 		cache.WithLogger(l),
-		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, vfs.NewOSFS(), vhttp.NewOSClient())),
+		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, venv.OSVenv())),
 		cache.WithProxyProviderHandler(
 			handlers.NewProxyProviderHandler(l, vhttp.NewNoNetworkClient(), nil),
 		),

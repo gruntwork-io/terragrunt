@@ -721,7 +721,7 @@ func prepareBoilerplateFiles(
 	}
 
 	// if boilerplate dir is not found, create one with default template
-	if !util.IsDir(boilerplateDir) {
+	if !vfs.IsDir(v.FS, boilerplateDir) {
 		_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)

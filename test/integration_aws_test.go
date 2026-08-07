@@ -519,7 +519,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 		helpers.TerraformRemoteStateS3Region,
 	)
 	// Add skip_bucket_versioning to disable_versioning feature
-	contents, err := util.ReadFileAsString(dualLockingConfigPath)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), dualLockingConfigPath)
 	require.NoError(t, err)
 
 	anchorText := "    enable_lock_table_ssencryption = feature.enable_lock_table_ssencryption.value"
@@ -557,7 +557,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 		helpers.TerraformRemoteStateS3Region,
 	)
 	// Add skip_bucket_versioning for disable_versioning feature
-	contents, err = util.ReadFileAsString(useLockfileConfigPath)
+	contents, err = vfs.ReadFileAsString(vfs.NewOSFS(), useLockfileConfigPath)
 	require.NoError(t, err)
 
 	// Use regex to match use_lockfile with any amount of whitespace before the equals sign
@@ -1971,7 +1971,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	mainTFFile := filepath.Join(modulePath, "main.tf")
 
 	// fill in branch so we can test against updates to the test case file
-	mainContents, err := util.ReadFileAsString(mainTFFile)
+	mainContents, err := vfs.ReadFileAsString(vfs.NewOSFS(), mainTFFile)
 	require.NoError(t, err)
 	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)

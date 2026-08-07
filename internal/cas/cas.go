@@ -123,7 +123,7 @@ func WithCloneDepth(depth int) Option {
 }
 
 // New creates a new CAS instance with the given options.
-func New(opts ...Option) (*CAS, error) {
+func New(v *venv.Venv, opts ...Option) (*CAS, error) {
 	c := &CAS{}
 
 	for _, opt := range opts {
@@ -131,7 +131,7 @@ func New(opts ...Option) (*CAS, error) {
 	}
 
 	if c.storePath == "" {
-		cacheDir, err := util.EnsureCacheDir()
+		cacheDir, err := util.EnsureCacheDir(v)
 		if err != nil {
 			return nil, err
 		}

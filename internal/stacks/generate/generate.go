@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -242,7 +243,7 @@ func generateLevel(
 		generatedFiles[node.FilePath] = true
 
 		// Best-effort skip; GenerateStackFile surfaces ENOENT if the file is removed in the TOCTOU window.
-		if !util.FileExists(node.FilePath) {
+		if !vfs.Exists(v.FS, node.FilePath) {
 			continue
 		}
 

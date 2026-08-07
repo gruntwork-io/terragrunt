@@ -16,8 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -334,7 +334,7 @@ func parseComponent(
 			componentPath := c.Path()
 			workingDir := componentPath
 
-			if util.FileExists(componentPath) && !util.IsDir(componentPath) {
+			if vfs.Exists(v.FS, componentPath) && !vfs.IsDir(v.FS, componentPath) {
 				workingDir = filepath.Dir(componentPath)
 			}
 
@@ -349,7 +349,7 @@ func parseComponent(
 					break
 				}
 
-				if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
+				if opts.TerragruntConfigPath != "" && !vfs.IsDir(v.FS, opts.TerragruntConfigPath) {
 					configFilename = filepath.Base(opts.TerragruntConfigPath)
 				}
 			}

@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestProcessStackComponent_LocalSource_RewritesStackSources(t *testing.T) {
@@ -28,7 +29,7 @@ func TestProcessStackComponent_LocalSource_RewritesStackSources(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -70,7 +71,7 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -118,7 +119,7 @@ func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {
 	before := snapshotTree(t, root)
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -144,7 +145,7 @@ func TestProcessStackComponent_LocalSource_DeterministicOutput(t *testing.T) {
 
 	readStackFile := func() string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		source := root + "//stacks/my-stack"
@@ -194,7 +195,7 @@ func TestProcessStackComponent_LocalSource_ContentAddressedCacheKey(t *testing.T
 
 	runAndExtractServiceRef := func(root string) string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		source := root + "//stacks/my-stack"
@@ -366,7 +367,7 @@ func TestProcessStackComponent_GitForcerRoutesRemote(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -427,7 +428,7 @@ func TestProcessStackComponent_LocalSource_MaterializeSynthTree(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -671,7 +672,7 @@ func TestProcessStackComponent_LocalSource_SharedUnitTemplate(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -723,7 +724,7 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

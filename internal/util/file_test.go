@@ -182,7 +182,7 @@ func TestFileManifest(t *testing.T) {
 	assert.NoError(t, manifest.Clean(l))
 	// test if the files have been deleted
 	for _, file := range testfiles {
-		assert.False(t, util.FileExists(file))
+		assert.NoFileExists(t, file)
 	}
 }
 

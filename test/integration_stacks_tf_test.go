@@ -1565,22 +1565,25 @@ func TestTFStackRunAllNoStackDir(t *testing.T) {
 
 	// Verify that no .terragrunt-stack directory was created since all units have no_dot_terragrunt_stack = true
 	stackDir := filepath.Join(rootPath, ".terragrunt-stack")
-	stackDirExists := util.FileExists(stackDir)
+	stackDirExists := vfs.Exists(vfs.NewOSFS(), stackDir)
 	t.Logf("Stack directory exists: %v", stackDirExists)
 
 	// Verify that units were generated in the same directory as terragrunt.stack.hcl
 	expectedUnits := []string{"foo", "bar"}
 	for _, unit := range expectedUnits {
 		unitPath := filepath.Join(rootPath, unit)
-		assert.True(
+		assert.DirExists(
 			t,
-			util.FileExists(unitPath),
+			unitPath,
 			"Expected unit %s to exist in root directory",
 			unit,
 		)
-		assert.True(t, util.FileExists(
+		assert.FileExists(
+			t,
 			filepath.Join(unitPath, "terragrunt.hcl"),
-		), "Expected terragrunt.hcl to exist in unit %s", unit)
+			"Expected terragrunt.hcl to exist in unit %s",
+			unit,
+		)
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(

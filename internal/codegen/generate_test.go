@@ -9,10 +9,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -338,7 +338,7 @@ func TestFmtGeneratedFile(t *testing.T) {
 			err := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 			require.NoError(t, err)
 
-			assert.True(t, util.FileExists(tc.path))
+			assert.FileExists(t, tc.path)
 
 			fileContent, err := os.ReadFile(tc.path)
 			require.NoError(t, err)
@@ -396,7 +396,7 @@ func TestGenerateDisabling(t *testing.T) {
 			if tc.disabled {
 				assert.NoFileExists(t, tc.path)
 			} else {
-				assert.True(t, util.FileExists(tc.path))
+				assert.FileExists(t, tc.path)
 			}
 		})
 	}
@@ -1138,7 +1138,7 @@ func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
 func newTestContentStore(t *testing.T, dir string) *cas.Content {
 	t.Helper()
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(dir, "cas")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(dir, "cas")))
 	require.NoError(t, err)
 
 	return cas.NewContent(c.BlobStore())

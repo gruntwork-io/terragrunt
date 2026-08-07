@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1659,7 +1659,7 @@ EOF
 		for _, env := range environments {
 			for _, component := range components {
 				componentDir := filepath.Join(liveDir, env, component)
-				if util.FileExists(componentDir) {
+				if vfs.Exists(vfs.NewOSFS(), componentDir) {
 					require.NoError(t, os.RemoveAll(componentDir))
 				}
 			}

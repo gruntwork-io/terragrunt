@@ -22,6 +22,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/glob"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -37,45 +38,30 @@ const (
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
-func FileOrData(maybePath string) (string, error) {
+func FileOrData(v *venv.Venv, maybePath string) (string, error) {
+	v.RequireFS()
+
 	// Blindly call expandHome: it's a no-op for anything that doesn't start with `~`,
 	// and a leading `~` is far more likely to be a path than literal data.
-	expandedMaybePath, err := expandHome(maybePath)
+	expandedMaybePath, err := expandHome(v, maybePath)
 	if err != nil {
 		return "", err
 	}
 
-	if IsFile(expandedMaybePath) {
-		contents, err := os.ReadFile(expandedMaybePath)
+	if vfs.IsFile(v.FS, expandedMaybePath) {
+		contents, err := vfs.ReadFile(v.FS, expandedMaybePath)
 		if err != nil {
 			return "", err
 		}
 
 		return string(contents), nil
-	} else if IsDir(expandedMaybePath) {
+	}
+
+	if vfs.IsDir(v.FS, expandedMaybePath) {
 		return "", PathIsNotFile{path: expandedMaybePath}
 	}
 
 	return expandedMaybePath, nil
-}
-
-// FileExists returns true if the given file exists.
-func FileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-// EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
-func EnsureDirectory(path string) error {
-	if FileExists(path) && IsFile(path) {
-		return PathIsNotDirectory{path}
-	} else if !FileExists(path) {
-		const ownerReadWriteExecutePerms = 0o700
-
-		return os.MkdirAll(path, ownerReadWriteExecutePerms)
-	}
-
-	return nil
 }
 
 // CanonicalPath returns the canonical version of the given path, relative to the given base path. That is, if the given
@@ -172,10 +158,10 @@ func FindTFFiles(fsys vfs.FS, rootPath string) ([]string, error) {
 // RegexFoundInTFFiles walks through the directory and checks if any
 // OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json) contain the given
 // regex pattern
-func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error) {
+func RegexFoundInTFFiles(fsys vfs.FS, workingDir string, pattern *regexp.Regexp) (bool, error) {
 	var found bool
 
-	err := filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDir(fsys, workingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -188,7 +174,7 @@ func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error
 			return nil
 		}
 
-		content, err := os.ReadFile(path)
+		content, err := vfs.ReadFile(fsys, path)
 		if err != nil {
 			return err
 		}
@@ -247,28 +233,6 @@ func IsTFFile(path string) bool {
 	return false
 }
 
-// IsDir returns true if the path points to a directory.
-func IsDir(path string) bool {
-	fileInfo, err := os.Stat(path)
-	return err == nil && fileInfo.IsDir()
-}
-
-// IsFile returns true if the path points to a file.
-func IsFile(path string) bool {
-	fileInfo, err := os.Stat(path)
-	return err == nil && !fileInfo.IsDir()
-}
-
-// ReadFileAsString returns the contents of the file at the given path as a string.
-func ReadFileAsString(path string) (string, error) {
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("error reading file at path %s: %w", path, err)
-	}
-
-	return string(bytes), nil
-}
-
 func listContainsElementWithPrefix(list []string, elementPrefix string) bool {
 	for _, element := range list {
 		if strings.HasPrefix(element, elementPrefix) {
@@ -290,7 +254,7 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 }
 
 // Takes apbsolute glob path and returns an array of expanded relative paths
-func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
+func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 
 	absoluteExpandGlob, err := glob.LegacyExpand(absoluteGlobPath)
@@ -319,8 +283,8 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 			filepath.ToSlash(relativeExpandGlobPath),
 		)
 
-		if IsDir(absoluteExpandGlobPath) {
-			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
+		if vfs.IsDir(fsys, absoluteExpandGlobPath) {
+			dirExpandGlob, err := expandGlobPath(fsys, source, absoluteExpandGlobPath+"/*")
 			if err != nil {
 				return nil, err
 			}
@@ -415,7 +379,7 @@ func CopyFolderContents(
 		)
 	}
 
-	filter, err := newLegacyCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy)
 	if err != nil {
 		return err
 	}
@@ -433,7 +397,7 @@ type CopyFilter func(absolutePath string, isDir bool) bool
 // applies with the same options, without performing a copy. It lets callers
 // reason about which files a copy would deliver — for example, hashing only
 // those files when computing a source version.
-func NewCopyFilter(l log.Logger, source string, opts ...CopyOption) (CopyFilter, error) {
+func NewCopyFilter(l log.Logger, fsys vfs.FS, source string, opts ...CopyOption) (CopyFilter, error) {
 	var cfg copyConfig
 	for _, opt := range opts {
 		opt(&cfg)
@@ -445,7 +409,7 @@ func NewCopyFilter(l log.Logger, source string, opts ...CopyOption) (CopyFilter,
 		return newFastCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
 	}
 
-	filter, err := newLegacyCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -461,6 +425,7 @@ func NewCopyFilter(l log.Logger, source string, opts ...CopyOption) (CopyFilter,
 // [CopyFolderContents] and the filter passed to the slow-path implementation.
 func newLegacyCopyFilter(
 	l log.Logger,
+	fsys vfs.FS,
 	source string,
 	includeInCopy, excludeFromCopy []string,
 ) (func(absolutePath string) bool, error) {
@@ -471,7 +436,7 @@ func newLegacyCopyFilter(
 	for _, includeGlob := range includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
 
-		expandGlob, err := expandGlobPath(source, globPath)
+		expandGlob, err := expandGlobPath(fsys, source, globPath)
 		if err != nil {
 			return nil, err
 		}
@@ -484,7 +449,7 @@ func newLegacyCopyFilter(
 	for _, excludeGlob := range excludeFromCopy {
 		globPath := filepath.Join(source, excludeGlob)
 
-		expandGlob, err := expandGlobPath(source, globPath)
+		expandGlob, err := expandGlobPath(fsys, source, globPath)
 		if err != nil {
 			return nil, err
 		}
@@ -1707,15 +1672,18 @@ func ListTfFiles(fsys vfs.FS, directoryPath string) ([]string, error) {
 }
 
 // EnsureCacheDir returns the global terragrunt cache directory for the current user.
-func EnsureCacheDir() (string, error) {
-	cacheDir, err := os.UserCacheDir()
+func EnsureCacheDir(v *venv.Venv) (string, error) {
+	v.RequireFS()
+	v.RequireUserCacheDir()
+
+	cacheDir, err := v.Platform.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
 
 	cacheDir = filepath.Join(cacheDir, "terragrunt")
 
-	if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
+	if err := v.FS.MkdirAll(cacheDir, os.ModePerm); err != nil {
 		return "", err
 	}
 
@@ -1723,10 +1691,13 @@ func EnsureCacheDir() (string, error) {
 }
 
 // EnsureTempDir returns the global terragrunt temp directory.
-func EnsureTempDir() (string, error) {
-	tempDir := filepath.Join(os.TempDir(), "terragrunt")
+func EnsureTempDir(v *venv.Venv) (string, error) {
+	v.RequireFS()
+	v.RequireTempDir()
 
-	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
+	tempDir := filepath.Join(v.Platform.TempDir(), "terragrunt")
+
+	if err := v.FS.MkdirAll(tempDir, os.ModePerm); err != nil {
 		return "", err
 	}
 
@@ -1737,17 +1708,17 @@ func EnsureTempDir() (string, error) {
 //
 // Note that this is a backwards compatibility implementation for the `--queue-excludes-file` flag, so it's going to
 // append the ! prefix to each filter to negate it.
-func ExcludeFiltersFromFile(baseDir, filename string) ([]string, error) {
+func ExcludeFiltersFromFile(fsys vfs.FS, baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if !FileExists(filename) || !IsFile(filename) {
+	if !vfs.IsFile(fsys, filename) {
 		return nil, nil
 	}
 
-	content, err := ReadFileAsString(filename)
+	content, err := vfs.ReadFileAsString(fsys, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -1771,17 +1742,17 @@ func ExcludeFiltersFromFile(baseDir, filename string) ([]string, error) {
 
 // GetFiltersFromFile returns a list of filter queries from the given filename,
 // where each filter query starts on a new line.
-func GetFiltersFromFile(baseDir, filename string) ([]string, error) {
+func GetFiltersFromFile(fsys vfs.FS, baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if !FileExists(filename) || !IsFile(filename) {
+	if !vfs.IsFile(fsys, filename) {
 		return nil, nil
 	}
 
-	content, err := ReadFileAsString(filename)
+	content, err := vfs.ReadFileAsString(fsys, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -1973,7 +1944,7 @@ func SkipDirIfIgnorable(dir string) error {
 // expandHome resolves a leading `~` (with no user qualifier) to the current
 // user's home directory. Anything else is returned unchanged. `~user/...` is
 // rejected because per-user lookup is platform-specific and not needed here.
-func expandHome(path string) (string, error) {
+func expandHome(v *venv.Venv, path string) (string, error) {
 	if path == "" || path[0] != '~' {
 		return path, nil
 	}
@@ -1982,7 +1953,9 @@ func expandHome(path string) (string, error) {
 		return "", errors.New("cannot expand user-specific home dir")
 	}
 
-	home, err := os.UserHomeDir()
+	v.RequireUserHomeDir()
+
+	home, err := v.Platform.UserHomeDir()
 	if err != nil {
 		return "", err
 	}

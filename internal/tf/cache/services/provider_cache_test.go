@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -156,7 +156,7 @@ func TestProviderServiceInitIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	service := services.NewProviderService(
-		t.TempDir(), t.TempDir(), nil, logger.CreateLogger(), vfs.NewOSFS(), vhttp.NewOSClient(),
+		t.TempDir(), t.TempDir(), nil, logger.CreateLogger(), venv.OSVenv(),
 	)
 
 	require.NoError(t, service.Init())
@@ -167,7 +167,7 @@ func TestProviderServiceInitWithoutCacheDir(t *testing.T) {
 	t.Parallel()
 
 	service := services.NewProviderService(
-		"", t.TempDir(), nil, logger.CreateLogger(), vfs.NewOSFS(), vhttp.NewOSClient(),
+		"", t.TempDir(), nil, logger.CreateLogger(), venv.OSVenv(),
 	)
 
 	require.ErrorIs(t, service.Init(), services.ErrCacheDirNotSpecified)

@@ -3,13 +3,13 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -116,12 +116,14 @@ func (handler *FilesystemMirrorProviderHandler) GetPlatform(
 func (handler *FilesystemMirrorProviderHandler) readMirrorData(filename string, value any) error {
 	filename = filepath.Join(handler.filesystemMirrorPath, filename)
 
-	if !util.FileExists(filename) {
-		return nil
-	}
-
 	data, err := os.ReadFile(filename)
 	if err != nil {
+		// A mirror that carries no data for this provider is not an error; the
+		// caller reports an empty result and moves on to the next handler.
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+
 		return err
 	}
 

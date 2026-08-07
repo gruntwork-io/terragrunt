@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func BenchmarkClone(b *testing.B) {
@@ -36,7 +37,7 @@ func BenchmarkClone(b *testing.B) {
 			storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
-			c, err := cas.New(cas.WithStorePath(storePath))
+			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(b, err)
 
 			b.StartTimer()
@@ -51,7 +52,7 @@ func BenchmarkClone(b *testing.B) {
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone to populate store
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(b, err)
 
 		require.NoError(
@@ -67,7 +68,7 @@ func BenchmarkClone(b *testing.B) {
 
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
-			c, err := cas.New(cas.WithStorePath(storePath))
+			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(b, err)
 
 			b.StartTimer()

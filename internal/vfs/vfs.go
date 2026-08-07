@@ -109,6 +109,14 @@ func FileExists(vfs FS, path string) (bool, error) {
 	return false, err
 }
 
+// Exists reports whether path is present on the given filesystem. A path that
+// cannot be stat'd counts as absent, so an entry the caller may not read reads
+// the same as one that is not there. Use [FileExists] to tell those apart.
+func Exists(fsys FS, path string) bool {
+	_, err := fsys.Stat(path)
+	return err == nil
+}
+
 // IsDir reports whether path is a directory on the given filesystem,
 // following symlinks. A path that cannot be stat'd is not a directory.
 func IsDir(fsys FS, path string) bool {
@@ -124,6 +132,23 @@ const checksumReadBlock = 8192
 func IsFile(fsys FS, path string) bool {
 	info, err := fsys.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+// EnsureDirectory creates the directory at path, and any missing parents, when
+// nothing is there yet. A path already occupied by a file yields
+// [PathIsNotDirectory].
+func EnsureDirectory(fsys FS, path string) error {
+	if IsFile(fsys, path) {
+		return PathIsNotDirectory{path: path}
+	}
+
+	if Exists(fsys, path) {
+		return nil
+	}
+
+	const ownerReadWriteExecutePerms = 0o700
+
+	return fsys.MkdirAll(path, ownerReadWriteExecutePerms)
 }
 
 // IsDirectoryEmpty reports whether path is a directory holding no entries.
@@ -231,6 +256,18 @@ func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 // ReadFile reads the contents of a file from the given filesystem.
 func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
+}
+
+// ReadFileAsString reads the contents of a file from the given filesystem as a
+// string, annotating the failure with the path so a caller reading several
+// files can tell which one failed.
+func ReadFileAsString(fsys FS, filename string) (string, error) {
+	contents, err := ReadFile(fsys, filename)
+	if err != nil {
+		return "", fmt.Errorf("error reading file at path %s: %w", filename, err)
+	}
+
+	return string(contents), nil
 }
 
 // ReadFileLimit reads up to limit bytes from the start of a file on the given

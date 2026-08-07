@@ -286,7 +286,7 @@ func computeVersionFilesCacheKey(
 	for _, file := range versionFiles {
 		path := filepath.Join(workingDir, file)
 
-		if !util.FileExists(path) {
+		if !vfs.Exists(fsys, path) {
 			continue
 		}
 

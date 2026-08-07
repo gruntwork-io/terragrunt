@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestParseCASRef(t *testing.T) {
@@ -130,7 +131,7 @@ func TestCASProtocolGetterGet_MalformedHash(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c, err := cas.New(cas.WithStorePath(t.TempDir()))
+			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(t.TempDir()))
 			require.NoError(t, err)
 
 			v := venv.OSVenv()
