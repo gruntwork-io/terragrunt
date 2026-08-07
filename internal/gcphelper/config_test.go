@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +29,7 @@ func TestGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 		"GOOGLE_APPLICATION_CREDENTIALS": credsFile,
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -42,7 +43,7 @@ func TestGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
 		"GOOGLE_OAUTH_ACCESS_TOKEN": "test-oauth-token",
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -68,7 +69,7 @@ func TestGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
 		"GOOGLE_CREDENTIALS": credsJSON,
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -90,9 +91,8 @@ func TestGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 		Credentials: credsFile,
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+	clientOpts, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).
 		WithSessionConfig(gcpCfg).
-		WithEnv(env).
 		Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
@@ -109,9 +109,8 @@ func TestGcpConfigWithAccessTokenFromConfig(t *testing.T) {
 		AccessToken: "test-access-token",
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+	clientOpts, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).
 		WithSessionConfig(gcpCfg).
-		WithEnv(env).
 		Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
@@ -143,9 +142,8 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 		Credentials: configCredsFile, // This should be ignored in favor of env var
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+	clientOpts, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).
 		WithSessionConfig(gcpCfg).
-		WithEnv(env).
 		Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
@@ -171,7 +169,7 @@ func TestGcpConfigWithImpersonation(t *testing.T) {
 
 	// This will fail because we don't have real credentials, but we can verify
 	// that the impersonation configuration is attempted
-	_, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(gcpCfg).WithEnv(env).Build(ctx)
+	_, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).WithSessionConfig(gcpCfg).Build(ctx)
 	// We expect an error because impersonation requires valid base credentials
 	// The error should be about impersonation, not about missing credentials
 	require.Error(t, err)
@@ -186,7 +184,7 @@ func TestGcpConfigWithNoCredentials(t *testing.T) {
 	env := map[string]string{}
 
 	// No credentials provided - should return empty options (will use default credentials)
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).Build(ctx)
 	require.NoError(t, err)
 	// Should return empty options when no credentials are provided
 	// (default credentials will be used by GCP client)
@@ -217,7 +215,7 @@ func TestGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 		"GOOGLE_CREDENTIALS": credsFile,
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).Build(ctx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }

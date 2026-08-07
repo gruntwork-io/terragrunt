@@ -5,14 +5,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/option"
+	htransport "google.golang.org/api/transport/http"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
 // gcsResolverTimeout caps the Attrs call so a slow remote can't stall CAS
@@ -54,10 +59,14 @@ type GCSResolver struct {
 	// [storage.NewClient] with the ambient application default
 	// credentials.
 	NewClient func(ctx context.Context) (GCSClient, error)
+	// HTTPClient carries the SDK's requests. Required when NewClient is
+	// nil; [NewGCSResolver] takes it from the caller.
+	HTTPClient vhttp.Client
 }
 
-// NewGCSResolver returns a resolver wired to the ambient ADC.
-func NewGCSResolver() *GCSResolver { return &GCSResolver{} }
+// NewGCSResolver returns a resolver that reads object metadata over c, using
+// the ambient ADC for credentials.
+func NewGCSResolver(c vhttp.Client) *GCSResolver { return &GCSResolver{HTTPClient: c} }
 
 // Scheme returns "gcs".
 func (r *GCSResolver) Scheme() string { return "gcs" }
@@ -125,7 +134,17 @@ func (r *GCSResolver) client(ctx context.Context) (GCSClient, error) {
 		return r.NewClient(ctx)
 	}
 
-	c, err := storage.NewClient(ctx)
+	// Google's auth is layered over the venv transport rather than the venv
+	// client replacing it, so ADC still authenticates the probe.
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, r.HTTPClient)
+
+	trans, err := htransport.NewTransport(ctx, r.HTTPClient.Transport)
+	if err != nil {
+		return nil, err
+	}
+
+	//nolint:forbidigo // trans is built on the venv's transport, which is what the rule protects.
+	c, err := storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Transport: trans}))
 	if err != nil {
 		return nil, err
 	}

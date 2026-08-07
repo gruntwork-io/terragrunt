@@ -89,9 +89,8 @@ func NewClient(
 ) (*Client, error) {
 	awsConfig := config.GetAwsSessionConfig()
 
-	builder := awshelper.NewAWSConfigBuilder().
+	builder := awshelper.NewAWSConfigBuilder(v).
 		WithSessionConfig(awsConfig).
-		WithEnv(v.Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions)
 
 	cfg, err := builder.Build(ctx, l)
