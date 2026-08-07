@@ -119,11 +119,11 @@ type RecoveredError struct {
 	stack []byte
 }
 
-// New returns a Reporter that writes its crash report through fs and reads
+// New returns a Reporter that writes its crash report through fsys and reads
 // the remaining process details from the OS.
-func New(fs vfs.FS) *Reporter {
+func New(fsys vfs.FS) *Reporter {
 	return &Reporter{
-		FS:        fs,
+		FS:        fsys,
 		Now:       time.Now,
 		Getwd:     os.Getwd,
 		GetPID:    os.Getpid,

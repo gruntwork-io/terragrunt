@@ -963,7 +963,7 @@ func copyFiles(
 			return fmt.Errorf("failed to create directory %s for %s %w", cp.dest, cp.identifier, err)
 		}
 
-		if _, err := getter.GetAny(ctx, cp.dest, cp.src, stackGetterOptions(l, v, opts)...); err != nil {
+		if _, err := getter.GetAny(ctx, v, cp.dest, cp.src, stackGetterOptions(l, v, opts)...); err != nil {
 			return fmt.Errorf("failed to fetch %s %s for %s %w", cp.src, cp.dest, cp.identifier, err)
 		}
 
