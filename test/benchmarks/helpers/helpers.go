@@ -40,7 +40,7 @@ func RunTerragruntCommand(b *testing.B, args ...string) {
 
 	ctx := log.ContextWithLogger(b.Context(), l)
 
-	err := app.RunContext(ctx, args)
+	err := app.RunContext(ctx, l, v, args)
 	require.NoError(b, err)
 }
 

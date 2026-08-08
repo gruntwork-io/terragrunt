@@ -105,9 +105,10 @@ func RunValidate(
 	opts.NonInteractive = true
 
 	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
 		return processDiagnostics(l, v, opts, diags, err)
@@ -160,8 +161,7 @@ func RunValidate(
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 
-			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser = parser.WithVenv(componentV)
+			ctx, parser := configbridge.NewParsingContext(ctx, l, componentV, parseOpts)
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -173,7 +173,8 @@ func RunValidate(
 				parser = parser.WithValues(values)
 			}
 
-			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(stackFilePath)
+			file, err := hclparse.NewParser(parser.ParserOptions...).
+				ParseFromFile(parser.Venv.FS, stackFilePath)
 			if err != nil {
 				parseErrs = append(parseErrs, err)
 				continue
@@ -211,8 +212,7 @@ func RunValidate(
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx = pctx.WithVenv(componentV)
+		_, pctx := configbridge.NewParsingContext(ctx, l, componentV, parseOpts)
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
@@ -299,9 +299,10 @@ func RunValidateInputs(
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
 		return err
@@ -379,6 +380,7 @@ func RunValidateInputs(
 
 		// Generate config
 		if err := prepare.PrepareGenerate(
+			ctx,
 			l,
 			unitV,
 			updatedOpts,

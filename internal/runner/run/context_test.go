@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 	l := logger.CreateLogger()
 
-	ctx := run.WithModuleVersionResolver(t.Context())
+	ctx := run.WithModuleVersionResolver(t.Context(), venv.OSVenv())
 	run.ModuleVersionResolverFromContext(ctx).WithHTTPClient(server.Client())
 
 	var wg sync.WaitGroup
@@ -58,7 +59,7 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 	// A second installed resolver stands in for a second run: its cache must
 	// start cold, proving memoization lives on the run's context rather than
 	// in package-level state.
-	otherCtx := run.WithModuleVersionResolver(t.Context())
+	otherCtx := run.WithModuleVersionResolver(t.Context(), venv.OSVenv())
 	run.ModuleVersionResolverFromContext(otherCtx).WithHTTPClient(server.Client())
 
 	pinned, err := run.ModuleVersionResolverFromContext(otherCtx).Pin(

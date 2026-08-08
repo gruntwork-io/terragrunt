@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -22,6 +23,20 @@ import (
 var (
 	errExplicitError = errors.New("this is an explicit error")
 )
+
+// requireTrapReady blocks until the subprocess writes its marker file. Signalling on a
+// timer instead races the child's startup: a SIGINT that lands before the script reaches
+// its `trap` line kills it outright, so the handler never runs and the exit code is the
+// signal status rather than the value the test asserts on.
+func requireTrapReady(t *testing.T, readyPath string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(readyPath)
+
+		return err == nil
+	}, 10*time.Second, 10*time.Millisecond, "child never wrote the trap-ready marker")
+}
 
 func TestExitCodeUnix(t *testing.T) {
 	t.Parallel()
@@ -62,11 +77,14 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
+	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
+
 	cmd := exec.Command(
 		t.Context(),
 		vexec.NewOSExec(),
 		"testdata/test_sigint_wait.sh",
 		strconv.Itoa(expectedWait),
+		readyPath,
 	)
 
 	runChannel := make(chan error)
@@ -75,7 +93,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 		runChannel <- cmd.Run(l)
 	}()
 
-	time.Sleep(time.Second)
+	requireTrapReady(t, readyPath)
 
 	start := time.Now()
 
@@ -105,9 +123,11 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
+	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
+
 	cmd := exec.Command(
 		t.Context(), vexec.NewOSExec(),
-		"testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts),
+		"testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts), readyPath,
 	)
 
 	runChannel := make(chan error)
@@ -116,7 +136,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 		runChannel <- cmd.Run(l)
 	}()
 
-	time.Sleep(time.Second)
+	requireTrapReady(t, readyPath)
 
 	interruptAndWaitForProcess := func() (int, error) {
 		var (
@@ -159,7 +179,9 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := exec.Command(ctx, vexec.NewOSExec(), "testdata/test_graceful_shutdown.sh")
+	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
+
+	cmd := exec.Command(ctx, vexec.NewOSExec(), "testdata/test_graceful_shutdown.sh", readyPath)
 
 	cmd.Configure(exec.WithGracefulShutdownDelay(5 * time.Second))
 
@@ -169,7 +191,7 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 		runChannel <- cmd.Run(l)
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	requireTrapReady(t, readyPath)
 
 	cancel()
 

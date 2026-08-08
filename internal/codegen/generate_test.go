@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -334,7 +335,7 @@ func TestFmtGeneratedFile(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			err := codegen.WriteToFile(l, "", &config)
+			err := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 			require.NoError(t, err)
 
 			assert.True(t, util.FileExists(tc.path))
@@ -389,7 +390,7 @@ func TestGenerateDisabling(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			err := codegen.WriteToFile(l, "", &config)
+			err := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 			require.NoError(t, err)
 
 			if tc.disabled {
@@ -493,7 +494,7 @@ enabled=true`,
 func TestWriteToFileOverwritesReadOnlyTarget(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
+	if helpers.IsWindows() {
 		t.Skip("read-only permission bits are not meaningfully observable on Windows")
 	}
 
@@ -553,7 +554,7 @@ func TestWriteToFileOverwritesReadOnlyTarget(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(l, "", &config))
+			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 
 			fileContent, err := os.ReadFile(path)
 			require.NoError(t, err)
@@ -607,7 +608,7 @@ func TestWriteToFileSkipAndErrorLeaveExistingFileIntact(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(l, "", &config)
+			writeErr := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
 
 			if tc.wantErr {
 				var existsErr codegen.GenerateFileExistsError
@@ -632,7 +633,7 @@ func TestWriteToFileSkipAndErrorLeaveExistingFileIntact(t *testing.T) {
 func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
+	if helpers.IsWindows() {
 		t.Skip("read-only permission bits are not meaningfully observable on Windows")
 	}
 
@@ -656,7 +657,7 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(l, "", &config))
+	require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 
 	storeContentAfter, err := os.ReadFile(storePath)
 	require.NoError(t, err)
@@ -699,7 +700,7 @@ func TestWriteToFileTargetIsDirectory(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.Error(t, codegen.WriteToFile(l, "", &config))
+	require.Error(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 	assert.DirExists(t, targetPath)
 }
 
@@ -722,8 +723,425 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(l, "", &config))
+	require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
 	assert.True(t, util.FileNotExists(targetPath))
+}
+
+// TestWriteToFileSignatureWithoutTrailingNewline verifies that a generated
+// file consisting of nothing but the signature line, with no trailing newline,
+// is still recognized as terragrunt-generated.
+func TestWriteToFileSignatureWithoutTrailingNewline(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	signatureOnly := codegen.DefaultCommentPrefix + codegen.TerragruntGeneratedSignature
+
+	testCases := []struct {
+		name    string
+		disable bool
+	}{
+		{
+			name:    "overwrite-terragrunt-regenerates",
+			disable: false,
+		},
+		{
+			name:    "remove-terragrunt-removes",
+			disable: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(testDir, tc.name+".tf")
+			require.NoError(t, os.WriteFile(path, []byte(signatureOnly), 0644))
+
+			config := codegen.GenerateConfig{
+				Path:          path,
+				IfExists:      codegen.ExistsOverwriteTerragrunt,
+				IfDisabled:    codegen.DisabledRemoveTerragrunt,
+				CommentPrefix: codegen.DefaultCommentPrefix,
+				Contents:      "terraform {}\n",
+				Disable:       tc.disable,
+			}
+
+			l := logger.CreateLogger()
+			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
+
+			if tc.disable {
+				assert.True(t, util.FileNotExists(path))
+
+				return
+			}
+
+			fileContent, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Contains(t, string(fileContent), "terraform {}")
+		})
+	}
+}
+
+// TestWriteToFileUnsignedFileWithoutTrailingNewline verifies that files
+// without the signature are still refused by the terragrunt-only modes, even
+// when they lack a trailing newline for the first line read to terminate on.
+func TestWriteToFileUnsignedFileWithoutTrailingNewline(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	testCases := []struct {
+		name     string
+		contents string
+		disable  bool
+	}{
+		{
+			name:     "overwrite-terragrunt-rejects-empty-file",
+			contents: "",
+			disable:  false,
+		},
+		{
+			name:     "overwrite-terragrunt-rejects-foreign-file",
+			contents: "terraform {}",
+			disable:  false,
+		},
+		{
+			name:     "remove-terragrunt-rejects-empty-file",
+			contents: "",
+			disable:  true,
+		},
+		{
+			name:     "remove-terragrunt-rejects-foreign-file",
+			contents: "terraform {}",
+			disable:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(testDir, tc.name+".tf")
+			require.NoError(t, os.WriteFile(path, []byte(tc.contents), 0644))
+
+			config := codegen.GenerateConfig{
+				Path:          path,
+				IfExists:      codegen.ExistsOverwriteTerragrunt,
+				IfDisabled:    codegen.DisabledRemoveTerragrunt,
+				CommentPrefix: codegen.DefaultCommentPrefix,
+				Contents:      "terraform {\n  required_version = \">= 1.0.0\"\n}\n",
+				Disable:       tc.disable,
+			}
+
+			l := logger.CreateLogger()
+			writeErr := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
+
+			if tc.disable {
+				var removeErr codegen.GenerateFileRemoveError
+
+				require.ErrorAs(t, writeErr, &removeErr)
+			}
+
+			if !tc.disable {
+				var existsErr codegen.GenerateFileExistsError
+
+				require.ErrorAs(t, writeErr, &existsErr)
+			}
+
+			fileContent, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, tc.contents, string(fileContent), "existing file must stay intact")
+		})
+	}
+}
+
+// TestWriteToFileWithContentStoreDeduplicates verifies that two targets
+// generated from the same contents end up sharing one read-only inode.
+func TestWriteToFileWithContentStoreDeduplicates(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+	store := newTestContentStore(t, testDir)
+	contents := "terraform {\n  required_version = \">= 1.3.0\"\n}\n"
+
+	first := filepath.Join(testDir, "unit-a", "versions.tf")
+	second := filepath.Join(testDir, "unit-b", "versions.tf")
+
+	for _, path := range []string{first, second} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+
+		config := codegen.GenerateConfig{
+			Path:             path,
+			IfExists:         codegen.ExistsOverwrite,
+			DisableSignature: true,
+			Contents:         contents,
+		}
+
+		l := logger.CreateLogger()
+		require.NoError(t, codegen.WriteToFile(
+			t.Context(), l, venv.OSVenv(), "", &config, codegen.WithContentStore(store),
+		))
+	}
+
+	firstInfo, err := os.Stat(first)
+	require.NoError(t, err)
+
+	secondInfo, err := os.Stat(second)
+	require.NoError(t, err)
+
+	assert.True(t, os.SameFile(firstInfo, secondInfo),
+		"identical generated contents must share one inode")
+	assert.Equal(t, os.FileMode(0444), firstInfo.Mode().Perm(),
+		"deduplicated files must be read-only so an edit cannot reach the store")
+
+	firstContents, err := os.ReadFile(first)
+	require.NoError(t, err)
+	assert.Equal(t, contents, string(firstContents))
+}
+
+// TestWriteToFileWithContentStoreMutableOptsOut verifies that a generate block
+// asking for mutability gets a private, writable file even when a store is
+// available.
+func TestWriteToFileWithContentStoreMutableOptsOut(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+	store := newTestContentStore(t, testDir)
+	contents := "terraform {\n  required_version = \">= 1.3.0\"\n}\n"
+
+	shared := filepath.Join(testDir, "unit-a", "versions.tf")
+	private := filepath.Join(testDir, "unit-b", "versions.tf")
+
+	for _, tc := range []struct {
+		mutable *bool
+		path    string
+	}{
+		{path: shared},
+		{path: private, mutable: new(true)},
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(tc.path), 0755))
+
+		config := codegen.GenerateConfig{
+			Path:             tc.path,
+			IfExists:         codegen.ExistsOverwrite,
+			DisableSignature: true,
+			Contents:         contents,
+			Mutable:          tc.mutable,
+		}
+
+		l := logger.CreateLogger()
+		require.NoError(t, codegen.WriteToFile(
+			t.Context(), l, venv.OSVenv(), "", &config, codegen.WithContentStore(store),
+		))
+	}
+
+	sharedInfo, err := os.Stat(shared)
+	require.NoError(t, err)
+
+	privateInfo, err := os.Stat(private)
+	require.NoError(t, err)
+
+	assert.False(t, os.SameFile(sharedInfo, privateInfo),
+		"a mutable generate block must not share an inode with the store")
+	assert.NotZero(t, privateInfo.Mode().Perm()&0200, "a mutable generate block must stay writable")
+}
+
+// TestWriteToFileWithContentStoreRegeneratesChangedContents verifies that
+// changing the contents replaces the link rather than writing through it into
+// the shared store, which every other unit on the old blob still reads.
+func TestWriteToFileWithContentStoreRegeneratesChangedContents(t *testing.T) {
+	t.Parallel()
+
+	v := venv.OSVenv()
+	testDir := helpers.TmpDirWOSymlinks(t)
+	store := newTestContentStore(t, testDir)
+	targetPath := filepath.Join(testDir, "versions.tf")
+
+	var firstGenerated []byte
+
+	for _, version := range []string{">= 1.0.0", ">= 1.3.0"} {
+		config := codegen.GenerateConfig{
+			Path:             targetPath,
+			IfExists:         codegen.ExistsOverwrite,
+			DisableSignature: true,
+			Contents:         fmt.Sprintf("terraform {\n  required_version = %q\n}\n", version),
+		}
+
+		l := logger.CreateLogger()
+		require.NoError(t, codegen.WriteToFile(
+			t.Context(), l, v, "", &config, codegen.WithContentStore(store),
+		))
+
+		if firstGenerated == nil {
+			generated, err := os.ReadFile(targetPath)
+			require.NoError(t, err)
+
+			firstGenerated = generated
+		}
+	}
+
+	targetContents, err := os.ReadFile(targetPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(targetContents), ">= 1.3.0")
+
+	storedFirst, err := store.Read(v, cas.HashSHA256.Sum(firstGenerated))
+	require.NoError(t, err)
+	assert.Equal(t, firstGenerated, storedFirst, "the superseded blob must survive intact")
+}
+
+// TestWriteToFileOverwritesDanglingSymlink verifies that a target occupied by a
+// symlink pointing nowhere is replaced rather than followed, which would try to
+// create the symlink's missing destination instead of the generated file.
+func TestWriteToFileOverwritesDanglingSymlink(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("creating symlinks requires elevated privileges on Windows")
+	}
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+	contents := "provider \"null\" {\n}\n"
+
+	for _, tc := range []struct {
+		mutable  *bool
+		name     string
+		useStore bool
+	}{
+		{name: "mutable", mutable: new(true), useStore: true},
+		{name: "immutable", useStore: true},
+		{name: "no-store"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			targetDir := filepath.Join(testDir, tc.name)
+			require.NoError(t, os.MkdirAll(targetDir, 0755))
+
+			targetPath := filepath.Join(targetDir, "provider.tf")
+			require.NoError(t, os.Symlink(filepath.Join(targetDir, "nonexistent.tf"), targetPath))
+
+			config := codegen.GenerateConfig{
+				Path:             targetPath,
+				IfExists:         codegen.ExistsOverwrite,
+				DisableSignature: true,
+				Contents:         contents,
+				Mutable:          tc.mutable,
+			}
+
+			opts := []codegen.WriteOption{}
+			if tc.useStore {
+				opts = append(opts, codegen.WithContentStore(newTestContentStore(t, targetDir)))
+			}
+
+			l := logger.CreateLogger()
+			require.NoError(t, codegen.WriteToFile(
+				t.Context(), l, venv.OSVenv(), "", &config, opts...,
+			))
+
+			info, err := os.Lstat(targetPath)
+			require.NoError(t, err)
+			assert.Zero(t, info.Mode()&os.ModeSymlink, "the dangling symlink must be replaced")
+
+			generated, err := os.ReadFile(targetPath)
+			require.NoError(t, err)
+			assert.Equal(t, contents, string(generated))
+		})
+	}
+}
+
+// TestWriteToFileSymlinkIsNotTerragruntGenerated verifies that the
+// terragrunt-only modes refuse a symlinked target. Terragrunt never generates a
+// symlink, and reading through one would check the destination's signature
+// while the write replaces the link.
+func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("creating symlinks requires elevated privileges on Windows")
+	}
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+	signature := codegen.DefaultCommentPrefix + codegen.TerragruntGeneratedSignature + "\n"
+
+	for _, tc := range []struct {
+		name        string
+		destination string
+		disable     bool
+	}{
+		{name: "overwrite-terragrunt-refuses-dangling"},
+		{name: "remove-terragrunt-refuses-dangling", disable: true},
+		{name: "overwrite-terragrunt-refuses-generated-destination", destination: signature},
+		{name: "remove-terragrunt-refuses-generated-destination", destination: signature, disable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			targetDir := filepath.Join(testDir, tc.name)
+			require.NoError(t, os.MkdirAll(targetDir, 0755))
+
+			destinationPath := filepath.Join(targetDir, "destination.tf")
+			if tc.destination != "" {
+				require.NoError(t, os.WriteFile(destinationPath, []byte(tc.destination), 0644))
+			}
+
+			targetPath := filepath.Join(targetDir, "provider.tf")
+			require.NoError(t, os.Symlink(destinationPath, targetPath))
+
+			config := codegen.GenerateConfig{
+				Path:          targetPath,
+				IfExists:      codegen.ExistsOverwriteTerragrunt,
+				IfDisabled:    codegen.DisabledRemoveTerragrunt,
+				CommentPrefix: codegen.DefaultCommentPrefix,
+				Contents:      "provider \"null\" {\n}\n",
+				Disable:       tc.disable,
+			}
+
+			l := logger.CreateLogger()
+			writeErr := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
+
+			if tc.disable {
+				var removeErr codegen.GenerateFileRemoveError
+
+				require.ErrorAs(t, writeErr, &removeErr)
+			}
+
+			if !tc.disable {
+				var existsErr codegen.GenerateFileExistsError
+
+				require.ErrorAs(t, writeErr, &existsErr)
+			}
+
+			info, err := os.Lstat(targetPath)
+			require.NoError(t, err)
+			assert.NotZero(t, info.Mode()&os.ModeSymlink, "the symlink must be left alone")
+
+			if tc.destination != "" {
+				destination, err := os.ReadFile(destinationPath)
+				require.NoError(t, err)
+				assert.Equal(t, tc.destination, string(destination), "the destination must stay intact")
+			}
+		})
+	}
+}
+
+// newTestContentStore returns a store rooted under dir so tests never touch the
+// user's real CAS.
+func newTestContentStore(t *testing.T, dir string) *cas.Content {
+	t.Helper()
+
+	c, err := cas.New(cas.WithStorePath(filepath.Join(dir, "cas")))
+	require.NoError(t, err)
+
+	return cas.NewContent(c.BlobStore())
 }
 
 // writeFileWithPerms writes contents first and tightens permissions afterwards

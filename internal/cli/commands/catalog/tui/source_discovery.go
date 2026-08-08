@@ -19,6 +19,7 @@ func DiscoverSourceURLs(
 	pctx *config.ParsingContext,
 ) ([]string, error) {
 	configFiles, err := config.FindConfigFilesInPath(
+		pctx.Venv.FS,
 		pctx.RootWorkingDir,
 		pctx.Experiments,
 		config.DefaultTerragruntConfigPath,

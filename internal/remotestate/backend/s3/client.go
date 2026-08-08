@@ -161,13 +161,7 @@ func (client *Client) CreateS3BucketIfNecessary(
 		bucketName,
 	)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -239,13 +233,7 @@ func (client *Client) UpdateS3BucketIfNecessary(
 		bucketName,
 	)
 
-	shouldUpdateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -749,13 +737,7 @@ func (client *Client) CreateLogsS3BucketIfNecessary(
 		logsBucketName,
 	)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}

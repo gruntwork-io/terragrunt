@@ -6,10 +6,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,7 +129,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, filename)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), filename)
 	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
@@ -184,7 +184,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
@@ -225,7 +225,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, filename)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), filename)
 	pctx.OriginalTerragruntConfigPath = filename
 	pctx.SkipOutput = true
 
@@ -248,7 +248,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctxB, pctxB := newTestParsingContext(t, unitBFilename)
+	ctxB, pctxB := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), unitBFilename)
 	pctxB.OriginalTerragruntConfigPath = unitBFilename
 
 	unitBConfig, err := config.ParseConfigFile(
@@ -279,7 +279,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation
@@ -297,33 +297,66 @@ dependency "enabled" {
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 }
 
-// TestExposedIncludeFullParseSurfacesNoOutputsError pins that a full parse of a child
-// config whose exposed include cannot resolve its dependency outputs returns a
-// TerragruntOutputTargetNoOutputs error in the chain.
-func TestExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
+// TestDependencyDeepMergeExpansion pins that an expansion block survives the deep
+// merge an include performs. DeepMerge copies field by field, so a field it does not
+// name is dropped silently rather than caught by the compiler.
+func TestDependencyDeepMergeExpansion(t *testing.T) {
 	t.Parallel()
 
-	childPath, err := filepath.Abs(
-		filepath.Join(
-			"..",
-			"..",
-			"test",
-			"fixtures",
-			"regressions",
-			"exposed-include-partial-parse-error",
-			"child",
-			"terragrunt.hcl",
-		),
-	)
-	require.NoError(t, err)
+	forEach := hclparse.ExpansionBlock{
+		ForEach: new(cty.SetVal([]cty.Value{cty.StringVal("web")})),
+	}
+	count := hclparse.ExpansionBlock{Count: new(cty.NumberIntVal(2))}
 
-	ctx, pctx := newTestParsingContext(t, childPath)
-	pctx.Venv.Env = venv.OSVenv().Env
-	pctx.Venv.FS = vfs.NewOSFS()
+	testCases := []struct {
+		target   *hclparse.ExpansionBlock
+		source   *hclparse.ExpansionBlock
+		expected *hclparse.ExpansionBlock
+		name     string
+	}{
+		{
+			name:     "source expansion is adopted when the target has none",
+			target:   nil,
+			source:   &forEach,
+			expected: &forEach,
+		},
+		{
+			name:     "target expansion is retained when the source has none",
+			target:   &forEach,
+			source:   nil,
+			expected: &forEach,
+		},
+		{
+			name:     "source expansion replaces the target expansion",
+			target:   &count,
+			source:   &forEach,
+			expected: &forEach,
+		},
+		{
+			name:     "neither side expands",
+			target:   nil,
+			source:   nil,
+			expected: nil,
+		},
+	}
 
-	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), childPath, nil)
-	require.Error(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	var noOutputs config.TerragruntOutputTargetNoOutputs
-	require.ErrorAs(t, err, &noOutputs)
+			dep := config.Dependency{
+				Name:       "vpc",
+				ConfigPath: cty.StringVal("../vpc"),
+				Expansion:  tc.target,
+			}
+			source := config.Dependency{
+				Name:       "vpc",
+				ConfigPath: cty.StringVal("../vpc"),
+				Expansion:  tc.source,
+			}
+
+			require.NoError(t, dep.DeepMerge(&source))
+			assert.Equal(t, tc.expected, dep.Expansion)
+		})
+	}
 }

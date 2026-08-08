@@ -63,6 +63,35 @@ Important notes:
 - The `source` URL is configured for you automatically, with the `ref` pointing to the latest "release" tag of the module (found by scanning git tags).
 - The `inputs` section is generated for you automatically, and will list all required and optional variables from the module, with their types, descriptions, and defaults, so you can easily fill them in to configure the unit as you like.
 
+## Scaffolding units and stacks
+
+The example above generates a unit from an OpenTofu/Terraform module. A catalog can also store units and stacks. Those are already Terragrunt configurations, so they are copied verbatim from the catalog: `scaffold` copies their files into your working directory for you to edit in place (which is also what the [Catalog TUI](/features/catalog/tui) does when you press `s` on a unit/stack).
+
+```bash
+terragrunt scaffold 'github.com/gruntwork-io/terragrunt-scale-catalog//units/aws/oidc/iam-oidc-role'
+```
+
+Every file in the component's directory is copied, as the definition of a unit/stack is the directory containing a `terragrunt.hcl`/`terragrunt.stack.hcl` file respectively.
+
+A component that reads `values.*` also gets a `terragrunt.values.hcl` written next to it, listing each reference the configuration makes:
+
+```hcl
+# terragrunt.values.hcl
+
+# === Required ===
+name    = "TODO"
+sub_key = "TODO"
+
+# === Optional (defaults from try() fallbacks) ===
+condition_operator = "StringEquals"
+```
+
+Required entries are the references used directly, and are yours to fill in. Optional entries are the ones wrapped in `try(...)`, pre-filled with the fallback that call supplies. An existing `terragrunt.values.hcl` is never overwritten.
+
+Copying refuses to overwrite anything. A file that would land on a path that already exists stops the command before it writes, so a collision cannot leave you with a half-scaffolded component.
+
+Since the component is copied exactly as written, `--var` and `--var-file` do not apply to it; they configure template rendering, which a unit or stack does not go through. Set its values in `terragrunt.values.hcl` instead. A `TEMPLATE_URL` argument is ignored for the same reason.
+
 ## Custom templates for scaffolding
 
 Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize what code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via three mechanisms - listed in order of priority:

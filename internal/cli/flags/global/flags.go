@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -60,6 +61,13 @@ const (
 	TelemetryMetricExporterInsecureEndpointFlagName = "telemetry-metric-exporter-insecure-endpoint"
 	TelemetryLogsExporterFlagName                   = "telemetry-logs-exporter"
 	TelemetryLogsExporterInsecureEndpointFlagName   = "telemetry-logs-exporter-insecure-endpoint"
+
+	// Profiling flags.
+
+	ProfileCPUFlagName       = "profile-cpu"
+	ProfileMemFlagName       = "profile-mem"
+	ProfileGoroutineFlagName = "profile-goroutine"
+	ProfileDirFlagName       = "profile-dir"
 
 	// Renamed flags.
 
@@ -328,6 +336,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	}
 
 	flags = flags.Add(NewTelemetryFlags(opts, nil)...)
+	flags = flags.Add(NewProfileFlags(opts, nil)...)
 	flags = flags.Sort()
 	flags = flags.Add(NewHelpVersionFlags(l, opts)...)
 
@@ -429,6 +438,51 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 			Destination: &opts.Telemetry.LogsExporterInsecureEndpoint,
 		}),
 	}
+}
+
+// NewProfileFlags creates the profiling flags backing the opts.Profile* fields.
+func NewProfileFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	return clihelper.Flags{
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			Name:        ProfileCPUFlagName,
+			EnvVars:     tgPrefix.EnvVars(ProfileCPUFlagName),
+			Destination: &opts.ProfileCPU,
+			Usage:       profileFlagUsage(opts, "Write a CPU profile to the given path."),
+		}),
+
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			Name:        ProfileMemFlagName,
+			EnvVars:     tgPrefix.EnvVars(ProfileMemFlagName),
+			Destination: &opts.ProfileMem,
+			Usage:       profileFlagUsage(opts, "Write a memory (heap) profile to the given path."),
+		}),
+
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			Name:        ProfileGoroutineFlagName,
+			EnvVars:     tgPrefix.EnvVars(ProfileGoroutineFlagName),
+			Destination: &opts.ProfileGoroutine,
+			Usage:       profileFlagUsage(opts, "Write a goroutine profile to the given path."),
+		}),
+
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			Name:        ProfileDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(ProfileDirFlagName),
+			Destination: &opts.ProfileDir,
+			Usage:       profileFlagUsage(opts, "Directory to write profile files (cpu, mem, goroutine)."),
+		}),
+	}
+}
+
+// profileFlagUsage appends the experiment requirement to the usage text while the profiling experiment is ongoing.
+func profileFlagUsage(opts *options.TerragruntOptions, usage string) string {
+	exp := opts.Experiments.Find(experiment.Profiling)
+	if exp == nil || exp.Status != experiment.StatusOngoing {
+		return usage
+	}
+
+	return usage + " Requires the 'profiling' experiment."
 }
 
 func NewLogLevelFlag(

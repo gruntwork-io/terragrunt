@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -22,9 +23,10 @@ import (
 func NewParsingContext(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (context.Context, *config.ParsingContext) {
-	ctx, pctx := config.NewParsingContext(ctx, l, config.WithStrictControls(opts.StrictControls))
+	ctx, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(opts.StrictControls))
 	populateFromOpts(pctx, opts)
 
 	return ctx, pctx
@@ -36,9 +38,10 @@ func NewParsingContext(
 func StackFuncFactory(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) inthclparse.StackFuncFactory {
-	_, pctx := NewParsingContext(ctx, l, opts)
+	_, pctx := NewParsingContext(ctx, l, v, opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {
 		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
@@ -110,6 +113,7 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
 func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
+		Experiments:                  opts.Experiments,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
@@ -148,6 +152,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.UnitDir = opts.WorkingDir
 	runOpts.CacheDir = opts.WorkingDir
 	runOpts.RootWorkingDir = opts.RootWorkingDir
+	runOpts.ProfileDir = opts.ProfileDir
 	runOpts.DownloadDir = opts.DownloadDir
 	runOpts.TerraformCommand = opts.TerraformCommand
 	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand

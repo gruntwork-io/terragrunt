@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -15,9 +17,9 @@ const (
 	testFixtureQueueStrictIncludeUnitsReading = "fixtures/queue-strict-include-units-reading"
 )
 
-// TestQueueStrictIncludeWithDependencyNotInQueue tests that when using --queue-include-dir
+// TestTFQueueStrictIncludeWithDependencyNotInQueue tests that when using --queue-include-dir
 // or --filter, units can run even when their dependencies are not in the queue (but have existing state).
-func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
+func TestTFQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T) string {
@@ -210,10 +212,10 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	})
 }
 
-// TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir reproduces the bug where
+// TestTFQueueStrictIncludeWithUnitsReadingWithoutIncludeDir reproduces the bug where
 // --queue-include-units-reading (but no --queue-include-dir)
 // fails to discover units that read the specified file.
-func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
+func TestTFQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictIncludeUnitsReading)

@@ -4,6 +4,7 @@ package backend
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -12,6 +13,7 @@ import (
 // Options bundles the configuration the Backend interface needs at each call
 // site.
 type Options struct {
+	Experiments                  experiment.Experiments
 	IAMRoleOptions               iam.RoleOptions
 	NonInteractive               bool
 	FailIfBucketCreationRequired bool

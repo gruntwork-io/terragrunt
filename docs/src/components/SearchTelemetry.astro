@@ -1,0 +1,161 @@
+<script>
+  import { capture } from "@lib/analytics";
+  import {
+    KAPA_EVENT_NAMES,
+    createSearchTracker,
+    hasSettled,
+    kapaEventProperties,
+    normalizeQuery,
+    parseResultCount,
+    searchingPrefix,
+  } from "@lib/search-telemetry";
+
+  const TYPING_SETTLE_MS = 800;
+  const RESULTS_POLL_MS = 100;
+  const RESULTS_TIMEOUT_MS = 10_000;
+  const KAPA_POLL_MS = 250;
+  const KAPA_TIMEOUT_MS = 30_000;
+
+  type KapaFn = (
+    event: string,
+    handler: (payload: unknown) => void,
+    action: "add" | "remove",
+  ) => void;
+
+  /**
+   * Instruments Starlight's search modal from the outside. Starlight builds the modal and hands the
+   * inside of it to Pagefind, neither of which offers a hook we can pass a callback to, so the
+   * signals come from the markup both of them already style and depend on.
+   */
+  function instrumentSearch(siteSearch: Element) {
+    const dialog = siteSearch.querySelector("dialog");
+    if (!dialog) return;
+
+    const tracker = createSearchTracker(capture);
+    const results = () => siteSearch.querySelector("#starlight__search");
+    const message = () => results()?.querySelector(".pagefind-ui__message")?.textContent ?? null;
+    const loadingPrefix = searchingPrefix(siteSearch.getAttribute("data-translations"));
+
+    let trigger = "unknown";
+    let typingTimer = 0;
+    let resultsPoll = 0;
+    let pendingQuery = "";
+
+    const report = (query: string) => {
+      const rendered = results()?.querySelectorAll(".pagefind-ui__result").length ?? 0;
+      tracker.recordQuery(query, parseResultCount(message(), rendered));
+    };
+
+    const reportNow = () => {
+      window.clearTimeout(typingTimer);
+      window.clearInterval(resultsPoll);
+
+      const query = normalizeQuery(pendingQuery);
+      if (query) report(query);
+    };
+
+    const reportWhenResultsArrive = () => {
+      window.clearInterval(resultsPoll);
+
+      const query = normalizeQuery(pendingQuery);
+      if (!query) return;
+
+      const deadline = Date.now() + RESULTS_TIMEOUT_MS;
+
+      const attempt = () => {
+        if (!hasSettled(message(), query, loadingPrefix) && Date.now() < deadline) return false;
+
+        report(query);
+        return true;
+      };
+
+      if (attempt()) return;
+      resultsPoll = window.setInterval(() => {
+        if (attempt()) window.clearInterval(resultsPoll);
+      }, RESULTS_POLL_MS);
+    };
+
+    siteSearch.addEventListener("click", () => (trigger = "button"), true);
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === "k") trigger = "shortcut";
+      },
+      true,
+    );
+
+    new MutationObserver(() => {
+      if (dialog.open) {
+        tracker.open(trigger);
+        return;
+      }
+
+      reportNow();
+      tracker.close();
+      pendingQuery = "";
+    }).observe(dialog, { attributes: true, attributeFilter: ["open"] });
+
+    dialog.addEventListener("input", (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement)) return;
+      if (!input.classList.contains("pagefind-ui__search-input")) return;
+
+      pendingQuery = input.value;
+      window.clearTimeout(typingTimer);
+      window.clearInterval(resultsPoll);
+      typingTimer = window.setTimeout(reportWhenResultsArrive, TYPING_SETTLE_MS);
+    });
+
+    dialog.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const link = target.closest(".pagefind-ui__result-link");
+      if (!link) return;
+
+      reportNow();
+
+      const links = Array.from(results()?.querySelectorAll(".pagefind-ui__result-link") ?? []);
+      const href = new URL(link.getAttribute("href") ?? "", location.origin);
+
+      tracker.recordResultClick({
+        url: href.pathname + href.hash,
+        position: links.indexOf(link) + 1,
+        isSubResult: link.closest(".pagefind-ui__result-nested") !== null,
+      });
+    });
+  }
+
+  /**
+   * Forwards the kapa.ai widget's own events. The widget covers both asking the AI and a second
+   * search box, and shares a PostHog session with the modal above, so a reader who searches, finds
+   * nothing, and then asks the assistant stays a single session.
+   */
+  function instrumentKapa(): boolean {
+    const kapa = (window as unknown as { Kapa?: KapaFn }).Kapa;
+    if (typeof kapa !== "function") return false;
+
+    for (const [widgetEvent, name] of Object.entries(KAPA_EVENT_NAMES)) {
+      kapa(widgetEvent, (payload) => capture(name, kapaEventProperties(payload)), "add");
+    }
+
+    return true;
+  }
+
+  /**
+   * The widget defines `window.Kapa` on its own schedule, which is not the moment its script
+   * finishes loading, so waiting on that script's load event misses the subscription entirely when
+   * the two do not coincide.
+   */
+  function waitForKapa() {
+    if (instrumentKapa()) return;
+
+    const deadline = Date.now() + KAPA_TIMEOUT_MS;
+    const poll = window.setInterval(() => {
+      if (instrumentKapa() || Date.now() >= deadline) window.clearInterval(poll);
+    }, KAPA_POLL_MS);
+  }
+
+  document.querySelectorAll("site-search").forEach(instrumentSearch);
+  waitForKapa();
+</script>

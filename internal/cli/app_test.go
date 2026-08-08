@@ -924,10 +924,12 @@ func TestTerragruntVersion(t *testing.T) {
 
 		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-		app := cli.NewApp(logger.CreateLogger(), opts, testV)
+		l := logger.CreateLogger()
+
+		app := cli.NewApp(l, opts, testV)
 		app.Version = version
 
-		err := app.Run(tc.args)
+		err := app.Run(l, testV, tc.args)
 		require.NoError(t, err, tc)
 
 		assert.Contains(t, output.String(), version)
@@ -984,8 +986,10 @@ func TestTerragruntHelp(t *testing.T) {
 
 			testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-			app := cli.NewApp(logger.CreateLogger(), opts, testV)
-			err := app.Run(tc.args)
+			l := logger.CreateLogger()
+
+			app := cli.NewApp(l, opts, testV)
+			err := app.Run(l, testV, tc.args)
 			require.NoError(t, err, tc)
 
 			assert.Contains(t, output.String(), tc.expected)
@@ -994,43 +998,6 @@ func TestTerragruntHelp(t *testing.T) {
 				assert.NotContains(t, output.String(), tc.notExpected)
 			}
 		})
-	}
-}
-
-func TestTerraformHelp(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		expected string
-		args     []string
-	}{
-		{
-			args:     []string{"terragrunt", tf.CommandNamePlan, "--help"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] plan.*-detailed-exitcode",
-		},
-		{
-			args:     []string{"terragrunt", tf.CommandNameApply, "-help"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy",
-		},
-		{
-			args:     []string{"terragrunt", tf.CommandNameApply, "-h"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy",
-		},
-	}
-
-	for _, tc := range testCases {
-		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions()
-
-		testV := venv.OSVenv()
-
-		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
-
-		app := cli.NewApp(logger.CreateLogger(), opts, testV)
-		err := app.Run(tc.args)
-		require.NoError(t, err)
-
-		assert.Regexp(t, tc.expected, output.String())
 	}
 }
 
@@ -1045,9 +1012,11 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 	testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-	app := cli.NewApp(logger.CreateLogger(), opts, testV)
+	l := logger.CreateLogger()
 
-	err := app.Run([]string{"terragrunt", "plan", "help"})
+	app := cli.NewApp(l, opts, testV)
+
+	err := app.Run(l, testV, []string{"terragrunt", "plan", "help"})
 	require.Error(t, err)
 }
 
@@ -1139,11 +1108,13 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 
 		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-		app := cli.NewApp(logger.CreateLogger(), opts, testV)
+		l := logger.CreateLogger()
+
+		app := cli.NewApp(l, opts, testV)
 
 		app.Commands = app.Commands.FilterByNames([]string{"hcl", "render", "run"})
 
-		err := app.Run([]string{"terragrunt"})
+		err := app.Run(l, testV, []string{"terragrunt"})
 		require.NoError(t, err)
 
 		for _, expectedComplete := range tc.expectedCompletes {

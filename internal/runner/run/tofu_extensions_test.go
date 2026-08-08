@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -315,10 +316,14 @@ resource "aws_vpc" "main" {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			fsys := vfs.NewMemMapFS()
+			tmpDir := "/work"
+
+			require.NoError(t, fsys.MkdirAll(tmpDir, 0755))
+
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
-				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
+				require.NoError(t, vfs.WriteFile(fsys, filePath, []byte(content), 0644))
 			}
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
@@ -326,7 +331,7 @@ resource "aws_vpc" "main" {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(configbridge.NewRunOptions(opts))
+			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts))
 
 			if tc.expectValid {
 				assert.NoError(t, err, "Expected no error for valid directory: %s", tc.description)
@@ -409,13 +414,17 @@ resource "aws_vpc" "main" {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			fsys := vfs.NewMemMapFS()
+			tmpDir := "/work"
+
+			require.NoError(t, fsys.MkdirAll(tmpDir, 0755))
+
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
-				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
+				require.NoError(t, vfs.WriteFile(fsys, filePath, []byte(content), 0644))
 			}
 
-			hasFiles, err := util.DirContainsTFFiles(tmpDir)
+			hasFiles, err := util.DirContainsTFFiles(fsys, tmpDir)
 
 			if tc.expectError {
 				require.Error(t, err)

@@ -42,6 +42,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/mitchellh/mapstructure"
 )
@@ -511,6 +512,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			genBody.SetAttributeValue("hcl_fmt", goboolToCty(*gen.HclFmt))
 		}
 
+		if gen.Mutable != nil {
+			genBody.SetAttributeValue("mutable", goboolToCty(*gen.Mutable))
+		}
+
 		rootBody.AppendBlock(genBlock)
 	}
 
@@ -813,6 +818,7 @@ type terragruntGenerateBlock struct {
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
 	Disable          *bool   `hcl:"disable,attr"           mapstructure:"disable"`
 	HclFmt           *bool   `hcl:"hcl_fmt,attr"           mapstructure:"hcl_fmt"`
+	Mutable          *bool   `hcl:"mutable,attr"           mapstructure:"mutable"`
 	Name             string  `hcl:",label"                 mapstructure:",omitempty"`
 	Path             string  `hcl:"path,attr"              mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr"         mapstructure:"if_exists"`
@@ -1231,12 +1237,14 @@ func GetDefaultConfigPath(workingDir string) string {
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path.
 //
 // Parameters:
+//   - fsys: the filesystem to walk
 //   - rootPath: the root directory to search
 //   - experiments: experiment flags (for symlink support)
 //   - configPath: the terragrunt config path (to detect non-default config filenames)
 //   - env: environment variables (to resolve TF_DATA_DIR)
 //   - downloadDir: the terragrunt download directory to skip
 func FindConfigFilesInPath(
+	fsys vfs.FS,
 	rootPath string,
 	experiments experiment.Experiments,
 	configPath string,
@@ -1245,10 +1253,10 @@ func FindConfigFilesInPath(
 ) ([]string, error) {
 	configFiles := []string{}
 
-	walkFunc := filepath.WalkDir
+	walkFunc := vfs.WalkDir
 
 	if experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = vfs.WalkDirWithSymlinks
 	}
 
 	tfDataDir := tf.DefaultTFDataDir
@@ -1256,7 +1264,7 @@ func FindConfigFilesInPath(
 		tfDataDir = d
 	}
 
-	err := walkFunc(rootPath, func(path string, d fs.DirEntry, err error) error {
+	err := walkFunc(fsys, rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -1274,7 +1282,7 @@ func FindConfigFilesInPath(
 				configFile = filepath.Join(path, configFile)
 			}
 
-			if !util.IsDir(configFile) && util.FileExists(configFile) {
+			if info, statErr := fsys.Stat(configFile); statErr == nil && !info.IsDir() {
 				configFiles = append(configFiles, configFile)
 				break
 			}
@@ -1361,7 +1369,7 @@ func ParseConfigFile(
 		decodeListKey = fmt.Sprintf("%v", pctx.PartialParseDecodeList)
 	}
 
-	fileInfo, err := os.Stat(configPath)
+	fileInfo, err := pctx.Venv.FS.Stat(configPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
@@ -1401,7 +1409,8 @@ func ParseConfigFile(
 				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 				var parseErr error
 
-				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(configPath)
+				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
+					ParseFromFile(pctx.Venv.FS, configPath)
 				if parseErr != nil {
 					return parseErr
 				}
@@ -1483,6 +1492,10 @@ func ParseConfig(
 	var errs []error
 
 	if err := DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
+		return nil, err
+	}
+
+	if err := ValidateExpansionExperiment(pctx.Experiments, file); err != nil {
 		return nil, err
 	}
 
@@ -1805,13 +1818,15 @@ func decodeAsTerragruntConfigFile(
 
 		ok := errors.As(err, &diagErr)
 
-		// in case of render-json command and inputs reference error, we update the inputs with default value
-		if (!ok || !isRenderJSONCommand(pctx) || !isAttributeAccessError(diagErr)) &&
-			(!ok || !isRenderCommand(pctx) || !isAttributeAccessError(diagErr)) {
+		// Suppress attribute access errors when a sibling autoinclude will merge on top, or during render-json/render commands; the autoinclude merge replaces the affected inputs.
+		canSuppress := ok && isAttributeAccessError(diagErr) &&
+			(isRenderJSONCommand(pctx) || isRenderCommand(pctx) || hasSiblingAutoInclude(pctx))
+
+		if !canSuppress {
 			return &terragruntConfig, err
 		}
 
-		l.Warnf("Failed to decode inputs %v", diagErr)
+		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
 	if terragruntConfig.Inputs != nil {
@@ -2081,8 +2096,18 @@ func convertToTerragruntConfig(
 			return nil, err
 		}
 
+		if block.Mutable != nil && !pctx.Experiments.Evaluate(experiment.MutableGenerate) {
+			errs = append(errs, MutableGenerateRequiresExperimentError{
+				ConfigPath: configPath,
+				BlockName:  block.Name,
+			})
+
+			continue
+		}
+
 		genConfig := codegen.GenerateConfig{
 			HclFmt:        block.HclFmt,
+			Mutable:       block.Mutable,
 			Path:          block.Path,
 			IfExists:      ifExists,
 			IfExistsStr:   block.IfExists,
@@ -2189,12 +2214,12 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 		return
 	}
 
-	walkFunc := filepath.WalkDir
+	walkFunc := vfs.WalkDir
 	if pctx.Experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = vfs.WalkDirWithSymlinks
 	}
 
-	_ = walkFunc(moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
+	_ = walkFunc(pctx.Venv.FS, moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip unreadable entries rather than aborting the whole walk.
 			if d != nil && d.IsDir() {
@@ -2568,6 +2593,11 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 	}
 
 	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
+}
+
+// hasSiblingAutoInclude reports whether a sibling autoinclude is registered for this parse.
+func hasSiblingAutoInclude(pctx *ParsingContext) bool {
+	return pctx.TrackInclude != nil && pctx.TrackInclude.AutoIncludeOverride != nil
 }
 
 // mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.

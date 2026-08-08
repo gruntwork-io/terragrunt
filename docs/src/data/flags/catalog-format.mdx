@@ -1,0 +1,82 @@
+---
+name: format
+description: |
+  Format the catalog as specified. Supported values (tui, jsonl, md). Default: tui.
+type: string
+env:
+  - TG_FORMAT
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`catalog-format`](/reference/experiments/active#catalog-format) experiment. Enable it with `--experiment=catalog-format` or `TG_EXPERIMENT=catalog-format`.
+</Aside>
+
+## Formats
+
+- `tui` is the default format for the `catalog` command, and results in the catalog rendering as an interactive Terminal User Interface.
+- `jsonl` writes one JSON object per line to standard output, so a script can read the catalog where a terminal user interface cannot be used.
+- `md` writes a Markdown document to standard output, with a section per catalog entry, for reading by a person or by an agent.
+
+## JSONL
+
+```bash
+$ terragrunt catalog --experiment=catalog-format --format=jsonl | head -1
+{"kind":"module","title":"VPC","description":"Creates a VPC.","tags":["networking"],"source":"github.com/acme/infrastructure-modules","dir":"modules/vpc","version":"v0.14.2","url":"https://github.com/acme/infrastructure-modules/tree/main/modules/vpc","component_source":"github.com/acme/infrastructure-modules//modules/vpc","doc":"Everything a VPC needs.\n"}
+```
+
+Each entry is emitted as it is discovered, so a consumer that only needs the first few results can stop reading before discovery finishes.
+
+Entries arrive in discovery order, which interleaves the repositories being loaded and differs between runs. Collect them before sorting when you need a stable order:
+
+```bash
+terragrunt catalog --experiment=catalog-format --format=jsonl | jq -s -c 'sort_by(.component_source)[]'
+```
+
+Every entry carries the body of the component's README in `doc`, and no flag suppresses it. Drop it when you only want the metadata:
+
+```bash
+terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c 'del(.doc)'
+```
+
+Or keep only the fields you are after:
+
+```bash
+terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c '{kind, title, component_source}'
+```
+
+Entries follow a [published JSON schema](https://docs.terragrunt.com/schemas/catalog/v1/schema.json), which describes the schema for each entry, not the stream as a whole.
+
+## Markdown
+
+```bash
+terragrunt catalog --experiment=catalog-format --format=md > catalog.md
+```
+
+The document opens with a header describing what it holds, and gives each entry a section carrying the same metadata the `jsonl` format puts in a record:
+
+```markdown
+## VPC
+
+Creates a VPC.
+
+| Field | Value |
+| --- | --- |
+| Kind | `module` |
+| Source | `github.com/acme/infrastructure-modules` |
+| Directory | `modules/vpc` |
+| Version | `v0.14.2` |
+| URL | <https://github.com/acme/infrastructure-modules/tree/main/modules/vpc> |
+| Component source | `github.com/acme/infrastructure-modules//modules/vpc` |
+
+| Tag |
+| --- |
+| `networking` |
+```
+
+A row is written only when the entry has a value for it, and an entry that declares no tags has no tag table. The component's README follows, inside a fenced block, which keeps the headings a README carries from reading as sections of the catalog document.
+
+Sections are written as entries are discovered, so a reader gets the first ones while the remaining repositories are still being cloned, and their order differs between runs. The document closes with a table naming every entry it holds and a count of what was discovered, which is what tells a complete document from one that was cut short.
+
+See [Non-interactive catalog](/features/catalog/non-interactive) for the whole shape of the document.

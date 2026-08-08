@@ -1,13 +1,11 @@
 package shell
 
 import (
-	"bufio"
 	"context"
-	"io"
-	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -15,10 +13,14 @@ import (
 func PromptUserForInput(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	prompt string,
 	nonInteractive bool,
-	errWriter io.Writer,
 ) (string, error) {
+	v.RequireReader()
+
+	errWriter := v.Writers.ErrWriter
+
 	// We are writing directly to ErrWriter so the prompt is always visible
 	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and
 	// a message about assuming `yes` to Debug, so
@@ -44,13 +46,11 @@ func PromptUserForInput(
 
 	exec.PrepareStdinForPrompt(l)
 
-	reader := bufio.NewReader(os.Stdin)
-
 	inputCh := make(chan string)
 	errCh := make(chan error)
 
 	go func() {
-		input, err := reader.ReadString('\n')
+		input, err := v.Reader.ReadString('\n')
 		if err != nil {
 			errCh <- err
 			return
@@ -73,11 +73,11 @@ func PromptUserForInput(
 func PromptUserForYesNo(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	prompt string,
 	nonInteractive bool,
-	errWriter io.Writer,
 ) (bool, error) {
-	resp, err := PromptUserForInput(ctx, l, prompt+" (y/n) ", nonInteractive, errWriter)
+	resp, err := PromptUserForInput(ctx, l, v, prompt+" (y/n) ", nonInteractive)
 	if err != nil {
 		return false, err
 	}

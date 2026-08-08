@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,9 +71,10 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 			<-barrier
 
 			l := logger.CreateLogger()
-			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+			v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: fmt.Sprintf("token-%d", idx)})
+
+			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(filePath)
-			pctx.Venv.Env = map[string]string{authKey: fmt.Sprintf("token-%d", idx)}
 
 			result, err := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", mockDecrypter)
 			assert.NoError(t, err)

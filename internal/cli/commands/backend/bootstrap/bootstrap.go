@@ -36,8 +36,7 @@ func runBootstrap(
 		"working_dir":            opts.WorkingDir,
 		"terragrunt_config_path": opts.TerragruntConfigPath,
 	}, func(ctx context.Context, l log.Logger) error {
-		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-		pctx = pctx.WithVenv(v)
+		_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 		if err != nil || remoteState == nil {

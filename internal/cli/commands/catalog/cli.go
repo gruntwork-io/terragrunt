@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -20,12 +21,20 @@ const (
 	CommandName = "catalog"
 
 	IgnoreFileFlagName = "ignore-file"
+	FormatFlagName     = "format"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	catalogFlags := clihelper.Flags{
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			Name:        FormatFlagName,
+			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
+			Destination: &opts.Format,
+			Usage:       "Output format for the catalog. Valid values: tui, jsonl, md.",
+			DefaultText: FormatTUI,
+		}),
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        IgnoreFileFlagName,
 			EnvVars:     tgPrefix.EnvVars(IgnoreFileFlagName),
@@ -67,16 +76,36 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 		}),
 	}
 
-	catalogFlags = catalogFlags.Add(shared.NewCASFlags(opts, prefix)...)
+	catalogFlags = catalogFlags.Add(shared.NewCASFlags(opts.TerragruntOptions, prefix)...)
 
-	return append(shared.NewScaffoldingFlags(opts, prefix), catalogFlags...)
+	return append(shared.NewScaffoldingFlags(opts.TerragruntOptions, prefix), catalogFlags...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+	cmdOpts := NewOptions(opts)
+
 	return &clihelper.Command{
 		Name:  CommandName,
 		Usage: "Launch the user interface for searching and managing your module catalog.",
-		Flags: NewFlags(opts, nil),
+		Flags: NewFlags(cmdOpts, nil),
+		Before: func(_ context.Context, _ *clihelper.Context) error {
+			if err := cmdOpts.Validate(); err != nil {
+				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
+			}
+
+			if cmdOpts.Format == FormatTUI {
+				return nil
+			}
+
+			if !cmdOpts.Experiments.Evaluate(experiment.CatalogFormat) {
+				return clihelper.NewExitError(
+					ErrFormatRequiresExperiment,
+					clihelper.ExitCodeGeneralError,
+				)
+			}
+
+			return nil
+		},
 		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
 			var repoPath string
 
@@ -88,7 +117,10 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				opts.ScaffoldRootFileName = scaffold.GetDefaultRootFileName(ctx, opts)
 			}
 
-			return Run(ctx, l, v, opts.OptionsFromContext(ctx), repoPath)
+			runOpts := *cmdOpts
+			runOpts.TerragruntOptions = opts.OptionsFromContext(ctx)
+
+			return Run(ctx, l, v, &runOpts, repoPath)
 		},
 	}
 }

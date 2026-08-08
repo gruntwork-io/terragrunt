@@ -1,0 +1,18 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Fix `scaffold` on units and stacks
+
+`terragrunt scaffold` read every source as an OpenTofu/Terraform module. Given a unit or a stack, which are Terragrunt configurations rather than OpenTofu/Terraform modules, it exited successfully having written an invalid `terragrunt.hcl` file.
+
+Units and stacks are now scaffolded the way the [Catalog TUI](/features/catalog/tui) scaffolds them: their files are copied into the working directory for you to edit in place, along with a `terragrunt.values.hcl` listing every `values.*` reference the configuration makes.
+
+```bash
+terragrunt scaffold 'github.com/gruntwork-io/terragrunt-scale-catalog//units/aws/oidc/iam-oidc-role'
+```
+
+Copying refuses to overwrite: a file that would land on an existing path stops the command before anything is written. Modules and templates are unaffected and are still scaffolded from their variables.
+
+See [Scaffold](/features/catalog/scaffold) for what gets copied and how the values file is filled in.

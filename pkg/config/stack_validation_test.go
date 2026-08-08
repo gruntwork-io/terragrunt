@@ -9,6 +9,7 @@ import (
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -419,7 +420,7 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
@@ -493,7 +494,7 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
@@ -549,7 +550,7 @@ unit "added" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
@@ -642,7 +643,7 @@ stack "added" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
@@ -724,7 +725,7 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
@@ -765,7 +766,7 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
@@ -813,7 +814,7 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
@@ -878,7 +879,7 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(

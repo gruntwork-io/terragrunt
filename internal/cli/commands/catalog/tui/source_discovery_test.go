@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -126,7 +127,7 @@ inputs = {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	ctx, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
@@ -144,7 +145,7 @@ func TestDiscoverSourceURLs_EmptyDir(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	ctx, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)

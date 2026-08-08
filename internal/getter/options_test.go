@@ -1,8 +1,10 @@
 package getter_test
 
 import (
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -263,6 +265,24 @@ func TestFileCopyGetSourceIsFile(t *testing.T) {
 	assert.ErrorIs(t, err, getter.ErrSourceNotADirectory)
 }
 
+// TestFileCopyGetFileSourceIsDir pins the mirror contract on the single-file
+// path: a directory source is rejected rather than half-copied.
+func TestFileCopyGetFileSourceIsDir(t *testing.T) {
+	t.Parallel()
+
+	srcDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, writeFile(filepath.Join(srcDir, "main.tf"), "# main\n"))
+
+	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     "file://" + srcDir,
+		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
+		GetMode: getter.ModeFile,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, getter.ErrSourceNotAFile)
+}
+
 // TestFileCopyGetFileDelegates pins the GetFile passthrough so a future
 // change can't silently drop the file-copy semantics.
 func TestFileCopyGetFileDelegates(t *testing.T) {
@@ -312,25 +332,65 @@ func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-// TestFileCopyGetterWithFSPanicsOnNonOSFS pins that WithFS rejects a non
-// OS-backed FS at construction time.
-func TestFileCopyGetterWithFSPanicsOnNonOSFS(t *testing.T) {
+// TestFileCopyGetterCopiesDirOnMemFS pins that a copy driven by an in-memory
+// filesystem lands entirely in that filesystem, never on the real disk.
+func TestFileCopyGetterCopiesDirOnMemFS(t *testing.T) {
 	t.Parallel()
 
-	assert.PanicsWithValue(t,
-		"getter.FileCopyGetter.WithFS: requires an OS-backed filesystem",
-		func() { getter.NewFileCopyGetter(vfs.NewOSFS()).WithFS(vfs.NewMemMapFS()) },
-	)
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll("/src", 0o755))
+	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("# module"), 0o644))
+
+	g := getter.NewFileCopyGetter(fsys).WithLogger(logger.CreateLogger())
+
+	req := &getter.Request{Src: "/src", Dst: "/dst", GetMode: getter.ModeDir}
+	_, err := (&getter.Client{Getters: []getter.Getter{g}}).Get(t.Context(), req)
+	require.NoError(t, err)
+
+	copied, err := vfs.ReadFile(fsys, "/dst/main.tf")
+	require.NoError(t, err)
+	assert.Equal(t, "# module", string(copied))
+
+	_, err = os.Stat("/dst/main.tf")
+	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-// TestRegistryGetterWithFSPanicsOnNonOSFS pins the same invariant for
-// RegistryGetter.
-func TestRegistryGetterWithFSPanicsOnNonOSFS(t *testing.T) {
+// TestFileCopyGetterGetFileOnMemFS pins the single-file path, which no longer
+// delegates to go-getter's FileGetter and so has to create the destination's
+// parent directories itself.
+func TestFileCopyGetterGetFileOnMemFS(t *testing.T) {
 	t.Parallel()
 
-	assert.PanicsWithValue(
-		t,
-		"getter.RegistryGetter.WithFS: requires an OS-backed filesystem",
-		func() { getter.NewRegistryGetter(logger.CreateLogger(), vfs.NewOSFS()).WithFS(vfs.NewMemMapFS()) },
-	)
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("# module"), 0o644))
+
+	g := getter.NewFileCopyGetter(fsys).WithLogger(logger.CreateLogger())
+
+	req := &getter.Request{Src: "/src/main.tf", Dst: "/nested/dst/main.tf", GetMode: getter.ModeFile}
+	_, err := (&getter.Client{Getters: []getter.Getter{g}}).Get(t.Context(), req)
+	require.NoError(t, err)
+
+	copied, err := vfs.ReadFile(fsys, "/nested/dst/main.tf")
+	require.NoError(t, err)
+	assert.Equal(t, "# module", string(copied))
+}
+
+// TestFileCopyGetterModeReadsThroughFS pins that the directory/file probe
+// consults the filesystem the getter was built with rather than os.
+func TestFileCopyGetterModeReadsThroughFS(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll("/src", 0o755))
+	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("# module"), 0o644))
+
+	g := getter.NewFileCopyGetter(fsys)
+
+	dirMode, err := g.Mode(t.Context(), &url.URL{Path: "/src"})
+	require.NoError(t, err)
+	assert.Equal(t, getter.ModeDir, dirMode)
+
+	fileMode, err := g.Mode(t.Context(), &url.URL{Path: "/src/main.tf"})
+	require.NoError(t, err)
+	assert.Equal(t, getter.ModeFile, fileMode)
 }

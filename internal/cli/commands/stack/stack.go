@@ -100,10 +100,10 @@ func RunGenerate(
 	}
 
 	// After generation, hint when a literal stack filter left nested stacks ungenerated.
-	funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+	funcsFor := configbridge.StackFuncFactory(ctx, l, v, opts)
 	tips.GiveStackNestedGenerateTip(
 		l,
-		vfs.NewOSFS(),
+		v.FS,
 		funcsFor,
 		opts.WorkingDir,
 		opts.Filters,

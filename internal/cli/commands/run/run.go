@@ -96,8 +96,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
-	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -263,8 +262,8 @@ func getTerragruntConfig(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*config.TerragruntConfig, error) {
-	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
-	configCtx = configCtx.WithVenv(v).WithDecodeList(
+	ctx, configCtx := configbridge.NewParsingContext(ctx, l, v, opts)
+	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,
 	)
@@ -302,13 +301,7 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(
-			ctx,
-			l,
-			prompt,
-			opts.NonInteractive,
-			v.Writers.ErrWriter,
-		)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 		if err != nil {
 			l.Error(err)
 			return false

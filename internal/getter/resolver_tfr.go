@@ -28,6 +28,7 @@ const tfrResolverTimeout = 10 * time.Second
 type TFRResolver struct {
 	HTTPClient         vhttp.Client
 	Logger             log.Logger
+	Auth               RegistryAuth
 	TofuImplementation tfimpl.Type
 }
 
@@ -48,6 +49,14 @@ func NewTFRResolver() *TFRResolver {
 // handler to synthesize registry responses.
 func (r *TFRResolver) WithHTTPClient(c vhttp.Client) *TFRResolver {
 	r.HTTPClient = c
+	return r
+}
+
+// WithAuth sets the credentials the registry probe authenticates with.
+// Without it the probe sends no Authorization header at all, so a private
+// registry answers 401 and the fetch falls back to content hashing.
+func (r *TFRResolver) WithAuth(auth RegistryAuth) *TFRResolver {
+	r.Auth = auth
 	return r
 }
 
@@ -105,6 +114,7 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		ctx,
 		r.Logger,
 		r.HTTPClient,
+		r.Auth,
 		registryDomain,
 	)
 	if err != nil {
@@ -116,7 +126,7 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, r.Auth, moduleURL)
 	if err != nil {
 		return "", cas.ErrNoVersionMetadata
 	}

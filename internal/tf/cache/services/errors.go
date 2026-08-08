@@ -1,9 +1,15 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
+
+// ErrCacheDirNotSpecified is returned by [ProviderService.Init] when the
+// service was built without a cache directory, leaving it nowhere to write
+// the providers it caches. Match with errors.Is.
+var ErrCacheDirNotSpecified = errors.New("provider cache directory not specified")
 
 // UnexpectedProviderCachePathError is returned when something other than a
 // Terragrunt-managed symlink occupies a provider's package path inside the

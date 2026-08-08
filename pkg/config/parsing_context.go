@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"io"
 	"maps"
 	"os"
@@ -33,6 +34,11 @@ const (
 	MaxParseDepth = 1000
 )
 
+// ErrParsingContextVenvNil is the panic value [NewParsingContext] raises when
+// its venv argument is nil. Every caller is handed the bundle main.go built,
+// so a nil points at a caller bug rather than a runtime condition.
+var ErrParsingContextVenvNil = errors.New("config.NewParsingContext: venv must not be nil")
+
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
@@ -40,8 +46,6 @@ type ParsingContext struct {
 	// Venv is the virtualized environment used by HCL helper functions
 	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
 	// It also carries the shell environment and stdout/stderr writers.
-	// Defaults to the OS-backed environment when [NewParsingContext] is
-	// called; callers with a threaded root Venv override via [WithVenv].
 	Venv *venv.Venv
 
 	TerraformCliArgs *iacargs.IacArgs
@@ -117,15 +121,22 @@ type ParsingContext struct {
 	skipAutoIncludeMerge bool
 }
 
+// NewParsingContext builds a parsing context whose file reads, subprocesses,
+// and decryption all travel on v.
 func NewParsingContext(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts ...Option,
 ) (context.Context, *ParsingContext) {
+	if v == nil {
+		panic(ErrParsingContextVenvNil)
+	}
+
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
 		FilesRead:        NewFilesRead(),
-		Venv:             venv.OSVenv(),
+		Venv:             v,
 	}
 
 	for _, opt := range opts {
@@ -139,8 +150,8 @@ func NewParsingContext(
 
 // Clone returns a copy of the ParsingContext.
 // Maps and the embedded Venv (including its Writers pointer and Env map)
-// are deep-copied so that mutations on a clone — credential injection,
-// writer redirection, etc. — do not affect the original or other clones.
+// are deep-copied so that mutations on a clone (credential injection,
+// writer redirection, and so on) do not affect the original or other clones.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
 
@@ -211,16 +222,6 @@ func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *Parsing
 func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
 	c := ctx.Clone()
 	c.ParserOptions = parserOptions
-
-	return c
-}
-
-// WithVenv returns a new ParsingContext that uses the supplied virtualized
-// environment for HCL helpers that shell out (e.g. get_repo_root) and for
-// dependency-output evaluation.
-func (ctx *ParsingContext) WithVenv(v *venv.Venv) *ParsingContext {
-	c := ctx.Clone()
-	c.Venv = v
 
 	return c
 }
