@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
@@ -62,6 +63,24 @@ var ErrOCIMissingRepositoryName = errors.New("oci source is missing a repository
 // digest; the wording mirrors OpenTofu so one source string fails the same
 // way in both tools.
 var ErrOCITagDigestExclusive = errors.New(`cannot set both "tag" and "digest" arguments`)
+
+// ErrOCIUnexpectedScheme reports an oci resolver handed a source whose scheme
+// is not oci, so no manifest digest can be resolved for it.
+var ErrOCIUnexpectedScheme = errors.New("oci resolver received a source with a non-oci scheme")
+
+// OCIReferenceResolutionError reports a failure resolving an oci reference (a
+// tag or digest) to a manifest against the registry, wrapping the registry
+// error so callers can match on the cause with errors.As.
+type OCIReferenceResolutionError struct {
+	Err error
+	Ref string
+}
+
+func (err OCIReferenceResolutionError) Error() string {
+	return fmt.Sprintf("resolving OCI reference %q: %s", err.Ref, err.Err)
+}
+
+func (err OCIReferenceResolutionError) Unwrap() error { return err.Err }
 
 // OCIUnsupportedQueryParamError reports a query parameter other than tag or
 // digest on an oci source.
@@ -269,6 +288,15 @@ type OCIGetter struct {
 
 var _ getter.Getter = (*OCIGetter)(nil)
 
+// NewOCIGetter returns the oci:// getter wired to the default credential store.
+func NewOCIGetter(l log.Logger, v *venv.Venv) *OCIGetter {
+	return &OCIGetter{
+		NewStore: NewOCIRepositoryStore(l, v),
+		Logger:   l,
+		FS:       v.FS,
+	}
+}
+
 // Mode reports directory mode for all oci sources, since oci always
 // downloads a module directory.
 func (g *OCIGetter) Mode(_ context.Context, _ *url.URL) (getter.Mode, error) {
@@ -298,22 +326,20 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return ErrOCIGetterNotConfigured
 	}
 
-	registryDomain, repositoryName, subDir, ref, err := parseOCISource(req.URL())
+	coords, err := parseOCISource(req.URL())
 	if err != nil {
 		return err
 	}
 
-	store, err := g.NewStore(ctx, registryDomain, repositoryName)
+	store, err := g.NewStore(ctx, coords.registryDomain, coords.repositoryName)
 	if err != nil {
 		return fmt.Errorf(
 			"creating OCI repository store for %s/%s: %w",
-			registryDomain,
-			repositoryName,
-			err,
+			coords.registryDomain, coords.repositoryName, err,
 		)
 	}
 
-	layer, err := resolveModuleZipLayer(ctx, store, ref)
+	layer, err := resolveModuleZipLayer(ctx, store, coords.ref)
 	if err != nil {
 		return err
 	}
@@ -348,7 +374,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	return g.extractModule(zipPath, subDir, req.Dst, req.Src, req.Umask)
+	return g.extractModule(zipPath, coords.subDir, req.Dst, req.Src, req.Umask)
 }
 
 // GetFile always fails, per [ErrOCIGetFileUnsupported].
@@ -374,25 +400,35 @@ func validateOCIQueryParams(queryValues url.Values) error {
 	return nil
 }
 
-// parseOCISource splits an oci source URL into registry coordinates, the
-// subdir selector, and the validated reference to resolve.
-func parseOCISource(srcURL *url.URL) (registryDomain, repositoryName, subDir, ref string, err error) {
-	registryDomain = srcURL.Host
-	if registryDomain == "" {
-		return "", "", "", "", ErrOCIMissingRegistryDomain
+// ociSourceCoordinates carries the registry coordinates, subdir selector, and
+// validated reference parsed from an oci source URL.
+type ociSourceCoordinates struct {
+	registryDomain string
+	repositoryName string
+	subDir         string
+	ref            string
+}
+
+// parseOCISource splits an oci source URL into registry coordinates, the subdir selector, and the validated reference.
+func parseOCISource(srcURL *url.URL) (ociSourceCoordinates, error) {
+	coords := ociSourceCoordinates{registryDomain: srcURL.Host}
+	if coords.registryDomain == "" {
+		return coords, ErrOCIMissingRegistryDomain
 	}
 
-	repositoryName, subDir = SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
-	if repositoryName == "" {
-		return "", "", "", "", ErrOCIMissingRepositoryName
+	coords.repositoryName, coords.subDir = SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
+	if coords.repositoryName == "" {
+		return coords, ErrOCIMissingRepositoryName
 	}
 
-	ref, err = ociRefFromQuery(srcURL.Query())
+	ref, err := ociRefFromQuery(srcURL.Query())
 	if err != nil {
-		return "", "", "", "", err
+		return coords, err
 	}
 
-	return registryDomain, repositoryName, subDir, ref, nil
+	coords.ref = ref
+
+	return coords, nil
 }
 
 // ociRefFromQuery validates the source query and returns the reference to
@@ -442,7 +478,7 @@ func resolveModuleZipLayer(
 ) (ociv1.Descriptor, error) {
 	manifestDesc, err := store.Resolve(ctx, ref)
 	if err != nil {
-		return ociv1.Descriptor{}, fmt.Errorf("resolving OCI reference %q: %w", ref, err)
+		return ociv1.Descriptor{}, OCIReferenceResolutionError{Ref: ref, Err: err}
 	}
 
 	if manifestDesc.MediaType != ociv1.MediaTypeImageManifest {
@@ -614,10 +650,8 @@ func (g *OCIGetter) extractModuleWithLimits(
 		return fmt.Errorf("extracting OCI module archive: %w", err)
 	}
 
-	sourcePath, err := SubdirGlob(unzipPath, subDir)
-	if err != nil {
-		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
-	}
+	// Clients resolve //subdir themselves, so subDir stays literal and the Stat below guards it.
+	sourcePath := filepath.Join(unzipPath, subDir)
 
 	if _, err := g.FS.Stat(sourcePath); err != nil {
 		return ModuleDownloadErr{

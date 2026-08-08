@@ -1,0 +1,19 @@
+---
+version: "v1.1.3"
+category: "experiments-added"
+---
+
+#### `bounded-discovery` experiment encloses graph traversal within a directory
+
+Filter expressions that traverse the dependency graph reach beyond the working directory: dependents (`--filter '...{unit}'`) by walking up to the Git repository root, dependencies (`--filter '{unit}...'`) by following declared paths. Either way, Terragrunt reads and parses every configuration it touches. In monorepos with isolated environments, that traversal can fail or do wasted work reading sibling environments.
+
+Enable the new [`bounded-discovery`](/reference/experiments/active#bounded-discovery) experiment to unlock an inline `(dir)` boundary operand. It occupies the same slot as a traversal depth, so it bounds discovery by location the way a number bounds it by graph hops:
+
+```bash
+cd environments/staging
+terragrunt run --all plan --experiment bounded-discovery --filter '(.)...{vpc}'
+```
+
+Any configuration that resolves outside the boundary, whether a dependent or a dependency, is not read, parsed, or returned; configurations inside it are discovered as usual. The boundary must be an existing directory, resolved against the working directory.
+
+Reserving `(` and `)` for the boundary operand changes how `--filter` reads those characters everywhere, not only when the experiment is enabled. An expression such as `--filter '1...(foo | bar)'` previously matched a unit literally named `(foo` or `bar)`; it is now rejected as a malformed boundary. Wrap a name or path containing parentheses in braces (e.g. `--filter '{./weird(name)}'`) to keep it literal.

@@ -103,6 +103,14 @@ func (d *Discovery) WithParseIncludes() *Discovery {
 	return d
 }
 
+// WithParseStackConfigs enables parsing of discovered stack config files, populating
+// each stack component's config. Parsing is best-effort: a stack whose config fails
+// to parse is left without one.
+func (d *Discovery) WithParseStackConfigs() *Discovery {
+	d.parseStackConfigs = true
+	return d
+}
+
 // WithReadFiles enables parsing for file reading information.
 func (d *Discovery) WithReadFiles() *Discovery {
 	d.readFiles = true
@@ -129,9 +137,20 @@ func (d *Discovery) WithRelationships() *Discovery {
 	return d
 }
 
-// WithGitRoot sets the git root directory for dependent discovery boundary.
+// WithGitRoot sets the git repository root used as the default ceiling for the
+// upstream dependent walk, bypassing automatic detection.
 func (d *Discovery) WithGitRoot(gitRoot string) *Discovery {
 	d.gitRoot = gitRoot
+	return d
+}
+
+// WithDiscoveryBoundary sets the directory that encloses graph discovery for
+// filters, in place of the automatically detected git repository root:
+// dependencies and dependents resolving outside it are not discovered. The
+// path may be relative, in which case it is resolved against the discovery
+// working directory.
+func (d *Discovery) WithDiscoveryBoundary(boundary string) *Discovery {
+	d.discoveryBoundary = boundary
 	return d
 }
 

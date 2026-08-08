@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -13,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExecCommand(t *testing.T) {
+func TestTFExecCommand(t *testing.T) {
 	t.Parallel()
 
 	if helpers.IsWindows() {
@@ -73,7 +75,7 @@ func TestExecCommand(t *testing.T) {
 	}
 }
 
-func TestExecCommandTfPath(t *testing.T) {
+func TestTFExecCommandTfPath(t *testing.T) {
 	t.Parallel()
 
 	if helpers.IsWindows() {

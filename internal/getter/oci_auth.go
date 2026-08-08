@@ -13,7 +13,9 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -23,14 +25,6 @@ import (
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/credentials"
 	"oras.land/oras-go/v2/registry/remote/retry"
-)
-
-// Interim, undocumented static-credential env vars (unscoped without TG_TMP_OCI_REGISTRY).
-const (
-	EnvOCIUsername = "TG_TMP_OCI_USERNAME"
-	EnvOCIPassword = "TG_TMP_OCI_PASSWORD"
-	EnvOCIToken    = "TG_TMP_OCI_TOKEN"
-	EnvOCIRegistry = "TG_TMP_OCI_REGISTRY"
 )
 
 // ociDockerHubKey is the lookup key every Docker Hub spelling folds onto.
@@ -45,14 +39,21 @@ var ociDockerHubRegistries = []string{
 	"registry-1.docker.io",
 }
 
-// ErrOCIStaticCredentialConflict reports both a token and a username or password set.
-var ErrOCIStaticCredentialConflict = errors.New(
-	"cannot set both a token and a username or password for oci sources",
-)
-
-// ErrOCIStaticCredentialIncomplete reports a username without a password, or the reverse.
-var ErrOCIStaticCredentialIncomplete = errors.New(
-	"oci static credentials require both a username and a password",
+const (
+	// ociCredentialHelperPrefix is the docker-credential binary name prefix.
+	ociCredentialHelperPrefix = "docker-credential-"
+	// ociHelperTokenUsername marks a bearer token in helper output.
+	ociHelperTokenUsername = "<token>"
+	// ociHelperCredentialsNotFound is the benign not-in-keychain helper message.
+	ociHelperCredentialsNotFound = "credentials not found in native keychain"
+	// ociCredentialHelperTimeout bounds a helper subprocess so it cannot wedge a run.
+	ociCredentialHelperTimeout = 30 * time.Second
+	// ociCredentialHelperWaitDelay bounds the post-cancel drain of a helper's output pipes.
+	ociCredentialHelperWaitDelay = 5 * time.Second
+	// ociHelperStderrMax caps the helper stderr captured for diagnostics.
+	ociHelperStderrMax = 2048
+	// ociDockerHubIndexServer is the server address helpers store Docker Hub creds under.
+	ociDockerHubIndexServer = "https://index.docker.io/v1/"
 )
 
 // OCIRemoteStore adapts oras' by-value Fetch to the pointer-taking [OCIRepositoryStore] seam.
@@ -82,16 +83,13 @@ func ociUserAgent() string {
 // most specific ambient entry depends on the repository being pulled.
 type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
 
-// NewOCIRepositoryStore returns the default Tier-1 [OCINewStoreFunc]: static
-// environment credentials when set, otherwise read-only ambient discovery of
-// Docker and containers auth files. It never invokes credential helpers, so
-// registries needing per-run token minting (e.g. Amazon ECR) only work for the
-// lifetime of an externally obtained login in one of the ambient files.
+// NewOCIRepositoryStore returns the default [OCINewStoreFunc], ranking CLI-config and ambient sources.
 func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	v.RequireFS()
 	v.RequireEnv()
 	v.RequireGOOS()
 	v.RequireUserHomeDir()
+	v.RequireExec()
 	v.RequireHTTP()
 
 	resolveCredential := sync.OnceValues(func() (ociCredentialFactory, error) {
@@ -129,121 +127,424 @@ func NewOCIRepositoryStore(l log.Logger, v *venv.Venv) OCINewStoreFunc {
 	}
 }
 
-// ociCredentialFunc resolves static environment credentials, falling back to
-// ambient discovery through the Venv.
+// ociCredentialFunc ranks candidates by how specifically each pins the repository, then runs the winner.
 func ociCredentialFunc(l log.Logger, v *venv.Venv) (ociCredentialFactory, error) {
-	staticCred, found, err := ociStaticCredential(v)
+	tofu, err := loadOCITofuCredentials(l, v)
 	if err != nil {
 		return nil, err
 	}
 
-	ambient := ociAmbientCredentialFunc(l, v)
+	var stores []ociAmbientStore
 
-	if !found {
-		return ambient, nil
+	if tofu.discoverAmbient {
+		loaded, err := loadOCIAmbientStores(l, v, &tofu)
+		if err != nil {
+			return nil, err
+		}
+
+		stores = loaded
 	}
-
-	registry := v.Env[EnvOCIRegistry]
-	if registry == "" {
-		// Unscoped: the credential applies to every registry the run contacts.
-		return func(_ string) auth.CredentialFunc {
-			return func(_ context.Context, _ string) (auth.Credential, error) {
-				return staticCred, nil
-			}
-		}, nil
-	}
-
-	// Scoped: static serves its registry, the rest still resolve ambient.
-	scoped := auth.StaticCredential(registry, staticCred)
 
 	return func(repositoryName string) auth.CredentialFunc {
-		ambientFn := ambient(repositoryName)
-
 		return func(ctx context.Context, hostport string) (auth.Credential, error) {
-			cred, err := scoped(ctx, hostport)
-			if err != nil {
-				return auth.EmptyCredential, err
-			}
+			best := ociSelectCredentialCandidate(ctx, l, &tofu, stores, hostport, repositoryName)
 
-			if cred != auth.EmptyCredential {
-				return cred, nil
-			}
-
-			return ambientFn(ctx, hostport)
+			return ociExecuteCredentialCandidate(ctx, l, v, &best, hostport)
 		}
 	}, nil
 }
 
-// ociStaticCredential reads a token or a username plus password from v.Env.
-func ociStaticCredential(v *venv.Venv) (auth.Credential, bool, error) {
-	username := v.Env[EnvOCIUsername]
-	password := v.Env[EnvOCIPassword]
-	token := v.Env[EnvOCIToken]
-
-	if token != "" && (username != "" || password != "") {
-		return auth.EmptyCredential, false, ErrOCIStaticCredentialConflict
+// ociTofuCandidate ranks one CLI-config source without running its helper yet.
+func ociTofuCandidate(repo *ociTofuRepoCredential, hostport string) ociCredentialCandidate {
+	cand := ociCredentialCandidate{
+		static:        repo.cred,
+		specificity:   repo.specificity(),
+		fromCLIConfig: true,
 	}
 
-	if token != "" {
-		return auth.Credential{AccessToken: token}, true, nil
-	}
-
-	if username != "" && password != "" {
-		return auth.Credential{Username: username, Password: password}, true, nil
-	}
-
-	if username != "" || password != "" {
-		return auth.EmptyCredential, false, ErrOCIStaticCredentialIncomplete
-	}
-
-	return auth.EmptyCredential, false, nil
-}
-
-// ociAmbientStore keeps one Venv-read auth file and its canonical key index.
-type ociAmbientStore struct {
-	auths map[string]json.RawMessage
-	// declared maps a lookup key to every spelling the file uses for it. Only
-	// keys present here are ever requested, because a hostname-only lookup can
-	// return an arbitrary repository-scoped entry when no exact key exists.
-	declared map[string][]string
-	path     string
-}
-
-// ociAmbientCredentialFunc consults ambient files in order. Each file is read
-// only through v.FS, and only the selected entry is decoded, so one malformed
-// entry cannot hide valid credentials elsewhere in the same file.
-func ociAmbientCredentialFunc(l log.Logger, v *venv.Venv) ociCredentialFactory {
-	stores := loadOCIAmbientStores(l, v)
-
-	return func(repositoryName string) auth.CredentialFunc {
-		return func(ctx context.Context, hostport string) (auth.Credential, error) {
-			// Most specific key first, so a repository-scoped entry beats a
-			// registry-wide one and no other namespace's entry can answer.
-			for _, key := range ociCredentialKeys(hostport, repositoryName) {
-				for _, ambient := range stores {
-					if cred := ociCredentialFromAmbientStore(
-						ctx,
-						l,
-						ambient,
-						key,
-					); cred != auth.EmptyCredential {
-						return cred, nil
-					}
-				}
-			}
-
-			return auth.EmptyCredential, nil
+	if repo.helper != "" {
+		cand.helper = &ociHelperEntry{
+			suffix:        repo.helper,
+			serverAddress: ociTofuHelperServerAddress(hostport),
+			explicit:      true,
 		}
 	}
+
+	return cand
 }
 
-func loadOCIAmbientStores(l log.Logger, v *venv.Venv) []ociAmbientStore {
+// ociHelperEntry is a resolved credential helper (suffix, server address, explicit).
+type ociHelperEntry struct {
+	suffix        string
+	serverAddress string
+	explicit      bool
+}
+
+// ociAmbientStore is one Venv-read auth file and its canonical key index.
+type ociAmbientStore struct {
+	auths       map[string]json.RawMessage
+	declared    map[string][]string
+	credHelpers map[string]ociHelperEntry
+	credsStore  string
+	path        string
+}
+
+// Ambient credential specificity: repository-path beats domain, which beats global credsStore.
+const (
+	ociGlobalSpecificity = 1
+	ociDomainSpecificity = 2
+)
+
+// ociInlineSpecificity returns an inline key's specificity: domain plus one per matched repository-path segment.
+func ociInlineSpecificity(key string) int {
+	return ociDomainSpecificity + strings.Count(key, "/")
+}
+
+// ociCredentialCandidate is a ranked credential source whose helper runs only if the candidate wins selection.
+type ociCredentialCandidate struct {
+	helper        *ociHelperEntry
+	static        auth.Credential
+	specificity   int
+	fromCLIConfig bool
+}
+
+// ociOutranks reports whether cand replaces best: specificity, then CLI config, then helper over inline.
+func ociOutranks(cand, best *ociCredentialCandidate) bool {
+	if cand.specificity != best.specificity {
+		return cand.specificity > best.specificity
+	}
+
+	if best.specificity == 0 {
+		return false
+	}
+
+	if cand.fromCLIConfig != best.fromCLIConfig {
+		return cand.fromCLIConfig
+	}
+
+	return cand.helper != nil && best.helper == nil
+}
+
+// ociResolveConfigFiles resolves each configured path against the CLI config's directory, as tofu does.
+func ociResolveConfigFiles(configDir string, files []string) []string {
+	out := make([]string, 0, len(files))
+
+	for _, file := range files {
+		if !filepath.IsAbs(file) && configDir != "" {
+			file = filepath.Join(configDir, file)
+		}
+
+		out = append(out, file)
+	}
+
+	return out
+}
+
+// ociSelectCredentialCandidate returns the most specific source, ties broken by discovery order (inline first).
+func ociSelectCredentialCandidate(
+	ctx context.Context,
+	l log.Logger,
+	tofu *ociTofuCredentials,
+	stores []ociAmbientStore,
+	hostport, repositoryName string,
+) ociCredentialCandidate {
+	var best ociCredentialCandidate
+
+	for i := range tofu.repos {
+		repo := &tofu.repos[i]
+		if !repo.matches(hostport, repositoryName) {
+			continue
+		}
+
+		cand := ociTofuCandidate(repo, hostport)
+		keepBestCandidate(&best, &cand)
+	}
+
+	defaultHelper := ociTofuDefaultHelperCandidate(tofu, hostport)
+	keepBestCandidate(&best, &defaultHelper)
+
+	for _, ambient := range stores {
+		inline := ociAmbientInlineCandidate(ctx, l, ambient, hostport, repositoryName)
+		keepBestCandidate(&best, &inline)
+
+		helper := ociAmbientHelperCandidate(ambient, hostport)
+		keepBestCandidate(&best, &helper)
+
+		credsStore := ociAmbientCredsStoreCandidate(ambient, hostport)
+		keepBestCandidate(&best, &credsStore)
+	}
+
+	return best
+}
+
+// keepBestCandidate replaces best with cand when cand outranks it, ignoring the no-source zero candidate.
+func keepBestCandidate(best, cand *ociCredentialCandidate) {
+	if cand.specificity != 0 && ociOutranks(cand, best) {
+		*best = *cand
+	}
+}
+
+// ociTofuDefaultHelperCandidate ranks the oci_default_credentials helper as a global-specificity CLI source.
+func ociTofuDefaultHelperCandidate(tofu *ociTofuCredentials, hostport string) ociCredentialCandidate {
+	if tofu.defaultHelper == "" {
+		return ociCredentialCandidate{}
+	}
+
+	return ociCredentialCandidate{
+		helper: &ociHelperEntry{
+			suffix:        tofu.defaultHelper,
+			serverAddress: ociTofuHelperServerAddress(hostport),
+			explicit:      true,
+		},
+		specificity:   ociGlobalSpecificity,
+		fromCLIConfig: true,
+	}
+}
+
+// ociAmbientInlineCandidate ranks the most specific inline login that resolves in one ambient file.
+func ociAmbientInlineCandidate(
+	ctx context.Context,
+	l log.Logger,
+	ambient ociAmbientStore,
+	hostport, repositoryName string,
+) ociCredentialCandidate {
+	for _, key := range ociCredentialKeys(hostport, repositoryName) {
+		cred := ociCredentialFromAmbientStore(ctx, l, ambient, key)
+		if cred == auth.EmptyCredential {
+			continue
+		}
+
+		return ociCredentialCandidate{static: cred, specificity: ociInlineSpecificity(key)}
+	}
+
+	return ociCredentialCandidate{}
+}
+
+// ociAmbientHelperCandidate ranks a per-registry credHelpers entry, which wins a tie with a domain inline login.
+func ociAmbientHelperCandidate(ambient ociAmbientStore, hostport string) ociCredentialCandidate {
+	entry, hasHelper := ambient.credHelpers[ociCanonicalAuthKey(hostport)]
+	if !hasHelper {
+		return ociCredentialCandidate{}
+	}
+
+	return ociCredentialCandidate{helper: &entry, specificity: ociDomainSpecificity}
+}
+
+// ociAmbientCredsStoreCandidate ranks the file's global credsStore, the least specific source.
+func ociAmbientCredsStoreCandidate(ambient ociAmbientStore, hostport string) ociCredentialCandidate {
+	if ambient.credsStore == "" {
+		return ociCredentialCandidate{}
+	}
+
+	return ociCredentialCandidate{
+		helper:      &ociHelperEntry{suffix: ambient.credsStore, serverAddress: ociHelperServerAddress(hostport)},
+		specificity: ociGlobalSpecificity,
+	}
+}
+
+// ociExecuteCredentialCandidate runs the winning source now, with an explicit helper fatal and credsStore best-effort.
+func ociExecuteCredentialCandidate(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	best *ociCredentialCandidate,
+	hostport string,
+) (auth.Credential, error) {
+	if best.helper == nil {
+		return best.static, nil
+	}
+
+	cred, err := ociCredentialFromHelper(ctx, v, *best.helper, ociCredentialHelperTimeout)
+	if err != nil {
+		if best.helper.explicit {
+			return auth.EmptyCredential, err
+		}
+
+		l.Warnf("Skipping OCI credsStore helper %q for %s: %v", best.helper.suffix, hostport, err)
+
+		return auth.EmptyCredential, nil
+	}
+
+	return cred, nil
+}
+
+// ociHelperServerAddress folds a Docker Hub host to the index server helpers
+// store Hub credentials under, and returns other hosts unchanged.
+func ociHelperServerAddress(hostport string) string {
+	if ociCanonicalAuthKey(hostport) == ociDockerHubKey {
+		return ociDockerHubIndexServer
+	}
+
+	return hostport
+}
+
+// ociTofuHelperServerAddress builds the fixed https:// address tofu sends; the registry client never speaks plain HTTP.
+func ociTofuHelperServerAddress(hostport string) string {
+	return "https://" + hostport
+}
+
+// ociCredentialFromHelper runs docker-credential-<helper> get under v.Env; timeout <= 0 uses the default cap.
+func ociCredentialFromHelper(
+	ctx context.Context,
+	v *venv.Venv,
+	entry ociHelperEntry,
+	timeout time.Duration,
+) (auth.Credential, error) {
+	// The name is only the suffix of docker-credential-<name>, so a separator would run a non-PATH binary.
+	if !ociValidHelperName(entry.suffix) {
+		return auth.EmptyCredential, OCICredentialHelperError{
+			Helper:   entry.suffix,
+			Registry: entry.serverAddress,
+			Err:      ErrOCIInvalidHelperName,
+		}
+	}
+
+	bin := ociCredentialHelperPrefix + entry.suffix
+
+	if _, err := v.Exec.LookPath(bin); err != nil {
+		return auth.EmptyCredential, OCICredentialHelperError{Helper: entry.suffix, Registry: entry.serverAddress, Err: err}
+	}
+
+	if timeout <= 0 {
+		timeout = ociCredentialHelperTimeout
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	cmd := v.Exec.Command(ctx, bin, "get")
+	cmd.SetStdin(strings.NewReader(entry.serverAddress))
+	cmd.SetEnv(ociEnvSlice(ctx, v.Env))
+	cmd.SetWaitDelay(ociCredentialHelperWaitDelay)
+
+	stderr := &boundedWriter{max: ociHelperStderrMax}
+	cmd.SetStderr(stderr)
+
+	out, err := cmd.Output()
+	if err != nil {
+		// Helpers report not-found on stdout and exit non-zero, matching the
+		// docker-credential protocol; that case is empty, not an error.
+		if strings.TrimSpace(string(out)) == ociHelperCredentialsNotFound {
+			return auth.EmptyCredential, nil
+		}
+
+		return auth.EmptyCredential, OCICredentialHelperError{
+			Helper:   entry.suffix,
+			Registry: entry.serverAddress,
+			Err:      err,
+			Stderr:   strings.TrimSpace(stderr.String()),
+		}
+	}
+
+	return ociCredentialFromHelperOutput(entry, out)
+}
+
+// ociEnvSlice renders env as a non-nil KEY=VALUE slice and injects TRACEPARENT from ctx when present.
+func ociEnvSlice(ctx context.Context, env map[string]string) []string {
+	n := len(env)
+	traceParent := telemetry.TraceParentFromContext(ctx, nil)
+
+	if traceParent != "" {
+		if _, ok := env[telemetry.TraceParentEnv]; !ok {
+			n++
+		}
+	}
+
+	out := make([]string, 0, n)
+
+	for _, key := range slices.Sorted(maps.Keys(env)) {
+		if key == telemetry.TraceParentEnv && traceParent != "" {
+			continue
+		}
+
+		out = append(out, key+"="+env[key])
+	}
+
+	if traceParent != "" {
+		out = append(out, telemetry.TraceParentEnv+"="+traceParent)
+	}
+
+	return out
+}
+
+// boundedWriter accumulates at most max bytes and discards the rest.
+type boundedWriter struct {
+	buf       strings.Builder
+	max       int
+	truncated bool
+}
+
+func (w *boundedWriter) Write(p []byte) (int, error) {
+	n := len(p)
+
+	remaining := w.max - w.buf.Len()
+	if remaining <= 0 {
+		w.truncated = true
+
+		return n, nil
+	}
+
+	if remaining < len(p) {
+		p = p[:remaining]
+		w.truncated = true
+	}
+
+	w.buf.Write(p)
+
+	return n, nil
+}
+
+// String returns the captured bytes, marking a trailing ellipsis when capped.
+func (w *boundedWriter) String() string {
+	if w.truncated {
+		return w.buf.String() + "..."
+	}
+
+	return w.buf.String()
+}
+
+// ociCredentialFromHelperOutput decodes docker-credential-helper get output.
+// A "<token>" username marks a bearer token, matching the helper protocol.
+func ociCredentialFromHelperOutput(entry ociHelperEntry, out []byte) (auth.Credential, error) {
+	var decoded struct {
+		Username string `json:"Username"`
+		Secret   string `json:"Secret"`
+	}
+
+	if err := json.Unmarshal(out, &decoded); err != nil {
+		// The raw output holds the secret, so wrap a sentinel, never the bytes.
+		return auth.EmptyCredential, OCICredentialHelperError{
+			Helper:   entry.suffix,
+			Registry: entry.serverAddress,
+			Err:      ErrOCIHelperMalformedOutput,
+		}
+	}
+
+	if decoded.Username == ociHelperTokenUsername {
+		return auth.Credential{RefreshToken: decoded.Secret}, nil
+	}
+
+	return auth.Credential{Username: decoded.Username, Password: decoded.Secret}, nil
+}
+
+// loadOCIAmbientStores reads the Docker-style credential files docker_style_config_files replaces when set.
+func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) ([]ociAmbientStore, error) {
 	candidates := ociAmbientCredentialPaths(v)
+
+	explicit := tofu.configFilesSet
+	if explicit {
+		candidates = ociResolveConfigFiles(tofu.configDir, tofu.configFiles)
+	}
+
 	stores := make([]ociAmbientStore, 0, len(candidates))
 
 	for _, candidate := range candidates {
-		auths, declared, err := ociAuthFile(v, candidate)
+		file, err := ociAuthFile(v, candidate)
 		if err != nil {
+			if explicit {
+				return nil, OCIAmbientConfigFileError{Path: candidate, Err: err}
+			}
+
 			if !errors.Is(err, iofs.ErrNotExist) {
 				l.Warnf("Skipping unparseable OCI credential file %s: %v", candidate, err)
 			}
@@ -252,13 +553,15 @@ func loadOCIAmbientStores(l log.Logger, v *venv.Venv) []ociAmbientStore {
 		}
 
 		stores = append(stores, ociAmbientStore{
-			auths:    auths,
-			declared: declared,
-			path:     candidate,
+			auths:       file.auths,
+			declared:    file.declared,
+			credHelpers: file.credHelpers,
+			credsStore:  file.credsStore,
+			path:        candidate,
 		})
 	}
 
-	return stores
+	return stores, nil
 }
 
 func ociCredentialFromAmbientStore(
@@ -367,21 +670,20 @@ func ociCanonicalAuthKey(key string) string {
 }
 
 // ociAuthFile reads an auth file through v.FS and builds its exact-key index.
-func ociAuthFile(
-	v *venv.Venv,
-	path string,
-) (map[string]json.RawMessage, map[string][]string, error) {
+func ociAuthFile(v *venv.Venv, path string) (authFile, error) {
 	data, err := vfs.ReadFile(v.FS, path)
 	if err != nil {
-		return nil, nil, err
+		return authFile{}, err
 	}
 
 	var file struct {
-		Auths map[string]json.RawMessage `json:"auths"`
+		Auths       map[string]json.RawMessage `json:"auths"`
+		CredHelpers map[string]string          `json:"credHelpers"`
+		CredsStore  string                     `json:"credsStore"`
 	}
 
 	if err := json.Unmarshal(data, &file); err != nil {
-		return nil, nil, err
+		return authFile{}, err
 	}
 
 	declaredKeys := make(map[string][]string, len(file.Auths))
@@ -392,7 +694,32 @@ func ociAuthFile(
 		declaredKeys[canonical] = append(declaredKeys[canonical], declared)
 	}
 
-	return file.Auths, declaredKeys, nil
+	credHelpers := make(map[string]ociHelperEntry, len(file.CredHelpers))
+	// The declared spelling is the server address helpers store credentials
+	// under (e.g. https://index.docker.io/v1/), so keep it, not the canonical key.
+	for _, declared := range slices.Sorted(maps.Keys(file.CredHelpers)) {
+		// An empty helper name is not runnable, so skip it and fall through to credsStore or inline auths.
+		suffix := file.CredHelpers[declared]
+		if suffix == "" {
+			continue
+		}
+
+		credHelpers[ociCanonicalAuthKey(declared)] = ociHelperEntry{
+			suffix:        suffix,
+			serverAddress: declared,
+			explicit:      true,
+		}
+	}
+
+	return authFile{auths: file.Auths, declared: declaredKeys, credHelpers: credHelpers, credsStore: file.CredsStore}, nil
+}
+
+// authFile is one parsed Docker/containers auth file.
+type authFile struct {
+	auths       map[string]json.RawMessage
+	declared    map[string][]string
+	credHelpers map[string]ociHelperEntry
+	credsStore  string
 }
 
 // ociCredentialFromAuthConfig delegates one selected entry to ORAS's Docker

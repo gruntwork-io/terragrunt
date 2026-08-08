@@ -3,7 +3,7 @@ title: validate
 description: Recursively find HashiCorp Configuration Language (HCL) files and validate them.
 slug: reference/cli/commands/hcl/validate
 sidebar:
-  order: 900
+  order: 901
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/reference/cli/commands/[...slug].astro -->

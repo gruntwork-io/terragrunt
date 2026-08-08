@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 )
 
 // Custom error types
@@ -438,6 +440,21 @@ func (err VersionAttributeRequiresExperimentError) Error() string {
 	)
 }
 
+// MutableGenerateRequiresExperimentError is returned when a generate block sets the
+// mutable attribute without the mutable-generate experiment enabled.
+type MutableGenerateRequiresExperimentError struct {
+	ConfigPath string
+	BlockName  string
+}
+
+func (err MutableGenerateRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"the generate block %q in %s sets the mutable attribute, which requires the 'mutable-generate' experiment; enable it with --experiment mutable-generate",
+		err.BlockName,
+		err.ConfigPath,
+	)
+}
+
 // VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
 // version attribute but its source is not a tfr:// registry URL, where a version
 // constraint has no meaning.
@@ -462,5 +479,28 @@ func (err VersionAttributeSourceConstraintConflictError) Error() string {
 	return fmt.Sprintf(
 		"the terraform block in %s sets both the version attribute and an inline ?version= on its source; specify the version in only one place",
 		err.ConfigPath,
+	)
+}
+
+// ExpansionRequiresExperimentError is returned when a dependency, unit, or stack block
+// carries an expansion block without the block-iteration experiment enabled.
+type ExpansionRequiresExperimentError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+}
+
+func (err ExpansionRequiresExperimentError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s uses an expansion block, which requires the '%s' experiment; enable it with --experiment %s",
+		block,
+		err.ConfigPath,
+		experiment.BlockIteration,
+		experiment.BlockIteration,
 	)
 }

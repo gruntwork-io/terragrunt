@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
@@ -14,19 +15,22 @@ import (
 type DiscoveryCommandOptions struct {
 	WorkingDir        string
 	QueueConstructAs  string
+	DiscoveryBoundary string
 	Filters           filter.Filters
 	NoHidden          bool
 	Exclude           bool
 	Include           bool
 	Reading           bool
+	ParseStackConfigs bool
 	WithRequiresParse bool
 	WithRelationships bool
 }
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
 type HCLCommandOptions struct {
-	WorkingDir string
-	Filters    filter.Filters
+	WorkingDir        string
+	DiscoveryBoundary string
+	Filters           filter.Filters
 }
 
 // StackGenerateOptions contains options for stack generate commands.
@@ -36,7 +40,7 @@ type StackGenerateOptions struct {
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
-func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Discovery, error) {
+func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
 		WithBreakCycles()
@@ -63,6 +67,10 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 
 	if opts.Reading {
 		d = d.WithReadFiles()
+	}
+
+	if opts.ParseStackConfigs {
+		d = d.WithParseStackConfigs()
 	}
 
 	if opts.QueueConstructAs != "" {
@@ -94,15 +102,43 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 		d = d.WithFilters(opts.Filters)
 	}
 
+	if opts.DiscoveryBoundary != "" {
+		boundary, err := resolveDiscoveryBoundary(
+			fsys,
+			opts.WorkingDir,
+			opts.DiscoveryBoundary,
+			boundaryEnclosureFor(opts.Filters),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		d = d.WithDiscoveryBoundary(boundary)
+	}
+
 	return d, nil
 }
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) {
+func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.Filters) > 0 {
 		d = d.WithFilters(opts.Filters)
+	}
+
+	if opts.DiscoveryBoundary != "" {
+		boundary, err := resolveDiscoveryBoundary(
+			fsys,
+			opts.WorkingDir,
+			opts.DiscoveryBoundary,
+			boundaryEnclosureFor(opts.Filters),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		d = d.WithDiscoveryBoundary(boundary)
 	}
 
 	return d, nil

@@ -222,6 +222,8 @@ export default defineConfig({
     "/features/run-queue/": "/features/stacks/run-queue/",
     "/features/debugging/": "/troubleshooting/debugging/",
     "/upgrade/upgrading_to_terragrunt_0.19.x/": "/migrate/upgrading_to_terragrunt_0.19.x/",
+    "/reference/terragrunt-cache/": "/features/units/terragrunt-cache/",
+    "/reference/lock-files/": "/features/units/lock-files/",
 
     // Merged pages
     "/features/stacks/dependencies/": "/features/stacks/stack-operations/",
@@ -280,7 +282,7 @@ export default defineConfig({
     "/features/before-and-after-hooks/": "/features/units/hooks/",
     "/etting-started/configuration/": "/reference/hcl/", // typo in original URL
     "/features/log-formatting": "/reference/logging/formatting/",
-    "/reference/lock-file-handling/": "/reference/lock-files/",
+    "/reference/lock-file-handling/": "/features/units/lock-files/",
 
     // Restructured docs
     "/reference/cli/rules": "/process/cli-rules/",

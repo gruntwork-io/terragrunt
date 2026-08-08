@@ -46,6 +46,7 @@ Each getter has a dedicated page describing its exact mechanics:
 | [Google Cloud Storage](/features/caching/cas/gcs) | Object metadata read exposes the MD5 or CRC32C checksum | Content-addressed |
 | [Mercurial](/features/caching/cas/mercurial) | `hg identify` resolves a revision to a node hash | Content-addressed |
 | [OpenTofu/Terraform Registry](/features/caching/cas/registry) | Registry protocol resolves the underlying archive URL | Content-addressed on the immutable archive |
+| [OCI](/features/caching/cas/oci) | A `?digest=` pin is the key itself; a tag resolves to its manifest digest | Content-addressed on the manifest digest |
 | [SMB](/features/caching/cas/smb) | None; always downloads | Content-addressed on the downloaded tree |
 | [Local paths](/features/caching/cas/local) | None; always copies | Content-addressed on the copied tree |
 

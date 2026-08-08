@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -26,15 +27,15 @@ func copyFinishedFromNames(
 	required, optional []string,
 	valuesWritten, valuesSkipped bool,
 ) tui.CopyFinishedMsg {
-	opt := make([]tui.OptionalValue, len(optional))
+	opt := make([]component.OptionalValue, len(optional))
 	for i, name := range optional {
-		opt[i] = tui.OptionalValue{Name: name}
+		opt[i] = component.OptionalValue{Name: name}
 	}
 
 	return tui.CopyFinishedMsg{
-		Result: tui.CopyResult{
-			WorkingDir:    workingDir,
-			References:    tui.ValuesReferences{Required: required, Optional: opt},
+		Result: component.Result{
+			Dir:           workingDir,
+			References:    component.ValuesReferences{Required: required, Optional: opt},
 			ValuesWritten: valuesWritten,
 			ValuesSkipped: valuesSkipped,
 		},
@@ -49,13 +50,13 @@ func makeComponents(t *testing.T) []*tui.ComponentEntry {
 
 	return []*tui.ComponentEntry{
 		tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/test-repo-1",
 			"modules/aws-vpc",
 			"# AWS VPC Module\nThis module creates a VPC in AWS.",
 		)).WithSource("github.com/gruntwork-io/test-repo-1"),
 		tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/test-repo-2",
 			"modules/eks-cluster",
 			"# AWS EKS Module\nThis module creates an EKS cluster.",
@@ -123,13 +124,13 @@ func makeMixedComponents(t *testing.T) []*tui.ComponentEntry {
 
 	return []*tui.ComponentEntry{
 		tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/test-repo",
 			"modules/aws-vpc",
 			"# AWS VPC",
 		)).WithSource("github.com/gruntwork-io/test-repo"),
 		tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindTemplate,
+			component.KindTemplate,
 			"github.com/gruntwork-io/test-repo",
 			"templates/service",
 			"# Service Template",
@@ -179,7 +180,7 @@ func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 
 		templatesItems := finalModel.List().Items()
 		require.Len(t, templatesItems, 1, "Templates tab should contain only the one template")
-		assert.Equal(t, tui.ComponentKindTemplate, templatesItems[0].(*tui.ComponentEntry).Kind())
+		assert.Equal(t, component.KindTemplate, templatesItems[0].(*tui.ComponentEntry).Kind())
 	})
 }
 
@@ -229,7 +230,7 @@ func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 // the interactive scaffold key (`s`) on a copyable component transitions
 // the Model to FormState. The discovery goroutine runs synchronously via
 // tea.Cmd, so once the form is ready the model has both a form pointer and
-// a captured ValuesReferences.
+// a captured component.ValuesReferences.
 func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -249,7 +250,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
-		require.Equal(t, tui.ComponentKindUnit, components[0].Kind)
+		require.Equal(t, component.KindUnit, components[0].Kind)
 
 		opts, err := options.NewTerragruntOptionsForTest("")
 		require.NoError(t, err)
@@ -305,7 +306,7 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
-		require.Equal(t, tui.ComponentKindUnit, components[0].Kind)
+		require.Equal(t, component.KindUnit, components[0].Kind)
 
 		opts, err := options.NewTerragruntOptionsForTest("")
 		require.NoError(t, err)
@@ -792,7 +793,7 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 		// A plain module component (not copyable): pressing Enter pushes
 		// into PagerState rather than kicking off a copy action.
 		entry := tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/fake-repo",
 			"modules/vpc",
 			"# VPC Module\nA module.",
@@ -821,7 +822,7 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 // TestModelPagerWToggleFlipsSoftWrapWithRacing exercises the `w` key in
 // PagerState: starting from default soft-wrap on, one press flips it
 // off, a second flips it back. The toggle also rebuilds the cached
-// glamour renderer, which is hard to inspect from outside, so we rely on
+// Markdown renderer, which is hard to inspect from outside, so we rely on
 // the visible softWrap accessor to verify the lifecycle.
 func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
 	t.Parallel()
@@ -835,7 +836,7 @@ func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
 		l := logger.CreateLogger()
 
 		entry := tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/fake-repo",
 			"modules/vpc",
 			"# VPC Module\nA module.",

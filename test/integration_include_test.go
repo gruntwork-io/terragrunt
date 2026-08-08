@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -31,7 +33,7 @@ const (
 	includeRemoteStateDepsFixturePath = "fixtures/dependency-include-remote-state/"
 )
 
-func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
+func TestTFTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
@@ -76,7 +78,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		})
 	}
 }
-func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
+func TestTFTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
@@ -122,7 +124,7 @@ func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 	}
 }
 
-func TestTerragruntFilterReadingRestrictsSet(t *testing.T) {
+func TestTFTerragruntFilterReadingRestrictsSet(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
@@ -140,7 +142,7 @@ func TestTerragruntFilterReadingRestrictsSet(t *testing.T) {
 	assert.NotContains(t, stdout, "charlie")
 }
 
-func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
+func TestTFTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
@@ -205,7 +207,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	)
 }
 
-func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
+func TestTFTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, includeDeepFixturePath)
@@ -257,7 +259,7 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	)
 }
 
-func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
+func TestTFTerragruntWorksWithMultipleInclude(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, includeMultipleFixturePath)
@@ -302,7 +304,7 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	}
 }
 
-func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
+func TestTFTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 	t.Parallel()
 
 	// This is a regression test to ensure that users can still have a root terragrunt.hcl at the project root,
@@ -356,7 +358,7 @@ func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 	assert.Nil(t, rootRun, "Root directory should not be in the report as it should be excluded")
 }
 
-// TestIncludeRemoteStateNoSpuriousUnknownVariableErrors covers both sides of
+// TestTFIncludeRemoteStateNoSpuriousUnknownVariableErrors covers both sides of
 // the rebind contract.
 //
 // The first subtest asserts the `Unknown variable "dependency"` log line no
@@ -366,7 +368,7 @@ func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 // The second subtest patches the child config to reference an undeclared
 // identifier and asserts the resulting error still reaches stderr, so the
 // rebind path is not silently swallowing real diagnostics.
-func TestIncludeRemoteStateNoSpuriousUnknownVariableErrors(t *testing.T) {
+func TestTFIncludeRemoteStateNoSpuriousUnknownVariableErrors(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T) string {

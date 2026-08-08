@@ -1,0 +1,124 @@
+---
+title: Non-interactive catalog
+description: Read the catalog from a script or an agent, as JSON Lines or Markdown.
+slug: features/catalog/non-interactive
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+The `--format` flag is gated behind the [`catalog-format`](/reference/experiments/active#catalog-format) experiment. Enable it with `--experiment=catalog-format` or `TG_EXPERIMENT=catalog-format`.
+
+The examples below omit it for brevity.
+</Aside>
+
+The [catalog TUI](/features/catalog/tui) needs a terminal, which leaves scripts, CI jobs, and agents with no way to read what the catalog discovers. The `--format` flag writes the same discovery to standard output instead, in one of two formats:
+
+- `jsonl` for a program that parses what it reads.
+- `md` for a person or an agent that reads prose.
+
+Both carry the same information, and neither is interactive. Scaffolding stays in the TUI.
+
+## JSON Lines
+
+`--format=jsonl` writes [JSON Lines](https://jsonlines.org/): one JSON object per line, and nothing else.
+
+```bash
+$ terragrunt catalog --format=jsonl | jq -c '{kind, title, component_source}'
+{"kind":"module","title":"VPC","component_source":"github.com/acme/infrastructure-modules//modules/vpc"}
+{"kind":"unit","title":"App","component_source":"github.com/acme/infrastructure-units//units/app"}
+```
+
+Every line is a catalog entry that you would normally see in the catalog TUI.
+
+## Markdown
+
+`--format=md` writes one document, with a section per entry.
+
+```bash
+terragrunt catalog --format=md > catalog.md
+```
+
+The document opens with a header describing what it holds, and gives each entry a section:
+
+````markdown
+## VPC
+
+Creates a VPC.
+
+| Field | Value |
+| --- | --- |
+| Kind | `module` |
+| Source | `github.com/acme/infrastructure-modules` |
+| Directory | `modules/vpc` |
+| Version | `v0.14.2` |
+| URL | <https://github.com/acme/infrastructure-modules/tree/main/modules/vpc> |
+| Component source | `github.com/acme/infrastructure-modules//modules/vpc` |
+
+| Tag |
+| --- |
+| `networking` |
+
+```markdown
+Everything a VPC needs.
+```
+````
+
+The description leads the section as prose, and the rest of the entry follows as a table. The rows hold the fields described under [Entry structure](#entry-structure). The `Component source` row identifies where the component is scaffolded from: hand it to [`terragrunt scaffold`](/features/catalog/scaffold) for a module or a template, or use the TUI for a unit or a stack, which are scaffolded by copying.
+
+Tags get a table of their own, a row each, and an entry that declares none has no tag table.
+
+Each README is reproduced inside a fenced block, so the headings a README carries are not read as sections of the catalog document. The fence is made longer than any fence inside the README, so a README that contains fenced code blocks of its own is still enclosed by one block.
+
+The document closes with a table of what it holds, and the count that marks it complete:
+
+```markdown
+| Component | Kind | Component source |
+| --- | --- | --- |
+| VPC | `module` | `github.com/acme/infrastructure-modules//modules/vpc` |
+| App | `unit` | `github.com/acme/infrastructure-units//units/app` |
+
+Discovered 2 components from 2 sources.
+```
+
+The table comes last because the content written to stdout is streamed in as components are discovered.
+
+## Streaming
+
+Entries are written as they are discovered, and each one is flushed as it is written, so results are readable while the remaining repositories are still being cloned. A consumer that stops reading ends the command:
+
+```bash
+terragrunt catalog --format=jsonl | head -5
+```
+
+Once the reader closes the pipe, Terragrunt stops loading, removes the repositories it cloned, and exits with status 0, writing nothing to standard error.
+
+Scripts and agents can use this to avoid waiting on a complete load of the catalog when they see the result they care about.
+
+## Keeping the streams apart
+
+Standard output carries entries and nothing else. Logs and diagnostics go to standard error, including the report of any repository that fails to load.
+
+Keep it that way when you parse the output. A large README makes an entry longer than the operating system writes to a pipe in one go, so a log line merged into the same stream with `2>&1` can land in the middle of an entry and break the parse.
+
+## Ordering
+
+Repositories are loaded concurrently, so entries interleave across them and appear in whatever order discovery produced. That order is not stable between runs, and nothing sorts it, because sorting would mean holding every entry until the slowest repository finished loading.
+
+Collect the stream first when you need a fixed order:
+
+```bash
+terragrunt catalog --format=jsonl | jq -s -c 'sort_by(.component_source)[]'
+```
+
+## Entry structure
+
+Entries are described by a [published JSON schema](https://docs.terragrunt.com/schemas/catalog/v1/schema.json). The schema covers a single entry, so validate each line of `jsonl` output on its own rather than the stream as a whole. The `md` format writes the same fields as rows of a table, under labels of their own, and is not covered by the schema.
+
+The `doc` field holds the body of the component's README (which can be a lot of data) so drop it when the metadata is all you need:
+
+```bash
+terragrunt catalog --format=jsonl | jq -c 'del(.doc)'
+```

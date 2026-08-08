@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -85,6 +86,7 @@ func TestParseAllFixtureFiles(t *testing.T) {
 			ctx, pctx := configbridge.NewParsingContext(
 				context.TODO(), // Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
 				l,
+				venv.OSVenv(),
 				opts,
 			)
 

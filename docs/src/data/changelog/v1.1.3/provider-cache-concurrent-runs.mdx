@@ -1,0 +1,8 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Fix concurrent Terragrunt runs interfering with provider downloads
+
+Two Terragrunt runs on the same machine can now cache the same provider at the same time. Previously each run staged its downloads at the same path, so a run that finished first could delete an archive another run was still unpacking, failing that run with `failed to open zip archive`.

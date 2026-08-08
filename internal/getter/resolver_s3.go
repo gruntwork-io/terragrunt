@@ -161,27 +161,27 @@ func pickS3CacheKey(rawURL string, head *s3.HeadObjectOutput) (string, error) {
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	if v := strPtr(head.ChecksumSHA256); v != "" {
+	if v := deref(head.ChecksumSHA256); v != "" {
 		return cas.ContentKey("sha256", v), nil
 	}
 
-	if v := strPtr(head.ChecksumCRC64NVME); v != "" {
+	if v := deref(head.ChecksumCRC64NVME); v != "" {
 		return cas.ContentKey("crc64nvme", v), nil
 	}
 
-	if v := strPtr(head.ChecksumSHA1); v != "" {
+	if v := deref(head.ChecksumSHA1); v != "" {
 		return cas.ContentKey("sha1", v), nil
 	}
 
-	if v := strPtr(head.ChecksumCRC32C); v != "" {
+	if v := deref(head.ChecksumCRC32C); v != "" {
 		return cas.ContentKey("crc32c", v), nil
 	}
 
-	if v := strPtr(head.ChecksumCRC32); v != "" {
+	if v := deref(head.ChecksumCRC32); v != "" {
 		return cas.ContentKey("crc32", v), nil
 	}
 
-	if etag := strings.TrimSpace(strPtr(head.ETag)); etag != "" {
+	if etag := strings.TrimSpace(deref(head.ETag)); etag != "" {
 		if normalized := normalizeETag(etag); normalized != "" {
 			return cas.OpaqueKey("s3", rawURL, normalized), nil
 		}
@@ -315,15 +315,6 @@ func s3RegionFromHostLabel(label string) (region string, ok bool) {
 	}
 
 	return "", false
-}
-
-// strPtr safely dereferences a *string.
-func strPtr(p *string) string {
-	if p == nil {
-		return ""
-	}
-
-	return *p
 }
 
 // canonicalAWSS3HTTPSURL returns the path-style HTTPS URL for an AWS S3

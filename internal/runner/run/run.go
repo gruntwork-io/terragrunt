@@ -18,7 +18,9 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
@@ -39,6 +41,8 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+	tofuCPUProfileName              = "tofu_cpu.prof"
+	tofuProfileDirMode              = 0o700
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -88,6 +92,11 @@ func Run(
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
 ) error {
+	// A TOFU_CPU_PROFILE present in the environment before Terragrunt derives one was set by the user.
+	if _, set := v.Env[tf.EnvNameTofuCPUProfile]; set {
+		opts.TofuCPUProfileUserSet = true
+	}
+
 	engine, err := cfg.EngineOptions()
 	if err != nil {
 		return err
@@ -113,7 +122,7 @@ func Run(
 
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
-	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return ProcessHooks(ctx, l, v, ProcessHooksParams{
 			Hooks:    cfg.Terraform.AfterHooks,
 			Opts:     terragruntOptionsClone,
@@ -131,7 +140,7 @@ func Run(
 		opts.OriginalIAMRoleOptions,
 	)
 
-	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(
 			ctx, l, v,
 			amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env),
@@ -176,7 +185,7 @@ func Run(
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = GenerateConfig(l, v.FS, updatedOpts, cfg); err != nil {
+	if err = GenerateConfig(ctx, l, v, updatedOpts, cfg); err != nil {
 		return err
 	}
 
@@ -188,11 +197,11 @@ func Run(
 		}
 	}
 
-	if err := CheckFolderContainsTerraformCode(updatedOpts); err != nil {
+	if err := CheckFolderContainsTerraformCode(v.FS, updatedOpts); err != nil {
 		return err
 	}
 
-	if err := opts.RunWithErrorHandling(ctx, l, r, func() error {
+	if err := opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return runTerragruntWithConfig(ctx, l, v, opts, updatedOpts, cfg, r)
 	}); err != nil {
 		return err
@@ -202,28 +211,36 @@ func Run(
 }
 
 // GenerateConfig handles code generation using config types (for backwards compatibility).
-func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfig) error {
+func GenerateConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
 	actualLock := rawActualLock.(*sync.Mutex)
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
+	writeOpts := generateWriteOptions(l, opts)
+
 	for _, genCfg := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts.CacheDir, &genCfg); err != nil {
+		if err := codegen.WriteToFile(ctx, l, v, opts.CacheDir, &genCfg, writeOpts...); err != nil {
 			return err
 		}
 	}
 
 	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
-		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.CacheDir); err != nil {
+		if err := cfg.RemoteState.GenerateOpenTofuCode(ctx, l, v, opts.CacheDir); err != nil {
 			return err
 		}
 	} else if cfg.RemoteState.Config != nil {
 		// We use else if here because we don't need to check the backend configuration is defined when the remote state
 		// block has a `generate` attribute configured.
 		if err := checkTerraformCodeDefinesBackend(
-			fs,
+			v.FS,
 			opts,
 			cfg.RemoteState.BackendName,
 		); err != nil {
@@ -232,6 +249,26 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 	}
 
 	return nil
+}
+
+// generateWriteOptions decides whether generated files are deduplicated through
+// the CAS store.
+//
+// A CAS that cannot be initialized is not fatal: generation falls back to direct
+// writes, matching how source downloads degrade.
+func generateWriteOptions(l log.Logger, opts *Options) []codegen.WriteOption {
+	if opts.NoCAS || !opts.Experiments.Evaluate(experiment.MutableGenerate) {
+		return nil
+	}
+
+	c, err := cas.New()
+	if err != nil {
+		l.Warnf("Failed to initialize CAS: %v. Generated files will not be deduplicated.", err)
+
+		return nil
+	}
+
+	return []codegen.WriteOption{codegen.WithContentStore(cas.NewContent(c.BlobStore()))}
 }
 
 // Runs tofu/terraform with the given options and CLI args.
@@ -264,7 +301,12 @@ func runTerragruntWithConfig(
 
 		opts.InsertTerraformCliArgs(args...)
 
-		maps.Copy(v.Env, filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg))
+		extraEnvVars := filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg)
+		if _, set := extraEnvVars[tf.EnvNameTofuCPUProfile]; set {
+			opts.TofuCPUProfileUserSet = true
+		}
+
+		maps.Copy(v.Env, extraEnvVars)
 	}
 
 	if err := SetTerragruntInputsAsEnvVars(l, v.Env, cfg); err != nil {
@@ -312,6 +354,11 @@ func runTerragruntWithConfig(
 		cfg,
 		r,
 		func(childCtx context.Context) error {
+			// Set the per-command downstream profile path here so auto-init and the main command can use distinct profiles.
+			if err := SetTofuCPUProfileEnv(l, v, opts); err != nil {
+				return err
+			}
+
 			// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
 			out, runTerraformError := tf.RunCommandWithOutput(
 				childCtx, l, v,
@@ -330,6 +377,7 @@ func runTerragruntWithConfig(
 				// Use directory from OriginalTerragruntConfigPath to copy locks since WorkingDir point to cache directory
 				lockFileError = runcfg.CopyLockFile(
 					l,
+					v.FS,
 					opts.RootWorkingDir,
 					opts.LogShowAbsPaths,
 					opts.CacheDir,
@@ -470,8 +518,8 @@ func SetTerragruntInputsAsEnvVars(
 }
 
 // CheckFolderContainsTerraformCode checks if the folder contains Terraform/OpenTofu code
-func CheckFolderContainsTerraformCode(opts *Options) error {
-	found, err := util.DirContainsTFFiles(opts.CacheDir)
+func CheckFolderContainsTerraformCode(fsys vfs.FS, opts *Options) error {
+	found, err := util.DirContainsTFFiles(fsys, opts.CacheDir)
 	if err != nil {
 		return err
 	}
@@ -818,7 +866,7 @@ func runTerraformInitRunCfg(
 		return err
 	}
 
-	initV := v
+	initV := v.WithEnvCloned()
 	if suppressInitStdout {
 		initV = initV.WithWriter(io.Discard)
 	}
@@ -900,4 +948,42 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 	}
 
 	return varFile, nil
+}
+
+// SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
+func SetTofuCPUProfileEnv(l log.Logger, v *venv.Venv, opts *Options) error {
+	if opts.ProfileDir == "" {
+		return nil
+	}
+
+	if opts.TofuCPUProfileUserSet {
+		l.Debugf("TOFU_CPU_PROFILE is already set, skipping the per-unit OpenTofu profile path for %s", opts.UnitDir)
+
+		return nil
+	}
+
+	v.RequireEnv()
+
+	unitRelDir := filepath.Join("external", filepath.Base(opts.UnitDir)+"-"+util.EncodeBase64Sha1(opts.UnitDir))
+	if relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath); err == nil && filepath.IsLocal(relPath) {
+		unitRelDir = filepath.Dir(relPath)
+	}
+
+	tofuProfileDir := filepath.Join(opts.ProfileDir, unitRelDir)
+	if err := v.FS.MkdirAll(tofuProfileDir, tofuProfileDirMode); err != nil {
+		return fmt.Errorf("could not create tofu profile directory: %w", err)
+	}
+
+	v.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, tofuCPUProfileFileName(opts.TerraformCommand))
+
+	return nil
+}
+
+// tofuCPUProfileFileName returns a per-command profile file name so auto-init and the main command do not overwrite each other.
+func tofuCPUProfileFileName(command string) string {
+	if command == "" {
+		return tofuCPUProfileName
+	}
+
+	return "tofu_cpu_" + command + ".prof"
 }

@@ -73,16 +73,6 @@ func (caches ProviderCaches) FindByRequestID(requestID string) ProviderCaches {
 	return foundCaches
 }
 
-func (caches ProviderCaches) removeArchive() error {
-	for _, cache := range caches {
-		if err := cache.removeArchive(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 type ProviderCache struct {
 	err error
 	*models.Provider
@@ -490,27 +480,6 @@ func RemoveStaleSymlink(fs vfs.FS, path string) error {
 	return nil
 }
 
-func (cache *ProviderCache) removeArchive() error {
-	fs := cache.ProviderService.FS()
-
-	if cache.archiveCached {
-		exists, err := vfs.FileExists(fs, cache.archivePath)
-		if err != nil {
-			return err
-		}
-
-		if exists {
-			cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
-
-			if err := fs.Remove(cache.archivePath); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
 // isLocalFile checks whether the given path refers to an existing local file.
 // Remote URLs (containing "://") are never checked against the filesystem because
 // on Windows the colon in "https:" is invalid path syntax and causes an error.
@@ -571,26 +540,34 @@ func WithHTTPClient(c vhttp.Client) ProviderServiceOption {
 }
 
 type ProviderService struct {
-	logger                log.Logger
-	providerCacheWarmUpCh chan *ProviderCache
-	credsSource           *cliconfig.CredentialsSource
+	logger log.Logger
 
 	// fs is the filesystem for file operations.
 	fs vfs.FS
 
-	httpClient vhttp.Client
+	initErr               error
+	providerCacheWarmUpCh chan *ProviderCache
+	credsSource           *cliconfig.CredentialsSource
+	httpClient            vhttp.Client
 
-	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
-	cacheDir string
-
-	// The path to a predictable temporary directory for provider archives and lock files.
+	// tempDir is a predictable temporary directory for provider lock files.
 	tempDir string
 
-	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
-	userCacheDir   string
+	archiveDir string
+
+	// userCacheDir is the user plugins directory, by default:
+	// %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on
+	// other systems.
+	userCacheDir string
+
+	// cacheDir is the path to store unpacked providers. The file structure is
+	// the same as the terraform plugin cache dir.
+	cacheDir string
+
 	providerCaches ProviderCaches
 	cacheMu        sync.RWMutex
 	cacheReadyMu   sync.RWMutex
+	initOnce       sync.Once
 }
 
 // FS returns the configured filesystem.
@@ -734,7 +711,7 @@ func (service *ProviderService) CacheProvider(
 			provider.Platform(),
 		),
 		lockfilePath: filepath.Join(service.tempDir, packageName+".lock"),
-		archivePath:  filepath.Join(service.tempDir, packageName+path.Ext(provider.Filename)),
+		archivePath:  filepath.Join(service.archiveDir, packageName+path.Ext(provider.Filename)),
 	}
 
 	service.logger.Debugf("Sending provider %s to warm up channel", provider)
@@ -769,10 +746,25 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	return nil
 }
 
-// Run is responsible to handle a new caching requestID and removing temporary files upon completion.
-func (service *ProviderService) Run(ctx context.Context) error {
+// Init creates the directories the service caches into. It runs at most once,
+// whichever caller reaches it first, and returns the same result to the rest.
+//
+// The server calls it before it serves a single request, because
+// [ProviderService.CacheProvider] builds every path it hands a provider out of
+// these directories: a request answered before they exist would write the
+// provider's archive and lock file to whatever the working directory happens
+// to be.
+func (service *ProviderService) Init() error {
+	service.initOnce.Do(func() {
+		service.initErr = service.init()
+	})
+
+	return service.initErr
+}
+
+func (service *ProviderService) init() error {
 	if service.cacheDir == "" {
-		return errors.New("provider cache directory not specified")
+		return ErrCacheDirNotSpecified
 	}
 
 	service.logger.Debugf("Starting provider cache service with cache dir: %q", service.cacheDir)
@@ -788,6 +780,26 @@ func (service *ProviderService) Run(ctx context.Context) error {
 
 	service.tempDir = filepath.Join(tempDir, "providers")
 	service.logger.Debugf("Provider cache service temp dir: %s", service.tempDir)
+
+	if err := service.FS().MkdirAll(service.tempDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	service.archiveDir, err = vfs.MkdirTemp(service.FS(), service.tempDir, "archives-")
+	if err != nil {
+		return err
+	}
+
+	service.logger.Debugf("Provider cache service archive dir: %s", service.archiveDir)
+
+	return nil
+}
+
+// Run is responsible to handle a new caching requestID and removing temporary files upon completion.
+func (service *ProviderService) Run(ctx context.Context) error {
+	if err := service.Init(); err != nil {
+		return err
+	}
 
 	var (
 		errs   []error
@@ -833,7 +845,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				errs = append(errs, err)
 			}
 
-			if err := service.providerCaches.removeArchive(); err != nil {
+			if err := service.FS().RemoveAll(service.archiveDir); err != nil {
 				errs = append(errs, err)
 			}
 

@@ -24,8 +24,8 @@ const (
 	// TagsDetailStylePills prepends a row of colored pills above the
 	// rendered README body.
 	TagsDetailStylePills TagsDetailStyle = iota
-	// TagsDetailStyleSection appends a `## Tags` markdown section so
-	// glamour renders the tags inline with the rest of the doc.
+	// TagsDetailStyleSection appends a `## Tags` markdown section so the
+	// tags render inline with the rest of the doc.
 	TagsDetailStyleSection
 )
 

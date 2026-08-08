@@ -42,7 +42,6 @@ func init() {
 type App struct {
 	*clihelper.App
 	opts *options.TerragruntOptions
-	l    log.Logger
 }
 
 // NewApp creates the Terragrunt CLI App. The supplied [venv.Venv] is the
@@ -60,27 +59,29 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
 	app.Writer = v.Writers.Writer
 	app.ErrWriter = v.Writers.ErrWriter
 	app.Flags = global.NewFlags(l, opts, nil)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, v))
+	app.Commands = terragruntCommands.
+		WrapAction(commands.WrapWithTelemetry(l, opts, v)).
+		WrapAction(commands.WrapWithProfiling(l, opts, v))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
 	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
 	app.Action = clihelper.ShowAppHelp
 
-	return &App{app, opts, l}
+	return &App{app, opts}
 }
 
-func (app *App) Run(args []string) error {
-	return app.RunContext(context.Background(), args)
+func (app *App) Run(l log.Logger, v *venv.Venv, args []string) error {
+	return app.RunContext(context.Background(), l, v, args)
 }
 
-func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
+func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger) context.Context {
 	ctx, cancel := context.WithCancelCause(ctx)
 
 	signal.NotifierWithContext(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
 		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
-		app.l.Infof(
+		l.Infof(
 			"%s signal received. Gracefully shutting down...",
 			cases.Title(language.English).String(sig.String()),
 		)
@@ -91,18 +92,23 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 	return ctx
 }
 
-func (app *App) RunContext(ctx context.Context, args []string) error {
+func (app *App) RunContext(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	args []string,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = app.registerGracefullyShutdown(ctx)
+	ctx = app.registerGracefullyShutdown(ctx, l)
 
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context
 	ctx = engine.WithEngineValues(ctx)
 
 	ctx = run.WithRunVersionCache(ctx)
-	ctx = run.WithModuleVersionResolver(ctx)
+	ctx = run.WithModuleVersionResolver(ctx, v)
 
 	args = removeNoColorFlagDuplicates(args)
 

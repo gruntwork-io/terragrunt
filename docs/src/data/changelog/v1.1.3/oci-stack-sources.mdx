@@ -1,0 +1,8 @@
+---
+version: "v1.1.3"
+category: "experiments-updated"
+---
+
+#### `oci` - OCI sources for stack units and stacks
+
+`terragrunt.stack.hcl` now accepts `oci://` sources in `unit` and `stack` blocks, so a stack can pull its components straight from an OCI registry. Without the `oci` experiment enabled, such a source fails with a clear error instead of an unsupported-scheme failure.
