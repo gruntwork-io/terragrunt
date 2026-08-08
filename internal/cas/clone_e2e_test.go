@@ -199,6 +199,137 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 		"mutable clone should not strip write bits; default path does")
 }
 
+// TestCASClone_E2E_DepthQueryParamWithTag reproduces #6512: a
+// terraform.source that combines the go-getter depth query parameter with
+// ref=<tag>. Before the fix the CAS getter left "?depth=1" in the URL handed
+// to git, which rejected it as part of the repository name. The tagged
+// commit is deliberately behind HEAD so a shallow clone of the default
+// branch would not contain it, exercising the --branch <tag> --depth path.
+func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "add readme"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# tagged"), "tagged content"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.0.0"))
+	// Advance the default branch past the tag.
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# newer"), "post-tag commit"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	require.NoError(t, err)
+
+	v := venv.OSVenv()
+	l := logger.CreateLogger()
+
+	// Depth left at the CAS default so ?depth=1 in the URL is what drives the
+	// shallow clone.
+	g := getter.NewCASGetter(l, c, v, &cas.CloneOptions{})
+	client := &getter.Client{Getters: []getter.Getter{g}}
+
+	dst := filepath.Join(tempDir, "dst")
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "git::" + repoURL + "?depth=1&ref=v1.0.0",
+		Dst:     dst,
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+
+	// The checked-out content must be the tagged commit, not HEAD.
+	content, err := os.ReadFile(filepath.Join(dst, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, "# tagged", string(content))
+}
+
+// TestCASClone_E2E_AmbientDepthBeatsURLDepth pins the precedence between the
+// two depth inputs: --cas-clone-depth is a CLI argument and a source URL's
+// ?depth= comes from configuration, so the CLI value wins — the URL parameter
+// is stripped (see #6512) and discarded, never applied. Its sibling
+// TestCASClone_E2E_DepthQueryParamWithTag leaves the ambient at the CAS default
+// of 1, where ?depth=1 is indistinguishable from no depth at all. Here the
+// ambient is full history (WithCloneDepth(-1)) against ?depth=1, so the two
+// inputs disagree and only the winner is observable: full history leaves no
+// `shallow` marker in the central store's bare repo, which a --depth fetch
+// would have written.
+func TestCASClone_E2E_AmbientDepthBeatsURLDepth(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "add readme"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# tagged"), "tagged content"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.0.0"))
+	// The tagged commit already has the README commit as its parent, so a
+	// --depth 1 fetch of the tag would truncate that ancestor and make git
+	// write the `shallow` marker this test asserts is absent. This extra commit
+	// advances main past the tag so the tag sits behind HEAD, which is what
+	// makes the "# tagged" content assertion below discriminating: without it
+	// HEAD would equal the tag and a wrong-ref checkout could not be detected.
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# newer"), "post-tag commit"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+
+	// Ambient depth is full history, standing in for --cas-clone-depth=-1.
+	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	require.NoError(t, err)
+
+	v := venv.OSVenv()
+	l := logger.CreateLogger()
+
+	g := getter.NewCASGetter(l, c, v, &cas.CloneOptions{})
+	client := &getter.Client{Getters: []getter.Getter{g}}
+
+	dst := filepath.Join(tempDir, "dst")
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "git::" + repoURL + "?depth=1&ref=v1.0.0",
+		Dst:     dst,
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+
+	// The tag was checked out correctly (not HEAD)...
+	content, err := os.ReadFile(filepath.Join(dst, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, "# tagged", string(content))
+
+	// ...and the central store's bare repo is not shallow: the ambient full
+	// history won. An implementation that honored the URL's depth=1 would have
+	// fetched shallowly and left a `shallow` marker behind.
+	bareRepo := singleGitStoreRepo(t, filepath.Join(storePath, "git"))
+	assert.NoFileExists(t, filepath.Join(bareRepo, "shallow"),
+		"the ambient clone depth must win over a URL depth=1, leaving the fetch unshallowed")
+}
+
+// singleGitStoreRepo returns the bare-repo path of the one per-URL entry in
+// the CAS git store rooted at gitStoreRoot. The test clones a single
+// submodule-free URL, so exactly one entry is expected.
+func singleGitStoreRepo(t *testing.T, gitStoreRoot string) string {
+	t.Helper()
+
+	entries, err := os.ReadDir(gitStoreRoot)
+	require.NoError(t, err)
+
+	var dirs []string
+
+	for _, e := range entries {
+		if e.IsDir() {
+			dirs = append(dirs, e.Name())
+		}
+	}
+
+	require.Len(t, dirs, 1, "expected exactly one per-URL bare repo in the git store")
+
+	return filepath.Join(gitStoreRoot, dirs[0], "repo")
+}
+
 // resolveHeadE2E is a convenience wrapper used by several tests in
 // this file; included here so the file is independent of
 // commitref_test.go's helpers.
