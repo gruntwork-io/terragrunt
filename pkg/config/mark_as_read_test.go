@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ func TestMarkGlobAsRead(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, configPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 	pctx.WorkingDir = dir
 
 	// Drive the HCL function via a locals block so we exercise the registered cty wrapper.
@@ -63,7 +64,7 @@ func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, configPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 	pctx.WorkingDir = dir
 
 	// The HCL string literal '"a\\*b.tf"' decodes to 'a\*b.tf', which the glob
@@ -95,7 +96,7 @@ func TestMarkGlobAsReadBoundaryFlag(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, configPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 	pctx.WorkingDir = dir
 
 	hcl := `locals { matched = mark_glob_as_read("--terragrunt-boundary=.", "{*.yaml}") }`
@@ -133,7 +134,7 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
 	t.Run("pattern above the repository root errors", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, pctx := newTestParsingContext(t, configPath)
+		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 		pctx.WorkingDir = unitDir
 
 		hcl := `locals { matched = mark_glob_as_read("/{*.yaml}") }`
@@ -145,7 +146,7 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
 	t.Run("try wrapper recovers to empty", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, pctx := newTestParsingContext(t, configPath)
+		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 		pctx.WorkingDir = unitDir
 
 		hcl := `locals {
@@ -183,7 +184,7 @@ func TestMarkManyAsReadMarksModuleSourceFilesByDefault(t *testing.T) {
 	hcl := `terraform { source = "../../modules/foo" }`
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, configPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 	pctx.WorkingDir = unitDir
 
 	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
@@ -219,7 +220,7 @@ func TestMarkManyAsReadRelativeConfigPathAnchorsToWorkingDir(t *testing.T) {
 	hcl := `terraform { source = "../../modules/foo" }`
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, configPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 	pctx.WorkingDir = unitDir
 
 	out, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, hcl, nil)
@@ -250,7 +251,7 @@ func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, configPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 			pctx.WorkingDir = unitDir
 			pctx = pctx.WithDecodeList(decode)
 
@@ -295,7 +296,7 @@ func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
 			pctx.WorkingDir = unitDir
 			pctx = pctx.WithDecodeList(decode)
 

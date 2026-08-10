@@ -130,11 +130,11 @@ func discoverAndLoad(
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return discoverCatalogConfigURLs(gctx, l, opts, urlCh)
+		return discoverCatalogConfigURLs(gctx, l, v, opts, urlCh)
 	})
 
 	g.Go(func() error {
-		return discoverSourceFileURLs(gctx, l, opts, urlCh)
+		return discoverSourceFileURLs(gctx, l, v, opts, urlCh)
 	})
 
 	go func() {
@@ -214,10 +214,11 @@ func discoverAndLoad(
 func discoverCatalogConfigURLs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
@@ -241,10 +242,11 @@ func discoverCatalogConfigURLs(
 func discoverSourceFileURLs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
-	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,7 +129,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, filename)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), filename)
 	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
@@ -183,7 +184,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
@@ -224,7 +225,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, filename)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), filename)
 	pctx.OriginalTerragruntConfigPath = filename
 	pctx.SkipOutput = true
 
@@ -247,7 +248,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctxB, pctxB := newTestParsingContext(t, unitBFilename)
+	ctxB, pctxB := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), unitBFilename)
 	pctxB.OriginalTerragruntConfigPath = unitBFilename
 
 	unitBConfig, err := config.ParseConfigFile(
@@ -278,7 +279,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation

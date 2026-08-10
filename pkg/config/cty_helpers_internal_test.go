@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -15,7 +16,7 @@ import (
 
 // TestIncludeConfigAsCtyValWrapsErrorWithIncludeNameAndPath is a regression test for
 // https://github.com/gruntwork-io/terragrunt/issues/6282. When resolving an exposed include fails, the error must
-// identify WHICH include block and WHICH included (parent) file caused it — otherwise low-level, location-less
+// identify WHICH include block and WHICH included (parent) file caused it. Otherwise low-level, location-less
 // errors (e.g. the gocty "unsuitable value: a bool is required") are impossible to debug.
 func TestIncludeConfigAsCtyValWrapsErrorWithIncludeNameAndPath(t *testing.T) {
 	t.Parallel()
@@ -30,7 +31,7 @@ func TestIncludeConfigAsCtyValWrapsErrorWithIncludeNameAndPath(t *testing.T) {
 	require.NoError(t, os.WriteFile(childPath, []byte("terraform {\n  source = \".\"\n}\n"), 0644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := NewParsingContext(t.Context(), l, WithStrictControls(controls.New()))
+	ctx, pctx := NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), WithStrictControls(controls.New()))
 	pctx.TerragruntConfigPath = childPath
 	pctx.WorkingDir = tmpDir
 

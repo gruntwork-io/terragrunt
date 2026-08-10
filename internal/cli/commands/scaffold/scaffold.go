@@ -569,8 +569,7 @@ func applyCatalogConfigToScaffold(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
@@ -723,8 +722,7 @@ func prepareBoilerplateFiles(
 
 	// if boilerplate dir is not found, create one with default template
 	if !util.IsDir(boilerplateDir) {
-		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-		pctx = pctx.WithVenv(v)
+		_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {

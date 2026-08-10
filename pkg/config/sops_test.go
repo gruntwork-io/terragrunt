@@ -14,12 +14,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // generateTestSecretFiles creates plain JSON files in a temp directory.
-// No SOPS encryption needed — the test injects a mock decrypter to read raw files.
+// No SOPS encryption needed: the test injects a mock decrypter to read raw files.
 func generateTestSecretFiles(t *testing.T, count int) []string {
 	t.Helper()
 
@@ -63,7 +64,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	secretFiles := generateTestSecretFiles(t, 1)
 	secretFile := secretFiles[0]
 
-	// Mock decrypter that requires authKey to be set — simulates KMS auth.
+	// Mock decrypter that requires authKey to be set, simulating KMS auth.
 	authRequiringDecrypter := vsops.NewMemDecrypter(func(path string, _ string) ([]byte, error) {
 		token := os.Getenv(authKey)
 		if token == "" {
@@ -75,7 +76,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 	// Subtest 1: Existing process env vars are preserved (not overridden).
 	// Models: CI runner has real AWS_SESSION_TOKEN, auth-provider returns empty token.
-	// sopsDecryptFileImpl must NOT override the real token with empty — SOPS uses process env.
+	// sopsDecryptFileImpl must NOT override the real token with empty, since SOPS uses process env.
 	t.Run(
 		"existing_process_env_preserved",
 		func(t *testing.T) { //nolint:paralleltest // mutates process env
@@ -83,10 +84,10 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 			l := logger.CreateLogger()
 			ctx := WithConfigValues(t.Context())
-			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+			v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: ""})
+
+			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(secretFile)
-			// pctx.Venv.Env has empty value for authKey (like auth-provider returning empty session token)
-			pctx.Venv.Env = map[string]string{authKey: ""}
 
 			result, err := sopsDecryptFileImpl(
 				ctx,
@@ -99,7 +100,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 			require.NoError(t, err, "decrypt must succeed using existing process env credentials")
 			assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 
-			// Process env must still have the real token — not overridden
+			// Process env must still have the real token, not overridden
 			assert.Equal(t, "real-ci-token", os.Getenv(authKey),
 				"existing process env var must not be overridden")
 		},
@@ -114,9 +115,10 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 			l := logger.CreateLogger()
 			ctx := WithConfigValues(t.Context())
-			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+			v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "fresh-token"})
+
+			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(secretFile)
-			pctx.Venv.Env = map[string]string{authKey: "fresh-token"}
 
 			result, err := sopsDecryptFileImpl(
 				ctx,
@@ -146,14 +148,14 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 			l := logger.CreateLogger()
 			ctx := WithConfigValues(t.Context())
-			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+			v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
+
+			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(secretFile)
-			// Empty env — simulates auth-provider NOT having run (the original bug)
-			pctx.Venv.Env = map[string]string{}
 
 			_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
 			require.Error(t, err,
-				"decrypt must fail without auth credentials — reproduces original issue #5515")
+				"decrypt must fail without auth credentials, reproducing original issue #5515")
 		},
 	)
 
@@ -205,9 +207,11 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 					)
 
 					l := logger.CreateLogger()
-					_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+					v := venvtest.NewWithOSFS().
+						WithEnv(map[string]string{authKey: expectedToken})
+
+					_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
 					pctx.WorkingDir = filepath.Dir(filePath)
-					pctx.Venv.Env = map[string]string{authKey: expectedToken}
 
 					result, decryptErr := sopsDecryptFileImpl(
 						ctx,
@@ -239,7 +243,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 			require.Zero(
 				t,
 				failures.Load(),
-				"all goroutines must see their own auth token during decrypt — env isolation failed",
+				"all goroutines must see their own auth token during decrypt; env isolation failed",
 			)
 
 			assert.Empty(t, os.Getenv(authKey),

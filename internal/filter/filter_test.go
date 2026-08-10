@@ -171,27 +171,27 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := filter.Parse(tt.filterString)
+			f, err := filter.Parse(tt.filterString)
 
 			if tt.expectError {
 				require.Error(t, err)
-				assert.Nil(t, filter)
+				assert.Nil(t, f)
 
 				return
 			}
 
 			require.NoError(t, err)
 
-			require.NotNil(t, filter)
+			require.NotNil(t, f)
 
-			logger := log.New()
-			result, err := filter.Evaluate(logger, testComponents)
+			l := log.New()
+			result, err := f.Evaluate(l, filter.EvaluationContext{}, testComponents)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, tt.expected, result)
 
 			// Verify String() returns original query
-			assert.Equal(t, tt.filterString, filter.String())
+			assert.Equal(t, tt.filterString, f.String())
 		})
 	}
 }
@@ -249,7 +249,7 @@ func TestFilter_Apply(t *testing.T) {
 			t.Parallel()
 
 			l := log.New()
-			result, err := filter.Apply(l, tt.filterString, tt.components)
+			result, err := filter.Apply(l, filter.EvaluationContext{}, tt.filterString, tt.components)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -355,7 +355,7 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 			t.Parallel()
 
 			l := log.New()
-			result, err := filter.Apply(l, tt.filterString, repoComponents)
+			result, err := filter.Apply(l, filter.EvaluationContext{}, tt.filterString, repoComponents)
 			require.NoError(t, err)
 
 			resultNames := make([]string, 0, len(result))
@@ -375,7 +375,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		t.Parallel()
 
 		l := log.New()
-		result, err := filter.Apply(l, "nonexistent", testComponents)
+		result, err := filter.Apply(l, filter.EvaluationContext{}, "nonexistent", testComponents)
 		require.NoError(t, err)
 
 		assert.Empty(t, result)
@@ -384,15 +384,15 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 	t.Run("multiple parse and evaluate calls", func(t *testing.T) {
 		t.Parallel()
 
-		filter, err := filter.Parse("app1")
+		f, err := filter.Parse("app1")
 		require.NoError(t, err)
 
 		l := log.New()
 
-		result1, err := filter.Evaluate(l, testComponents)
+		result1, err := f.Evaluate(l, filter.EvaluationContext{}, testComponents)
 		require.NoError(t, err)
 
-		result2, err := filter.Evaluate(l, testComponents)
+		result2, err := f.Evaluate(l, filter.EvaluationContext{}, testComponents)
 		require.NoError(t, err)
 
 		assert.Equal(t, result1, result2)
@@ -420,7 +420,7 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 
 		for _, tt := range tests {
 			l := log.New()
-			result, err := filter.Apply(l, tt.filterString, testComponents)
+			result, err := filter.Apply(l, filter.EvaluationContext{}, tt.filterString, testComponents)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, expected, result)
