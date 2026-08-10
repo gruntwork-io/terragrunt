@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -173,35 +175,60 @@ func TestRunnerPool_RunnerNotSet(t *testing.T) {
 func TestRunnerPool_NonPositiveConcurrencyRunsSerially(t *testing.T) {
 	t.Parallel()
 
-	units := buildComponentUnits([]string{"A", "B"}, map[string][]string{"B": {"A"}})
+	// The units are independent, so only the concurrency clamp can keep them from overlapping.
+	synctest.Test(t, func(t *testing.T) {
+		units := buildComponentUnits([]string{"A", "B"}, nil)
 
-	q, err := queue.NewQueue(component.Components{units[0], units[1]})
-	require.NoError(t, err)
+		q, err := queue.NewQueue(component.Components{units[0], units[1]})
+		require.NoError(t, err)
 
-	var (
-		mu  sync.Mutex
-		ran []string
-	)
+		var (
+			mu        sync.Mutex
+			active    int
+			maxActive int
+			ran       []string
+		)
 
-	dagRunner := runnerpool.NewController(
-		q,
-		units,
-		runnerpool.WithRunner(func(_ context.Context, u *component.Unit) error {
+		// enter records a started unit and returns the callback marking it finished.
+		enter := func(path string) func() {
 			mu.Lock()
 			defer mu.Unlock()
 
-			ran = append(ran, u.Path())
+			active++
+			maxActive = max(maxActive, active)
 
-			return nil
-		}),
-		runnerpool.WithMaxConcurrency(0),
-	)
-	require.NoError(t, dagRunner.Run(t.Context(), logger.CreateLogger()))
+			ran = append(ran, path)
 
-	mu.Lock()
-	defer mu.Unlock()
+			return func() {
+				mu.Lock()
+				defer mu.Unlock()
 
-	assert.Equal(t, []string{"A", "B"}, ran, "a non-positive concurrency runs units one at a time, in dependency order")
+				active--
+			}
+		}
+
+		dagRunner := runnerpool.NewController(
+			q,
+			units,
+			runnerpool.WithRunner(func(_ context.Context, u *component.Unit) error {
+				done := enter(u.Path())
+				defer done()
+
+				// Fake time only advances once every worker is blocked here, so a second one would overlap.
+				time.Sleep(time.Second)
+
+				return nil
+			}),
+			runnerpool.WithMaxConcurrency(0),
+		)
+		require.NoError(t, dagRunner.Run(t.Context(), logger.CreateLogger()))
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		assert.Equal(t, 1, maxActive, "a non-positive concurrency runs units one at a time")
+		assert.ElementsMatch(t, []string{"A", "B"}, ran, "every unit still runs")
+	})
 }
 
 // TestRunnerPool_UnitMissingFromDiscoveredUnits pins the typed error returned when a queue entry has no unit.

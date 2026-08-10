@@ -334,8 +334,7 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 			opts.RunAllAutoApprove = true
 
 			if tc.jsonOutput {
-				// The JSON plan output is written through the OS filesystem.
-				opts.JSONOutputFolder = t.TempDir()
+				opts.JSONOutputFolder = filepath.Join(memRoot, "json")
 			}
 
 			l := thlogger.CreateLogger()
@@ -348,6 +347,12 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+
+			if tc.jsonOutput {
+				exists, err := vfs.FileExists(v.FS, vpc.OutputJSONFile(memRoot, opts.JSONOutputFolder))
+				require.NoError(t, err)
+				assert.True(t, exists, "the JSON plan output is written through the venv filesystem")
+			}
 
 			args := commandArgs(t, invocations(), tc.command)
 

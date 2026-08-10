@@ -488,12 +488,12 @@ func TestNewRunnerPoolStack_PreventDestroyWalksTheDependencyGraph(t *testing.T) 
 	}
 }
 
-// TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth pins that a protected unit only protects 256 levels of dependencies.
+// TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth pins that a protected unit only protects dependencies within the traversal bound.
 func TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	t.Parallel()
 
 	const (
-		maxDepth = 256
+		maxDepth = runnerpool.MaxDependencyTraversalDepth
 		chainLen = maxDepth + 10
 	)
 
@@ -527,6 +527,9 @@ func TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	require.NoError(t, err)
 
 	byPath := unitsByPath(runner)
+
+	require.Contains(t, byPath, unitPathAt(maxDepth))
+	require.Contains(t, byPath, unitPathAt(maxDepth+1))
 
 	assert.True(t, byPath[unitPathAt(maxDepth)].Excluded(), "last unit within the depth bound")
 	assert.False(t, byPath[unitPathAt(maxDepth+1)].Excluded(), "first unit beyond the depth bound")
