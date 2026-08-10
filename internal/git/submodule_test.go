@@ -182,11 +182,7 @@ func TestGitRunner_SubmoduleURLs(t *testing.T) {
 	t.Run("missing workdir", func(t *testing.T) {
 		t.Parallel()
 
-		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
-			t.Error("git must not be spawned when no working directory is set")
-
-			return vexec.Result{}
-		})
+		runner := newMemRunner(t, failIfSpawned(t))
 
 		_, err := runner.SubmoduleURLs(t.Context(), headHash)
 		require.ErrorIs(t, err, git.ErrNoWorkDir)

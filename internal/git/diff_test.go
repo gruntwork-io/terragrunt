@@ -23,12 +23,20 @@ func TestParseDiff(t *testing.T) {
 			name: "classifies paths",
 			output: "A\tadded.txt\n" +
 				"D\tremoved file.txt\n" +
-				"M\tchanged.txt\n" +
-				"T\tignored.txt\n",
+				"M\tchanged.txt\n",
 			want: &git.Diffs{
 				Added:   []string{"added.txt"},
 				Removed: []string{"removed file.txt"},
 				Changed: []string{"changed.txt"},
+			},
+		},
+		{
+			name:   "statuses other than A, D and M are dropped",
+			output: "T\ttypechanged.txt\nU\tunmerged.txt\n",
+			want: &git.Diffs{
+				Added:   []string{},
+				Removed: []string{},
+				Changed: []string{},
 			},
 		},
 		{
@@ -76,8 +84,8 @@ func TestParseDiff_RejectsInvalidOutput(t *testing.T) {
 			wantErr: git.ErrParseDiff,
 		},
 		{
-			name:    "oversized line",
-			output:  strings.Repeat("M path ", 10000),
+			name:    "line longer than the scanner buffer",
+			output:  "M\t" + strings.Repeat("a", bufio.MaxScanTokenSize),
 			wantErr: bufio.ErrTooLong,
 		},
 	}
@@ -87,14 +95,10 @@ func TestParseDiff_RejectsInvalidOutput(t *testing.T) {
 			t.Parallel()
 
 			_, err := git.ParseDiff([]byte(tc.output))
-			require.Error(t, err)
+			require.ErrorIs(t, err, tc.wantErr)
 
 			var wrappedErr *git.WrappedError
 			require.ErrorAs(t, err, &wrappedErr)
-
-			if tc.wantErr != nil {
-				assert.ErrorIs(t, err, tc.wantErr)
-			}
 		})
 	}
 }
@@ -113,7 +117,7 @@ func TestGitRunner_Diff(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"added.txt"}, diffs.Added)
 		assert.Equal(t, []string{"changed.txt"}, diffs.Changed)
-		assert.Empty(t, diffs.Removed)
+		assert.Equal(t, []string{}, diffs.Removed)
 	})
 
 	t.Run("command failure", func(t *testing.T) {

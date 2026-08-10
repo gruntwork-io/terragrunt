@@ -58,6 +58,27 @@ func TestGitRunner_WithWorkDir(t *testing.T) {
 		got := runner.WithWorkDir("/repo")
 		assert.Equal(t, "/repo", got.WorkDir)
 	})
+
+	t.Run("resets memoized repo root", func(t *testing.T) {
+		t.Parallel()
+
+		var dirs []string
+
+		parent := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			dirs = append(dirs, inv.Dir)
+
+			return vexec.Result{Stdout: []byte(inv.Dir + "\n")}
+		}).WithWorkDir("/repo/a")
+
+		root, err := parent.GetRepoRoot(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, "/repo/a", root)
+
+		root, err = parent.WithWorkDir("/repo/b").GetRepoRoot(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, "/repo/b", root)
+		assert.Equal(t, []string{"/repo/a", "/repo/b"}, dirs)
+	})
 }
 
 func TestGitRunner_GetRepoRoot(t *testing.T) {
@@ -154,10 +175,11 @@ func TestGitRunner_LatestReleaseTag(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			runner := newMemRunner(t, staticResult(vexec.Result{
-				Stdout:   []byte(tc.stdout),
-				ExitCode: tc.exit,
-			}))
+			runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				assert.Equal(t, []string{"ls-remote", "--", "origin", "refs/tags/*"}, inv.Args)
+
+				return vexec.Result{Stdout: []byte(tc.stdout), ExitCode: tc.exit}
+			})
 
 			got, err := runner.LatestReleaseTag(t.Context(), "origin")
 			if tc.wantErr != nil {
@@ -427,11 +449,14 @@ func TestGitRunner_HasUncommittedChanges(t *testing.T) {
 			want:   true,
 		},
 		{
-			name: "clean",
+			name:   "clean",
+			result: vexec.Result{},
+			want:   false,
 		},
 		{
-			name:   "command failure",
-			result: vexec.Result{ExitCode: 128},
+			name:   "command failure discards stdout",
+			result: vexec.Result{Stdout: []byte(" M file.txt\n"), ExitCode: 128},
+			want:   false,
 		},
 	}
 
@@ -439,8 +464,18 @@ func TestGitRunner_HasUncommittedChanges(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			runner := newMemRunner(t, staticResult(tc.result)).WithWorkDir("/repo")
+			spawned := 0
+			runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				spawned++
+
+				assert.Equal(t, []string{"status", "--porcelain"}, inv.Args)
+				assert.Equal(t, "/repo", inv.Dir)
+
+				return tc.result
+			}).WithWorkDir("/repo")
+
 			assert.Equal(t, tc.want, runner.HasUncommittedChanges(t.Context()))
+			assert.Equal(t, 1, spawned)
 		})
 	}
 }
@@ -467,7 +502,6 @@ func TestGitRunner_ConfigAndRepositoryState(t *testing.T) {
 
 		_, err := runner.Config(t.Context(), "test.key")
 		require.ErrorIs(t, err, git.ErrCommandSpawn)
-		assert.Empty(t, runner.GetRemoteURL(t.Context()))
 	})
 
 	t.Run("config missing workdir", func(t *testing.T) {
@@ -487,6 +521,25 @@ func TestGitRunner_ConfigAndRepositoryState(t *testing.T) {
 		})).WithWorkDir("/repo")
 
 		assert.Equal(t, "https://example.com/repo.git", runner.GetRemoteURL(t.Context()))
+	})
+
+	t.Run("remote url command failure", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{
+			Stdout:   []byte("https://example.com/repo.git\n"),
+			ExitCode: 1,
+		})).WithWorkDir("/repo")
+
+		assert.Empty(t, runner.GetRemoteURL(t.Context()))
+	})
+
+	t.Run("remote url missing workdir", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, failIfSpawned(t))
+
+		assert.Empty(t, runner.GetRemoteURL(t.Context()))
 	})
 
 	testCases := []struct {
@@ -526,14 +579,18 @@ func TestGitRunner_ConfigAndRepositoryState(t *testing.T) {
 		t.Run(tc.name+" command failure", func(t *testing.T) {
 			t.Parallel()
 
-			runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
+			runner := newMemRunner(t, staticResult(vexec.Result{
+				Stdout:   []byte("value\n"),
+				ExitCode: 128,
+			})).WithWorkDir("/repo")
+
 			assert.Empty(t, tc.read(t.Context(), runner))
 		})
 
 		t.Run(tc.name+" missing workdir", func(t *testing.T) {
 			t.Parallel()
 
-			runner := newMemRunner(t, staticResult(vexec.Result{}))
+			runner := newMemRunner(t, failIfSpawned(t))
 			assert.Empty(t, tc.read(t.Context(), runner))
 		})
 	}
@@ -680,11 +737,10 @@ func TestGitRunner_GetDefaultBranch(t *testing.T) {
 			want:  "main",
 		},
 		{
-			name:    "remote head",
-			local:   vexec.Result{Stdout: []byte("origin/HEAD\n")},
-			remote:  vexec.Result{Stdout: []byte("ref: refs/heads/trunk\tHEAD\n")},
-			setHead: vexec.Result{},
-			want:    "trunk",
+			name:   "remote head",
+			local:  vexec.Result{Stdout: []byte("origin/HEAD\n")},
+			remote: vexec.Result{Stdout: []byte("ref: refs/heads/trunk\tHEAD\n")},
+			want:   "trunk",
 		},
 		{
 			name:    "remote head with cache failure",
@@ -847,5 +903,16 @@ func TestGitRunner_MutationCommandFailures(t *testing.T) {
 			err := tc.invoke(t.Context(), runner)
 			require.ErrorIs(t, err, git.ErrNoWorkDir)
 		})
+	}
+}
+
+// failIfSpawned returns a handler that fails the test if git is ever executed.
+func failIfSpawned(t *testing.T) vexec.Handler {
+	t.Helper()
+
+	return func(context.Context, vexec.Invocation) vexec.Result {
+		t.Error("git must not be spawned when no working directory is set")
+
+		return vexec.Result{Stdout: []byte("value\n")}
 	}
 }
