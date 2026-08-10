@@ -56,7 +56,16 @@ func TestBuild(t *testing.T) {
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
 		)
 		require.NoError(t, err)
-		assert.Len(t, rnr.GetStack().Units, 2, "both the unit and its dependency are discovered")
+
+		byPath := unitsByPath(rnr)
+		require.Len(t, byPath, 2, "both the unit and its dependency are discovered")
+		require.Contains(t, byPath, filepath.Join(memRoot, "app"))
+		assert.Equal(
+			t,
+			[]string{filepath.Join(memRoot, "vpc")},
+			dependencyPaths(byPath[filepath.Join(memRoot, "app")]),
+			"the dependency block is resolved into a graph edge",
+		)
 	})
 
 	t.Run("root working dir wins over working dir", func(t *testing.T) {

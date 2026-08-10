@@ -8,7 +8,7 @@ import (
 )
 
 // ErrRunnerNotSet is returned when a Controller is run without a UnitRunner.
-var ErrRunnerNotSet = errors.New("runner Pool Controller: runner is not set, cannot run")
+var ErrRunnerNotSet = errors.New("runner pool controller: runner is not set, cannot run")
 
 // UnitEarlyExitError is an error type for units that didn't run due to dependency failure.
 type UnitEarlyExitError struct {

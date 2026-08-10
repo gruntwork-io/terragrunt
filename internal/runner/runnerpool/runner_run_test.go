@@ -173,18 +173,27 @@ func TestRunnerRun_WithoutReport(t *testing.T) {
 func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 	t.Parallel()
 
-	v := memVenv(tfVersionOutput)
+	const authProviderCmd = "no-such-auth-provider"
+
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if inv.Name == authProviderCmd {
+			return vexec.Result{Err: vexec.ErrNoSpawn}
+		}
+
+		return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+	})
+
 	vpc := newTestUnit(t, v, memRoot, "vpc", "")
 
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
-	opts.AuthProviderCmd = "no-such-auth-provider"
+	opts.AuthProviderCmd = authProviderCmd
 
 	l := thlogger.CreateLogger()
 
 	rnr, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, nil))
+	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitRunFailsWithoutBinary pins the error a parsed unit hits when no binary may be spawned.
@@ -219,14 +228,8 @@ func TestRunnerRun_UnitTerraformBinaryOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
 
-	recorded := invocations()
-
-	names := make([]string, 0, len(recorded))
-	for _, inv := range recorded {
-		names = append(names, inv.Name)
-	}
-
-	assert.Contains(t, names, "custom-tofu", "the unit run spawns the unit's terraform_binary")
+	plan := commandInvocation(t, invocations(), tf.CommandNamePlan)
+	assert.Equal(t, "custom-tofu", plan.Name, "the plan runs the unit's terraform_binary")
 }
 
 // TestRunnerRun_EmptyStack pins that running a stack without units is a no-op.
@@ -354,7 +357,7 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 				assert.True(t, exists, "the JSON plan output is written through the venv filesystem")
 			}
 
-			args := commandArgs(t, invocations(), tc.command)
+			args := commandInvocation(t, invocations(), tc.command).Args
 
 			for _, want := range tc.expected {
 				assert.Contains(t, args, want, "%s is passed to the unit run", want)
@@ -470,17 +473,17 @@ func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation
 	}
 }
 
-// commandArgs returns the arguments of the first invocation of command.
-func commandArgs(t *testing.T, invocations []vexec.Invocation, command string) []string {
+// commandInvocation returns the first invocation of command.
+func commandInvocation(t *testing.T, invocations []vexec.Invocation, command string) vexec.Invocation {
 	t.Helper()
 
 	for _, inv := range invocations {
 		if len(inv.Args) > 0 && inv.Args[0] == command {
-			return inv.Args
+			return inv
 		}
 	}
 
 	require.FailNowf(t, "no invocation recorded", "expected a %s invocation, got %v", command, invocations)
 
-	return nil
+	return vexec.Invocation{}
 }
