@@ -23,7 +23,30 @@ var (
 	ErrLocationRequired             = errors.New("location is required")
 	ErrNoAccessKeysReturned         = errors.New("no access keys returned for storage account")
 	ErrAllAccessKeysEmpty           = errors.New("storage account returned keys but all values were empty")
+	ErrScopePrincipalRoleArgs       = errors.New("scope, principal id, and role definition id are required")
+	ErrPrincipalIDUnresolved        = errors.New("principal id could not be resolved from the access token")
 )
+
+// InvalidPrincipalIDError is returned when a principal id is not a UUID, which
+// Azure requires for the object id of a user, group, or service principal.
+// Match with errors.As.
+type InvalidPrincipalIDError struct {
+	PrincipalID string
+}
+
+func (e *InvalidPrincipalIDError) Error() string {
+	return fmt.Sprintf("principal id %q is not a valid uuid", e.PrincipalID)
+}
+
+// InvalidRoleDefinitionIDError is returned when a role definition id is not a
+// UUID. Match with errors.As.
+type InvalidRoleDefinitionIDError struct {
+	RoleDefinitionID string
+}
+
+func (e *InvalidRoleDefinitionIDError) Error() string {
+	return fmt.Sprintf("role definition id %q is not a valid uuid", e.RoleDefinitionID)
+}
 
 // TooManyBlobPagesError is returned when a ListBlobs walk exceeds the page
 // bound, which indicates a container far larger than a state container

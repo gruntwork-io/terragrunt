@@ -98,7 +98,8 @@ func armCapable(cfg *azurehelper.AzureConfig) bool {
 // armWorkRequested reports whether the config asks for any ARM control-plane
 // work; a user-managed account with no policy convergence requires none.
 func armWorkRequested(extCfg *ExtendedRemoteStateConfigAzurerm) bool {
-	return !extCfg.SkipStorageAccountCreation || !extCfg.SkipVersioning || extCfg.EnableSoftDelete
+	return !extCfg.SkipStorageAccountCreation || !extCfg.SkipVersioning || extCfg.EnableSoftDelete ||
+		extCfg.AssignBlobDataRole
 }
 
 // warnArmWorkSkipped logs that account creation or versioning/soft-delete
@@ -514,7 +515,45 @@ func (b *Backend) bootstrapAccount(
 		}
 	}
 
-	return nil
+	return ensureBlobDataRole(ctx, l, extCfg, cfg)
+}
+
+// ensureBlobDataRole grants data-plane access, which creating the account does not convey.
+func ensureBlobDataRole(
+	ctx context.Context,
+	l log.Logger,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+) error {
+	if !extCfg.AssignBlobDataRole {
+		return nil
+	}
+
+	// A configured principal is left untyped so Azure infers it.
+	principal := azurehelper.Principal{ID: extCfg.PrincipalID}
+
+	if principal.ID == "" {
+		resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+		if err != nil {
+			return err
+		}
+
+		principal = resolved
+	}
+
+	rbacClient, err := azurehelper.NewRBACClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	return rbacClient.AssignRoleIfMissing(ctx, l, azurehelper.AssignRoleInput{
+		Scope:            azurehelper.StorageAccountScope(cfg.SubscriptionID, cfg.ResourceGroup, rs.StorageAccountName),
+		PrincipalID:      principal.ID,
+		PrincipalType:    principal.Type,
+		RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
+	})
 }
 
 // createAccount provisions the resource group (when allowed) and the storage
