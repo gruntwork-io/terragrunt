@@ -105,33 +105,30 @@ func TestRunReportsEveryUnreachableSource(t *testing.T) {
 	}
 }
 
-// TestRunLoadsARepoNamedByBothDiscoverersOnce pins the deduplication across
-// the two concurrent discoverers: a repo named by the catalog block and by a
-// unit's source reaches the loader twice, and cloning it twice is work the
-// user pays for.
-func TestRunLoadsARepoNamedByBothDiscoverersOnce(t *testing.T) {
+// TestRunLoadsARepoNamedTwiceOnce pins that a repo reaching the loader twice
+// is loaded once. The catalog block forwards its URLs unfiltered, so a repo
+// listed twice is a clone the user would pay for twice.
+func TestRunLoadsARepoNamedTwiceOnce(t *testing.T) {
 	t.Parallel()
-
-	const repoURL = "github.com/acme/vpc"
 
 	// The root config holding the catalog block is found by walking the real filesystem.
 	rootDir := t.TempDir()
 
+	// A local path that does not exist fails in the getter without reaching the network.
+	repoURL := filepath.Join(rootDir, "missing-repo")
+
 	v := venvtest.NewWithOSFS()
 
-	writeUnit(t, v, filepath.Join(rootDir, "vpc"), repoURL+"//modules/x")
 	require.NoError(t, vfs.WriteFile(
 		v.FS,
 		filepath.Join(rootDir, "root.hcl"),
-		[]byte("catalog {\n  urls = [\""+repoURL+"\"]\n}\n"),
+		[]byte("catalog {\n  urls = [\""+repoURL+"\", \""+repoURL+"\"]\n}\n"),
 		0o644,
 	))
 
-	opts := newOptions(t, rootDir, catalog.FormatJSONL)
-	// CAS is bypassed so the load fails in the getter, keeping this test off the content store.
-	opts.NoCAS = true
-
-	err := catalog.Run(t.Context(), logger.CreateLogger(), v, opts, "")
+	err := catalog.Run(
+		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+	)
 
 	var loadErr *tui.SourceLoadError
 

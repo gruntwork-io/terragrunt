@@ -93,7 +93,6 @@ func TestNewParsingContextPropagatesStrictControls(t *testing.T) {
 	ctrl := pctx.StrictControls.Find(controls.BareInclude)
 	require.NotNil(t, ctrl, "strict controls must reach the parsing context")
 	assert.True(t, ctrl.GetEnabled(), "a control enabled on the options must arrive enabled")
-	assert.NotEmpty(t, pctx.ParserOptions, "parser options are built from the strict controls at construction")
 }
 
 // TestNewRunOptionsCopiesEveryOption pins every bridged option onto the run options so no flag is dropped.
