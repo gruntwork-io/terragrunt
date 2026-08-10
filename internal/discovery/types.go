@@ -126,6 +126,11 @@ type Discovery struct {
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
+	// resolvedWorkingDir is workingDir with symlinks resolved, which is how
+	// boundaries and dependency paths name it. Discover fills it in before any
+	// phase runs.
+	resolvedWorkingDir string
+
 	// gitRoot is the detected git repository root: the default ceiling for the
 	// upstream dependent walk. It is detected lazily and only when needed, so
 	// it stays empty when a discoveryBoundary is set (see

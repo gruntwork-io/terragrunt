@@ -272,7 +272,7 @@ func (p *ParsePhase) parseAndReclassify(
 
 	if discovery.classifier != nil {
 		for _, expr := range discovery.classifier.ParseExpressions() {
-			matched, err := filter.Evaluate(l, expr, component.Components{c})
+			matched, err := filter.Evaluate(l, discovery.evaluationContext(), expr, component.Components{c})
 			if err != nil {
 				l.Debugf("Error evaluating parse expression for %s: %v", c.Path(), err)
 				continue
@@ -378,8 +378,8 @@ func parseComponent(
 				}
 			}
 
-			ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parsingCtx = parsingCtx.WithVenv(parseV).WithDecodeList(
+			ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseV, parseOpts)
+			parsingCtx = parsingCtx.WithDecodeList(
 				config.TerraformSource,
 				config.DependenciesBlock,
 				config.DependencyBlock,

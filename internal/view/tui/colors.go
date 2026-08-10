@@ -1,3 +1,5 @@
+// Package tui holds styling and rendering helpers shared by Terragrunt's
+// interactive TUIs, such as catalog and browse.
 package tui
 
 const (

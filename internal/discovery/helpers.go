@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -340,6 +341,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 func storeStackConfigs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) {
@@ -359,7 +361,7 @@ func storeStackConfigs(
 		// A fresh context per stack scopes it to that stack's file and values, so
 		// a config referencing values.* parses instead of failing on missing
 		// values (and shows its definitions in consumers like browse).
-		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		values, err := config.ReadValues(ctx, pctx, l, stackDir)
 		if err != nil {
@@ -389,8 +391,7 @@ func stackDependencyPaths(
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(
@@ -459,9 +460,34 @@ func (d *Discovery) dependentWalkBoundary() string {
 	return d.gitRoot
 }
 
+// evaluationContext hands filter evaluation the settings its graph traversal
+// has to honor. Discover resolves the boundary and the working directory before
+// any phase runs, so this carries absolute paths rather than raw user input.
+func (d *Discovery) evaluationContext() filter.EvaluationContext {
+	return filter.EvaluationContext{
+		WorkingDir:         d.workingDir,
+		ResolvedWorkingDir: d.resolvedWorkingDir,
+		DiscoveryBoundary:  d.discoveryBoundary,
+	}
+}
+
+// resolveDir canonicalizes dir through the discovery filesystem, so that the
+// paths a boundary is compared against are resolved by the same filesystem that
+// produced them rather than by the OS underneath it. Resolution fails on a
+// directory that cannot be walked to, so callers that do not require dir to
+// exist have to say what an unwalkable path means to them.
+func resolveDir(fsys vfs.FS, dir string) (string, error) {
+	resolved, err := vfs.EvalSymlinks(fsys, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Clean(resolved), nil
+}
+
 // validateBoundaryDir reports whether resolved names an existing directory.
-func validateBoundaryDir(fs vfs.FS, resolved string) error {
-	info, err := fs.Stat(resolved)
+func validateBoundaryDir(fsys vfs.FS, resolved string) error {
+	info, err := fsys.Stat(resolved)
 	if err != nil {
 		return NewDiscoveryBoundaryDirError(resolved, err)
 	}
@@ -473,38 +499,86 @@ func validateBoundaryDir(fs vfs.FS, resolved string) error {
 	return nil
 }
 
+// absBoundary canonicalizes a raw boundary value against the working directory.
+func absBoundary(workingDir, boundary string) string {
+	if filepath.IsAbs(boundary) {
+		return filepath.Clean(boundary)
+	}
+
+	return filepath.Clean(filepath.Join(workingDir, boundary))
+}
+
 // resolveGraphBoundary canonicalizes a raw "(dir)" boundary value against
 // the working directory and validates that it points at an existing directory.
 // Returns the resolved absolute path.
-func resolveGraphBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
-	resolved := boundary
-	if !filepath.IsAbs(resolved) {
-		resolved = filepath.Join(workingDir, resolved)
-	}
+func resolveGraphBoundary(fsys vfs.FS, workingDir, boundary string) (string, error) {
+	resolved := absBoundary(workingDir, boundary)
 
-	resolved = filepath.Clean(resolved)
-
-	if err := validateBoundaryDir(fs, resolved); err != nil {
+	if err := validateBoundaryDir(fsys, resolved); err != nil {
 		return "", err
 	}
 
 	return resolved, nil
 }
 
+// boundaryEnclosure states whether a discovery boundary has to enclose the
+// working directory to be usable.
+type boundaryEnclosure int
+
+const (
+	boundaryEnclosureOptional boundaryEnclosure = iota
+	boundaryEnclosureRequired
+)
+
+// boundaryEnclosureFor reports what the given filters demand of a discovery
+// boundary. Only the dependent walk starts at the working directory, so only
+// it is defeated by a boundary that excludes the working directory. Dependency
+// traversal starts at the matched components and follows their declared
+// dependencies, so a boundary narrower than the working directory prunes that
+// walk exactly as the inline "(dir)" operand does.
+func boundaryEnclosureFor(filters filter.Filters) boundaryEnclosure {
+	if filters.HasDependents() {
+		return boundaryEnclosureRequired
+	}
+
+	return boundaryEnclosureOptional
+}
+
 // resolveDiscoveryBoundary canonicalizes a user-supplied discovery boundary against
-// the working directory and validates that it is an existing directory that
-// contains the working directory. Returns the resolved absolute path.
-func resolveDiscoveryBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
-	resolved, err := util.CanonicalResolvedPath(boundary, workingDir)
+// the working directory and validates that it is an existing directory, requiring
+// it to contain the working directory only when enclosure demands it. Returns the
+// resolved absolute path.
+func resolveDiscoveryBoundary(
+	fsys vfs.FS,
+	workingDir, boundary string,
+	enclosure boundaryEnclosure,
+) (string, error) {
+	canonical, err := util.CanonicalPath(boundary, workingDir)
 	if err != nil {
 		return "", NewDiscoveryBoundaryDirError(boundary, err)
 	}
 
-	if err := validateBoundaryDir(fs, resolved); err != nil {
+	resolved, err := resolveDir(fsys, canonical)
+	if err != nil {
+		return "", NewDiscoveryBoundaryDirError(canonical, err)
+	}
+
+	if err := validateBoundaryDir(fsys, resolved); err != nil {
 		return "", err
 	}
 
-	resolvedWorkingDir := util.ResolvePath(workingDir)
+	if enclosure == boundaryEnclosureOptional {
+		return resolved, nil
+	}
+
+	// Enclosure asks where the working directory sits, not whether it exists,
+	// and discovery answers a working directory that holds nothing with an
+	// empty result rather than an error. A path that cannot be walked to keeps
+	// the spelling it was given.
+	resolvedWorkingDir, err := resolveDir(fsys, workingDir)
+	if err != nil {
+		resolvedWorkingDir = filepath.Clean(workingDir)
+	}
 
 	rel, err := filepath.Rel(resolved, resolvedWorkingDir)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {

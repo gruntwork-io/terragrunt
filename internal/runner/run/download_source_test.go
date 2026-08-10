@@ -1512,6 +1512,11 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 			rejected: false,
 		},
 		{
+			name:     "cas source needs the real disk",
+			source:   "cas::sha256:0000000000000000000000000000000000000000000000000000000000000000//foo",
+			rejected: true,
+		},
+		{
 			name:            "tfr source stays on the venv filesystem",
 			source:          "tfr://registry.invalid/foo/bar/baz?version=1.0.0",
 			rejected:        false,

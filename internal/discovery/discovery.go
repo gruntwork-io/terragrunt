@@ -31,10 +31,25 @@ func (d *Discovery) Discover(
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
 
+	// A working directory that cannot be walked to discovers nothing, which is
+	// reported as an empty result rather than an error, so it keeps the
+	// spelling it was given and comparisons against it stay consistent.
+	resolvedWorkingDir, resolveErr := resolveDir(v.FS, d.workingDir)
+	if resolveErr != nil {
+		resolvedWorkingDir = filepath.Clean(d.workingDir)
+	}
+
+	d.resolvedWorkingDir = resolvedWorkingDir
+
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
 	if d.discoveryBoundary != "" {
-		boundary, boundaryErr := resolveDiscoveryBoundary(v.FS, d.workingDir, d.discoveryBoundary)
+		boundary, boundaryErr := resolveDiscoveryBoundary(
+			v.FS,
+			d.workingDir,
+			d.discoveryBoundary,
+			boundaryEnclosureFor(d.filters),
+		)
 		if boundaryErr != nil {
 			return nil, boundaryErr
 		}
@@ -198,7 +213,7 @@ func (d *Discovery) Discover(
 			len(components),
 		)
 
-		filtered, err := d.filters.Evaluate(l, components)
+		filtered, err := d.filters.Evaluate(l, d.evaluationContext(), components)
 		if err != nil {
 			return components, err
 		}
@@ -211,6 +226,8 @@ func (d *Discovery) Discover(
 
 		components = filtered
 	}
+
+	components = d.dropOutsideBoundary(l, components)
 
 	cycleCheckErr := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "discovery_cycle_check", map[string]any{},
@@ -247,7 +264,7 @@ func (d *Discovery) Discover(
 		if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "discovery_phase_stack_configs", map[string]any{
 			"components_in": len(components),
 		}, func(childCtx context.Context, childL log.Logger) error {
-			storeStackConfigs(childCtx, childL, opts, components)
+			storeStackConfigs(childCtx, childL, v, opts, components)
 
 			return nil
 		}); err != nil {
@@ -800,6 +817,56 @@ func (d *Discovery) applyQueueFilters(
 	components = d.applyExcludeModules(opts, components)
 
 	return components
+}
+
+// dropOutsideBoundary removes the components graph traversal reached across the
+// discovery boundary from what discovery returns. Their configurations were
+// still read and the edges pointing at them still stand, so the components that
+// do run can be ordered against them and can fetch their outputs. Components the
+// filesystem walk found are left alone, boundary or not: the boundary says how
+// far a run may follow the graph, not where discovery starts.
+func (d *Discovery) dropOutsideBoundary(l log.Logger, components component.Components) component.Components {
+	if d.discoveryBoundary == "" {
+		return components
+	}
+
+	// An inline "(dir)" operand overrides the flag for the expression carrying
+	// it, and evaluation has already honored that. Applying the flag again here
+	// would undo an operand that reaches wider than it.
+	if d.filters.HasGraphBoundary() {
+		return components
+	}
+
+	kept := make(component.Components, 0, len(components))
+
+	for _, c := range components {
+		if reachedByTraversal(c) && isExternal(d.discoveryBoundary, c.Path()) {
+			l.Debugf(
+				"Discovery: %s was reached across discovery boundary %s; not returning it",
+				c.Path(),
+				d.discoveryBoundary,
+			)
+
+			continue
+		}
+
+		kept = append(kept, c)
+	}
+
+	return kept
+}
+
+// reachedByTraversal reports whether a component entered discovery by following
+// the dependency graph rather than by being walked to.
+func reachedByTraversal(c component.Component) bool {
+	dctx := c.DiscoveryContext()
+	if dctx == nil {
+		return false
+	}
+
+	origin := dctx.Origin()
+
+	return origin == component.OriginGraphDiscovery || origin == component.OriginRelationshipDiscovery
 }
 
 // applyExcludeModules marks units (and optionally their dependencies) excluded via terragrunt exclude blocks.

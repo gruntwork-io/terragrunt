@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -30,23 +31,90 @@ const (
 type graphTraversalParams struct {
 	resultSet   map[string]component.Component
 	visited     map[string]int
+	evalCtx     EvaluationContext
+	boundary    string
 	direction   GraphDirection
 	warnOnLimit bool
 }
 
-// EvaluationContext provides additional context for filter evaluation, such as Git worktree directories.
+// EvaluationContext carries the discovery settings that graph traversal has to
+// honor. The zero value traverses the whole component graph.
 type EvaluationContext struct {
-	// GitWorktrees maps Git references to temporary worktree directory paths.
-	// This is used by GitFilter expressions to access different Git references.
-	GitWorktrees map[string]string
-	// WorkingDir is the base working directory for resolving relative paths.
-	WorkingDir string
+	WorkingDir         string
+	ResolvedWorkingDir string
+	DiscoveryBoundary  string
+}
+
+// canonical restates a path under the working directory in the spelling symlink
+// resolution gave that directory. A directory reaches evaluation under two
+// names whenever the working directory is itself reached through a symlink: the
+// filesystem walk keeps the name Terragrunt was invoked with, while dependency
+// paths come back from config parsing resolved. Those two names never compare
+// equal, which leaves every component looking out of bounds, and substituting
+// the prefix settles it without evaluation having to reach for a filesystem it
+// cannot see.
+func (c EvaluationContext) canonical(path string) string {
+	clean := filepath.Clean(path)
+
+	if c.WorkingDir == "" || c.ResolvedWorkingDir == "" || c.ResolvedWorkingDir == c.WorkingDir {
+		return clean
+	}
+
+	rel, err := filepath.Rel(c.WorkingDir, clean)
+	if err != nil || climbsOut(rel) {
+		return clean
+	}
+
+	return filepath.Join(c.ResolvedWorkingDir, rel)
+}
+
+// graphBoundary returns the directory confining traversal for one direction of
+// a graph expression, empty when that direction is unbounded. An inline "(dir)"
+// operand overrides the discovery boundary, and is resolved against the working
+// directory the same way discovery resolves it.
+func (c EvaluationContext) graphBoundary(bound GraphBound) string {
+	if bound.Boundary == "" {
+		if c.DiscoveryBoundary == "" {
+			return ""
+		}
+
+		return c.canonical(c.DiscoveryBoundary)
+	}
+
+	if filepath.IsAbs(bound.Boundary) {
+		return c.canonical(bound.Boundary)
+	}
+
+	return c.canonical(filepath.Join(c.WorkingDir, bound.Boundary))
+}
+
+// outsideBoundary reports whether path falls outside boundary. Both are
+// expected to have been through [EvaluationContext.canonical]. An empty
+// boundary bounds nothing.
+func outsideBoundary(boundary, path string) bool {
+	if boundary == "" {
+		return false
+	}
+
+	rel, err := filepath.Rel(boundary, path)
+	if err != nil {
+		return true
+	}
+
+	return climbsOut(rel)
+}
+
+// climbsOut reports whether a relative path leaves the directory it was
+// computed against.
+func climbsOut(rel string) bool {
+	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // Evaluate evaluates an expression against a list of components and returns the filtered components.
 // If logger is provided, it will be used for logging warnings during evaluation.
 func Evaluate(
 	l log.Logger,
+	evalCtx EvaluationContext,
 	expr Expression,
 	components component.Components,
 ) (component.Components, error) {
@@ -60,11 +128,11 @@ func Evaluate(
 	case *AttributeExpression:
 		return evaluateAttributeFilter(l, node, components)
 	case *PrefixExpression:
-		return evaluatePrefixExpression(l, node, components)
+		return evaluatePrefixExpression(l, evalCtx, node, components)
 	case *InfixExpression:
-		return evaluateInfixExpression(l, node, components)
+		return evaluateInfixExpression(l, evalCtx, node, components)
 	case *GraphExpression:
-		return evaluateGraphExpression(l, node, components)
+		return evaluateGraphExpression(l, evalCtx, node, components)
 	case *GitExpression:
 		return evaluateGitFilter(node, components)
 	default:
@@ -245,6 +313,7 @@ func traceFilterMiss(l log.Logger, expr Expression, c component.Component) {
 // evaluatePrefixExpression evaluates a prefix expression (negation).
 func evaluatePrefixExpression(
 	l log.Logger,
+	evalCtx EvaluationContext,
 	expr *PrefixExpression,
 	components component.Components,
 ) (component.Components, error) {
@@ -252,7 +321,7 @@ func evaluatePrefixExpression(
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
 
-	toExclude, err := Evaluate(l, expr.Right, components)
+	toExclude, err := Evaluate(l, evalCtx, expr.Right, components)
 	if err != nil {
 		return nil, err
 	}
@@ -288,6 +357,7 @@ func evaluatePrefixExpression(
 // evaluateInfixExpression evaluates an infix expression (intersection).
 func evaluateInfixExpression(
 	l log.Logger,
+	evalCtx EvaluationContext,
 	expr *InfixExpression,
 	components component.Components,
 ) (component.Components, error) {
@@ -295,12 +365,12 @@ func evaluateInfixExpression(
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
 
-	leftResult, err := Evaluate(l, expr.Left, components)
+	leftResult, err := Evaluate(l, evalCtx, expr.Left, components)
 	if err != nil {
 		return nil, err
 	}
 
-	rightResult, err := Evaluate(l, expr.Right, leftResult)
+	rightResult, err := Evaluate(l, evalCtx, expr.Right, leftResult)
 	if err != nil {
 		return nil, err
 	}
@@ -311,10 +381,11 @@ func evaluateInfixExpression(
 // evaluateGraphExpression evaluates a graph expression by traversing dependency/dependent graphs.
 func evaluateGraphExpression(
 	l log.Logger,
+	evalCtx EvaluationContext,
 	expr *GraphExpression,
 	components component.Components,
 ) (component.Components, error) {
-	targetMatches, err := Evaluate(l, expr.Target, components)
+	targetMatches, err := Evaluate(l, evalCtx, expr.Target, components)
 	if err != nil {
 		return nil, err
 	}
@@ -350,6 +421,8 @@ func evaluateGraphExpression(
 		params := &graphTraversalParams{
 			resultSet:   resultSet,
 			visited:     make(map[string]int),
+			evalCtx:     evalCtx,
+			boundary:    evalCtx.graphBoundary(expr.Dependencies),
 			direction:   GraphDirectionDependencies,
 			warnOnLimit: warnOnLimit,
 		}
@@ -371,6 +444,8 @@ func evaluateGraphExpression(
 		params := &graphTraversalParams{
 			resultSet:   resultSet,
 			visited:     make(map[string]int),
+			evalCtx:     evalCtx,
+			boundary:    evalCtx.graphBoundary(expr.Dependents),
 			direction:   GraphDirectionDependents,
 			warnOnLimit: warnOnLimit,
 		}
@@ -454,6 +529,20 @@ func traverseGraph(
 
 	for _, related := range relatedComponents {
 		relatedPath := related.Path()
+
+		// A component reachable only by passing through the boundary is
+		// excluded along with the hop that leaves it, so traversal stops here
+		// rather than skipping the hop and continuing past it.
+		if outsideBoundary(params.boundary, params.evalCtx.canonical(relatedPath)) {
+			l.Debugf(
+				"%s %s is outside discovery boundary %s; skipping",
+				params.direction,
+				relatedPath,
+				params.boundary,
+			)
+
+			continue
+		}
 
 		// It's not clear why this isn't necessary. It might be in the future.
 		// Tests pass without it, however, so we'll leave it out for now.

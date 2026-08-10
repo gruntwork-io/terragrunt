@@ -171,6 +171,32 @@ func TestFilters_HasGraphBoundary(t *testing.T) {
 	assert.False(t, filter.Filters{without}.HasGraphBoundary())
 }
 
+func TestFilters_HasDependents(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		query    string
+		expected bool
+	}{
+		{query: "...{./apps/foo}", expected: true},
+		{query: "...{./apps/foo}...", expected: true},
+		{query: "(./a)...{./apps/foo}", expected: true},
+		{query: "{./apps/foo}...", expected: false},
+		{query: "{./apps/foo}...(./a)", expected: false},
+		{query: "{./apps/foo}", expected: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			t.Parallel()
+
+			f, err := filter.Parse(tc.query)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, filter.Filters{f}.HasDependents())
+		})
+	}
+}
+
 // TestParser_BracedPathWithParens verifies that a path whose name contains
 // literal parentheses is disambiguated by wrapping it in braces, so the
 // parens are kept as part of the path rather than parsed as a boundary.

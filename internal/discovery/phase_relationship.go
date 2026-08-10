@@ -188,6 +188,10 @@ func (p *RelationshipPhase) discoverRelationships(
 	depsToDiscover := make(component.Components, 0, len(paths))
 
 	for _, path := range paths {
+		// The boundary is deliberately not applied here: a dependency outside it
+		// is still read and linked, so the units that do run can order against
+		// it and fetch its outputs. [Discovery.dropOutsideBoundary] decides what
+		// is returned.
 		dep, created := p.dependencyToDiscover(
 			c,
 			path,

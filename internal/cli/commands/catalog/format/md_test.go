@@ -8,14 +8,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
-	extast "github.com/yuin/goldmark/extension/ast"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/md"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 )
 
@@ -143,7 +139,7 @@ func TestMarkdownRendererEntryTables(t *testing.T) {
 	assert.Equal(
 		t,
 		[]int{2, 2, 2, 2, 2, 1, 1},
-		tableRows(t, buf.String()),
+		md.Parse(buf.String()).TableRowCells(),
 		"five field rows of two cells, then a tag each in a table one cell wide",
 	)
 }
@@ -171,7 +167,7 @@ func TestMarkdownRendererDocument(t *testing.T) {
 	assert.Equal(
 		t,
 		[]string{"Terragrunt Catalog", "VPC", "service", "app", "prod", "Repo Root"},
-		headings(t, buf.String()),
+		md.Parse(buf.String()).Headings(),
 	)
 	assert.True(t, strings.HasSuffix(buf.String(), "Discovered 5 components from 2 sources.\n"))
 }
@@ -210,7 +206,7 @@ name: VPC
 	require.NoError(t, renderer.Entry(&buf, entry))
 	require.NoError(t, renderer.Close(&buf, format.Summary{Entries: 1, Sources: 1}))
 
-	assert.Equal(t, []string{"Terragrunt Catalog", "VPC"}, headings(t, buf.String()))
+	assert.Equal(t, []string{"Terragrunt Catalog", "VPC"}, md.Parse(buf.String()).Headings())
 }
 
 // TestMarkdownRendererKeepsDescriptionOutOfTheDocumentStructure covers the
@@ -229,6 +225,9 @@ func TestMarkdownRendererKeepsDescriptionOutOfTheDocumentStructure(t *testing.T)
 		{name: "thematic break", description: "---"},
 		{name: "quote", description: "> Creates a VPC."},
 		{name: "list", description: "- Creates a VPC."},
+		{name: "ordered list", description: "1. Creates a VPC."},
+		{name: "ordered list with a parenthesis", description: "1) Creates a VPC."},
+		{name: "ordered list numbered past one", description: "97. Creates a VPC."},
 		{name: "html", description: "<p>Creates a VPC.</p>"},
 	}
 
@@ -253,13 +252,160 @@ func TestMarkdownRendererKeepsDescriptionOutOfTheDocumentStructure(t *testing.T)
 			require.NoError(t, renderer.Entry(&buf, entry))
 			require.NoError(t, renderer.Close(&buf, format.Summary{Entries: 1, Sources: 1}))
 
-			assert.Equal(t, []string{"Terragrunt Catalog", "VPC"}, headings(t, buf.String()))
+			doc := md.Parse(buf.String())
+
+			assert.Equal(t, []string{"Terragrunt Catalog", "VPC"}, doc.Headings())
+
+			block, ok := doc.BlockAfter("VPC")
+			require.True(t, ok, "the section holds nothing after its heading")
 			assert.Equal(
 				t,
-				ast.KindParagraph,
-				blockAfter(t, buf.String(), "VPC"),
+				md.KindParagraph,
+				block.Kind(),
 				"the description opens the section as prose",
 			)
+		})
+	}
+}
+
+// TestMarkdownRendererKeepsNumberedDescriptionsReadable reads a numbered
+// description back as the reader sees it: the escape an ordered-list marker
+// needs must not survive into the text, and a description that merely opens
+// with a number must not pick one up at all.
+func TestMarkdownRendererKeepsNumberedDescriptionsReadable(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		description string
+	}{
+		{name: "ordered list", description: "1. Creates a VPC."},
+		{name: "ordered list with a parenthesis", description: "1) Creates a VPC."},
+		{name: "decimal", description: "1.5x the throughput of the last one."},
+		{name: "version", description: "1.2.3 of the VPC module."},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			entry := tui.NewComponentEntry(
+				tui.NewComponentForTest(
+					component.KindModule,
+					"github.com/acme/repo",
+					"modules/vpc",
+					"---\nname: VPC\ndescription: \""+tc.description+"\"\n---\n",
+				),
+			).WithSource("github.com/acme/repo")
+
+			var buf bytes.Buffer
+
+			require.NoError(t, format.NewMarkdownRenderer().Entry(&buf, entry))
+
+			block, ok := md.Parse(buf.String()).BlockAfter("VPC")
+			require.True(t, ok, "the section holds nothing after its heading")
+			require.Equal(t, md.KindParagraph, block.Kind(), "the description is not prose")
+			assert.Equal(t, tc.description, block.Text())
+		})
+	}
+}
+
+// TestMarkdownRendererKeepsBackticksInsideCodeSpans covers a value the
+// component wrote landing in a code span: a backtick run within one can close
+// the span early, spilling the rest of the value into the row as text.
+func TestMarkdownRendererKeepsBackticksInsideCodeSpans(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		tag  string
+	}{
+		{name: "within", tag: backticks("net~work")},
+		{name: "leading", tag: backticks("~network")},
+		{name: "trailing", tag: backticks("network~")},
+		{name: "surrounding", tag: backticks("~network~")},
+		{name: "run", tag: backticks("net~~~work")},
+		{name: "nothing else", tag: backticks("~")},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			entry := tui.NewComponentEntry(
+				tui.NewComponentForTest(
+					component.KindModule,
+					"github.com/acme/repo",
+					"modules/vpc",
+					"---\nname: VPC\ntags:\n  - \""+tc.tag+"\"\n---\n",
+				),
+			).WithSource("github.com/acme/repo")
+
+			var buf bytes.Buffer
+
+			require.NoError(t, format.NewMarkdownRenderer().Entry(&buf, entry))
+
+			doc := md.Parse(buf.String())
+
+			assert.Contains(t, doc.CodeSpans(), tc.tag)
+			assert.Equal(
+				t,
+				[]int{2, 2, 2, 2, 1},
+				doc.TableRowCells(),
+				"four field rows of two cells, then the tag in a table one cell wide",
+			)
+		})
+	}
+}
+
+// TestMarkdownRendererLinksOnlyURLs covers the URL field, which discovery
+// fills from the repository's remote and falls back to a filesystem path
+// without one. Angle brackets make a link of a URL and literal text of a path.
+func TestMarkdownRendererLinksOnlyURLs(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		url      string
+		wantLink bool
+	}{
+		{
+			name:     "remote",
+			url:      "https://github.com/acme/repo/tree/main/modules/vpc",
+			wantLink: true,
+		},
+		{name: "path", url: "/Users/jane/modules/vpc", wantLink: false},
+		{name: "path holding a space", url: "/Users/jane/My Modules/vpc", wantLink: false},
+		{name: "windows path", url: `C:\Users\jane\modules\vpc`, wantLink: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			entry := tui.NewComponentEntry(
+				tui.NewComponentForTest(
+					component.KindModule,
+					"github.com/acme/repo",
+					"modules/vpc",
+					vpcReadme,
+				).WithURL(tc.url),
+			).WithSource("github.com/acme/repo")
+
+			var buf bytes.Buffer
+
+			require.NoError(t, format.NewMarkdownRenderer().Entry(&buf, entry))
+
+			doc := md.Parse(buf.String())
+
+			if tc.wantLink {
+				assert.Equal(t, []string{tc.url}, doc.Autolinks())
+
+				return
+			}
+
+			assert.Empty(t, doc.Autolinks(), "a path is not a link")
+			assert.Contains(t, doc.CodeSpans(), tc.url)
 		})
 	}
 }
@@ -448,7 +594,7 @@ name: A | B
 	require.NoError(t, renderer.Close(&buf, format.Summary{Entries: 1, Sources: 1}))
 
 	assert.Contains(t, buf.String(), `| A \| B | `)
-	assert.Equal(t, []int{3}, tableRows(t, buf.String()), "one row of three cells")
+	assert.Equal(t, []int{3}, md.Parse(buf.String()).TableRowCells(), "one row of three cells")
 }
 
 func TestMarkdownRendererSummary(t *testing.T) {
@@ -511,92 +657,6 @@ func TestMarkdownRendererFlushesEveryEntry(t *testing.T) {
 
 	require.NoError(t, renderer.Close(w, format.Summary{Entries: len(cases), Sources: 1}))
 	assert.Equal(t, len(cases)+2, w.flushes)
-}
-
-// headings parses doc as Markdown and returns the text of every heading, so a
-// test can assert what the document is made of rather than which lines it
-// happens to contain.
-func headings(t *testing.T, doc string) []string {
-	t.Helper()
-
-	source := []byte(doc)
-
-	var titles []string
-
-	err := ast.Walk(
-		goldmark.DefaultParser().Parse(text.NewReader(source)),
-		func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-			heading, ok := n.(*ast.Heading)
-			if !ok || !entering {
-				return ast.WalkContinue, nil
-			}
-
-			titles = append(titles, string(heading.Lines().Value(source)))
-
-			return ast.WalkSkipChildren, nil
-		},
-	)
-	require.NoError(t, err)
-
-	return titles
-}
-
-// blockAfter parses doc as Markdown and names the kind of block that follows
-// the given heading, so a test can assert what a value became rather than
-// which characters it was written as.
-func blockAfter(t *testing.T, doc, heading string) ast.NodeKind {
-	t.Helper()
-
-	source := []byte(doc)
-	document := goldmark.DefaultParser().Parse(text.NewReader(source))
-
-	var found ast.Node
-
-	for n := document.FirstChild(); n != nil; n = n.NextSibling() {
-		h, ok := n.(*ast.Heading)
-		if !ok || string(h.Lines().Value(source)) != heading {
-			continue
-		}
-
-		found = n
-
-		break
-	}
-
-	require.NotNil(t, found, "no heading %q in %s", heading, doc)
-
-	next := found.NextSibling()
-	require.NotNil(t, next, "heading %q closes the document", heading)
-
-	return next.Kind()
-}
-
-// tableRows parses doc as GitHub-flavored Markdown and returns the number of
-// cells in each body row of its table, so a test can assert that a value
-// holding a pipe stayed inside the cell it was written to.
-func tableRows(t *testing.T, doc string) []int {
-	t.Helper()
-
-	parser := goldmark.New(goldmark.WithExtensions(extension.Table)).Parser()
-
-	var rows []int
-
-	err := ast.Walk(
-		parser.Parse(text.NewReader([]byte(doc))),
-		func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-			row, ok := n.(*extast.TableRow)
-			if !ok || !entering {
-				return ast.WalkContinue, nil
-			}
-
-			rows = append(rows, row.ChildCount())
-
-			return ast.WalkSkipChildren, nil
-		},
-	)
-	require.NoError(t, err)
-
-	return rows
 }
 
 // backticks turns the tildes of a raw string literal into the backticks the

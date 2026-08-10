@@ -113,7 +113,7 @@ func (c *Component) TerraformSourcePath() string {
 }
 
 // IsMarkDown reports whether the component's README (if any) is Markdown,
-// which determines whether we render it through glamour.
+// which determines whether we render it as Markdown or as plain text.
 func (c *Component) IsMarkDown() bool {
 	if c.Doc == nil {
 		return false
@@ -146,4 +146,13 @@ func NewComponentForTest(kind component.Kind, cloneURL, dir, readme string) *Com
 		Dir:      dir,
 		cloneURL: cloneURL,
 	}
+}
+
+// WithURL sets the URL [Component.URL] returns, which discovery derives from
+// the repository rather than from anything a test can pass to
+// [NewComponentForTest].
+func (c *Component) WithURL(url string) *Component {
+	c.url = url
+
+	return c
 }

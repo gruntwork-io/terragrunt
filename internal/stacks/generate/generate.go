@@ -197,7 +197,7 @@ func (g *Generator) generateStacks(
 
 // warnOnRepeatedClaims logs a warning when a stack file is claimed by more than
 // one parent in the same invocation. All nodes here are stack files by
-// construction — ListStackFiles filters to *component.Stack only.
+// construction, since ListStackFiles filters to *component.Stack only.
 func warnOnRepeatedClaims(l log.Logger, levelNodes []*StackNode, claimedBy map[string]string) {
 	for _, node := range levelNodes {
 		parent := "root"
@@ -247,8 +247,7 @@ func generateLevel(
 		}
 
 		wp.Submit(func() error {
-			_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-			pctx = pctx.WithVenv(v)
+			_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 			scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, node.FilePath)
 			if err != nil {
@@ -866,7 +865,7 @@ func stacksReadingFiles(
 	matched := make([]*component.Stack, 0, len(readingFilters))
 
 	for _, f := range readingFilters {
-		evaluated, err := filter.Evaluate(l, f.Expression(), components)
+		evaluated, err := filter.Evaluate(l, filter.EvaluationContext{}, f.Expression(), components)
 		if err != nil {
 			return nil, err
 		}

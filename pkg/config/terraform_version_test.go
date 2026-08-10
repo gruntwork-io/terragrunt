@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,7 @@ terraform {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 	terragruntConfig, err := config.ParseConfigString(
@@ -143,7 +144,7 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := newTestParsingContext(t, childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 			terragruntConfig, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
