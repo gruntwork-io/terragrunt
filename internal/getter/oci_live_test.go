@@ -5,12 +5,12 @@ package getter_test
 import (
 	"archive/zip"
 	"bytes"
-	"crypto/rand"
 	"encoding/json"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -27,7 +27,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-// ociLiveFiles is the module tree each live test publishes and expects back.
+const (
+	// ociLiveFixtureTag names the fixture module published once per registry by TestOCILiveProvision.
+	ociLiveFixtureTag = "live-fixture"
+	// ociLivePackCreated pins the packed manifest timestamp, so the fixture digest is reproducible locally.
+	ociLivePackCreated = "2026-01-01T00:00:00Z"
+)
+
+// ociLiveFiles is the fixture module tree; changing it requires re-running TestOCILiveProvision.
 var ociLiveFiles = map[string]string{
 	"main.tf": `output "live" {
   value = "live"
@@ -39,7 +46,7 @@ var ociLiveFiles = map[string]string{
 `,
 }
 
-// TestOCILiveECR round-trips a module against a real ECR repository through the ecr-login helper.
+// TestOCILiveECR pulls the published fixture from a real ECR repository through the ecr-login helper.
 func TestOCILiveECR(t *testing.T) {
 	t.Parallel()
 
@@ -51,9 +58,6 @@ func TestOCILiveECR(t *testing.T) {
 	registryHost, _, found := strings.Cut(repository, "/")
 	require.True(t, found, "TG_OCI_TEST_ECR_REPOSITORY must be <registry-host>/<repository>")
 
-	tag := ociLiveTag()
-	manifest := pushOCILiveModule(t, repository, tag, ecrLoginCredential(t, registryHost))
-
 	// The pull authenticates through the helper named in the ambient Docker config.
 	home := t.TempDir()
 	linkAWSConfigInto(t, home)
@@ -63,11 +67,11 @@ func TestOCILiveECR(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".docker"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".docker", "config.json"), []byte(dockerConfig), 0o600))
 
-	pullOCILiveModule(t, home, "oci://"+repository+"?tag="+tag)
-	pullOCILiveModule(t, home, "oci://"+repository+"?digest="+manifest.Digest.String())
+	pullOCILiveModule(t, home, "oci://"+repository+"?tag="+ociLiveFixtureTag)
+	pullOCILiveModule(t, home, "oci://"+repository+"?digest="+ociLiveFixtureManifest(t).Digest.String())
 }
 
-// TestOCILiveGHCR round-trips a module against GHCR using a PAT in an OpenTofu CLI-config block.
+// TestOCILiveGHCR pulls the published fixture from GHCR through basic credentials in a CLI-config block.
 func TestOCILiveGHCR(t *testing.T) {
 	t.Parallel()
 
@@ -83,10 +87,7 @@ func TestOCILiveGHCR(t *testing.T) {
 	registryHost, _, found := strings.Cut(repository, "/")
 	require.True(t, found, "TG_OCI_TEST_GHCR_REPOSITORY must be <registry-host>/<repository>")
 
-	tag := ociLiveTag()
-	manifest := pushOCILiveModule(t, repository, tag, auth.Credential{Username: username, Password: token})
-
-	// The pull authenticates through the PAT in an oci_credentials CLI-config block.
+	// The pull authenticates through the token in an oci_credentials CLI-config block.
 	home := t.TempDir()
 	tofurc := `oci_credentials "` + registryHost + `" {
   username = "` + username + `"
@@ -95,8 +96,37 @@ func TestOCILiveGHCR(t *testing.T) {
 `
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".tofurc"), []byte(tofurc), 0o600))
 
-	pullOCILiveModule(t, home, "oci://"+repository+"?tag="+tag)
-	pullOCILiveModule(t, home, "oci://"+repository+"?digest="+manifest.Digest.String())
+	pullOCILiveModule(t, home, "oci://"+repository+"?tag="+ociLiveFixtureTag)
+	pullOCILiveModule(t, home, "oci://"+repository+"?digest="+ociLiveFixtureManifest(t).Digest.String())
+}
+
+// TestOCILiveProvision publishes the fixture once per registry; the pull tests never write.
+func TestOCILiveProvision(t *testing.T) {
+	t.Parallel()
+
+	env := venv.OSVenv().Env
+	if env["TG_OCI_TEST_PROVISION"] == "" {
+		t.Skip("TG_OCI_TEST_PROVISION=1 publishes the fixture to every configured registry")
+	}
+
+	provisioned := 0
+
+	if repository := env["TG_OCI_TEST_ECR_REPOSITORY"]; repository != "" {
+		registryHost, _, _ := strings.Cut(repository, "/")
+		pushOCILiveFixture(t, repository, ecrLoginCredential(t, registryHost))
+
+		provisioned++
+	}
+
+	if repository := env["TG_OCI_TEST_GHCR_REPOSITORY"]; repository != "" {
+		cred := auth.Credential{Username: env["TG_OCI_TEST_GHCR_USERNAME"], Password: env["TG_OCI_TEST_GHCR_TOKEN"]}
+		pushOCILiveFixture(t, repository, cred)
+
+		provisioned++
+	}
+
+	require.Positive(t, provisioned,
+		"no registry configured; set TG_OCI_TEST_ECR_REPOSITORY or TG_OCI_TEST_GHCR_REPOSITORY")
 }
 
 // pullOCILiveModule downloads src through the production getter chain rooted at home and checks the tree.
@@ -124,22 +154,29 @@ func pullOCILiveModule(t *testing.T, home, src string) {
 	}
 }
 
-// pushOCILiveModule publishes the live module tree under repository:tag and returns the manifest descriptor.
-func pushOCILiveModule(t *testing.T, repository, tag string, cred auth.Credential) ociv1.Descriptor {
+// ociLiveFixtureStaging packs the fixture into a fresh in-memory store and returns it with the manifest.
+func ociLiveFixtureStaging(t *testing.T) (*memory.Store, ociv1.Descriptor) {
 	t.Helper()
 
-	registryHost, _, _ := strings.Cut(repository, "/")
 	staging := memory.New()
 
 	var buf bytes.Buffer
 
 	archive := zip.NewWriter(&buf)
 
-	for name, body := range ociLiveFiles {
+	// Sorted names keep the zip bytes, and therefore the fixture digest, reproducible.
+	names := make([]string, 0, len(ociLiveFiles))
+	for name := range ociLiveFiles {
+		names = append(names, name)
+	}
+
+	slices.Sort(names)
+
+	for _, name := range names {
 		entry, err := archive.Create(name)
 		require.NoError(t, err)
 
-		_, err = entry.Write([]byte(body))
+		_, err = entry.Write([]byte(ociLiveFiles[name]))
 		require.NoError(t, err)
 	}
 
@@ -157,10 +194,32 @@ func pushOCILiveModule(t *testing.T, repository, tag string, cred auth.Credentia
 		staging,
 		oras.PackManifestVersion1_1,
 		getter.ArtifactTypeModulePkg,
-		oras.PackManifestOptions{Layers: []ociv1.Descriptor{layer}},
+		oras.PackManifestOptions{
+			Layers:              []ociv1.Descriptor{layer},
+			ManifestAnnotations: map[string]string{ociv1.AnnotationCreated: ociLivePackCreated},
+		},
 	)
 	require.NoError(t, err)
-	require.NoError(t, staging.Tag(t.Context(), manifest, tag))
+
+	return staging, manifest
+}
+
+// ociLiveFixtureManifest computes the fixture's manifest descriptor locally, without any registry access.
+func ociLiveFixtureManifest(t *testing.T) ociv1.Descriptor {
+	t.Helper()
+
+	_, manifest := ociLiveFixtureStaging(t)
+
+	return manifest
+}
+
+// pushOCILiveFixture publishes the fixture under repository at the fixture tag.
+func pushOCILiveFixture(t *testing.T, repository string, cred auth.Credential) {
+	t.Helper()
+
+	registryHost, _, _ := strings.Cut(repository, "/")
+	staging, manifest := ociLiveFixtureStaging(t)
+	require.NoError(t, staging.Tag(t.Context(), manifest, ociLiveFixtureTag))
 
 	repo, err := remote.NewRepository(repository)
 	require.NoError(t, err)
@@ -171,13 +230,11 @@ func pushOCILiveModule(t *testing.T, repository, tag string, cred auth.Credentia
 		Credential: auth.StaticCredential(registryHost, cred),
 	}
 
-	_, err = oras.Copy(t.Context(), staging, tag, repo, tag, oras.DefaultCopyOptions)
-	require.NoError(t, err, "pushing the live module to %s must succeed", repository)
-
-	return manifest
+	_, err = oras.Copy(t.Context(), staging, ociLiveFixtureTag, repo, ociLiveFixtureTag, oras.DefaultCopyOptions)
+	require.NoError(t, err, "publishing the fixture to %s must succeed", repository)
 }
 
-// ecrLoginCredential mints a push credential through the same helper the pull under test uses.
+// ecrLoginCredential mints a registry credential through the same helper the pull under test uses.
 func ecrLoginCredential(t *testing.T, registryHost string) auth.Credential {
 	t.Helper()
 
@@ -211,9 +268,4 @@ func linkAWSConfigInto(t *testing.T, home string) {
 	}
 
 	require.NoError(t, os.Symlink(awsDir, filepath.Join(home, ".aws")))
-}
-
-// ociLiveTag returns a per-run tag, so concurrent CI runs never overwrite each other.
-func ociLiveTag() string {
-	return "tg-live-" + strings.ToLower(rand.Text())
 }
