@@ -243,6 +243,10 @@ func rgLessSkipAllConfig() azurerm.Config {
 	delete(cfg, "resource_group_name")
 	delete(cfg, "enable_soft_delete")
 	delete(cfg, "soft_delete_retention_days")
+	// A role assignment is ARM work too, so it has to go for this fixture to
+	// mean "nothing needs the management plane".
+	delete(cfg, "assign_blob_data_role")
+	delete(cfg, "principal_id")
 
 	cfg["skip_storage_account_creation"] = true
 	cfg["skip_versioning"] = true

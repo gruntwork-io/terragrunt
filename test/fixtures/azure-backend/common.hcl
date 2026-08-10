@@ -26,5 +26,7 @@ remote_state {
     access_tier              = "Hot"
 
     skip_versioning = feature.disable_versioning.value
+
+    assign_blob_data_role = __FILL_IN_ASSIGN_ROLE__
   }
 }
