@@ -1,10 +1,13 @@
 package git_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveSubmoduleURL(t *testing.T) {
@@ -142,4 +145,50 @@ func TestParseSubmoduleConfig(t *testing.T) {
 			assert.Equal(t, tt.want, git.ParseSubmoduleConfig(tt.output))
 		})
 	}
+}
+
+func TestGitRunner_SubmoduleURLs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parses blob config", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{"config", "--blob", headHash, "--list", "-z"}, inv.Args)
+			assert.Equal(t, "/repo", inv.Dir)
+
+			return vexec.Result{Stdout: []byte(
+				"submodule.child.path\nmodules/child\x00" +
+					"submodule.child.url\nhttps://example.com/child.git\x00",
+			)}
+		}).WithWorkDir("/repo")
+
+		urls, err := runner.SubmoduleURLs(t.Context(), headHash)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"modules/child": "https://example.com/child.git",
+		}, urls)
+	})
+
+	t.Run("command failure", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
+
+		_, err := runner.SubmoduleURLs(t.Context(), headHash)
+		require.ErrorIs(t, err, git.ErrCommandSpawn)
+	})
+
+	t.Run("missing workdir", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
+			t.Error("git must not be spawned when no working directory is set")
+
+			return vexec.Result{}
+		})
+
+		_, err := runner.SubmoduleURLs(t.Context(), headHash)
+		require.ErrorIs(t, err, git.ErrNoWorkDir)
+	})
 }
