@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"strings"
@@ -58,7 +59,7 @@ func TestParseTree_RejectsInvalidOutput(t *testing.T) {
 		t.Parallel()
 
 		_, err := git.ParseTree([]byte(strings.Repeat("100644 blob hash path ", 4000)), ".")
-		require.Error(t, err)
+		require.ErrorIs(t, err, bufio.ErrTooLong)
 
 		var wrappedErr *git.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)

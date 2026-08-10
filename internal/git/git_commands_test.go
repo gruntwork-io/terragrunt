@@ -45,6 +45,10 @@ func TestNewGitRunner(t *testing.T) {
 		require.ErrorIs(t, err, git.ErrCommandSpawn)
 		assert.Nil(t, runner)
 	})
+}
+
+func TestGitRunner_WithWorkDir(t *testing.T) {
+	t.Parallel()
 
 	t.Run("nil receiver", func(t *testing.T) {
 		t.Parallel()

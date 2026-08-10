@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"bufio"
 	"strings"
 	"testing"
 
@@ -75,8 +76,9 @@ func TestParseDiff_RejectsInvalidOutput(t *testing.T) {
 			wantErr: git.ErrParseDiff,
 		},
 		{
-			name:   "oversized line",
-			output: strings.Repeat("M path ", 10000),
+			name:    "oversized line",
+			output:  strings.Repeat("M path ", 10000),
+			wantErr: bufio.ErrTooLong,
 		},
 	}
 
