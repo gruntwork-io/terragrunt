@@ -123,7 +123,6 @@ jobs:
     secrets: inherit
 
   integration_tests:
-    needs: [base_tests, build]
     uses: ./.github/workflows/integration-test.yml
     permissions:
       contents: read
