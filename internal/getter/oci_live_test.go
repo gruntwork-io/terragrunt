@@ -6,7 +6,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"os"
 	"os/exec"
@@ -264,25 +263,12 @@ func pushOCILiveFixture(t *testing.T, repository string, cred auth.Credential) {
 // ecrLoginCredential mints a registry credential through the same helper the pull under test uses.
 func ecrLoginCredential(t *testing.T, registryHost string) auth.Credential {
 	t.Helper()
-	t.Logf("AWS_ACCESS_KEY_ID present in test env: %t", os.Getenv("AWS_ACCESS_KEY_ID") != "")
 
 	cmd := exec.CommandContext(t.Context(), "docker-credential-ecr-login", "get")
 	cmd.Stdin = strings.NewReader(registryHost)
 
 	output, err := cmd.Output()
-	if err != nil {
-		var exitErr *exec.ExitError
-
-		stderrText := ""
-		if errors.As(err, &exitErr) {
-			stderrText = string(exitErr.Stderr)
-		}
-
-		// The helper reports through stdout and its own log file, so surface every stream.
-		helperLog, _ := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".ecr", "log", "ecr-login.log"))
-		require.NoError(t, err, "docker-credential-ecr-login failed:\nstdout: %s\nstderr: %s\nlog:\n%s",
-			output, stderrText, tailBytes(helperLog, 2000))
-	}
+	require.NoError(t, err, "docker-credential-ecr-login must be on PATH with ambient AWS credentials")
 
 	var minted struct {
 		Username string `json:"Username"`
@@ -291,15 +277,6 @@ func ecrLoginCredential(t *testing.T, registryHost string) auth.Credential {
 	require.NoError(t, json.Unmarshal(output, &minted))
 
 	return auth.Credential{Username: minted.Username, Password: minted.Secret}
-}
-
-// tailBytes returns the last limit bytes of data for compact diagnostics.
-func tailBytes(data []byte, limit int) []byte {
-	if len(data) <= limit {
-		return data
-	}
-
-	return data[len(data)-limit:]
 }
 
 // linkAWSConfigInto links the real ~/.aws into the hermetic home, so SSO-based helper credentials keep working.
