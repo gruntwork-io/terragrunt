@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"os/exec"
@@ -268,6 +269,12 @@ func ecrLoginCredential(t *testing.T, registryHost string) auth.Credential {
 	cmd.Stdin = strings.NewReader(registryHost)
 
 	output, err := cmd.Output()
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		require.NoError(t, err, "docker-credential-ecr-login failed: %s", exitErr.Stderr)
+	}
+
 	require.NoError(t, err, "docker-credential-ecr-login must be on PATH with ambient AWS credentials")
 
 	var minted struct {
