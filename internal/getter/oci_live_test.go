@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	// ociLiveFixtureTag names the fixture module published once per registry by TestOCILiveProvision.
+	// ociLiveFixtureTag names the fixture module each live test seeds and pulls.
 	ociLiveFixtureTag = "live-fixture"
 	// ociLivePackCreated pins the packed manifest timestamp, so the fixture digest is reproducible locally.
 	ociLivePackCreated = "2026-01-01T00:00:00Z"
@@ -57,6 +57,8 @@ func TestOCILiveECR(t *testing.T) {
 
 	registryHost, _, found := strings.Cut(repository, "/")
 	require.True(t, found, "TG_OCI_TEST_ECR_REPOSITORY must be <registry-host>/<repository>")
+
+	ensureOCILiveFixture(t, repository, ecrLoginCredential(t, registryHost))
 
 	// The pull authenticates through the helper named in the ambient Docker config.
 	home := t.TempDir()
@@ -152,6 +154,30 @@ func pullOCILiveModule(t *testing.T, home, src string) {
 		require.NoError(t, readErr)
 		require.Equal(t, content, string(data))
 	}
+}
+
+// ensureOCILiveFixture publishes the fixture when the repository does not serve it yet.
+func ensureOCILiveFixture(t *testing.T, repository string, cred auth.Credential) {
+	t.Helper()
+
+	registryHost, _, _ := strings.Cut(repository, "/")
+	expected := ociLiveFixtureManifest(t)
+
+	repo, err := remote.NewRepository(repository)
+	require.NoError(t, err)
+
+	repo.Client = &auth.Client{
+		Client:     http.DefaultClient,
+		Cache:      auth.NewCache(),
+		Credential: auth.StaticCredential(registryHost, cred),
+	}
+
+	published, err := repo.Resolve(t.Context(), ociLiveFixtureTag)
+	if err == nil && published.Digest == expected.Digest {
+		return
+	}
+
+	pushOCILiveFixture(t, repository, cred)
 }
 
 // ociLiveFixtureStaging packs the fixture into a fresh in-memory store and returns it with the manifest.
