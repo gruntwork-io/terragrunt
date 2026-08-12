@@ -3,9 +3,9 @@ version: "v1.1.3"
 category: "bug-fixes"
 ---
 
-#### Fix `providers lock` flag values passed as a separate argument
+#### Fixed space-delimited flag values in `providers lock`
 
-`providers lock -platform linux_amd64` now reaches OpenTofu and Terraform intact. Previously the platform value was moved to the end of the command and read as a provider address, so the run failed with `Invalid provider type "linux_amd64"`. Attaching the value with `-platform=linux_amd64` was the only spelling that worked.
+The space-delimited form, `providers lock -platform linux_amd64`, now reaches OpenTofu and Terraform intact. Previously it was the attached form, `-platform=linux_amd64`, that worked: given the value as a separate argument, Terragrunt moved it to the end of the command, where it was read as a provider address and the run failed with `Invalid provider type "linux_amd64"`.
 
 `-fs-mirror` and `-net-mirror` were moved the same way, and now keep their values too.
 
