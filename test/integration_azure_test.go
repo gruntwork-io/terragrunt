@@ -162,11 +162,27 @@ func TestAzureDeleteBackend(t *testing.T) {
 
 	assertAzureContainerExists(t, ctx, account, container)
 
+	// Capture what apply actually wrote, so the delete assertion below is about
+	// real state blobs rather than an assumed key layout.
+	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(ctx, t, account))
+	require.NoError(t, err)
+
+	stateBlobs, err := blobClient.Container(container).ListBlobs(ctx, log.New())
+	require.NoError(t, err)
+	require.NotEmpty(t, stateBlobs, "apply must have written state for the delete to be meaningful")
+
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt backend delete --all --non-interactive --force --experiment azure-backend --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
+
+	// A successful exit is not proof of deletion; the blobs must be gone.
+	for _, key := range stateBlobs {
+		exists, err := blobClient.Container(container).BlobExists(ctx, key)
+		require.NoError(t, err)
+		assert.False(t, exists, "state blob %s must be removed by backend delete", key)
+	}
 
 	// Deleting again must be a no-op rather than an error.
 	_, _, err = helpers.RunTerragruntCommandWithOutput(

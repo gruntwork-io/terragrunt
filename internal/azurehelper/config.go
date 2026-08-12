@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -53,14 +54,9 @@ type AzureSessionConfig struct {
 	CloudEnvironment string
 }
 
-// boolValue reports the value of a tri-state flag, treating unset as false.
-func boolValue(v *bool) bool {
-	return v != nil && *v
-}
-
-// unsetOrFalse reports whether a tri-state flag may be turned on by the
-// environment: only an unset flag may be, so an explicit false stays false.
-func unsetOrFalse(v *bool) bool {
+// isUnset reports whether the user left a tri-state flag unset, which is the
+// only state an ARM_USE_* variable may turn on: an explicit false stays false.
+func isUnset(v *bool) bool {
 	return v == nil
 }
 
@@ -183,7 +179,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 	clientOpts := azcore.ClientOptions{Cloud: cloudCfg}
 
 	out := &AzureConfig{
-		UseAzureADAuth: boolValue(resolved.UseAzureADAuth),
+		UseAzureADAuth: util.Deref(resolved.UseAzureADAuth),
 		SubscriptionID: resolved.SubscriptionID,
 		TenantID:       resolved.TenantID,
 		AccountName:    resolved.StorageAccountName,
@@ -225,7 +221,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case boolValue(resolved.UseMSI):
+	case util.Deref(resolved.UseMSI):
 		opts := &azidentity.ManagedIdentityCredentialOptions{ClientOptions: clientOpts}
 		opts.ID = managedIdentityID(&resolved)
 
@@ -241,7 +237,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case boolValue(resolved.UseOIDC):
+	case util.Deref(resolved.UseOIDC):
 		// A request-URL flow (GitHub Actions, Azure DevOps) takes precedence
 		// over the token file, matching the native azurerm backend. Without
 		// this, a CI config that authenticates fine during `tofu init` would
@@ -280,7 +276,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case boolValue(resolved.UseAzureADAuth):
+	case util.Deref(resolved.UseAzureADAuth):
 		return buildAzureADConfig(out, &resolved, &clientOpts, l, "use_azuread_auth")
 
 	default:
@@ -425,15 +421,15 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	// Only an UNSET flag may be turned on by the environment. A user who wrote
 	// `use_msi = false` has said what they want, and a stray ARM_USE_MSI on the
 	// runner must not override it.
-	if unsetOrFalse(cfg.UseMSI) && parseBool(b.firstEnv("ARM_USE_MSI")) {
+	if isUnset(cfg.UseMSI) && parseBool(b.firstEnv("ARM_USE_MSI")) {
 		cfg.UseMSI = new(true)
 	}
 
-	if unsetOrFalse(cfg.UseOIDC) && parseBool(b.firstEnv("ARM_USE_OIDC")) {
+	if isUnset(cfg.UseOIDC) && parseBool(b.firstEnv("ARM_USE_OIDC")) {
 		cfg.UseOIDC = new(true)
 	}
 
-	if unsetOrFalse(cfg.UseAzureADAuth) && parseBool(b.firstEnv("ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH")) {
+	if isUnset(cfg.UseAzureADAuth) && parseBool(b.firstEnv("ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH")) {
 		cfg.UseAzureADAuth = new(true)
 	}
 
@@ -442,14 +438,14 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	// without ARM_USE_OIDC, so without this the explicit OIDC tier is unreachable.
 	// Defer to an explicit higher-tier choice (MSI / Azure AD) so a stray token
 	// file in the environment does not override what the user asked for.
-	if unsetOrFalse(cfg.UseOIDC) && !boolValue(cfg.UseMSI) && !boolValue(cfg.UseAzureADAuth) && cfg.OIDCTokenFilePath != "" {
+	if isUnset(cfg.UseOIDC) && !util.Deref(cfg.UseMSI) && !util.Deref(cfg.UseAzureADAuth) && cfg.OIDCTokenFilePath != "" {
 		cfg.UseOIDC = new(true)
 	}
 
 	// A federated token request url (GitHub Actions, Azure DevOps) implies OIDC
 	// the same way a token file does. CI injects these without ARM_USE_OIDC, so
 	// without this the request-url flows would be unreachable.
-	if unsetOrFalse(cfg.UseOIDC) && !boolValue(cfg.UseMSI) && !boolValue(cfg.UseAzureADAuth) &&
+	if isUnset(cfg.UseOIDC) && !util.Deref(cfg.UseMSI) && !util.Deref(cfg.UseAzureADAuth) &&
 		b.firstEnv("ARM_OIDC_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_URL", "SYSTEM_OIDCREQUESTURI") != "" {
 		cfg.UseOIDC = new(true)
 	}

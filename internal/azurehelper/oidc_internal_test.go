@@ -1,5 +1,3 @@
-//go:build azure
-
 package azurehelper
 
 import (
@@ -9,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/stretchr/testify/assert"
@@ -147,7 +146,7 @@ func TestApplyEnvFallbacks_RequestURLImpliesOIDC(t *testing.T) {
 			cfg := &AzureSessionConfig{}
 			b.applyEnvFallbacks(cfg)
 
-			assert.True(t, boolValue(cfg.UseOIDC), "%s must select the OIDC tier", key)
+			assert.True(t, util.Deref(cfg.UseOIDC), "%s must select the OIDC tier", key)
 		})
 	}
 }
@@ -190,12 +189,12 @@ func TestApplyEnvFallbacks_ExplicitFalseWins(t *testing.T) {
 	}
 	b.applyEnvFallbacks(cfg)
 
-	assert.False(t, boolValue(cfg.UseMSI), "an explicit use_msi = false must win over ARM_USE_MSI")
-	assert.False(t, boolValue(cfg.UseOIDC), "an explicit use_oidc = false must win over ARM_USE_OIDC")
-	assert.False(t, boolValue(cfg.UseAzureADAuth), "an explicit use_azuread_auth = false must win over ARM_USE_AZUREAD")
+	assert.False(t, util.Deref(cfg.UseMSI), "an explicit use_msi = false must win over ARM_USE_MSI")
+	assert.False(t, util.Deref(cfg.UseOIDC), "an explicit use_oidc = false must win over ARM_USE_OIDC")
+	assert.False(t, util.Deref(cfg.UseAzureADAuth), "an explicit use_azuread_auth = false must win over ARM_USE_AZUREAD")
 
 	// An UNSET flag is still enabled by the environment.
 	unset := &AzureSessionConfig{}
 	b.applyEnvFallbacks(unset)
-	assert.True(t, boolValue(unset.UseMSI), "an unset flag must still honor ARM_USE_MSI")
+	assert.True(t, util.Deref(unset.UseMSI), "an unset flag must still honor ARM_USE_MSI")
 }

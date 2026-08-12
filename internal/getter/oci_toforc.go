@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -385,7 +386,7 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 	}
 
 	defaults := ociTofuDefaults{
-		helper:          deref(decoded.Helper),
+		helper:          util.Deref(decoded.Helper),
 		discoverAmbient: discoverAmbient,
 	}
 
@@ -431,7 +432,7 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 		label:            block.Labels[0],
 		registryDomain:   ociCanonicalAuthKey(registryDomain),
 		repositoryPrefix: repositoryPrefix,
-		helper:           deref(decoded.Helper),
+		helper:           util.Deref(decoded.Helper),
 	}
 
 	// A helper block carries no inline secret, so it is complete once the helper name is validated.
@@ -522,15 +523,4 @@ func ociSplitRepositoryPrefix(label string) (registryDomain, repositoryPrefix st
 	registryDomain, repositoryPrefix, _ = strings.Cut(strings.TrimRight(label, "/"), "/")
 
 	return registryDomain, repositoryPrefix
-}
-
-// deref returns the pointed-to value, or the zero value of T when nil.
-func deref[T any](v *T) T {
-	if v == nil {
-		var zero T
-
-		return zero
-	}
-
-	return *v
 }

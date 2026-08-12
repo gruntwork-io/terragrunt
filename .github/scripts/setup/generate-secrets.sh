@@ -27,59 +27,61 @@ SECRETS="${SECRETS:-}"
 
 touch "$ENV_FILE"
 
+# Values are %q-quoted: a secret containing a quote or shell metacharacter would
+# otherwise terminate the assignment when the env file is sourced.
 # Manually export each secret listed in matrix.integration.secrets
 for SECRET in $SECRETS; do
 	if [[ "$SECRET" == "GHA_DEPLOY_KEY" && -n "${GHA_DEPLOY_KEY}" ]]; then
-		printf "export GHA_DEPLOY_KEY='%s'\n" "${GHA_DEPLOY_KEY}" >>"$ENV_FILE"
+		printf "export GHA_DEPLOY_KEY=%q\n" "${GHA_DEPLOY_KEY}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_ACCESS_KEY_ID" && -n "${AWS_ACCESS_KEY_ID}" ]]; then
-		printf "export AWS_ACCESS_KEY_ID='%s'\n" "${AWS_ACCESS_KEY_ID}" >>"$ENV_FILE"
+		printf "export AWS_ACCESS_KEY_ID=%q\n" "${AWS_ACCESS_KEY_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_SECRET_ACCESS_KEY" && -n "${AWS_SECRET_ACCESS_KEY}" ]]; then
-		printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${AWS_SECRET_ACCESS_KEY}" >>"$ENV_FILE"
+		printf "export AWS_SECRET_ACCESS_KEY=%q\n" "${AWS_SECRET_ACCESS_KEY}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY" && -n "${GCLOUD_SERVICE_KEY}" ]]; then
-		printf "export GCLOUD_SERVICE_KEY='%s'\n" "${GCLOUD_SERVICE_KEY}" >>"$ENV_FILE"
-		printf "export GOOGLE_SERVICE_ACCOUNT_JSON='%s'\n" "${GCLOUD_SERVICE_KEY}" >>"$ENV_FILE"
+		printf "export GCLOUD_SERVICE_KEY=%q\n" "${GCLOUD_SERVICE_KEY}" >>"$ENV_FILE"
+		printf "export GOOGLE_SERVICE_ACCOUNT_JSON=%q\n" "${GCLOUD_SERVICE_KEY}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "GOOGLE_CLOUD_PROJECT" && -n "${GOOGLE_CLOUD_PROJECT}" ]]; then
-		printf "export GOOGLE_CLOUD_PROJECT='%s'\n" "${GOOGLE_CLOUD_PROJECT}" >>"$ENV_FILE"
+		printf "export GOOGLE_CLOUD_PROJECT=%q\n" "${GOOGLE_CLOUD_PROJECT}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "GOOGLE_COMPUTE_ZONE" && -n "${GOOGLE_COMPUTE_ZONE}" ]]; then
-		printf "export GOOGLE_COMPUTE_ZONE='%s'\n" "${GOOGLE_COMPUTE_ZONE}" >>"$ENV_FILE"
+		printf "export GOOGLE_COMPUTE_ZONE=%q\n" "${GOOGLE_COMPUTE_ZONE}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "GOOGLE_IDENTITY_EMAIL" && -n "${GOOGLE_IDENTITY_EMAIL}" ]]; then
-		printf "export GOOGLE_IDENTITY_EMAIL='%s'\n" "${GOOGLE_IDENTITY_EMAIL}" >>"$ENV_FILE"
+		printf "export GOOGLE_IDENTITY_EMAIL=%q\n" "${GOOGLE_IDENTITY_EMAIL}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "GOOGLE_PROJECT_ID" && -n "${GOOGLE_PROJECT_ID}" ]]; then
-		printf "export GOOGLE_PROJECT_ID='%s'\n" "${GOOGLE_PROJECT_ID}" >>"$ENV_FILE"
+		printf "export GOOGLE_PROJECT_ID=%q\n" "${GOOGLE_PROJECT_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY_IMPERSONATOR" && -n "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" ]]; then
-		printf "export GCLOUD_SERVICE_KEY_IMPERSONATOR='%s'\n" "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" >>"$ENV_FILE"
+		printf "export GCLOUD_SERVICE_KEY_IMPERSONATOR=%q\n" "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_ACCESS_KEY_ID" && -n "${AWS_ACCESS_KEY_ID}" ]]; then
-		printf "export AWS_ACCESS_KEY_ID='%s'\n" "${AWS_ACCESS_KEY_ID}" >>"$ENV_FILE"
+		printf "export AWS_ACCESS_KEY_ID=%q\n" "${AWS_ACCESS_KEY_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_SECRET_ACCESS_KEY" && -n "${AWS_SECRET_ACCESS_KEY}" ]]; then
-		printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${AWS_SECRET_ACCESS_KEY}" >>"$ENV_FILE"
+		printf "export AWS_SECRET_ACCESS_KEY=%q\n" "${AWS_SECRET_ACCESS_KEY}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_TEST_S3_ASSUME_ROLE" && -n "${AWS_TEST_S3_ASSUME_ROLE}" ]]; then
-		printf "export AWS_TEST_S3_ASSUME_ROLE='%s'\n" "${AWS_TEST_S3_ASSUME_ROLE}" >>"$ENV_FILE"
+		printf "export AWS_TEST_S3_ASSUME_ROLE=%q\n" "${AWS_TEST_S3_ASSUME_ROLE}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_TEST_OIDC_ROLE_ARN" && -n "${AWS_TEST_OIDC_ROLE_ARN}" ]]; then
-		printf "export AWS_TEST_OIDC_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_ROLE_ARN}" >>"$ENV_FILE"
+		printf "export AWS_TEST_OIDC_ROLE_ARN=%q\n" "${AWS_TEST_OIDC_ROLE_ARN}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN" && -n "${AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN}" ]]; then
-		printf "export AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN}" >>"$ENV_FILE"
+		printf "export AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN=%q\n" "${AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN" && -n "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" ]]; then
-		printf "export AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" >>"$ENV_FILE"
+		printf "export AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN=%q\n" "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AZURE_CLIENT_ID" && -n "${AZURE_CLIENT_ID:-}" ]]; then
-		printf "export AZURE_CLIENT_ID='%s'\n" "${AZURE_CLIENT_ID}" >>"$ENV_FILE"
+		printf "export AZURE_CLIENT_ID=%q\n" "${AZURE_CLIENT_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AZURE_CLIENT_SECRET" && -n "${AZURE_CLIENT_SECRET:-}" ]]; then
-		printf "export AZURE_CLIENT_SECRET='%s'\n" "${AZURE_CLIENT_SECRET}" >>"$ENV_FILE"
+		printf "export AZURE_CLIENT_SECRET=%q\n" "${AZURE_CLIENT_SECRET}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AZURE_TENANT_ID" && -n "${AZURE_TENANT_ID:-}" ]]; then
-		printf "export AZURE_TENANT_ID='%s'\n" "${AZURE_TENANT_ID}" >>"$ENV_FILE"
+		printf "export AZURE_TENANT_ID=%q\n" "${AZURE_TENANT_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "TG_AZURE_TEST_STORAGE_ACCOUNT" && -n "${TG_AZURE_TEST_STORAGE_ACCOUNT:-}" ]]; then
-		printf "export TG_AZURE_TEST_STORAGE_ACCOUNT='%s'\n" "${TG_AZURE_TEST_STORAGE_ACCOUNT}" >>"$ENV_FILE"
+		printf "export TG_AZURE_TEST_STORAGE_ACCOUNT=%q\n" "${TG_AZURE_TEST_STORAGE_ACCOUNT}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "TG_AZURE_TEST_SUBSCRIPTION_ID" && -n "${TG_AZURE_TEST_SUBSCRIPTION_ID:-}" ]]; then
-		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID='%s'\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
+		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID=%q\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "TG_AZURE_TEST_RESOURCE_GROUP" && -n "${TG_AZURE_TEST_RESOURCE_GROUP:-}" ]]; then
-		printf "export TG_AZURE_TEST_RESOURCE_GROUP='%s'\n" "${TG_AZURE_TEST_RESOURCE_GROUP}" >>"$ENV_FILE"
+		printf "export TG_AZURE_TEST_RESOURCE_GROUP=%q\n" "${TG_AZURE_TEST_RESOURCE_GROUP}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "ARM_CLIENT_ID" && -n "${ARM_CLIENT_ID:-}" ]]; then
-		printf "export ARM_CLIENT_ID='%s'\n" "${ARM_CLIENT_ID}" >>"$ENV_FILE"
+		printf "export ARM_CLIENT_ID=%q\n" "${ARM_CLIENT_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "ARM_CLIENT_SECRET" && -n "${ARM_CLIENT_SECRET:-}" ]]; then
-		printf "export ARM_CLIENT_SECRET='%s'\n" "${ARM_CLIENT_SECRET}" >>"$ENV_FILE"
+		printf "export ARM_CLIENT_SECRET=%q\n" "${ARM_CLIENT_SECRET}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "ARM_TENANT_ID" && -n "${ARM_TENANT_ID:-}" ]]; then
-		printf "export ARM_TENANT_ID='%s'\n" "${ARM_TENANT_ID}" >>"$ENV_FILE"
+		printf "export ARM_TENANT_ID=%q\n" "${ARM_TENANT_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "ARM_SUBSCRIPTION_ID" && -n "${ARM_SUBSCRIPTION_ID:-}" ]]; then
-		printf "export ARM_SUBSCRIPTION_ID='%s'\n" "${ARM_SUBSCRIPTION_ID}" >>"$ENV_FILE"
+		printf "export ARM_SUBSCRIPTION_ID=%q\n" "${ARM_SUBSCRIPTION_ID}" >>"$ENV_FILE"
 	fi
 done
 
