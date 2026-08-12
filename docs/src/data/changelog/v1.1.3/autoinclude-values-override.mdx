@@ -3,9 +3,13 @@ version: "v1.1.3"
 category: "bug-fixes"
 ---
 
-#### Fix autoinclude inputs overriding unit inputs that reference undefined values
+#### Fixed `Unsupported attribute` errors for `values.*` inputs that `autoinclude` overrides
 
+<<<<<<< HEAD:docs/src/data/changelog/v1.1.3/autoinclude-values-placeholder.mdx
 Fixes an issue where unit inputs referencing undefined `values.*` attributes failed HCL decoding before autoinclude inputs could override them. When a sibling autoinclude is present, decoding now defers those attribute errors to the autoinclude merge, which overrides the affected inputs as expected.
+=======
+A unit input referencing a `values.*` key that the unit's values file doesn't define no longer fails with `Unsupported attribute` when an `autoinclude` block supplies that input. The autoinclude value is applied as intended.
+>>>>>>> origin/main:docs/src/data/changelog/v1.1.3/autoinclude-values-override.mdx
 
 ```hcl
 # stacks/terragrunt.stack.hcl
@@ -33,7 +37,12 @@ unit "subnet" {
 ```hcl
 # units/subnet/terragrunt.hcl
 inputs = {
+<<<<<<< HEAD:docs/src/data/changelog/v1.1.3/autoinclude-values-placeholder.mdx
   vpc_id     = values.vpc_id     # decode deferred, overridden by autoinclude
   cidr_block = values.cidr_block # still resolves from the values file
+=======
+  vpc_id     = values.vpc_id      # supplied by autoinclude, not the values file
+  cidr_block = values.cidr_block  # still resolves from values file
+>>>>>>> origin/main:docs/src/data/changelog/v1.1.3/autoinclude-values-override.mdx
 }
 ```
