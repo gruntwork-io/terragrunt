@@ -131,6 +131,9 @@ jobs:
             source "${GITHUB_WORKSPACE}/.env.secrets"
             echo "debug env names:"; env | grep -E '^(AWS|TG_OCI)' | cut -d= -f1 | sort
             command -v docker-credential-ecr-login || echo "helper NOT on PATH"
+            echo "debug value lengths: key=${#AWS_ACCESS_KEY_ID} secret=${#AWS_SECRET_ACCESS_KEY}"
+            ECR_HOST="${TG_OCI_TEST_ECR_REPOSITORY%%/*}"
+            echo "$ECR_HOST" | docker-credential-ecr-login get >/dev/null 2>&1; echo "debug helper direct exit: $?"
             # print command arguments
             set -x
             if [[ "$HAS_DOCKER" == "true" ]]; then
