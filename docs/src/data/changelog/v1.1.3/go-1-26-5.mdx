@@ -3,6 +3,6 @@ version: "v1.1.3"
 category: "process-updates"
 ---
 
-#### Go bumped to `v1.26.5`
+#### Go toolchain bumped to `v1.26.5`
 
-The version of Golang used to compile the Terragrunt binary has been updated from  `v1.26.0` to `v1.26.5`.
+The Go toolchain used to compile Terragrunt has been updated from `v1.26.0` to `v1.26.5`, addressing CVEs in `crypto/tls`, `os`, `net/http`, and `html/template`. The `go.mod` minimum version directive and `golang.org/x/crypto` dependency have also been updated.
