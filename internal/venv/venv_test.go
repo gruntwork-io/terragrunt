@@ -1,9 +1,12 @@
 package venv_test
 
 import (
+	"context"
 	"errors"
 	"io"
+	"net/http"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/internal/vsops"
 )
 
 func TestParseEnviron(t *testing.T) {
@@ -41,6 +46,11 @@ func TestParseEnviron(t *testing.T) {
 			name:    "entry without separator is dropped",
 			environ: []string{"NOSEP"},
 			want:    map[string]string{},
+		},
+		{
+			name:    "empty entry is dropped",
+			environ: []string{"", "FOO=bar"},
+			want:    map[string]string{"FOO": "bar"},
 		},
 		{
 			name:    "windows per-drive key keeps leading equals",
@@ -171,4 +181,141 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
 		(&venv.Venv{}).RequireUserHomeDir()
 	})
+}
+
+// TestVenvHandleBuildersReturnCopies pins the builder contract: the returned
+// copy carries the new handle, the receiver keeps none of them.
+func TestVenvHandleBuildersReturnCopies(t *testing.T) {
+	t.Parallel()
+
+	memFS := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(memFS, "/tracer.txt", []byte("tracer"), 0o644))
+
+	wantSopsErr := errors.New("decrypt failed")
+	echo := vexec.Handler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		return vexec.Result{Stdout: []byte(inv.Name + " " + strings.Join(inv.Args, " "))}
+	})
+
+	testCases := []struct {
+		build  func(v *venv.Venv) *venv.Venv
+		verify func(t *testing.T, got *venv.Venv)
+		name   string
+	}{
+		{
+			name:  "WithFS",
+			build: func(v *venv.Venv) *venv.Venv { return v.WithFS(memFS) },
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				data, err := vfs.ReadFile(got.FS, "/tracer.txt")
+				require.NoError(t, err)
+				assert.Equal(t, "tracer", string(data))
+			},
+		},
+		{
+			name:   "WithExec",
+			build:  func(v *venv.Venv) *venv.Venv { return v.WithExec(vexec.NewMemExec(echo)) },
+			verify: assertExecEchoes,
+		},
+		{
+			name:   "WithHandler",
+			build:  func(v *venv.Venv) *venv.Venv { return v.WithHandler(echo) },
+			verify: assertExecEchoes,
+		},
+		{
+			name: "WithSops",
+			build: func(v *venv.Venv) *venv.Venv {
+				return v.WithSops(vsops.NewMemDecrypter(func(string, string) ([]byte, error) {
+					return nil, wantSopsErr
+				}))
+			},
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				_, err := got.Sops.DecryptFile("/secrets.yaml", "yaml")
+				require.ErrorIs(t, err, wantSopsErr)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			original := &venv.Venv{}
+			got := tc.build(original)
+
+			require.NotSame(t, original, got)
+			assert.Nil(t, original.FS)
+			assert.Nil(t, original.Exec)
+			assert.Nil(t, original.Sops)
+			tc.verify(t, got)
+		})
+	}
+}
+
+// TestVenvWithReaderBuffersOneStream pins the reader contract: the copy reads
+// from r through a buffer every derived venv shares, so a second prompt resumes
+// where the first stopped, and a later replacement leaves that buffer intact.
+func TestVenvWithReaderBuffersOneStream(t *testing.T) {
+	t.Parallel()
+
+	original := &venv.Venv{}
+	got := original.WithReader(strings.NewReader("first\nsecond\n"))
+
+	assert.Nil(t, original.Reader)
+	require.NotNil(t, got.Reader)
+
+	line, err := got.Reader.ReadString('\n')
+	require.NoError(t, err)
+	assert.Equal(t, "first\n", line)
+	assert.Positive(t, got.Reader.Buffered())
+
+	derived := got.WithFS(vfs.NewMemMapFS())
+	require.Same(t, got.Reader, derived.Reader)
+
+	line, err = derived.Reader.ReadString('\n')
+	require.NoError(t, err)
+	assert.Equal(t, "second\n", line)
+
+	replaced := got.WithReader(strings.NewReader("third\n"))
+	require.NotSame(t, got.Reader, replaced.Reader)
+
+	line, err = replaced.Reader.ReadString('\n')
+	require.NoError(t, err)
+	assert.Equal(t, "third\n", line)
+}
+
+// TestVenvRequireReaderAndHTTP pins the Reader and HTTP contracts: the zero
+// Venv panics with the sentinel, a populated Venv passes.
+func TestVenvRequireReaderAndHTTP(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvReaderUnset, func() {
+		(&venv.Venv{FS: vfs.NewMemMapFS()}).RequireReader()
+	})
+
+	assert.NotPanics(t, func() {
+		(&venv.Venv{}).WithReader(strings.NewReader("")).RequireReader()
+	})
+
+	assert.PanicsWithValue(t, venv.ErrVenvHTTPUnset, func() {
+		(&venv.Venv{FS: vfs.NewMemMapFS()}).RequireHTTP()
+	})
+
+	assert.NotPanics(t, func() {
+		(&venv.Venv{HTTP: vhttp.NewMemClient(okHandler)}).RequireHTTP()
+	})
+}
+
+func assertExecEchoes(t *testing.T, got *venv.Venv) {
+	t.Helper()
+
+	out, err := got.Exec.Command(t.Context(), "terraform", "version").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "terraform version", string(out))
+}
+
+func okHandler(_ context.Context, _ *http.Request) (*http.Response, error) {
+	return vhttp.Respond(http.StatusOK, nil, nil), nil
 }
