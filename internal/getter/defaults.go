@@ -166,8 +166,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 			)
 		}
 
-		m[SchemeTFR] = NewRegistryGetter(cfg.logger, cfg.fs).
-			WithHTTPClient(cfg.httpClient).
+		m[SchemeTFR] = NewRegistryGetter(cfg.logger, cfg.fs, cfg.httpClient).
 			WithEnv(cfg.env).
 			WithTofuImplementation(cfg.tfrImpl)
 	}
@@ -270,7 +269,7 @@ func buildGetters(b *builder) []Getter {
 			NewCASProtocolGetter(b.logger, b.casStore, b.casVenv),
 			NewCASGetter(b.logger, b.casStore, b.casVenv, b.casCloneOpts,
 				WithGenericFetchers(fetchers),
-				WithGenericResolvers(DefaultSourceResolvers(b.httpClient, resolverOpts...)),
+				WithGenericResolvers(DefaultSourceResolvers(b.httpClient, b.casVenv.Exec, resolverOpts...)),
 			),
 		)
 	}

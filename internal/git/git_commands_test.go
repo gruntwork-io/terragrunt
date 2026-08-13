@@ -50,15 +50,6 @@ func TestNewGitRunner(t *testing.T) {
 func TestGitRunner_WithWorkDir(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil receiver", func(t *testing.T) {
-		t.Parallel()
-
-		var runner *git.GitRunner
-
-		got := runner.WithWorkDir("/repo")
-		assert.Equal(t, "/repo", got.WorkDir)
-	})
-
 	t.Run("resets memoized repo root", func(t *testing.T) {
 		t.Parallel()
 

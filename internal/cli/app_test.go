@@ -30,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1041,7 +1042,7 @@ func runAppTest(
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
 
-	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
+	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, venvtest.New(), nil)...)
 	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, venv.OSVenv()))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx context.Context, cliCtx *clihelper.Context) error {

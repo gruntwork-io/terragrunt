@@ -523,22 +523,6 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 // ProviderServiceOption configures a ProviderService.
 type ProviderServiceOption func(*ProviderService)
 
-// WithFS sets the filesystem for file operations.
-// If not set, defaults to the real OS filesystem.
-func WithFS(fs vfs.FS) ProviderServiceOption {
-	return func(ps *ProviderService) {
-		ps.fs = fs
-	}
-}
-
-// WithHTTPClient sets the HTTP client used for upstream provider fetches.
-// If not set, defaults to [vhttp.NewOSClient].
-func WithHTTPClient(c vhttp.Client) ProviderServiceOption {
-	return func(ps *ProviderService) {
-		ps.httpClient = c
-	}
-}
-
 type ProviderService struct {
 	logger log.Logger
 
@@ -585,6 +569,8 @@ func NewProviderService(
 	userCacheDir string,
 	credsSource *cliconfig.CredentialsSource,
 	l log.Logger,
+	fs vfs.FS,
+	c vhttp.Client,
 	opts ...ProviderServiceOption,
 ) *ProviderService {
 	service := &ProviderService{
@@ -593,8 +579,8 @@ func NewProviderService(
 		providerCacheWarmUpCh: make(chan *ProviderCache, providerCacheWarmUpChBufferSize),
 		credsSource:           credsSource,
 		logger:                l,
-		fs:                    vfs.NewOSFS(),
-		httpClient:            vhttp.NewOSClient(),
+		fs:                    fs,
+		httpClient:            c,
 	}
 
 	for _, opt := range opts {

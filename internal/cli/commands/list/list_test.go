@@ -1,6 +1,7 @@
 package list_test
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,10 +11,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1009,4 +1013,286 @@ dependency "unit3" {
 `,
 		outputStr,
 	)
+}
+
+// TestLongFormat pins the column layout of the long format, dependency padding included.
+func TestLongFormat(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		wantOutput   string
+		dependencies bool
+	}{
+		{
+			name:       "without dependencies",
+			wantOutput: "Type  Path\nunit  alpha\nunit  zulu\n",
+		},
+		{
+			name:         "with dependencies",
+			dependencies: true,
+			wantOutput:   "Type  Path   Dependencies\nunit  alpha  zulu\nunit  zulu\n",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/list-long"
+			fsys := newUnitsFS(t, root, map[string]string{
+				"alpha/terragrunt.hcl": `
+dependency "zulu" {
+  config_path = "../zulu"
+}
+`,
+				"zulu/terragrunt.hcl": "",
+			})
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := list.NewOptions(tgOpts)
+			opts.Format = list.FormatLong
+			opts.Dependencies = tc.dependencies
+
+			var buf strings.Builder
+
+			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+
+			require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			assert.Equal(t, tc.wantOutput, buf.String())
+		})
+	}
+}
+
+// TestTreeFormat pins how each mode shapes the tree: by path segment, or by dependency.
+func TestTreeFormat(t *testing.T) {
+	t.Parallel()
+
+	nestedZulu := filepath.Join("nested", "zulu")
+
+	testCases := []struct {
+		name         string
+		mode         string
+		wantLabels   []string
+		dependencies bool
+	}{
+		{
+			name:       "normal mode nests by path segment",
+			mode:       list.ModeNormal,
+			wantLabels: []string{".", "alpha", "nested", "zulu"},
+		},
+		{
+			name:         "dag mode nests by dependency",
+			mode:         list.ModeDAG,
+			dependencies: true,
+			wantLabels:   []string{".", ".", nestedZulu, "alpha"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/list-tree"
+			fsys := newUnitsFS(t, root, map[string]string{
+				// The unit at the root of the walk has path ".", which the segment tree cannot hang.
+				"terragrunt.hcl": "",
+				"alpha/terragrunt.hcl": `
+dependency "zulu" {
+  config_path = "../nested/zulu"
+}
+`,
+				"nested/zulu/terragrunt.hcl": "",
+			})
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := list.NewOptions(tgOpts)
+			opts.Format = list.FormatTree
+			opts.Mode = tc.mode
+			opts.Dependencies = tc.dependencies
+
+			var buf strings.Builder
+
+			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+
+			require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			assert.Equal(t, tc.wantLabels, treeLabels(buf.String()))
+		})
+	}
+}
+
+// TestTextFormatGivesAWidePathItsOwnLine pins that an over-wide path still gets a column.
+func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
+	t.Parallel()
+
+	root := "/list-wide"
+	fsys := newUnitsFS(t, root, map[string]string{
+		filepath.Join(widePathPrefix, "one", "terragrunt.hcl"): "",
+		filepath.Join(widePathPrefix, "two", "terragrunt.hcl"): "",
+	})
+
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := list.NewOptions(tgOpts)
+	opts.Format = list.FormatText
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+
+	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+
+	wantPaths := []string{
+		filepath.Join(widePathPrefix, "one"),
+		filepath.Join(widePathPrefix, "two"),
+	}
+
+	assert.Equal(t, wantPaths, strings.Fields(buf.String()))
+	assert.Len(t, strings.Split(strings.TrimRight(buf.String(), "\n"), "\n"), len(wantPaths))
+}
+
+// TestRunRejectsUnsupportedOptions pins that Run refuses an option it cannot honor.
+func TestRunRejectsUnsupportedOptions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		format           string
+		mode             string
+		queueConstructAs string
+	}{
+		{name: "unsupported format", format: "yaml", mode: list.ModeNormal},
+		{name: "unsupported mode", format: list.FormatText, mode: "topological"},
+		{
+			name:             "unparsable queue construct as",
+			format:           list.FormatText,
+			mode:             list.ModeNormal,
+			queueConstructAs: `"plan`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/list-invalid"
+			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := list.NewOptions(tgOpts)
+			opts.Format = tc.format
+			opts.Mode = tc.mode
+			opts.QueueConstructAs = tc.queueConstructAs
+
+			var buf strings.Builder
+
+			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+
+			require.Error(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			assert.Empty(t, buf.String())
+		})
+	}
+}
+
+// TestRunFailsWhenTheWriterFails pins that a failed write is reported rather than swallowed.
+func TestRunFailsWhenTheWriterFails(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		format string
+	}{
+		{name: "text", format: list.FormatText},
+		{name: "tree", format: list.FormatTree},
+		{name: "long", format: list.FormatLong},
+		{name: "dot", format: list.FormatDot},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/list-writer"
+			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := list.NewOptions(tgOpts)
+			opts.Format = tc.format
+
+			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
+			require.ErrorIs(t, list.Run(t.Context(), newTestLogger(t), v, opts), errWriteFailed)
+		})
+	}
+}
+
+// widePathPrefix is longer than any terminal the tabular renderer assumes.
+const widePathPrefix = "a-directory-with-a-deliberately-long-name/" +
+	"a-directory-with-a-deliberately-long-name/" +
+	"a-directory-with-a-deliberately-long-name"
+
+// errWriteFailed is what failingWriter returns, so a rejected write is told apart.
+var errWriteFailed = errors.New("write failed")
+
+// failingWriter rejects every write with errWriteFailed.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errWriteFailed
+}
+
+// newUnitsFS returns an in-memory filesystem holding files, each path relative to root.
+func newUnitsFS(t *testing.T, root string, files map[string]string) vfs.FS {
+	t.Helper()
+
+	fsys := vfs.NewMemMapFS()
+
+	for path, content := range files {
+		require.NoError(
+			t,
+			vfs.WriteFile(fsys, filepath.Join(root, path), []byte(content), 0o644),
+		)
+	}
+
+	return fsys
+}
+
+// newTestLogger returns a logger with colors off, so output is comparable byte for byte.
+func newTestLogger(t *testing.T) log.Logger {
+	t.Helper()
+
+	l := logger.CreateLogger()
+	l.Formatter().SetDisabledColors(true)
+
+	return l
+}
+
+// treeLabels returns the label of every rendered tree line, dropping the box-drawing prefix.
+func treeLabels(output string) []string {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	labels := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+
+		labels = append(labels, fields[len(fields)-1])
+	}
+
+	return labels
 }

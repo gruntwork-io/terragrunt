@@ -29,8 +29,8 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 	l := logger.CreateLogger()
 
-	ctx := run.WithModuleVersionResolver(t.Context(), venv.OSVenv())
-	run.ModuleVersionResolverFromContext(ctx).WithHTTPClient(server.Client())
+	v := venv.OSVenv().WithHTTP(server.Client())
+	ctx := run.WithModuleVersionResolver(t.Context(), v)
 
 	var wg sync.WaitGroup
 
@@ -44,7 +44,7 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 			// download path does. If lookups stopped returning the one shared
 			// resolver, the fresh fallback would not trust the test server's
 			// certificate and Pin would fail.
-			pinned, err := run.ModuleVersionResolverFromContext(ctx).Pin(
+			pinned, err := run.ModuleVersionResolverFromContext(ctx, v).Pin(
 				ctx, l, tfimpl.OpenTofu, source, "~> 3.0",
 			)
 			assert.NoError(t, err)
@@ -59,10 +59,9 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 	// A second installed resolver stands in for a second run: its cache must
 	// start cold, proving memoization lives on the run's context rather than
 	// in package-level state.
-	otherCtx := run.WithModuleVersionResolver(t.Context(), venv.OSVenv())
-	run.ModuleVersionResolverFromContext(otherCtx).WithHTTPClient(server.Client())
+	otherCtx := run.WithModuleVersionResolver(t.Context(), v)
 
-	pinned, err := run.ModuleVersionResolverFromContext(otherCtx).Pin(
+	pinned, err := run.ModuleVersionResolverFromContext(otherCtx, v).Pin(
 		otherCtx, l, tfimpl.OpenTofu, source, "~> 3.0",
 	)
 	require.NoError(t, err)
@@ -83,7 +82,9 @@ func TestModuleVersionResolverFromContextFallback(t *testing.T) {
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 	l := logger.CreateLogger()
 
-	first := run.ModuleVersionResolverFromContext(t.Context()).WithHTTPClient(server.Client())
+	v := venv.OSVenv().WithHTTP(server.Client())
+
+	first := run.ModuleVersionResolverFromContext(t.Context(), v)
 
 	for range 2 {
 		pinned, err := first.Pin(t.Context(), l, tfimpl.OpenTofu, source, "~> 3.0")
@@ -93,7 +94,7 @@ func TestModuleVersionResolverFromContextFallback(t *testing.T) {
 
 	assert.Equal(t, int64(1), versionsHits.Load())
 
-	second := run.ModuleVersionResolverFromContext(t.Context()).WithHTTPClient(server.Client())
+	second := run.ModuleVersionResolverFromContext(t.Context(), v)
 
 	pinned, err := second.Pin(t.Context(), l, tfimpl.OpenTofu, source, "~> 3.0")
 	require.NoError(t, err)

@@ -283,7 +283,7 @@ func resolveStackAutoIncludes(
 	earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
 
 	parseResult, parseErr := inthclparse.ParseStackFile(
-		vfs.NewOSFS(),
+		scopedPctx.Venv.FS,
 		&inthclparse.ParseStackFileInput{
 			Src:       stackSrcBytes,
 			Filename:  filepath.Base(stackFilePath),
