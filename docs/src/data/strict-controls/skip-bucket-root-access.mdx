@@ -1,0 +1,30 @@
+---
+name: skip-bucket-root-access
+status: active
+since: "1.1.4"
+---
+
+Prevents the use of the deprecated `skip_bucket_root_access` config attribute in the [`remote_state`](/reference/hcl/blocks/#remote_state) block. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so the attribute has nothing left to skip.
+
+Terragrunt logs a deprecation warning when it bootstraps a backend whose config carries the attribute, which means `terragrunt backend bootstrap` or a `run` command with `--backend-bootstrap`. Enabling this control turns that warning into an error.
+
+### `skip-bucket-root-access` - Reason
+
+Terragrunt used to attach a bucket policy statement with the `Sid` `RootAccess` to every S3 state bucket it bootstrapped, granting `s3:*` on the bucket and its objects to `arn:aws:iam::<account-id>:root`. `skip_bucket_root_access` existed to opt out of that statement. The statement is no longer written, so the attribute has no effect either way.
+
+Remove the attribute from your configuration:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    # ... other config omitted for brevity ...
+
+    # Remove this. It no longer does anything.
+    skip_bucket_root_access = true
+  }
+}
+```
+
+If you need the statement written, use `enable_bucket_root_access` instead. See [Root user access to the state bucket](/features/units/state-backend#root-user-access-to-the-state-bucket) for how to remove the statement from buckets that already carry it.

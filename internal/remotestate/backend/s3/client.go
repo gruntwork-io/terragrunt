@@ -328,12 +328,7 @@ func (client *Client) UpdateS3BucketIfNecessary(
 	}
 
 	if bucketUpdatesRequired.RootAccess {
-		if client.SkipBucketRootAccess {
-			l.Debugf(
-				"Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.",
-				bucketName,
-			)
-		} else if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
+		if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
 			return err
 		}
 	}
@@ -532,7 +527,7 @@ func (client *Client) checkIfS3BucketNeedsUpdate(
 		}
 	}
 
-	if !client.SkipBucketRootAccess {
+	if client.EnableBucketRootAccess {
 		enabled, err := client.checkIfBucketRootAccess(ctx, l, bucketName)
 		if err != nil {
 			return false, toUpdate, err
@@ -671,13 +666,10 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
 		return err
 	}
 
-	if client.SkipBucketRootAccess {
-		l.Debugf(
-			"Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.",
-			cfg.Bucket,
-		)
-	} else if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
-		return err
+	if client.EnableBucketRootAccess {
+		if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
+			return err
+		}
 	}
 
 	if client.SkipBucketEnforcedTLS {
