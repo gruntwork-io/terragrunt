@@ -1,11 +1,8 @@
-//go:build azure_integration
+//go:build azure
 
 // Package test_test contains the Azure end-to-end backend tests.
 //
-// These tests create and destroy real Azure resources, so they are behind the
-// dedicated `azure_integration` build tag rather than the `azure` tag used by
-// the hermetic internal/azurehelper unit tests. Keeping the tags separate means
-// a green `azure` job never implies live coverage.
+// These tests create and destroy real Azure resources behind the `azure` build tag.
 //
 // Unlike the hermetic tests, these fail loudly when credentials are absent
 // instead of calling t.Skip. A silently skipped live test reports success and

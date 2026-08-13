@@ -106,7 +106,7 @@ jobs:
           - name: Azure
             os: ubuntu
             target: ./test
-            tags: azure_integration
+            tags: azure
             run: ^TestAzure
             secrets:
               [

@@ -1,4 +1,4 @@
-//go:build azure_integration
+//go:build azure
 
 package test_test
 
