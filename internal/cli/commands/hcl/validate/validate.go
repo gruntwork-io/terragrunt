@@ -121,6 +121,7 @@ func RunValidate(
 	worktrees, parseErr := worktrees.NewWorktrees(
 		ctx,
 		l,
+		v,
 		worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
@@ -315,6 +316,7 @@ func RunValidateInputs(
 	worktrees, worktreeErr := worktrees.NewWorktrees(
 		ctx,
 		l,
+		v,
 		worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,

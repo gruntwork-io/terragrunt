@@ -73,7 +73,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).
 		AddSubcontrols(control)
 
-	cmdFlags := append(runcmd.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...)
+	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(l, opts, nil)...)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))
 
 	cmd := &clihelper.Command{

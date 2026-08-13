@@ -70,7 +70,7 @@ func DownloadTerraformSource(
 
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.StrictControls)
 
-	source, err := resolveTerraformModuleVersion(ctx, l, source, opts, cfg)
+	source, err := resolveTerraformModuleVersion(ctx, l, v, source, opts, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -227,6 +227,7 @@ func moduleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
 func resolveTerraformModuleVersion(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -259,7 +260,7 @@ func resolveTerraformModuleVersion(
 		return source, nil
 	}
 
-	pinned, err := ModuleVersionResolverFromContext(ctx).Pin(
+	pinned, err := ModuleVersionResolverFromContext(ctx, v).Pin(
 		ctx,
 		l,
 		opts.TofuImplementation,
@@ -721,8 +722,7 @@ func BuildDownloadClient(
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
-		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
-			WithHTTPClient(v.HTTP).
+		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS, v.HTTP).
 			WithEnv(v.Env).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
