@@ -258,7 +258,7 @@ func CreateS3ClientForTest(
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
-	cfg, err := awshelper.NewAWSConfigBuilder().
+	cfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).
 		WithSessionConfig(awsConfig).
 		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
 		Build(t.Context(), logger.CreateLogger())
@@ -283,7 +283,7 @@ func CreateDynamoDBClientForTest(
 		RoleArn: iamRoleArn,
 	}
 
-	cfg, err := awshelper.NewAWSConfigBuilder().
+	cfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).
 		WithSessionConfig(sessionConfig).
 		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
 		Build(t.Context(), logger.CreateLogger())
