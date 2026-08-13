@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -43,6 +44,10 @@ func (backend *Backend) NeedsBootstrap(
 
 	extS3Cfg, err := cfg.ExtendedS3Config(l)
 	if err != nil {
+		return false, err
+	}
+
+	if err := evaluateSkipBucketRootAccess(ctx, l, backendConfig, opts); err != nil {
 		return false, err
 	}
 
@@ -84,6 +89,10 @@ func (backend *Backend) Bootstrap(
 ) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
+		return err
+	}
+
+	if err := evaluateSkipBucketRootAccess(ctx, l, backendConfig, opts); err != nil {
 		return err
 	}
 
@@ -345,4 +354,22 @@ func (backend *Backend) DeleteBucket(
 
 func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
 	return Config(config).GetTFInitArgs()
+}
+
+// evaluateSkipBucketRootAccess reports the `skip_bucket_root_access` deprecation through its strict
+// control. Presence of the attribute is what matters, not its value, so this reads the raw config
+// rather than the parsed struct, which cannot tell an explicit `false` from an absent attribute.
+func evaluateSkipBucketRootAccess(
+	ctx context.Context,
+	l log.Logger,
+	backendConfig backend.Config,
+	opts *backend.Options,
+) error {
+	if _, ok := backendConfig[configSkipBucketRootAccessKey]; !ok {
+		return nil
+	}
+
+	return opts.StrictControls.
+		FilterByNames(controls.SkipBucketRootAccess).
+		Evaluate(log.ContextWithLogger(ctx, l))
 }
