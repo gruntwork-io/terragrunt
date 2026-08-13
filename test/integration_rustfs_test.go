@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,7 @@ import (
 
 const (
 	testFixtureOutputFromRemoteStateRustFS = "fixtures/output-from-remote-state-rustfs"
+	testFixtureStackDepsStackMockRustFS    = "fixtures/stacks/stack-deps-stack-mock-rustfs"
 )
 
 func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
@@ -96,6 +98,115 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	assert.Contains(t, stdout, "app3 output")
 	assert.NotContains(t, stderr, "terraform output -json")
 	assert.NotContains(t, stderr, "tofu output -json")
+}
+
+// TestRustFSStackDependencyMockOutputs covers stack dependency mock resolution against a live S3
+// API, where a unit that hasn't been applied yet fails with a real NoSuchKey. It pins that a
+// map-typed mock_outputs resolves for such a unit, and that a unit is never dropped silently from
+// the aggregated stack outputs: neither when mock_outputs_allowed_terraform_commands rules its mocks
+// out for the current command, nor when mock_outputs can't be keyed by unit name at all.
+func TestRustFSStackDependencyMockOutputs(t *testing.T) { //nolint: paralleltest
+	rustfsAddr := setupRustFS(t)
+
+	// RustFS default credentials
+	t.Setenv("AWS_ACCESS_KEY_ID", "rustfsadmin")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "rustfsadmin")
+	t.Setenv("AWS_DEFAULT_REGION", "us-east-1")
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackMockRustFS)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackMockRustFS)
+
+	rootConfigPath := filepath.Join(gitPath, "root.hcl")
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		rootConfigPath,
+		rootConfigPath,
+		map[string]string{
+			"__FILL_IN_BUCKET_NAME__": s3BucketName,
+			"__FILL_IN_S3_ENDPOINT__": rustfsAddr,
+		},
+	)
+
+	// The networking stack sources its units via get_repo_root(), so the fixture copy must be a git repo.
+	helpers.CreateGitRepo(t, gitPath)
+
+	rootPath := filepath.Join(gitPath, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	stackPath := filepath.Join(rootPath, ".terragrunt-stack")
+	vpcPath := filepath.Join(stackPath, "networking", ".terragrunt-stack", "vpc")
+
+	// Applying vpc creates the bucket, so the subnets unit that follows is missing a key rather than
+	// a bucket. Only the former is treated as "not applied yet".
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply --backend-bootstrap --auto-approve --non-interactive --working-dir "+vpcPath,
+	)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir "+filepath.Join(
+			stackPath,
+			"app",
+		),
+	)
+	require.NoError(
+		t,
+		err,
+		"a map-typed mock_outputs must resolve for the stack unit with no state; stderr=%s",
+		stderr,
+	)
+	assert.Contains(t, stdout, "real-vpc-id", "the applied unit must resolve to its real output")
+	assert.Contains(t, stdout, "mock-subnet-id", "the unapplied unit must resolve to its mock")
+
+	strictPath := filepath.Join(stackPath, "strict")
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir "+strictPath,
+	)
+
+	var fetchErr config.StackUnitOutputFetchError
+
+	require.ErrorAs(
+		t,
+		err,
+		&fetchErr,
+		"plan is not in mock_outputs_allowed_terraform_commands, so the unit with no state must not be dropped silently",
+	)
+	assert.Equal(t, "subnets", fetchErr.UnitName)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt validate --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir "+strictPath,
+	)
+	require.NoError(
+		t,
+		err,
+		"validate is in mock_outputs_allowed_terraform_commands, so the mock must stand in; stderr=%s",
+		stderr,
+	)
+
+	malformedPath := filepath.Join(stackPath, "malformed")
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir "+malformedPath,
+	)
+
+	var mockTypeErr config.StackMockOutputsTypeError
+
+	require.ErrorAs(
+		t,
+		err,
+		&mockTypeErr,
+		"mock_outputs that can't be keyed by unit name must fail rather than drop the unit; stderr=%s",
+		stderr,
+	)
+	assert.Equal(t, "networking", mockTypeErr.DependencyName)
 }
 
 func setupRustFS(t *testing.T) string {

@@ -855,7 +855,7 @@ func getTerragruntOutput(
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
 	if err != nil {
-		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) {
+		if !shouldFallBackToMockOutputs(pctx, err) {
 			return nil, true, err
 		}
 
@@ -896,6 +896,7 @@ func collectStackUnitOutputs(
 	l log.Logger,
 	stackDir string,
 	units []*Unit,
+	dependencyConfig *Dependency,
 ) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
 
@@ -911,7 +912,28 @@ func collectStackUnitOutputs(
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			return nil, fmt.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
+			if !shouldFallBackToMockOutputs(pctx, err) ||
+				!dependencyConfig.shouldReturnMockOutputs(pctx) {
+				return nil, StackUnitOutputFetchError{UnitName: unit.Name, Err: err}
+			}
+
+			mock, ok, mockErr := unitMockOutput(dependencyConfig, unit.Name)
+			if mockErr != nil {
+				return nil, mockErr
+			}
+
+			if ok {
+				unitOutputs[unit.Name] = mock
+				continue
+			}
+
+			l.Warnf(
+				"Stack unit %s has no remote state at %s yet, skipping",
+				unit.Name,
+				unitConfigPath,
+			)
+
+			continue
 		}
 
 		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
@@ -933,6 +955,37 @@ func collectStackUnitOutputs(
 	}
 
 	return unitOutputs, nil
+}
+
+// unitMockOutput returns the mock declared for a named stack unit in the dependency's mock_outputs.
+// It lets a partially applied stack resolve: applied units contribute real outputs while unapplied
+// ones fall back to their mock.
+//
+// Callers are responsible for checking that mocks are allowed for the current command. ok is false
+// when mock_outputs is absent or declares no entry for the unit. A mock_outputs that can't be keyed
+// by unit name at all is a config error rather than a missing mock, so it returns an error instead
+// of leaving the caller to drop the unit and surface the mistake as an unresolved attribute later.
+func unitMockOutput(dep *Dependency, unitName string) (cty.Value, bool, error) {
+	if dep.MockOutputs == nil {
+		return cty.NilVal, false, nil
+	}
+
+	mock := *dep.MockOutputs
+	if mock.IsNull() || !mock.IsKnown() {
+		return cty.NilVal, false, nil
+	}
+
+	if mockType := mock.Type(); !mockType.IsObjectType() && !mockType.IsMapType() {
+		return cty.NilVal, false, StackMockOutputsTypeError{
+			DependencyName: dep.Name,
+			UnitName:       unitName,
+			Actual:         mockType.FriendlyName(),
+		}
+	}
+
+	unitMock, ok := mock.AsValueMap()[unitName]
+
+	return unitMock, ok, nil
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
@@ -979,7 +1032,14 @@ func tryGetStackOutput(
 		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	unitOutputs, err := collectStackUnitOutputs(
+		ctx,
+		pctx,
+		l,
+		stackDir,
+		stackConfig.Units,
+		dependencyConfig,
+	)
 	if err != nil {
 		return nil, true, fmt.Errorf(
 			"failed to collect stack unit outputs for %s: %w",
@@ -1024,6 +1084,13 @@ func isAwsS3NoSuchKey(err error) bool {
 	}
 
 	return false
+}
+
+// shouldFallBackToMockOutputs reports whether a failed dependency output fetch should fall back to
+// mock outputs instead of being fatal: either the target's remote state doesn't exist yet (an S3
+// NoSuchKey), or the command is a render, which tolerates unresolved outputs.
+func shouldFallBackToMockOutputs(pctx *ParsingContext, err error) bool {
+	return isAwsS3NoSuchKey(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
