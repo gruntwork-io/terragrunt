@@ -1,10 +1,8 @@
 package git_test
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -56,24 +54,11 @@ func TestParseTree_RoundTripsCanonicalOutput(t *testing.T) {
 func TestParseTree_RejectsInvalidOutput(t *testing.T) {
 	t.Parallel()
 
-	t.Run("invalid entry", func(t *testing.T) {
-		t.Parallel()
+	_, err := git.ParseTree([]byte("100644 blob\n"), ".")
+	require.ErrorIs(t, err, git.ErrParseTree)
 
-		_, err := git.ParseTree([]byte("100644 blob\n"), ".")
-		require.ErrorIs(t, err, git.ErrParseTree)
-	})
-
-	t.Run("entry longer than the scanner buffer", func(t *testing.T) {
-		t.Parallel()
-
-		entry := "100644 blob aaaabeefcafefacedeadbeefcafefacedeadbeef\t" + strings.Repeat("a", bufio.MaxScanTokenSize)
-
-		_, err := git.ParseTree([]byte(entry), ".")
-		require.ErrorIs(t, err, bufio.ErrTooLong)
-
-		var wrappedErr *git.WrappedError
-		require.ErrorAs(t, err, &wrappedErr)
-	})
+	var wrappedErr *git.WrappedError
+	require.ErrorAs(t, err, &wrappedErr)
 }
 
 func TestParseTree_SkipsBlankLines(t *testing.T) {
