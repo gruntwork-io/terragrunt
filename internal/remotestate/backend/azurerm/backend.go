@@ -75,8 +75,7 @@ func resolveConfig(
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(extCfg.GetAzureSessionConfig()).
-		WithVenv(v).
-		Build(l)
+		Build(l, v)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -100,7 +99,11 @@ func armWorkRequested(extCfg *ExtendedRemoteStateConfigAzurerm) bool {
 // warnArmWorkSkipped logs that account creation or versioning/soft-delete
 // convergence was requested but cannot run under data-plane-only auth.
 func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod) {
-	l.Warnf("Cannot manage the storage account for %s backend with %s authentication; skipping account creation and versioning/soft-delete convergence.", name, method)
+	l.Warnf(
+		"Cannot manage the storage account for %s backend with %s authentication; skipping account creation and versioning/soft-delete convergence.",
+		name,
+		method,
+	)
 }
 
 // cloudName describes a cloud for an error message. The configured value is
@@ -213,7 +216,11 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv
 
 // accountNeedsBootstrap reports whether the storage account is missing (and
 // creatable) or has versioning / soft-delete drift to converge.
-func accountNeedsBootstrap(ctx context.Context, cfg *azurehelper.AzureConfig, extCfg *ExtendedRemoteStateConfigAzurerm) (bool, error) {
+func accountNeedsBootstrap(
+	ctx context.Context,
+	cfg *azurehelper.AzureConfig,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+) (bool, error) {
 	saClient, err := azurehelper.NewStorageAccountClient(cfg)
 	if err != nil {
 		return false, err
@@ -551,7 +558,8 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Ve
 
 	// Move (copy + delete source), mirroring the S3 and GCS backends: refuse to
 	// overwrite an existing destination and leave no stale state at the old key.
-	return blobClient.Container(src.ContainerName).MoveBlobIfNecessary(ctx, l, src.Key, blobClient.Container(dst.ContainerName), dst.Key)
+	return blobClient.Container(src.ContainerName).
+		MoveBlobIfNecessary(ctx, l, src.Key, blobClient.Container(dst.ContainerName), dst.Key)
 }
 
 // Delete deletes the Terraform state blob (config "key") from its container.
@@ -572,8 +580,12 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 		return err
 	}
 
-	prompt := fmt.Sprintf("The Terraform state blob %q in container %q (storage account %q) will be deleted. Do you want to continue?",
-		rs.Key, rs.ContainerName, rs.StorageAccountName)
+	prompt := fmt.Sprintf(
+		"The Terraform state blob %q in container %q (storage account %q) will be deleted. Do you want to continue?",
+		rs.Key,
+		rs.ContainerName,
+		rs.StorageAccountName,
+	)
 
 	yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
@@ -605,8 +617,11 @@ func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, 
 		return err
 	}
 
-	prompt := fmt.Sprintf("The blob container %q in storage account %q will be completely deleted. Do you want to continue?",
-		rs.ContainerName, rs.StorageAccountName)
+	prompt := fmt.Sprintf(
+		"The blob container %q in storage account %q will be completely deleted. Do you want to continue?",
+		rs.ContainerName,
+		rs.StorageAccountName,
+	)
 
 	yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {

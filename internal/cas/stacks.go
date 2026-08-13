@@ -556,7 +556,7 @@ func gitTreeMode(mode os.FileMode) string {
 // Remote URLs, go-getter forcers (git::), SSH shorthand (git@host:…), and
 // non-directory paths all return false and fall through to the remote
 // processing flow.
-func isLocalPath(fs vfs.FS, source string) bool {
+func isLocalPath(fsys vfs.FS, source string) bool {
 	if source == "" {
 		return false
 	}
@@ -581,7 +581,7 @@ func isLocalPath(fs vfs.FS, source string) bool {
 		return false
 	}
 
-	info, err := fs.Stat(source)
+	info, err := fsys.Stat(source)
 	if err != nil {
 		return false
 	}

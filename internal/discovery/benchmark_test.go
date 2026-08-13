@@ -10,10 +10,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +63,7 @@ func benchmarkPathExpression(b *testing.B, n int) {
 	)
 	require.NoError(b, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	b.ResetTimer()
 
@@ -93,7 +93,7 @@ func benchmarkGraphExpression(b *testing.B, n int) {
 	filterQueries, err := filter.ParseFilterQueries(l, []string{"infra-0001..."})
 	require.NoError(b, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	b.ResetTimer()
 
@@ -126,7 +126,7 @@ func benchmarkPathAndGraphExpression(b *testing.B, n int) {
 	)
 	require.NoError(b, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	b.ResetTimer()
 

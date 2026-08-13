@@ -230,7 +230,7 @@ func WrapWithTelemetry(
 // on a sufficiently new version of OpenTofu.
 func GiveWindowsSymlinksTip(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	goos string,
 	allTips tips.Tips,
 	envs map[string]string,
@@ -246,14 +246,14 @@ func GiveWindowsSymlinksTip(
 		return
 	}
 
-	tmp, err := vfs.MkdirTemp(fs, "", "terragrunt-test-symlink")
+	tmp, err := vfs.MkdirTemp(fsys, "", "terragrunt-test-symlink")
 	if err != nil {
 		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
 		return
 	}
 
 	defer func() {
-		if err := fs.RemoveAll(tmp); err != nil {
+		if err := fsys.RemoveAll(tmp); err != nil {
 			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
 		}
 	}()
@@ -261,12 +261,12 @@ func GiveWindowsSymlinksTip(
 	source := filepath.Join(tmp, "source")
 	target := filepath.Join(tmp, "target")
 
-	if err := fs.Mkdir(source, 0755); err != nil { //nolint:mnd
+	if err := fsys.Mkdir(source, 0755); err != nil { //nolint:mnd
 		l.Debugf("Failed to create source directory for testing symlink: %v", err)
 		return
 	}
 
-	err = vfs.Symlink(fs, source, target)
+	err = vfs.Symlink(fsys, source, target)
 	if err == nil {
 		return
 	}
@@ -342,7 +342,7 @@ func RunAction(
 			return err
 		}
 
-		ln, err := server.Listen(actionCtx)
+		ln, err := server.Listen(actionCtx, v)
 		if err != nil {
 			return err
 		}

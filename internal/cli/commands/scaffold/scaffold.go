@@ -304,7 +304,7 @@ func Prepare(
 	}
 
 	// extract variables from downloaded module
-	requiredVariables, optionalVariables, err := parseVariables(l, v.FS, opts, tempDir)
+	requiredVariables, optionalVariables, err := parseVariables(l, v, opts, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -783,11 +783,11 @@ func prepareBoilerplateFiles(
 // parseVariables - parse variables from tf files.
 func parseVariables(
 	l log.Logger,
-	fsys vfs.FS,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, fsys, opts.StrictControls, moduleDir)
+	inputs, err := config.ParseVariables(l, v, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, err
 	}

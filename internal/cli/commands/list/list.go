@@ -14,7 +14,6 @@ import (
 	"errors"
 
 	"charm.land/lipgloss/v2/tree"
-	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -121,13 +120,13 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, v.Writers.Writer, listedComponents)
+		return outputText(l, v, listedComponents)
 	case FormatTree:
-		return outputTree(l, v.Writers.Writer, opts, listedComponents, opts.Mode)
+		return outputTree(l, v, opts, listedComponents, opts.Mode)
 	case FormatLong:
-		return outputLong(l, v.Writers.Writer, opts, listedComponents)
+		return outputLong(l, v, opts, listedComponents)
 	case FormatDot:
-		return outputDot(v.Writers.Writer, listedComponents)
+		return outputDot(v, listedComponents)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -215,17 +214,17 @@ func discoveredToListed(
 }
 
 // outputText outputs the discovered components in text format.
-func outputText(l log.Logger, w io.Writer, components dag.ListedComponents) error {
-	colorizer := dag.NewColorizer(stdout.ShouldColor(l))
+func outputText(l log.Logger, v *venv.Venv, components dag.ListedComponents) error {
+	colorizer := dag.NewColorizer(stdout.ShouldColor(l, v))
 
-	return renderTabular(w, components, colorizer)
+	return renderTabular(v, v.Writers.Writer, components, colorizer)
 }
 
 // outputLong outputs the discovered components in long format.
-func outputLong(l log.Logger, w io.Writer, opts *Options, components dag.ListedComponents) error {
-	colorizer := dag.NewColorizer(stdout.ShouldColor(l))
+func outputLong(l log.Logger, v *venv.Venv, opts *Options, components dag.ListedComponents) error {
+	colorizer := dag.NewColorizer(stdout.ShouldColor(l, v))
 
-	return renderLong(w, opts, components, colorizer)
+	return renderLong(v.Writers.Writer, opts, components, colorizer)
 }
 
 // renderLong renders the components in a long format.
@@ -293,10 +292,10 @@ func buildLongHeadings(opts *Options, c *dag.Colorizer, longestPathLen int) stri
 }
 
 // renderTabular renders the components in a tabular format.
-func renderTabular(w io.Writer, components dag.ListedComponents, c *dag.Colorizer) error {
+func renderTabular(v *venv.Venv, w io.Writer, components dag.ListedComponents, c *dag.Colorizer) error {
 	var buf strings.Builder
 
-	maxCols, colWidth := getMaxCols(components)
+	maxCols, colWidth := getMaxCols(v, components)
 
 	for i, component := range components {
 		if i > 0 && i%maxCols == 0 {
@@ -322,19 +321,19 @@ func renderTabular(w io.Writer, components dag.ListedComponents, c *dag.Colorize
 // outputTree outputs the discovered components in tree format.
 func outputTree(
 	l log.Logger,
-	w io.Writer,
+	v *venv.Venv,
 	opts *Options,
 	components dag.ListedComponents,
 	sort string,
 ) error {
-	s := dag.NewTreeStyler(stdout.ShouldColor(l))
+	s := dag.NewTreeStyler(stdout.ShouldColor(l, v))
 
-	return renderTree(w, opts, components, s, sort)
+	return renderTree(v.Writers.Writer, opts, components, s, sort)
 }
 
 // outputDot outputs the discovered components in GraphViz DOT format.
-func outputDot(w io.Writer, components dag.ListedComponents) error {
-	return renderDot(w, components)
+func outputDot(v *venv.Venv, components dag.ListedComponents) error {
+	return renderDot(v.Writers.Writer, components)
 }
 
 // generateTree creates a tree structure from dag.ListedComponents
@@ -428,10 +427,10 @@ func renderTree(
 // that can be displayed in the terminal.
 // It also returns the width of each column.
 // The width is the longest path length + 2 for padding.
-func getMaxCols(components dag.ListedComponents) (int, int) {
+func getMaxCols(v *venv.Venv, components dag.ListedComponents) (int, int) {
 	maxCols := 0
 
-	terminalWidth := getTerminalWidth()
+	terminalWidth := getTerminalWidth(v)
 	longestPathLen := getLongestPathLen(components)
 
 	const padding = 2
@@ -449,17 +448,19 @@ func getMaxCols(components dag.ListedComponents) (int, int) {
 	return maxCols, colWidth
 }
 
-// getTerminalWidth returns the width of the terminal.
-func getTerminalWidth() int {
-	// Default to 80 if we can't get the terminal width.
-	width := 80
+// defaultTerminalWidth is the column count assumed when the run has no
+// terminal to measure, as in a pipe or a CI log.
+const defaultTerminalWidth = 80
 
-	cols, _, err := term.GetSize(os.Stdout.Fd())
-	if err == nil {
-		width = cols
+// getTerminalWidth returns the width of the terminal.
+func getTerminalWidth(v *venv.Venv) int {
+	v.RequireTerminal()
+
+	if cols := v.Terminal.Width(); cols > 0 {
+		return cols
 	}
 
-	return width
+	return defaultTerminalWidth
 }
 
 // getLongestPathLen returns the length of the

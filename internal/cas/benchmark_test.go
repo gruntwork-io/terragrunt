@@ -13,7 +13,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -24,7 +23,7 @@ func BenchmarkClone(b *testing.B) {
 
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
@@ -89,7 +88,7 @@ func BenchmarkContent(b *testing.B) {
 
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	b.Run("store", func(b *testing.B) {
 		for i := 0; b.Loop(); i++ {

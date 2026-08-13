@@ -868,8 +868,8 @@ func (c *CAS) ensureBlob(
 	return nil
 }
 
-func hashFile(fs vfs.FS, path string) (string, error) {
-	file, err := fs.Open(path)
+func hashFile(fsys vfs.FS, path string) (string, error) {
+	file, err := fsys.Open(path)
 	if err != nil {
 		return "", err
 	}

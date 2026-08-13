@@ -8,8 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,7 +107,7 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 			err := prepareInitCommandRunCfg(
 				t.Context(),
 				logger.CreateLogger(),
-				venv.OSVenv(),
+				venvtest.New(),
 				opts,
 				&cfg,
 			)

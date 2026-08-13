@@ -33,7 +33,7 @@ require (
 	github.com/hashicorp/terraform-svchost v0.2.1
 	github.com/huandu/go-clone v1.7.3
 	github.com/labstack/echo/v4 v4.15.4
-	github.com/mattn/go-isatty v0.0.24
+	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-zglob v0.0.6
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -89,7 +89,6 @@ require (
 	github.com/aws/smithy-go v1.27.6
 	github.com/charlievieth/fastwalk v1.0.14
 	github.com/charmbracelet/x/ansi v0.11.7
-	github.com/charmbracelet/x/term v0.2.2
 	github.com/getsops/sops/v3 v3.12.2
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/gobwas/glob v0.2.3
@@ -178,6 +177,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260713092251-4bee1914c0cf // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20260713092006-0d683c34c74b // indirect
+	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect

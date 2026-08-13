@@ -538,7 +538,7 @@ func CheckFolderContainsTerraformCode(fsys vfs.FS, opts *Options) error {
 }
 
 // Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't.
-func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType string) error {
+func checkTerraformCodeDefinesBackend(fsys vfs.FS, opts *Options, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(
 		fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType),
 	)
@@ -547,7 +547,7 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 	}
 
 	// Check for backend definitions in .tf and .tofu files using WalkDir
-	definesBackend, err := util.RegexFoundInTFFiles(fs, opts.CacheDir, terraformBackendRegexp)
+	definesBackend, err := util.RegexFoundInTFFiles(fsys, opts.CacheDir, terraformBackendRegexp)
 	if err != nil {
 		return err
 	}
@@ -564,7 +564,7 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 	}
 
 	definesJSONBackend, err := util.GrepFilesWithSuffix(
-		fs,
+		fsys,
 		terraformJSONBackendRegexp,
 		opts.CacheDir,
 		".tf.json",
@@ -1018,7 +1018,8 @@ func SetTofuCPUProfileEnv(l log.Logger, v *venv.Venv, opts *Options) error {
 	v.RequireEnv()
 
 	unitRelDir := filepath.Join("external", filepath.Base(opts.UnitDir)+"-"+util.EncodeBase64Sha1(opts.UnitDir))
-	if relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath); err == nil && filepath.IsLocal(relPath) {
+	if relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath); err == nil &&
+		filepath.IsLocal(relPath) {
 		unitRelDir = filepath.Dir(relPath)
 	}
 

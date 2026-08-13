@@ -81,7 +81,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 

@@ -66,14 +66,12 @@ func isUnset(v *bool) bool {
 // Use NewAzureConfigBuilder to create, chain With* methods, then call Build().
 type AzureConfigBuilder struct {
 	sessionConfig *AzureSessionConfig
-	venv          *venv.Venv
 }
 
 // NewAzureConfigBuilder creates a new builder for AzureConfig.
 func NewAzureConfigBuilder() *AzureConfigBuilder {
 	return &AzureConfigBuilder{
 		sessionConfig: &AzureSessionConfig{},
-		venv:          (&venv.Venv{}).WithEnv(map[string]string{}),
 	}
 }
 
@@ -84,25 +82,6 @@ func (b *AzureConfigBuilder) WithSessionConfig(cfg *AzureSessionConfig) *AzureCo
 	}
 
 	b.sessionConfig = cfg
-
-	return b
-}
-
-// WithVenv sets the virtualized environment whose Env map feeds ARM_* /
-// AZURE_* fallback resolution; the builder never reads the process
-// environment itself.
-func (b *AzureConfigBuilder) WithVenv(v *venv.Venv) *AzureConfigBuilder {
-	if v == nil {
-		return b
-	}
-
-	// WithEnv panics on a nil map, so an unset Env resolves to no fallbacks.
-	env := v.Env
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	b.venv = v.WithEnv(env)
 
 	return b
 }
@@ -168,10 +147,13 @@ type AzureConfig struct {
 //
 // Environment variable fallbacks (ARM_* / AZURE_*) are applied to subscription,
 // tenant, client id, client secret, SAS token, and access key when the session
-// config leaves them empty.
-func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
+// config leaves them empty. They resolve from v.Env; the process environment is
+// never consulted, so resolution stays fully caller-controlled.
+func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, error) {
+	v.RequireEnv()
+
 	resolved := *b.sessionConfig
-	b.applyEnvFallbacks(&resolved)
+	applyEnvFallbacks(v.Env, &resolved)
 
 	cloudCfg, err := CloudConfigForEnvironment(resolved.CloudEnvironment)
 	if err != nil {
@@ -244,7 +226,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 		// over the token file, matching the native azurerm backend. Without
 		// this, a CI config that authenticates fine during `tofu init` would
 		// fail during Terragrunt's own lifecycle operations.
-		if getAssertion := b.oidcAssertionProvider(); getAssertion != nil {
+		if getAssertion := oidcAssertionProvider(v); getAssertion != nil {
 			cred, err := azidentity.NewClientAssertionCredential(
 				resolved.TenantID, resolved.ClientID, getAssertion,
 				&azidentity.ClientAssertionCredentialOptions{ClientOptions: clientOpts},
@@ -344,8 +326,8 @@ func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l lo
 
 // BuildBlobClient is a convenience that calls Build and then constructs a
 // BlobClient from the resulting AzureConfig.
-func (b *AzureConfigBuilder) BuildBlobClient(l log.Logger) (*BlobClient, error) {
-	cfg, err := b.Build(l)
+func (b *AzureConfigBuilder) BuildBlobClient(l log.Logger, v *venv.Venv) (*BlobClient, error) {
+	cfg, err := b.Build(l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -361,12 +343,17 @@ func (b *AzureConfigBuilder) BuildBlobClient(l log.Logger) (*BlobClient, error) 
 // SAS-token and access-key auth methods are rejected up-front because they
 // cannot reach the ARM control plane; the rejection happens before Build
 // emits any auth-resolution debug logs, keeping the failure mode obvious.
-func (b *AzureConfigBuilder) BuildStorageAccountClient(l log.Logger) (*StorageAccountClient, error) {
+func (b *AzureConfigBuilder) BuildStorageAccountClient(
+	l log.Logger,
+	v *venv.Venv,
+) (*StorageAccountClient, error) {
+	v.RequireEnv()
+
 	// Pre-flight against env-resolved values as well, not just the explicitly
 	// supplied sessionConfig: ARM_SAS_TOKEN / ARM_ACCESS_KEY would otherwise
 	// reach Build and fail with a less obvious error from the ARM client.
 	preflight := *b.sessionConfig
-	b.applyEnvFallbacks(&preflight)
+	applyEnvFallbacks(v.Env, &preflight)
 
 	switch {
 	case preflight.SasToken != "":
@@ -375,7 +362,7 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(l log.Logger) (*StorageAc
 		return nil, &UnsupportedAuthForOpError{Method: AuthMethodAccessKey, Operation: "storage account operations"}
 	}
 
-	cfg, err := b.Build(l)
+	cfg, err := b.Build(l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -383,9 +370,9 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(l log.Logger) (*StorageAc
 	return NewStorageAccountClient(cfg)
 }
 
-// applyEnvFallbacks fills empty fields on cfg from the builder's env map.
+// applyEnvFallbacks fills empty fields on cfg from env.
 // Mirrors the ARM_* and AZURE_* names used by the OpenTofu azurerm backend.
-func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
+func applyEnvFallbacks(env map[string]string, cfg *AzureSessionConfig) {
 	fallbacks := []struct {
 		field *string
 		keys  []string
@@ -411,22 +398,22 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 		*fb.field = strings.TrimSpace(*fb.field)
 
 		if *fb.field == "" {
-			*fb.field = strings.TrimSpace(b.firstEnv(fb.keys...))
+			*fb.field = strings.TrimSpace(firstEnv(env, fb.keys...))
 		}
 	}
 
 	// Only an UNSET flag may be turned on by the environment. A user who wrote
 	// `use_msi = false` has said what they want, and a stray ARM_USE_MSI on the
 	// runner must not override it.
-	if isUnset(cfg.UseMSI) && parseBool(b.firstEnv("ARM_USE_MSI")) {
+	if isUnset(cfg.UseMSI) && parseBool(firstEnv(env, "ARM_USE_MSI")) {
 		cfg.UseMSI = new(true)
 	}
 
-	if isUnset(cfg.UseOIDC) && parseBool(b.firstEnv("ARM_USE_OIDC")) {
+	if isUnset(cfg.UseOIDC) && parseBool(firstEnv(env, "ARM_USE_OIDC")) {
 		cfg.UseOIDC = new(true)
 	}
 
-	if isUnset(cfg.UseAzureADAuth) && parseBool(b.firstEnv("ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH")) {
+	if isUnset(cfg.UseAzureADAuth) && parseBool(firstEnv(env, "ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH")) {
 		cfg.UseAzureADAuth = new(true)
 	}
 
@@ -443,17 +430,17 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	// the same way a token file does. CI injects these without ARM_USE_OIDC, so
 	// without this the request-url flows would be unreachable.
 	if isUnset(cfg.UseOIDC) && !util.Deref(cfg.UseMSI) && !util.Deref(cfg.UseAzureADAuth) &&
-		b.firstEnv("ARM_OIDC_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_URL", "SYSTEM_OIDCREQUESTURI") != "" {
+		firstEnv(env, "ARM_OIDC_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_URL", "SYSTEM_OIDCREQUESTURI") != "" {
 		cfg.UseOIDC = new(true)
 	}
 }
 
-// firstEnv returns the first non-empty value found for keys in the builder's
-// venv environment; the process environment is never consulted, so resolution
-// stays hermetic and fully caller-controlled.
-func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
+// firstEnv returns the first non-empty value found for keys in env; the process
+// environment is never consulted, so resolution stays hermetic and fully
+// caller-controlled.
+func firstEnv(env map[string]string, keys ...string) string {
 	for _, k := range keys {
-		if v := b.venv.Env[k]; v != "" {
+		if v := env[k]; v != "" {
 			return v
 		}
 	}

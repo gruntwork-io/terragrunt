@@ -623,17 +623,17 @@ func (pc *ProviderCache) registrySupportsModules(
 }
 
 // saveCLIConfig writes the CLI config to disk, creating the directory if needed.
-func (pc *ProviderCache) saveCLIConfig(fs vfs.FS, cfg *cliconfig.Config, filename string) error {
+func (pc *ProviderCache) saveCLIConfig(fsys vfs.FS, cfg *cliconfig.Config, filename string) error {
 	cfgDir := filepath.Dir(filename)
 
-	cfgDirExists, err := vfs.FileExists(fs, cfgDir)
+	cfgDirExists, err := vfs.FileExists(fsys, cfgDir)
 	if err != nil {
 		return err
 	}
 
 	if !cfgDirExists {
 		const ownerReadWriteExecutePerms = 0o700
-		if err := fs.MkdirAll(cfgDir, ownerReadWriteExecutePerms); err != nil {
+		if err := fsys.MkdirAll(cfgDir, ownerReadWriteExecutePerms); err != nil {
 			return err
 		}
 	}

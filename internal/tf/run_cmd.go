@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	logwriter "github.com/gruntwork-io/terragrunt/pkg/log/writer"
-	"github.com/mattn/go-isatty"
 )
 
 const (
@@ -34,8 +33,8 @@ const (
 )
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
-// preserved. This is a list of terraform commands that have this property, which is used to determine if terragrunt
-// should allocate a ptty when running that terraform command.
+// preserved. This is a list of tofu commands that have this property, which is used to determine if terragrunt
+// should allocate a ptty when running that tofu command.
 var commandsThatNeedPty = []string{
 	CommandNameConsole,
 }
@@ -51,7 +50,7 @@ type TFOptions struct {
 	JSONLogFormat                bool
 }
 
-// RunCommand runs the given Terraform command using the supplied venv.
+// RunCommand runs the given OpenTofu/Terraform command using the supplied venv.
 // Pass a venv whose Exec is a [vexec.NewMemExec] from tests and fuzzers to
 // intercept invocations so tofu/terraform are never forked.
 func RunCommand(
@@ -66,7 +65,7 @@ func RunCommand(
 	return err
 }
 
-// RunCommandWithOutput runs the given Terraform command using the supplied
+// RunCommandWithOutput runs the given OpenTofu/Terraform command using the supplied
 // venv, writing its stdout/stderr to the terminal AND returning
 // stdout/stderr to this method's caller.
 func RunCommandWithOutput(
@@ -82,7 +81,7 @@ func RunCommandWithOutput(
 		return fn(ctx, l, v, runOpts, args)
 	}
 
-	needsPTY, err := isCommandThatNeedsPty(args)
+	needsPTY, err := isCommandThatNeedsPty(v, args)
 	if err != nil {
 		return nil, err
 	}
@@ -181,9 +180,16 @@ func logTFOutput(
 	return outWriter, errWriter
 }
 
-// isCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.
-func isCommandThatNeedsPty(args []string) (bool, error) {
+// isCommandThatNeedsPty returns true if the sub command of tofu we are running requires a pty.
+func isCommandThatNeedsPty(v *venv.Venv, args []string) (bool, error) {
 	if len(args) == 0 || !slices.Contains(commandsThatNeedPty, args[0]) {
+		return false, nil
+	}
+
+	v.RequireTerminal()
+
+	// if the stdin is not a terminal, then the tofu console is used in non-interactive mode
+	if !v.Terminal.StdinIsTTY() {
 		return false, nil
 	}
 
@@ -192,13 +198,8 @@ func isCommandThatNeedsPty(args []string) (bool, error) {
 		return false, err
 	}
 
-	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.
+	// if there is data in the stdin, then the tofu console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.
 	if fi.Size() > 0 {
-		return false, nil
-	}
-
-	// if the stdin is not a terminal, then the terraform console is used in non-interactive mode
-	if !isatty.IsTerminal(os.Stdin.Fd()) {
 		return false, nil
 	}
 

@@ -290,7 +290,7 @@ func computeVersionFilesCacheKey(
 			continue
 		}
 
-		sanitizedPath, err := util.SanitizePath(workingDir, file)
+		sanitizedPath, err := util.SanitizePath(fsys, workingDir, file)
 		if err != nil {
 			sanitizedPath = path
 		}

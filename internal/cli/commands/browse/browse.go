@@ -69,7 +69,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	root := tui.NewRoot(opts.WorkingDir)
 
 	color := tui.ColorDisabled
-	if stdout.ShouldColor(l) {
+	if stdout.ShouldColor(l, v) {
 		color = tui.ColorEnabled
 	}
 

@@ -209,7 +209,7 @@ func TestParseConfigStringExpansionRequiresExperiment(t *testing.T) {
 	skipInExperimentMode(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -255,7 +255,7 @@ func TestReadStackConfigStringExpansionRequiresExperiment(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultStackFile)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultStackFile)
 
 			_, err := config.ReadStackConfigString(
 				ctx,
@@ -299,7 +299,7 @@ include "extra" {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackPath)
 	pctx.Venv.FS = fsys
 
 	_, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
@@ -1308,7 +1308,7 @@ func newExpansionParsingContext(
 ) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
-	ctx, pctx := newTestParsingContext(tb, venvtest.NewOSWithEmptyEnv(), configPath)
+	ctx, pctx := newTestParsingContext(tb, venvtest.NewWithOSFS(), configPath)
 	require.NoError(tb, pctx.Experiments.EnableExperiment(experiment.BlockIteration))
 
 	return ctx, pctx

@@ -37,13 +37,11 @@ type assertionProvider func(ctx context.Context) (string, error)
 // request URL wins, then GitHub Actions, then Azure DevOps. It returns nil when
 // no request-URL flow is configured, leaving the token-file (workload identity)
 // path to handle it.
-func (b *AzureConfigBuilder) oidcAssertionProvider() assertionProvider {
-	v := b.venv
-
+func oidcAssertionProvider(v *venv.Venv) assertionProvider {
 	// GitHub Actions injects both variables into every job that requests the
 	// id-token permission.
-	if requestURL := b.firstEnv("ARM_OIDC_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_URL"); requestURL != "" {
-		token := b.firstEnv("ARM_OIDC_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+	if requestURL := firstEnv(v.Env, "ARM_OIDC_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_URL"); requestURL != "" {
+		token := firstEnv(v.Env, "ARM_OIDC_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN")
 
 		return func(ctx context.Context) (string, error) {
 			return fetchOIDCAssertion(ctx, v, requestURL, token, "value")
@@ -51,8 +49,8 @@ func (b *AzureConfigBuilder) oidcAssertionProvider() assertionProvider {
 	}
 
 	// Azure DevOps workload identity federation.
-	if requestURL := b.firstEnv("SYSTEM_OIDCREQUESTURI"); requestURL != "" {
-		token := b.firstEnv("SYSTEM_ACCESSTOKEN")
+	if requestURL := firstEnv(v.Env, "SYSTEM_OIDCREQUESTURI"); requestURL != "" {
+		token := firstEnv(v.Env, "SYSTEM_ACCESSTOKEN")
 
 		return func(ctx context.Context) (string, error) {
 			return fetchOIDCAssertion(ctx, v, requestURL, token, "oidcToken")

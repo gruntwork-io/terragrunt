@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -83,7 +84,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 		return nil
 	}
 
-	interTransientComponents := component.NewThreadSafeComponents(component.Components{})
+	interTransientComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
 
 	state := &relationshipTraversalState{
 		opts:                     input.Opts,
@@ -171,7 +172,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	cfg := unit.Config()
 
-	paths, err := extractDependencyPaths(cfg, c)
+	paths, err := extractDependencyPaths(v.FS, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -193,6 +194,7 @@ func (p *RelationshipPhase) discoverRelationships(
 		// it and fetch its outputs. [Discovery.dropOutsideBoundary] decides what
 		// is returned.
 		dep, created := p.dependencyToDiscover(
+			v.FS,
 			c,
 			path,
 			state.allComponents,
@@ -259,6 +261,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 // dependencyToDiscover resolves a dependency path and links it to the component.
 func (p *RelationshipPhase) dependencyToDiscover(
+	fsys vfs.FS,
 	c component.Component,
 	path string,
 	allComponents *component.Components,
@@ -277,14 +280,14 @@ func (p *RelationshipPhase) dependencyToDiscover(
 
 	newUnit := component.NewUnit(path)
 
-	dep, created := interTransientComponents.EnsureComponent(newUnit)
+	dep, created := interTransientComponents.EnsureComponent(fsys, newUnit)
 
 	if created && discovery.discoveryContext != nil {
 		discoveryCtx := discovery.discoveryContext.Copy()
 		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
 		dep.SetDiscoveryContext(discoveryCtx)
 
-		if isExternal(discoveryCtx.WorkingDir, path) {
+		if isExternal(fsys, discoveryCtx.WorkingDir, path) {
 			dep.SetExternal()
 		}
 	}

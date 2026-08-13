@@ -39,7 +39,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	// This doesn't actually do anything for single-unit runs, but it's
 	// helpful to leave it in here for consistency, if we ever add
 	// support for run summaries in single-unit runs.
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 

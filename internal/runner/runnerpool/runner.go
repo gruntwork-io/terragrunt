@@ -736,21 +736,21 @@ func (rnr *Runner) Run(
 // showing dependency relationships between units.
 func (rnr *Runner) LogUnitDeployOrder(
 	l log.Logger,
+	v *venv.Venv,
 	isDestroy bool,
 	showAbsPaths bool,
 	experiments experiment.Experiments,
 ) error {
-	return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
+	return rnr.logUnitDeployOrderDAG(l, v, isDestroy, showAbsPaths)
 }
 
 // logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
 // Independent units (siblings in the tree) may run concurrently.
-func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, isDestroy bool, showAbsPaths bool) error {
+func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, v *venv.Venv, isDestroy bool, showAbsPaths bool) error {
 	components := rnr.queueComponents()
 	listed := rnr.buildListedComponents(components, isDestroy, showAbsPaths)
 
-	shouldColor := !l.Formatter().DisabledColors() && !stdout.IsRedirected()
-	s := dag.NewTreeStyler(shouldColor)
+	s := dag.NewTreeStyler(stdout.ShouldColor(l, v))
 	t := dag.GenerateDAGTree(listed, s)
 	t = s.Style(t)
 

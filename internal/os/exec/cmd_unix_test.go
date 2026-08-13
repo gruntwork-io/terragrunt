@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +47,7 @@ func TestExitCodeUnix(t *testing.T) {
 	for index := 0; index <= 255; index++ {
 		cmd := exec.Command(
 			t.Context(),
-			vexec.NewOSExec(),
+			venvtest.New().WithExec(vexec.NewOSExec()),
 			"testdata/test_exit_code.sh",
 			strconv.Itoa(index),
 		)
@@ -81,7 +82,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	cmd := exec.Command(
 		t.Context(),
-		vexec.NewOSExec(),
+		venvtest.New().WithExec(vexec.NewOSExec()),
 		"testdata/test_sigint_wait.sh",
 		strconv.Itoa(expectedWait),
 		readyPath,
@@ -126,7 +127,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
 
 	cmd := exec.Command(
-		t.Context(), vexec.NewOSExec(),
+		t.Context(), venvtest.New().WithExec(vexec.NewOSExec()),
 		"testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts), readyPath,
 	)
 
@@ -181,7 +182,12 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 
 	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
 
-	cmd := exec.Command(ctx, vexec.NewOSExec(), "testdata/test_graceful_shutdown.sh", readyPath)
+	cmd := exec.Command(
+		ctx,
+		venvtest.New().WithExec(vexec.NewOSExec()),
+		"testdata/test_graceful_shutdown.sh",
+		readyPath,
+	)
 
 	cmd.Configure(exec.WithGracefulShutdownDelay(5 * time.Second))
 

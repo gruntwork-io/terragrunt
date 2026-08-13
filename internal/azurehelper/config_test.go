@@ -109,8 +109,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 
 			got, err := azurehelper.NewAzureConfigBuilder().
 				WithSessionConfig(&tc.cfg).
-				WithVenv(isolatedEnv()).
-				Build(log.New())
+				Build(log.New(), isolatedEnv())
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got.Method)
 
@@ -132,11 +131,10 @@ func TestBuild_EnvFallbacks(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			StorageAccountName: testAccount,
 		}).
-		WithVenv(isolatedEnv(
+		Build(log.New(), isolatedEnv(
 			"ARM_SAS_TOKEN", "sv=test",
 			"ARM_SUBSCRIPTION_ID", "sub-from-env",
-		)).
-		Build(log.New())
+		))
 	require.NoError(t, err)
 	assert.Equal(t, azurehelper.AuthMethodSasToken, cfg.Method)
 	assert.Equal(t, "sv=test", cfg.SasToken)
@@ -147,8 +145,7 @@ func TestBuild_TrimsWhitespaceFromEnvValues(t *testing.T) {
 	// CI often injects secrets with a trailing newline; it must be trimmed.
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{StorageAccountName: testAccount, SasToken: testSASToken}).
-		WithVenv(isolatedEnv("ARM_SUBSCRIPTION_ID", "sub-from-env\n")).
-		Build(log.New())
+		Build(log.New(), isolatedEnv("ARM_SUBSCRIPTION_ID", "sub-from-env\n"))
 	require.NoError(t, err)
 	assert.Equal(t, "sub-from-env", cfg.SubscriptionID, "env values must be trimmed")
 }
@@ -158,8 +155,7 @@ func TestBuild_StorageAccountNameEnvFallback(t *testing.T) {
 	// SAS auth requires a storage account; supply it only via AZURE_STORAGE_ACCOUNT.
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{SasToken: testSASToken}).
-		WithVenv(isolatedEnv("AZURE_STORAGE_ACCOUNT", "acct-from-env")).
-		Build(log.New())
+		Build(log.New(), isolatedEnv("AZURE_STORAGE_ACCOUNT", "acct-from-env"))
 	require.NoError(t, err)
 	assert.Equal(t, "acct-from-env", cfg.AccountName)
 }
@@ -176,8 +172,7 @@ func TestBuild_SubscriptionNotRequiredForDataPlane(t *testing.T) {
 			StorageAccountName: testAccount,
 			UseAzureADAuth:     new(true),
 		}).
-		WithVenv(isolatedEnv()).
-		Build(log.New())
+		Build(log.New(), isolatedEnv())
 	require.NoError(t, err)
 	assert.Empty(t, cfg.SubscriptionID)
 }
@@ -193,8 +188,7 @@ func TestSubscriptionRequiredAtArmBoundary(t *testing.T) {
 			ResourceGroupName:  "rg",
 			UseAzureADAuth:     new(true),
 		}).
-		WithVenv(isolatedEnv()).
-		Build(log.New())
+		Build(log.New(), isolatedEnv())
 	require.NoError(t, err)
 
 	_, err = azurehelper.NewStorageAccountClient(cfg)
@@ -211,8 +205,7 @@ func TestBuild_SasTokenWithoutAccountFails(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			SasToken: "sv=test",
 		}).
-		WithVenv(isolatedEnv()).
-		Build(log.New())
+		Build(log.New(), isolatedEnv())
 	require.ErrorIs(t, err, azurehelper.ErrStorageAccountRequired)
 }
 
@@ -224,8 +217,7 @@ func TestBuild_AccessKeyWithoutAccountFails(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			AccessKey: "a2V5", // base64("key")
 		}).
-		WithVenv(isolatedEnv()).
-		Build(log.New())
+		Build(log.New(), isolatedEnv())
 	require.ErrorIs(t, err, azurehelper.ErrStorageAccountRequired)
 }
 
@@ -254,8 +246,7 @@ func TestBuild_CloudEnvironmentMapping(t *testing.T) {
 					SasToken:           testSASToken,
 					CloudEnvironment:   tc.env,
 				}).
-				WithVenv(isolatedEnv()).
-				Build(log.New())
+				Build(log.New(), isolatedEnv())
 			require.NoError(t, err)
 			assert.Equal(t, tc.want.ActiveDirectoryAuthorityHost, cfg.CloudConfig.ActiveDirectoryAuthorityHost)
 		})
@@ -266,8 +257,7 @@ func TestBuild_NilSessionConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
-		WithVenv(isolatedEnv("ARM_SUBSCRIPTION_ID", "sub")).
-		Build(log.New())
+		Build(log.New(), isolatedEnv("ARM_SUBSCRIPTION_ID", "sub"))
 	require.NoError(t, err)
 	assert.Equal(t, "sub", cfg.SubscriptionID)
 	assert.Equal(t, azurehelper.AuthMethodAzureAD, cfg.Method)
@@ -281,8 +271,7 @@ func TestBuildBlobClient_SasToken(t *testing.T) {
 			StorageAccountName: testAccount,
 			SasToken:           testSASToken,
 		}).
-		WithVenv(isolatedEnv()).
-		BuildBlobClient(log.New())
+		BuildBlobClient(log.New(), isolatedEnv())
 	require.NoError(t, err, "BuildBlobClient")
 	require.NotNil(t, bc)
 	assert.Equal(t, testAccount, bc.AccountName)
@@ -293,8 +282,7 @@ func TestBuildBlobClient_PropagatesBuildError(t *testing.T) {
 	// No StorageAccountName set anywhere -> Build's validate() rejects.
 	_, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{SasToken: testSASToken}).
-		WithVenv(isolatedEnv()).
-		BuildBlobClient(log.New())
+		BuildBlobClient(log.New(), isolatedEnv())
 	require.ErrorIs(t, err, azurehelper.ErrStorageAccountRequired)
 }
 
@@ -307,8 +295,7 @@ func TestBuild_RejectsUnknownCloudEnvironment(t *testing.T) {
 			SasToken:           testSASToken,
 			CloudEnvironment:   "governmnt", // typo
 		}).
-		WithVenv(isolatedEnv()).
-		Build(log.New())
+		Build(log.New(), isolatedEnv())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cloud environment")
 }
@@ -321,8 +308,7 @@ func TestBuildStorageAccountClient_RequiresArmFields(t *testing.T) {
 			StorageAccountName: testAccount,
 			SasToken:           testSASToken,
 		}).
-		WithVenv(isolatedEnv()).
-		BuildStorageAccountClient(log.New())
+		BuildStorageAccountClient(log.New(), isolatedEnv())
 	require.Error(t, err, "ARM-plane fields are required for a storage account client")
 }
 
@@ -352,8 +338,7 @@ func TestBuild_CarriesAuthorizationMode(t *testing.T) {
 			StorageAccountName: testAccount,
 			UseAzureADAuth:     new(true),
 		}).
-		WithVenv(isolatedEnv()).
-		Build(log.New())
+		Build(log.New(), isolatedEnv())
 	require.NoError(t, err)
 	assert.True(t, entra.UseAzureADAuth, "use_azuread_auth must reach the resolved config")
 
@@ -365,8 +350,7 @@ func TestBuild_CarriesAuthorizationMode(t *testing.T) {
 			ClientID:           "cid",
 			ClientSecret:       "sec",
 		}).
-		WithVenv(isolatedEnv()).
-		Build(log.New())
+		Build(log.New(), isolatedEnv())
 	require.NoError(t, err)
 	assert.False(t, sharedKey.UseAzureADAuth, "an unset use_azuread_auth must not imply Entra authorization")
 }

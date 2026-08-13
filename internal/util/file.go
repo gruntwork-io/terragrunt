@@ -81,13 +81,13 @@ func CanonicalPath(path string, basePath string) (string, error) {
 }
 
 // CanonicalResolvedPath returns the cleaned absolute path with symlinks resolved best-effort.
-func CanonicalResolvedPath(path, basePath string) (string, error) {
+func CanonicalResolvedPath(fsys vfs.FS, path, basePath string) (string, error) {
 	canonical, err := CanonicalPath(path, basePath)
 	if err != nil {
 		return "", err
 	}
 
-	return ResolvePath(canonical), nil
+	return vfs.ResolveForCompare(fsys, canonical), nil
 }
 
 // GrepFilesWithSuffix returns true if regex matches the contents of any file
@@ -1831,14 +1831,20 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 	return num, err
 }
 
+// ErrPathEscapesBaseDir reports that a path handed to [SanitizePath] would
+// resolve outside the base directory it was to be read from.
+var ErrPathEscapesBaseDir = errors.New("path escapes its base directory")
+
 // SanitizePath resolves a file path within a base directory, returning the sanitized path or an error if it attempts
-// to access anything outside the base directory.
-func SanitizePath(baseDir string, file string) (sanitized string, err error) {
+// to access anything outside the base directory. An absolute file, a "../"
+// traversal, and a symlink that leads out of baseDir are all rejected; the
+// resolved file must exist.
+func SanitizePath(fsys vfs.FS, baseDir string, file string) (string, error) {
 	if baseDir == "" || file == "" {
 		return "", errors.New("baseDir and file must be provided")
 	}
 
-	file, err = url.QueryUnescape(file)
+	file, err := url.QueryUnescape(file)
 	if err != nil {
 		return "", err
 	}
@@ -1848,29 +1854,23 @@ func SanitizePath(baseDir string, file string) (sanitized string, err error) {
 		return "", err
 	}
 
-	root, err := os.OpenRoot(baseDir)
-	if err != nil {
+	if filepath.IsAbs(file) {
+		return "", fmt.Errorf("%w: %q must be relative to %q", ErrPathEscapesBaseDir, file, baseDir)
+	}
+
+	// Join preserves nested directories from the input, so "a/b/c.txt" keeps
+	// its shape instead of flattening onto baseDir.
+	sanitized := filepath.Join(baseDir, filepath.Clean(file))
+
+	if !vfs.Within(fsys, baseDir, sanitized) {
+		return "", fmt.Errorf("%w: %q is outside %q", ErrPathEscapesBaseDir, file, baseDir)
+	}
+
+	if _, err := fsys.Stat(sanitized); err != nil {
 		return "", err
 	}
 
-	defer func() {
-		if cerr := root.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-	}()
-
-	if _, err := root.Stat(file); err != nil {
-		return "", err
-	}
-
-	// Preserve nested directories from the validated input. Using
-	// fileInfo.Name() would flatten "a/b/c.txt" to "<baseDir>/c.txt".
-	// root.Stat already rejects paths that escape baseDir, so we only need
-	// to clean the input and join it back onto baseDir.
-	cleanedRelative := filepath.Clean(file)
-	cleanedRelative = strings.TrimLeft(cleanedRelative, string(os.PathSeparator))
-
-	return filepath.Join(baseDir, cleanedRelative), nil
+	return sanitized, nil
 }
 
 // RelPathForLog returns a relative path suitable for logging.
@@ -1896,18 +1896,6 @@ func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
 	}
 
 	return targetPath
-}
-
-// ResolvePath resolves symlinks in a path for consistent comparison across platforms.
-// On macOS, /var is a symlink to /private/var, so paths must be resolved.
-// Returns the original path if symlink resolution fails.
-func ResolvePath(path string) string {
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return path
-	}
-
-	return resolved
 }
 
 // MoveFile attempts to rename a file from source to destination, if this fails

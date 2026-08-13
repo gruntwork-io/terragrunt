@@ -550,7 +550,7 @@ func (repo *Repo) performClone(
 	}
 
 	if repo.slowReporting {
-		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(v), time.Second, util.SlowNotifyMsg{
 			Spinner: "Cloning repository " + repo.cloneURL + "...",
 			Done:    "Cloned repository " + repo.cloneURL,
 		}, cloneFunc)

@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/middleware"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -96,10 +97,10 @@ func (server *Server) DiscoveryURL(
 }
 
 // Listen starts listening to the given configuration address. It also automatically chooses a free port if not explicitly specified.
-func (server *Server) Listen(ctx context.Context) (net.Listener, error) {
-	lc := &net.ListenConfig{}
+func (server *Server) Listen(ctx context.Context, v *venv.Venv) (net.Listener, error) {
+	v.RequireListen()
 
-	ln, err := lc.Listen(ctx, "tcp", server.Addr())
+	ln, err := v.Listen(ctx, "tcp", server.Addr())
 	if err != nil {
 		return nil, err
 	}
