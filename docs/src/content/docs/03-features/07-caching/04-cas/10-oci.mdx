@@ -17,16 +17,30 @@ OCI sources are part of the [`oci` experiment](/reference/experiments/active#oci
 
 ## Overview
 
-The CAS is enabled by default and can be disabled with `--no-cas`. For `terraform.source` downloads, Terragrunt caches `oci://` modules by their content, so repeated downloads of the same module come from disk instead of the registry. CAS materializations are read-only by default; set `mutable = true` to get a writable copy. Direct `oci://` sources in `unit` and `stack` blocks fetch from the registry during stack generation. After generation, a component's `terraform.source` follows the normal source-download behavior and can use the CAS.
+An OCI source is identified by a registry, a repository, and a tag or manifest digest. For `terraform.source` downloads, Terragrunt resolves the reference to an immutable manifest digest and uses that digest as the cache key. The CAS is enabled by default and can be disabled with `--no-cas`.
 
-## What you get
+CAS materializations are read-only by default; set `mutable = true` to get a writable copy. Direct `oci://` sources in `unit` and `stack` blocks fetch from the registry during stack generation. After generation, a component's `terraform.source` follows the normal source-download behavior and can use the CAS.
 
-- An unchanged module is downloaded once; every later download of the same content links from the cache.
-- On a source download, a re-pushed tag resolves to new content instead of using the old CAS entry. An existing `.terragrunt-cache` is reused without checking the tag; pass `--source-update` to download again.
-- A `?digest=` pin is looked up in the cache directly, without asking the registry first.
-- Sources that differ only by `//subdir` share one cached download.
-- Identical files occupy disk space once, no matter how many modules or configurations use them.
+## The cheap probe
+
+A source pinned with `?digest=` needs no registry request because the digest itself determines the cache key. A source using `?tag=` or the implicit `latest` tag resolves the tag to its current manifest digest through the registry, with the probe capped at ten seconds.
+
+A `//subdir` selector is removed before the probe, so sources that differ only by subdirectory share one key for the full module package. The probe runs only when Terragrunt downloads the source. An existing `.terragrunt-cache` is reused without checking the tag; pass `--source-update` to download the source again.
+
+## Cache key & deduplication
+
+The manifest digest is content-addressed, so a tag and a digest pin that identify the same manifest share one CAS entry. Re-pushed tags are resolved on every probe, so new content produces a new digest and misses the old entry. Identical files are also content-addressed and share blob storage across modules and configurations.
+
+## Cache miss
+
+When the probe key is not yet in the store, Terragrunt resolves the reference again immediately before fetching, rewrites the fetch to `?digest=`, downloads and ingests the full module package, and links it into the target. The second resolution binds the download and cache key to the same immutable manifest, so a tag that moves after the probe cannot store content under a stale key.
+
+## Cache hit
+
+When the manifest digest is already present, Terragrunt links the cached tree without downloading the module package. A digest-pinned source stays offline, while a tagged source still contacts the registry to resolve the tag. The linked tree is read-only unless `mutable = true` requests a copy.
 
 ## Fallback behavior
 
-The cache never breaks a download that would otherwise succeed. Whenever a module cannot be served from the cache, Terragrunt simply downloads it from the registry as usual and the run continues. No configuration is needed for this.
+If the probe cannot resolve a manifest digest, Terragrunt proceeds with the download instead of failing. It tries to pin the reference again at fetch time; if that also fails but the download succeeds, Terragrunt keys the stored tree by its content hash.
+
+If the CAS-backed attempt fails, Terragrunt attempts to clear any partial output and retries with the standard OCI getter. The standard getter's error is returned if the retry also fails.
