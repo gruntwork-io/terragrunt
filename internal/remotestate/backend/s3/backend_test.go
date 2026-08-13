@@ -5,8 +5,11 @@ import (
 
 	backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBackend_GetTFInitArgs(t *testing.T) {
@@ -70,6 +73,7 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 				"skip_bucket_versioning":                            true,
 				"skip_bucket_ssencryption":                          false,
 				"skip_bucket_root_access":                           false,
+				"enable_bucket_root_access":                         true,
 				"skip_bucket_enforced_tls":                          false,
 				"skip_bucket_public_access_blocking":                false,
 				"disable_bucket_update":                             true,
@@ -254,4 +258,33 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+// TestBackend_NeedsBootstrapSkipBucketRootAccessStrictControl verifies that the deprecated
+// `skip_bucket_root_access` attribute is reported through its strict control, and that enabling
+// the control turns the deprecation into an error before any AWS call is made.
+func TestBackend_NeedsBootstrapSkipBucketRootAccessStrictControl(t *testing.T) {
+	t.Parallel()
+
+	strictControls := controls.New()
+
+	ctrl, ok := strictControls.Find(controls.SkipBucketRootAccess).(*controls.Control)
+	require.True(t, ok)
+
+	strictControls.FilterByNames(controls.SkipBucketRootAccess).Enable()
+
+	_, err := s3backend.NewBackend().NeedsBootstrap(
+		t.Context(),
+		logger.CreateLogger(),
+		nil,
+		backend.Config{
+			"bucket":                  "my-bucket",
+			"key":                     "my-key",
+			"region":                  "us-east-1",
+			"skip_bucket_root_access": false,
+		},
+		&backend.Options{StrictControls: strictControls},
+	)
+
+	require.ErrorIs(t, err, ctrl.Error)
 }
