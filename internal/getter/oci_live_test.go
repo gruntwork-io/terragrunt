@@ -89,6 +89,10 @@ func TestOCILiveGHCR(t *testing.T) {
 	registryHost, _, found := strings.Cut(repository, "/")
 	require.True(t, found, "TG_OCI_TEST_GHCR_REPOSITORY must be <registry-host>/<repository>")
 
+	cred := auth.Credential{Username: username, Password: token}
+
+	ensureOCILiveFixture(t, repository, cred)
+
 	// The pull authenticates through the token in an oci_credentials CLI-config block.
 	home := t.TempDir()
 	tofurc := `oci_credentials "` + registryHost + `" {
@@ -102,7 +106,7 @@ func TestOCILiveGHCR(t *testing.T) {
 	pullOCILiveModule(t, home, "oci://"+repository+"?digest="+ociLiveFixtureManifest(t).Digest.String())
 }
 
-// TestOCILiveProvision publishes the fixture once per registry; the pull tests never write.
+// TestOCILiveProvision explicitly publishes the fixture to every configured registry.
 func TestOCILiveProvision(t *testing.T) {
 	t.Parallel()
 

@@ -140,7 +140,7 @@ jobs:
           TAGS: ${{ matrix.integration.tags }}
           RUN: ${{ matrix.integration.run }}
           NAME: ${{ matrix.integration.name }}
-          TG_OCI_TEST_GHCR_REPOSITORY: ghcr.io/${{ github.repository }}/oci-live-test
+          TG_OCI_TEST_GHCR_REPOSITORY: ghcr.io/${{ github.repository }}-oci-live-test
           TG_OCI_TEST_GHCR_USERNAME: ${{ github.actor }}
           TG_OCI_TEST_GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
