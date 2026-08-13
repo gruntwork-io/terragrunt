@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -1650,32 +1649,16 @@ var (
 			Foreground(lipgloss.Color("#FF5555"))
 
 	// Set bool values get a clear positive/negative color so the user
-	// can see at a glance which checkboxes they flipped. True is fixed;
-	// false ships three variants (selectable via [EnvScaffoldFalseStyle])
-	// while we workshop which reads best alongside the required-red tag
-	// and validation-error red. Once a winner is picked the env knob and
-	// the unused variants get deleted; see TODO in [falseStyle].
+	// can see at a glance which checkboxes they flipped.
 	formBoolTrueStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#50FA7B")).
 				Bold(true)
 
-	// neutral: same muted gray as `(default)` / `(unset)`. Removes any
-	// warning vibe; false reads as a plain value alongside true.
+	// False uses the same muted gray as `(default)` / `(unset)`, so it
+	// reads as a plain value and does not compete with required/error red.
 	formBoolFalseNeutralStyle = lipgloss.NewStyle().
 					Foreground(lipgloss.Color("#A8ACB1")).
 					Bold(true)
-
-	// muted: keeps the red family but desaturates it deeply so it no
-	// longer competes with the required/error red.
-	formBoolFalseMutedStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#7A2A2A")).
-				Bold(true)
-
-	// cool: pairs green true with a cool cyan false, reserving red for
-	// required/error semantics only.
-	formBoolFalseCoolStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#63C5DA")).
-				Bold(true)
 
 	formDefaultHintStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#A8ACB1")).
@@ -1787,41 +1770,13 @@ func typeStyle(typeStr string) lipgloss.Style {
 	return formTypeStyle
 }
 
-// renderCheckbox produces the visual for a Set bool-mode field. True is
-// rendered in fixed green; false picks one of three workshop variants
-// (see [falseStyle]) so reviewers can compare them side by side without
-// a rebuild.
+// renderCheckbox produces the visual for a Set bool-mode field.
 func renderCheckbox(checked bool) string {
 	if checked {
 		return formBoolTrueStyle.Render("[x] true")
 	}
 
-	return falseStyle().Render("[ ] false")
-}
-
-// EnvScaffoldFalseStyle is a temporary, undocumented environment variable
-// used during development to A/B the three checkbox `false` color variants.
-// Do NOT rely on it: it can be removed or have its name changed at any time
-// without notice and is not part of Terragrunt's user-facing configuration
-// surface. Once a winner is picked, drop this constant, the helper that
-// reads it, and the two unused style variants.
-const EnvScaffoldFalseStyle = "TG_TMP_CATALOG_SCAFFOLD_FALSE_STYLE"
-
-// falseStyle resolves which of the three workshop variants renders the
-// `false` value. The selection is read from [EnvScaffoldFalseStyle] on
-// every call so the user can flip variants between launches without
-// recompiling. Default is "neutral" because it's the only variant that
-// fully eliminates the false-as-warning read flagged in review. Once a
-// winner is agreed on, drop this helper and inline the chosen style.
-func falseStyle() lipgloss.Style {
-	switch os.Getenv(EnvScaffoldFalseStyle) {
-	case "muted":
-		return formBoolFalseMutedStyle
-	case "cool":
-		return formBoolFalseCoolStyle
-	}
-
-	return formBoolFalseNeutralStyle
+	return formBoolFalseNeutralStyle.Render("[ ] false")
 }
 
 // View renders the form. When the rendered body exceeds the available
