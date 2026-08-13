@@ -1,6 +1,6 @@
 ---
 title: OCI
-description: What the CAS does for oci registry sources.
+description: What the CAS does for OCI registry sources.
 slug: features/caching/cas/oci
 sidebar:
   order: 10
@@ -17,12 +17,12 @@ OCI sources are part of the [`oci` experiment](/reference/experiments/active#oci
 
 ## Overview
 
-With the CAS enabled (the default), Terragrunt caches `oci://` modules by their content, so repeated downloads of the same module come from disk instead of the registry. This applies to `terraform.source` downloads; `unit` and `stack` components always fetch directly from the registry.
+The CAS is enabled by default and can be disabled with `--no-cas`. For `terraform.source` downloads, Terragrunt caches `oci://` modules by their content, so repeated downloads of the same module come from disk instead of the registry. CAS materializations are read-only by default; set `mutable = true` to get a writable copy. Direct `oci://` sources in `unit` and `stack` blocks fetch from the registry during stack generation. After generation, a component's `terraform.source` follows the normal source-download behavior and can use the CAS.
 
 ## What you get
 
 - An unchanged module is downloaded once; every later download of the same content links from the cache.
-- A re-pushed tag is detected and downloaded fresh, so the cache never serves stale content.
+- On a source download, a re-pushed tag resolves to new content instead of using the old CAS entry. An existing `.terragrunt-cache` is reused without checking the tag; pass `--source-update` to download again.
 - A `?digest=` pin is looked up in the cache directly, without asking the registry first.
 - Sources that differ only by `//subdir` share one cached download.
 - Identical files occupy disk space once, no matter how many modules or configurations use them.
