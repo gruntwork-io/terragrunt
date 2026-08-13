@@ -200,12 +200,12 @@ func (cfg *Config) Save(configPath string) error {
 	file := hclwrite.NewEmptyFile()
 	gohcl.EncodeIntoBody(cfg, file.Body())
 
-	const ownerWriteGlobalReadPerms = 0644
+	const ownerReadWritePerms = 0o600
 	if err := vfs.WriteFile(
 		cfg.FS(),
 		configPath,
 		file.Bytes(),
-		ownerWriteGlobalReadPerms,
+		ownerReadWritePerms,
 	); err != nil {
 		return err
 	}

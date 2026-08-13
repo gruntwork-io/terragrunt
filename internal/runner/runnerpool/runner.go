@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -369,9 +368,11 @@ func (rnr *Runner) Run(
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
+		const ownerReadWriteExecutePerms = 0o700
+
 		for _, u := range rnr.Stack.Units {
 			planFile := u.OutputFile(stackOpts.RootWorkingDir, stackOpts.OutputFolder)
-			if err := v.FS.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
+			if err := v.FS.MkdirAll(filepath.Dir(planFile), ownerReadWriteExecutePerms); err != nil {
 				return err
 			}
 		}
