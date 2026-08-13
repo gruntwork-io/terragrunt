@@ -7,114 +7,14 @@ jobs:
   test:
     name: Test (${{ matrix.integration.name }})
     runs-on: ${{ matrix.integration.os }}-latest
+    permissions:
+      contents: read
+      checks: write
+      packages: write
     strategy:
       fail-fast: false
       matrix:
         integration:
-          - name: Fixtures with OpenTofu
-            os: ubuntu
-            target: ./...
-            tags: "tofu,tf"
-            run: "^(TestTF|TestTofu)"
-            setup_scripts:
-              - .github/scripts/setup/tofu-switch.sh
-          - name: Fixtures with Latest Terraform
-            os: ubuntu
-            target: ./...
-            tags: tf
-            run: "^TestTF"
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-latest.sh
-          - name: Independent Integration Tests
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/ssh.sh
-              - .github/scripts/setup/sops.sh
-              - .github/scripts/setup/engine.sh
-              - .github/scripts/setup/generate-mocks.sh
-            tags: "ssh,sops,deprecated,mocks,engine"
-            run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine)"
-            secrets: [GHA_DEPLOY_KEY]
-          - name: Tflint
-            os: ubuntu
-            target: ./...
-            tags: tflint
-            run: "^TestTflint"
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
-            setup_scripts:
-              - .github/scripts/setup/tflint.sh
-          - name: GCP
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/gcp.sh
-            tags: gcp
-            run: "^TestGcp"
-            secrets:
-              [
-                GCLOUD_SERVICE_KEY,
-                GOOGLE_CLOUD_PROJECT,
-                GOOGLE_COMPUTE_ZONE,
-                GOOGLE_IDENTITY_EMAIL,
-                GOOGLE_PROJECT_ID,
-                GCLOUD_SERVICE_KEY_IMPERSONATOR,
-              ]
-          - name: AWS Tofu
-            os: ubuntu
-            target: ./...
-            tags: "aws,tofu"
-            run: "^TestAws"
-            secrets:
-              [
-                AWS_ACCESS_KEY_ID,
-                AWS_SECRET_ACCESS_KEY,
-                AWS_TEST_S3_ASSUME_ROLE,
-              ]
-            setup_scripts:
-              - .github/scripts/setup/tofu-switch.sh
-          - name: AWS with Latest Terraform
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: "^TestAws"
-            secrets:
-              [
-                AWS_ACCESS_KEY_ID,
-                AWS_SECRET_ACCESS_KEY,
-                AWS_TEST_S3_ASSUME_ROLE,
-              ]
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-latest.sh
-          - name: AWSGCP
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/gcp.sh
-            tags: awsgcp
-            run: "^TestAwsGcp"
-            secrets:
-              [
-                AWS_ACCESS_KEY_ID,
-                AWS_SECRET_ACCESS_KEY,
-                GCLOUD_SERVICE_KEY,
-                GOOGLE_CLOUD_PROJECT,
-                GOOGLE_COMPUTE_ZONE,
-                GOOGLE_IDENTITY_EMAIL,
-                GOOGLE_PROJECT_ID,
-              ]
-          - name: Azure
-            os: ubuntu
-            target: ./internal/azurehelper/...
-            tags: azure
-            secrets:
-              [
-                AZURE_CLIENT_ID,
-                AZURE_CLIENT_SECRET,
-                AZURE_TENANT_ID,
-                TG_AZURE_TEST_STORAGE_ACCOUNT,
-                TG_AZURE_TEST_SUBSCRIPTION_ID,
-              ]
           - name: OCI Registries
             os: ubuntu
             target: ./internal/getter/...
@@ -127,68 +27,7 @@ jobs:
                 AWS_ACCESS_KEY_ID,
                 AWS_SECRET_ACCESS_KEY,
                 TG_OCI_TEST_ECR_REPOSITORY,
-                TG_OCI_TEST_GHCR_REPOSITORY,
-                TG_OCI_TEST_GHCR_USERNAME,
-                TG_OCI_TEST_GHCR_TOKEN,
               ]
-          - name: Windows
-            os: windows
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/windows-setup.ps1
-            tags: windows
-            run: "^TestWindows"
-          - name: Provider Cache Server with Latest Terraform
-            os: ubuntu
-            target: ./test
-            tags: tf
-            setup_scripts:
-              - .github/scripts/setup/provider-cache-server.sh
-              - .github/scripts/setup/terraform-switch-latest.sh
-          - name: Provider Cache Server with Tofu
-            os: ubuntu
-            target: ./test
-            tags: "tofu,tf"
-            setup_scripts:
-              - .github/scripts/setup/provider-cache-server.sh
-              - .github/scripts/setup/tofu-switch.sh
-          - name: Race
-            os: ubuntu
-            target: ./...
-            tags: tf
-            run: ".*WithRacing"
-            test_args: "-race"
-          - name: Parse
-            os: ubuntu
-            target: ./...
-            tags: parse
-            run: "^TestParse"
-          - name: Experiment mode
-            os: ubuntu
-            target: ./...
-            tags: tf
-            setup_scripts:
-              - .github/scripts/setup/experiment-mode.sh
-          - name: OpenTofu Unit Tests
-            os: ubuntu
-            target: ./internal/...
-            tags: tofu
-            run: "^TestTofu"
-          - name: Exec
-            os: ubuntu
-            target: ./...
-            tags: exec
-            run: "^TestExec"
-          - name: Exec Windows
-            os: windows
-            target: ./...
-            tags: exec
-            run: "^TestExec"
-          - name: HTTP
-            os: ubuntu
-            target: ./...
-            tags: http
-            run: "^TestHTTP"
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
@@ -196,12 +35,12 @@ jobs:
           fetch-depth: 1
 
       - name: "Setup Docker"
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.integration.name != 'OCI Registries'
         id: set-up-docker
         uses: docker/setup-docker-action@6d7cfa65f60a9dda7b46e5513fa982536f3c9877 # v5
 
       - name: "Save space on node"
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.integration.name != 'OCI Registries'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force
@@ -279,7 +118,7 @@ jobs:
             ${{ runner.os }}-go-build-
 
       - name: Terragrunt Provider Cache
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.integration.name != 'OCI Registries'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cache/terragrunt
@@ -289,20 +128,10 @@ jobs:
 
       - name: Run Tests
         run: |
-          if [ "$SKIP" != "true" ]; then
-            source "${GITHUB_WORKSPACE}/.env.secrets"
-            # print command arguments
-            set -x
-            if [[ "$HAS_DOCKER" == "true" ]]; then
-              TAGS="${TAGS:+$TAGS,docker}"
-              TAGS="${TAGS:=docker}"
-            fi
-            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
-            # Generate XML report from test output
-            go-junit-report < test_output.log > result.xml
-          else
-            echo "Skipping tests for $NAME as the skip flag is true."
-          fi
+          source "${GITHUB_WORKSPACE}/.env.secrets"
+          set -x
+          go test -v -timeout 45m -tags "$TAGS" -run "$RUN" "$TARGET" | tee test_output.log
+          go-junit-report < test_output.log > result.xml
         shell: bash
         env:
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -310,10 +139,10 @@ jobs:
           TARGET: ${{ matrix.integration.target }}
           TAGS: ${{ matrix.integration.tags }}
           RUN: ${{ matrix.integration.run }}
-          SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
-          TEST_ARGS: ${{ matrix.integration.test_args }}
-          HAS_DOCKER: ${{ runner.os == 'Linux' }}
+          TG_OCI_TEST_GHCR_REPOSITORY: ghcr.io/${{ github.repository }}/oci-live-test
+          TG_OCI_TEST_GHCR_USERNAME: ${{ github.actor }}
+          TG_OCI_TEST_GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
         if: always()

@@ -11,7 +11,7 @@ URL="https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/${
 DEST_DIR="${RUNNER_TEMP:-/tmp}/ecr-credential-helper"
 mkdir -p "$DEST_DIR"
 
-curl -fsSL -o "$DEST_DIR/docker-credential-ecr-login" "$URL"
+curl -fsSL --proto '=https' --tlsv1.2 -o "$DEST_DIR/docker-credential-ecr-login" "$URL"
 echo "${SHA256}  ${DEST_DIR}/docker-credential-ecr-login" | sha256sum -c -
 chmod +x "$DEST_DIR/docker-credential-ecr-login"
 
