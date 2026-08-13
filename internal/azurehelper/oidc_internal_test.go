@@ -34,7 +34,7 @@ func TestOIDCAssertionProvider_GitHubActions(t *testing.T) {
 		return oidcJSON(http.StatusOK, `{"value":"assertion-jwt"}`), nil
 	})
 
-	getAssertion := b.oidcAssertionProvider(&AzureSessionConfig{})
+	getAssertion := b.oidcAssertionProvider()
 	require.NotNil(t, getAssertion, "a request url must select the assertion flow")
 
 	assertion, err := getAssertion(t.Context())
@@ -57,7 +57,7 @@ func TestOIDCAssertionProvider_AzureDevOps(t *testing.T) {
 		return oidcJSON(http.StatusOK, `{"oidcToken":"assertion-jwt"}`), nil
 	})
 
-	getAssertion := b.oidcAssertionProvider(&AzureSessionConfig{})
+	getAssertion := b.oidcAssertionProvider()
 	require.NotNil(t, getAssertion)
 
 	assertion, err := getAssertion(t.Context())
@@ -76,7 +76,7 @@ func TestOIDCAssertionProvider_MissingRequestToken(t *testing.T) {
 		return nil, nil
 	})
 
-	_, err := b.oidcAssertionProvider(&AzureSessionConfig{})(t.Context())
+	_, err := b.oidcAssertionProvider()(t.Context())
 
 	var missing *OIDCRequestTokenMissingError
 	require.ErrorAs(t, err, &missing)
@@ -93,7 +93,7 @@ func TestOIDCAssertionProvider_EndpointFailure(t *testing.T) {
 		return oidcJSON(http.StatusForbidden, `denied`), nil
 	})
 
-	_, err := b.oidcAssertionProvider(&AzureSessionConfig{})(t.Context())
+	_, err := b.oidcAssertionProvider()(t.Context())
 
 	var failed *OIDCTokenRequestFailedError
 	require.ErrorAs(t, err, &failed)
@@ -110,7 +110,7 @@ func TestOIDCAssertionProvider_MissingField(t *testing.T) {
 		return oidcJSON(http.StatusOK, `{"unexpected":"shape"}`), nil
 	})
 
-	_, err := b.oidcAssertionProvider(&AzureSessionConfig{})(t.Context())
+	_, err := b.oidcAssertionProvider()(t.Context())
 
 	var missing *OIDCTokenFieldMissingError
 	require.ErrorAs(t, err, &missing)
@@ -128,7 +128,7 @@ func TestOIDCAssertionProvider_NoRequestURL(t *testing.T) {
 		return nil, nil
 	})
 
-	assert.Nil(t, b.oidcAssertionProvider(&AzureSessionConfig{}))
+	assert.Nil(t, b.oidcAssertionProvider())
 }
 
 // TestApplyEnvFallbacks_RequestURLImpliesOIDC verifies a federated token

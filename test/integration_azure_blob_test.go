@@ -26,9 +26,8 @@ func TestAzureBlobRoundTrip(t *testing.T) {
 	account := env["TG_AZURE_TEST_STORAGE_ACCOUNT"]
 	sub := env["TG_AZURE_TEST_SUBSCRIPTION_ID"]
 
-	if account == "" || sub == "" {
-		t.Skip("TG_AZURE_TEST_STORAGE_ACCOUNT and TG_AZURE_TEST_SUBSCRIPTION_ID are required for live test")
-	}
+	require.NotEmpty(t, account, "TG_AZURE_TEST_STORAGE_ACCOUNT is required for live test")
+	require.NotEmpty(t, sub, "TG_AZURE_TEST_SUBSCRIPTION_ID is required for live test")
 
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
@@ -61,8 +60,10 @@ func TestAzureBlobRoundTrip(t *testing.T) {
 	require.NoError(t, cc.Create(ctx), "Create")
 
 	t.Cleanup(func() {
-		// Fresh context because t.Context() is already cancelled during cleanup.
-		_ = cc.EnsureDeleted(context.Background())
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), azureCleanupTimeout)
+		defer cleanupCancel()
+
+		assert.NoError(t, cc.EnsureDeleted(cleanupCtx), "test container cleanup must succeed")
 	})
 
 	exists, err := cc.Exists(ctx)

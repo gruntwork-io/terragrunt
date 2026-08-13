@@ -44,7 +44,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 			hasCred: false,
 		},
 		{
-			name: "access key wins over service principal",
+			name: "access key wins over Entra and service principal",
 			cfg: azurehelper.AzureSessionConfig{
 				SubscriptionID:     testSub,
 				StorageAccountName: testAccount,
@@ -52,6 +52,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 				ClientID:           "cid",
 				ClientSecret:       "sec",
 				TenantID:           "tid",
+				UseAzureADAuth:     new(true),
 			},
 			want:    azurehelper.AuthMethodAccessKey,
 			hasCred: false,

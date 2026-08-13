@@ -242,7 +242,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 		// over the token file, matching the native azurerm backend. Without
 		// this, a CI config that authenticates fine during `tofu init` would
 		// fail during Terragrunt's own lifecycle operations.
-		if getAssertion := b.oidcAssertionProvider(&resolved); getAssertion != nil {
+		if getAssertion := b.oidcAssertionProvider(); getAssertion != nil {
 			cred, err := azidentity.NewClientAssertionCredential(
 				resolved.TenantID, resolved.ClientID, getAssertion,
 				&azidentity.ClientAssertionCredentialOptions{ClientOptions: clientOpts},
@@ -288,15 +288,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 // chain. Shared by the explicit use_azuread_auth tier and the default fallback
 // so the use_azuread_auth field is honored rather than silently dead.
 //
-// DefaultAzureCredential is used directly. Its default chain already includes
-// the Azure CLI (environment, workload identity, managed identity, Azure CLI,
-// Azure Developer CLI, then Azure PowerShell), and it builds each credential
-// with the SDK's in-default-chain flag so an unusable one reports
-// "unavailable" and the chain continues. Prepending a standalone
-// AzureCLICredential would defeat that: constructed outside the chain it
-// returns a hard error when `az` is logged out, halting the chain before
-// environment, workload identity, or managed identity are ever tried.
-// AZURE_TOKEN_CREDENTIALS narrows the chain for callers that need it.
+// AzureCLICredential runs first so `az login` does not wait behind the managed-identity probe in DefaultAzureCredential.
 func buildAzureADConfig(
 	out *AzureConfig,
 	resolved *AzureSessionConfig,

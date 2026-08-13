@@ -508,7 +508,8 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Ve
 		return err
 	}
 
-	dstExtCfg, err := Config(dstBackendConfig).ExtendedAzurermConfig()
+	// Resolve from dstV because its ARM_ENVIRONMENT or AZURE_ENVIRONMENT may select a different cloud than srcV.
+	dstExtCfg, dstCfg, err := resolveConfig(l, dstV, dstBackendConfig)
 	if err != nil {
 		return err
 	}
@@ -519,14 +520,7 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Ve
 	// A storage account name identifies a different account in each Azure
 	// cloud, and the blob client below is built from the source config, so a
 	// cross-cloud destination would be written into the source account and the
-	// source key then deleted. The destination cloud must be resolved from
-	// dstV: the same ARM_ENVIRONMENT / AZURE_ENVIRONMENT variable can hold a
-	// different value on each side, so an empty destination `environment` does
-	// NOT imply the source cloud.
-	_, dstCfg, err := resolveConfig(l, dstV, dstBackendConfig)
-	if err != nil {
-		return err
-	}
+	// source key then deleted.
 
 	if dstCfg.CloudConfig.ActiveDirectoryAuthorityHost != cfg.CloudConfig.ActiveDirectoryAuthorityHost {
 		return &CrossCloudMigrationError{

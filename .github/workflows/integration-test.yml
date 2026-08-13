@@ -103,7 +103,7 @@ jobs:
                 GOOGLE_IDENTITY_EMAIL,
                 GOOGLE_PROJECT_ID,
               ]
-          - name: Azure Integration
+          - name: Azure
             os: ubuntu
             target: ./test
             tags: azure_integration

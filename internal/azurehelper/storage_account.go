@@ -486,14 +486,10 @@ func FindResourceGroupForAccount(ctx context.Context, cfg *AzureConfig, accountN
 			return "", fmt.Errorf("listing storage accounts in subscription %q: %w", cfg.SubscriptionID, err)
 		}
 
-		for _, account := range page.Value {
-			if account == nil || account.Name == nil || account.ID == nil || *account.Name != accountName {
-				continue
-			}
-
-			group := resourceGroupFromID(*account.ID)
+		if id, found := matchAccountID(page.Value, accountName); found {
+			group := resourceGroupFromID(id)
 			if group == "" {
-				return "", &UnparsableResourceIDError{ID: *account.ID}
+				return "", &UnparsableResourceIDError{ID: id}
 			}
 
 			return group, nil
@@ -501,6 +497,19 @@ func FindResourceGroupForAccount(ctx context.Context, cfg *AzureConfig, accountN
 	}
 
 	return "", &StorageAccountNotFoundError{Account: accountName, SubscriptionID: cfg.SubscriptionID}
+}
+
+// matchAccountID returns the ARM resource id of the account named accountName.
+func matchAccountID(accounts []*armstorage.Account, accountName string) (string, bool) {
+	for _, account := range accounts {
+		if account == nil || account.Name == nil || account.ID == nil || *account.Name != accountName {
+			continue
+		}
+
+		return *account.ID, true
+	}
+
+	return "", false
 }
 
 // resourceGroupFromID pulls the resource group out of an ARM resource id of the

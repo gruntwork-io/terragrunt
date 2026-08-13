@@ -37,7 +37,7 @@ type assertionProvider func(ctx context.Context) (string, error)
 // request URL wins, then GitHub Actions, then Azure DevOps. It returns nil when
 // no request-URL flow is configured, leaving the token-file (workload identity)
 // path to handle it.
-func (b *AzureConfigBuilder) oidcAssertionProvider(cfg *AzureSessionConfig) assertionProvider {
+func (b *AzureConfigBuilder) oidcAssertionProvider() assertionProvider {
 	v := b.venv
 
 	// GitHub Actions injects both variables into every job that requests the
@@ -58,8 +58,6 @@ func (b *AzureConfigBuilder) oidcAssertionProvider(cfg *AzureSessionConfig) asse
 			return fetchOIDCAssertion(ctx, v, requestURL, token, "oidcToken")
 		}
 	}
-
-	_ = cfg
 
 	return nil
 }

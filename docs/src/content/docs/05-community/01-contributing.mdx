@@ -284,7 +284,7 @@ To successfully run the Azure tests, you must set the following environment vari
 - `TG_AZURE_TEST_STORAGE_ACCOUNT`: The name of a pre-existing storage account the tests create containers in. `ARM_STORAGE_ACCOUNT_NAME` also works.
 - `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`: Service principal credentials. The `ARM_*` spelling of each is also accepted, and these can be omitted entirely when authenticating with `az login`.
 
-The resource group is not configured separately: it is looked up from the storage account. Set `TG_AZURE_TEST_RESOURCE_GROUP` only to skip that lookup.
+With ARM-capable authentication, the resource group is looked up from the storage account. Set `TG_AZURE_TEST_RESOURCE_GROUP` when using an access key or SAS token, because data-plane credentials cannot perform that lookup.
 
 ```bash
 export TG_AZURE_TEST_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
