@@ -129,7 +129,7 @@ func (b *GCPConfigBuilder) Build(
 
 	var clientOpts []option.ClientOption
 
-	envCreds, err := createGCPCredentialsFromEnv(v, env)
+	envCreds, err := createGCPCredentialsFromEnv(v)
 	if err != nil {
 		return nil, err
 	}
@@ -188,11 +188,11 @@ func (b *GCPConfigBuilder) Build(
 	return clientOpts, nil
 }
 
-// createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in env
-// It looks for GOOGLE_APPLICATION_CREDENTIALS and returns a ClientOption that can be used
-// with Google Cloud clients. Returns nil if the environment variable is not set.
-func createGCPCredentialsFromEnv(v *venv.Venv, env map[string]string) (option.ClientOption, error) {
-	credentialsFile := env["GOOGLE_APPLICATION_CREDENTIALS"]
+// createGCPCredentialsFromEnv creates GCP credentials from the
+// GOOGLE_APPLICATION_CREDENTIALS variable in v's environment. Returns nil when
+// the variable is not set.
+func createGCPCredentialsFromEnv(v *venv.Venv) (option.ClientOption, error) {
+	credentialsFile := v.Env["GOOGLE_APPLICATION_CREDENTIALS"]
 	if credentialsFile == "" {
 		return nil, nil
 	}
