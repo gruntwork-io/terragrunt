@@ -16,7 +16,7 @@ func TestAddHost(t *testing.T) {
 	t.Run("new host is appended", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := cliconfig.NewConfig()
+		cfg := cliconfig.NewConfig(vfs.NewMemMapFS())
 		cfg.AddHost("registry.example.com", map[string]string{
 			"providers.v1": "https://registry.example.com/v1/providers/",
 		})
@@ -33,7 +33,7 @@ func TestAddHost(t *testing.T) {
 	t.Run("existing host services are merged", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := cliconfig.NewConfig()
+		cfg := cliconfig.NewConfig(vfs.NewMemMapFS())
 		cfg.AddHost("registry.example.com", map[string]string{
 			"modules.v1": "https://registry.example.com/v1/modules/",
 		})
@@ -59,7 +59,7 @@ func TestAddHost(t *testing.T) {
 	t.Run("overlapping service key is overwritten by new value", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := cliconfig.NewConfig()
+		cfg := cliconfig.NewConfig(vfs.NewMemMapFS())
 		cfg.AddHost("registry.example.com", map[string]string{
 			"providers.v1": "https://old-url.example.com/v1/providers/",
 			"modules.v1":   "https://registry.example.com/v1/modules/",
@@ -86,7 +86,7 @@ func TestAddHost(t *testing.T) {
 	t.Run("multiple different hosts are all appended", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := cliconfig.NewConfig()
+		cfg := cliconfig.NewConfig(vfs.NewMemMapFS())
 		cfg.AddHost(
 			"registry.terraform.io",
 			map[string]string{"providers.v1": "http://localhost/tf/"},
@@ -134,7 +134,7 @@ func TestConfig(t *testing.T) {
 					},
 				},
 			},
-			config: cliconfig.NewConfig().
+			config: cliconfig.NewConfig(vfs.NewMemMapFS()).
 				WithDisableCheckpoint().
 				WithPluginCacheDir("path/to/plugin/cache/dir1"),
 			expectedHCL: `
@@ -169,7 +169,7 @@ disable_checkpoint_signature = false
 `,
 		},
 		{
-			config: cliconfig.NewConfig().
+			config: cliconfig.NewConfig(vfs.NewMemMapFS()).
 				WithPluginCacheDir(tempCacheDir),
 			expectedHCL: `
 provider_installation {

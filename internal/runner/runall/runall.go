@@ -127,7 +127,7 @@ func Run(
 	// ErrUserCancelled.
 	var wts *worktrees.Worktrees
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		wts, err = worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
 			Experiments:    opts.Experiments,

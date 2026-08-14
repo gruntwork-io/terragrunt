@@ -31,6 +31,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -391,7 +392,7 @@ func TestCatalogNonTTYFailsFast(t *testing.T) {
 		"terragrunt catalog --working-dir "+workDir)
 
 	require.Error(t, err)
-	require.ErrorIs(t, err, tui.ErrNoTerminal)
+	require.ErrorIs(t, err, viewtui.ErrNoTerminal)
 }
 
 // TestCatalogJSONLFormat renders a catalog non-interactively, one JSON object

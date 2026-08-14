@@ -371,7 +371,7 @@ func (rnr *Runner) Run(
 	if stackOpts.OutputFolder != "" {
 		for _, u := range rnr.Stack.Units {
 			planFile := u.OutputFile(stackOpts.RootWorkingDir, stackOpts.OutputFolder)
-			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
+			if err := v.FS.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
 				return err
 			}
 		}

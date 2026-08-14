@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // TabKind identifies which catalog component type the active tab is
@@ -97,8 +98,8 @@ func tabActiveStyle(t TabKind) lipgloss.Style {
 	kind, ok := t.componentKind()
 	if !ok {
 		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color(titleForegroundColor)).
-			Background(lipgloss.Color(titleBackgroundColor)).
+			Foreground(lipgloss.Color(viewtui.TitleForeground)).
+			Background(lipgloss.Color(viewtui.TitleBackground)).
 			Bold(true).
 			Padding(0, 1)
 	}

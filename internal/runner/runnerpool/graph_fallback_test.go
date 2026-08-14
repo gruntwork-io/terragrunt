@@ -3,7 +3,6 @@
 package runnerpool_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,7 +24,7 @@ import (
 func TestTFGraphFallbackMatchesFilterExperiment(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := thlogger.CreateLogger()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)

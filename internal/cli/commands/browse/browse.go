@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -74,7 +73,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		color = tui.ColorEnabled
 	}
 
-	err = tui.Run(ctx, l, vfs.NewOSFS(), root, color, resultCh, warnCh)
+	err = tui.Run(ctx, l, v.FS, root, color, resultCh, warnCh)
 
 	cancel()
 	<-done

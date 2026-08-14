@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -194,11 +195,11 @@ func (runner *UnitRunner) Run(
 		outputFile := runner.Unit.OutputJSONFile(opts.RootWorkingDir, opts.JSONOutputFolder)
 		jsonDir := filepath.Dir(outputFile)
 
-		if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
+		if err := v.FS.MkdirAll(jsonDir, os.ModePerm); err != nil {
 			return err
 		}
 
-		if err := os.WriteFile(outputFile, stdout.Bytes(), os.ModePerm); err != nil {
+		if err := vfs.WriteFile(v.FS, outputFile, stdout.Bytes(), os.ModePerm); err != nil {
 			return err
 		}
 	}

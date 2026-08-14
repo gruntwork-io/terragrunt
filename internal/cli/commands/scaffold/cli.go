@@ -89,7 +89,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, opts)
 			}
 
-			return Run(ctx, l, v, opts.OptionsFromContext(ctx), moduleURL, templateURL)
+			return RunInteractive(ctx, l, v, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
 }

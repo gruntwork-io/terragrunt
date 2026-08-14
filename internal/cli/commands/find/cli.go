@@ -38,9 +38,9 @@ const (
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(l log.Logger, opts *Options, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions)
+	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions, v)
 
 	const numLocalFlags = 11
 
@@ -150,7 +150,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	cmdOpts := NewOptions(opts)
 
 	// Base flags for find plus backend/feature flags
-	flags := NewFlags(l, cmdOpts, nil)
+	flags := NewFlags(l, cmdOpts, v, nil)
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
 	flags = append(flags, shared.NewFeatureFlags(opts, nil)...)
 	flags = append(flags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil))

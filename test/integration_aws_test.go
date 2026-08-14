@@ -53,6 +53,7 @@ const (
 	testFixtureAssumeRoleDuration                = "fixtures/assume-role/duration"
 	testFixtureReadIamRole                       = "fixtures/read-config/iam_role_in_file"
 	testFixtureOutputFromRemoteState             = "fixtures/output-from-remote-state"
+	testFixtureStackDepsStackMockRemoteState     = "fixtures/stacks/stack-deps-stack-mock-remote-state"
 	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"
 	testFixtureS3Backend                         = "fixtures/s3-backend"
 	testFixtureS3BackendDualLocking              = "fixtures/s3-backend/dual-locking"
@@ -1745,7 +1746,7 @@ func TestAwsGetAccountAliasFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger())
+	awsCfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).Build(t.Context(), createLogger())
 	if err != nil {
 		t.Fatalf("Error while creating AWS config: %v", err)
 	}
@@ -1791,7 +1792,7 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger())
+	awsCfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).Build(t.Context(), createLogger())
 	if err != nil {
 		t.Fatalf("Error while creating AWS config: %v", err)
 	}
@@ -2673,6 +2674,117 @@ func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 	assert.Contains(t, stderr, "fallback to mock outputs")
 }
 
+// TestAwsStackDependencyMockOutputsFromRemoteState pins that a dependency on a stack directory
+// falls back to mock_outputs when a unit in that stack has no remote state yet, instead of
+// hard-failing on the S3 NoSuchKey. The single-unit dependency path already had this fallback.
+func TestAwsStackDependencyMockOutputsFromRemoteState(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	// NOTE: This probably shouldn't be necessary. Needs investigation for clean-up.
+	createS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackMockRemoteState)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackMockRemoteState)
+
+	rootConfigPath := filepath.Join(gitPath, "root.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootConfigPath,
+		rootConfigPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
+
+	// The networking stack sources its units via get_repo_root(), so the fixture copy must be a git repo.
+	helpers.CreateGitRepo(t, gitPath)
+
+	rootPath := filepath.Join(gitPath, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	appPath := filepath.Join(rootPath, ".terragrunt-stack", "app")
+	vpcPath := filepath.Join(rootPath, ".terragrunt-stack", "networking", ".terragrunt-stack", "vpc")
+
+	planApp := func() (string, string) {
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt plan --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir "+appPath,
+		)
+		require.NoError(
+			t,
+			err,
+			"planning the app unit must not fail on a missing stack-unit state; stderr=%s",
+			stderr,
+		)
+
+		assert.NotContains(t, stderr, "output fetch failed")
+
+		return stdout, stderr
+	}
+
+	// Nothing is applied yet, so no unit has an S3 state key.
+	stdout, _ := planApp()
+	assert.Contains(t, stdout, "mock-vpc-id", "an unapplied unit must resolve to its mock output")
+	assert.Contains(t, stdout, "mock-subnet-id", "an unapplied unit must resolve to its mock output")
+
+	// Apply only the vpc unit so the stack is partially applied.
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply --backend-bootstrap --auto-approve --non-interactive --working-dir "+vpcPath,
+	)
+
+	stdout, _ = planApp()
+	assert.Contains(t, stdout, "real-vpc-id", "an applied unit must resolve to its real output")
+	assert.Contains(t, stdout, "mock-subnet-id", "the unapplied unit must still resolve to its mock output")
+}
+
+// TestAwsMockOutputsFromRemoteStateMissingBucket pins that a dependency read falls back to
+// mock_outputs when the state bucket itself doesn't exist yet (NoSuchBucket), not only when the
+// state object is missing (NoSuchKey).
+func TestAwsMockOutputsFromRemoteStateMissingBucket(t *testing.T) { //nolint: paralleltest
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	// Never pre-created, so the dependency reads hit a missing bucket; init bootstraps it, so clean
+	// up regardless.
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteState)
+
+	rootTerragruntConfigPath := filepath.Join(
+		tmpEnvPath,
+		testFixtureOutputFromRemoteState,
+		"root.hcl",
+	)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
+
+	environmentPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteState, "env1")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt init --dependency-fetch-output-from-state --backend-bootstrap --non-interactive --working-dir %s/app2",
+			environmentPath,
+		),
+	)
+	require.NoError(
+		t,
+		err,
+		"a dependency whose state bucket doesn't exist yet must fall back to mock outputs; stderr=%s",
+		stderr,
+	)
+}
+
 func TestAwsParallelStateInit(t *testing.T) {
 	t.Parallel()
 
@@ -2752,8 +2864,7 @@ func TestAwsAssumeRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(venv.OSVenv().Env).
+	cfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).
 		WithIAMRoleOptions(opts.IAMRoleOptions).
 		Build(t.Context(), l)
 	require.NoError(t, err)
@@ -2810,8 +2921,7 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(venv.OSVenv().Env).
+	cfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).
 		WithIAMRoleOptions(opts.IAMRoleOptions).
 		Build(t.Context(), l)
 	require.NoError(t, err)
@@ -2977,7 +3087,7 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), l)
+	cfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).Build(t.Context(), l)
 	require.NoError(t, err)
 
 	identityArn, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
