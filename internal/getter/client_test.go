@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +30,7 @@ func TestGetFileConvenience(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "out.txt")
-	res, err := getter.GetFile(t.Context(), dst, server.URL+"/blob")
+	res, err := getter.GetFile(t.Context(), venvtest.NewWithOSFS(), dst, server.URL+"/blob")
 	require.NoError(t, err)
 	assert.Equal(t, dst, res.Dst)
 
@@ -47,7 +48,7 @@ func TestGetAnyConvenience(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(src, "main.tf"), []byte("# fixture\n"), 0644))
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "copy")
-	_, err := getter.GetAny(t.Context(), dst, "file://"+src,
+	_, err := getter.GetAny(t.Context(), venvtest.NewWithOSFS(), dst, "file://"+src,
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	require.NoError(t, err)
@@ -65,7 +66,7 @@ func TestGetConvenience(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(src, "main.tf"), []byte("# fixture\n"), 0644))
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "copy")
-	_, err := getter.Get(t.Context(), dst, "file://"+src,
+	_, err := getter.Get(t.Context(), venvtest.NewWithOSFS(), dst, "file://"+src,
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	require.NoError(t, err)
@@ -78,10 +79,13 @@ func TestGetConvenience(t *testing.T) {
 func TestNewClientWithDecompressorsEmptyMap(t *testing.T) {
 	t.Parallel()
 
-	disabled := getter.NewClient(getter.WithDecompressors(map[string]getter.Decompressor{}))
+	disabled := getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithDecompressors(map[string]getter.Decompressor{}),
+	)
 	require.NotNil(t, disabled.Decompressors)
 	assert.Empty(t, disabled.Decompressors)
 
-	def := getter.NewClient(getter.WithDecompressors(nil))
+	def := getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithDecompressors(nil))
 	assert.Nil(t, def.Decompressors, "nil map must leave the v2 default decompressors untouched")
 }

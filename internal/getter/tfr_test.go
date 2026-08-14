@@ -9,13 +9,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -227,10 +226,10 @@ func newRegistryTestClient(t *testing.T, httpClient *http.Client, impl tfimpl.Ty
 
 	l := logger.CreateLogger()
 
-	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS(), httpClient).
+	tfr := getter.NewRegistryGetter(l, venvtest.NewWithOSFS().WithHTTP(httpClient)).
 		WithTofuImplementation(impl)
 
-	return getter.NewClient(
+	return getter.NewClient(venvtest.NewWithOSFS(),
 		getter.WithCustomGettersPrepended(
 			tfr,
 			&gogetter.HttpGetter{Client: httpClient, Netrc: true},
