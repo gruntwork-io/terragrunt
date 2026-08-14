@@ -1247,7 +1247,8 @@ func TestTFRunCommand(t *testing.T) {
 }
 
 // TestTFInputsWithInterpolationPatterns validates that input variables containing ${...} patterns
-// are passed to Terraform without triggering HCL interpolation errors (issue #3368).
+// reach the module as literal text, whether OpenTofu/Terraform read the variable's value verbatim
+// or parse it as HCL.
 func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	t.Parallel()
 
@@ -1280,6 +1281,23 @@ func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	require.True(t, ok, "map_with_interpolation value is not a map")
 	assert.Equal(t, "test ${bar} test", mapValue["foo"])
 	assert.Equal(t, "no interpolation here", mapValue["baz"])
+
+	// A variable declared as a string is read verbatim, so it keeps the file contents as they are.
+	fileContents, err := os.ReadFile(filepath.Join(rootPath, "stuff.json"))
+	require.NoError(t, err)
+
+	stringOutput, ok := outputs["string_with_interpolation"]
+	require.True(t, ok, "string_with_interpolation output not found")
+	assert.Equal(t, string(fileContents), stringOutput.Value)
+
+	// A variable declared as any is parsed as HCL, so the same contents arrive as an object whose
+	// values still read literally.
+	anyOutput, ok := outputs["any_with_interpolation"]
+	require.True(t, ok, "any_with_interpolation output not found")
+	anyValue, ok := anyOutput.Value.(map[string]any)
+	require.True(t, ok, "any_with_interpolation value is not an object")
+	assert.Equal(t, "test ${bar} test", anyValue["foo"])
+	assert.Equal(t, "no interpolation here", anyValue["baz"])
 }
 
 func TestTFTerragruntMissingDependenciesFail(t *testing.T) {
