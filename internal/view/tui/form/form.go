@@ -1814,7 +1814,7 @@ const EnvScaffoldFalseStyle = "TG_TMP_CATALOG_SCAFFOLD_FALSE_STYLE"
 // fully eliminates the false-as-warning read flagged in review. Once a
 // winner is agreed on, drop this helper and inline the chosen style.
 func falseStyle() lipgloss.Style {
-	switch os.Getenv(EnvScaffoldFalseStyle) {
+	switch os.Getenv(EnvScaffoldFalseStyle) { //nolint:forbidigo // temporary dev-only A/B toggle; TUI renderer has no venv access
 	case "muted":
 		return formBoolFalseMutedStyle
 	case "cool":

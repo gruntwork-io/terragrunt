@@ -105,7 +105,7 @@ func (handler *FilesystemMirrorProviderHandler) GetPlatform(
 		}
 
 		resp = &models.ResponseBody{
-			Filename:    filepath.Base(archive.URL),
+			Filename:    models.FilenameFromURL(archive.URL),
 			DownloadURL: archive.URL,
 		}
 	}

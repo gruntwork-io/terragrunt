@@ -32,3 +32,12 @@ func resolveRelativeReference(base *url.URL, link string) string {
 		},
 	).String()
 }
+
+// FilenameFromURL extracts a clean filename from a URL string, stripping query parameters and fragments.
+func FilenameFromURL(rawURL string) string {
+	if parsed, err := url.Parse(rawURL); err == nil && parsed.Path != "" {
+		return path.Base(parsed.Path)
+	}
+
+	return path.Base(rawURL)
+}
