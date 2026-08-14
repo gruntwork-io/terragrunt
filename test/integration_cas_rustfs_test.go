@@ -33,7 +33,7 @@ import (
 // against an in-Docker RustFS instance: a second CASGetter request for
 // the same object skips the download when HeadObject reports the same
 // version metadata.
-func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: paralleltest
+func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: paralleltest // setupRustFSForCAS calls t.Setenv, which bars t.Parallel.
 	endpoint := setupRustFSForCAS(t)
 
 	bucket := "cas-test-" + strings.ToLower(helpers.UniqueID())
@@ -214,7 +214,7 @@ func rustfsSourceURL(t *testing.T, endpoint, bucket, key string) string {
 // The single-object test above resolves to ModeFile and never reaches
 // S3Getter.Get, so this is what covers the paginated listing and the
 // key-to-path mapping.
-func TestS3PrefixDownloadReproducesLayout(t *testing.T) { //nolint: paralleltest
+func TestS3PrefixDownloadReproducesLayout(t *testing.T) { //nolint: paralleltest // setupRustFSForCAS calls t.Setenv, which bars t.Parallel.
 	endpoint := setupRustFSForCAS(t)
 
 	bucket := "prefix-test-" + strings.ToLower(helpers.UniqueID())

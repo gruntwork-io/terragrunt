@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -155,8 +154,13 @@ func newVenvGCSClient(ctx context.Context, c vhttp.Client) (*storage.Client, err
 		return nil, err
 	}
 
+	// A copy of c, so its Timeout, Jar, and CheckRedirect still govern the
+	// calls the SDK makes.
+	authed := *c
+	authed.Transport = trans
+
 	//nolint:forbidigo // trans is built on the venv's transport, which is what the rule protects.
-	return storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Transport: trans}))
+	return storage.NewClient(ctx, option.WithHTTPClient(&authed))
 }
 
 // pickGCSCacheKey walks the cascade MD5 → CRC32C and returns the

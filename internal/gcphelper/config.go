@@ -116,6 +116,14 @@ func (b *GCPConfigBuilder) Build(
 	ctx context.Context,
 	v *venv.Venv,
 ) ([]option.ClientOption, error) {
+	v.RequireEnv()
+	v.RequireFS()
+	v.RequireHTTP()
+
+	// Impersonation mints its token inside Build, so the oauth2 client has to be
+	// in place before the transport the caller builds from these options.
+	ctx = withOAuthClient(ctx, v)
+
 	gcpCfg := b.sessionConfig
 	env := v.Env
 

@@ -61,9 +61,8 @@ func (g *GCSGetter) Detect(req *getter.Request) (bool, error) {
 	return g.detector.Detect(req)
 }
 
-// Mode reports whether the URL names a single object or a prefix. Anything
-// matching the prefix that is not exactly the requested object makes it a
-// directory.
+// Mode reports whether the URL names a single object or a prefix, deciding
+// each listed name with [ObjectMode].
 func (g *GCSGetter) Mode(ctx context.Context, u *url.URL) (_ getter.Mode, retErr error) {
 	bucket, object, err := ParseGCSFetchURL(u)
 	if err != nil {
@@ -98,11 +97,7 @@ func (g *GCSGetter) Mode(ctx context.Context, u *url.URL) (_ getter.Mode, retErr
 			}
 		},
 		func(name string) (getter.Mode, bool) {
-			if strings.HasSuffix(name, "/") || name != object {
-				return getter.ModeDir, true
-			}
-
-			return 0, false
+			return ObjectMode(name, object)
 		},
 	)
 	if err != nil {
@@ -149,12 +144,16 @@ func (g *GCSGetter) Get(ctx context.Context, req *getter.Request) (retErr error)
 			continue
 		}
 
+		dst, err := ObjectDst(req.Dst, prefix, attrs.Name)
+		if err != nil {
+			return err
+		}
+
 		body, err := client.Bucket(bucket).Object(attrs.Name).NewReader(ctx)
 		if err != nil {
 			return err
 		}
 
-		dst := ObjectDst(req.Dst, prefix, attrs.Name)
 		if err := WriteGetterObject(g.v.FS, req, dst, body); err != nil {
 			return err
 		}

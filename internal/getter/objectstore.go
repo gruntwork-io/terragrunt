@@ -7,6 +7,7 @@ package getter
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"io"
 	"iter"
 	"os"
@@ -30,6 +31,10 @@ const DefaultModeScanLimit = 1000
 // its first object or send a directory fetch at a single key, so the scan
 // reports the prefix instead of picking.
 var ErrModeScanLimit = errors.New("too many objects under prefix to determine getter mode")
+
+// ErrObjectEscapesDst is returned when an object key resolves to a path
+// outside the download's destination.
+var ErrObjectEscapesDst = errors.New("object key escapes the destination directory")
 
 // Permissions the object-store getters create with before the request's umask
 // is applied. They match the values go-getter passes to its own copy helpers,
@@ -68,18 +73,48 @@ func ScanMode(
 	return getter.ModeFile, nil
 }
 
+// ObjectMode reports the mode a listed name resolves for a requested object.
+// A name only makes the object a directory by sitting below it: a prefix
+// listing also returns siblings like `modules-old/main.tf`, and reading one of
+// those as proof that `modules` is a directory would send the download at a
+// prefix with nothing under it.
+//
+// An object written with a trailing slash already names a prefix, so the
+// listing is measured against one separator either way.
+func ObjectMode(name, object string) (getter.Mode, bool) {
+	if strings.HasPrefix(name, ListPrefix(object)) {
+		return getter.ModeDir, true
+	}
+
+	if name == object {
+		return getter.ModeFile, true
+	}
+
+	return 0, false
+}
+
 // ObjectDst maps an object key to its destination path, keeping the key's
 // layout below prefix. Keys are always forward-slashed, so the conversion to
 // host separators happens here rather than by joining the raw key.
-func ObjectDst(dst, prefix, key string) string {
+//
+// A key is remote input, so one that climbs out of dst is refused.
+func ObjectDst(dst, prefix, key string) (string, error) {
 	rel := cmp.Or(strings.TrimPrefix(strings.TrimPrefix(key, prefix), "/"), path.Base(key))
 
-	return filepath.Join(dst, filepath.FromSlash(rel))
+	local := filepath.FromSlash(rel)
+	if !filepath.IsLocal(local) {
+		return "", fmt.Errorf("%w: %q", ErrObjectEscapesDst, key)
+	}
+
+	return filepath.Join(dst, local), nil
 }
 
 // ResetGetterDst clears a directory download's destination. Get is documented
 // as always fetching the latest, so a stale tree left from a previous run
 // would otherwise merge into the new one.
+//
+// A prefix holding nothing but directory placeholders writes no files, and the
+// caller is still owed the directory it asked for.
 func ResetGetterDst(fsys vfs.FS, req *getter.Request) error {
 	exists, err := vfs.FileExists(fsys, req.Dst)
 	if err != nil {
@@ -92,7 +127,7 @@ func ResetGetterDst(fsys vfs.FS, req *getter.Request) error {
 		}
 	}
 
-	return fsys.MkdirAll(filepath.Dir(req.Dst), req.Mode(objectDirMode))
+	return fsys.MkdirAll(req.Dst, req.Mode(objectDirMode))
 }
 
 // WriteGetterObject copies body to dst, creating parent directories, and

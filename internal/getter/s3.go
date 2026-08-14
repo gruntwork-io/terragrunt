@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"strings"
 
@@ -85,10 +86,10 @@ func (g *S3Getter) Detect(req *getter.Request) (bool, error) {
 	return true, nil
 }
 
-// Mode reports whether the URL names a single object or a prefix. An exact
-// key match is a file; any key below `<key>/` makes it a directory. A prefix
-// matching nothing reports file mode so the download surfaces S3's own
-// not-found error rather than a synthesized one.
+// Mode reports whether the URL names a single object or a prefix, deciding
+// each listed key with [ObjectMode]. A prefix matching nothing reports file
+// mode so the download surfaces S3's own not-found error rather than a
+// synthesized one.
 func (g *S3Getter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
 	target, err := ParseS3FetchURL(u)
 	if err != nil {
@@ -100,9 +101,12 @@ func (g *S3Getter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
 		return 0, err
 	}
 
+	// Without MaxKeys a scan limit above the page size ends at the page
+	// boundary, and ScanMode reads the truncated listing as a file.
 	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(target.Bucket),
-		Prefix: aws.String(target.Key),
+		Bucket:  aws.String(target.Bucket),
+		Prefix:  aws.String(target.Key),
+		MaxKeys: aws.Int32(int32(min(g.modeScanLimit, math.MaxInt32))),
 	})
 	if err != nil {
 		return 0, err
@@ -117,15 +121,7 @@ func (g *S3Getter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
 			}
 		},
 		func(key string) (getter.Mode, bool) {
-			if key == target.Key {
-				return getter.ModeFile, true
-			}
-
-			if strings.HasPrefix(key, target.Key+"/") {
-				return getter.ModeDir, true
-			}
-
-			return 0, false
+			return ObjectMode(key, target.Key)
 		},
 	)
 	if err != nil {
@@ -173,7 +169,10 @@ func (g *S3Getter) Get(ctx context.Context, req *getter.Request) error {
 				continue
 			}
 
-			dst := ObjectDst(req.Dst, prefix, key)
+			dst, err := ObjectDst(req.Dst, prefix, key)
+			if err != nil {
+				return err
+			}
 
 			body, err := g.object(ctx, client, &target, key, "")
 			if err != nil {
@@ -220,6 +219,15 @@ type S3FetchTarget struct {
 	Endpoint string
 }
 
+// redactedURL renders u for an error message with its query dropped. An S3
+// URL carries credentials there, and a rejected URL still reaches logs.
+func redactedURL(u *url.URL) string {
+	clean := *u
+	clean.RawQuery = ""
+
+	return clean.String()
+}
+
 // ParseS3FetchURL resolves a path-style S3 URL. Detect has already rewritten
 // the AWS virtual-host and modern path-style forms, so only
 // `<host>/<bucket>/<key>` reaches here.
@@ -231,7 +239,7 @@ type S3FetchTarget struct {
 func ParseS3FetchURL(u *url.URL) (S3FetchTarget, error) {
 	pathParts := strings.SplitN(u.Path, "/", s3PathParts)
 	if len(pathParts) != s3PathParts || pathParts[1] == "" || pathParts[2] == "" {
-		return S3FetchTarget{}, fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, u.String())
+		return S3FetchTarget{}, fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redactedURL(u))
 	}
 
 	q := u.Query()
@@ -272,12 +280,15 @@ func S3Region(u *url.URL) (string, error) {
 
 	hostParts := strings.Split(u.Host, ".")
 	if len(hostParts) != s3AWSHostParts {
-		return "", fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, u.String())
+		return "", fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redactedURL(u))
 	}
 
-	region := strings.TrimPrefix(strings.TrimPrefix(hostParts[0], "s3-"), "s3")
+	region, ok := S3RegionFromHostLabel(hostParts[0])
+	if !ok {
+		return "", fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redactedURL(u))
+	}
 
-	return cmp.Or(region, s3DefaultRegion), nil
+	return region, nil
 }
 
 // object opens the object body. The caller closes it via writeGetterObject.

@@ -133,13 +133,10 @@ func TestS3RegionRejectsUncanonicalizedAWSHosts(t *testing.T) {
 	}
 }
 
-// TestS3RegionAcceptsHostsTheProbeRejects records where the two paths
-// disagree rather than endorsing it: the fetch path reads any three-label
-// amazonaws.com host as path-style S3 and hands back its first label as the
-// region, while the probe path rejects the same host outright. Reaching the
-// fetch path at all takes an explicitly forced s3 URL, since Detect claims
-// those without inspecting the host.
-func TestS3RegionAcceptsHostsTheProbeRejects(t *testing.T) {
+// TestS3RegionRejectsNonS3AWSHosts pins that the fetch path rejects the hosts
+// the probe path does. An explicitly forced s3 URL reaches here, since Detect
+// claims those without inspecting the host.
+func TestS3RegionRejectsNonS3AWSHosts(t *testing.T) {
 	t.Parallel()
 
 	for _, host := range []string{"iam", "sts", "ec2"} {
@@ -149,14 +146,27 @@ func TestS3RegionAcceptsHostsTheProbeRejects(t *testing.T) {
 			u, err := url.Parse("https://" + host + ".amazonaws.com/bucket/key")
 			require.NoError(t, err)
 
-			got, err := getter.S3Region(u)
-			require.NoError(t, err)
-			assert.Equal(t, host, got)
-
-			_, ok := getter.S3RegionFromHostLabel(host)
-			assert.False(t, ok)
+			_, err = getter.S3Region(u)
+			require.ErrorIs(t, err, getter.ErrS3InvalidFetchURL)
 		})
 	}
+}
+
+// TestS3RegionRedactsCredentials pins that a rejected URL does not carry the
+// credentials it was given into the error text, which reaches logs.
+func TestS3RegionRedactsCredentials(t *testing.T) {
+	t.Parallel()
+
+	u, err := url.Parse(
+		"https://iam.amazonaws.com/bucket/key" +
+			"?aws_access_key_id=AKIAEXAMPLE&aws_access_key_secret=super-secret",
+	)
+	require.NoError(t, err)
+
+	_, err = getter.S3Region(u)
+	require.ErrorIs(t, err, getter.ErrS3InvalidFetchURL)
+	assert.NotContains(t, err.Error(), "super-secret")
+	assert.NotContains(t, err.Error(), "AKIAEXAMPLE")
 }
 
 // TestS3RegionFromHostLabel pins which host labels identify S3. Anything else

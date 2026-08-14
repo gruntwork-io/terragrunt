@@ -63,7 +63,126 @@ func TestObjectDst(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.want, getter.ObjectDst(tc.dst, tc.prefix, tc.key))
+			got, err := getter.ObjectDst(tc.dst, tc.prefix, tc.key)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestObjectDstRejectsEscapingKeys pins that a key climbing out of the
+// destination is refused rather than written wherever it points.
+func TestObjectDstRejectsEscapingKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		prefix string
+		key    string
+	}{
+		{
+			name:   "key climbs above the destination",
+			prefix: "modules/vpc",
+			key:    "modules/vpc/../../../etc/passwd",
+		},
+		{
+			name:   "key outside the prefix climbs from the whole key",
+			prefix: "modules/vpc",
+			key:    "../../etc/passwd",
+		},
+		{
+			name:   "single parent segment still escapes",
+			prefix: "modules/vpc/",
+			key:    "modules/vpc/../sibling.tf",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := getter.ObjectDst("/out", tc.prefix, tc.key)
+			require.ErrorIs(t, err, getter.ErrObjectEscapesDst)
+		})
+	}
+}
+
+// TestObjectMode pins the rule both getters decide file-vs-directory with,
+// siblings sharing the object's name as a prefix included.
+func TestObjectMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		listed   string
+		object   string
+		want     upstream.Mode
+		wantDone bool
+	}{
+		{
+			name:     "exact match is a file",
+			listed:   "modules/vpc",
+			object:   "modules/vpc",
+			want:     upstream.ModeFile,
+			wantDone: true,
+		},
+		{
+			name:     "name below the object is a directory",
+			listed:   "modules/vpc/main.tf",
+			object:   "modules/vpc",
+			want:     upstream.ModeDir,
+			wantDone: true,
+		},
+		{
+			name:     "directory placeholder is a directory",
+			listed:   "modules/vpc/",
+			object:   "modules/vpc",
+			want:     upstream.ModeDir,
+			wantDone: true,
+		},
+		{
+			name:     "name below a trailing-slash object is a directory",
+			listed:   "modules/vpc/main.tf",
+			object:   "modules/vpc/",
+			want:     upstream.ModeDir,
+			wantDone: true,
+		},
+		{
+			name:     "trailing-slash object matching its own placeholder is a directory",
+			listed:   "modules/vpc/",
+			object:   "modules/vpc/",
+			want:     upstream.ModeDir,
+			wantDone: true,
+		},
+		{
+			name:   "sibling sharing the prefix decides nothing",
+			listed: "modules/vpc-old/main.tf",
+			object: "modules/vpc",
+		},
+		{
+			name:   "sibling of a trailing-slash object decides nothing",
+			listed: "modules/vpc-old/main.tf",
+			object: "modules/vpc/",
+		},
+		{
+			name:   "sibling with no separator decides nothing",
+			listed: "modules/vpcfoo",
+			object: "modules/vpc",
+		},
+		{
+			name:   "unrelated name decides nothing",
+			listed: "other/main.tf",
+			object: "modules/vpc",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, done := getter.ObjectMode(tc.listed, tc.object)
+			assert.Equal(t, tc.wantDone, done)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -288,4 +407,8 @@ func TestResetGetterDst(t *testing.T) {
 	exists, err := vfs.FileExists(fsys, stale)
 	require.NoError(t, err)
 	assert.False(t, exists, "a stale tree must not survive into the new download")
+
+	exists, err = vfs.FileExists(fsys, "out")
+	require.NoError(t, err)
+	assert.True(t, exists, "the destination must exist after a reset")
 }
