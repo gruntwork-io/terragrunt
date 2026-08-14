@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -23,16 +24,16 @@ import (
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestCAS_S3_RustFS_ProbeAvoidsRedownload verifies the S3 → CAS path
 // against an in-Docker RustFS instance: a second CASGetter request for
 // the same object skips the download when HeadObject reports the same
 // version metadata.
-func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: paralleltest
+func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: paralleltest // setupRustFSForCAS calls t.Setenv, which bars t.Parallel.
 	endpoint := setupRustFSForCAS(t)
 
 	bucket := "cas-test-" + strings.ToLower(helpers.UniqueID())
@@ -53,11 +54,11 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 
 	v := venv.OSVenv()
 
-	resolvers := tggetter.DefaultSourceResolvers(v.HTTP, v.Exec)
+	resolvers := tggetter.DefaultSourceResolvers(v)
 	resolvers[tggetter.SchemeS3] = newRustFSS3Resolver(t, endpoint)
 
 	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
-		tggetter.WithGenericFetchers(tggetter.DefaultGenericFetchers()),
+		tggetter.WithGenericFetchers(tggetter.DefaultGenericFetchers(v)),
 		tggetter.WithGenericResolvers(resolvers),
 	)
 
@@ -150,8 +151,8 @@ func newRustFSS3Resolver(t *testing.T, endpoint string) *tggetter.S3Resolver {
 	t.Helper()
 
 	// NewClient below short-circuits the default chain, so the resolver never
-	// reaches for this client.
-	r := tggetter.NewS3Resolver(vhttp.NewNoNetworkClient())
+	// reaches for this venv.
+	r := tggetter.NewS3Resolver(venvtest.New())
 	r.NewClient = func(ctx context.Context, _ string) (tggetter.S3API, error) {
 		return newRustFSClientFor(ctx, endpoint)
 	}
@@ -203,4 +204,55 @@ func rustfsSourceURL(t *testing.T, endpoint, bucket, key string) string {
 	}
 
 	return "s3::" + out.String()
+}
+
+// TestS3PrefixDownloadReproducesLayout drives the s3 getter's directory path
+// against RustFS: a source naming a key prefix rather than a single object
+// must list every key below it and land each one at its position relative to
+// that prefix, nesting included.
+//
+// The single-object test above resolves to ModeFile and never reaches
+// S3Getter.Get, so this is what covers the paginated listing and the
+// key-to-path mapping.
+func TestS3PrefixDownloadReproducesLayout(t *testing.T) { //nolint: paralleltest // setupRustFSForCAS calls t.Setenv, which bars t.Parallel.
+	endpoint := setupRustFSForCAS(t)
+
+	bucket := "prefix-test-" + strings.ToLower(helpers.UniqueID())
+	prefix := "modules/vpc"
+
+	s3Client := newRustFSClient(t, endpoint)
+	createRustFSBucket(t, s3Client, bucket)
+
+	// A nested key must keep its subdirectory below the destination.
+	want := map[string]string{
+		"main.tf":       "# root",
+		"variables.tf":  "# vars",
+		"sub/nested.tf": "# nested",
+	}
+
+	for name, body := range want {
+		uploadRustFSObject(t, s3Client, bucket, prefix+"/"+name, []byte(body))
+	}
+
+	// Shares the prefix's leading characters but not its path segment, so it
+	// must stay out of the download.
+	uploadRustFSObject(t, s3Client, bucket, prefix+"-sibling.tf", []byte("# excluded"))
+
+	v := venv.OSVenv()
+	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "module")
+
+	_, err := tggetter.NewClient(v).Get(t.Context(), &tggetter.Request{
+		Src:     rustfsSourceURL(t, endpoint, bucket, prefix),
+		Dst:     dst,
+		GetMode: tggetter.ModeAny,
+	})
+	require.NoError(t, err)
+
+	for name, body := range want {
+		got, readErr := os.ReadFile(filepath.Join(dst, filepath.FromSlash(name)))
+		require.NoError(t, readErr, "expected %s below the prefix", name)
+		require.Equal(t, body, string(got))
+	}
+
+	require.NoFileExists(t, filepath.Join(dst, "-sibling.tf"))
 }

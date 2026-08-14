@@ -169,7 +169,9 @@ func TestOCIGetterAgainstLocalRegistryRepositoryNamedLikeAPIPath(t *testing.T) {
 
 // ociRegistryClient builds the production getter chain resolving through v.
 func ociRegistryClient(v *venv.Venv) *getter.Client {
-	return getter.NewClient(getter.WithOCI(getter.NewOCIGetter(logger.CreateLogger(), v)))
+	return getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithOCI(getter.NewOCIGetter(logger.CreateLogger(), v)),
+	)
 }
 
 // ociRegistryLayer resolves the published manifest down to its single module-zip layer.

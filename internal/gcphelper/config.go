@@ -9,6 +9,7 @@ import (
 
 	"net/http"
 
+	"cloud.google.com/go/auth/credentials"
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -23,13 +24,6 @@ import (
 const (
 	tokenURL = "https://oauth2.googleapis.com/token"
 
-	credTypeServiceAccount             = "service_account"
-	credTypeAuthorizedUser             = "authorized_user"
-	credTypeImpersonatedServiceAccount = "impersonated_service_account"
-	credTypeExternalAccount            = "external_account"
-
-	// cloudPlatformScope pairs with storage.ScopeFullControl as the scope set
-	// storage.NewClient applies to clients it builds the transport for.
 	cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
 )
 
@@ -44,18 +38,11 @@ type GCPSessionConfig struct {
 // GCPConfigBuilder constructs GCP client options using the builder pattern.
 type GCPConfigBuilder struct {
 	sessionConfig *GCPSessionConfig
-	venv          *venv.Venv
 }
 
-// NewGCPConfigBuilder creates a new GCPConfigBuilder whose GCS requests, and
-// the OAuth token exchanges behind them, ride v's HTTP client. Credentials
-// resolve against v's environment and filesystem.
-func NewGCPConfigBuilder(v *venv.Venv) *GCPConfigBuilder {
-	v.RequireEnv()
-	v.RequireFS()
-	v.RequireHTTP()
-
-	return &GCPConfigBuilder{venv: v}
+// NewGCPConfigBuilder creates a new GCPConfigBuilder.
+func NewGCPConfigBuilder() *GCPConfigBuilder {
+	return &GCPConfigBuilder{}
 }
 
 // WithSessionConfig sets the GCP session configuration.
@@ -65,10 +52,17 @@ func (b *GCPConfigBuilder) WithSessionConfig(config *GCPSessionConfig) *GCPConfi
 }
 
 // BuildGCSClient builds a GCS storage client from the configured options.
-func (b *GCPConfigBuilder) BuildGCSClient(ctx context.Context) (*storage.Client, error) {
-	ctx = b.withOAuthClient(ctx)
+func (b *GCPConfigBuilder) BuildGCSClient(
+	ctx context.Context,
+	v *venv.Venv,
+) (*storage.Client, error) {
+	v.RequireEnv()
+	v.RequireFS()
+	v.RequireHTTP()
 
-	clientOpts, err := b.Build(ctx)
+	ctx = withOAuthClient(ctx, v)
+
+	clientOpts, err := b.Build(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -77,16 +71,10 @@ func (b *GCPConfigBuilder) BuildGCSClient(ctx context.Context) (*storage.Client,
 	// being passed straight to storage.NewClient: a bare client carries no
 	// credentials, so every request would go out unauthenticated.
 	//
-	// Credentials resolve here rather than inside storage.NewClient, which is
-	// where the storage scopes would normally be applied, so they have to be
-	// named. Without them the token exchange asks for no scope at all and the
-	// provider rejects it. They lead so that a caller's own scopes still win.
-	transportOpts := append(
-		[]option.ClientOption{option.WithScopes(storage.ScopeFullControl, cloudPlatformScope)},
-		clientOpts...,
-	)
+	// The scopes lead so that a caller's own scopes still win.
+	transportOpts := append([]option.ClientOption{GCSScopes()}, clientOpts...)
 
-	trans, err := htransport.NewTransport(ctx, b.venv.HTTP.Transport, transportOpts...)
+	trans, err := htransport.NewTransport(ctx, v.HTTP.Transport, transportOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error building GCS transport: %w", err)
 	}
@@ -103,21 +91,45 @@ func (b *GCPConfigBuilder) BuildGCSClient(ctx context.Context) (*storage.Client,
 	return gcsClient, nil
 }
 
-// withOAuthClient points the oauth2 library at c. oauth2 mints tokens through
-// http.DefaultClient otherwise, independently of the transport the API client
-// is built on.
-func (b *GCPConfigBuilder) withOAuthClient(ctx context.Context) context.Context {
-	return context.WithValue(ctx, oauth2.HTTPClient, b.venv.HTTP)
+// GCSScopes returns the scopes storage.NewClient applies to clients whose
+// transport it builds itself. Credentials resolve while the transport is being
+// built, which is where those scopes would normally be attached, so anything
+// building the transport has to name them. Without them the token exchange asks
+// for no scope at all and Google rejects it with `invalid_scope`.
+func GCSScopes() option.ClientOption {
+	return option.WithScopes(gcsScopes()...)
+}
+
+func gcsScopes() []string {
+	return []string{storage.ScopeFullControl, cloudPlatformScope}
+}
+
+// withOAuthClient points the oauth2 library at v's client. oauth2 mints tokens
+// through http.DefaultClient otherwise, independently of the transport the API
+// client is built on.
+func withOAuthClient(ctx context.Context, v *venv.Venv) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, v.HTTP)
 }
 
 // Build returns GCP client options from the configured session config and env.
-func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, error) {
+func (b *GCPConfigBuilder) Build(
+	ctx context.Context,
+	v *venv.Venv,
+) ([]option.ClientOption, error) {
+	v.RequireEnv()
+	v.RequireFS()
+	v.RequireHTTP()
+
+	// Impersonation mints its token inside Build, so the oauth2 client has to be
+	// in place before the transport the caller builds from these options.
+	ctx = withOAuthClient(ctx, v)
+
 	gcpCfg := b.sessionConfig
-	env := b.venv.Env
+	env := v.Env
 
 	var clientOpts []option.ClientOption
 
-	envCreds, err := createGCPCredentialsFromEnv(b.venv.FS, env)
+	envCreds, err := createGCPCredentialsFromEnv(v)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +138,7 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
-		credOpt, err := credentialsFileOption(b.venv.FS, gcpCfg.Credentials)
+		credOpt, err := credentialsFileOption(v, gcpCfg.Credentials)
 		if err != nil {
 			return nil, err
 		}
@@ -176,59 +188,49 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 	return clientOpts, nil
 }
 
-// createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in env
-// It looks for GOOGLE_APPLICATION_CREDENTIALS and returns a ClientOption that can be used
-// with Google Cloud clients. Returns nil if the environment variable is not set.
-func createGCPCredentialsFromEnv(fs vfs.FS, env map[string]string) (option.ClientOption, error) {
-	credentialsFile := env["GOOGLE_APPLICATION_CREDENTIALS"]
+// createGCPCredentialsFromEnv creates GCP credentials from the
+// GOOGLE_APPLICATION_CREDENTIALS variable in v's environment. Returns nil when
+// the variable is not set.
+func createGCPCredentialsFromEnv(v *venv.Venv) (option.ClientOption, error) {
+	credentialsFile := v.Env["GOOGLE_APPLICATION_CREDENTIALS"]
 	if credentialsFile == "" {
 		return nil, nil
 	}
 
-	return credentialsFileOption(fs, credentialsFile)
+	return credentialsFileOption(v, credentialsFile)
 }
 
-// credentialsFileOption reads a GCP credentials JSON file, detects its type,
-// and returns the appropriate ClientOption. The parsed bytes are handed to the
-// SDK rather than the path, so the file is read once, through fs, instead of
-// the SDK opening it again off the real disk.
-func credentialsFileOption(fs vfs.FS, filename string) (option.ClientOption, error) {
-	data, err := vfs.ReadFile(fs, filename)
+// credentialsFileOption reads a GCP credentials JSON file and returns the
+// option that authenticates with it. The parsed bytes are handed to the SDK
+// rather than the path, so the file is read once, through v's filesystem,
+// instead of the SDK opening it again off the real disk.
+func credentialsFileOption(v *venv.Venv, filename string) (option.ClientOption, error) {
+	data, err := vfs.ReadFile(v.FS, filename)
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials file %s: %w", filename, err)
 	}
 
-	var meta struct {
-		Type string `json:"type"`
-	}
-
-	if err := json.Unmarshal(data, &meta); err != nil {
-		return nil, fmt.Errorf("error parsing credentials file %s: %w", filename, err)
-	}
-
-	credType, err := credentialsTypeFromString(meta.Type)
-	if err != nil {
-		return nil, err
-	}
-
-	return option.WithAuthCredentialsJSON(credType, data), nil
+	return credentialsJSONOption(v, data)
 }
 
-// credentialsTypeFromString maps the "type" field in a GCP credentials JSON
-// file to the corresponding option.CredentialsType.
-func credentialsTypeFromString(t string) (option.CredentialsType, error) {
-	switch t {
-	case credTypeServiceAccount:
-		return option.ServiceAccount, nil
-	case credTypeAuthorizedUser:
-		return option.AuthorizedUser, nil
-	case credTypeImpersonatedServiceAccount:
-		return option.ImpersonatedServiceAccount, nil
-	case credTypeExternalAccount:
-		return option.ExternalAccount, nil
-	default:
-		return "", fmt.Errorf("unsupported GCP credentials type: %q", t)
+// credentialsJSONOption authenticates with a credentials JSON payload.
+//
+// The credentials are detected here rather than by the SDK, which detects with
+// a client of its own making (google.golang.org/api/internal.creds) and would
+// put the token exchange on a transport the venv never sees. Detection also
+// covers every credential type the JSON can name, so the type does not have to
+// be recognized up front.
+func credentialsJSONOption(v *venv.Venv, data []byte) (option.ClientOption, error) {
+	creds, err := credentials.DetectDefault(&credentials.DetectOptions{
+		CredentialsJSON: data,
+		Scopes:          gcsScopes(),
+		Client:          v.HTTP,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error detecting GCP credentials: %w", err)
 	}
+
+	return option.WithAuthCredentials(creds), nil
 }
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.

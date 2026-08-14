@@ -5,19 +5,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
-	"golang.org/x/oauth2"
-	"google.golang.org/api/option"
-	htransport "google.golang.org/api/transport/http"
-
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
 // gcsResolverTimeout caps the Attrs call so a slow remote can't stall CAS
@@ -55,18 +51,17 @@ type GCSClient interface {
 // GCSResolver is a [cas.SourceResolver] for objects in Google Cloud
 // Storage.
 type GCSResolver struct {
-	// NewClient builds a GCS client per request. Nil means
-	// [storage.NewClient] with the ambient application default
-	// credentials.
+	// NewClient builds a GCS client per request. Nil means a client built
+	// from Venv.
 	NewClient func(ctx context.Context) (GCSClient, error)
-	// HTTPClient carries the SDK's requests. Required when NewClient is
-	// nil; [NewGCSResolver] takes it from the caller.
-	HTTPClient vhttp.Client
+	// Venv carries the SDK's requests, credentials, and filesystem.
+	// Required when NewClient is nil; [NewGCSResolver] takes it from the
+	// caller.
+	Venv *venv.Venv
 }
 
-// NewGCSResolver returns a resolver that reads object metadata over c, using
-// the ambient ADC for credentials.
-func NewGCSResolver(c vhttp.Client) *GCSResolver { return &GCSResolver{HTTPClient: c} }
+// NewGCSResolver returns a resolver that reads object metadata through v.
+func NewGCSResolver(v *venv.Venv) *GCSResolver { return &GCSResolver{Venv: v} }
 
 // Scheme returns "gcs".
 func (r *GCSResolver) Scheme() string { return "gcs" }
@@ -134,17 +129,7 @@ func (r *GCSResolver) client(ctx context.Context) (GCSClient, error) {
 		return r.NewClient(ctx)
 	}
 
-	// Google's auth is layered over the venv transport rather than the venv
-	// client replacing it, so ADC still authenticates the probe.
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, r.HTTPClient)
-
-	trans, err := htransport.NewTransport(ctx, r.HTTPClient.Transport)
-	if err != nil {
-		return nil, err
-	}
-
-	//nolint:forbidigo // trans is built on the venv's transport, which is what the rule protects.
-	c, err := storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Transport: trans}))
+	c, err := gcphelper.NewGCPConfigBuilder().BuildGCSClient(ctx, r.Venv)
 	if err != nil {
 		return nil, err
 	}

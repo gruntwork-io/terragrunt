@@ -722,7 +722,7 @@ func BuildDownloadClient(
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
-		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS, v.HTTP).
+		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
 			WithEnv(v.Env).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
@@ -731,7 +731,7 @@ func BuildDownloadClient(
 		clientOpts = append(clientOpts, getter.WithOCI(getter.NewOCIGetter(l, v)))
 	}
 
-	return getter.NewClient(clientOpts...), nil
+	return getter.NewClient(v, clientOpts...), nil
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory

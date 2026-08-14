@@ -40,10 +40,10 @@ func WithFS(fs vfs.FS) ConfigOption {
 	}
 }
 
-// NewConfig creates a new Config that saves through fs.
-func NewConfig(fs vfs.FS) *Config {
+// NewConfig creates a new Config that saves through fsys.
+func NewConfig(fsys vfs.FS) *Config {
 	return &Config{
-		fs: fs,
+		fs: fsys,
 	}
 }
 
