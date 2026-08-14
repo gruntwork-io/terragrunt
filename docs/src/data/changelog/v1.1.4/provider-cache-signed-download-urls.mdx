@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Provider cache supports signed provider download URLs
+
+When a provider mirror returned a signed download URL, the [Provider Cache Server](/features/caching/provider-cache-server) used the entire URL, including its query string, as the archive filename. Long authentication parameters could exceed filesystem filename limits and fail with `file name too long`.
+
+Terragrunt now derives the archive filename only from the URL path while preserving the query string when downloading it. Signed provider URLs, including archives in nested object paths, now download and cache correctly.
