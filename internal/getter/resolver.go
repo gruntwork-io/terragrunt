@@ -2,7 +2,7 @@ package getter
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
@@ -24,21 +24,24 @@ type SourceResolver = cas.SourceResolver
 // so the probe and the fetch resolve against the same registry host, and
 // [WithDispatchEnv] so the probe carries the same registry credentials.
 //
-// The http, https, and tfr resolvers all probe over c, and the hg resolver
-// spawns `hg` through e. [CASGetter] callers normally go through
-// [WithDefaultGenericDispatch], which supplies the venv's client and executor.
+// Every resolver rides v: the http, https, and tfr probes go over its client
+// and the hg resolver spawns `hg` through its executor. A caller overriding the
+// probe client passes a venv carrying it ([venv.Venv.WithHTTP]), which is what
+// [WithDefaultGenericDispatch] does.
 func DefaultSourceResolvers(
-	c vhttp.Client,
-	e vexec.Exec,
+	v *venv.Venv,
 	opts ...GenericFetcherOption,
 ) map[string]SourceResolver {
+	v.RequireExec()
+	v.RequireHTTP()
+
 	var cfg genericFetcherConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
 	tfr := NewTFRResolver().
-		WithHTTPClient(vhttp.WithTimeout(c, tfrResolverTimeout)).
+		WithHTTPClient(vhttp.WithTimeout(v.HTTP, tfrResolverTimeout)).
 		WithAuth(RegistryAuth{Env: cfg.env, ReadUserConfig: vfs.IsOSFS(cfg.fs)})
 
 	if cfg.tfrEnabled {
@@ -50,7 +53,7 @@ func DefaultSourceResolvers(
 		tfr.WithTofuImplementation(cfg.tfrImpl)
 	}
 
-	probeClient := vhttp.WithTimeout(c, httpResolverTimeout)
+	probeClient := vhttp.WithTimeout(v.HTTP, httpResolverTimeout)
 
 	httpRes := NewHTTPResolver()
 	httpRes.Client = probeClient
@@ -61,9 +64,9 @@ func DefaultSourceResolvers(
 	resolvers := map[string]SourceResolver{
 		SchemeHTTP:  httpRes,
 		SchemeHTTPS: httpsRes,
-		SchemeS3:    NewS3Resolver(c),
-		SchemeGCS:   NewGCSResolver(c),
-		SchemeHg:    NewHgResolver(e),
+		SchemeS3:    NewS3Resolver(v),
+		SchemeGCS:   NewGCSResolver(v),
+		SchemeHg:    NewHgResolver(v.Exec),
 		SchemeTFR:   tfr,
 	}
 

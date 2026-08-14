@@ -850,7 +850,7 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
-	client := getter.NewClient(
+	client := getter.NewClient(venvtest.NewWithOSFS(),
 		getter.WithLogger(logger.CreateLogger()),
 		getter.WithOCI(newTestOCIGetter(staticStore(store))),
 	)
@@ -873,7 +873,8 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient(getter.WithLogger(logger.CreateLogger()))
+	client := getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithLogger(logger.CreateLogger()))
 	dst := filepath.Join(t.TempDir(), "module")
 
 	_, err := client.Get(t.Context(), &gogetter.Request{
@@ -890,11 +891,13 @@ func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
 	t.Parallel()
 
-	_, found := getter.DefaultGenericFetchers()[getter.SchemeOCI]
+	v := venvtest.New()
+
+	_, found := getter.DefaultGenericFetchers(v)[getter.SchemeOCI]
 	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")
 
-	v := venvtest.New()
 	fetchers := getter.DefaultGenericFetchers(
+		v,
 		getter.WithDispatchLogger(logger.CreateLogger()),
 		getter.WithDispatchFS(v.FS),
 		getter.WithOCIConfig(v),
@@ -1002,7 +1005,8 @@ func newTestOCIGetter(newStore getter.OCINewStoreFunc) *getter.OCIGetter {
 }
 
 func newOCITestClient(g *getter.OCIGetter) *gogetter.Client {
-	return getter.NewClient(getter.WithCustomGettersPrepended(g))
+	return getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithCustomGettersPrepended(g))
 }
 
 // moduleZipBytes builds an in-memory zip holding files keyed by relative path.

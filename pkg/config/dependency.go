@@ -1766,10 +1766,10 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 
 			sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-			s3Client, err := awshelper.NewAWSConfigBuilder(pctx.Venv).
+			s3Client, err := awshelper.NewAWSConfigBuilder().
 				WithSessionConfig(sessionConfig).
 				WithIAMRoleOptions(pctx.IAMRoleOptions).
-				BuildS3Client(ctx, l)
+				BuildS3Client(ctx, l, pctx.Venv)
 			if err != nil {
 				return fmt.Errorf("building s3 client for s3://%s/%s: %w", bucket, key, err)
 			}

@@ -36,13 +36,12 @@ func WithOCI(g *OCIGetter) Option {
 }
 
 // WithCAS registers CASGetter, which intercepts git/file sources and routes
-// them through Terragrunt's content-addressable storage. v supplies the
-// filesystem and process executor used by every CAS operation; [WithHTTP]
-// must also be set since the CAS dispatch probes over HTTP.
-func WithCAS(c *cas.CAS, v *venv.Venv, cloneOpts *cas.CloneOptions) Option {
+// them through Terragrunt's content-addressable storage. Every CAS operation
+// uses the venv [NewClient] was given; [WithHTTP] must also be set since the
+// CAS dispatch probes over HTTP.
+func WithCAS(c *cas.CAS, cloneOpts *cas.CloneOptions) Option {
 	return func(b *builder) {
 		b.casStore = c
-		b.casVenv = v
 		b.casCloneOpts = cloneOpts
 	}
 }
@@ -102,7 +101,7 @@ type builder struct {
 	oci              *OCIGetter
 	casStore         *cas.CAS
 	casCloneOpts     *cas.CloneOptions
-	casVenv          *venv.Venv
+	v                *venv.Venv
 	httpClient       vhttp.Client
 	httpExtraHeader  http.Header
 	httpsExtraHeader http.Header
