@@ -4,7 +4,6 @@ package awshelper
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +18,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -43,49 +44,51 @@ type AwsSessionConfig struct {
 	DisableComputeChecksums bool
 }
 
-type tokenFetcher string
+// TokenFetcher resolves a web identity token that was configured either as the
+// token itself or as the path to one on disk.
+type TokenFetcher struct {
+	FS    vfs.FS
+	Token string
+}
 
 // FetchToken implements the token fetcher interface.
 // Supports providing a token value or the path to a token on disk
-func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
-	// Check if token is a raw value
-	if _, err := os.Stat(string(f)); err != nil {
-		// TODO: See if this lint error should be ignored
-		return []byte(f), nil //nolint: nilerr
+func (f TokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
+	exists, err := vfs.FileExists(f.FS, f.Token)
+	if err != nil && !vfs.IsNameTooLong(err) {
+		return nil, fmt.Errorf("checking web identity token path %s: %w", f.Token, err)
 	}
 
-	token, err := os.ReadFile(string(f))
-	if err != nil {
-		return nil, err
+	// Nothing on disk at that path, so the configured value is the token itself.
+	if !exists {
+		return []byte(f.Token), nil
 	}
 
-	return token, nil
+	return vfs.ReadFile(f.FS, f.Token)
 }
 
 // AWSConfigBuilder builds an AWS config using the builder pattern.
 // Use NewAwsConfigBuilder to create, chain With* methods for optional parameters, then call Build().
 type AWSConfigBuilder struct {
 	sessionConfig *AwsSessionConfig
-	env           map[string]string
+	venv          *venv.Venv
 	iamRoleOpts   iam.RoleOptions
 }
 
-// NewAWSConfigBuilder creates a new builder for AWS config.
-func NewAWSConfigBuilder() *AWSConfigBuilder {
-	return &AWSConfigBuilder{
-		env: make(map[string]string),
-	}
+// NewAWSConfigBuilder creates a new builder for AWS config. Every AWS call
+// made through the resulting config rides v's HTTP client, and credentials
+// resolve against v's environment.
+func NewAWSConfigBuilder(v *venv.Venv) *AWSConfigBuilder {
+	v.RequireEnv()
+	v.RequireFS()
+	v.RequireHTTP()
+
+	return &AWSConfigBuilder{venv: v}
 }
 
 // WithSessionConfig sets the AWS session configuration (region, profile, credentials file, etc.).
 func (b *AWSConfigBuilder) WithSessionConfig(cfg *AwsSessionConfig) *AWSConfigBuilder {
 	b.sessionConfig = cfg
-	return b
-}
-
-// WithEnv sets environment variables used for credential and region resolution.
-func (b *AWSConfigBuilder) WithEnv(env map[string]string) *AWSConfigBuilder {
-	b.env = env
 	return b
 }
 
@@ -99,9 +102,13 @@ func (b *AWSConfigBuilder) WithIAMRoleOptions(opts iam.RoleOptions) *AWSConfigBu
 func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config, error) {
 	var configOptions []func(*config.LoadOptions) error
 
-	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
+	configOptions = append(
+		configOptions,
+		config.WithAppID("terragrunt/"+version.GetVersion()),
+		config.WithHTTPClient(b.venv.HTTP),
+	)
 
-	envCreds := createCredentialsFromEnv(b.env)
+	envCreds := createCredentialsFromEnv(b.venv.Env)
 
 	if envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
@@ -120,7 +127,7 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 	if b.sessionConfig != nil && b.sessionConfig.Region != "" {
 		region = b.sessionConfig.Region
 	} else {
-		region = getRegionFromEnv(b.env)
+		region = getRegionFromEnv(b.venv.Env)
 	}
 
 	if region == "" {
@@ -136,6 +143,7 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 		)
 	}
 
+	//nolint:forbidigo // This is the wrapper the rule points callers at; configOptions carries the venv's client.
 	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
 	if err != nil {
 		return aws.Config{}, fmt.Errorf("error loading AWS config: %w", err)
@@ -157,7 +165,11 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 
 	if mergedIAMRoleOptions.WebIdentityToken != "" {
 		l.Debugf("Assuming role %s using WebIdentity token", mergedIAMRoleOptions.RoleARN)
-		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, mergedIAMRoleOptions)
+		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(
+			cfg,
+			mergedIAMRoleOptions,
+			b.venv.FS,
+		)
 
 		return cfg, nil
 	}
@@ -203,10 +215,6 @@ func (b *AWSConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3
 
 // getRegionFromEnv extracts region from environment variables.
 func getRegionFromEnv(env map[string]string) string {
-	if len(env) == 0 {
-		return ""
-	}
-
 	if region := env["AWS_REGION"]; region != "" {
 		return region
 	}
@@ -247,26 +255,24 @@ func AssumeIamRole(
 	ctx context.Context,
 	iamRoleOpts iam.RoleOptions,
 	externalID string,
-	env map[string]string,
+	v *venv.Venv,
 ) (*types.Credentials, error) {
-	region := getRegionFromEnv(env)
-	if region == "" {
-		region = os.Getenv("AWS_REGION")
-	}
+	v.RequireEnv()
+	v.RequireFS()
+	v.RequireHTTP()
 
-	if region == "" {
-		region = os.Getenv("AWS_DEFAULT_REGION")
-	}
-
+	region := getRegionFromEnv(v.Env)
 	if region == "" {
 		region = "us-east-1"
 	}
 
 	// Set user agent to include terragrunt version
+	//nolint:forbidigo // This is the wrapper the rule points callers at; WithHTTPClient below carries the venv's client.
 	cfg, err := config.LoadDefaultConfig(
 		ctx,
 		config.WithRegion(region),
 		config.WithAppID("terragrunt/"+version.GetVersion()),
+		config.WithHTTPClient(v.HTTP),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error loading AWS config: %w", err)
@@ -286,7 +292,7 @@ func AssumeIamRole(
 
 	if iamRoleOpts.WebIdentityToken != "" {
 		// Use sts AssumeRoleWithWebIdentity
-		tb, err := tokenFetcher(iamRoleOpts.WebIdentityToken).FetchToken(ctx)
+		tb, err := TokenFetcher{FS: v.FS, Token: iamRoleOpts.WebIdentityToken}.FetchToken(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error reading web identity token file: %w", err)
 		}
@@ -426,6 +432,7 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 func getWebIdentityCredentialsFromIAMRoleOptions(
 	cfg aws.Config,
 	iamRoleOptions iam.RoleOptions,
+	fs vfs.FS,
 ) aws.CredentialsProviderFunc {
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
@@ -436,7 +443,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(
 	return func(ctx context.Context) (aws.Credentials, error) {
 		stsClient := sts.NewFromConfig(cfg)
 
-		token, err := tokenFetcher(iamRoleOptions.WebIdentityToken).FetchToken(ctx)
+		token, err := TokenFetcher{FS: fs, Token: iamRoleOptions.WebIdentityToken}.FetchToken(ctx)
 		if err != nil {
 			return aws.Credentials{}, err
 		}

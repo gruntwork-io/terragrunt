@@ -997,8 +997,7 @@ func getAWSField(
 	l log.Logger,
 	fetchFn func(context.Context, *aws.Config) (string, error),
 ) (string, error) {
-	awsConfig, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(pctx.Venv.Env).
+	awsConfig, err := awshelper.NewAWSConfigBuilder(pctx.Venv).
 		WithIAMRoleOptions(pctx.IAMRoleOptions).
 		Build(ctx, l)
 	if err != nil {
