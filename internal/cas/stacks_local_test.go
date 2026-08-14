@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -21,6 +22,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
+
+// serviceUnitName is the unit block that buildLocalStackFixture wires up with
+// update_source_with_cas, so it is the block whose source gets rewritten.
+const serviceUnitName = "service"
 
 func TestProcessStackComponent_LocalSource_RewritesStackSources(t *testing.T) {
 	t.Parallel()
@@ -189,41 +194,8 @@ func TestProcessStackComponent_LocalSource_ContentAddressedCacheKey(t *testing.T
 }
 `), 0o644))
 
-	l := logger.CreateLogger()
-
-	v := venv.OSVenv()
-
-	runAndExtractServiceRef := func(root string) string {
-		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
-		require.NoError(t, err)
-
-		source := root + "//stacks/my-stack"
-
-		result, err := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
-		require.NoError(t, err)
-
-		defer result.Cleanup()
-
-		content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
-		require.NoError(t, err)
-
-		blocks, err := cas.ReadStackBlocks(content)
-		require.NoError(t, err)
-
-		for _, b := range blocks {
-			if b.Name == "service" {
-				return b.Source
-			}
-		}
-
-		t.Fatal("service block not found")
-
-		return ""
-	}
-
-	refA := runAndExtractServiceRef(rootA)
-	refB := runAndExtractServiceRef(rootB)
+	refA := serviceUnitCASRef(t, rootA)
+	refB := serviceUnitCASRef(t, rootB)
 
 	require.True(t, strings.HasPrefix(refA, "cas::sha256:"))
 	require.True(t, strings.HasPrefix(refB, "cas::sha256:"))
@@ -231,7 +203,7 @@ func TestProcessStackComponent_LocalSource_ContentAddressedCacheKey(t *testing.T
 
 	// And identical content at a fresh path must re-hash to the same ref.
 	rootC := buildLocalStackFixture(t)
-	refC := runAndExtractServiceRef(rootC)
+	refC := serviceUnitCASRef(t, rootC)
 	assert.Equal(
 		t,
 		refA,
@@ -310,6 +282,221 @@ func TestProcessStackComponent_LocalSource_SymlinkEscapesRepo(t *testing.T) {
 	_, err := c.ProcessStackComponent(t.Context(), l, v, root+"//stacks/my-stack", "stack")
 	require.Error(t, err, "symlink pointing outside the source root must be rejected")
 	require.ErrorIs(t, err, cas.ErrSourceEscapesRepo)
+}
+
+// TestProcessStackComponent_LocalSource_ProviderCacheDirIgnored covers a unit
+// that has already been initialized with the provider cache enabled: the
+// plugins under .terraform are links into a shared cache directory outside the
+// unit, and the snapshot has to drop that directory instead of reading the
+// links as an attempt to escape.
+func TestProcessStackComponent_LocalSource_ProviderCacheDirIgnored(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == osWindows {
+		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
+	}
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	pluginCache := filepath.Join(
+		tmp, "plugin-cache", "registry.opentofu.org", "hashicorp", "aws", "5.0.0", "darwin_arm64",
+	)
+	require.NoError(t, os.MkdirAll(pluginCache, 0o755))
+
+	root := filepath.Join(tmp, "repo")
+	unit := filepath.Join(root, "units", "my-service")
+	require.NoError(t, os.MkdirAll(unit, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(unit, "terragrunt.hcl"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(unit, ".terraform.lock.hcl"),
+		[]byte(`provider "registry.opentofu.org/hashicorp/aws" {
+  version = "5.0.0"
+}
+`),
+		0o644,
+	))
+
+	providers := filepath.Join(
+		unit, ".terraform", "providers", "registry.opentofu.org", "hashicorp", "aws", "5.0.0",
+	)
+	require.NoError(t, os.MkdirAll(providers, 0o755))
+	require.NoError(t, os.Symlink(pluginCache, filepath.Join(providers, "darwin_arm64")))
+
+	result, err := c.ProcessStackComponent(t.Context(), l, v, root+"//units/my-service", "unit")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	assert.FileExists(t, filepath.Join(result.ContentDir, "terragrunt.hcl"))
+	assert.FileExists(
+		t,
+		filepath.Join(result.ContentDir, ".terraform.lock.hcl"),
+		"the lock file is source and must survive the .terraform exclusion",
+	)
+	assert.NoDirExists(t, filepath.Join(result.ContentDir, ".terraform"))
+}
+
+// TestProcessStackComponent_LocalSource_TerragruntCacheDirIgnored covers a unit
+// that has been run in place, leaving a .terragrunt-cache working copy that
+// carries its own initialized .terraform directory.
+func TestProcessStackComponent_LocalSource_TerragruntCacheDirIgnored(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == osWindows {
+		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
+	}
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	pluginCache := filepath.Join(tmp, "plugin-cache", "hashicorp", "aws", "5.0.0", "darwin_arm64")
+	require.NoError(t, os.MkdirAll(pluginCache, 0o755))
+
+	root := filepath.Join(tmp, "repo")
+	unit := filepath.Join(root, "units", "my-service")
+	require.NoError(t, os.MkdirAll(unit, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(unit, "terragrunt.hcl"), []byte(""), 0o644))
+
+	workingCopy := filepath.Join(unit, ".terragrunt-cache", "aBc123", "dEf456")
+	providers := filepath.Join(workingCopy, ".terraform", "providers", "hashicorp", "aws", "5.0.0")
+	require.NoError(t, os.MkdirAll(providers, 0o755))
+	require.NoError(t, os.Symlink(pluginCache, filepath.Join(providers, "darwin_arm64")))
+
+	result, err := c.ProcessStackComponent(t.Context(), l, v, root+"//units/my-service", "unit")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	assert.FileExists(t, filepath.Join(result.ContentDir, "terragrunt.hcl"))
+	assert.NoDirExists(t, filepath.Join(result.ContentDir, ".terragrunt-cache"))
+}
+
+// TestProcessStackComponent_LocalSource_SymlinkedCacheDirIgnored covers the
+// cache directory itself being a link to storage elsewhere, which the walk sees
+// as a symlink rather than a directory.
+func TestProcessStackComponent_LocalSource_SymlinkedCacheDirIgnored(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == osWindows {
+		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
+	}
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	elsewhere := filepath.Join(tmp, "scratch", "terraform-dir")
+	require.NoError(t, os.MkdirAll(elsewhere, 0o755))
+
+	root := filepath.Join(tmp, "repo")
+	unit := filepath.Join(root, "units", "my-service")
+	require.NoError(t, os.MkdirAll(unit, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(unit, "terragrunt.hcl"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(unit, "main.tf"), []byte(""), 0o644))
+	require.NoError(t, os.Symlink(elsewhere, filepath.Join(unit, ".terraform")))
+
+	result, err := c.ProcessStackComponent(t.Context(), l, v, root+"//units/my-service", "unit")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	assert.FileExists(
+		t,
+		filepath.Join(result.ContentDir, "main.tf"),
+		"skipping the link must not cut the walk short for its siblings",
+	)
+	assert.NoFileExists(t, filepath.Join(result.ContentDir, ".terraform"))
+}
+
+// TestProcessStackComponent_LocalSource_CacheDirNamedSourceCopied covers a
+// source that carries a cache directory's name. Dropping it would leave the
+// component with nothing at all, so the exclusion stops at the source itself.
+func TestProcessStackComponent_LocalSource_CacheDirNamedSourceCopied(t *testing.T) {
+	t.Parallel()
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	root := filepath.Join(helpers.TmpDirWOSymlinks(t), ".terragrunt-cache")
+	require.NoError(t, os.MkdirAll(root, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "main.tf"), []byte(""), 0o644))
+
+	result, err := c.ProcessStackComponent(t.Context(), l, v, root, "unit")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	assert.FileExists(t, filepath.Join(result.ContentDir, "main.tf"))
+}
+
+// TestProcessStackComponent_LocalSource_CacheDirsDoNotAffectCASRefs pins the
+// cache-key half of the exclusion: local working state changes on every init,
+// so a snapshot that included it would hand out a different CAS ref for source
+// that never changed.
+func TestProcessStackComponent_LocalSource_CacheDirsDoNotAffectCASRefs(t *testing.T) {
+	t.Parallel()
+
+	clean := buildLocalStackFixture(t)
+	initialized := buildLocalStackFixture(t)
+
+	for _, dir := range []string{
+		filepath.Join(initialized, "modules", "vpc", ".terraform", "modules"),
+		filepath.Join(initialized, "units", "my-service", ".terragrunt-cache", "aBc123"),
+	} {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "state.json"), []byte("{}"), 0o644))
+	}
+
+	assert.Equal(
+		t,
+		serviceUnitCASRef(t, clean),
+		serviceUnitCASRef(t, initialized),
+		"local working state must not change the CAS ref of unchanged source",
+	)
+}
+
+// serviceUnitCASRef processes the stack in a fixture built by
+// buildLocalStackFixture and returns the rewritten source of its "service"
+// unit, using a store of its own so nothing is read from an earlier run.
+func serviceUnitCASRef(t *testing.T, root string) string {
+	t.Helper()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	result, err := c.ProcessStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venv.OSVenv(),
+		root+"//stacks/my-stack",
+		"stack",
+	)
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	blocks, err := cas.ReadStackBlocks(content)
+	require.NoError(t, err)
+
+	for _, b := range blocks {
+		if b.Name == serviceUnitName {
+			return b.Source
+		}
+	}
+
+	t.Fatalf("no %q unit in the processed stack file", serviceUnitName)
+
+	return ""
 }
 
 // TestProcessStackComponent_EmptySourceFails exercises the empty-string
@@ -449,7 +636,7 @@ func TestProcessStackComponent_LocalSource_MaterializeSynthTree(t *testing.T) {
 	var serviceSource string
 
 	for _, b := range blocks {
-		if b.Name == "service" {
+		if b.Name == serviceUnitName {
 			serviceSource = b.Source
 
 			break
