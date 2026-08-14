@@ -75,7 +75,7 @@ func s3StubHandler(t *testing.T, bucket s3StubBucket) vhttp.Handler {
 			return vhttp.Respond(http.StatusOK, body, nil), nil
 		}
 
-		key := strings.TrimPrefix(req.URL.Path, "/bucket/")
+		key := strings.TrimPrefix(strings.TrimPrefix(req.URL.Path, "/bucket"), "/")
 
 		content, ok := bucket[key]
 		if !ok {
@@ -175,6 +175,40 @@ func TestS3GetterFetchesThroughVenvClient(t *testing.T) {
 			assertDownloadedTree(t, v.FS, dst, tc.want)
 		})
 	}
+}
+
+// TestS3GetterUsesVenvEnvironmentCredentials pins where the credentials come
+// from when the URL names none: the venv's environment, not the process's. The
+// request's signature carries the access key ID, so the venv's key reaching the
+// wire is what proves it.
+func TestS3GetterUsesVenvEnvironmentCredentials(t *testing.T) {
+	t.Parallel()
+
+	var auth string
+
+	v := &venv.Venv{
+		FS: vfs.NewMemMapFS(),
+		HTTP: vhttp.NewMemClient(func(ctx context.Context, req *http.Request) (*http.Response, error) {
+			auth = req.Header.Get("Authorization")
+
+			return s3StubHandler(t, s3StubBucket{"mod.txt": "body"})(ctx, req)
+		}),
+		Env: map[string]string{
+			"AWS_ACCESS_KEY_ID":     "AKIAVENVKEY",
+			"AWS_SECRET_ACCESS_KEY": "venv-secret",
+		},
+	}
+
+	client := &getter.Client{Getters: []getter.Getter{getter.NewS3Getter(v)}}
+
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     "s3::https://s3-us-east-1.amazonaws.com/bucket/mod.txt",
+		Dst:     filepath.Join("out", "module"),
+		GetMode: getter.ModeAny,
+	})
+	require.NoError(t, err)
+
+	assert.Contains(t, auth, "AKIAVENVKEY")
 }
 
 // assertDownloadedTree compares everything under dst against want, which is

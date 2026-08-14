@@ -4,6 +4,11 @@ package gcphelper_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,6 +19,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// serviceAccountJSON builds a complete service-account credentials payload.
+// Credentials are validated where they are detected, so a payload naming only
+// its type is rejected before it can stand in for a real one.
+func serviceAccountJSON(t *testing.T) []byte {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	sa, err := json.Marshal(map[string]string{
+		"type":         "service_account",
+		"project_id":   "test-project",
+		"client_email": "test@test-project.iam.gserviceaccount.com",
+		"token_uri":    "https://oauth2.googleapis.com/token",
+		"private_key": string(pem.EncodeToMemory(&pem.Block{
+			Type:  "PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
+		})),
+	})
+	require.NoError(t, err)
+
+	return sa
+}
+
 func TestGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 	t.Parallel()
 
@@ -22,7 +51,7 @@ func TestGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 	// Create a temporary credentials file
 	tmpDir := t.TempDir()
 	credsFile := filepath.Join(tmpDir, "credentials.json")
-	err := os.WriteFile(credsFile, []byte(`{"type":"service_account"}`), 0644)
+	err := os.WriteFile(credsFile, serviceAccountJSON(t), 0644)
 	require.NoError(t, err)
 
 	env := map[string]string{
@@ -82,7 +111,7 @@ func TestGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 	// Create a temporary credentials file
 	tmpDir := t.TempDir()
 	credsFile := filepath.Join(tmpDir, "credentials.json")
-	err := os.WriteFile(credsFile, []byte(`{"type":"service_account"}`), 0644)
+	err := os.WriteFile(credsFile, serviceAccountJSON(t), 0644)
 	require.NoError(t, err)
 
 	env := map[string]string{}
@@ -126,10 +155,10 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 	envCredsFile := filepath.Join(tmpDir, "env-credentials.json")
 	configCredsFile := filepath.Join(tmpDir, "config-credentials.json")
 
-	err := os.WriteFile(envCredsFile, []byte(`{"type":"service_account"}`), 0644)
+	err := os.WriteFile(envCredsFile, serviceAccountJSON(t), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(configCredsFile, []byte(`{"type":"service_account"}`), 0644)
+	err = os.WriteFile(configCredsFile, serviceAccountJSON(t), 0644)
 	require.NoError(t, err)
 
 	// Set environment variable - this should take precedence over config

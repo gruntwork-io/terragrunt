@@ -11,13 +11,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"golang.org/x/oauth2"
-	"google.golang.org/api/option"
-	htransport "google.golang.org/api/transport/http"
-
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
 // gcsResolverTimeout caps the Attrs call so a slow remote can't stall CAS
@@ -55,18 +51,17 @@ type GCSClient interface {
 // GCSResolver is a [cas.SourceResolver] for objects in Google Cloud
 // Storage.
 type GCSResolver struct {
-	// NewClient builds a GCS client per request. Nil means
-	// [storage.NewClient] with the ambient application default
-	// credentials.
+	// NewClient builds a GCS client per request. Nil means a client built
+	// from Venv.
 	NewClient func(ctx context.Context) (GCSClient, error)
-	// HTTPClient carries the SDK's requests. Required when NewClient is
-	// nil; [NewGCSResolver] takes it from the caller.
-	HTTPClient vhttp.Client
+	// Venv carries the SDK's requests, credentials, and filesystem.
+	// Required when NewClient is nil; [NewGCSResolver] takes it from the
+	// caller.
+	Venv *venv.Venv
 }
 
-// NewGCSResolver returns a resolver that reads object metadata over c, using
-// the ambient ADC for credentials.
-func NewGCSResolver(c vhttp.Client) *GCSResolver { return &GCSResolver{HTTPClient: c} }
+// NewGCSResolver returns a resolver that reads object metadata through v.
+func NewGCSResolver(v *venv.Venv) *GCSResolver { return &GCSResolver{Venv: v} }
 
 // Scheme returns "gcs".
 func (r *GCSResolver) Scheme() string { return "gcs" }
@@ -134,33 +129,12 @@ func (r *GCSResolver) client(ctx context.Context) (GCSClient, error) {
 		return r.NewClient(ctx)
 	}
 
-	c, err := newVenvGCSClient(ctx, r.HTTPClient)
+	c, err := gcphelper.NewGCPConfigBuilder().BuildGCSClient(ctx, r.Venv)
 	if err != nil {
 		return nil, err
 	}
 
 	return &storageClientAdapter{c: c}, nil
-}
-
-// newVenvGCSClient builds a GCS client whose API calls and OAuth token
-// exchanges both ride c. Google's auth is layered over c's transport rather
-// than c replacing it: a bare client carries no credentials, so every request
-// would go out unauthenticated.
-func newVenvGCSClient(ctx context.Context, c vhttp.Client) (*storage.Client, error) {
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, c)
-
-	trans, err := htransport.NewTransport(ctx, c.Transport, gcphelper.GCSScopes())
-	if err != nil {
-		return nil, err
-	}
-
-	// A copy of c, so its Timeout, Jar, and CheckRedirect still govern the
-	// calls the SDK makes.
-	authed := *c
-	authed.Transport = trans
-
-	//nolint:forbidigo // trans is built on the venv's transport, which is what the rule protects.
-	return storage.NewClient(ctx, option.WithHTTPClient(&authed))
 }
 
 // pickGCSCacheKey walks the cascade MD5 → CRC32C and returns the

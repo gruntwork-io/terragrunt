@@ -12,6 +12,7 @@ import (
 	getter "github.com/hashicorp/go-getter/v2"
 	"google.golang.org/api/iterator"
 
+	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
@@ -43,6 +44,7 @@ type GCSGetter struct {
 
 // NewGCSGetter returns a gcs-protocol getter.
 func NewGCSGetter(v *venv.Venv) *GCSGetter {
+	v.RequireEnv()
 	v.RequireFS()
 	v.RequireHTTP()
 
@@ -202,5 +204,5 @@ func ParseGCSFetchURL(u *url.URL) (bucket, object string, err error) {
 }
 
 func (g *GCSGetter) client(ctx context.Context) (*storage.Client, error) {
-	return newVenvGCSClient(ctx, g.v.HTTP)
+	return gcphelper.NewGCPConfigBuilder().BuildGCSClient(ctx, g.v)
 }

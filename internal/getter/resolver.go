@@ -2,7 +2,7 @@ package getter
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
@@ -25,13 +25,17 @@ type SourceResolver = cas.SourceResolver
 // [WithDispatchEnv] so the probe carries the same registry credentials.
 //
 // The http, https, and tfr resolvers all probe over c, and the hg resolver
-// spawns `hg` through e. [CASGetter] callers normally go through
-// [WithDefaultGenericDispatch], which supplies the venv's client and executor.
+// spawns `hg` through v's executor. [CASGetter] callers normally go through
+// [WithDefaultGenericDispatch], which supplies both.
 func DefaultSourceResolvers(
+	v *venv.Venv,
 	c vhttp.Client,
-	e vexec.Exec,
 	opts ...GenericFetcherOption,
 ) map[string]SourceResolver {
+	// The probe client rather than v's own: a caller that overrode it expects
+	// the probe to ride the override, and everything else still comes from v.
+	rv := v.WithHTTP(c)
+
 	var cfg genericFetcherConfig
 	for _, opt := range opts {
 		opt(&cfg)
@@ -61,9 +65,9 @@ func DefaultSourceResolvers(
 	resolvers := map[string]SourceResolver{
 		SchemeHTTP:  httpRes,
 		SchemeHTTPS: httpsRes,
-		SchemeS3:    NewS3Resolver(c),
-		SchemeGCS:   NewGCSResolver(c),
-		SchemeHg:    NewHgResolver(e),
+		SchemeS3:    NewS3Resolver(rv),
+		SchemeGCS:   NewGCSResolver(rv),
+		SchemeHg:    NewHgResolver(rv.Exec),
 		SchemeTFR:   tfr,
 	}
 

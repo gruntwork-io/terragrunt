@@ -108,7 +108,7 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 		g.fetchers = DefaultGenericFetchers(
 			g.Venv,
 			slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
-		g.resolvers = DefaultSourceResolvers(c, g.Venv.Exec, opts...)
+		g.resolvers = DefaultSourceResolvers(g.Venv, c, opts...)
 	}
 }
 

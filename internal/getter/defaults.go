@@ -269,7 +269,7 @@ func buildGetters(b *builder) []Getter {
 			NewCASProtocolGetter(b.logger, b.casStore, b.v),
 			NewCASGetter(b.logger, b.casStore, b.v, b.casCloneOpts,
 				WithGenericFetchers(fetchers),
-				WithGenericResolvers(DefaultSourceResolvers(b.httpClient, b.v.Exec, resolverOpts...)),
+				WithGenericResolvers(DefaultSourceResolvers(b.v, b.httpClient, resolverOpts...)),
 			),
 		)
 	}

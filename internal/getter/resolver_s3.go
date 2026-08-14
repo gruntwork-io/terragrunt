@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ErrS3UnrecognizedURL is returned when an amazonaws.com URL does not match
@@ -72,17 +72,20 @@ type S3API interface {
 // [S3Getter] canonicalizes the rest before the fetch, so probe support
 // here stays aligned with fetch support there.
 type S3Resolver struct {
-	// NewClient builds an S3 client per request. Nil means the resolver
-	// uses the AWS SDK default config (env, profile, IMDS) with a
-	// region derived from the URL.
+	// NewClient builds an S3 client per request. Nil means a client built
+	// from Venv, with a region derived from the URL.
 	NewClient func(ctx context.Context, region string) (S3API, error)
-	// HTTPClient carries the SDK's requests. Required when NewClient is
-	// nil; [NewS3Resolver] takes it from the caller.
-	HTTPClient vhttp.Client
+	// Venv carries the SDK's requests, credentials, and filesystem.
+	// Required when NewClient is nil; [NewS3Resolver] takes it from the
+	// caller.
+	Venv *venv.Venv
+	// Logger routes the debug lines credential resolution emits. Nil
+	// discards them.
+	Logger log.Logger
 }
 
-// NewS3Resolver returns a resolver whose SDK requests ride c.
-func NewS3Resolver(c vhttp.Client) *S3Resolver { return &S3Resolver{HTTPClient: c} }
+// NewS3Resolver returns a resolver whose SDK requests ride v.
+func NewS3Resolver(v *venv.Venv) *S3Resolver { return &S3Resolver{Venv: v, Logger: discardLog()} }
 
 // Scheme returns "s3".
 func (r *S3Resolver) Scheme() string { return "s3" }
@@ -149,17 +152,7 @@ func (r *S3Resolver) client(ctx context.Context, region string) (S3API, error) {
 		return r.NewClient(ctx, region)
 	}
 
-	//nolint:forbidigo // WithHTTPClient below carries the venv's client, which is what the rule protects.
-	cfg, err := config.LoadDefaultConfig(
-		ctx,
-		config.WithRegion(region),
-		config.WithHTTPClient(r.HTTPClient),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return s3.NewFromConfig(cfg), nil
+	return S3ClientForTarget(ctx, r.Logger, r.Venv, &S3FetchTarget{Region: region})
 }
 
 // pickS3CacheKey walks the checksum cascade and returns the cache key

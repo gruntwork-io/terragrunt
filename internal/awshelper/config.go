@@ -76,6 +76,7 @@ func (f TokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
 // Use NewAwsConfigBuilder to create, chain With* methods for optional parameters, then call Build().
 type AWSConfigBuilder struct {
 	sessionConfig *AwsSessionConfig
+	creds         aws.CredentialsProvider
 	iamRoleOpts   iam.RoleOptions
 }
 
@@ -87,6 +88,15 @@ func NewAWSConfigBuilder() *AWSConfigBuilder {
 // WithSessionConfig sets the AWS session configuration (region, profile, credentials file, etc.).
 func (b *AWSConfigBuilder) WithSessionConfig(cfg *AwsSessionConfig) *AWSConfigBuilder {
 	b.sessionConfig = cfg
+	return b
+}
+
+// WithCredentialsProvider pins the credentials, for a caller that carries its
+// own rather than resolving them from the environment. It outranks the
+// environment and any role the session config names, the way credentials
+// supplied inline outrank ambient ones everywhere else.
+func (b *AWSConfigBuilder) WithCredentialsProvider(creds aws.CredentialsProvider) *AWSConfigBuilder {
+	b.creds = creds
 	return b
 }
 
@@ -116,11 +126,14 @@ func (b *AWSConfigBuilder) Build(
 
 	envCreds := createCredentialsFromEnv(v.Env)
 
-	if envCreds != nil {
+	switch {
+	case b.creds != nil:
+		configOptions = append(configOptions, config.WithCredentialsProvider(b.creds))
+	case envCreds != nil:
 		l.Debugf("Using AWS credentials from auth provider command")
 
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
-	} else if b.sessionConfig != nil && b.sessionConfig.CredsFilename != "" {
+	case b.sessionConfig != nil && b.sessionConfig.CredsFilename != "":
 		configOptions = append(
 			configOptions,
 			config.WithSharedConfigFiles([]string{b.sessionConfig.CredsFilename}),
@@ -156,7 +169,7 @@ func (b *AWSConfigBuilder) Build(
 	// are present, re-assuming that role here would make the role assume itself, so only the
 	// session config's role (assume_role in the remote_state block) is chained on top of them.
 	iamRoleOpts := b.iamRoleOpts
-	if envCreds != nil {
+	if envCreds != nil || b.creds != nil {
 		iamRoleOpts = iam.RoleOptions{}
 	}
 

@@ -24,9 +24,9 @@ import (
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestCAS_S3_RustFS_ProbeAvoidsRedownload verifies the S3 → CAS path
@@ -54,7 +54,7 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 
 	v := venv.OSVenv()
 
-	resolvers := tggetter.DefaultSourceResolvers(v.HTTP, v.Exec)
+	resolvers := tggetter.DefaultSourceResolvers(v, v.HTTP)
 	resolvers[tggetter.SchemeS3] = newRustFSS3Resolver(t, endpoint)
 
 	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
@@ -151,8 +151,8 @@ func newRustFSS3Resolver(t *testing.T, endpoint string) *tggetter.S3Resolver {
 	t.Helper()
 
 	// NewClient below short-circuits the default chain, so the resolver never
-	// reaches for this client.
-	r := tggetter.NewS3Resolver(vhttp.NewNoNetworkClient())
+	// reaches for this venv.
+	r := tggetter.NewS3Resolver(venvtest.New())
 	r.NewClient = func(ctx context.Context, _ string) (tggetter.S3API, error) {
 		return newRustFSClientFor(ctx, endpoint)
 	}

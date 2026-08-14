@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -59,24 +58,18 @@ func gcsTokenScopes(t *testing.T, req *http.Request) string {
 // for. Building the transport is what resolves the credentials, so the storage
 // scopes have to be named there; asking for none leaves the provider rejecting
 // the exchange, which no listing or download fixture would reveal.
-//
-//nolint:paralleltest // stubGCPCredentials calls t.Setenv, which bars t.Parallel.
 func TestGCSGetterRequestsStorageScopes(t *testing.T) {
-	stubGCPCredentials(t)
+	t.Parallel()
 
 	var scopes string
 
-	v := &venv.Venv{
-		FS: vfs.NewMemMapFS(),
-		HTTP: vhttp.NewMemClient(func(ctx context.Context, req *http.Request) (*http.Response, error) {
-			if req.URL.Host == "oauth2.googleapis.com" {
-				scopes = gcsTokenScopes(t, req)
-			}
+	v := stubGCPVenv(t, func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		if req.URL.Host == "oauth2.googleapis.com" {
+			scopes = gcsTokenScopes(t, req)
+		}
 
-			return gcsStubHandler(t, gcsStubBucket{"mod.txt": "body"})(ctx, req)
-		}),
-		Env: map[string]string{},
-	}
+		return gcsStubHandler(t, gcsStubBucket{"mod.txt": "body"})(ctx, req)
+	})
 
 	client := &getter.Client{Getters: []getter.Getter{getter.NewGCSGetter(v)}}
 
@@ -147,12 +140,11 @@ func gcsStubHandler(t *testing.T, bucket gcsStubBucket) vhttp.Handler {
 	}
 }
 
-// stubGCPCredentials writes a synthetic service-account key and points the
-// ambient credential lookup at it. The GCS getter resolves credentials the way
-// the SDK does, from the process environment and the real filesystem, so the
-// token exchange only reaches the stub handler once a key is there to sign the
-// assertion with.
-func stubGCPCredentials(t *testing.T) {
+// stubGCPVenv returns a venv holding a synthetic service-account key, the
+// variable naming it, and h as the client. Credentials resolve against the
+// venv, so the key never touches the real filesystem or the process
+// environment and the test stays parallel.
+func stubGCPVenv(t *testing.T, h vhttp.Handler) *venv.Venv {
 	t.Helper()
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -170,10 +162,14 @@ func stubGCPCredentials(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	path := filepath.Join(t.TempDir(), "service-account.json")
-	require.NoError(t, os.WriteFile(path, sa, 0o600))
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, "/creds/service-account.json", sa, 0o600))
 
-	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", path)
+	return &venv.Venv{
+		FS:   fsys,
+		HTTP: vhttp.NewMemClient(h),
+		Env:  map[string]string{"GOOGLE_APPLICATION_CREDENTIALS": "/creds/service-account.json"},
+	}
 }
 
 // TestGCSGetterFetchesThroughVenvClient drives the gcs getter over an
@@ -182,10 +178,8 @@ func stubGCPCredentials(t *testing.T) {
 // filesystem. The bucket holds an object that is also a prefix, and a sibling
 // whose name starts with that object's name, which is what separates the two
 // modes.
-//
-//nolint:paralleltest // stubGCPCredentials calls t.Setenv, which bars t.Parallel.
 func TestGCSGetterFetchesThroughVenvClient(t *testing.T) {
-	stubGCPCredentials(t)
+	t.Parallel()
 
 	bucket := gcsStubBucket{
 		"modules/vpc":                 "vpc-object",
@@ -234,11 +228,9 @@ func TestGCSGetterFetchesThroughVenvClient(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			v := &venv.Venv{
-				FS:   vfs.NewMemMapFS(),
-				HTTP: vhttp.NewMemClient(gcsStubHandler(t, bucket)),
-				Env:  map[string]string{},
-			}
+			t.Parallel()
+
+			v := stubGCPVenv(t, gcsStubHandler(t, bucket))
 
 			client := &getter.Client{Getters: []getter.Getter{getter.NewGCSGetter(v)}}
 			dst := filepath.Join("out", "module")

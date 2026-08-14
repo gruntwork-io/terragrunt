@@ -11,13 +11,14 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	upstreams3 "github.com/hashicorp/go-getter/s3/v2"
 	getter "github.com/hashicorp/go-getter/v2"
 
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ErrS3InvalidFetchURL is returned when an s3:// URL does not carry both a
@@ -45,6 +46,7 @@ const s3AWSHostParts = 3
 // delegated, because the upstream Getter builds its own AWS session, which
 // would put every object download on a transport the venv never sees.
 type S3Getter struct {
+	l             log.Logger
 	v             *venv.Venv
 	detector      upstreams3.Getter
 	modeScanLimit int
@@ -52,11 +54,23 @@ type S3Getter struct {
 
 // NewS3Getter returns an s3-protocol getter.
 func NewS3Getter(v *venv.Venv) *S3Getter {
+	v.RequireEnv()
 	v.RequireFS()
 	v.RequireHTTP()
 
-	return &S3Getter{v: v, modeScanLimit: DefaultModeScanLimit}
+	return &S3Getter{l: discardLog(), v: v, modeScanLimit: DefaultModeScanLimit}
 }
+
+// WithLogger routes the debug lines credential resolution emits. A getter or
+// resolver built without one discards them, since a client can be built
+// without a logger in reach ([GetAny]).
+func (g *S3Getter) WithLogger(l log.Logger) *S3Getter {
+	g.l = l
+	return g
+}
+
+// discardLog is the logger a getter or resolver built without one uses.
+func discardLog() log.Logger { return log.New(log.WithOutput(io.Discard)) }
 
 // WithModeScanLimit caps how many keys [S3Getter.Mode] inspects before it
 // gives up with [ErrModeScanLimit].
@@ -315,29 +329,28 @@ func (g *S3Getter) object(
 }
 
 func (g *S3Getter) client(ctx context.Context, target *S3FetchTarget) (*s3.Client, error) {
-	opts := []func(*awsconfig.LoadOptions) error{
-		awsconfig.WithRegion(target.Region),
-		awsconfig.WithHTTPClient(g.v.HTTP),
-	}
+	return S3ClientForTarget(ctx, g.l, g.v, target)
+}
 
-	if target.Profile != "" {
-		opts = append(opts, awsconfig.WithSharedConfigProfile(target.Profile))
-	}
+// S3ClientForTarget builds the S3 client a fetch or probe of target needs.
+// Credentials and region resolve against v rather than the process, and
+// anything the URL named outranks them.
+func S3ClientForTarget(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	target *S3FetchTarget,
+) (*s3.Client, error) {
+	b := awshelper.NewAWSConfigBuilder().WithSessionConfig(&awshelper.AwsSessionConfig{
+		Region:           target.Region,
+		Profile:          target.Profile,
+		CustomS3Endpoint: target.Endpoint,
+		S3ForcePathStyle: target.Endpoint != "",
+	})
 
 	if target.Creds != nil {
-		opts = append(opts, awsconfig.WithCredentialsProvider(target.Creds))
+		b = b.WithCredentialsProvider(target.Creds)
 	}
 
-	//nolint:forbidigo // WithHTTPClient above carries the venv's client, which is what the rule protects.
-	cfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return s3.NewFromConfig(cfg, func(o *s3.Options) {
-		if target.Endpoint != "" {
-			o.BaseEndpoint = aws.String(target.Endpoint)
-			o.UsePathStyle = true
-		}
-	}), nil
+	return b.BuildS3Client(ctx, l, v)
 }

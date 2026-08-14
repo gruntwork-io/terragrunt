@@ -9,6 +9,7 @@ import (
 
 	"net/http"
 
+	"cloud.google.com/go/auth/credentials"
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -22,11 +23,6 @@ import (
 
 const (
 	tokenURL = "https://oauth2.googleapis.com/token"
-
-	credTypeServiceAccount             = "service_account"
-	credTypeAuthorizedUser             = "authorized_user"
-	credTypeImpersonatedServiceAccount = "impersonated_service_account"
-	credTypeExternalAccount            = "external_account"
 
 	cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
 )
@@ -101,7 +97,11 @@ func (b *GCPConfigBuilder) BuildGCSClient(
 // building the transport has to name them. Without them the token exchange asks
 // for no scope at all and Google rejects it with `invalid_scope`.
 func GCSScopes() option.ClientOption {
-	return option.WithScopes(storage.ScopeFullControl, cloudPlatformScope)
+	return option.WithScopes(gcsScopes()...)
+}
+
+func gcsScopes() []string {
+	return []string{storage.ScopeFullControl, cloudPlatformScope}
 }
 
 // withOAuthClient points the oauth2 library at v's client. oauth2 mints tokens
@@ -129,7 +129,7 @@ func (b *GCPConfigBuilder) Build(
 
 	var clientOpts []option.ClientOption
 
-	envCreds, err := createGCPCredentialsFromEnv(v.FS, env)
+	envCreds, err := createGCPCredentialsFromEnv(v, env)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (b *GCPConfigBuilder) Build(
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
-		credOpt, err := credentialsFileOption(v.FS, gcpCfg.Credentials)
+		credOpt, err := credentialsFileOption(v, gcpCfg.Credentials)
 		if err != nil {
 			return nil, err
 		}
@@ -191,56 +191,46 @@ func (b *GCPConfigBuilder) Build(
 // createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in env
 // It looks for GOOGLE_APPLICATION_CREDENTIALS and returns a ClientOption that can be used
 // with Google Cloud clients. Returns nil if the environment variable is not set.
-func createGCPCredentialsFromEnv(fsys vfs.FS, env map[string]string) (option.ClientOption, error) {
+func createGCPCredentialsFromEnv(v *venv.Venv, env map[string]string) (option.ClientOption, error) {
 	credentialsFile := env["GOOGLE_APPLICATION_CREDENTIALS"]
 	if credentialsFile == "" {
 		return nil, nil
 	}
 
-	return credentialsFileOption(fsys, credentialsFile)
+	return credentialsFileOption(v, credentialsFile)
 }
 
-// credentialsFileOption reads a GCP credentials JSON file, detects its type,
-// and returns the appropriate ClientOption. The parsed bytes are handed to the
-// SDK rather than the path, so the file is read once, through fsys, instead of
-// the SDK opening it again off the real disk.
-func credentialsFileOption(fsys vfs.FS, filename string) (option.ClientOption, error) {
-	data, err := vfs.ReadFile(fsys, filename)
+// credentialsFileOption reads a GCP credentials JSON file and returns the
+// option that authenticates with it. The parsed bytes are handed to the SDK
+// rather than the path, so the file is read once, through v's filesystem,
+// instead of the SDK opening it again off the real disk.
+func credentialsFileOption(v *venv.Venv, filename string) (option.ClientOption, error) {
+	data, err := vfs.ReadFile(v.FS, filename)
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials file %s: %w", filename, err)
 	}
 
-	var meta struct {
-		Type string `json:"type"`
-	}
-
-	if err := json.Unmarshal(data, &meta); err != nil {
-		return nil, fmt.Errorf("error parsing credentials file %s: %w", filename, err)
-	}
-
-	credType, err := credentialsTypeFromString(meta.Type)
-	if err != nil {
-		return nil, err
-	}
-
-	return option.WithAuthCredentialsJSON(credType, data), nil
+	return credentialsJSONOption(v, data)
 }
 
-// credentialsTypeFromString maps the "type" field in a GCP credentials JSON
-// file to the corresponding option.CredentialsType.
-func credentialsTypeFromString(t string) (option.CredentialsType, error) {
-	switch t {
-	case credTypeServiceAccount:
-		return option.ServiceAccount, nil
-	case credTypeAuthorizedUser:
-		return option.AuthorizedUser, nil
-	case credTypeImpersonatedServiceAccount:
-		return option.ImpersonatedServiceAccount, nil
-	case credTypeExternalAccount:
-		return option.ExternalAccount, nil
-	default:
-		return "", fmt.Errorf("unsupported GCP credentials type: %q", t)
+// credentialsJSONOption authenticates with a credentials JSON payload.
+//
+// The credentials are detected here rather than by the SDK, which detects with
+// a client of its own making (google.golang.org/api/internal.creds) and would
+// put the token exchange on a transport the venv never sees. Detection also
+// covers every credential type the JSON can name, so the type does not have to
+// be recognized up front.
+func credentialsJSONOption(v *venv.Venv, data []byte) (option.ClientOption, error) {
+	creds, err := credentials.DetectDefault(&credentials.DetectOptions{
+		CredentialsJSON: data,
+		Scopes:          gcsScopes(),
+		Client:          v.HTTP,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error detecting GCP credentials: %w", err)
 	}
+
+	return option.WithAuthCredentials(creds), nil
 }
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.
