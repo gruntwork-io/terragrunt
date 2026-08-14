@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	gcs "github.com/hashicorp/go-getter/gcs/v2"
 	getter "github.com/hashicorp/go-getter/v2"
 )
 
@@ -142,15 +141,15 @@ func WithTFRConfig(impl tfimpl.Type) GenericFetcherOption {
 // uses on a cache miss. Exported so callers that build dedicated
 // CAS-only clients (the CAS-experiment path in
 // runner/run/download_source.go) share the fetcher set NewClient uses.
-func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Getter {
+func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[string]getter.Getter {
 	var cfg genericFetcherConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
 	m := map[string]getter.Getter{
-		SchemeS3:    new(S3Getter),
-		SchemeGCS:   new(gcs.Getter),
+		SchemeS3:    NewS3Getter(v),
+		SchemeGCS:   NewGCSGetter(v),
 		SchemeHTTP:  &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpExtra), Scheme: SchemeHTTP},
 		SchemeHTTPS: &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpsExtra), Scheme: SchemeHTTPS},
 		SchemeHg:    new(getter.HgGetter),
@@ -166,7 +165,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 			)
 		}
 
-		m[SchemeTFR] = NewRegistryGetter(cfg.logger, cfg.fs, cfg.httpClient).
+		m[SchemeTFR] = NewRegistryGetter(cfg.logger, v).
 			WithEnv(cfg.env).
 			WithTofuImplementation(cfg.tfrImpl)
 	}
@@ -231,8 +230,9 @@ func buildGetters(b *builder) []Getter {
 	hgGetter := new(getter.HgGetter)
 	smbClientGetter := new(getter.SmbClientGetter)
 	smbMountGetter := new(getter.SmbMountGetter)
-	s3Getter := new(S3Getter)
-	gcsGetter := new(gcs.Getter)
+
+	s3Getter := NewS3Getter(b.v)
+	gcsGetter := NewGCSGetter(b.v)
 
 	if b.casStore != nil {
 		if b.httpClient == nil {
@@ -255,8 +255,8 @@ func buildGetters(b *builder) []Getter {
 			resolverOpts = append(
 				resolverOpts,
 				WithDispatchLogger(b.logger),
-				WithDispatchFS(b.tfRegistry.FS),
-				WithDispatchEnv(b.tfRegistry.Env),
+				WithDispatchFS(b.tfRegistry.Venv.FS),
+				WithDispatchEnv(b.tfRegistry.Venv.Env),
 				WithTFRConfig(b.tfRegistry.TofuImplementation),
 			)
 		}
@@ -266,10 +266,10 @@ func buildGetters(b *builder) []Getter {
 		}
 
 		out = append(out,
-			NewCASProtocolGetter(b.logger, b.casStore, b.casVenv),
-			NewCASGetter(b.logger, b.casStore, b.casVenv, b.casCloneOpts,
+			NewCASProtocolGetter(b.logger, b.casStore, b.v),
+			NewCASGetter(b.logger, b.casStore, b.v, b.casCloneOpts,
 				WithGenericFetchers(fetchers),
-				WithGenericResolvers(DefaultSourceResolvers(b.httpClient, b.casVenv.Exec, resolverOpts...)),
+				WithGenericResolvers(DefaultSourceResolvers(b.v.WithHTTP(b.httpClient), resolverOpts...)),
 			),
 		)
 	}

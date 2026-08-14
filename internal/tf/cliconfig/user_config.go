@@ -10,13 +10,13 @@ import (
 
 // LoadUserConfig loads the user configuration is read as raw data and stored at the top of the saved configuration file.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
-func LoadUserConfig(fs vfs.FS, opts ...ConfigOption) (*Config, error) {
-	return loadUserConfig(cliconfig.LoadConfig, fs, opts...)
+func LoadUserConfig(fsys vfs.FS, opts ...ConfigOption) (*Config, error) {
+	return loadUserConfig(cliconfig.LoadConfig, fsys, opts...)
 }
 
 func loadUserConfig(
 	loadConfigFn func() (*cliconfig.Config, tfdiags.Diagnostics),
-	fs vfs.FS,
+	fsys vfs.FS,
 	opts ...ConfigOption,
 ) (*Config, error) {
 	cfg, diag := loadConfigFn()
@@ -24,7 +24,7 @@ func loadUserConfig(
 		return nil, diag.Err()
 	}
 
-	config := NewConfig(fs).
+	config := NewConfig(fsys).
 		WithPluginCacheDir(cfg.PluginCacheDir).
 		WithCredentials(getUserCredentials(cfg)).
 		WithCredentialsHelpers(getUserCredentialsHelpers(cfg)).

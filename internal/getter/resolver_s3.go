@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ErrS3UnrecognizedURL is returned when an amazonaws.com URL does not match
@@ -72,17 +72,20 @@ type S3API interface {
 // [S3Getter] canonicalizes the rest before the fetch, so probe support
 // here stays aligned with fetch support there.
 type S3Resolver struct {
-	// NewClient builds an S3 client per request. Nil means the resolver
-	// uses the AWS SDK default config (env, profile, IMDS) with a
-	// region derived from the URL.
+	// NewClient builds an S3 client per request. Nil means a client built
+	// from Venv, with a region derived from the URL.
 	NewClient func(ctx context.Context, region string) (S3API, error)
-	// HTTPClient carries the SDK's requests. Required when NewClient is
-	// nil; [NewS3Resolver] takes it from the caller.
-	HTTPClient vhttp.Client
+	// Venv carries the SDK's requests, credentials, and filesystem.
+	// Required when NewClient is nil; [NewS3Resolver] takes it from the
+	// caller.
+	Venv *venv.Venv
+	// Logger routes the debug lines credential resolution emits. Nil
+	// discards them.
+	Logger log.Logger
 }
 
-// NewS3Resolver returns a resolver whose SDK requests ride c.
-func NewS3Resolver(c vhttp.Client) *S3Resolver { return &S3Resolver{HTTPClient: c} }
+// NewS3Resolver returns a resolver whose SDK requests ride v.
+func NewS3Resolver(v *venv.Venv) *S3Resolver { return &S3Resolver{Venv: v, Logger: discardLog()} }
 
 // Scheme returns "s3".
 func (r *S3Resolver) Scheme() string { return "s3" }
@@ -149,17 +152,7 @@ func (r *S3Resolver) client(ctx context.Context, region string) (S3API, error) {
 		return r.NewClient(ctx, region)
 	}
 
-	//nolint:forbidigo // WithHTTPClient below carries the venv's client, which is what the rule protects.
-	cfg, err := config.LoadDefaultConfig(
-		ctx,
-		config.WithRegion(region),
-		config.WithHTTPClient(r.HTTPClient),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return s3.NewFromConfig(cfg), nil
+	return S3ClientForTarget(ctx, r.Logger, r.Venv, &S3FetchTarget{Region: region})
 }
 
 // pickS3CacheKey walks the checksum cascade and returns the cache key
@@ -223,7 +216,7 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 			// host belongs to a different AWS service (e.g.
 			// iam.amazonaws.com) and we must not silently parse it
 			// as path-style S3 with a bogus region.
-			region, ok := s3RegionFromHostLabel(hostParts[0])
+			region, ok := S3RegionFromHostLabel(hostParts[0])
 			if !ok {
 				return s3Target{}, fmt.Errorf("%w: %q", ErrS3UnrecognizedURL, u.String())
 			}
@@ -263,7 +256,7 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 			// hostParts[1] must identify S3 the same way as the
 			// path-style case, otherwise the host belongs to a
 			// non-S3 service (e.g. bucket.iam.amazonaws.com).
-			region, ok := s3RegionFromHostLabel(hostParts[1])
+			region, ok := S3RegionFromHostLabel(hostParts[1])
 			if !ok {
 				return s3Target{}, fmt.Errorf("%w: %q", ErrS3UnrecognizedURL, u.String())
 			}
@@ -308,13 +301,13 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 	return s3Target{Region: region, Bucket: pathParts[1], Key: pathParts[2], Version: version}, nil
 }
 
-// s3RegionFromHostLabel parses an S3-identifying host label and
+// S3RegionFromHostLabel parses an S3-identifying host label and
 // returns the AWS region it encodes. The exact label "s3" is the
 // global path-style endpoint and maps to us-east-1. A label of the
 // form "s3-<region>" maps to that region. Any other label is rejected
 // (ok = false) so non-S3 amazonaws.com hosts (iam, sts, ec2, ...) do
 // not silently parse as S3 with a bogus region.
-func s3RegionFromHostLabel(label string) (region string, ok bool) {
+func S3RegionFromHostLabel(label string) (region string, ok bool) {
 	if label == "s3" {
 		return "us-east-1", true
 	}
@@ -356,17 +349,17 @@ func canonicalAWSS3HTTPSURL(u *url.URL) (string, bool) {
 
 	canonical := *u
 	canonical.Scheme = "https"
-	canonical.Host = s3HostLabelForRegion(target.Region) + ".amazonaws.com"
+	canonical.Host = S3HostLabelForRegion(target.Region) + ".amazonaws.com"
 	canonical.Path = "/" + target.Bucket + "/" + target.Key
 
 	return canonical.String(), true
 }
 
-// s3HostLabelForRegion returns the path-style host label for an AWS
+// S3HostLabelForRegion returns the path-style host label for an AWS
 // region. us-east-1 maps to the global "s3" label so probes against
 // region-unspecified URLs stay on the global endpoint instead of
 // silently shifting to us-east-1's regional form.
-func s3HostLabelForRegion(region string) string {
+func S3HostLabelForRegion(region string) string {
 	if region == "us-east-1" {
 		return "s3"
 	}

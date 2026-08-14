@@ -569,7 +569,7 @@ func NewProviderService(
 	userCacheDir string,
 	credsSource *cliconfig.CredentialsSource,
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	c vhttp.Client,
 	opts ...ProviderServiceOption,
 ) *ProviderService {
@@ -579,7 +579,7 @@ func NewProviderService(
 		providerCacheWarmUpCh: make(chan *ProviderCache, providerCacheWarmUpChBufferSize),
 		credsSource:           credsSource,
 		logger:                l,
-		fs:                    fs,
+		fs:                    fsys,
 		httpClient:            c,
 	}
 
