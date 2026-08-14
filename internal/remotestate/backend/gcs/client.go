@@ -38,9 +38,8 @@ func NewClient(
 	config *ExtendedRemoteStateConfigGCS,
 	opts *backend.Options,
 ) (*Client, error) {
-	gcsClient, err := gcphelper.NewGCPConfigBuilder().
+	gcsClient, err := gcphelper.NewGCPConfigBuilder(v).
 		WithSessionConfig(config.GetGCPSessionConfig()).
-		WithEnv(v.Env).
 		BuildGCSClient(ctx)
 	if err != nil {
 		return nil, err

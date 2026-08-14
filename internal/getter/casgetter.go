@@ -103,9 +103,11 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 			c = g.Venv.HTTP
 		}
 
+		g.Venv.RequireExec()
+
 		g.fetchers = DefaultGenericFetchers(
 			slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
-		g.resolvers = DefaultSourceResolvers(c, opts...)
+		g.resolvers = DefaultSourceResolvers(c, g.Venv.Exec, opts...)
 	}
 }
 
@@ -419,28 +421,16 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	return clone.String()
 }
 
-// GitURLParams lifts the go-getter query parameters CAS consumes (ref, depth)
-// out of u via [cas.StripGitURLParams] and returns the ref alongside the clone
-// URL normalized by [GitCloneURL]. Neither is a native git URL parameter, so
-// they must not survive into the URL handed to git: git would treat a trailing
-// "?depth=1" as part of the repository name and reject the clone (#6512). The
-// depth value is dropped rather than honored — see [cas.StripGitURLParams].
-// u is not mutated.
-func GitURLParams(u *url.URL) (cloneURL, ref string) {
-	clone := *u
-	ref = cas.StripGitURLParams(&clone)
-
-	return GitCloneURL(clone.String()), ref
-}
-
-// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and
-// depth query parameters out of the URL (see [GitURLParams]). The clone depth
-// comes from the ambient --cas-clone-depth, which as a CLI argument takes
+// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and depth
+// query parameters out of the URL (see [cas.StripGitURLParams]). The clone
+// depth comes from the ambient --cas-clone-depth, which as a CLI argument takes
 // precedence over any depth on the configured source URL.
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
-	cloneURL, ref := GitURLParams(req.URL())
+	// Strip against a copy so the request keeps the URL the caller supplied.
+	u := *req.URL()
+	ref := cas.StripGitURLParams(&u)
 
-	return g.CAS.Clone(ctx, g.Logger, g.Venv, cloneURL,
+	return g.CAS.Clone(ctx, g.Logger, g.Venv, GitCloneURL(u.String()),
 		cas.WithDir(req.Dst),
 		cas.WithBranch(ref),
 		cas.WithDepth(g.Opts.Depth),

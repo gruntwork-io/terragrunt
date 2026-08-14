@@ -1,37 +1,46 @@
 ---
 title: OCI
-description: How the CAS probes and deduplicates oci registry sources.
+description: What the CAS does for OCI registry sources.
 slug: features/caching/cas/oci
 sidebar:
   order: 10
+  badge:
+    variant: tip
+    text: exp
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="tip" title="Experimental">
-OCI sources are part of the [`oci` experiment](/reference/experiments/active#oci). Enable it with `--experiment oci`.
+OCI sources are part of the [`oci` experiment](/reference/experiments/active#oci). Enable it with `--experiment oci` (or `TG_EXPERIMENT=oci`).
 </Aside>
 
 ## Overview
 
-An OCI reference resolves to an immutable manifest digest, which makes it an ideal cache key: a `?digest=` pin already is one, and a `?tag=` resolves to one with a single registry request. The CAS keys the module package by that manifest digest, so caching tracks content rather than the mutable tag.
+An OCI source is identified by a registry, a repository, and a tag or manifest digest. For `terraform.source` downloads, Terragrunt resolves the reference to an immutable manifest digest and uses that digest as the cache key. The CAS is enabled by default and can be disabled with `--no-cas`.
+
+CAS materializations are read-only by default; set `mutable = true` to get a writable copy. Direct `oci://` sources in `unit` and `stack` blocks fetch from the registry during stack generation. After generation, a component's `terraform.source` follows the normal source-download behavior and can use the CAS.
 
 ## The cheap probe
 
-A source pinned with `?digest=` needs no registry request at all: the digest itself is the cache key. A source using `?tag=` (or the implicit `latest`) resolves the tag to its current manifest digest with one metadata request, capped at ten seconds. A `//subdir` selector is stripped before the probe, so two requests that differ only by subdirectory share one key; the cached tree is the full module package, and the requested subdirectory is extracted when linking.
+A source pinned with `?digest=` needs no registry request because the digest itself determines the cache key. A source using `?tag=` or the implicit `latest` tag resolves the tag to its current manifest digest through the registry, with the probe capped at ten seconds.
+
+A `//subdir` selector is removed before the probe, so sources that differ only by subdirectory share one key for the full module package. The probe runs only when Terragrunt downloads the source. An existing `.terragrunt-cache` is reused without checking the tag; pass `--source-update` to download the source again.
 
 ## Cache key & deduplication
 
-The key is the manifest digest, so a tag and a digest pin that name the same manifest share one CAS entry, as do the same module pulled from the same registry by different configurations. Because tags are re-resolved on every probe, a re-pushed tag resolves to a new digest and misses the cache instead of serving stale content. File blobs are content-addressed.
+The manifest digest is content-addressed, so a tag and a digest pin that identify the same manifest share one CAS entry. Re-pushed tags are resolved on every probe, so new content produces a new digest and misses the old entry. Identical files are also content-addressed and share blob storage across modules and configurations.
 
 ## Cache miss
 
-When the digest is not yet in the store, Terragrunt rewrites the fetch itself to `?digest=`, downloads the module package, ingests it, and links it into the target. Fetching by the resolved digest rather than the tag means a tag moving mid-fetch can never store the wrong content under the key.
+When the probe key is not yet in the store, Terragrunt resolves the reference again immediately before fetching, rewrites the fetch to `?digest=`, downloads and ingests the full module package, and links it into the target. The second resolution binds the download and cache key to the same immutable manifest, so a tag that moves after the probe cannot store content under a stale key.
 
 ## Cache hit
 
-When the digest is already present, Terragrunt links the cached tree without contacting the registry beyond the tag resolution.
+When the manifest digest is already present, Terragrunt links the cached tree without downloading the module package. A digest-pinned source stays offline, while a tagged source still contacts the registry to resolve the tag. The linked tree is read-only unless `mutable = true` requests a copy.
 
 ## Fallback behavior
 
-A probe failure, such as an unreachable registry or an unresolvable tag, yields no key, and Terragrunt falls back to downloading and content-hashing the result; the underlying error surfaces on the real fetch attempt. `unit` and `stack` components with `oci://` sources do not use the CAS and always fetch directly.
+If the probe cannot resolve a manifest digest, Terragrunt proceeds with the download instead of failing. It tries to pin the reference again at fetch time; if that also fails but the download succeeds, Terragrunt keys the stored tree by its content hash.
+
+If the CAS-backed attempt fails, Terragrunt attempts to clear any partial output and retries with the standard OCI getter. The standard getter's error is returned if the retry also fails.

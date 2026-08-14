@@ -612,6 +612,33 @@ func TestProcessStackComponent_AcceptsExplicitGitPrefix(t *testing.T) {
 	assert.FileExists(t, filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 }
 
+// TestProcessStackComponent_AcceptsDepthQueryParam covers the stack-source
+// half of the go-getter depth parameter: depth is not a native git URL
+// parameter, so leaving it on the URL makes git treat "?depth=1" as part of
+// the repository name and refuse to clone. The getter half is covered by
+// TestCASClone_E2E_DepthQueryParamWithTag.
+func TestProcessStackComponent_AcceptsDepthQueryParam(t *testing.T) {
+	t.Parallel()
+
+	repoURL := startStackTestServer(t)
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	require.NoError(t, err)
+
+	v := venv.OSVenv()
+
+	source := "git::" + repoURL + "//stacks/my-stack?depth=1&ref=main"
+
+	result, err := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	assert.FileExists(t, filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+}
+
 func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 	t.Parallel()
 

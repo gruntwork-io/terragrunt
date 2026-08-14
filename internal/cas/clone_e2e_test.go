@@ -199,12 +199,12 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 		"mutable clone should not strip write bits; default path does")
 }
 
-// TestCASClone_E2E_DepthQueryParamWithTag reproduces #6512: a
-// terraform.source that combines the go-getter depth query parameter with
-// ref=<tag>. Before the fix the CAS getter left "?depth=1" in the URL handed
-// to git, which rejected it as part of the repository name. The tagged
-// commit is deliberately behind HEAD so a shallow clone of the default
-// branch would not contain it, exercising the --branch <tag> --depth path.
+// TestCASClone_E2E_DepthQueryParamWithTag covers a terraform.source that
+// combines the go-getter depth query parameter with ref=<tag>. The CAS getter
+// used to leave "?depth=1" in the URL handed to git, which rejected it as part
+// of the repository name. The tagged commit is deliberately behind HEAD so a
+// shallow clone of the default branch would not contain it, exercising the
+// --branch <tag> --depth path.
 func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
 	t.Parallel()
 
@@ -247,8 +247,8 @@ func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
 
 // TestCASClone_E2E_AmbientDepthBeatsURLDepth pins the precedence between the
 // two depth inputs: --cas-clone-depth is a CLI argument and a source URL's
-// ?depth= comes from configuration, so the CLI value wins — the URL parameter
-// is stripped (see #6512) and discarded, never applied. Its sibling
+// ?depth= comes from configuration, so the CLI value wins. The URL parameter
+// is stripped and discarded, never applied. Its sibling
 // TestCASClone_E2E_DepthQueryParamWithTag leaves the ambient at the CAS default
 // of 1, where ?depth=1 is indistinguishable from no depth at all. Here the
 // ambient is full history (WithCloneDepth(-1)) against ?depth=1, so the two

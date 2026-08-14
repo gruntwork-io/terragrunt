@@ -142,6 +142,14 @@ func (v *Venv) WithHandler(h vexec.Handler) *Venv {
 	return &c
 }
 
+// WithHTTP returns a copy of v whose outbound HTTP client is c.
+func (v *Venv) WithHTTP(c vhttp.Client) *Venv {
+	cp := *v
+	cp.HTTP = c
+
+	return &cp
+}
+
 // WithSops returns a copy of v whose SOPS decrypter is d.
 func (v *Venv) WithSops(d vsops.Decrypter) *Venv {
 	c := *v

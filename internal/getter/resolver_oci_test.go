@@ -243,11 +243,12 @@ func TestDefaultSourceResolversOCIConfig(t *testing.T) {
 
 	v := venvtest.New()
 
-	_, found := getter.DefaultSourceResolvers(v.HTTP)[getter.SchemeOCI]
+	_, found := getter.DefaultSourceResolvers(v.HTTP, v.Exec)[getter.SchemeOCI]
 	assert.False(t, found, "oci resolver must be absent without WithOCIConfig")
 
 	resolvers := getter.DefaultSourceResolvers(
 		v.HTTP,
+		v.Exec,
 		getter.WithDispatchLogger(logger.CreateLogger()),
 		getter.WithDispatchFS(v.FS),
 		getter.WithOCIConfig(v),

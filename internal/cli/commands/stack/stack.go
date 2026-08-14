@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -38,7 +37,7 @@ func RunGenerate(
 		return nil
 	}
 
-	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	opts.StackAction = "generate"
 
@@ -70,7 +69,7 @@ func RunGenerate(
 	if len(gitFilters) > 0 {
 		var err error
 
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		wts, err = worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
 			Experiments:    opts.Experiments,

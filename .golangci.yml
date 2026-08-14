@@ -23,6 +23,7 @@ linters:
     - errorlint
     - exhaustive
     - fatcontext
+    - forbidigo
     - gocheckcompilerdirectives
     - gochecksumtype
     - goconst
@@ -99,6 +100,45 @@ linters:
               desc: use github.com/gruntwork-io/terragrunt/internal/md instead
     dupl:
       threshold: 120
+    # Terragrunt routes every side effect through the virtualized environment
+    # (internal/venv) so a run can be driven entirely in memory. These patterns
+    # catch the ways code reaches past that seam to the real OS. The exclusion
+    # list at the bottom of this file allows for exclusions (typically in tests).
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^os\.(ReadFile|WriteFile|Open|OpenFile|Create|CreateTemp|MkdirTemp|Stat|Lstat|Mkdir|MkdirAll|Remove|RemoveAll|ReadDir|Rename|Symlink|Readlink|Chmod|Chdir|Getwd|Link|Truncate)$
+          pkg: ^os$
+          msg: read and write through the venv's vfs.FS instead of the real filesystem
+        - pattern: ^os\.(Getenv|Setenv|Unsetenv|LookupEnv|Environ|ExpandEnv)$
+          pkg: ^os$
+          msg: read and write the venv's Env map instead of the process environment
+        - pattern: ^os\.(UserHomeDir|UserCacheDir|UserConfigDir)$
+          pkg: ^os$
+          msg: use the venv's Platform handles instead of reading the invoking user's directories
+        - pattern: ^exec\.(Command|CommandContext|LookPath)$
+          pkg: ^os/exec$
+          msg: spawn through the venv's vexec.Exec instead of os/exec
+        - pattern: ^http\.(Get|Post|Head|PostForm)$
+          pkg: ^net/http$
+          msg: send through the venv's vhttp.Client instead of net/http package functions
+        - pattern: ^http\.Default(Client|Transport)$
+          pkg: ^net/http$
+          msg: send through the venv's vhttp.Client instead of the shared default client
+        - pattern: ^filepath\.(Walk|WalkDir|Glob)$
+          pkg: ^path/filepath$
+          msg: walk the venv's vfs.FS via vfs.WalkDir or vfs.WalkDirParallel instead of the real filesystem
+        - pattern: ^(vfs\.NewOSFS|vexec\.NewOSExec|vhttp\.NewOSClient|vsops\.NewOSDecrypter)$
+          msg: take the handle from the venv already in scope rather than building a fresh OS-backed one
+        # Cloud SDKs build their own transport when handed no client, so these
+        # entry points leak past the venv without any net/http call of our own
+        # for the rules above to catch.
+        - pattern: ^config\.LoadDefaultConfig$
+          pkg: ^github.com/aws/aws-sdk-go-v2/config$
+          msg: build AWS config via awshelper.NewAWSConfigBuilder so requests ride the venv's HTTP client
+        - pattern: ^storage\.NewClient$
+          pkg: ^cloud.google.com/go/storage$
+          msg: build the GCS client via gcphelper.NewGCPConfigBuilder so requests ride the venv's HTTP client
     errcheck:
       check-type-assertions: false
       check-blank: false
@@ -145,6 +185,51 @@ linters:
           - unparam
           - wsl
         path: _test\.go
+      # Tests frequently drive real fixtures on disk, so tests
+      # are allowed to bypass venv.
+      - linters:
+          - forbidigo
+        path: (_test\.go|^test/|^internal/git/server\.go)
+      # The packages that implement venv, plus the console and pty
+      # layer they sit on, are where the real OS calls are supposed to live.
+      - linters:
+          - forbidigo
+        path: ^internal/(vfs|vexec|vhttp|vsops|venv|os)/
+
+      # Everything below are the call sites that predate the forbidigo
+      # rules above. They reach the real OS directly and still need porting to
+      # venv. Delete entries as they are ported.
+
+      - linters:
+          - forbidigo
+        path: ^(internal/cli/commands/browse/tui/model\.go|internal/cli/commands/catalog/cli\.go|internal/cli/commands/catalog/tui/form\.go|internal/cli/commands/catalog/tui/tags_layout\.go|internal/cli/commands/commands\.go|internal/cli/commands/hcl/validate/validate\.go|internal/cli/commands/help/cli\.go|internal/cli/commands/render/render\.go|internal/cli/commands/scaffold/cli\.go|internal/cli/commands/scaffold/scaffold\.go)$
+      # Env-var-backed flags resolve against the process environment rather
+      # than the venv's Env map, so every flag parsed from an env var bypasses
+      # the seam.
+      #
+      # TODO: Update LookupEnvFunc to close this.
+      - linters:
+          - forbidigo
+        path: ^(internal/clihelper/app\.go|internal/clihelper/flag\.go|internal/clihelper/map_flag\.go|internal/clihelper/slice_flag\.go)$
+      - linters:
+          - forbidigo
+        path: ^(internal/tf/cache/handlers/filesystem_mirror_provider\.go|internal/tf/cache/helpers/http\.go|internal/tf/cliconfig/credentials\.go|internal/tf/getproviders/constraints\.go|internal/tf/getproviders/hash\.go|internal/tf/getproviders/lock\.go|internal/tf/getproviders/package_authentication\.go|internal/tf/source\.go|internal/tf/tf\.go)$
+      - linters:
+          - forbidigo
+        path: ^(internal/runner/common/unit_runner\.go|internal/runner/run/debug\.go|internal/runner/run/run\.go|internal/runner/runnerpool/runner\.go)$
+      - linters:
+          - forbidigo
+        path: ^(pkg/config/catalog\.go|pkg/config/config_helpers\.go|pkg/config/config_partial\.go|pkg/config/config\.go|pkg/config/dependency\.go|pkg/config/stack\.go)$
+      # DefaultWrappedPath is a package-level var, so it probes for `tofu` at
+      # init time, before any venv exists.
+      #
+      # TODO: Make the lookup lazy with a once so we can inject venv into this.
+      - linters:
+          - forbidigo
+        path: ^pkg/options/options\.go$
+      - linters:
+          - forbidigo
+        path: ^(internal/discovery/helpers\.go|internal/discovery/phase_worktree\.go|internal/engine/engine\.go|internal/engine/verification\.go|internal/getter/tfrhelpers\.go|internal/git/git\.go|internal/panicreport/panicreport\.go|internal/remotestate/remote_state\.go|internal/remotestate/terraform_state_file\.go|internal/report/writer\.go|internal/services/catalog/module/doc\.go|internal/services/catalog/module/module\.go|internal/shell/git\.go|internal/shell/run_cmd\.go|internal/stacks/clean/clean\.go|internal/tfimpl/tfimpl\.go|internal/util/file\.go|internal/util/lockfile\.go|internal/worktrees/worktrees\.go)$
       # We end up with duplicated content in this package to save us from duplicating code in other packages.
       - linters:
           - dupl
@@ -155,13 +240,13 @@ linters:
       - linters:
           - gocritic
         text: "hugeParam:"
-        path: internal/cli/commands/(browse|catalog)/tui/
+        path: (internal/cli/commands/(browse|catalog)/tui/|internal/view/tui/)
       # Incrementally linting lines that are too long to ensure that
       # we don't have conflicts on every file in the codebase while
       # trying to get this merged in.
       - linters:
           - lll
-        path-except: '^(internal/awshelper/|internal/cas/|internal/cli/commands/(backend/(delete|migrate)|browse|catalog/tui/command|dag/graph|exec|find|help|list|scaffold|stack)/|internal/cloner/|internal/codegen/|internal/configbridge/|internal/discovery/|internal/engine/|internal/errorconfig/|internal/errors/|internal/experiment/|internal/filter/|internal/gcphelper/|internal/getter/|internal/git/|internal/os/exec/|internal/prepare/|internal/queue/|internal/report/|internal/retry/|internal/runner/(common|graph|run/creds|runall|runcfg)/|internal/stacks/(generate|output)/|internal/telemetry/|internal/tf/cache/(controllers|middleware)/|internal/tflint/|internal/tips/|internal/vfs/|internal/worktrees/|pkg/log/(format/(options|placeholders)|writer)/|pkg/options/)'
+        path-except: "^(internal/awshelper/|internal/cas/|internal/cli/commands/(backend/(delete|migrate)|browse|catalog/tui/command|dag/graph|exec|find|help|list|scaffold|stack)/|internal/cloner/|internal/codegen/|internal/configbridge/|internal/discovery/|internal/engine/|internal/errorconfig/|internal/errors/|internal/experiment/|internal/filter/|internal/gcphelper/|internal/getter/|internal/git/|internal/os/exec/|internal/prepare/|internal/queue/|internal/report/|internal/retry/|internal/runner/(common|graph|run/creds|runall|runcfg)/|internal/stacks/(generate|output)/|internal/telemetry/|internal/tf/cache/(controllers|middleware)/|internal/tflint/|internal/tips/|internal/vfs/|internal/worktrees/|pkg/log/(format/(options|placeholders)|writer)/|pkg/options/)"
     paths:
       - docs
       - _ci

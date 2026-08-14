@@ -32,20 +32,21 @@ func GetRunVersionCache(ctx context.Context) *cache.Cache[string] {
 // resolver so that units sharing a module source and constraint query the
 // registry once per run instead of once each.
 func WithModuleVersionResolver(ctx context.Context, v *venv.Venv) context.Context {
-	resolver := getter.NewVersionResolver().
-		WithHTTPClient(v.HTTP).
-		WithAuth(getter.RegistryAuth{Env: v.Env, ReadUserConfig: vfs.IsOSFS(v.FS)})
-
-	return context.WithValue(ctx, moduleVersionResolverContextKey, resolver)
+	return context.WithValue(ctx, moduleVersionResolverContextKey, newModuleVersionResolver(v))
 }
 
 // ModuleVersionResolverFromContext returns the resolver installed by
 // [WithModuleVersionResolver]. If none was installed, it returns a fresh
-// resolver whose memoization is scoped to the caller alone.
-func ModuleVersionResolverFromContext(ctx context.Context) *getter.VersionResolver {
+// resolver, on v's client, whose memoization is scoped to the caller alone.
+func ModuleVersionResolverFromContext(ctx context.Context, v *venv.Venv) *getter.VersionResolver {
 	if resolver, ok := ctx.Value(moduleVersionResolverContextKey).(*getter.VersionResolver); ok {
 		return resolver
 	}
 
-	return getter.NewVersionResolver()
+	return newModuleVersionResolver(v)
+}
+
+func newModuleVersionResolver(v *venv.Venv) *getter.VersionResolver {
+	return getter.NewVersionResolver(v.HTTP).
+		WithAuth(getter.RegistryAuth{Env: v.Env, ReadUserConfig: vfs.IsOSFS(v.FS)})
 }

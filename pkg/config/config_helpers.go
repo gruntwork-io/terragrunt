@@ -41,7 +41,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -998,8 +997,7 @@ func getAWSField(
 	l log.Logger,
 	fetchFn func(context.Context, *aws.Config) (string, error),
 ) (string, error) {
-	awsConfig, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(pctx.Venv.Env).
+	awsConfig, err := awshelper.NewAWSConfigBuilder(pctx.Venv).
 		WithIAMRoleOptions(pctx.IAMRoleOptions).
 		Build(ctx, l)
 	if err != nil {
@@ -1699,7 +1697,7 @@ func markGlobAsRead(
 		opts = append(opts, glob.WithBoundary(boundary))
 	}
 
-	matches, err := glob.Expand(vfs.NewOSFS(), pattern, opts...)
+	matches, err := glob.Expand(pctx.Venv.FS, pattern, opts...)
 	if err != nil {
 		if errors.Is(err, glob.ErrOutsideBoundary) {
 			return nil, fmt.Errorf(

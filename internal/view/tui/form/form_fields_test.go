@@ -1,4 +1,4 @@
-package tui_test
+package form_test
 
 import (
 	"testing"
@@ -7,10 +7,27 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
+
+// TestFormFieldsFromParsedVariables_NilSlices pins what a module missing one
+// class of variable produces. The scaffold command builds these two slices by
+// appending, so a module whose variables all carry defaults hands the form a
+// nil required slice, and one where none do hands it a nil optional slice.
+func TestFormFieldsFromParsedVariables_NilSlices(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, form.FieldsFromParsedVariables(nil, nil))
+
+	fields := form.FieldsFromParsedVariables(
+		[]*config.ParsedVariable{{Name: "name", Type: "string"}}, nil,
+	)
+
+	require.Len(t, fields, 1)
+	assert.True(t, fields[0].Required)
+}
 
 // TestFormFieldsFromParsedVariables_BoolStringRawTypes exercises the per-type
 // branches of field construction: bool defaults become checkboxes, string
@@ -29,10 +46,10 @@ func TestFormFieldsFromParsedVariables_BoolStringRawTypes(t *testing.T) {
 		{Name: "count", Type: "number", DefaultValue: "5"},
 	}
 
-	fields := tui.FieldsFromParsedVariables(nil, optional)
+	fields := form.FieldsFromParsedVariables(nil, optional)
 	require.Len(t, fields, len(optional))
 
-	byName := map[string]tui.FormField{}
+	byName := map[string]form.Field{}
 	for _, f := range fields {
 		byName[f.Name] = f
 	}
@@ -78,7 +95,7 @@ func TestFormFieldsFromValuesReferences_StringAndComplexDefaults(t *testing.T) {
 		},
 	}
 
-	fields := tui.FieldsFromValuesReferences(refs)
+	fields := form.FieldsFromValuesReferences(refs)
 	require.Len(t, fields, 2)
 
 	assert.Equal(t, "region", fields[0].Name)

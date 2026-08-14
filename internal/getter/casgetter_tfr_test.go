@@ -38,8 +38,7 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 	l := logger.CreateLogger()
 	httpClient := server.Client()
 
-	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS()).
-		WithHTTPClient(httpClient).
+	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS(), httpClient).
 		WithTofuImplementation(tfimpl.Terraform)
 
 	resolver := getter.NewTFRResolver().

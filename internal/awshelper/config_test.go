@@ -13,7 +13,9 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +26,7 @@ func TestAwsSessionValidationFail(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	_, err := awshelper.NewAWSConfigBuilder().
+	_, err := awshelper.NewAWSConfigBuilder(venvtest.NewWithOSFS()).
 		WithSessionConfig(&awshelper.AwsSessionConfig{
 			Region:        "not-existing-region",
 			CredsFilename: "/tmp/not-existing-file",
@@ -95,8 +97,7 @@ func TestAwsConfigWithAuthProviderEnv(t *testing.T) {
 		"AWS_REGION":            "us-west-2",
 	}
 
-	cfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(env).
+	cfg, err := awshelper.NewAWSConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).
 		Build(ctx, l)
 	require.NoError(t, err)
 	assert.Equal(t, "us-west-2", cfg.Region)
@@ -123,8 +124,7 @@ func TestAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 		"AWS_DEFAULT_REGION":    "eu-west-1",
 	}
 
-	cfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(env).
+	cfg, err := awshelper.NewAWSConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).
 		Build(ctx, l)
 	require.NoError(t, err)
 	assert.Equal(t, "eu-west-1", cfg.Region)
@@ -163,8 +163,7 @@ func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	baseCfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(env).
+	baseCfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv().WithEnv(env)).
 		Build(t.Context(), l)
 	require.NoError(t, err)
 
@@ -173,8 +172,7 @@ func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 
 	const sessionName = "terragrunt-chained-assume-role-test"
 
-	chainedCfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(env).
+	chainedCfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv().WithEnv(env)).
 		WithSessionConfig(&awshelper.AwsSessionConfig{
 			RoleArn:     roleARN,
 			SessionName: sessionName,
@@ -293,8 +291,7 @@ func TestAwsConfigRoleSourcePermutations(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			cfg, err := awshelper.NewAWSConfigBuilder().
-				WithEnv(tc.env).
+			cfg, err := awshelper.NewAWSConfigBuilder(venvtest.NewWithOSFS().WithEnv(tc.env)).
 				WithSessionConfig(tc.sessionConfig).
 				WithIAMRoleOptions(tc.iamRoleOpts).
 				Build(t.Context(), l)
@@ -349,9 +346,8 @@ func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
 		Region: "us-east-1", // This should override the env vars
 	}
 
-	cfg, err := awshelper.NewAWSConfigBuilder().
+	cfg, err := awshelper.NewAWSConfigBuilder(venvtest.NewWithOSFS().WithEnv(env)).
 		WithSessionConfig(awsCfg).
-		WithEnv(env).
 		Build(ctx, l)
 	require.NoError(t, err)
 

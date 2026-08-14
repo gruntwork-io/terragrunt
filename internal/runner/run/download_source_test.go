@@ -670,9 +670,9 @@ func createConfig(
 	// other than the version probe is a regression: fail loudly rather
 	// than silently absorb it.
 	versionExec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		// DefaultWrappedPath resolves to either tofu or terraform depending
-		// on what's on the host PATH; accept both so the assertion stays
-		// host-independent.
+		// IdentifyDefaultWrappedExecutable resolves to either tofu or terraform
+		// depending on what's on the host PATH; accept both so the assertion
+		// stays host-independent.
 		if (inv.Name != "tofu" && inv.Name != "terraform") ||
 			!slices.Contains(inv.Args, "-version") {
 			assert.Fail(t, "unexpected invocation during PopulateTFVersion",

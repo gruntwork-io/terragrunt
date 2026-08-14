@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -96,7 +97,7 @@ var ErrNoDependencyOutputsRequiresExperiment = errors.New(
 )
 
 // NewFlags creates and returns global flags.
-func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	cmdFlags := clihelper.Flags{
@@ -655,7 +656,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	cmdFlags = cmdFlags.Add(shared.NewFailFastFlag(opts))
 	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewQueueFlags(opts, prefix)...)
-	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts, v)...)
 	cmdFlags = cmdFlags.Add(shared.NewParallelismFlag(opts))
 	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, prefix)...)
 

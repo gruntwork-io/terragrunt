@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -155,7 +156,7 @@ func TestProviderServiceInitIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	service := services.NewProviderService(
-		t.TempDir(), t.TempDir(), nil, logger.CreateLogger(),
+		t.TempDir(), t.TempDir(), nil, logger.CreateLogger(), vfs.NewOSFS(), vhttp.NewOSClient(),
 	)
 
 	require.NoError(t, service.Init())
@@ -165,7 +166,9 @@ func TestProviderServiceInitIsIdempotent(t *testing.T) {
 func TestProviderServiceInitWithoutCacheDir(t *testing.T) {
 	t.Parallel()
 
-	service := services.NewProviderService("", t.TempDir(), nil, logger.CreateLogger())
+	service := services.NewProviderService(
+		"", t.TempDir(), nil, logger.CreateLogger(), vfs.NewOSFS(), vhttp.NewOSClient(),
+	)
 
 	require.ErrorIs(t, service.Init(), services.ErrCacheDirNotSpecified)
 	require.ErrorIs(t, service.Run(t.Context()), services.ErrCacheDirNotSpecified)

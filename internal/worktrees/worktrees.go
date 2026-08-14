@@ -22,7 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -370,6 +370,7 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts WorktreeOpts,
 ) (*Worktrees, error) {
 	workingDir := opts.WorkingDir
@@ -390,7 +391,9 @@ func NewWorktrees(
 		outerErr  error
 	)
 
-	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
+	v.RequireExec()
+
+	gitRunner, err := git.NewGitRunner(v.Exec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Git runner for worktree creation: %w", err)
 	}

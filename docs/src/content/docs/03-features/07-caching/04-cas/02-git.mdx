@@ -26,11 +26,11 @@ A Git source is identified by a remote URL and a ref (a branch, tag, or commit).
 
 A Git source URL may carry go-getter query parameters that Terragrunt consumes to resolve the source rather than passing them through to `git`.
 
-- **`ref`** selects the revision — a branch, tag, or commit — to resolve and check out, for example `...vpc.git?ref=v5.21.0`.
+- **`ref`** selects the revision to resolve and check out, which can be a branch, tag, or commit. For example, `...vpc.git?ref=v5.21.0`.
 
-<Since version="1.1.2">
+<Since version="1.1.4">
 
-- **`depth`** is accepted for go-getter compatibility, for example `...vpc.git?ref=v5.21.0&depth=1`. Like `ref`, it is a go-getter parameter rather than a native Git URL parameter, so the CAS strips it from the URL before invoking `git` — otherwise `git` would treat a trailing `?depth=1` as part of the repository name and reject the clone. The value itself is not applied: clone depth is controlled by the `--cas-clone-depth` flag, and as a CLI argument it takes precedence over a source URL configured in your Terragrunt unit.
+- **`depth`** is accepted for go-getter compatibility, for example `...vpc.git?ref=v5.21.0&depth=1`. Like `ref`, it is a go-getter parameter rather than a native Git URL parameter, so the CAS strips it from the URL before invoking `git`. Left in place, `git` treats the trailing `?depth=1` as part of the repository name and rejects the clone. The value itself is not applied. Clone depth is controlled by the [`--cas-clone-depth`](/reference/cli/commands/run#cas-clone-depth) flag, and as a CLI argument it takes precedence over a source URL configured in your Terragrunt unit.
 
 </Since>
 

@@ -13,9 +13,9 @@ import (
 // the CAS git getter and stack source cloning. depth and ref must be lifted
 // out of the URL: depth is a shallow-clone hint, not a native git URL
 // parameter, so leaving it in makes git treat "?depth=1" as part of the
-// repository name and reject the clone (regression #6512). Only ref is
-// returned — depth is dropped, because clone depth belongs to the
-// --cas-clone-depth CLI argument, which outranks configuration.
+// repository name and reject the clone. Only ref is returned; depth is
+// dropped, because clone depth belongs to the --cas-clone-depth CLI argument,
+// which outranks configuration.
 func TestStripGitURLParams(t *testing.T) {
 	t.Parallel()
 

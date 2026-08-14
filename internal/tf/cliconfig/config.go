@@ -40,10 +40,10 @@ func WithFS(fs vfs.FS) ConfigOption {
 	}
 }
 
-// NewConfig creates a new Config with default values.
-func NewConfig() *Config {
+// NewConfig creates a new Config that saves through fs.
+func NewConfig(fs vfs.FS) *Config {
 	return &Config{
-		fs: vfs.NewOSFS(),
+		fs: fs,
 	}
 }
 
