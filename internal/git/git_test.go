@@ -357,12 +357,12 @@ func TestGitRunner_ArgvConstruction(t *testing.T) {
 			want: []string{"cat-file", "-e", headHash},
 		},
 		{
-			name: "repo root",
+			name: "repo prefix",
 			invoke: func(ctx context.Context, r *git.GitRunner) error {
-				_, err := r.GetRepoRoot(ctx)
+				_, err := r.RepoPrefix(ctx)
 				return err
 			},
-			want: []string{"rev-parse", "--show-toplevel"},
+			want: []string{"rev-parse", "--show-prefix"},
 		},
 		{
 			name: "add",
@@ -415,15 +415,15 @@ func TestGitRunner_ArgvConstruction(t *testing.T) {
 	}
 }
 
-func TestGitRunner_WithWorkDirGetRepoRootWithRacing(t *testing.T) {
+func TestGitRunner_WithWorkDirRepoPrefixWithRacing(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 
-	runner := newMemRunner(t, staticResult(vexec.Result{Stdout: []byte(dir + "\n")}))
+	runner := newMemRunner(t, staticResult(vexec.Result{Stdout: []byte("live/\n")}))
 	runner = runner.WithWorkDir(dir)
 
-	// GetRepoRoot memoizes on first success, so only that first call writes.
+	// RepoPrefix memoizes on first success, so only that first call writes.
 	// Derive a fresh runner per round and race the memoizing call against a
 	// concurrent WithWorkDir copy of the same runner.
 	const rounds = 50
@@ -434,7 +434,7 @@ func TestGitRunner_WithWorkDirGetRepoRootWithRacing(t *testing.T) {
 		fresh := runner.WithWorkDir(dir)
 
 		g.Go(func() error {
-			_, err := fresh.GetRepoRoot(ctx)
+			_, err := fresh.RepoPrefix(ctx)
 
 			return err
 		})

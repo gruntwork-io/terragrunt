@@ -69,8 +69,9 @@ const (
 // because it can help us determine how the
 // Component should be run or enqueued later.
 type DiscoveryContext struct {
-	WorkingDir string
-	Ref        string
+	WorkingDir    string
+	OutputKeyBase string
+	Ref           string
 
 	origin Origin
 

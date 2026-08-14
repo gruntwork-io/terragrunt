@@ -1,6 +1,7 @@
 package component_test
 
 import (
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -271,4 +272,73 @@ func TestUnitGuardConfigParseWithRacing(t *testing.T) {
 
 	assert.Equal(t, int32(1), parses.Load(), "config should be parsed exactly once")
 	assert.NotNil(t, unit.Config(), "config should be populated after parsing")
+}
+
+// TestUnitOutputFile checks that the same unit is mirrored under the output folder at the
+// same path whether it was found on the filesystem or in a Git worktree, and that a unit
+// found outside the working directory is still mirrored inside the output folder.
+func TestUnitOutputFile(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	workingDir := filepath.Join(base, "repo", "live")
+	worktreeRoot := filepath.Join(base, "worktree")
+	outputFolder := filepath.Join(base, "plans")
+
+	testCases := []struct {
+		discoveryContext *component.DiscoveryContext
+		name             string
+		unitPath         string
+		expected         string
+	}{
+		{
+			name:     "filesystem discovery",
+			unitPath: filepath.Join(workingDir, "unit2"),
+			discoveryContext: &component.DiscoveryContext{
+				WorkingDir: workingDir,
+			},
+			expected: filepath.Join(outputFolder, "unit2", "tfplan.tfplan"),
+		},
+		{
+			name:     "worktree discovery",
+			unitPath: filepath.Join(worktreeRoot, "live", "unit2"),
+			discoveryContext: &component.DiscoveryContext{
+				WorkingDir:    worktreeRoot,
+				OutputKeyBase: filepath.Join(worktreeRoot, "live"),
+			},
+			expected: filepath.Join(outputFolder, "unit2", "tfplan.tfplan"),
+		},
+		{
+			name:     "worktree discovery outside the working directory",
+			unitPath: filepath.Join(worktreeRoot, "other", "unit3"),
+			discoveryContext: &component.DiscoveryContext{
+				WorkingDir:    worktreeRoot,
+				OutputKeyBase: filepath.Join(worktreeRoot, "live"),
+			},
+			expected: filepath.Join(outputFolder, "other", "unit3", "tfplan.tfplan"),
+		},
+		{
+			name:     "worktree discovery without a mapped working directory",
+			unitPath: filepath.Join(worktreeRoot, "live", "unit2"),
+			discoveryContext: &component.DiscoveryContext{
+				WorkingDir: worktreeRoot,
+			},
+			expected: filepath.Join(outputFolder, "live", "unit2", "tfplan.tfplan"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			unit := component.NewUnit(tc.unitPath).WithDiscoveryContext(tc.discoveryContext)
+
+			assert.Equal(t, tc.expected, unit.OutputFile(workingDir, outputFolder))
+			assert.Equal(
+				t,
+				filepath.Join(filepath.Dir(tc.expected), "tfplan.json"),
+				unit.OutputJSONFile(workingDir, outputFolder),
+			)
+		})
+	}
 }
