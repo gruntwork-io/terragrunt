@@ -1,0 +1,12 @@
+---
+version: "v1.1.4"
+category: "experiments-updated"
+---
+
+#### `azure-backend` - Improved authentication and lifecycle handling
+
+The `azure-backend` experiment now:
+
+- supports GitHub Actions and Azure DevOps OIDC request-token flows;
+- honors explicitly disabled authentication modes and discovers the resource group for an existing storage account;
+- adds live Azure coverage for container bootstrap, versioning convergence, and backend deletion.

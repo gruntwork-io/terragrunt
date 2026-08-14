@@ -222,9 +222,9 @@ func setupAzureBackendFixture(t *testing.T) (string, string, string) {
 	// Container names are lowercase alphanumeric with dashes, 3-63 chars.
 	container := "tg-test-" + strings.ToLower(helpers.UniqueID())
 
-	helpers.CleanupTerraformFolder(t, testFixtureAzureBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureBackend)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	commonConfigPath := filepath.Join(rootPath, "common.hcl")
 	helpers.CopyAndFillMapPlaceholders(t, commonConfigPath, commonConfigPath, map[string]string{

@@ -1,6 +1,7 @@
 package azurehelper
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -327,7 +329,10 @@ func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l lo
 		return defaultCred
 	}
 
-	chain, err := azidentity.NewChainedTokenCredential([]azcore.TokenCredential{cliCred, defaultCred}, nil)
+	chain, err := azidentity.NewChainedTokenCredential(
+		[]azcore.TokenCredential{credentialUnavailableOnError{credential: cliCred}, defaultCred},
+		nil,
+	)
 	if err != nil {
 		l.Debugf("azurehelper: failed to build CLI credential chain, using DefaultAzureCredential only: %v", err)
 
@@ -523,4 +528,20 @@ func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 	}
 
 	return nil
+}
+
+type credentialUnavailableOnError struct {
+	credential azcore.TokenCredential
+}
+
+func (c credentialUnavailableOnError) GetToken(
+	ctx context.Context,
+	opts policy.TokenRequestOptions,
+) (azcore.AccessToken, error) {
+	token, err := c.credential.GetToken(ctx, opts)
+	if err != nil {
+		return token, azidentity.NewCredentialUnavailableError(err.Error())
+	}
+
+	return token, nil
 }

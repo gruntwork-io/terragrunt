@@ -480,7 +480,18 @@ func FindResourceGroupForAccount(ctx context.Context, cfg *AzureConfig, accountN
 	// Bound the walk rather than trust the service to terminate, mirroring
 	// ListBlobs. A subscription with more accounts than this is not a case
 	// this lookup is meant to serve.
-	for pages := 0; pager.More() && pages < maxAccountListPages; pages++ {
+	pages := 0
+
+	for pager.More() {
+		pages++
+		if pages > maxAccountListPages {
+			return "", &TooManyStorageAccountPagesError{
+				Account:        accountName,
+				SubscriptionID: cfg.SubscriptionID,
+				MaxPages:       maxAccountListPages,
+			}
+		}
+
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return "", fmt.Errorf("listing storage accounts in subscription %q: %w", cfg.SubscriptionID, err)

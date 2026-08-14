@@ -37,6 +37,22 @@ func (e *TooManyBlobPagesError) Error() string {
 	return fmt.Sprintf("listing blobs in %s exceeded %d pages", e.Container, e.MaxPages)
 }
 
+// TooManyStorageAccountPagesError is returned when account lookup exceeds the page bound.
+type TooManyStorageAccountPagesError struct {
+	Account        string
+	SubscriptionID string
+	MaxPages       int
+}
+
+func (e *TooManyStorageAccountPagesError) Error() string {
+	return fmt.Sprintf(
+		"finding storage account %q in subscription %q exceeded %d pages",
+		e.Account,
+		e.SubscriptionID,
+		e.MaxPages,
+	)
+}
+
 // OIDCRequestTokenMissingError is returned when an OIDC request URL is present
 // but the bearer token needed to call it is not. In GitHub Actions this means
 // the job is missing `permissions: id-token: write`.
