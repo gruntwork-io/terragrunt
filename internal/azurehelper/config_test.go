@@ -1,3 +1,5 @@
+//go:build azure
+
 package azurehelper_test
 
 import (

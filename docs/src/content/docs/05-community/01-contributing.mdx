@@ -270,9 +270,10 @@ gcloud projects add-iam-policy-binding <gcp-project> \
 
 #### Azure tests
 
-Terragrunt also includes end-to-end tests for the Azure Storage (`azurerm`) remote-state backend. These are prefixed with `TestAzure*` and use the `azure` build tag, because they create and destroy real Azure resources. The `internal/azurehelper` unit tests need no tag and no credentials: they run as part of the normal suite.
+Terragrunt also includes end-to-end tests for the Azure Storage (`azurerm`) remote-state backend. These are prefixed with `TestAzure*` and use the `azure` build tag, because they create and destroy real Azure resources. The `internal/azurehelper` tests use the same build tag; their live round-trip skips when credentials are absent.
 
 ```bash
+GOFLAGS='-tags=azure' go test ./internal/azurehelper/...
 GOFLAGS='-tags=azure' go test -run 'TestAzure*' ./test
 ```
 

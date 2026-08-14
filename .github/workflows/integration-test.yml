@@ -105,6 +105,18 @@ jobs:
               ]
           - name: Azure
             os: ubuntu
+            target: ./internal/azurehelper/...
+            tags: azure
+            secrets:
+              [
+                AZURE_CLIENT_ID,
+                AZURE_CLIENT_SECRET,
+                AZURE_TENANT_ID,
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+              ]
+          - name: Azure Integration
+            os: ubuntu
             target: ./test
             tags: azure
             run: ^TestAzure
