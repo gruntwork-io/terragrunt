@@ -120,7 +120,6 @@ jobs:
             target: ./internal/getter/...
             tags: ocilive
             run: "^TestOCILive"
-            optional_secrets: true
             skip: false
             setup_scripts:
               - .github/scripts/setup/ecr-credential-helper.sh
@@ -224,7 +223,6 @@ jobs:
           NAME: ${{ matrix.integration.name }}
           ENV_FILE: ${{ github.workspace }}/.env.secrets
           SECRETS: ${{ join(matrix.integration.secrets, ' ') }}
-          OPTIONAL_SECRETS: ${{ matrix.integration.optional_secrets }}
           GHA_DEPLOY_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

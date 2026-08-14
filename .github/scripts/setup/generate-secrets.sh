@@ -6,32 +6,6 @@ set -euo pipefail
 : "${NAME:?NAME is not set}"
 : "${ENV_FILE:?ENV_FILE is not set}"
 : "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is not set}"
-
-OPTIONAL_SECRETS="${OPTIONAL_SECRETS:-false}"
-
-if [[ "$OPTIONAL_SECRETS" == "true" ]]; then
-	touch "$ENV_FILE"
-
-	if [[ -n "${TG_OCI_TEST_ECR_REPOSITORY:-}" && -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
-		{
-			printf "export AWS_ACCESS_KEY_ID='%s'\n" "${AWS_ACCESS_KEY_ID}"
-			printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${AWS_SECRET_ACCESS_KEY}"
-			printf "export TG_OCI_TEST_ECR_REPOSITORY='%s'\n" "${TG_OCI_TEST_ECR_REPOSITORY}"
-		} >>"$ENV_FILE"
-	fi
-
-	if [[ -n "${TG_OCI_TEST_GHCR_REPOSITORY:-}" && -n "${TG_OCI_TEST_GHCR_USERNAME:-}" && -n "${TG_OCI_TEST_GHCR_TOKEN:-}" ]]; then
-		{
-			printf "export TG_OCI_TEST_GHCR_REPOSITORY='%s'\n" "${TG_OCI_TEST_GHCR_REPOSITORY}"
-			printf "export TG_OCI_TEST_GHCR_USERNAME='%s'\n" "${TG_OCI_TEST_GHCR_USERNAME}"
-			printf "export TG_OCI_TEST_GHCR_TOKEN='%s'\n" "${TG_OCI_TEST_GHCR_TOKEN}"
-		} >>"$ENV_FILE"
-	fi
-
-	echo "Created environment file with optional secrets for $NAME"
-	exit 0
-fi
-
 : "${GHA_DEPLOY_KEY:?GHA_DEPLOY_KEY is not set}"
 
 : "${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is not set}"
@@ -96,6 +70,14 @@ for SECRET in $SECRETS; do
 		printf "export TG_AZURE_TEST_STORAGE_ACCOUNT='%s'\n" "${TG_AZURE_TEST_STORAGE_ACCOUNT}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "TG_AZURE_TEST_SUBSCRIPTION_ID" && -n "${TG_AZURE_TEST_SUBSCRIPTION_ID:-}" ]]; then
 		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID='%s'\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_ECR_REPOSITORY" && -n "${TG_OCI_TEST_ECR_REPOSITORY:-}" ]]; then
+		printf "export TG_OCI_TEST_ECR_REPOSITORY='%s'\n" "${TG_OCI_TEST_ECR_REPOSITORY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_REPOSITORY" && -n "${TG_OCI_TEST_GHCR_REPOSITORY:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_REPOSITORY='%s'\n" "${TG_OCI_TEST_GHCR_REPOSITORY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_USERNAME" && -n "${TG_OCI_TEST_GHCR_USERNAME:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_USERNAME='%s'\n" "${TG_OCI_TEST_GHCR_USERNAME}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_TOKEN" && -n "${TG_OCI_TEST_GHCR_TOKEN:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_TOKEN='%s'\n" "${TG_OCI_TEST_GHCR_TOKEN}" >>"$ENV_FILE"
 	fi
 done
 
