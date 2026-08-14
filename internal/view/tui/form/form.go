@@ -1648,17 +1648,18 @@ var (
 	formErrorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF5555"))
 
-	// Set bool values get a clear positive/negative color so the user
-	// can see at a glance which checkboxes they flipped.
+	// Set bool values get a clear positive/negative color so the user can
+	// see at a glance which checkboxes they flipped.
 	formBoolTrueStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#50FA7B")).
 				Bold(true)
 
-	// False uses the same muted gray as `(default)` / `(unset)`, so it
-	// reads as a plain value and does not compete with required/error red.
-	formBoolFalseNeutralStyle = lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#A8ACB1")).
-					Bold(true)
+	// The same muted gray as `(default)` / `(unset)`: false reads as a
+	// plain value rather than a warning competing with the required tag
+	// and validation errors, which own the reds.
+	formBoolFalseStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#A8ACB1")).
+				Bold(true)
 
 	formDefaultHintStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#A8ACB1")).
@@ -1776,7 +1777,7 @@ func renderCheckbox(checked bool) string {
 		return formBoolTrueStyle.Render("[x] true")
 	}
 
-	return formBoolFalseNeutralStyle.Render("[ ] false")
+	return formBoolFalseStyle.Render("[ ] false")
 }
 
 // View renders the form. When the rendered body exceeds the available

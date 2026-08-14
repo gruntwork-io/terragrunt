@@ -1746,7 +1746,7 @@ func TestAwsGetAccountAliasFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	awsCfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).Build(t.Context(), createLogger())
+	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger(), venv.OSVenv())
 	if err != nil {
 		t.Fatalf("Error while creating AWS config: %v", err)
 	}
@@ -1792,7 +1792,7 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	awsCfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).Build(t.Context(), createLogger())
+	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger(), venv.OSVenv())
 	if err != nil {
 		t.Fatalf("Error while creating AWS config: %v", err)
 	}
@@ -2864,9 +2864,9 @@ func TestAwsAssumeRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).
+	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithIAMRoleOptions(opts.IAMRoleOptions).
-		Build(t.Context(), l)
+		Build(t.Context(), l, venv.OSVenv())
 	require.NoError(t, err)
 
 	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
@@ -2921,9 +2921,9 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).
+	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithIAMRoleOptions(opts.IAMRoleOptions).
-		Build(t.Context(), l)
+		Build(t.Context(), l, venv.OSVenv())
 	require.NoError(t, err)
 
 	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
@@ -3087,7 +3087,7 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).Build(t.Context(), l)
+	cfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), l, venv.OSVenv())
 	require.NoError(t, err)
 
 	identityArn, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)

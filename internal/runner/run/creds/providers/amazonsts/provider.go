@@ -68,7 +68,7 @@ func (provider *Provider) GetCredentials(
 	}, func(ctx context.Context, l log.Logger) error {
 		var assumeErr error
 
-		resp, assumeErr = awshelper.AssumeIamRole(ctx, iamRoleOpts, "", v)
+		resp, assumeErr = awshelper.AssumeIamRole(ctx, v, iamRoleOpts, "")
 
 		return assumeErr
 	})

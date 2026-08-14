@@ -115,7 +115,7 @@ func pullOCILiveModule(t *testing.T, home, src string) {
 	}
 
 	dst := filepath.Join(t.TempDir(), "module")
-	client := getter.NewClient(getter.WithOCI(getter.NewOCIGetter(logger.CreateLogger(), v)))
+	client := getter.NewClient(v, getter.WithOCI(getter.NewOCIGetter(logger.CreateLogger(), v)))
 
 	_, err := client.Get(t.Context(), &getter.Request{Src: src, Dst: dst})
 	require.NoError(t, err)

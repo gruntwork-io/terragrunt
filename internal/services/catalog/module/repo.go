@@ -515,11 +515,11 @@ func (repo *Repo) performClone(
 
 		clientOpts = append(
 			clientOpts,
-			getter.WithCAS(casStore, v, &cloneOpts),
+			getter.WithCAS(casStore, &cloneOpts),
 		)
 	}
 
-	client := getter.NewClient(clientOpts...)
+	client := getter.NewClient(v, clientOpts...)
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {

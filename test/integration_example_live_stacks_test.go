@@ -22,7 +22,7 @@ import (
 func TestAwsExampleLiveStacks(t *testing.T) {
 	uniqueID := strings.ToLower(helpers.UniqueID())
 
-	awsCfg, err := awshelper.NewAWSConfigBuilder(venv.OSVenv()).Build(t.Context(), createLogger())
+	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger(), venv.OSVenv())
 	require.NoError(t, err, "Error creating AWS config")
 
 	stsClient := sts.NewFromConfig(awsCfg)
