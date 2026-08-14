@@ -18,8 +18,12 @@ func TestBackendName(t *testing.T) {
 	assert.Equal(t, azurerm.BackendName, azurerm.NewBackend().Name())
 }
 
-// TestExperimentGate verifies that every lifecycle entry point refuses to run
-// without the azure-backend experiment, before any network call is attempted.
+// TestExperimentGate pins how a disabled experiment behaves. The passive
+// lifecycle checks must be no-ops: before this backend existed an azurerm
+// config inherited CommonBackend's no-op, so a globally applied
+// --backend-bootstrap continued into native init. Gating must not turn that
+// previously working path into a failure. Explicitly invoked destructive
+// commands still report that the experiment is required.
 func TestExperimentGate(t *testing.T) {
 	t.Parallel()
 
@@ -29,38 +33,40 @@ func TestExperimentGate(t *testing.T) {
 	opts := optsWithExperiment(t, false)
 	b := azurerm.NewBackend()
 
-	t.Run("Bootstrap", func(t *testing.T) {
-		t.Parallel()
-		require.ErrorIs(t, b.Bootstrap(ctx, l, &venv.Venv{}, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
-	})
-
-	t.Run("NeedsBootstrap", func(t *testing.T) {
+	t.Run("NeedsBootstrap is a no-op", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := b.NeedsBootstrap(ctx, l, &venv.Venv{}, bcfg, opts)
-		require.ErrorIs(t, err, azurerm.ErrAzureBackendExperimentRequired)
+		needs, err := b.NeedsBootstrap(ctx, l, &venv.Venv{}, bcfg, opts)
+		require.NoError(t, err)
+		assert.False(t, needs)
 	})
 
-	t.Run("IsVersionControlEnabled", func(t *testing.T) {
+	t.Run("Bootstrap is a no-op", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, b.Bootstrap(ctx, l, &venv.Venv{}, bcfg, opts))
+	})
+
+	t.Run("IsVersionControlEnabled is a no-op", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := b.IsVersionControlEnabled(ctx, l, &venv.Venv{}, bcfg, opts)
-		require.ErrorIs(t, err, azurerm.ErrAzureBackendExperimentRequired)
+		enabled, err := b.IsVersionControlEnabled(ctx, l, &venv.Venv{}, bcfg, opts)
+		require.NoError(t, err)
+		assert.False(t, enabled)
 	})
 
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("Delete reports the experiment", func(t *testing.T) {
 		t.Parallel()
 		require.ErrorIs(t, b.Delete(ctx, l, &venv.Venv{}, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
 	})
 
-	t.Run("DeleteBucket", func(t *testing.T) {
+	t.Run("DeleteBucket reports the experiment", func(t *testing.T) {
 		t.Parallel()
 		require.ErrorIs(t, b.DeleteBucket(ctx, l, &venv.Venv{}, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
 	})
 
-	t.Run("Migrate", func(t *testing.T) {
+	t.Run("Migrate reports the experiment", func(t *testing.T) {
 		t.Parallel()
-		require.ErrorIs(t, b.Migrate(ctx, l, &venv.Venv{}, bcfg, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
+		require.ErrorIs(t, b.Migrate(ctx, l, &venv.Venv{}, &venv.Venv{}, bcfg, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
 	})
 }
 
@@ -116,7 +122,7 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 	dstRaw["storage_account_name"] = "differentaccount"
 	dstCfg := backend.Config(dstRaw)
 
-	err := b.Migrate(ctx, l, &venv.Venv{}, srcCfg, dstCfg, opts)
+	err := b.Migrate(ctx, l, &venv.Venv{}, &venv.Venv{}, srcCfg, dstCfg, opts)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cross-account")
 	assert.NotContains(t, err.Error(), "server-side", "copy is client-side streaming, not server-side")
@@ -141,7 +147,7 @@ func TestMigrate_CrossCloudRefused(t *testing.T) {
 	dstRaw["environment"] = "usgovernment"
 
 	err := b.Migrate(
-		t.Context(), logger.CreateLogger(), &venv.Venv{},
+		t.Context(), logger.CreateLogger(), &venv.Venv{}, &venv.Venv{},
 		backend.Config(srcRaw), backend.Config(dstRaw), opts)
 
 	require.Error(t, err)
@@ -171,7 +177,7 @@ func TestMigrate_SameCloudAliasAllowed(t *testing.T) {
 	dstRaw["storage_account_name"] = "otheraccount"
 
 	err := b.Migrate(
-		t.Context(), logger.CreateLogger(), &venv.Venv{},
+		t.Context(), logger.CreateLogger(), &venv.Venv{}, &venv.Venv{},
 		backend.Config(srcRaw), backend.Config(dstRaw), opts)
 
 	var crossCloud *azurerm.CrossCloudMigrationError
@@ -237,10 +243,40 @@ func rgLessSkipAllConfig() azurerm.Config {
 	delete(cfg, "resource_group_name")
 	delete(cfg, "enable_soft_delete")
 	delete(cfg, "soft_delete_retention_days")
+	// A role assignment is ARM work too, so it has to go for this fixture to
+	// mean "nothing needs the management plane".
+	delete(cfg, "assign_blob_data_role")
+	delete(cfg, "principal_id")
 
 	cfg["skip_storage_account_creation"] = true
 	cfg["skip_versioning"] = true
 	cfg["skip_container_creation"] = true
 
 	return cfg
+}
+
+// TestMigrate_CrossCloudFromDestinationEnvRefused pins the case a config-only
+// check misses: neither side sets `environment`, but the destination
+// environment selects a different cloud through ARM_ENVIRONMENT. The source and
+// destination each carry their own venv precisely because the same variable can
+// differ per side, so the destination cloud must be resolved from dstV.
+func TestMigrate_CrossCloudFromDestinationEnvRefused(t *testing.T) {
+	t.Parallel()
+
+	srcV := (&venv.Venv{}).WithEnv(map[string]string{"ARM_ENVIRONMENT": "public"})
+	dstV := (&venv.Venv{}).WithEnv(map[string]string{"ARM_ENVIRONMENT": "usgovernment"})
+
+	cfg := backend.Config(fullConfig()) // identical config on both sides
+
+	err := azurerm.NewBackend().Migrate(
+		t.Context(), logger.CreateLogger(), srcV, dstV, cfg, cfg, optsWithExperiment(t, true))
+
+	var crossCloud *azurerm.CrossCloudMigrationError
+	require.ErrorAs(t, err, &crossCloud)
+
+	// The clouds came from env vars, not config keys, so the message must fall
+	// back to the resolved identities instead of naming two empty strings.
+	assert.NotEmpty(t, crossCloud.SrcEnvironment)
+	assert.NotEmpty(t, crossCloud.DstEnvironment)
+	assert.NotEqual(t, crossCloud.SrcEnvironment, crossCloud.DstEnvironment)
 }

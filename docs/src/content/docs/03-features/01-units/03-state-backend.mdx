@@ -405,6 +405,32 @@ remote_state {
 }
 ```
 
+Creating a storage account grants no access to the blobs inside it, so an identity using
+`use_azuread_auth` can create the account and still read state as unauthorized. Set
+`assign_blob_data_role` to have bootstrap grant **Storage Blob Data Contributor** on the
+account, which closes that gap:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    # ...
+
+    use_azuread_auth      = true
+    assign_blob_data_role = true
+  }
+}
+```
+
+The role is granted to the identity Terragrunt authenticated as. Set `principal_id` to
+the object id of a user, group, or service principal to grant it to someone else instead.
+The assignment is skipped when it already exists, so reruns need no write permission.
+
+This is opt-in because creating a role assignment requires
+`Microsoft.Authorization/roleAssignments/write` (held by Owner and User Access
+Administrator, but not Contributor), which many CI identities deliberately lack.
+
 When bootstrapping (`terragrunt backend bootstrap` or `--backend-bootstrap`), Terragrunt creates the resource group,
 storage account, and blob container when they do not exist (each step can be skipped with the `skip_*` options below),
 then enables blob versioning and, when requested, soft delete on both new and pre-existing accounts.
@@ -441,7 +467,7 @@ The `environment` key selects the Azure cloud: `public` (the default), `usgovern
 <Aside type="note" title="Known limitations">
 - SAS token and access key authentication are data-plane only: Terragrunt can create the blob container but not the resource group or storage account, which must already exist.
 - With SAS token or access key authentication, or when `resource_group_name` is not set, Terragrunt cannot verify blob versioning (it is an ARM management-plane property), so `backend delete` and `backend migrate` treat the account as unversioned and require the `--force` flag even when versioning is enabled.
-- With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Terragrunt does not yet assign this role automatically.
+- With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Set `assign_blob_data_role = true` to have bootstrap assign it, or grant it out of band.
 - State migration is supported within a single storage account; cross-account migration must be performed manually (init, state pull, state push).
 </Aside>
 </Since>

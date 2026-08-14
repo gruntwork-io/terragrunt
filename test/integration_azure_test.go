@@ -1,0 +1,526 @@
+//go:build azure_integration
+
+// Package test_test contains the Azure end-to-end backend tests.
+//
+// These tests create and destroy real Azure resources, so they are behind the
+// dedicated `azure_integration` build tag rather than the `azure` tag used by
+// the hermetic internal/azurehelper unit tests. Keeping the tags separate means
+// a green `azure` job never implies live coverage.
+//
+// Unlike the hermetic tests, these fail loudly when credentials are absent
+// instead of calling t.Skip. A silently skipped live test reports success and
+// hides the fact that nothing was verified against Azure.
+package test_test
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	testFixtureAzureBackend = "fixtures/azure-backend"
+
+	// azureTestLocation is the region the test resource group and storage
+	// account are created in.
+	azureTestLocation = "eastus"
+
+	// Azure applies role assignment changes asynchronously.
+	azureRBACPropagationTimeout = 3 * time.Minute
+	azureRBACPollInterval       = 5 * time.Second
+
+	// azureCleanupTimeout bounds the post-test teardown, which runs with a
+	// fresh context because the test context is already cancelled by then.
+	azureCleanupTimeout = 5 * time.Minute
+
+	// azureLookupTimeout bounds the resource group lookup.
+	azureLookupTimeout = 2 * time.Minute
+)
+
+// Environment variables the live tests read, most specific first. The ARM_* /
+// AZURE_* names are the ones the azurerm backend and the Azure SDK already
+// honor, so a developer who can run `tofu init` against Azure can run these
+// tests unchanged; the TG_AZURE_TEST_* names let CI scope a dedicated test
+// subscription without redirecting every Azure tool on the runner.
+var (
+	envAzureSubscriptionID = []string{"TG_AZURE_TEST_SUBSCRIPTION_ID", "ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID"}
+	envAzureResourceGroup  = []string{"TG_AZURE_TEST_RESOURCE_GROUP", "AZURE_RES_GROUP_NAME"}
+	envAzureStorageAccount = []string{"TG_AZURE_TEST_STORAGE_ACCOUNT", "ARM_STORAGE_ACCOUNT_NAME"}
+)
+
+// TestAzureBootstrapBackend verifies the three ways a unit can reach a
+// bootstrapped azurerm backend: not at all without the flag, via
+// --backend-bootstrap, and via the explicit `backend bootstrap` command.
+func TestAzureBootstrapBackend(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		checkResult func(t *testing.T, ctx context.Context, stderr string, account, container string, err error)
+		name        string
+		args        string
+	}{
+		{
+			name: "no bootstrap without flag",
+			args: "run apply",
+			checkResult: func(t *testing.T, _ context.Context, stderr string, _, _ string, err error) {
+				t.Helper()
+
+				require.Error(t, err, "a missing container must not be created without --backend-bootstrap")
+				assert.NotEmpty(t, stderr)
+			},
+		},
+		{
+			name: "bootstrap with flag",
+			args: "run apply --backend-bootstrap",
+			checkResult: func(t *testing.T, ctx context.Context, _ string, account, container string, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assertAzureContainerExists(t, ctx, account, container)
+			},
+		},
+		{
+			name: "bootstrap by backend command",
+			args: "backend bootstrap",
+			checkResult: func(t *testing.T, ctx context.Context, _ string, account, container string, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assertAzureContainerExists(t, ctx, account, container)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			account, container, rootPath := setupAzureBackendFixture(t)
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt "+tc.args+" --all --non-interactive --experiment azure-backend --log-level debug --working-dir "+rootPath,
+			)
+
+			tc.checkResult(t, ctx, stderr, account, container, err)
+		})
+	}
+}
+
+// TestAzureBackendVersioningConverges verifies that bootstrap enables blob
+// versioning on the storage account backing the state.
+func TestAzureBackendVersioningConverges(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	account, container, rootPath := setupAzureBackendFixture(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assertAzureContainerExists(t, ctx, account, container)
+
+	cfg := azureTestConfig(ctx, t, account)
+
+	// Blob versioning is an ARM management-plane property. Access-key and SAS
+	// auth cannot reach ARM at all, so there is nothing to assert under them.
+	if cfg.Method == azurehelper.AuthMethodAccessKey || cfg.Method == azurehelper.AuthMethodSasToken {
+		t.Skipf("versioning convergence needs the ARM control plane, which %s auth cannot reach", cfg.Method)
+	}
+
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
+	require.NoError(t, err)
+
+	enabled, err := saClient.IsVersioningEnabled(ctx)
+	require.NoError(t, err)
+	assert.True(t, enabled, "bootstrap must enable blob versioning on the state account")
+}
+
+// TestAzureDeleteBackend verifies that `backend delete` removes the state blob
+// and that the operation is idempotent.
+func TestAzureDeleteBackend(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	account, container, rootPath := setupAzureBackendFixture(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run apply --all --non-interactive --backend-bootstrap --experiment azure-backend --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assertAzureContainerExists(t, ctx, account, container)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend delete --all --non-interactive --force --experiment azure-backend --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	// Deleting again must be a no-op rather than an error.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend delete --all --non-interactive --force --experiment azure-backend --working-dir "+rootPath,
+	)
+	require.NoError(t, err, "backend delete must be idempotent")
+}
+
+// TestAzureBackendRequiresExperiment verifies the experiment gate end to end:
+// an explicit backend command refuses to run without the experiment enabled.
+func TestAzureBackendRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	_, _, rootPath := setupAzureBackendFixture(t)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend delete --all --non-interactive --force --working-dir "+rootPath,
+	)
+
+	require.Error(t, err)
+
+	// The CLI routes the failure through the returned error; stderr carries only
+	// the troubleshooting tip, so assert on the error the user actually gets.
+	assert.Contains(t, err.Error()+stderr, "azure-backend",
+		"the failure must name the experiment the user needs to enable")
+}
+
+// TestAzureAssignsBlobDataRole verifies that bootstrap grants the caller
+// Storage Blob Data Contributor, which creating a storage account does not
+// convey, and that a rerun detects the assignment instead of duplicating it.
+func TestAzureAssignsBlobDataRole(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	// A dedicated account: the assertions add and remove role assignments, and
+	// the shared test account is read concurrently by the azure unit-test job.
+	account, resourceGroup := createAzureTestAccount(t)
+
+	rootPath := azureFixtureForAccount(t, account, resourceGroup, true)
+	cfg := azureTestConfigForAccount(ctx, t, account, resourceGroup)
+
+	principal, err := azurehelper.ResolvePrincipal(ctx, cfg)
+	require.NoError(t, err, "resolving the caller principal from its own token")
+	require.NotEmpty(t, principal.ID)
+
+	rbacClient, err := azurehelper.NewRBACClient(cfg)
+	require.NoError(t, err)
+
+	scope := azurehelper.StorageAccountScope(cfg.SubscriptionID, resourceGroup, account)
+
+	// A fresh account carries no data-plane assignment, which is the gap this
+	// feature closes.
+	waitForRoleAssignment(ctx, t, rbacClient, scope, principal.ID, false)
+
+	bootstrap := "terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir " + rootPath
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, bootstrap)
+	require.NoError(t, err)
+
+	waitForRoleAssignment(ctx, t, rbacClient, scope, principal.ID, true)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, bootstrap)
+	require.NoError(t, err, "bootstrap must be idempotent when the role already exists")
+}
+
+// TestAzureSkipsRoleAssignmentByDefault pins that the assignment is opt-in, so
+// an identity without Microsoft.Authorization/roleAssignments/write is not
+// broken by merely bootstrapping.
+func TestAzureSkipsRoleAssignmentByDefault(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	account, resourceGroup := createAzureTestAccount(t)
+
+	rootPath := azureFixtureForAccount(t, account, resourceGroup, false)
+	cfg := azureTestConfigForAccount(ctx, t, account, resourceGroup)
+
+	rbacClient, err := azurehelper.NewRBACClient(cfg)
+	require.NoError(t, err)
+
+	principal, err := azurehelper.ResolvePrincipal(ctx, cfg)
+	require.NoError(t, err)
+
+	scope := azurehelper.StorageAccountScope(cfg.SubscriptionID, resourceGroup, account)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	has, err := rbacClient.HasRoleAssignment(ctx, scope, principal.ID, azurehelper.RoleStorageBlobDataContributor)
+	require.NoError(t, err)
+	assert.False(t, has, "no role may be assigned unless assign_blob_data_role is set")
+}
+
+// createAzureTestAccount provisions a throwaway storage account and returns it
+// with its resource group, so role-assignment tests never mutate access on the
+// shared account the azure unit-test job reads concurrently.
+func createAzureTestAccount(t *testing.T) (string, string) {
+	t.Helper()
+
+	ctx := t.Context()
+
+	shared := requireAzureEnv(t, envAzureStorageAccount)
+	resourceGroup := azureResourceGroup(ctx, t, shared)
+
+	// Storage account names are 3-24 lowercase alphanumerics.
+	account := "tgrbac" + strings.ToLower(helpers.UniqueID())
+	if len(account) > 24 {
+		account = account[:24]
+	}
+
+	cfg := azureTestConfigForAccount(ctx, t, account, resourceGroup)
+
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
+	require.NoError(t, err)
+
+	require.NoError(t, saClient.Create(ctx, log.New(), &azurehelper.StorageAccountConfig{
+		Name:              account,
+		ResourceGroupName: resourceGroup,
+		Location:          azureTestLocation,
+		AccountKind:       "StorageV2",
+		AccountTier:       "Standard",
+		ReplicationType:   "LRS",
+	}), "creating the throwaway storage account")
+
+	t.Cleanup(func() { deleteAzureTestAccount(saClient) })
+
+	return account, resourceGroup
+}
+
+// deleteAzureTestAccount tears down a throwaway account on its own context,
+// because the test context is cancelled by the time cleanup runs.
+func deleteAzureTestAccount(saClient *azurehelper.StorageAccountClient) {
+	ctx, cancel := context.WithTimeout(context.Background(), azureCleanupTimeout)
+	defer cancel()
+
+	_ = saClient.EnsureDeleted(ctx, log.New())
+}
+
+// azureFixtureForAccount renders the shared fixture against an explicit account.
+func azureFixtureForAccount(t *testing.T, account, resourceGroup string, assignRole bool) string {
+	t.Helper()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAzureBackend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureBackend)
+
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
+	helpers.CopyAndFillMapPlaceholders(t, commonConfigPath, commonConfigPath, map[string]string{
+		"__FILL_IN_STORAGE_ACCOUNT__": account,
+		"__FILL_IN_CONTAINER__":       "tg-test-" + strings.ToLower(helpers.UniqueID()),
+		"__FILL_IN_RESOURCE_GROUP__":  resourceGroup,
+		"__FILL_IN_SUBSCRIPTION_ID__": requireAzureEnv(t, envAzureSubscriptionID),
+		"__FILL_IN_LOCATION__":        azureTestLocation,
+		"__FILL_IN_ASSIGN_ROLE__":     strconv.FormatBool(assignRole),
+	})
+
+	return rootPath
+}
+
+// azureTestConfigForAccount resolves credentials bound to an explicit account.
+func azureTestConfigForAccount(ctx context.Context, t *testing.T, account, resourceGroup string) *azurehelper.AzureConfig {
+	t.Helper()
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     requireAzureEnv(t, envAzureSubscriptionID),
+			ResourceGroupName:  resourceGroup,
+			StorageAccountName: account,
+			UseAzureADAuth:     new(true),
+		}).
+		WithVenv(venv.OSVenv()).
+		Build(log.New())
+	require.NoError(t, err, "resolving Azure credentials")
+
+	return cfg
+}
+
+// waitForRoleAssignment blocks until the assignment reaches want, because Azure
+// applies role assignment changes asynchronously and a read straight after a
+// create or delete still reports the previous state.
+func waitForRoleAssignment(ctx context.Context, t *testing.T, c *azurehelper.RBACClient, scope, principalID string, want bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(azureRBACPropagationTimeout)
+
+	for time.Now().Before(deadline) {
+		has, err := c.HasRoleAssignment(ctx, scope, principalID, azurehelper.RoleStorageBlobDataContributor)
+		require.NoError(t, err)
+
+		if has == want {
+			return
+		}
+
+		time.Sleep(azureRBACPollInterval)
+	}
+
+	t.Fatalf("role assignment did not converge to present=%v within %s", want, azureRBACPropagationTimeout)
+}
+
+// setupAzureBackendFixture copies the fixture, fills in the live account
+// details, and registers cleanup of the container it will create. It returns
+// the storage account, the container name, and the working directory.
+func setupAzureBackendFixture(t *testing.T) (string, string, string) {
+	t.Helper()
+
+	return setupAzureBackendFixtureWithRole(t, false)
+}
+
+// setupAzureBackendFixtureWithRole is setupAzureBackendFixture with control over
+// assign_blob_data_role, which is filled in rather than passed as a feature so
+// the value reaches the config as a bool.
+func setupAzureBackendFixtureWithRole(t *testing.T, assignRole bool) (string, string, string) {
+	t.Helper()
+
+	subscriptionID := requireAzureEnv(t, envAzureSubscriptionID)
+	account := requireAzureEnv(t, envAzureStorageAccount)
+	resourceGroup := azureResourceGroup(t.Context(), t, account)
+
+	// Container names are lowercase alphanumeric with dashes, 3-63 chars.
+	container := "tg-test-" + strings.ToLower(helpers.UniqueID())
+
+	helpers.CleanupTerraformFolder(t, testFixtureAzureBackend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureBackend)
+
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
+	helpers.CopyAndFillMapPlaceholders(t, commonConfigPath, commonConfigPath, map[string]string{
+		"__FILL_IN_STORAGE_ACCOUNT__": account,
+		"__FILL_IN_CONTAINER__":       container,
+		"__FILL_IN_RESOURCE_GROUP__":  resourceGroup,
+		"__FILL_IN_SUBSCRIPTION_ID__": subscriptionID,
+		"__FILL_IN_LOCATION__":        azureTestLocation,
+		"__FILL_IN_ASSIGN_ROLE__":     strconv.FormatBool(assignRole),
+	})
+
+	t.Cleanup(func() { deleteAzureContainer(t, account, container) })
+
+	return account, container, rootPath
+}
+
+// azureResourceGroup returns the resource group holding the test storage
+// account. It is looked up from the subscription when no environment variable
+// names it, so running these tests needs only a subscription and an account:
+// the group is a property of the account, not a separate thing to configure.
+func azureResourceGroup(ctx context.Context, t *testing.T, account string) string {
+	t.Helper()
+
+	for _, name := range envAzureResourceGroup {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+
+	// The lookup needs the ARM control plane. Data-plane-only auth (access key,
+	// SAS) cannot reach it, so those runs must name the group explicitly.
+	// A config with no resource group is enough to reach ARM and ask.
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     requireAzureEnv(t, envAzureSubscriptionID),
+			StorageAccountName: account,
+			UseAzureADAuth:     new(true),
+		}).
+		WithVenv(venv.OSVenv()).
+		Build(log.New())
+	require.NoError(t, err, "resolving Azure credentials")
+
+	lookupCtx, cancel := context.WithTimeout(ctx, azureLookupTimeout)
+	defer cancel()
+
+	group, err := azurehelper.FindResourceGroupForAccount(lookupCtx, cfg, account)
+	require.NoErrorf(t, err,
+		"could not determine the resource group for storage account %q; set %s to name it explicitly",
+		account, strings.Join(envAzureResourceGroup, " or "))
+
+	return group
+}
+
+// azureTestConfig resolves an AzureConfig against the live environment for the
+// given storage account, using the same builder the backend uses.
+func azureTestConfig(ctx context.Context, t *testing.T, account string) *azurehelper.AzureConfig {
+	t.Helper()
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     requireAzureEnv(t, envAzureSubscriptionID),
+			ResourceGroupName:  azureResourceGroup(ctx, t, account),
+			StorageAccountName: account,
+			UseAzureADAuth:     new(true),
+		}).
+		WithVenv(venv.OSVenv()).
+		Build(log.New())
+	require.NoError(t, err, "resolving Azure credentials")
+
+	return cfg
+}
+
+func assertAzureContainerExists(t *testing.T, ctx context.Context, account, container string) {
+	t.Helper()
+
+	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(ctx, t, account))
+	require.NoError(t, err)
+
+	exists, err := blobClient.Container(container).Exists(ctx)
+	require.NoError(t, err)
+	assert.True(t, exists, "container %s must exist in account %s", container, account)
+}
+
+// deleteAzureContainer removes the container a test created. Failures are
+// logged rather than failing the test: the assertions have already run, and a
+// leaked container should not turn a passing test red. The nightly cleanup
+// still reclaims anything left behind.
+func deleteAzureContainer(t *testing.T, account, container string) {
+	t.Helper()
+
+	// A fresh context: the test context is cancelled by the time cleanup runs.
+	ctx, cancel := context.WithTimeout(context.Background(), azureCleanupTimeout)
+	defer cancel()
+
+	blobClient, err := azurehelper.NewBlobClient(azureTestConfig(ctx, t, account))
+	if err != nil {
+		t.Logf("cleanup: building blob client for %s: %v", account, err)
+
+		return
+	}
+
+	if err := blobClient.Container(container).EnsureDeleted(ctx); err != nil {
+		t.Logf("cleanup: deleting container %s/%s: %v", account, container, err)
+	}
+}
+
+// requireAzureEnv returns the first non-empty value among names, failing the
+// test when none is set. These tests deliberately do NOT skip: a skipped live
+// test reports a green run while proving nothing was verified against Azure.
+func requireAzureEnv(t *testing.T, names []string) string {
+	t.Helper()
+
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+
+	require.FailNowf(t, "missing Azure credentials",
+		"set one of %s to run the Azure integration tests", strings.Join(names, ", "))
+
+	return ""
+}

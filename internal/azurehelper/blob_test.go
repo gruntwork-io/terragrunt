@@ -195,12 +195,15 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 
+	// No auth method is forced: the builder resolves whichever credential the
+	// environment supplies, so the round-trip runs under an access key in CI
+	// and under a token credential once a service principal exists.
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			SubscriptionID:     sub,
 			StorageAccountName: account,
-			UseAzureADAuth:     true,
 		}).
+		WithVenv(venv.OSVenv()).
 		Build(log.New())
 	require.NoError(t, err, "Build config")
 

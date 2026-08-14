@@ -1,6 +1,7 @@
 package azurerm
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
@@ -24,6 +25,8 @@ var terragruntOnlyConfigs = []string{
 	"enable_soft_delete",
 	"soft_delete_retention_days",
 	"allow_blob_public_access",
+	"assign_blob_data_role",
+	"principal_id",
 	// msi_resource_id is used by Terragrunt to select a user-assigned managed
 	// identity during bootstrap, but it is NOT a valid azurerm backend argument
 	// (the backend uses msi_endpoint), so it must not reach `tofu init`.
@@ -34,12 +37,14 @@ var terragruntOnlyConfigs = []string{
 // the Terragrunt-only bootstrap options (location, SKU, skip_* toggles) that
 // are stripped before the config is handed to `tofu init -backend-config`.
 type ExtendedRemoteStateConfigAzurerm struct {
-	Tags                     map[string]string        `mapstructure:"tags"`
-	Location                 string                   `mapstructure:"location"`
-	AccountTier              string                   `mapstructure:"account_tier"`
-	AccountReplicationType   string                   `mapstructure:"account_replication_type"`
-	AccountKind              string                   `mapstructure:"account_kind"`
-	AccessTier               string                   `mapstructure:"access_tier"`
+	Tags                   map[string]string `mapstructure:"tags"`
+	Location               string            `mapstructure:"location"`
+	AccountTier            string            `mapstructure:"account_tier"`
+	AccountReplicationType string            `mapstructure:"account_replication_type"`
+	AccountKind            string            `mapstructure:"account_kind"`
+	AccessTier             string            `mapstructure:"access_tier"`
+	// PrincipalID defaults to the identity Terragrunt authenticated as.
+	PrincipalID              string                   `mapstructure:"principal_id"`
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm `mapstructure:",squash"`
 	SoftDeleteRetentionDays  int                      `mapstructure:"soft_delete_retention_days"`
 
@@ -49,12 +54,20 @@ type ExtendedRemoteStateConfigAzurerm struct {
 	SkipVersioning             bool `mapstructure:"skip_versioning"`
 	EnableSoftDelete           bool `mapstructure:"enable_soft_delete"`
 	AllowBlobPublicAccess      bool `mapstructure:"allow_blob_public_access"`
+	// AssignBlobDataRole grants Storage Blob Data Contributor during bootstrap; opt-in because it needs roleAssignments/write.
+	AssignBlobDataRole bool `mapstructure:"assign_blob_data_role"`
 }
 
 // RemoteStateConfigAzurerm mirrors the configuration keys accepted by the
 // `azurerm` Terraform/OpenTofu backend. These are forwarded verbatim to
 // `tofu init -backend-config`.
 type RemoteStateConfigAzurerm struct {
+	// The auth toggles are pointers so an explicitly configured false is
+	// distinguishable from an absent key. Only an absent key may be turned on
+	// by an ARM_USE_* environment variable.
+	UseAzureADAuth     *bool  `mapstructure:"use_azuread_auth"`
+	UseMSI             *bool  `mapstructure:"use_msi"`
+	UseOIDC            *bool  `mapstructure:"use_oidc"`
 	StorageAccountName string `mapstructure:"storage_account_name"`
 	ContainerName      string `mapstructure:"container_name"`
 	Key                string `mapstructure:"key"`
@@ -68,9 +81,6 @@ type RemoteStateConfigAzurerm struct {
 	Environment        string `mapstructure:"environment"`
 	MSIResourceID      string `mapstructure:"msi_resource_id"`
 	OIDCTokenFilePath  string `mapstructure:"oidc_token_file_path"`
-	UseAzureADAuth     bool   `mapstructure:"use_azuread_auth"`
-	UseMSI             bool   `mapstructure:"use_msi"`
-	UseOIDC            bool   `mapstructure:"use_oidc"`
 	// Snapshot is a valid azurerm backend boolean argument. It is declared here
 	// (even though Terragrunt does not act on it) so NormalizeBoolValues coerces
 	// a string "true"/"false" into a real bool before forwarding to `tofu init`.
@@ -137,7 +147,25 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) StorageAccountConfig() *azurehelper
 	}
 }
 
-// Validate checks that the required azurerm remote-state keys are present.
+// CacheKey identifies a bootstrap request, not just a container. It extends the
+// container identity with the policies bootstrap converges, so two units naming
+// the same container with different versioning or soft-delete settings do not
+// share one "already initialized" entry: the second must run its own checks
+// instead of inheriting the first unit's convergence.
+func (cfg *ExtendedRemoteStateConfigAzurerm) CacheKey() string {
+	return strings.Join([]string{
+		cfg.RemoteStateConfigAzurerm.CacheKey(),
+		strconv.FormatBool(cfg.SkipVersioning),
+		strconv.FormatBool(cfg.EnableSoftDelete),
+		strconv.Itoa(cfg.SoftDeleteRetentionDays),
+		strconv.FormatBool(cfg.SkipStorageAccountCreation),
+		strconv.FormatBool(cfg.SkipResourceGroupCreation),
+		strconv.FormatBool(cfg.SkipContainerCreation),
+		strconv.FormatBool(cfg.AssignBlobDataRole),
+		cfg.PrincipalID,
+	}, "|")
+}
+
 // normalize trims surrounding whitespace from every string field.
 // azurehelper.AzureConfigBuilder trims the values it resolves, so without this
 // a padded value (common when CI injects config through naive shell
@@ -158,6 +186,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) normalize() {
 	}
 }
 
+// Validate checks that the required azurerm remote-state keys are present.
 func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	rs := cfg.RemoteStateConfigAzurerm
 

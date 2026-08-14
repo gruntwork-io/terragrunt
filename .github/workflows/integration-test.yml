@@ -109,11 +109,27 @@ jobs:
             tags: azure
             secrets:
               [
-                AZURE_CLIENT_ID,
-                AZURE_CLIENT_SECRET,
-                AZURE_TENANT_ID,
                 TG_AZURE_TEST_STORAGE_ACCOUNT,
                 TG_AZURE_TEST_SUBSCRIPTION_ID,
+                ARM_CLIENT_ID,
+                ARM_CLIENT_SECRET,
+                ARM_TENANT_ID,
+                ARM_SUBSCRIPTION_ID,
+              ]
+          - name: Azure Integration
+            os: ubuntu
+            target: ./test
+            tags: azure_integration
+            run: ^TestAzure
+            secrets:
+              [
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+                TG_AZURE_TEST_RESOURCE_GROUP,
+                ARM_CLIENT_ID,
+                ARM_CLIENT_SECRET,
+                ARM_TENANT_ID,
+                ARM_SUBSCRIPTION_ID,
               ]
           - name: Windows
             os: windows
@@ -224,6 +240,11 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           TG_AZURE_TEST_STORAGE_ACCOUNT: ${{ secrets.TG_AZURE_TEST_STORAGE_ACCOUNT }}
           TG_AZURE_TEST_SUBSCRIPTION_ID: ${{ secrets.TG_AZURE_TEST_SUBSCRIPTION_ID }}
+          TG_AZURE_TEST_RESOURCE_GROUP: ${{ secrets.TG_AZURE_TEST_RESOURCE_GROUP }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
         shell: bash
 
       - name: Setup
