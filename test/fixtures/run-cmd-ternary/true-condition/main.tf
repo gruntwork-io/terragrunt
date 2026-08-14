@@ -1,0 +1,3 @@
+variable "result" {
+  type = string
+}
