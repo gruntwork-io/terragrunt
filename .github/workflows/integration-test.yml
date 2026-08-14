@@ -117,7 +117,7 @@ jobs:
               ]
           - name: OCI Registries
             os: ubuntu
-            target: ./internal/getter/...
+            target: ./test
             tags: ocilive
             run: "^TestOCILive"
             skip: false

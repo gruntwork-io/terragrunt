@@ -1,12 +1,14 @@
 //go:build ocilive
 
-package getter_test
+package test_test
 
 import (
 	"archive/zip"
 	"bytes"
+	"embed"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,19 +34,11 @@ import (
 const (
 	// ociLivePackCreated pins the packed manifest timestamp, so the fixture digest is reproducible locally.
 	ociLivePackCreated = "2026-01-01T00:00:00Z"
+	testFixtureOCILive = "fixtures/oci-live"
 )
 
-// ociLiveFiles is the fixture module tree published by each live test.
-var ociLiveFiles = map[string]string{
-	"main.tf": `output "live" {
-  value = "live"
-}
-`,
-	"modules/sub/main.tf": `output "sub" {
-  value = "sub"
-}
-`,
-}
+//go:embed fixtures/oci-live
+var ociLiveFixtureFS embed.FS
 
 // TestOCILiveECR pulls the published fixture from a real ECR repository through the ecr-login helper.
 func TestOCILiveECR(t *testing.T) {
@@ -126,10 +120,10 @@ func pullOCILiveModule(t *testing.T, home, src string) {
 	_, err := client.Get(t.Context(), &getter.Request{Src: src, Dst: dst})
 	require.NoError(t, err)
 
-	for name, content := range ociLiveFiles {
+	for name, content := range ociLiveFixtureFiles(t) {
 		data, readErr := os.ReadFile(filepath.Join(dst, filepath.FromSlash(name)))
 		require.NoError(t, readErr)
-		require.Equal(t, content, string(data))
+		require.Equal(t, content, data)
 	}
 }
 
@@ -171,10 +165,11 @@ func ociLiveFixtureStaging(t *testing.T) (*memory.Store, ociv1.Descriptor) {
 	var buf bytes.Buffer
 
 	archive := zip.NewWriter(&buf)
+	files := ociLiveFixtureFiles(t)
 
 	// Sorted names keep the zip bytes, and therefore the fixture digest, reproducible.
-	names := make([]string, 0, len(ociLiveFiles))
-	for name := range ociLiveFiles {
+	names := make([]string, 0, len(files))
+	for name := range files {
 		names = append(names, name)
 	}
 
@@ -184,7 +179,7 @@ func ociLiveFixtureStaging(t *testing.T) (*memory.Store, ociv1.Descriptor) {
 		entry, err := archive.Create(name)
 		require.NoError(t, err)
 
-		_, err = entry.Write([]byte(ociLiveFiles[name]))
+		_, err = entry.Write(files[name])
 		require.NoError(t, err)
 	}
 
@@ -210,6 +205,36 @@ func ociLiveFixtureStaging(t *testing.T) (*memory.Store, ociv1.Descriptor) {
 	require.NoError(t, err)
 
 	return staging, manifest
+}
+
+// ociLiveFixtureFiles loads the module tree committed under test/fixtures.
+func ociLiveFixtureFiles(t *testing.T) map[string][]byte {
+	t.Helper()
+
+	files := make(map[string][]byte)
+
+	err := fs.WalkDir(ociLiveFixtureFS, testFixtureOCILive, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		data, err := ociLiveFixtureFS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		files[strings.TrimPrefix(path, testFixtureOCILive+"/")] = data
+
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, files)
+
+	return files
 }
 
 // ociLiveFixtureManifest computes the fixture's manifest descriptor locally, without any registry access.
