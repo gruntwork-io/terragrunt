@@ -149,7 +149,7 @@ func New() strict.Controls {
 	skipBucketRootAccessControl := &Control{
 		Name:        SkipBucketRootAccess,
 		Description: "Prevents the use of the deprecated `skip_bucket_root_access` config attribute. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so the attribute has nothing left to skip.",
-		Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+		Error: errors.New(
 			"The `skip_bucket_root_access` config attribute is no longer supported. Terragrunt does not grant the AWS account root user access to S3 state buckets. Use `enable_bucket_root_access` to grant that access.",
 		),
 		Warning: "The `skip_bucket_root_access` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so this attribute has no effect. Use `enable_bucket_root_access` to grant that access.",
