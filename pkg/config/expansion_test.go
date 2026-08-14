@@ -415,9 +415,8 @@ dependency "vpc" {
 	assert.Equal(t, map[string]bool{"use1": true, "usw2": false}, enabled)
 }
 
-// TestDisabledExpandedDependencySkipsOutputRetrieval covers a whole disabled set: every
-// instance points at a directory that does not exist, so the parse only succeeds if none
-// of them went looking for outputs.
+// TestDisabledExpandedDependencySkipsOutputRetrieval points every instance at a directory
+// that does not exist, so the parse only succeeds if none of them went looking for outputs.
 func TestDisabledExpandedDependencySkipsOutputRetrieval(t *testing.T) {
 	t.Parallel()
 
@@ -450,8 +449,6 @@ dependency "shard" {
 	}
 }
 
-// TestIncludeMergeKeepsEveryExpandedInstance covers an expanded set surviving an include
-// merge, which matches dependencies up by label.
 func TestIncludeMergeKeepsEveryExpandedInstance(t *testing.T) {
 	t.Parallel()
 
@@ -523,8 +520,7 @@ dependency "shard" {
 }
 
 // TestExpandedDependencyCarriesItsOwnOutputConfig covers each instance resolving its own
-// mock outputs. Retrieved outputs cannot be told apart per instance yet: the cty map they
-// land in is still keyed by label alone.
+// mock outputs.
 func TestExpandedDependencyCarriesItsOwnOutputConfig(t *testing.T) {
 	t.Parallel()
 
@@ -564,8 +560,6 @@ dependency "shard" {
 	assert.Equal(t, map[string]string{"0": "shard-0", "1": "shard-1"}, outputs)
 }
 
-// TestJSONConfigDecodesDependencies covers the JSON syntax the expansion-aware decode has
-// to keep serving.
 func TestJSONConfigDecodesDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -617,8 +611,6 @@ func TestJSONExpansionRequiresExperiment(t *testing.T) {
 	assert.Equal(t, "aurora", typed.BlockLabel)
 }
 
-// TestUnknownBlockRemainsRejected guards against the header-only dependency decode
-// loosening the strict schema into absorbing unrecognized blocks as remainder.
 func TestUnknownBlockRemainsRejected(t *testing.T) {
 	t.Parallel()
 

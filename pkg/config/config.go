@@ -807,8 +807,7 @@ type terragruntLocal struct {
 }
 
 // dependencyHeader keeps `dependency` in the config file's schema without evaluating the
-// block body. A block that expands has to be decoded once per element with
-// each.*/count.index bound, which a single whole-file decode cannot express.
+// block body.
 type dependencyHeader struct {
 	Remain hcl.Body `hcl:",remain"`
 	Name   string   `hcl:",label"`

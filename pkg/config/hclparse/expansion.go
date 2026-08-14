@@ -424,8 +424,7 @@ func decodeInstance(block *hcl.Block, outType reflect.Type, ctx *hcl.EvalContext
 		return nil, diags
 	}
 
-	// gohcl fills label fields only when it reaches a block through its parent body.
-	// Expansion decodes the body directly, so labels are assigned here instead.
+	// gohcl assigns label fields only when it decodes a block through its parent body.
 	for i, field := range labelFields(outType.Elem()) {
 		if i >= len(block.Labels) {
 			break

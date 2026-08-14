@@ -269,8 +269,6 @@ func decodeDependencyBlocks(
 		return nil, err
 	}
 
-	// A config with no dependency blocks keeps the nil slice the whole-file decode used to
-	// leave behind, which callers compare against.
 	if len(instances) == 0 {
 		return nil, nil
 	}
