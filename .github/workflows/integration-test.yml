@@ -120,6 +120,7 @@ jobs:
             target: ./test
             tags: ocilive
             run: "^TestOCILive"
+            test_args: "-count=1"
             skip: false
             setup_scripts:
               - .github/scripts/setup/ecr-credential-helper.sh
