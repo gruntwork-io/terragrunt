@@ -1,7 +1,7 @@
 ---
 name: skip-bucket-root-access
 status: active
-since: "1.1.4"
+since: "1.2.0"
 ---
 
 Prevents the use of the deprecated `skip_bucket_root_access` config attribute in the [`remote_state`](/reference/hcl/blocks/#remote_state) block. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so the attribute has nothing left to skip.
