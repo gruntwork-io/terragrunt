@@ -8,37 +8,79 @@ set -euo pipefail
 : "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is not set}"
 : "${GHA_DEPLOY_KEY:?GHA_DEPLOY_KEY is not set}"
 
+: "${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is not set}"
+: "${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY is not set}"
+: "${AWS_TEST_S3_ASSUME_ROLE:?AWS_TEST_S3_ASSUME_ROLE is not set}"
+: "${AWS_TEST_OIDC_ROLE_ARN:?AWS_TEST_OIDC_ROLE_ARN is not set}"
+: "${AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN:?AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN is not set}"
+: "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN:?AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN is not set}"
+
+: "${GCLOUD_SERVICE_KEY:?GCLOUD_SERVICE_KEY is not set}"
+: "${GOOGLE_CLOUD_PROJECT:?GOOGLE_CLOUD_PROJECT is not set}"
+: "${GOOGLE_COMPUTE_ZONE:?GOOGLE_COMPUTE_ZONE is not set}"
+: "${GOOGLE_IDENTITY_EMAIL:?GOOGLE_IDENTITY_EMAIL is not set}"
+: "${GOOGLE_PROJECT_ID:?GOOGLE_PROJECT_ID is not set}"
+: "${GCLOUD_SERVICE_KEY_IMPERSONATOR:?GCLOUD_SERVICE_KEY_IMPERSONATOR is not set}"
+
 # Optional environment variables
 SECRETS="${SECRETS:-}"
 
 touch "$ENV_FILE"
 
-# Values are %q-quoted so shell metacharacters cannot terminate the assignment.
 # Manually export each secret listed in matrix.integration.secrets
 for SECRET in $SECRETS; do
-	if [[ -z "${!SECRET:-}" ]]; then
-		echo "$SECRET is not set" >&2
-		exit 1
+	if [[ "$SECRET" == "GHA_DEPLOY_KEY" && -n "${GHA_DEPLOY_KEY}" ]]; then
+		printf "export GHA_DEPLOY_KEY='%s'\n" "${GHA_DEPLOY_KEY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AWS_ACCESS_KEY_ID" && -n "${AWS_ACCESS_KEY_ID}" ]]; then
+		printf "export AWS_ACCESS_KEY_ID='%s'\n" "${AWS_ACCESS_KEY_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AWS_SECRET_ACCESS_KEY" && -n "${AWS_SECRET_ACCESS_KEY}" ]]; then
+		printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${AWS_SECRET_ACCESS_KEY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY" && -n "${GCLOUD_SERVICE_KEY}" ]]; then
+		printf "export GCLOUD_SERVICE_KEY='%s'\n" "${GCLOUD_SERVICE_KEY}" >>"$ENV_FILE"
+		printf "export GOOGLE_SERVICE_ACCOUNT_JSON='%s'\n" "${GCLOUD_SERVICE_KEY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "GOOGLE_CLOUD_PROJECT" && -n "${GOOGLE_CLOUD_PROJECT}" ]]; then
+		printf "export GOOGLE_CLOUD_PROJECT='%s'\n" "${GOOGLE_CLOUD_PROJECT}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "GOOGLE_COMPUTE_ZONE" && -n "${GOOGLE_COMPUTE_ZONE}" ]]; then
+		printf "export GOOGLE_COMPUTE_ZONE='%s'\n" "${GOOGLE_COMPUTE_ZONE}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "GOOGLE_IDENTITY_EMAIL" && -n "${GOOGLE_IDENTITY_EMAIL}" ]]; then
+		printf "export GOOGLE_IDENTITY_EMAIL='%s'\n" "${GOOGLE_IDENTITY_EMAIL}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "GOOGLE_PROJECT_ID" && -n "${GOOGLE_PROJECT_ID}" ]]; then
+		printf "export GOOGLE_PROJECT_ID='%s'\n" "${GOOGLE_PROJECT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY_IMPERSONATOR" && -n "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" ]]; then
+		printf "export GCLOUD_SERVICE_KEY_IMPERSONATOR='%s'\n" "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AWS_ACCESS_KEY_ID" && -n "${AWS_ACCESS_KEY_ID}" ]]; then
+		printf "export AWS_ACCESS_KEY_ID='%s'\n" "${AWS_ACCESS_KEY_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AWS_SECRET_ACCESS_KEY" && -n "${AWS_SECRET_ACCESS_KEY}" ]]; then
+		printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${AWS_SECRET_ACCESS_KEY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AWS_TEST_S3_ASSUME_ROLE" && -n "${AWS_TEST_S3_ASSUME_ROLE}" ]]; then
+		printf "export AWS_TEST_S3_ASSUME_ROLE='%s'\n" "${AWS_TEST_S3_ASSUME_ROLE}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AWS_TEST_OIDC_ROLE_ARN" && -n "${AWS_TEST_OIDC_ROLE_ARN}" ]]; then
+		printf "export AWS_TEST_OIDC_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_ROLE_ARN}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN" && -n "${AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN}" ]]; then
+		printf "export AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN" && -n "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" ]]; then
+		printf "export AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_CLIENT_ID" && -n "${AZURE_CLIENT_ID:-}" ]]; then
+		printf "export AZURE_CLIENT_ID='%s'\n" "${AZURE_CLIENT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_CLIENT_SECRET" && -n "${AZURE_CLIENT_SECRET:-}" ]]; then
+		printf "export AZURE_CLIENT_SECRET='%s'\n" "${AZURE_CLIENT_SECRET}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_TENANT_ID" && -n "${AZURE_TENANT_ID:-}" ]]; then
+		printf "export AZURE_TENANT_ID='%s'\n" "${AZURE_TENANT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_AZURE_TEST_STORAGE_ACCOUNT" && -n "${TG_AZURE_TEST_STORAGE_ACCOUNT:-}" ]]; then
+		printf "export TG_AZURE_TEST_STORAGE_ACCOUNT='%s'\n" "${TG_AZURE_TEST_STORAGE_ACCOUNT}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_AZURE_TEST_SUBSCRIPTION_ID" && -n "${TG_AZURE_TEST_SUBSCRIPTION_ID:-}" ]]; then
+		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID='%s'\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_AZURE_TEST_RESOURCE_GROUP" && -n "${TG_AZURE_TEST_RESOURCE_GROUP:-}" ]]; then
+		printf "export TG_AZURE_TEST_RESOURCE_GROUP='%s'\n" "${TG_AZURE_TEST_RESOURCE_GROUP}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_CLIENT_ID" && -n "${ARM_CLIENT_ID:-}" ]]; then
+		printf "export ARM_CLIENT_ID='%s'\n" "${ARM_CLIENT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_CLIENT_SECRET" && -n "${ARM_CLIENT_SECRET:-}" ]]; then
+		printf "export ARM_CLIENT_SECRET='%s'\n" "${ARM_CLIENT_SECRET}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_TENANT_ID" && -n "${ARM_TENANT_ID:-}" ]]; then
+		printf "export ARM_TENANT_ID='%s'\n" "${ARM_TENANT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_SUBSCRIPTION_ID" && -n "${ARM_SUBSCRIPTION_ID:-}" ]]; then
+		printf "export ARM_SUBSCRIPTION_ID='%s'\n" "${ARM_SUBSCRIPTION_ID}" >>"$ENV_FILE"
 	fi
-
-	case "$SECRET" in
-	"GCLOUD_SERVICE_KEY")
-		printf "export GCLOUD_SERVICE_KEY=%q\n" "${GCLOUD_SERVICE_KEY}" >>"$ENV_FILE"
-		printf "export GOOGLE_SERVICE_ACCOUNT_JSON=%q\n" "${GCLOUD_SERVICE_KEY}" >>"$ENV_FILE"
-		;;
-	"GHA_DEPLOY_KEY" | "AWS_ACCESS_KEY_ID" | "AWS_SECRET_ACCESS_KEY" | "AWS_TEST_S3_ASSUME_ROLE" | \
-		"AWS_TEST_OIDC_ROLE_ARN" | "AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN" | "AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN" | \
-		"GOOGLE_CLOUD_PROJECT" | "GOOGLE_COMPUTE_ZONE" | "GOOGLE_IDENTITY_EMAIL" | "GOOGLE_PROJECT_ID" | \
-		"GCLOUD_SERVICE_KEY_IMPERSONATOR" | "AZURE_CLIENT_ID" | "AZURE_CLIENT_SECRET" | "AZURE_TENANT_ID" | \
-		"TG_AZURE_TEST_STORAGE_ACCOUNT" | "TG_AZURE_TEST_SUBSCRIPTION_ID" | "TG_AZURE_TEST_RESOURCE_GROUP" | \
-		"ARM_CLIENT_ID" | "ARM_CLIENT_SECRET" | "ARM_TENANT_ID" | "ARM_SUBSCRIPTION_ID")
-		printf "export %s=%q\n" "$SECRET" "${!SECRET}" >>"$ENV_FILE"
-		;;
-	*)
-		echo "$SECRET is not supported" >&2
-		exit 1
-		;;
-	esac
 done
 
 echo "Created environment file with secrets for $NAME"
