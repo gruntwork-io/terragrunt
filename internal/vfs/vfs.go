@@ -414,7 +414,8 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 // WalkDirWithSymlinks walks the file tree rooted at root like [WalkDir] does,
 // additionally descending into the directories that symbolic links resolve to.
 // Paths handed to fn are logical: they read as if the link target lived at the
-// link's own location.
+// link's own location, and a root that is itself reached through a link keeps
+// the spelling the caller passed.
 //
 // Each logical path is reported once, so a directory reachable through several
 // links is visited once, and a link pointing back at an ancestor terminates
@@ -432,7 +433,7 @@ func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
 		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
 	}
 
-	return w.walk(realRoot, realRoot)
+	return w.walk(realRoot, filepath.Clean(root))
 }
 
 // symlinkWalker carries the bookkeeping [WalkDirWithSymlinks] needs across the

@@ -1273,6 +1273,37 @@ func TestWalkDirWithSymlinks(t *testing.T) {
 		}, walkSymlinkedPaths(t, root))
 	})
 
+	t.Run("root reached through a symlink", func(t *testing.T) {
+		t.Parallel()
+
+		base := evaledTempDir(t)
+		target := filepath.Join(base, "target")
+
+		require.NoError(t, os.Mkdir(target, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(target, "test.txt"), []byte("test"), 0644))
+
+		root := filepath.Join(base, "link")
+		require.NoError(t, os.Symlink(target, root))
+
+		var paths []string
+
+		require.NoError(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(path string, _ fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+
+				paths = append(paths, path)
+
+				return nil
+			},
+		))
+
+		assert.Equal(t, []string{root, filepath.Join(root, "test.txt")}, paths)
+	})
+
 	t.Run("missing root", func(t *testing.T) {
 		t.Parallel()
 
