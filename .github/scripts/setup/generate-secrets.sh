@@ -70,6 +70,14 @@ for SECRET in $SECRETS; do
 		printf "export TG_AZURE_TEST_STORAGE_ACCOUNT='%s'\n" "${TG_AZURE_TEST_STORAGE_ACCOUNT}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "TG_AZURE_TEST_SUBSCRIPTION_ID" && -n "${TG_AZURE_TEST_SUBSCRIPTION_ID:-}" ]]; then
 		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID='%s'\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_ECR_REPOSITORY" && -n "${TG_OCI_TEST_ECR_REPOSITORY:-}" ]]; then
+		printf "export TG_OCI_TEST_ECR_REPOSITORY='%s'\n" "${TG_OCI_TEST_ECR_REPOSITORY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_REPOSITORY" && -n "${TG_OCI_TEST_GHCR_REPOSITORY:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_REPOSITORY='%s'\n" "${TG_OCI_TEST_GHCR_REPOSITORY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_USERNAME" && -n "${TG_OCI_TEST_GHCR_USERNAME:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_USERNAME='%s'\n" "${TG_OCI_TEST_GHCR_USERNAME}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_TOKEN" && -n "${TG_OCI_TEST_GHCR_TOKEN:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_TOKEN='%s'\n" "${TG_OCI_TEST_GHCR_TOKEN}" >>"$ENV_FILE"
 	fi
 done
 
