@@ -38,6 +38,9 @@ func (e *CrossAccountMigrationError) Error() string {
 // would then be deleted. Match with errors.As.
 type CrossCloudMigrationError struct {
 	StorageAccount string
+	// SrcEnvironment and DstEnvironment are the RESOLVED cloud identities, so
+	// the message stays meaningful when the cloud came from ARM_ENVIRONMENT
+	// rather than an `environment` config key.
 	SrcEnvironment string
 	DstEnvironment string
 }
