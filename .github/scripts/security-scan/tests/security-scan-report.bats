@@ -29,7 +29,7 @@ setup() {
       "Class": "config",
       "Type": "dockerfile",
       "Misconfigurations": [
-        {"ID": "DS002", "AVDID": "AVD-DS-0002", "Title": "Image user should not be root", "Severity": "MEDIUM", "Status": "FAIL"},
+        {"ID": "DS002", "AVDID": "AVD-DS-0002", "Title": "Image user should not be root", "Severity": "MEDIUM", "Status": "FAIL", "CauseMetadata": {"StartLine": 5}},
         {"ID": "DS999", "AVDID": "AVD-DS-0999", "Title": "Passing check", "Severity": "LOW", "Status": "PASS"}
       ]
     },
@@ -37,7 +37,7 @@ setup() {
       "Target": "config/creds.txt",
       "Class": "secret",
       "Secrets": [
-        {"RuleID": "github-pat", "Category": "GitHub", "Severity": "CRITICAL", "Title": "GitHub Personal Access Token"}
+        {"RuleID": "github-pat", "Category": "GitHub", "Severity": "CRITICAL", "Title": "GitHub Personal Access Token", "StartLine": 10}
       ]
     }
   ]
@@ -179,14 +179,20 @@ EOF
   [ "$status" -eq 0 ]
   [[ "$output" == *"New this week (2)"* ]]
   [[ "$output" == *"Fixed this week (1)"* ]]
-  [[ "$output" == *"github-pat"* ]]
+  [[ "$output" == *"[CRITICAL] github-pat GitHub Personal Access Token (config/creds.txt:10)"* ]]
+  [[ "$output" == *"[LOW] example.com/old 2.0.0 -> 2.0.1 CVE-2020-0001 (go.mod)"* ]]
 }
 
 @test "payload lists the current findings" {
   run "$SCRIPT" payload "$REPORT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Current findings (4)"* ]]
-  [[ "$output" == *"[UNKNOWN] vuln GO-2026-9999 golang.org/x/bar 0.2.0 (go.mod)"* ]]
+  [[ "$output" == *"golang.org/x/bar 0.2.0 GO-2026-9999 (go.mod)"* ]]
+}
+
+@test "payload omits the UNKNOWN severity tag" {
+  run "$SCRIPT" payload "$REPORT"
+  [[ "$output" != *"[UNKNOWN]"* ]]
 }
 
 @test "payload caps the listed findings" {

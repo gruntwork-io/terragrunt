@@ -52,16 +52,21 @@ jq_lib() {
 			else "UNKNOWN" end;
 		def sevrank: {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}[.] // 9;
 		def counts_line: . as $c |
-			(["CRITICAL","HIGH","MEDIUM","LOW","UNKNOWN"]
+			(["CRITICAL","HIGH","MEDIUM","LOW"]
 				| map(. as $s | select(($c[$s] // 0) > 0) | "\($c[$s]) \($s)")
 				| join(", ")) as $by_sev |
 			"\($c.total // 0) total" + (if $by_sev != "" then " (\($by_sev))" else "" end);
+		def loc: .target + (if (.line // 0) > 0 then ":\(.line)" else "" end);
 		def finding_line:
-			"[\(.severity)] \(.class) \(.id)"
-			+ (if .pkg != "" then " \(.pkg)" else "" end)
-			+ (if .installed != "" then " \(.installed)" else "" end)
-			+ (if .fixed != "" then " -> \(.fixed)" else "" end)
-			+ " (\(.target))";
+			(if .severity != "UNKNOWN" then "[\(.severity)] " else "" end)
+			+ (if .class == "vuln" then
+				"\(.pkg) \(.installed)"
+				+ (if .fixed != "" then " -> \(.fixed)" else "" end)
+				+ " \(.id)"
+			else
+				.id + (if .title != "" then " \(.title)" else "" end)
+			end)
+			+ " (\(loc))";
 	JQ
 }
 
@@ -122,6 +127,7 @@ cmd_summary() {
 				id: (.VulnerabilityID // ""),
 				severity: (.Severity | sev),
 				target: ($r.Target // ""),
+				line: 0,
 				pkg: (.PkgName // ""),
 				installed: (.InstalledVersion // ""),
 				fixed: (.FixedVersion // ""),
@@ -132,6 +138,7 @@ cmd_summary() {
 				id: (.AVDID // .ID // ""),
 				severity: (.Severity | sev),
 				target: ($r.Target // ""),
+				line: (.CauseMetadata.StartLine // 0),
 				pkg: "",
 				installed: "",
 				fixed: "",
@@ -142,6 +149,7 @@ cmd_summary() {
 				id: (.RuleID // ""),
 				severity: (.Severity | sev),
 				target: ($r.Target // ""),
+				line: (.StartLine // 0),
 				pkg: "",
 				installed: "",
 				fixed: "",
@@ -222,9 +230,9 @@ cmd_render() {
 	write() { echo "$@" >>"$summary_file"; }
 
 	table() {
-		echo "| Severity | Class | ID | Target | Package | Installed | Fixed |"
-		echo "|----------|-------|----|--------|---------|-----------|-------|"
-		jq -r '.[] | "| \(.severity) | \(.class) | \(.id) | \(.target) | \(.pkg) | \(.installed) | \(.fixed) |"'
+		echo "| Severity | Class | ID | Location | Package | Installed | Fixed |"
+		echo "|----------|-------|----|----------|---------|-----------|-------|"
+		jq -r "$(jq_lib)"'.[] | "| \(.severity) | \(.class) | \(.id) | \(loc) | \(.pkg) | \(.installed) | \(.fixed) |"'
 	}
 
 	write "## Weekly Security Scan"
