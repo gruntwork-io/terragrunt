@@ -3,6 +3,7 @@ package cliconfig
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -137,7 +138,7 @@ func (cfg *Config) Clone() *Config {
 		PluginCacheDir:             cfg.PluginCacheDir,
 		DisableCheckpoint:          cfg.DisableCheckpoint,
 		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
-		Credentials:                cfg.Credentials,
+		Credentials:                slices.Clone(cfg.Credentials),
 		CredentialsHelpers:         cfg.CredentialsHelpers,
 		Hosts:                      hosts,
 		ProviderInstallation:       providerInstallation,
