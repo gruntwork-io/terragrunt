@@ -103,7 +103,7 @@ func TestNewCommandBeforeResolvesTheFormat(t *testing.T) {
 			var buf strings.Builder
 
 			cmd := newListCommand(t, &buf)
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
 			if tc.wantErr {
@@ -156,7 +156,7 @@ func TestNewCommandBeforeResolvesTheMode(t *testing.T) {
 			var buf strings.Builder
 
 			cmd := newListCommand(t, &buf)
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
 			require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
 			assert.Equal(t, tc.wantPaths, strings.Fields(buf.String()))
@@ -184,7 +184,7 @@ func TestNewCommandTreeFlagRendersATree(t *testing.T) {
 			var buf strings.Builder
 
 			cmd := newListCommand(t, &buf)
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
 			require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
 			assert.Equal(t, []string{".", "alpha", "zulu"}, treeLabels(buf.String()))
@@ -229,7 +229,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 			}
 
 			flags := list.NewFlags(newTestLogger(t), list.NewOptions(tgOpts), venvtest.New(), nil)
-			require.NoError(t, flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := flags.RunActions(t.Context(), &clihelper.Context{})
 			if tc.wantErr {
@@ -271,7 +271,7 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 			opts := list.NewOptions(options.NewTerragruntOptions())
 
 			flags := list.NewFlags(newTestLogger(t), opts, venvtest.New(), nil)
-			require.NoError(t, flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
 			assert.Len(t, opts.Filters, tc.wantFilters)
 		})

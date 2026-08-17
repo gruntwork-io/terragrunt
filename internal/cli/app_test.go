@@ -30,7 +30,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1035,15 +1034,17 @@ func runAppTest(
 ) (*options.TerragruntOptions, error) {
 	emptyAction := func(ctx context.Context, cliCtx *clihelper.Context) error { return nil }
 
-	terragruntCommands := commands.New(l, opts, venv.OSVenv())
+	testV := venv.OSVenv()
+
+	terragruntCommands := commands.New(l, opts, testV)
 	setCommandAction(emptyAction, terragruntCommands...)
 
-	app := clihelper.NewApp()
+	app := clihelper.NewApp(testV.Env)
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
 
-	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, venvtest.New(), nil)...)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, venv.OSVenv()))
+	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, testV, nil)...)
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, testV))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx context.Context, cliCtx *clihelper.Context) error {
 		for _, arg := range cliCtx.Args() {
