@@ -1,11 +1,9 @@
 package azurerm
 
 import (
-	"maps"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -34,14 +32,6 @@ func (cfg Config) FilterOutTerragruntKeys() Config {
 	}
 
 	return filtered
-}
-
-// IsEqual returns true if the backend portion of cfg equals targetCfg.
-func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
-	newConfig := backend.Config{}
-	maps.Copy(newConfig, cfg.FilterOutTerragruntKeys())
-
-	return newConfig.IsEqual(backend.Config(targetCfg), BackendName, logger)
 }
 
 // ParseExtendedAzurermConfig parses the raw map into an extended azurerm config

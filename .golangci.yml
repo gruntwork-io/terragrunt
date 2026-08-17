@@ -202,7 +202,7 @@ linters:
 
       - linters:
           - forbidigo
-        path: ^(internal/cli/commands/browse/tui/model\.go|internal/cli/commands/catalog/cli\.go|internal/cli/commands/catalog/tui/form\.go|internal/cli/commands/catalog/tui/tags_layout\.go|internal/cli/commands/commands\.go|internal/cli/commands/hcl/validate/validate\.go|internal/cli/commands/help/cli\.go|internal/cli/commands/render/render\.go|internal/cli/commands/scaffold/cli\.go|internal/cli/commands/scaffold/scaffold\.go)$
+        path: ^(internal/cli/commands/browse/tui/model\.go|internal/cli/commands/catalog/cli\.go|internal/view/tui/form/form\.go|internal/cli/commands/catalog/tui/tags_layout\.go|internal/cli/commands/commands\.go|internal/cli/commands/hcl/validate/validate\.go|internal/cli/commands/help/cli\.go|internal/cli/commands/render/render\.go|internal/cli/commands/scaffold/cli\.go|internal/cli/commands/scaffold/scaffold\.go)$
       # Env-var-backed flags resolve against the process environment rather
       # than the venv's Env map, so every flag parsed from an env var bypasses
       # the seam.
