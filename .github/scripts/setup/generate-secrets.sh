@@ -80,6 +80,14 @@ for SECRET in $SECRETS; do
 		printf "export ARM_TENANT_ID='%s'\n" "${ARM_TENANT_ID}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "ARM_SUBSCRIPTION_ID" && -n "${ARM_SUBSCRIPTION_ID:-}" ]]; then
 		printf "export ARM_SUBSCRIPTION_ID='%s'\n" "${ARM_SUBSCRIPTION_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_ECR_REPOSITORY" && -n "${TG_OCI_TEST_ECR_REPOSITORY:-}" ]]; then
+		printf "export TG_OCI_TEST_ECR_REPOSITORY='%s'\n" "${TG_OCI_TEST_ECR_REPOSITORY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_REPOSITORY" && -n "${TG_OCI_TEST_GHCR_REPOSITORY:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_REPOSITORY='%s'\n" "${TG_OCI_TEST_GHCR_REPOSITORY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_USERNAME" && -n "${TG_OCI_TEST_GHCR_USERNAME:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_USERNAME='%s'\n" "${TG_OCI_TEST_GHCR_USERNAME}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_TOKEN" && -n "${TG_OCI_TEST_GHCR_TOKEN:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_TOKEN='%s'\n" "${TG_OCI_TEST_GHCR_TOKEN}" >>"$ENV_FILE"
 	fi
 done
 

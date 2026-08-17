@@ -134,6 +134,24 @@ jobs:
                 ARM_TENANT_ID,
                 ARM_SUBSCRIPTION_ID,
               ]
+          - name: OCI Registries
+            os: ubuntu
+            target: ./test
+            tags: ocilive
+            run: "^TestOCILive"
+            test_args: "-count=1"
+            skip: false
+            setup_scripts:
+              - .github/scripts/setup/ecr-credential-helper.sh
+            secrets:
+              [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
+                TG_OCI_TEST_ECR_REPOSITORY,
+                TG_OCI_TEST_GHCR_REPOSITORY,
+                TG_OCI_TEST_GHCR_USERNAME,
+                TG_OCI_TEST_GHCR_TOKEN,
+              ]
           - name: Windows
             os: windows
             target: ./...
@@ -248,6 +266,10 @@ jobs:
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          TG_OCI_TEST_ECR_REPOSITORY: ${{ secrets.TG_OCI_TEST_ECR_REPOSITORY }}
+          TG_OCI_TEST_GHCR_REPOSITORY: ${{ secrets.TG_OCI_TEST_GHCR_REPOSITORY }}
+          TG_OCI_TEST_GHCR_USERNAME: ${{ secrets.TG_OCI_TEST_GHCR_USERNAME }}
+          TG_OCI_TEST_GHCR_TOKEN: ${{ secrets.TG_OCI_TEST_GHCR_TOKEN }}
         shell: bash
 
       - name: Setup
