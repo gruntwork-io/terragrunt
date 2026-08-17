@@ -182,6 +182,13 @@ EOF
   [[ "$output" == *"github-pat"* ]]
 }
 
+@test "payload lists the current findings" {
+  run "$SCRIPT" payload "$REPORT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Current findings (4)"* ]]
+  [[ "$output" == *"[UNKNOWN] vuln GO-2026-9999 golang.org/x/bar 0.2.0 (go.mod)"* ]]
+}
+
 @test "payload caps the listed findings" {
   SECURITY_SCAN_NOTIFY_LIMIT=1 run "$SCRIPT" payload "$REPORT"
   [[ "$output" == *"...and 1 more"* ]]

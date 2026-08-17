@@ -314,6 +314,12 @@ cmd_payload() {
 		--argjson limit "$limit" \
 		--slurpfile rep "$report" \
 		"$(jq_lib)"'
+		def listed($items; $label): if ($items | length) > 0 then
+			"\($label) (\($items | length)):\n"
+			+ ([$items[:$limit][] | "  \(finding_line)"] | join("\n"))
+			+ (if ($items | length) > $limit then "\n  ...and \(($items | length) - $limit) more" else "" end)
+		else "" end;
+
 		($rep[0]) as $r |
 
 		(if $r.baseline then
@@ -322,15 +328,11 @@ cmd_payload() {
 			"Findings: \($r.current_counts | counts_line) (was \($r.previous_counts | counts_line))"
 		end) as $totals |
 
-		(def listed($items; $label): if ($items | length) > 0 then
-			"\($label) (\($items | length)):\n"
-			+ ([$items[:$limit][] | "  \(finding_line)"] | join("\n"))
-			+ (if ($items | length) > $limit then "\n  ...and \(($items | length) - $limit) more" else "" end)
-		else "" end;
 		{
 			new: listed($r.new; "New this week"),
-			fixed: listed($r.fixed; "Fixed this week")
-		}) as $lists |
+			fixed: listed($r.fixed; "Fixed this week"),
+			current: listed($r.current_findings; "Current findings")
+		} as $lists |
 
 		(if ($r.baseline | not) and $lists.new == "" then "No new findings this week." else "" end) as $none |
 
@@ -341,6 +343,7 @@ cmd_payload() {
 				+ (if $lists.new != "" then "\n\n" + $lists.new else "" end)
 				+ (if $lists.fixed != "" then "\n\n" + $lists.fixed else "" end)
 				+ (if $none != "" then "\n\n" + $none else "" end)
+				+ (if $lists.current != "" then "\n\n" + $lists.current else "" end)
 				+ "\n\n<\($run_url)|View workflow run>"
 			)
 		}'
