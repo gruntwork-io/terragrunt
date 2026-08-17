@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Resolve the "current" and "previous" commits for the weekly coverage diff and
 # write them (plus their dates) to $GITHUB_OUTPUT.
+# Also used by the weekly security scan (.github/workflows/security-scan-weekly.yml).
 #
 # Current is HEAD. Previous walks the trunk (origin/main) back WINDOW_DAYS, up to
 # 2x that window, for the first commit that differs from HEAD. When none is found

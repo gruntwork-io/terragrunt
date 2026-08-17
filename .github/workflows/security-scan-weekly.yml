@@ -1,0 +1,138 @@
+name: Weekly Security Scan
+
+on:
+  schedule:
+    # Every Monday at 09:17 UTC, shortly after the coverage report
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: security-scan-weekly-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  weekly:
+    name: Weekly Security Diff
+    runs-on: ubuntu-latest
+    env:
+      WINDOW_DAYS: "7"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          # The trunk commit that triggered the scheduled run.
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.5.12
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.74.0
+          cache: true
+
+      - name: Resolve commits
+        id: refs
+        # Reuses the coverage scripts' resolver; keep in sync with coverage-weekly.yml.
+        run: ./.github/scripts/coverage/resolve-commits.sh
+
+      - name: Scan current
+        env:
+          GITHUB_SHA: ${{ steps.refs.outputs.current_sha }}
+        run: |
+          ./.github/scripts/security-scan/security-scan-report.sh scan . current/scan.json
+          ./.github/scripts/security-scan/security-scan-report.sh summary current/scan.json current/scan-summary.json
+
+      - name: Prepare previous checkout
+        if: steps.refs.outputs.same_commit != 'true'
+        env:
+          PREV_SHA: ${{ steps.refs.outputs.previous_sha }}
+        run: git worktree add --detach "../prev" "$PREV_SHA"
+
+      - name: Scan previous
+        if: steps.refs.outputs.same_commit != 'true'
+        env:
+          GITHUB_SHA: ${{ steps.refs.outputs.previous_sha }}
+        # Skip DB/check updates so both scans diff code changes against the same databases.
+        run: |
+          ./.github/scripts/security-scan/security-scan-report.sh scan ../prev previous/scan.json --skip-db-update --skip-check-update
+          ./.github/scripts/security-scan/security-scan-report.sh summary previous/scan.json previous/scan-summary.json
+
+      - name: Compare findings
+        # A missing/empty previous summary yields a baseline (current-only) report.
+        run: ./.github/scripts/security-scan/security-scan-report.sh compare current/scan-summary.json previous/scan-summary.json security-scan-report.json
+
+      - name: Write step summary
+        if: always()
+        run: ./.github/scripts/security-scan/security-scan-report.sh render security-scan-report.json
+
+      - name: Upload raw scan (current)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scan-current.json
+          path: current/scan.json
+          retention-days: 90
+
+      - name: Upload raw scan (previous)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scan-previous.json
+          path: previous/scan.json
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Upload scan summary (current)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scan-summary-current.json
+          path: current/scan-summary.json
+          retention-days: 90
+
+      - name: Upload scan summary (previous)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scan-summary-previous.json
+          path: previous/scan-summary.json
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Upload security-scan-report.json
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-scan-report.json
+          path: security-scan-report.json
+          retention-days: 90
+
+      - name: Notify Slack
+        if: always() && hashFiles('security-scan-report.json') != '' && env.SECURITY_SCAN_SLACK_WEBHOOK_URL != ''
+        env:
+          SECURITY_SCAN_SLACK_WEBHOOK_URL: ${{ secrets.SECURITY_SCAN_SLACK_WEBHOOK_URL || secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+          CURRENT_SHA: ${{ steps.refs.outputs.current_sha }}
+          CURRENT_DATE: ${{ steps.refs.outputs.current_date }}
+          PREVIOUS_SHA: ${{ steps.refs.outputs.previous_sha }}
+          PREVIOUS_DATE: ${{ steps.refs.outputs.previous_date }}
+          REPO: ${{ github.repository }}
+        run: ./.github/scripts/security-scan/security-scan-report.sh notify security-scan-report.json
+
+      - name: Notify Slack (run failed)
+        # A failed scan would otherwise be a silent missed week.
+        if: failure() && hashFiles('security-scan-report.json') == '' && env.SECURITY_SCAN_SLACK_WEBHOOK_URL != ''
+        env:
+          SECURITY_SCAN_SLACK_WEBHOOK_URL: ${{ secrets.SECURITY_SCAN_SLACK_WEBHOOK_URL || secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+        run: ./.github/scripts/security-scan/security-scan-report.sh notify-failure
