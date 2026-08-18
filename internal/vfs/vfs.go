@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -108,11 +109,91 @@ func FileExists(vfs FS, path string) (bool, error) {
 	return false, err
 }
 
+// Exists reports whether path is present on the given filesystem. A path that
+// cannot be stat'd counts as absent, so an entry the caller may not read reads
+// the same as one that is not there. Use [FileExists] to tell those apart.
+func Exists(fsys FS, path string) bool {
+	_, err := fsys.Stat(path)
+	return err == nil
+}
+
 // IsDir reports whether path is a directory on the given filesystem,
 // following symlinks. A path that cannot be stat'd is not a directory.
 func IsDir(fsys FS, path string) bool {
 	info, err := fsys.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// checksumReadBlock is the block size FileSHA256 hashes with.
+const checksumReadBlock = 8192
+
+// IsFile reports whether path points to a regular file. A path that cannot be
+// stat'd is not a file.
+func IsFile(fsys FS, path string) bool {
+	info, err := fsys.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+// EnsureDirectory creates the directory at path, and any missing parents, when
+// nothing is there yet. A path already occupied by a file yields
+// [PathIsNotDirectory].
+func EnsureDirectory(fsys FS, path string) error {
+	if IsFile(fsys, path) {
+		return PathIsNotDirectory{path: path}
+	}
+
+	if Exists(fsys, path) {
+		return nil
+	}
+
+	const ownerReadWriteExecutePerms = 0o700
+
+	return fsys.MkdirAll(path, ownerReadWriteExecutePerms)
+}
+
+// IsDirectoryEmpty reports whether path is a directory holding no entries.
+func IsDirectoryEmpty(fsys FS, path string) (retEmpty bool, retErr error) {
+	dir, err := fsys.Open(path)
+	if err != nil {
+		return false, err
+	}
+
+	defer func() {
+		if err := dir.Close(); err != nil && retErr == nil {
+			retEmpty, retErr = false, err
+		}
+	}()
+
+	// Reading a single entry is enough to answer the question, so a directory
+	// holding a million files costs the same as one holding one.
+	if _, err := dir.Readdir(1); err == nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// FileSHA256 returns the SHA256 of the file at path, read in fixed-size blocks
+// so hashing a large archive does not pull it entirely into memory.
+func FileSHA256(fsys FS, path string) (_ []byte, retErr error) {
+	file, err := fsys.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	hash := sha256.New()
+
+	if _, err := io.CopyBuffer(hash, file, make([]byte, checksumReadBlock)); err != nil {
+		return nil, err
+	}
+
+	return hash.Sum(nil), nil
 }
 
 // CopyFile copies a file from source to destination on the given filesystem,
@@ -175,6 +256,18 @@ func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 // ReadFile reads the contents of a file from the given filesystem.
 func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
+}
+
+// ReadFileAsString reads the contents of a file from the given filesystem as a
+// string, annotating the failure with the path so a caller reading several
+// files can tell which one failed.
+func ReadFileAsString(fsys FS, filename string) (string, error) {
+	contents, err := ReadFile(fsys, filename)
+	if err != nil {
+		return "", fmt.Errorf("error reading file at path %s: %w", filename, err)
+	}
+
+	return string(contents), nil
 }
 
 // ReadFileLimit reads up to limit bytes from the start of a file on the given
@@ -414,7 +507,8 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 // WalkDirWithSymlinks walks the file tree rooted at root like [WalkDir] does,
 // additionally descending into the directories that symbolic links resolve to.
 // Paths handed to fn are logical: they read as if the link target lived at the
-// link's own location.
+// link's own location, and a root that is itself reached through a link keeps
+// the spelling the caller passed.
 //
 // Each logical path is reported once, so a directory reachable through several
 // links is visited once, and a link pointing back at an ancestor terminates
@@ -432,7 +526,7 @@ func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
 		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
 	}
 
-	return w.walk(realRoot, realRoot)
+	return w.walk(realRoot, filepath.Clean(root))
 }
 
 // symlinkWalker carries the bookkeeping [WalkDirWithSymlinks] needs across the

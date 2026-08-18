@@ -767,10 +767,11 @@ type terragruntConfigFile struct {
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
-	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
-	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
-	Exclude                  *ExcludeConfig      `hcl:"exclude,block"`
-	Errors                   *ErrorsConfig       `hcl:"errors,block"`
+	DependencyBlocks         []dependencyHeader  `hcl:"dependency,block"`
+	TerragruntDependencies   []Dependency
+	FeatureFlags             []*FeatureFlag `hcl:"feature,block"`
+	Exclude                  *ExcludeConfig `hcl:"exclude,block"`
+	Errors                   *ErrorsConfig  `hcl:"errors,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -803,6 +804,13 @@ type terragruntConfigFile struct {
 // routine that allows references to the other locals in the same block.
 type terragruntLocal struct {
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// dependencyHeader keeps `dependency` in the config file's schema without evaluating the
+// block body.
+type dependencyHeader struct {
+	Remain hcl.Body `hcl:",remain"`
+	Name   string   `hcl:",label"`
 }
 
 type terragruntIncludeIgnore struct {
@@ -1091,7 +1099,7 @@ func (args *TerraformExtraArguments) String() string {
 		args.EnvVars)
 }
 
-func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
+func (args *TerraformExtraArguments) GetVarFiles(l log.Logger, fsys vfs.FS) []string {
 	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
@@ -1104,7 +1112,7 @@ func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
 	// duplicates.
 	if args.OptionalVarFiles != nil {
 		for _, file := range util.RemoveDuplicatesKeepLast(*args.OptionalVarFiles) {
-			if util.FileExists(file) {
+			if vfs.Exists(fsys, file) {
 				varFiles = append(varFiles, file)
 			} else {
 				l.Debugf("Skipping var-file %s as it does not exist", file)
@@ -1693,7 +1701,16 @@ func DetectInputsCtyUsage(file *hclparse.File) bool {
 				continue
 			}
 
-			attrTraversal, ok := traversal[2].(hcl.TraverseAttr)
+			rest := traversal[2:]
+			if _, indexed := rest[0].(hcl.TraverseIndex); indexed {
+				rest = rest[1:]
+			}
+
+			if len(rest) == 0 {
+				continue
+			}
+
+			attrTraversal, ok := rest[0].(hcl.TraverseAttr)
 			if !ok || attrTraversal.Name != MetadataInputs {
 				continue
 			}
@@ -1828,6 +1845,13 @@ func decodeAsTerragruntConfigFile(
 
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
+
+	dependencies, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
+	if err != nil {
+		return &terragruntConfig, err
+	}
+
+	terragruntConfig.TerragruntDependencies = dependencies
 
 	if terragruntConfig.Inputs != nil {
 		inputs, err := ctyhelper.UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
@@ -2270,7 +2294,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 			fullPath = path.Join(ctx.WorkingDir, fullPath)
 		}
 
-		if !util.IsDir(fullPath) {
+		if !vfs.IsDir(ctx.Venv.FS, fullPath) {
 			missingDependencies = append(
 				missingDependencies,
 				fmt.Sprintf("%s (%s)", dependencyPath, fullPath),

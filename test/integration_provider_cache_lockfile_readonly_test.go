@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +42,7 @@ func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 			appPath,
 		))
 
-		assert.True(t, util.FileExists(filepath.Join(appPath, lockfileName)),
+		assert.FileExists(t, filepath.Join(appPath, lockfileName),
 			"provider cache should generate the lock file when -lockfile=readonly is not set")
 	})
 
@@ -58,7 +57,7 @@ func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 		))
 
 		require.Error(t, err, "init must fail because the lock file is missing and read-only")
-		assert.False(t, util.FileExists(filepath.Join(appPath, lockfileName)),
+		assert.NoFileExists(t, filepath.Join(appPath, lockfileName),
 			"provider cache must not generate the lock file when -lockfile=readonly is set")
 		assert.NotContains(t, stderr, lockfileReadonlyLogMessage,
 			"skipping the lock file is the requested behaviour, so it must not be logged above debug level")
@@ -95,9 +94,9 @@ func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 		))
 
 		require.Error(t, err, "init must fail because the lock file is missing and read-only")
-		assert.False(
+		assert.NoFileExists(
 			t,
-			util.FileExists(filepath.Join(appPath, lockfileName)),
+			filepath.Join(appPath, lockfileName),
 			"provider cache must not generate the lock file when TF_CLI_ARGS_init requests -lockfile=readonly",
 		)
 	})

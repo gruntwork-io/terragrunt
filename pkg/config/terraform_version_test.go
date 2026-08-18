@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -43,7 +44,7 @@ terraform {
 	require.NotNil(t, terragruntConfig.Terraform.Version)
 	assert.Equal(t, "~> 3.3", *terragruntConfig.Terraform.Version)
 
-	runConfig := terragruntConfig.ToRunConfig(l)
+	runConfig := terragruntConfig.ToRunConfig(l, vfs.NewOSFS())
 	require.NotNil(t, runConfig)
 	assert.Equal(t, "~> 3.3", runConfig.Terraform.Version)
 }

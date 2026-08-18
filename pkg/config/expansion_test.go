@@ -2,7 +2,10 @@ package config_test
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -12,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -36,6 +40,12 @@ unit "app" {
   source = "./modules/app"
   path   = "app"
 }
+`
+
+const jsonConfigPath = "terragrunt.hcl.json"
+
+const jsonDependencyWithExpansion = `
+{"dependency": {"aurora": {"expansion": {"count": 2}, "config_path": "../aurora-${count.index}"}}}
 `
 
 const stackWithExpansionHCL = `
@@ -320,23 +330,307 @@ func TestExpansionRequiresExperimentErrorNamesTheFlag(t *testing.T) {
 	assert.NotContains(t, unlabeled.Error(), `""`)
 }
 
-func TestDependencyDecodesExpansionBlock(t *testing.T) {
+func TestDependencyExpandsForEach(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := parseDependencyString(t, dependencyWithExpansionHCL)
+	cfg, err := parseDependencyString(t, `
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path = "../${each.value}/aurora"
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 2)
+
+	keys := make([]string, 0, len(cfg.TerragruntDependencies))
+	paths := make([]string, 0, len(cfg.TerragruntDependencies))
+
+	for _, dep := range cfg.TerragruntDependencies {
+		require.NotNil(t, dep.Expansion)
+		assert.Equal(t, "aurora", dep.Name)
+
+		keys = append(keys, dep.Expansion.Key())
+		paths = append(paths, dep.ConfigPath.AsString())
+	}
+
+	assert.ElementsMatch(t, []string{"web", "api"}, keys)
+	assert.ElementsMatch(t, []string{"../web/aurora", "../api/aurora"}, paths)
+}
+
+func TestDependencyExpandsCount(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyString(t, `
+dependency "shard" {
+  expansion {
+    count = 3
+  }
+
+  config_path = "../shard-${count.index}"
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 3)
+
+	for index, dep := range cfg.TerragruntDependencies {
+		require.NotNil(t, dep.Expansion)
+		assert.Equal(t, strconv.Itoa(index), dep.Expansion.Key())
+		assert.Equal(t, "../shard-"+strconv.Itoa(index), dep.ConfigPath.AsString())
+	}
+}
+
+// TestDependencyExpansionResolvesPerInstance covers attributes other than config_path
+// resolving separately per element.
+func TestDependencyExpansionResolvesPerInstance(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyString(t, `
+locals {
+  regions = {
+    use1 = true
+    usw2 = false
+  }
+}
+
+dependency "vpc" {
+  expansion {
+    for_each = local.regions
+  }
+
+  config_path = "../${each.key}/vpc"
+  enabled     = each.value
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 2)
+
+	enabled := map[string]bool{}
+
+	for _, dep := range cfg.TerragruntDependencies {
+		require.NotNil(t, dep.Enabled)
+		enabled[dep.Expansion.Key()] = *dep.Enabled
+	}
+
+	assert.Equal(t, map[string]bool{"use1": true, "usw2": false}, enabled)
+}
+
+// TestDisabledExpandedDependencySkipsOutputRetrieval points every instance at a directory
+// that does not exist, so the parse only succeeds if none of them went looking for outputs.
+func TestDisabledExpandedDependencySkipsOutputRetrieval(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	cfg, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  enabled     = false
+  config_path = "../no-such-unit-${count.index}"
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 2)
+
+	for _, dep := range cfg.TerragruntDependencies {
+		require.NotNil(t, dep.Enabled)
+		assert.False(t, *dep.Enabled)
+		assert.Nil(t, dep.RenderedOutputs)
+	}
+}
+
+func TestIncludeMergeKeepsEveryExpandedInstance(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		mergeStrategy string
+	}{
+		{name: "shallow merge"},
+		{name: "deep merge", mergeStrategy: `merge_strategy = "deep"`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+
+			require.NoError(t, os.MkdirAll(filepath.Join(dir, "network"), 0o755))
+			require.NoError(t, os.MkdirAll(filepath.Join(dir, "logging"), 0o755))
+
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(`
+dependencies {
+  paths = ["./network"]
+}
+
+dependency "vpc" {
+  enabled     = false
+  config_path = "../vpc"
+}
+`), 0o644))
+
+			configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
+			require.NoError(t, os.WriteFile(configPath, []byte(`
+include "root" {
+  path = "root.hcl"
+  `+tc.mergeStrategy+`
+}
+
+dependencies {
+  paths = ["./logging"]
+}
+
+dependency "shard" {
+  expansion {
+    count = 3
+  }
+
+  enabled     = false
+  config_path = "../shard-${count.index}"
+}
+`), 0o644))
+
+			ctx, pctx := newExpansionParsingContext(t, configPath)
+
+			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+			require.NoError(t, err)
+
+			keys := make([]string, 0, len(cfg.TerragruntDependencies))
+
+			for _, dep := range cfg.TerragruntDependencies {
+				if dep.Name == "shard" {
+					keys = append(keys, dep.Expansion.Key())
+				}
+			}
+
+			assert.Equal(t, []string{"0", "1", "2"}, keys)
+		})
+	}
+}
+
+// TestExpandedDependencyCarriesItsOwnOutputConfig covers each instance resolving its own
+// mock outputs.
+func TestExpandedDependencyCarriesItsOwnOutputConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	cfg, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path  = "../shard-${count.index}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "shard-${count.index}"
+  }
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 2)
+
+	outputs := map[string]string{}
+
+	for _, dep := range cfg.TerragruntDependencies {
+		require.NotNil(t, dep.MockOutputs)
+		outputs[dep.Expansion.Key()] = dep.MockOutputs.GetAttr("id").AsString()
+	}
+
+	assert.Equal(t, map[string]string{"0": "shard-0", "1": "shard-1"}, outputs)
+}
+
+func TestJSONConfigDecodesDependencies(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyJSONString(t, `
+{"dependency": {"vpc": {"config_path": "../vpc", "enabled": false}}}
+`)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
 
-	dep := cfg.TerragruntDependencies[0]
-	require.NotNil(t, dep.Expansion)
-	require.NotNil(t, dep.Expansion.ForEach)
+	assert.Equal(t, "vpc", cfg.TerragruntDependencies[0].Name)
+	assert.Equal(t, cty.StringVal("../vpc"), cfg.TerragruntDependencies[0].ConfigPath)
+	assert.Nil(t, cfg.TerragruntDependencies[0].Expansion)
+}
 
-	assert.Equal(
-		t,
-		cty.SetVal([]cty.Value{cty.StringVal("web"), cty.StringVal("api")}),
-		*dep.Expansion.ForEach,
+func TestJSONConfigExpandsDependencies(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyJSONString(t, jsonDependencyWithExpansion)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 2)
+
+	paths := make([]string, 0, len(cfg.TerragruntDependencies))
+	for _, dep := range cfg.TerragruntDependencies {
+		paths = append(paths, dep.ConfigPath.AsString())
+	}
+
+	assert.Equal(t, []string{"../aurora-0", "../aurora-1"}, paths)
+}
+
+func TestJSONExpansionRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	skipInExperimentMode(t)
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), jsonConfigPath)
+
+	_, err := config.PartialParseConfigString(
+		ctx,
+		pctx.WithDecodeList(config.DependencyBlock),
+		logger.CreateLogger(),
+		jsonConfigPath,
+		jsonDependencyWithExpansion,
+		nil,
 	)
-	assert.Nil(t, dep.Expansion.Count)
+
+	var typed config.ExpansionRequiresExperimentError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "dependency", typed.BlockType)
+	assert.Equal(t, "aurora", typed.BlockLabel)
+}
+
+func TestUnknownBlockRemainsRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	_, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+bogus "x" {
+  foo = 1
+}
+`,
+		nil,
+	)
+	require.Error(t, err)
 }
 
 func TestUnitAndStackDecodeExpansionBlock(t *testing.T) {
@@ -512,6 +806,438 @@ func TestDependencyCtyShapeExcludesExpansionMetadata(t *testing.T) {
 	}, attrs)
 }
 
+// TestDependencyOutputsAddressedByInstanceKey pins the address an expanded dependency answers to,
+// alongside an unexpanded block in the same config to hold its unkeyed address steady.
+func TestDependencyOutputsAddressedByInstanceKey(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	cfg, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "vpc" {
+  config_path  = "../vpc"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "vpc-main"
+  }
+}
+
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path  = "../aurora-${each.key}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "aurora-${each.key}"
+  }
+}
+
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path  = "../shard-${count.index}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "shard-${count.index}"
+  }
+}
+
+inputs = {
+  vpc_id      = dependency.vpc.outputs.id
+  vpc_outputs = dependency.vpc.outputs
+  web         = dependency.aurora["web"].outputs.id
+  api         = dependency.aurora["api"].outputs.id
+  first       = dependency.shard["0"].outputs.id
+  second      = dependency.shard["1"].outputs.id
+  unquoted    = dependency.shard[0].outputs.id
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{
+		"vpc_id":      "vpc-main",
+		"vpc_outputs": map[string]any{"id": "vpc-main"},
+		"web":         "aurora-web",
+		"api":         "aurora-api",
+		"first":       "shard-0",
+		"second":      "shard-1",
+		"unquoted":    "shard-0",
+	}, cfg.Inputs)
+}
+
+// TestDependencyOutputsRejectExpandedBlockWithoutKey holds the keyed level to being the only
+// address for an expanded block, since a config that reached past it would be reading an
+// arbitrary instance.
+func TestDependencyOutputsRejectExpandedBlockWithoutKey(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	_, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web"])
+  }
+
+  config_path  = "../aurora-${each.key}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "aurora-${each.key}"
+  }
+}
+
+inputs = {
+  id = dependency.aurora.outputs.id
+}
+`,
+		nil,
+	)
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+	require.Len(t, diags, 1)
+	// Naming the diagnostic keeps the test from passing on any other evaluation failure the
+	// fixture might grow.
+	assert.Equal(t, "Unsupported attribute", diags[0].Summary)
+}
+
+// TestDependencyOutputsEncodeDivergentSchemasPerKey covers instances whose outputs share no
+// schema, so encoding cannot lean on the keys agreeing on a type.
+func TestDependencyOutputsEncodeDivergentSchemasPerKey(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	cfg, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "mixed" {
+  expansion {
+    for_each = {
+      a = { id = "mixed-a" }
+      b = { name = "mixed-b", size = 3 }
+    }
+  }
+
+  config_path  = "../mixed-${each.key}"
+  skip_outputs = true
+
+  mock_outputs = each.value
+}
+
+inputs = {
+  a_id   = dependency.mixed["a"].outputs.id
+  b_name = dependency.mixed["b"].outputs.name
+  b_size = dependency.mixed["b"].outputs.size
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{
+		"a_id":   "mixed-a",
+		"b_name": "mixed-b",
+		"b_size": json.Number("3"),
+	}, cfg.Inputs)
+}
+
+// TestDependencyInstanceKeysMatchAddressableKeys ties the key the parser reports for an instance
+// to the key a config writes to reach it.
+func TestDependencyInstanceKeysMatchAddressableKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	cfg, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "numbered" {
+  expansion {
+    for_each = toset([1, 2])
+  }
+
+  config_path  = "../numbered-${each.key}"
+  skip_outputs = true
+
+  mock_outputs = {
+    engine_key = each.key
+  }
+}
+
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path  = "../shard-${count.index}"
+  skip_outputs = true
+
+  mock_outputs = {
+    engine_key = tostring(count.index)
+  }
+}
+
+inputs = {
+  numbered = {
+    "1" = dependency.numbered["1"].outputs.engine_key
+    "2" = dependency.numbered["2"].outputs.engine_key
+  }
+
+  shard = {
+    "0" = dependency.shard["0"].outputs.engine_key
+    "1" = dependency.shard["1"].outputs.engine_key
+  }
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+
+	addressed := map[string]map[string]any{}
+
+	for _, name := range []string{"numbered", "shard"} {
+		byKey, ok := cfg.Inputs[name].(map[string]any)
+		require.True(t, ok)
+
+		addressed[name] = byKey
+	}
+
+	reported := map[string][]string{}
+
+	for _, dep := range cfg.TerragruntDependencies {
+		require.NotNil(t, dep.Expansion)
+
+		key := dep.Expansion.Key()
+		reported[dep.Name] = append(reported[dep.Name], key)
+
+		// The instance recorded the key the expansion engine handed its body, so an address
+		// built from Key() only lands here if both agree on the stringification.
+		assert.Equal(t, key, addressed[dep.Name][key])
+	}
+
+	assert.Equal(t, map[string][]string{
+		"numbered": {"1", "2"},
+		"shard":    {"0", "1"},
+	}, reported)
+}
+
+// TestDependencyOutputsAddressEmptyEachKey covers an each.key that is itself the empty string,
+// which is a key like any other and must not read as an absent one.
+func TestDependencyOutputsAddressEmptyEachKey(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	cfg, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "mixed" {
+  expansion {
+    for_each = toset(["", "web"])
+  }
+
+  config_path  = "../mixed-${each.key}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "mixed-${each.key}"
+  }
+}
+
+inputs = {
+  blank = dependency.mixed[""].outputs.id
+  web   = dependency.mixed["web"].outputs.id
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{
+		"blank": "mixed-",
+		"web":   "mixed-web",
+	}, cfg.Inputs)
+}
+
+// TestDependencyLabelClaimedByBlockAndInstances covers a label that has to address both a whole
+// block and a set of instances, which include merging is free to produce.
+func TestDependencyLabelClaimedByBlockAndInstances(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	_, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "aurora" {
+  config_path  = "../aurora"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "aurora-main"
+  }
+}
+
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web"])
+  }
+
+  config_path  = "../aurora-${each.key}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "aurora-${each.key}"
+  }
+}
+
+inputs = {
+  id = dependency.aurora["web"].outputs.id
+}
+`,
+		nil,
+	)
+
+	var collision config.DependencyLabelCollisionError
+	require.ErrorAs(t, err, &collision)
+	assert.Equal(t, "aurora", collision.Name)
+}
+
+// TestDependencyOutputsResolveUnknownWhenOutputsSkipped covers hcl validate, where the placeholder
+// standing in for unresolved outputs has to sit below the keyed level to be reachable.
+func TestDependencyOutputsResolveUnknownWhenOutputsSkipped(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx.SkipOutput = true
+	pctx.SkipOutputsResolution = true
+
+	_, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path = "../does-not-exist-${each.key}"
+}
+
+inputs = {
+  web = dependency.aurora["web"].outputs.id
+  api = dependency.aurora["api"].outputs.id
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+}
+
+// TestDependencyInstancesAccumulateWithRacing drives enough instances through the concurrent
+// output resolution to give the race detector something to catch.
+func TestDependencyInstancesAccumulateWithRacing(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	cfg, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "vpc" {
+  config_path  = "../vpc"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "vpc-main"
+  }
+}
+
+dependency "shard" {
+  expansion {
+    count = 40
+  }
+
+  config_path  = "../shard-${count.index}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "shard-${count.index}"
+  }
+}
+
+dependency "region" {
+  expansion {
+    for_each = toset([for i in range(40) : "r${i}"])
+  }
+
+  config_path  = "../region-${each.key}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = "region-${each.key}"
+  }
+}
+
+inputs = {
+  vpc          = dependency.vpc.outputs.id
+  first_shard  = dependency.shard["0"].outputs.id
+  last_shard   = dependency.shard["39"].outputs.id
+  first_region = dependency.region["r0"].outputs.id
+  last_region  = dependency.region["r39"].outputs.id
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{
+		"vpc":          "vpc-main",
+		"first_shard":  "shard-0",
+		"last_shard":   "shard-39",
+		"first_region": "region-r0",
+		"last_region":  "region-r39",
+	}, cfg.Inputs)
+}
+
 func parseDependencyString(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
@@ -533,6 +1259,24 @@ func parseDependencyErr(tb testing.TB, cfg string) error {
 	_, err := parseDependencyString(tb, cfg)
 
 	return err
+}
+
+func parseDependencyJSONString(
+	tb testing.TB,
+	cfg string,
+) (*config.TerragruntConfig, error) {
+	tb.Helper()
+
+	ctx, pctx := newExpansionParsingContext(tb, jsonConfigPath)
+
+	return config.PartialParseConfigString(
+		ctx,
+		pctx.WithDecodeList(config.DependencyBlock),
+		logger.CreateLogger(),
+		jsonConfigPath,
+		cfg,
+		nil,
+	)
 }
 
 func parseStackString(tb testing.TB, cfg string) (*config.StackConfig, error) {

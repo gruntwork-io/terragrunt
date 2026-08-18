@@ -58,10 +58,12 @@ type Backend interface {
 	Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, config Config, opts *Options) error
 
 	// Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
+	//
+	// srcV and dstV are the source and destination environments used by backend-specific migration validation.
 	Migrate(
 		ctx context.Context,
 		l log.Logger,
-		v *venv.Venv,
+		srcV, dstV *venv.Venv,
 		srcConfig, dstConfig Config,
 		opts *Options,
 	) error

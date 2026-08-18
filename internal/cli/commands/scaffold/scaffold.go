@@ -207,7 +207,7 @@ func Prepare(
 	}
 
 	// scaffold only in empty directories
-	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
+	if empty, err := vfs.IsDirectoryEmpty(v.FS, opts.WorkingDir); !empty || err != nil {
 		if err != nil {
 			return nil, err
 		}
@@ -738,7 +738,7 @@ func prepareBoilerplateFiles(
 	}
 
 	// if boilerplate dir is not found, create one with default template
-	if !util.IsDir(boilerplateDir) {
+	if !vfs.IsDir(v.FS, boilerplateDir) {
 		_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)

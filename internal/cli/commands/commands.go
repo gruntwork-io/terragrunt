@@ -198,7 +198,7 @@ func WrapWithTelemetry(
 				}
 			}()
 
-			if err := initialSetup(cliCtx, l, opts); err != nil {
+			if err := initialSetup(cliCtx, l, v, opts); err != nil {
 				return err
 			}
 
@@ -446,7 +446,7 @@ func setupAutoProviderCacheDir(
 	// Set up the provider cache directory
 	providerCacheDir := opts.ProviderCacheOptions.Dir
 	if providerCacheDir == "" {
-		cacheDir, err := util.EnsureCacheDir()
+		cacheDir, err := util.EnsureCacheDir(v)
 		if err != nil {
 			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
@@ -476,7 +476,12 @@ func setupAutoProviderCacheDir(
 }
 
 // mostly preparing terragrunt options
-func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func initialSetup(
+	cliCtx *clihelper.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(clihelper.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
@@ -565,7 +570,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	var fileFilterStrings []string
 
-	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
+	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(v.FS, opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
@@ -575,6 +580,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	// Process filters file if the filters file is not disabled
 	if !opts.NoFiltersFile {
 		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(
+			v.FS,
 			opts.WorkingDir,
 			opts.FiltersFile,
 		)

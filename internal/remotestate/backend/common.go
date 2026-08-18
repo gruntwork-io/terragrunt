@@ -70,7 +70,7 @@ func (backend *CommonBackend) Bootstrap(
 func (backend *CommonBackend) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
+	srcV, dstV *venv.Venv,
 	srcConfig, dstConfig Config,
 	opts *Options,
 ) error {

@@ -378,9 +378,9 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := filepath.Join(downloadDir, "main.tf")
-	if assert.True(
+	if assert.FileExists(
 		t,
-		util.FileExists(expectedFilePath),
+		expectedFilePath,
 		"For terraform source %v",
 		terraformSource,
 	) {
@@ -527,42 +527,42 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 			name:      "test-stale-file-exists",
 			sourceURL: "../../../test/fixtures/manifest/version-1",
 			comp: func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+				return vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "stale.tf"))
 			},
 		},
 		{
 			name:      "test-stale-file-doesnt-exist-after-source-update",
 			sourceURL: "../../../test/fixtures/manifest/version-2",
 			comp: func() bool {
-				return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+				return !vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "stale.tf"))
 			},
 		},
 		{
 			name:      "test-tffile-exists-in-subfolder",
 			sourceURL: "../../../test/fixtures/manifest/version-3-subfolder",
 			comp: func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+				return vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "sub", "main.tf"))
 			},
 		},
 		{
 			name:      "test-tffile-doesnt-exist-in-subfolder",
 			sourceURL: "../../../test/fixtures/manifest/version-4-subfolder-empty",
 			comp: func() bool {
-				return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+				return !vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "sub", "main.tf"))
 			},
 		},
 		{
 			name:      "test-empty-folder-gets-copied",
 			sourceURL: testDir,
 			comp: func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub2"))
+				return vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "sub2"))
 			},
 		},
 		{
 			name:      "test-empty-folder-gets-populated",
 			sourceURL: "../../../test/fixtures/manifest/version-5-not-empty-subfolder",
 			comp: func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
+				return vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "sub2", "main.tf"))
 			},
 		},
 	}
@@ -609,9 +609,9 @@ func testDownloadTerraformSourceIfNecessary(
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := filepath.Join(downloadDir, "main.tf")
-	if assert.True(
+	if assert.FileExists(
 		t,
-		util.FileExists(expectedFilePath),
+		expectedFilePath,
 		"For terraform source %v",
 		terraformSource,
 	) {
@@ -626,10 +626,10 @@ func testDownloadTerraformSourceIfNecessary(
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(
+		require.FileExists(
+			t,
 			filepath.Join(terraformSource.WorkingDir, run.ModuleInitRequiredFile),
 		)
-		require.True(t, existsInitFile)
 	}
 }
 
@@ -764,7 +764,7 @@ func parseURL(t *testing.T, str string) *url.URL {
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 
-	contents, err := util.ReadFileAsString(path)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1524,7 +1524,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 		},
 		{
 			name:            "oci source stays on the venv filesystem",
-			source:          "oci://registry.invalid/foo/bar:1.0.0",
+			source:          "oci://registry.invalid/foo/bar?tag=1.0.0",
 			rejected:        false,
 			reachesDownload: true,
 		},

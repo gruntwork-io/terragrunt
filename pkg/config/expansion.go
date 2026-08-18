@@ -20,8 +20,7 @@ var expansionCapableBlocks = []string{MetadataDependency, MetadataUnit, Metadata
 // instead of rejecting it. Without this pass a user who writes expansion without the
 // experiment watches the block silently do nothing.
 //
-// JSON configs parse into a body this cannot walk, so they fall through to the decoder's
-// own unsupported-block error rather than the message naming the flag.
+// JSON configs parse into a body this cannot walk, so this pass does not cover them.
 func ValidateExpansionExperiment(experiments experiment.Experiments, file *hclparse.File) error {
 	if experiments.Evaluate(experiment.BlockIteration) {
 		return nil
