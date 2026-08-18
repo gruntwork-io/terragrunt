@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -139,7 +139,7 @@ func TestTFTerragruntProviderCacheWeakConstraint(t *testing.T) {
 
 		// Also clean up .terraform directory to ensure fresh start
 		terraformDir := filepath.Join(appPath, ".terraform")
-		if util.FileExists(terraformDir) {
+		if vfs.Exists(vfs.NewOSFS(), terraformDir) {
 			err = os.RemoveAll(terraformDir)
 			require.NoError(t, err)
 		}
@@ -170,7 +170,7 @@ func extractConstraintsFromLockFile(t *testing.T, appPath string, providerName s
 	t.Helper()
 
 	lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
-	require.True(t, util.FileExists(lockfilePath), "Lock file should exist")
+	require.FileExists(t, lockfilePath, "Lock file should exist")
 
 	// Read and parse the lock file
 	lockfileContent, err := os.ReadFile(lockfilePath)

@@ -5,18 +5,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ToRunConfig translates a TerragruntConfig to a runcfg.RunConfig.
 // This is the primary method for converting config types to runner types.
-func (cfg *TerragruntConfig) ToRunConfig(l log.Logger) *runcfg.RunConfig {
+func (cfg *TerragruntConfig) ToRunConfig(l log.Logger, fsys vfs.FS) *runcfg.RunConfig {
 	if cfg == nil {
 		return nil
 	}
 
 	runCfg := &runcfg.RunConfig{
-		Terraform:                   translateTerraformConfig(cfg.Terraform, l),
+		Terraform:                   translateTerraformConfig(cfg.Terraform, l, fsys),
 		RemoteState:                 translateRemoteState(cfg.RemoteState),
 		Exclude:                     translateExcludeConfig(cfg.Exclude),
 		GenerateConfigs:             translateGenerateConfigs(cfg.GenerateConfigs),
@@ -37,7 +38,7 @@ func (cfg *TerragruntConfig) ToRunConfig(l log.Logger) *runcfg.RunConfig {
 }
 
 // translateTerraformConfig converts config.TerraformConfig to runcfg.TerraformConfig.
-func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.TerraformConfig {
+func translateTerraformConfig(tf *TerraformConfig, l log.Logger, fsys vfs.FS) runcfg.TerraformConfig {
 	if tf == nil {
 		return runcfg.TerraformConfig{}
 	}
@@ -85,7 +86,7 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.Terrafor
 		NoCopyTerraformLockFile: noCopyTerraformLockFile,
 		UpdateSourceWithCAS:     updateSourceWithCAS,
 		Mutable:                 mutable,
-		ExtraArgs:               translateExtraArgs(tf.ExtraArgs, l),
+		ExtraArgs:               translateExtraArgs(tf.ExtraArgs, l, fsys),
 		BeforeHooks:             translateHooks(tf.BeforeHooks),
 		AfterHooks:              translateHooks(tf.AfterHooks),
 		ErrorHooks:              translateErrorHooks(tf.ErrorHooks),
@@ -96,6 +97,7 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.Terrafor
 func translateExtraArgs(
 	args []TerraformExtraArguments,
 	l log.Logger,
+	fsys vfs.FS,
 ) []runcfg.TerraformExtraArguments {
 	if args == nil {
 		return nil
@@ -103,7 +105,7 @@ func translateExtraArgs(
 
 	result := make([]runcfg.TerraformExtraArguments, len(args))
 	for i, arg := range args {
-		varFiles := computeVarFiles(arg.RequiredVarFiles, arg.OptionalVarFiles, l)
+		varFiles := computeVarFiles(arg.RequiredVarFiles, arg.OptionalVarFiles, l, fsys)
 
 		var arguments []string
 		if arg.Arguments != nil {
@@ -144,6 +146,7 @@ func computeVarFiles(
 	requiredVarFiles *[]string,
 	optionalVarFiles *[]string,
 	l log.Logger,
+	fsys vfs.FS,
 ) []string {
 	var varFiles []string
 
@@ -157,7 +160,7 @@ func computeVarFiles(
 	// duplicates.
 	if optionalVarFiles != nil {
 		for _, file := range util.RemoveDuplicatesKeepLast(*optionalVarFiles) {
-			if util.FileExists(file) {
+			if vfs.Exists(fsys, file) {
 				varFiles = append(varFiles, file)
 			} else {
 				l.Debugf("Skipping var-file %s as it does not exist", file)

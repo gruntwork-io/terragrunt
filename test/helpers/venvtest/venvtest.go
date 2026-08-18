@@ -18,6 +18,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
 
+// Cache and temp roots for the in-memory bundle. They sit under a name no real
+// machine uses, so a test that accidentally runs them against the OS filesystem
+// fails loudly instead of writing into the invoking user's directories.
+const (
+	memCacheDir = "/venvtest/cache"
+	memTempDir  = "/venvtest/tmp"
+)
+
 // New returns an in-memory venv: a fail-closed exec, an in-memory filesystem,
 // a fail-closed no-network HTTP client, a mem SOPS decrypter yielding empty
 // cleartext, an empty (non-nil) environment, deterministic platform handles,
@@ -39,6 +47,12 @@ func New() *venv.Venv {
 		Platform: &venv.Platform{
 			UserHomeDir: func() (string, error) {
 				return "", nil
+			},
+			UserCacheDir: func() (string, error) {
+				return memCacheDir, nil
+			},
+			TempDir: func() string {
+				return memTempDir
 			},
 			GOOS: runtime.GOOS,
 		},

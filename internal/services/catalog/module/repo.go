@@ -499,7 +499,7 @@ func (repo *Repo) performClone(
 			return err
 		}
 
-		casStore, err := cas.New(cas.WithCloneDepth(cloneDepth))
+		casStore, err := cas.New(v, cas.WithCloneDepth(cloneDepth))
 		if err != nil {
 			return err
 		}

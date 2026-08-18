@@ -16,7 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -221,7 +221,7 @@ func TestServerRunReportsServeFailure(t *testing.T) {
 	server := cache.NewServer(
 		cache.WithHostname("127.0.0.1"),
 		cache.WithLogger(l),
-		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, vfs.NewOSFS(), vhttp.NewNoNetworkClient())),
+		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, venv.OSVenv())),
 	)
 
 	ln, err := server.Listen(t.Context())
