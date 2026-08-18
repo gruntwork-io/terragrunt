@@ -21,6 +21,10 @@
     {
       "source": "/sitemap.xml",
       "destination": "/sitemap-index.xml"
+    },
+    {
+      "source": "/mtag/:path*",
+      "destination": "https://www.googletagmanager.com/:path*"
     }
   ],
   "redirects": [
