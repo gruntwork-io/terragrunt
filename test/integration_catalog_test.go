@@ -174,11 +174,11 @@ func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureCatalogLocalTemplate)
 
 	targetPath := filepath.Join(rootPath, "app")
-	moduleURL := "github.com/gruntwork-io/terragrunt//test/fixtures/inputs"
+	moduleSource := localScaffoldSource(t, testFixtureInputs)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt scaffold --non-interactive --working-dir "+targetPath+" "+moduleURL,
+		"terragrunt scaffold --non-interactive --working-dir "+targetPath+" "+moduleSource,
 	)
 
 	require.NoError(t, err)
