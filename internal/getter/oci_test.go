@@ -169,10 +169,11 @@ func TestOCIGetterGetErrors(t *testing.T) {
 	)
 
 	testCases := []struct {
-		store     *fakeStore
-		wantErrIs error
-		name      string
-		src       string
+		store           *fakeStore
+		wantErrIs       error
+		name            string
+		src             string
+		wantErrContains string
 	}{
 		{
 			name:      "unsupported query parameter",
@@ -197,6 +198,25 @@ func TestOCIGetterGetErrors(t *testing.T) {
 			src:       "oci://127.0.0.1:5000?tag=1.0.0",
 			store:     newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
 			wantErrIs: getter.ErrOCIMissingRepositoryName,
+		},
+		{
+			name:            "colon tag suffix is rejected, never latest",
+			src:             "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0",
+			store:           newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs:       getter.ErrOCIInvalidRepositoryName,
+			wantErrContains: "pin a version with ?tag= or ?digest= instead of a name suffix",
+		},
+		{
+			name:      "digest suffix is rejected",
+			src:       "oci://127.0.0.1:5000/terraform-modules/vpc@" + goodDesc.Digest.String(),
+			store:     newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs: getter.ErrOCIInvalidRepositoryName,
+		},
+		{
+			name:      "upper case repository is rejected",
+			src:       "oci://127.0.0.1:5000/Terraform-Modules/vpc?tag=1.0.0",
+			store:     newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs: getter.ErrOCIInvalidRepositoryName,
 		},
 		{
 			name:      "artifact type rejected",
@@ -231,7 +251,11 @@ func TestOCIGetterGetErrors(t *testing.T) {
 				GetMode: gogetter.ModeDir,
 			})
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tc.wantErrIs)
+			require.ErrorIs(t, err, tc.wantErrIs)
+
+			if tc.wantErrContains != "" {
+				assert.ErrorContains(t, err, tc.wantErrContains)
+			}
 		})
 	}
 }

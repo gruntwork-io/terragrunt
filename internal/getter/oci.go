@@ -59,6 +59,9 @@ var ErrOCIMissingRegistryDomain = errors.New("oci source is missing a registry d
 // ErrOCIMissingRepositoryName reports an oci source without a repository path.
 var ErrOCIMissingRepositoryName = errors.New("oci source is missing a repository name")
 
+// ErrOCIInvalidRepositoryName reports a repository path that fails OCI reference validation.
+var ErrOCIInvalidRepositoryName = errors.New("invalid oci repository name")
+
 // ErrOCITagDigestExclusive reports an oci source that pins both a tag and a
 // digest; the wording mirrors OpenTofu so one source string fails the same
 // way in both tools.
@@ -419,6 +422,20 @@ func parseOCISource(srcURL *url.URL) (ociSourceCoordinates, error) {
 	coords.repositoryName, coords.subDir = SourceDirSubdir(strings.TrimPrefix(srcURL.Path, "/"))
 	if coords.repositoryName == "" {
 		return coords, ErrOCIMissingRepositoryName
+	}
+
+	// Validated by field, as tofu does, so a :tag suffix cannot ride through ORAS reference splitting into latest.
+	fields := registry.Reference{Registry: coords.registryDomain, Repository: coords.repositoryName}
+	if err := fields.Validate(); err != nil {
+		// A single %w keeps the whole message intact: the CLI renderer splits multi-wrapped errors into bare bullets.
+		if strings.ContainsAny(coords.repositoryName, ":@") {
+			return coords, fmt.Errorf(
+				"%w %q: pin a version with ?tag= or ?digest= instead of a name suffix: %s",
+				ErrOCIInvalidRepositoryName, coords.repositoryName, err.Error(),
+			)
+		}
+
+		return coords, fmt.Errorf("%w %q: %s", ErrOCIInvalidRepositoryName, coords.repositoryName, err.Error())
 	}
 
 	ref, err := ociRefFromQuery(srcURL.Query())

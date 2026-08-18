@@ -156,6 +156,8 @@ func TestOCIResolverProbeErrors(t *testing.T) {
 		{name: "missing registry domain", rawURL: "oci:///terraform-modules/vpc?tag=1.0.0"},
 		{name: "missing repository name", rawURL: "oci://127.0.0.1:5000?tag=1.0.0"},
 		{name: "unsupported query parameter", rawURL: "oci://127.0.0.1:5000/vpc?tag=1.0.0&foo=bar"},
+		{name: "embedded tag reference", rawURL: "oci://127.0.0.1:5000/vpc:1.0.0"},
+		{name: "invalid repository name", rawURL: "oci://127.0.0.1:5000/VPC?tag=1.0.0"},
 		{name: "invalid digest value", rawURL: "oci://127.0.0.1:5000/vpc?digest=not-a-digest"},
 		{name: "nil store seam", rawURL: "oci://127.0.0.1:5000/vpc?tag=1.0.0"},
 		{
@@ -191,6 +193,16 @@ func TestOCIResolverResolveDigestWrongScheme(t *testing.T) {
 
 	_, err := r.ResolveDigest(t.Context(), "tfr://registry.example.com/module?version=1.0.0")
 	require.ErrorIs(t, err, getter.ErrOCIUnexpectedScheme)
+}
+
+// TestOCIResolverResolveDigestEmbeddedReference: a docker-style suffix surfaces the typed rejection.
+func TestOCIResolverResolveDigestEmbeddedReference(t *testing.T) {
+	t.Parallel()
+
+	r := getter.NewOCIResolver(discardLogger(), nil)
+
+	_, err := r.ResolveDigest(t.Context(), "oci://127.0.0.1:5000/vpc:1.0.0//modules/sub")
+	require.ErrorIs(t, err, getter.ErrOCIInvalidRepositoryName)
 }
 
 // TestOCIResolverProbeConcurrentWithRacing: concurrent probes of the same and

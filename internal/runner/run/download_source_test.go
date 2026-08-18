@@ -1524,7 +1524,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 		},
 		{
 			name:            "oci source stays on the venv filesystem",
-			source:          "oci://registry.invalid/foo/bar:1.0.0",
+			source:          "oci://registry.invalid/foo/bar?tag=1.0.0",
 			rejected:        false,
 			reachesDownload: true,
 		},
