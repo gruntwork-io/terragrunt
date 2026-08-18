@@ -1701,7 +1701,16 @@ func DetectInputsCtyUsage(file *hclparse.File) bool {
 				continue
 			}
 
-			attrTraversal, ok := traversal[2].(hcl.TraverseAttr)
+			rest := traversal[2:]
+			if _, indexed := rest[0].(hcl.TraverseIndex); indexed {
+				rest = rest[1:]
+			}
+
+			if len(rest) == 0 {
+				continue
+			}
+
+			attrTraversal, ok := rest[0].(hcl.TraverseAttr)
 			if !ok || attrTraversal.Name != MetadataInputs {
 				continue
 			}
