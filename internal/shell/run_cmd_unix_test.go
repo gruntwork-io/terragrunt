@@ -39,7 +39,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata/test_sigint_wait.sh"
 	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
 
-	shellOpts := configbridge.ShellRunOptsFromOpts(terragruntOptions)
+	shellOpts := configbridge.ShellRunOptsFromOpts(map[string]string{}, terragruntOptions)
 	// Forward the interrupt near-immediately instead of waiting the production
 	// grace period so the test does not pay that delay.
 	shellOpts.SignalForwardingDelay = 100 * time.Millisecond

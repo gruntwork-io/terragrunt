@@ -5367,7 +5367,7 @@ func TestTFRunAllDetectsHiddenDirectories(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the report file to verify the correct units ran
-	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err, "Should be able to parse JSON report")
 
 	runNames := runs.Names()

@@ -23,9 +23,9 @@ func TestNewModelPanicsOnNilChannels(t *testing.T) {
 	warnCh := make(chan viewtui.Warning)
 
 	assert.PanicsWithValue(t, tui.ErrChannelsRequired, func() {
-		tui.NewModel(l, fs, root, tui.ColorDisabled, nil, warnCh)
+		tui.NewModel(l, fs, stubHomeDir, root, tui.ColorDisabled, nil, warnCh)
 	})
 	assert.PanicsWithValue(t, tui.ErrChannelsRequired, func() {
-		tui.NewModel(l, fs, root, tui.ColorDisabled, resultCh, nil)
+		tui.NewModel(l, fs, stubHomeDir, root, tui.ColorDisabled, resultCh, nil)
 	})
 }

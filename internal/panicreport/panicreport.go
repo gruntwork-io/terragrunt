@@ -115,6 +115,8 @@ type Reporter struct {
 	GetPID    func() int
 	TempDir   func() string
 	BuildInfo func() (commit string, modified bool)
+	GOOS      string
+	GOARCH    string
 }
 
 // RecoveredError carries a panic recovered outside the main goroutine.
@@ -127,12 +129,15 @@ type RecoveredError struct {
 // and takes the process details it records from v's platform handles.
 func New(v *venv.Venv) *Reporter {
 	v.RequireFS()
-	v.RequirePlatform()
+	v.RequireGOOS()
+	v.RequireGOARCH()
 
 	return &Reporter{
 		FS:     v.FS,
 		Getwd:  v.Platform.Getwd,
 		GetPID: v.Platform.GetPID,
+		GOOS:   v.Platform.GOOS,
+		GOARCH: v.Platform.GOARCH,
 		// TempDir is where the report lands when the working directory is not
 		// writable, so it is the last place a crash can still be recorded.
 		TempDir: v.Platform.TempDir,
@@ -423,8 +428,8 @@ func (r *Reporter) formatLog(
 		commit,
 		modified,
 		runtime.Version(),
-		runtime.GOOS,
-		runtime.GOARCH,
+		r.GOOS,
+		r.GOARCH,
 		runtime.NumCPU(),
 		runtime.GOMAXPROCS(0),
 		runtime.NumGoroutine(),

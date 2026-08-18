@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -112,7 +113,7 @@ func (w *Worktrees) DisplayPath(worktreePath string) string {
 }
 
 // Cleanup removes all created Git worktrees and their temporary directories.
-func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
+func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) error {
 	// Get repo remote for telemetry
 	var repoRemote string
 	if w.gitRunner != nil {
@@ -135,7 +136,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 					seen[worktree.Path] = struct{}{}
 
 					// Skip removal if the worktree path doesn't exist (may have been cleaned up already)
-					if _, err := os.Stat(worktree.Path); errors.Is(err, fs.ErrNotExist) {
+					if _, err := fsys.Stat(worktree.Path); errors.Is(err, fs.ErrNotExist) {
 						l.Debugf(
 							"Worktree path %s already removed, skipping cleanup",
 							worktree.Path,
@@ -290,7 +291,7 @@ func (w *Worktrees) Stacks() StackDiff {
 
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
 // expressions based on the provided diffs for the worktree pair.
-func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
+func (wp *WorktreePair) Expand(fsys vfs.FS) (filter.Filters, filter.Filters, error) {
 	diffs := wp.Diffs
 
 	toPath := wp.ToWorktree.Path
@@ -299,11 +300,11 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
 
 	// Build simple expressions that can be determined simply from the diffs.
-	if err := expandDiffPaths(diffs.Removed, toPath, &fromExpressions, &toExpressions); err != nil {
+	if err := expandDiffPaths(fsys, diffs.Removed, toPath, &fromExpressions, &toExpressions); err != nil {
 		return nil, nil, err
 	}
 
-	if err := expandDiffPaths(diffs.Added, toPath, &toExpressions, &toExpressions); err != nil {
+	if err := expandDiffPaths(fsys, diffs.Added, toPath, &toExpressions, &toExpressions); err != nil {
 		return nil, nil, err
 	}
 
@@ -321,7 +322,7 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 		default:
 			// Check to see if the changed file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.
-			if _, err := os.Stat(
+			if _, err := fsys.Stat(
 				filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath),
 			); err == nil {
 				expr, err := filter.NewPathFilter(dir)
@@ -393,7 +394,7 @@ func NewWorktrees(
 
 	v.RequireExec()
 
-	gitRunner, err := git.NewGitRunner(v.Exec)
+	gitRunner, err := git.NewGitRunner(v)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Git runner for worktree creation: %w", err)
 	}
@@ -545,7 +546,7 @@ func NewWorktrees(
 
 	// cleanup worktrees
 	if outerErr != nil && worktrees != nil {
-		if cleanupErr := worktrees.Cleanup(ctx, l); cleanupErr != nil {
+		if cleanupErr := worktrees.Cleanup(ctx, l, v.FS); cleanupErr != nil {
 			l.Warnf("failed to cleanup worktrees: %v", cleanupErr)
 		}
 	}
@@ -559,6 +560,7 @@ func NewWorktrees(
 // matched against the same worktree the file exists in. fallbackExprs receives path filters for non-config
 // files adjacent to a unit in the "to" worktree.
 func expandDiffPaths(
+	fsys vfs.FS,
 	paths []string,
 	toPath string,
 	primaryExprs, fallbackExprs *filter.Expressions,
@@ -587,7 +589,7 @@ func expandDiffPaths(
 
 			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
 		default:
-			if _, err := os.Stat(
+			if _, err := fsys.Stat(
 				filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath),
 			); err == nil {
 				expr, err := filter.NewPathFilter(dir)
@@ -649,7 +651,7 @@ func createGitWorktrees(
 	refsToPaths := make(map[string]string, len(gitRefs))
 
 	for _, ref := range gitRefs {
-		tmpDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
+		tmpDir, err := vfs.MkdirTemp(v.FS, v.Platform.TempDir(), "terragrunt-worktree-"+sanitizeRef(ref)+"-")
 		if err != nil {
 			errs = append(
 				errs,
@@ -662,9 +664,9 @@ func createGitWorktrees(
 		// macOS will create the temporary directory with symlinks, so we need to evaluate them.
 		origTmpDir := tmpDir
 
-		tmpDir, err = filepath.EvalSymlinks(tmpDir)
+		tmpDir, err = vfs.EvalSymlinks(v.FS, tmpDir)
 		if err != nil {
-			if cleanErr := os.RemoveAll(origTmpDir); cleanErr != nil {
+			if cleanErr := v.FS.RemoveAll(origTmpDir); cleanErr != nil {
 				l.Warnf("failed to clean worktree directory %s: %v", origTmpDir, cleanErr)
 			}
 
@@ -699,7 +701,7 @@ func createGitWorktrees(
 				return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
 			})
 		if err != nil {
-			if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {
+			if cleanErr := v.FS.RemoveAll(tmpDir); cleanErr != nil {
 				l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)
 			}
 

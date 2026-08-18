@@ -22,13 +22,19 @@ const (
 // models are driven through Update directly and never call Init, so the required
 // channels are wired but never read; tests that stream discovery inject a
 // [tui.DiscoveryResult] as a message instead.
+// stubHomeDir pins the home directory the path bar abbreviates against, so a
+// rendered path does not change with whoever runs the suite.
+func stubHomeDir() (string, error) {
+	return "/home/tester", nil
+}
+
 func newModel(t *testing.T, fsys vfs.FS, root *tui.Node, color tui.ColorMode, opts ...tui.Option) tui.Model {
 	t.Helper()
 
 	resultCh := make(chan tui.DiscoveryResult, 1)
 	warnCh := make(chan viewtui.Warning)
 
-	m := tui.NewModel(logger.CreateLogger(), fsys, root, color, resultCh, warnCh, opts...)
+	m := tui.NewModel(logger.CreateLogger(), fsys, stubHomeDir, root, color, resultCh, warnCh, opts...)
 
 	return update(t, m, tea.WindowSizeMsg{Width: testWidth, Height: testHeight})
 }

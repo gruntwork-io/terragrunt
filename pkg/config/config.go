@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"maps"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -206,6 +205,7 @@ func (cfg *TerragruntConfig) GetRemoteState(
 
 		tfSource, err := tf.NewSource(
 			l,
+			pctx.Venv.FS,
 			canonicalSourceURL,
 			pctx.DownloadDir,
 			pctx.WorkingDir,
@@ -1222,9 +1222,9 @@ func adjustSourceWithMap(
 
 // GetDefaultConfigPath returns the default path to use for the Terragrunt configuration
 // that exists within the path giving preference to `terragrunt.hcl`
-func GetDefaultConfigPath(workingDir string) string {
+func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
-	if info, err := os.Stat(workingDir); err == nil && !info.IsDir() {
+	if info, err := fsys.Stat(workingDir); err == nil && !info.IsDir() {
 		return workingDir
 	}
 
@@ -1235,7 +1235,7 @@ func GetDefaultConfigPath(workingDir string) string {
 			configPath = filepath.Join(workingDir, configPath)
 		}
 
-		if _, err := os.Stat(configPath); err == nil {
+		if _, err := fsys.Stat(configPath); err == nil {
 			break
 		}
 	}
@@ -2337,8 +2337,8 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
-func configFileHasDependencyBlock(configPath string) (bool, error) {
-	configBytes, err := os.ReadFile(configPath)
+func configFileHasDependencyBlock(fsys vfs.FS, configPath string) (bool, error) {
+	configBytes, err := vfs.ReadFile(fsys, configPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return false, DependencyFileNotFoundError{Path: configPath}

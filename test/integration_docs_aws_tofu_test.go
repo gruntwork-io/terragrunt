@@ -135,6 +135,7 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 		//
 		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
 		pass := false
+
 		defer func() {
 			if !pass {
 				helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
@@ -249,6 +250,7 @@ force_destroy = true
 		)
 
 		t.Log("Step 1 - Starting the Terralith completed successfully")
+
 		pass = true
 	}()
 
@@ -259,6 +261,7 @@ force_destroy = true
 		//
 		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
 		pass := false
+
 		defer func() {
 			if !pass {
 				helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
@@ -351,6 +354,7 @@ force_destroy = true
 		assert.Contains(t, outputStdout, "dynamodb_table_name")
 
 		t.Log("Step 2 - Refactoring completed successfully")
+
 		pass = true
 	}()
 
@@ -361,6 +365,7 @@ force_destroy = true
 		//
 		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
 		pass := false
+
 		defer func() {
 			if !pass {
 				helpers.ExecWithMiseAndTestLogger(t, liveDir, "tofu", "destroy", "-auto-approve")
@@ -457,6 +462,7 @@ force_destroy = true
 		assert.NotEqual(t, strings.TrimSpace(devFunctionURL), strings.TrimSpace(prodFunctionURL))
 
 		t.Log("Step 3 - Adding dev completed successfully")
+
 		pass = true
 	}()
 
@@ -467,6 +473,7 @@ force_destroy = true
 		//
 		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
 		pass := false
+
 		defer func() {
 			if !pass {
 				// Cleanup both dev and prod environments if we get here.
@@ -684,6 +691,7 @@ force_destroy = true
 		assert.NotEqual(t, strings.TrimSpace(devBucketName), strings.TrimSpace(prodBucketName))
 
 		t.Log("Step 4 - Breaking the Terralith completed successfully")
+
 		pass = true
 	}()
 
@@ -694,6 +702,7 @@ force_destroy = true
 		//
 		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
 		pass := false
+
 		defer func() {
 			if !pass {
 				// Cleanup both dev and prod environments if we get here.
@@ -922,6 +931,7 @@ inputs = {
 		assert.Contains(t, prodOutputStdout, "s3_bucket_name")
 
 		t.Log("Step 5 - Adding Terragrunt completed successfully")
+
 		pass = true
 	}()
 
@@ -932,6 +942,7 @@ inputs = {
 		//
 		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
 		pass := false
+
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
@@ -1222,6 +1233,7 @@ inputs = {
 		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
 
 		t.Log("Step 6 - Breaking the Terralith Further completed successfully")
+
 		pass = true
 	}()
 
@@ -1232,6 +1244,7 @@ inputs = {
 		//
 		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
 		pass := false
+
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
@@ -1318,6 +1331,7 @@ EOF
 
 			// Copy .terraform.lock.hcl if it exists
 			lockFilePath := filepath.Join(devComponentDir, ".terraform.lock.hcl")
+
 			catalogLockFilePath := filepath.Join(catalogComponentDir, ".terraform.lock.hcl")
 			if _, err := os.Stat(lockFilePath); err == nil {
 				helpers.CopyFile(t, lockFilePath, catalogLockFilePath)
@@ -1480,6 +1494,7 @@ EOF
 		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
 
 		t.Log("Step 7 - Taking advantage of Terragrunt Stacks completed successfully")
+
 		pass = true
 	}()
 
@@ -1490,6 +1505,7 @@ EOF
 		//
 		// We need our infrastructure to persist between steps so that we can test stateful refactoring.
 		pass := false
+
 		defer func() {
 			if !pass {
 				// Cleanup all component units if we get here.
@@ -1754,6 +1770,7 @@ EOF
 		// Verify the directory structure is clean - dev and prod should only contain terragrunt.stack.hcl
 		devEntries, err := os.ReadDir(devDir)
 		require.NoError(t, err)
+
 		devFileNames := make([]string, 0, len(devEntries))
 		for _, entry := range devEntries {
 			if !strings.HasPrefix(
@@ -1763,10 +1780,12 @@ EOF
 				devFileNames = append(devFileNames, entry.Name())
 			}
 		}
+
 		assert.Equal(t, []string{"terragrunt.stack.hcl"}, devFileNames)
 
 		prodEntries, err := os.ReadDir(prodDir)
 		require.NoError(t, err)
+
 		prodFileNames := make([]string, 0, len(prodEntries))
 		for _, entry := range prodEntries {
 			if !strings.HasPrefix(
@@ -1776,9 +1795,11 @@ EOF
 				prodFileNames = append(prodFileNames, entry.Name())
 			}
 		}
+
 		assert.Equal(t, []string{"terragrunt.stack.hcl"}, prodFileNames)
 
 		t.Log("Step 8 - Refactoring state with Terragrunt Stacks completed successfully")
+
 		pass = true
 	}()
 

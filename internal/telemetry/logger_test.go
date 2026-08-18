@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,7 +65,7 @@ func TestNewLogsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.Telemetry.LogsExporter = tt.exporterType
 			opts.Telemetry.LogsExporterInsecureEndpoint = tt.insecure
 
@@ -86,7 +87,7 @@ func TestNewLogger(t *testing.T) {
 
 	ctx := t.Context()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.Telemetry.LogsExporter = "console"
 
 	logger, err := telemetry.NewLogger(ctx, "terragrunt", "test", io.Discard, opts.Telemetry)

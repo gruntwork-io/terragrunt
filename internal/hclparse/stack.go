@@ -2,7 +2,7 @@ package hclparse
 
 import (
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path/filepath"
 
 	"errors"
@@ -178,7 +178,7 @@ func ParseStackFileFromPath(fsys vfs.FS, stackDir string) (*ParseResult, error) 
 
 	data, err := vfs.ReadFile(fsys, stackFile)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 
@@ -374,7 +374,7 @@ func decodeDiscovery(
 ) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	data, err := vfs.ReadFile(fsys, stackFile)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil, nil
 		}
 
@@ -473,7 +473,7 @@ func readDiscoveryValues(
 
 	data, err := vfs.ReadFile(fsys, valuesPath)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 
@@ -518,7 +518,7 @@ func mergeDiscoveryStackAutoInclude(
 
 	data, err := vfs.ReadFile(fsys, autoIncludePath)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 

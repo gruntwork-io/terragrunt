@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
@@ -50,8 +50,8 @@ func Fetch(ctx context.Context, c vhttp.Client, req *http.Request, dst io.Writer
 }
 
 // FetchToFile downloads req's response through c into the file at dst.
-func FetchToFile(ctx context.Context, c vhttp.Client, req *http.Request, dst string) error {
-	file, err := os.Create(dst)
+func FetchToFile(ctx context.Context, c vhttp.Client, fsys vfs.FS, req *http.Request, dst string) error {
+	file, err := fsys.Create(dst)
 	if err != nil {
 		return err
 	}

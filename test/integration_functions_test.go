@@ -15,7 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,7 +206,7 @@ func TestTFGetRepoRootCaching(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetRepoRoot)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -233,7 +233,7 @@ func TestTFGetRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetRepoRoot)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -274,7 +274,7 @@ func TestTFGetWorkingDirBuiltInFunc(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetWorkingDir))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetWorkingDir)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -362,7 +362,7 @@ func TestTFPathRelativeFromInclude(t *testing.T) {
 	basePath := filepath.Join(rootPath, "base")
 	clusterPath := filepath.Join(rootPath, "cluster")
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -413,7 +413,7 @@ func TestTFGetPathFromRepoRoot(t *testing.T) {
 	)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -454,7 +454,7 @@ func TestTFGetPathToRepoRoot(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathToRepoRoot)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)

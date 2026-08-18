@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestGitResolver_ProbeHEAD(t *testing.T) {
@@ -26,7 +27,7 @@ func TestGitResolver_ProbeHEAD(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}}
+	r := &cas.GitResolver{Venv: venv.OSVenv()}
 
 	// Empty Branch → resolver queries HEAD.
 	got, err := r.Probe(t.Context(), url)
@@ -47,7 +48,7 @@ func TestGitResolver_ProbeBranch(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}, Branch: "feature"}
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "feature"}
 
 	got, err := r.Probe(t.Context(), url)
 	require.NoError(t, err)
@@ -64,7 +65,7 @@ func TestGitResolver_ProbeTag(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}, Branch: "v1.0.0"}
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "v1.0.0"}
 
 	// Annotated-tag ls-remote returns the tag object's hash, not the
 	// commit it points to. We just assert the resolver returns a
@@ -86,7 +87,7 @@ func TestGitResolver_CommitFormRefReturnsErrNoVersionMetadata(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}, Branch: commitSHA}
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: commitSHA}
 
 	// ls-remote does not resolve raw SHAs as refs; the caller passes
 	// a commit-form ref directly. Probe must surface this as
@@ -104,7 +105,7 @@ func TestGitResolver_UnknownRefReturnsErrNoVersionMetadata(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}, Branch: "does-not-exist"}
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "does-not-exist"}
 
 	_, err = r.Probe(t.Context(), url)
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
@@ -122,7 +123,7 @@ func TestGitResolver_TokenIsCacheKeyVerbatim(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}}
+	r := &cas.GitResolver{Venv: venv.OSVenv()}
 
 	got, err := r.Probe(t.Context(), url)
 	require.NoError(t, err)
@@ -186,7 +187,7 @@ func TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs(t *testing.T) {
 		}
 	})
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: stub}, Branch: "main"}
+	r := &cas.GitResolver{Venv: venvtest.New().WithExec(stub), Branch: "main"}
 
 	_, err := r.Probe(t.Context(), "git@github.com:org/repo.git")
 	require.NoError(t, err)
@@ -214,7 +215,7 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 		}
 	})
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: stub}, Branch: "main"}
+	r := &cas.GitResolver{Venv: venvtest.New().WithExec(stub), Branch: "main"}
 
 	_, err := r.Probe(t.Context(), "https://example.com/org/repo.git")
 	require.NoError(t, err)
@@ -231,7 +232,7 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 func newGitRunner(t *testing.T) *git.GitRunner {
 	t.Helper()
 
-	r, err := git.NewGitRunner(vexec.NewOSExec())
+	r, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	return r

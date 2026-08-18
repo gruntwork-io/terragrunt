@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,7 +140,7 @@ func TestTFFilterFlagWithRunAllGitFilter(t *testing.T) {
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file
-				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse report JSON")
 
 				// Create a map of unit names to records for easier lookup
@@ -556,7 +557,7 @@ unit "unit-to-be-created-2" {
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file
-				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse report JSON")
 
 				// Create a map of unit names to records for easier lookup
@@ -696,7 +697,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath, "Report file should exist")
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -735,7 +736,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -774,7 +775,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -811,7 +812,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -887,7 +888,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -938,7 +939,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -991,7 +992,7 @@ func TestTFFilterFlagAutoEnablesAll(t *testing.T) {
 			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
 
-			r, err := report.ParseJSONRunsFromFile(reportFilePath)
+			r, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 			require.NoError(t, err)
 
 			runs := r.Names()
@@ -1416,7 +1417,7 @@ func TestTFRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 
 			require.FileExists(t, reportFilePath, "Report file should exist at %s", reportFilePath)
 
-			runs, parseErr := report.ParseJSONRunsFromFile(reportFilePath)
+			runs, parseErr := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 			require.NoError(t, parseErr, "Should be able to parse report JSON")
 
 			var found bool

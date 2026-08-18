@@ -92,7 +92,7 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 
 	registryDomain := srcURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(r.TofuImplementation)
+		registryDomain = tfimpl.DefaultRegistryDomain(r.Auth.Env, r.TofuImplementation)
 	}
 
 	versionList, hasVersion := srcURL.Query()[versionQueryKey]

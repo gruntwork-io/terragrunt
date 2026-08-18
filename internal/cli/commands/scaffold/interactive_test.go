@@ -40,12 +40,14 @@ func prepare(t *testing.T, source string) *scaffold.Plan {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
+	v := venv.OSVenv()
+
 	plan, err := scaffold.Prepare(
-		t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, source, "",
+		t.Context(), logger.CreateLogger(), v, opts, source, "",
 	)
 	require.NoError(t, err)
 
-	t.Cleanup(plan.Cleanup)
+	t.Cleanup(func() { plan.Cleanup(v.FS) })
 
 	return plan
 }

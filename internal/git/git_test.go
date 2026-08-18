@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -201,7 +202,7 @@ func TestCreateTempDir(t *testing.T) {
 
 	gitRunner := newMemRunner(t, staticResult(vexec.Result{}))
 
-	dir, cleanup, err := gitRunner.CreateTempDir()
+	dir, cleanup, err := gitRunner.CreateTempDir(venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, cleanup())
@@ -452,7 +453,7 @@ func TestGitRunner_WithWorkDirGetRepoRootWithRacing(t *testing.T) {
 func newMemRunner(t *testing.T, h vexec.Handler) *git.GitRunner {
 	t.Helper()
 
-	r, err := git.NewGitRunner(vexec.NewMemExec(h))
+	r, err := git.NewGitRunner(venvtest.New().WithExec(vexec.NewMemExec(h)))
 	require.NoError(t, err)
 
 	return r
@@ -476,7 +477,7 @@ func newArgvCapturingRunner(t *testing.T, captured *[]string, stdout []byte) *gi
 		return vexec.Result{Stdout: stdout}
 	})
 
-	r, err := git.NewGitRunner(e)
+	r, err := git.NewGitRunner(venvtest.New().WithExec(e))
 	require.NoError(t, err)
 
 	return r

@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,7 +60,7 @@ func TestNewMetricsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.Telemetry.MetricExporter = tt.exporterType
 			opts.Telemetry.MetricExporterInsecureEndpoint = tt.insecure
 

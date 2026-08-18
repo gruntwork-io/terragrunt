@@ -42,7 +42,7 @@ package glob
 import (
 	"errors"
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"strings"
@@ -121,7 +121,7 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 	if !hasMeta {
 		info, err := fsys.Stat(root)
 		if err != nil {
-			if errors.Is(err, iofs.ErrNotExist) {
+			if errors.Is(err, fs.ErrNotExist) {
 				return nil, nil
 			}
 
@@ -142,10 +142,10 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 
 	var matches []string
 
-	walkErr := vfs.WalkDir(fsys, root, func(entry string, d iofs.DirEntry, walkErr error) error {
+	walkErr := vfs.WalkDir(fsys, root, func(entry string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if d != nil && d.IsDir() {
-				return iofs.SkipDir
+				return fs.SkipDir
 			}
 
 			return nil
@@ -163,19 +163,106 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 
 		return nil
 	})
-	if walkErr != nil && !errors.Is(walkErr, iofs.ErrNotExist) {
+	if walkErr != nil && !errors.Is(walkErr, fs.ErrNotExist) {
 		return nil, walkErr
 	}
 
 	return matches, nil
 }
 
-// LegacyExpand returns the paths that match pattern using zglob semantics.
-// Prefer [Expand] for new code. LegacyExpand exists only for call sites that
-// interpret patterns written by users in configuration surface where a
-// behavior change between zglob and gobwas would be a breaking change.
-func LegacyExpand(pattern string) ([]string, error) {
-	return zglob.Glob(pattern)
+// LegacyExpand returns the paths on fsys that match pattern using zglob
+// semantics. Prefer [Expand] for new code. LegacyExpand exists only for call
+// sites that interpret patterns written by users in configuration surface
+// where a behavior change between zglob and gobwas would be a breaking change.
+//
+// zglob offers no way to walk anything but the real filesystem, so the walk is
+// reproduced here over fsys. Deciding whether a path matches is still zglob's
+// own matcher, built from the pattern by [zglob.New], which keeps the grammar
+// identical; fsys supplies nothing but the directory entries.
+// TestLegacyExpandMatchesZglob pins the two against each other over a corpus
+// of patterns.
+func LegacyExpand(fsys vfs.FS, pattern string) ([]string, error) {
+	root, hasMeta := legacyRoot(pattern)
+
+	// A pattern with no metacharacters names one path, and zglob reports a
+	// missing one as fs.ErrNotExist rather than as an empty result. Callers
+	// distinguish the two, so the distinction is preserved.
+	if !hasMeta {
+		if _, err := fsys.Stat(pattern); err != nil {
+			return nil, fs.ErrNotExist
+		}
+
+		return []string{pattern}, nil
+	}
+
+	matcher, err := zglob.New(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	matches := []string{}
+
+	// zglob surfaces a walk failure rather than treating it as an empty match,
+	// including the common case of a pattern rooted at a directory that does
+	// not exist, so the error is passed straight back here too.
+	walkErr := vfs.WalkDir(fsys, root, func(entry string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if matcher.Match(filepath.ToSlash(entry)) {
+			matches = append(matches, entry)
+		}
+
+		return nil
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+
+	return matches, nil
+}
+
+// legacyRoot returns the deepest directory of pattern that zglob would start
+// its walk from, and reports whether pattern has anything to expand. It
+// reproduces zglob's rule, which treats only "*" and "{" as the markers that
+// end the literal prefix.
+//
+// zglob also expands a leading "~" and any whole segment of the form "$NAME"
+// from the process environment before choosing its root. That is not
+// reproduced here, so such a pattern roots its walk at a literal "$NAME"
+// directory and reports it missing, which the caller in internal/util already
+// reads as no matches. The matcher zglob builds still reads the environment,
+// so the walk root, not the grammar, is what keeps the expansion out.
+func legacyRoot(pattern string) (string, bool) {
+	var (
+		globmask string
+		root     string
+		found    bool
+	)
+
+	for segment := range strings.SplitSeq(filepath.ToSlash(pattern), "/") {
+		if !found && strings.ContainsAny(segment, "*{") {
+			found = true
+
+			root = globmask
+			if root == "" {
+				root = "."
+			}
+		}
+
+		globmask = path.Join(globmask, segment)
+
+		if globmask == "" {
+			globmask = "/"
+		}
+	}
+
+	if !found {
+		return "", false
+	}
+
+	return filepath.Clean(root), true
 }
 
 // splitRoot returns the longest leading directory of pattern that contains no

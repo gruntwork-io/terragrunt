@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -361,6 +360,8 @@ func (c *Content) Read(v *venv.Venv, hash string) ([]byte, error) {
 // writeContentToFile writes data to a temporary file, sets appropriate
 // permissions, and performs an atomic rename.
 func (c *Content) writeContentToFile(l log.Logger, v *venv.Venv, hash string, data []byte) error {
+	v.RequireGOOS()
+
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 
@@ -411,7 +412,7 @@ func (c *Content) writeContentToFile(l log.Logger, v *venv.Venv, hash string, da
 		return fmt.Errorf("chmod temp %s: %w", tempPath, err)
 	}
 
-	if runtime.GOOS == WindowsOS {
+	if v.Platform.GOOS == WindowsOS {
 		if _, err := v.FS.Stat(path); err == nil {
 			if err := v.FS.Chmod(path, RegularFilePerms); err != nil {
 				l.Warnf("failed to make destination file writable %s: %v", path, err)
@@ -427,7 +428,7 @@ func (c *Content) writeContentToFile(l log.Logger, v *venv.Venv, hash string, da
 		return fmt.Errorf("finalize %s: %w", path, err)
 	}
 
-	if runtime.GOOS == WindowsOS {
+	if v.Platform.GOOS == WindowsOS {
 		if err := v.FS.Chmod(path, StoredFilePerms); err != nil {
 			return fmt.Errorf("chmod %s: %w", path, err)
 		}

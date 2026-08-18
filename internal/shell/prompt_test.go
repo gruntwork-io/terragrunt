@@ -1,6 +1,7 @@
 package shell_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -31,6 +32,39 @@ func TestPromptUserForInputSequential(t *testing.T) {
 	assert.Equal(t, "second", second)
 }
 
+// TestPromptUserForInputUnterminatedFinalLine pins that an answer ending at EOF
+// without a trailing newline is still read, so `printf yes | terragrunt ...`
+// answers a prompt.
+func TestPromptUserForInputUnterminatedFinalLine(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venvtest.New().WithStdin(strings.NewReader("first\nsecond"))
+
+	first, err := shell.PromptUserForInput(t.Context(), l, v, "one: ", false)
+	require.NoError(t, err)
+	assert.Equal(t, "first", first)
+
+	second, err := shell.PromptUserForInput(t.Context(), l, v, "two: ", false)
+	require.NoError(t, err)
+	assert.Equal(t, "second", second)
+
+	_, err = shell.PromptUserForInput(t.Context(), l, v, "three: ", false)
+	require.ErrorIs(t, err, io.EOF)
+}
+
+// TestPromptUserForInputEmptyStdin pins that stdin closed without any answer is
+// an error rather than an empty answer, which yes/no prompts would read as "no".
+func TestPromptUserForInputEmptyStdin(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venvtest.New().WithStdin(strings.NewReader(""))
+
+	_, err := shell.PromptUserForInput(t.Context(), l, v, "one: ", false)
+	require.ErrorIs(t, err, io.EOF)
+}
+
 func TestPromptUserForYesNo(t *testing.T) {
 	t.Parallel()
 
@@ -44,6 +78,7 @@ func TestPromptUserForYesNo(t *testing.T) {
 		{name: "uppercase yes", input: "YES\n", expected: true},
 		{name: "n", input: "n\n", expected: false},
 		{name: "anything else", input: "maybe\n", expected: false},
+		{name: "yes without trailing newline", input: "yes", expected: true},
 	}
 
 	for _, tt := range tc {

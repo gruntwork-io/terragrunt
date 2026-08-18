@@ -21,7 +21,7 @@ func TestGetCredentialsHandlesJSONNullResponse(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	opts := shell.NewShellOptions()
+	opts := shell.NewShellOptions(map[string]string{})
 
 	provider := externalcmd.NewProvider(l, "printf null", opts)
 

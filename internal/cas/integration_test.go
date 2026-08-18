@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -113,7 +113,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 			cas.WithDepth(-1)))
 
 		// Get the commit hash for HEAD
-		g, err := git.NewGitRunner(vexec.NewOSExec())
+		g, err := git.NewGitRunner(venv.OSVenv())
 		require.NoError(t, err)
 
 		results, err := g.LsRemote(ctx, repoURL, "HEAD")

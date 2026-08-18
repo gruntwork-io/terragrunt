@@ -8,7 +8,6 @@ import (
 	"hash"
 	"io/fs"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -257,6 +256,7 @@ func (src Source) WriteVersionFile(
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
 func NewSource(
 	l log.Logger,
+	fsys vfs.FS,
 	source string,
 	downloadDir string,
 	workingDir string,
@@ -269,7 +269,7 @@ func NewSource(
 		return nil, err
 	}
 
-	rootSourceURL, modulePath, err := SplitSourceURL(l, canonicalSourceURL)
+	rootSourceURL, modulePath, err := SplitSourceURL(l, fsys, canonicalSourceURL)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +394,7 @@ func IsLocalSource(sourceURL *url.URL) bool {
 // A cas:: reference parses as an opaque URL (scheme "cas::sha1", opaque
 // "<hash>//modules/foo"), so the "//" is split out of the opaque component
 // rather than the path.
-func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) {
+func SplitSourceURL(l log.Logger, fsys vfs.FS, sourceURL *url.URL) (*url.URL, string, error) {
 	if sourceURL.Opaque != "" {
 		opaqueSplitOnDoubleSlash := strings.SplitN(sourceURL.Opaque, "//", 2) //nolint:mnd
 		if len(opaqueSplitOnDoubleSlash) > 1 {
@@ -424,7 +424,7 @@ func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) 
 		return sourceURL, "", nil
 	}
 	// check if sourceUrl.Path is a local file path
-	_, err := os.Stat(sourceURL.Path)
+	_, err := fsys.Stat(sourceURL.Path)
 	if err != nil {
 		// log warning message to notify user that sourceUrl.Path may not work
 		l.Warnf(

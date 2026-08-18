@@ -10,6 +10,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -40,7 +42,7 @@ func TestNewWorktrees(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger())
+		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger(), vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -56,7 +58,7 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	runner := helpers.InitTestGitRunner(t, tmpDir)
 	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -192,7 +194,7 @@ func TestExpressionExpansion(t *testing.T) {
 				Diffs: tt.diffs,
 			}
 
-			fromFilters, toFilters, err := wp.Expand()
+			fromFilters, toFilters, err := wp.Expand(vfs.NewOSFS())
 			require.NoError(t, err)
 
 			// Verify from filters count
@@ -325,7 +327,7 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 				Diffs: tt.diffs,
 			}
 
-			_, toFilters, err := wp.Expand()
+			_, toFilters, err := wp.Expand(vfs.NewOSFS())
 			require.NoError(t, err)
 
 			// Extract reading filters
@@ -586,7 +588,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				},
 			}
 
-			fromFilters, toFilters, err := wp.Expand()
+			fromFilters, toFilters, err := wp.Expand(vfs.NewOSFS())
 			require.NoError(t, err)
 
 			// Verify from filters count
@@ -658,7 +660,7 @@ func TestWorktreeCleanup(t *testing.T) {
 		require.NoError(t, runner.Commit(t.Context(), fmt.Sprintf("Commit %d", i), "--allow-empty"))
 	}
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 

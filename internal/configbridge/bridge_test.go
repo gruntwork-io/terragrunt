@@ -39,7 +39,7 @@ func TestRemoteStateOptsFromOpts_CarriesBackendOptions(t *testing.T) {
 	opts.DisableBucketUpdate = true
 	opts.TerragruntConfigPath = "/work/terragrunt.hcl"
 
-	got := configbridge.RemoteStateOptsFromOpts(opts)
+	got := configbridge.RemoteStateOptsFromOpts(map[string]string{}, opts)
 
 	assert.True(t, got.Experiments.Evaluate(experiment.AzureBackend), "experiments must reach remote state options")
 	assert.True(t, got.DisableBucketUpdate)

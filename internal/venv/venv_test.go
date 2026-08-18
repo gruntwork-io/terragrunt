@@ -135,6 +135,7 @@ func TestOSVenvProvidesPlatformHandles(t *testing.T) {
 
 	require.NotNil(t, v.Platform)
 	assert.Equal(t, runtime.GOOS, v.Platform.GOOS)
+	assert.Equal(t, runtime.GOARCH, v.Platform.GOARCH)
 	assert.NotNil(t, v.Platform.UserHomeDir)
 }
 
@@ -145,13 +146,15 @@ func TestVenvPlatformBuilders(t *testing.T) {
 	homeDir := func() (string, error) { return "", wantHomeErr }
 	original := venv.OSVenv()
 
-	got := original.WithGOOS("plan9").WithUserHomeDir(homeDir)
+	got := original.WithGOOS("plan9").WithGOARCH("mips").WithUserHomeDir(homeDir)
 
 	require.NotNil(t, got.Platform)
 	assert.Equal(t, "plan9", got.Platform.GOOS)
+	assert.Equal(t, "mips", got.Platform.GOARCH)
 	_, err := got.Platform.UserHomeDir()
 	require.ErrorIs(t, err, wantHomeErr)
 	assert.Equal(t, runtime.GOOS, original.Platform.GOOS)
+	assert.Equal(t, runtime.GOARCH, original.Platform.GOARCH)
 }
 
 func TestVenvWriterBuildersIsolateCopies(t *testing.T) {
@@ -176,8 +179,17 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
 		(&venv.Venv{}).RequireFS()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvEnvUnset, func() {
+		venv.RequireEnvMap(nil)
+	})
+	assert.NotPanics(t, func() {
+		venv.RequireEnvMap(map[string]string{})
+	})
 	assert.PanicsWithValue(t, venv.ErrVenvGOOSUnset, func() {
 		(&venv.Venv{}).RequireGOOS()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvGOARCHUnset, func() {
+		(&venv.Venv{}).RequireGOARCH()
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
 		(&venv.Venv{}).RequireUserHomeDir()
@@ -210,6 +222,9 @@ func TestVenvPlatformBuildersRequireAPlatform(t *testing.T) {
 
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).WithGOOS("plan9")
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithGOARCH("mips")
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).WithUserHomeDir(func() (string, error) { return "", nil })
@@ -261,14 +276,14 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 		{
 			name: "WithSops",
 			build: func(v *venv.Venv) *venv.Venv {
-				return v.WithSops(vsops.NewMemDecrypter(func(string, string) ([]byte, error) {
+				return v.WithSops(vsops.NewMemDecrypter(func(map[string]string, string, string) ([]byte, error) {
 					return nil, wantSopsErr
 				}))
 			},
 			verify: func(t *testing.T, got *venv.Venv) {
 				t.Helper()
 
-				_, err := got.Sops.DecryptFile("/secrets.yaml", "yaml")
+				_, err := got.Sops.DecryptFile(map[string]string{}, "/secrets.yaml", "yaml")
 				require.ErrorIs(t, err, wantSopsErr)
 			},
 		},

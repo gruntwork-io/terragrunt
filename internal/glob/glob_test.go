@@ -386,7 +386,7 @@ func TestLegacyExpandCollapsesGlobstar(t *testing.T) {
 
 	pattern := filepath.ToSlash(root) + "/**/*.tf"
 
-	got, err := glob.LegacyExpand(pattern)
+	got, err := glob.LegacyExpand(vfs.NewOSFS(), pattern)
 	require.NoError(t, err)
 
 	want := []string{

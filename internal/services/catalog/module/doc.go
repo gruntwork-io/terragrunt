@@ -1,10 +1,11 @@
 package module
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 const (
@@ -139,10 +140,10 @@ func NewDoc(rawContent, fileExt string) *Doc {
 	return doc
 }
 
-func FindDoc(dir string) (*Doc, error) {
+func FindDoc(fsys vfs.FS, dir string) (*Doc, error) {
 	var filePath, fileExt string
 
-	files, err := os.ReadDir(dir)
+	files, err := vfs.ReadDir(fsys, dir)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +172,7 @@ func FindDoc(dir string) (*Doc, error) {
 		return &Doc{}, nil
 	}
 
-	contentByte, err := os.ReadFile(filePath)
+	contentByte, err := vfs.ReadFile(fsys, filePath)
 	if err != nil {
 		return nil, err
 	}

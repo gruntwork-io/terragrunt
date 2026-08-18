@@ -95,7 +95,7 @@ func testCommandOutput(
 		t.Context(),
 		l,
 		v,
-		configbridge.TFRunOptsFromOpts(terragruntOptions),
+		configbridge.TFRunOptsFromOpts(map[string]string{}, terragruntOptions),
 		"same",
 	)
 

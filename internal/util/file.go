@@ -215,22 +215,20 @@ func DirContainsTFFiles(fsys vfs.FS, dirPath string) (bool, error) {
 	return found, err
 }
 
-// IsTFFile checks if a given file is a Terraform/OpenTofu file (.tf, .tofu, .tf.json, .tofu.json)
+// tfFileSuffixes are the suffixes of the files OpenTofu/Terraform reads
+// configuration from.
+var tfFileSuffixes = []string{
+	".tf",
+	".tofu",
+	".tf.json",
+	".tofu.json",
+}
+
+// IsTFFile checks if a given file is an OpenTofu/Terraform file (.tf, .tofu, .tf.json, .tofu.json)
 func IsTFFile(path string) bool {
-	suffixes := []string{
-		".tf",
-		".tofu",
-		".tf.json",
-		".tofu.json",
-	}
-
-	for _, suffix := range suffixes {
-		if strings.HasSuffix(path, suffix) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(tfFileSuffixes, func(suffix string) bool {
+		return strings.HasSuffix(path, suffix)
+	})
 }
 
 func listContainsElementWithPrefix(list []string, elementPrefix string) bool {
@@ -257,7 +255,7 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 
-	absoluteExpandGlob, err := glob.LegacyExpand(absoluteGlobPath)
+	absoluteExpandGlob, err := glob.LegacyExpand(fsys, absoluteGlobPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, err
@@ -911,7 +909,7 @@ func CopyFolderContentsWithFilter(
 	// Read the directory a level at a time rather than walking it. filepath.Walk
 	// ignores symlinks, and a full walk would lstat entries this copy is going to
 	// skip anyway.
-	entries, err := vfs.ReadDirEntries(fsys, source)
+	entries, err := vfs.ReadDir(fsys, source)
 	if err != nil {
 		return err
 	}
@@ -1650,25 +1648,7 @@ func (err PathIsNotFile) Error() string {
 
 // ListTfFiles returns the OpenTofu/Terraform files in the given directory.
 func ListTfFiles(fsys vfs.FS, directoryPath string) ([]string, error) {
-	entries, err := vfs.ReadDirEntries(fsys, directoryPath)
-	if err != nil {
-		return nil, err
-	}
-
-	tfFiles := make([]string, 0, len(entries))
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		path := filepath.Join(directoryPath, entry.Name())
-		if IsTFFile(path) {
-			tfFiles = append(tfFiles, path)
-		}
-	}
-
-	return tfFiles, nil
+	return vfs.ListFilesWithSuffixes(fsys, directoryPath, tfFileSuffixes...)
 }
 
 // EnsureCacheDir returns the global terragrunt cache directory for the current user.

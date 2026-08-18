@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -62,7 +63,7 @@ dependency "db" {
 	expected := []string{vpcDir, dbDir, appDir}
 
 	// Path 1: experiment ON, use discovery filter
-	optsOn := options.NewTerragruntOptions()
+	optsOn := options.NewTerragruntOptions(vexec.NewOSExec())
 	optsOn.WorkingDir = vpcDir
 	optsOn.RootWorkingDir = tmpDir
 	// Enable the filter-flag experiment
@@ -82,7 +83,7 @@ dependency "db" {
 	}
 
 	// Path 2: experiment OFF, use fallback option
-	optsOff := options.NewTerragruntOptions()
+	optsOff := options.NewTerragruntOptions(vexec.NewOSExec())
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option

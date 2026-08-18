@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +85,7 @@ func TestTFFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 
 			require.FileExists(t, reportFile)
 
-			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
+			runs, parseErr := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 			require.NoError(t, parseErr)
 
 			reportUnits := runs.Names()
@@ -114,7 +115,7 @@ func TestTFFilterFlagWithRunAllGraphExpressionsVerifyExecutionOrder(t *testing.T
 
 	require.FileExists(t, reportFile)
 
-	runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
+	runs, parseErr := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, parseErr)
 
 	// Verify execution order: dependencies (vpc, db, cache) should start before service
@@ -277,7 +278,7 @@ dependency "vpc" {
 
 			require.FileExists(t, reportFile)
 
-			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
+			runs, parseErr := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 			require.NoError(t, parseErr)
 
 			assert.ElementsMatch(t, tc.expectedUnits, runs.Names())
