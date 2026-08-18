@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Since from '@components/Since.astro';
 
 Terragrunt HCL configuration uses [attributes](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#attribute-definitions) when there are values that need to be defined for Terragrunt as a whole.
 
@@ -23,6 +24,15 @@ Note that because the values are being passed in with environment variables and 
 when crossing the boundary between Terragrunt and OpenTofu/Terraform. You must specify the proper [type
 constraint](https://opentofu.org/docs/language/values/variables/#type-constraints) on the variable in OpenTofu/Terraform in
 order for OpenTofu/Terraform to process the inputs as the right type.
+
+<Since version="v1.1.4">
+
+The type constraint also decides how the value is read. A variable declared as `string`, or declared with no type at
+all, receives the value verbatim. Every other type constraint makes OpenTofu/Terraform read the value as an HCL
+expression, where `${...}` means interpolation. Terragrunt escapes those sequences for you when the module reads a value
+as HCL, so text like `${just_a_string}` reaches the module as written.
+
+</Since>
 
 Example:
 

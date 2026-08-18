@@ -192,7 +192,7 @@ func Run(
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedOpts.Debug {
-		if err := WriteTerragruntDebugFile(l, v.Env, updatedOpts, cfg); err != nil {
+		if err := WriteTerragruntDebugFile(l, v.FS, v.Env, updatedOpts, cfg); err != nil {
 			return err
 		}
 	}
@@ -309,7 +309,7 @@ func runTerragruntWithConfig(
 		maps.Copy(v.Env, extraEnvVars)
 	}
 
-	if err := SetTerragruntInputsAsEnvVars(l, v.Env, cfg); err != nil {
+	if err := SetTerragruntInputsAsEnvVars(l, v.FS, v.Env, opts.CacheDir, cfg); err != nil {
 		return err
 	}
 
@@ -495,14 +495,20 @@ func RunActionWithHooks(
 // Requires a non-nil env: it is the destination the entries are written into.
 func SetTerragruntInputsAsEnvVars(
 	l log.Logger,
+	fsys vfs.FS,
 	env map[string]string,
+	modulePath string,
 	cfg *runcfg.RunConfig,
 ) error {
 	if env == nil {
 		panic(venv.ErrVenvEnvUnset)
 	}
 
-	asEnvVars, err := ToTerraformEnvVars(l, cfg.Inputs)
+	asEnvVars, err := ToTerraformEnvVars(
+		l,
+		cfg.Inputs,
+		declaredVariables(l, fsys, modulePath, cfg.Inputs),
+	)
 	if err != nil {
 		return err
 	}
@@ -708,7 +714,15 @@ func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *run
 // ToTerraformEnvVars converts the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
-func ToTerraformEnvVars(l log.Logger, vars map[string]any) (map[string]string, error) {
+//
+// A string value only has its interpolation sequences escaped when the module declares the matching
+// variable with a type constraint that makes OpenTofu/Terraform parse the value as HCL. Escaping a
+// value that is read literally would deliver $${...} to the module instead of ${...}.
+func ToTerraformEnvVars(
+	l log.Logger,
+	vars map[string]any,
+	declared map[string]tf.ModuleVariable,
+) (map[string]string, error) {
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
@@ -717,6 +731,10 @@ func ToTerraformEnvVars(l log.Logger, vars map[string]any) (map[string]string, e
 		}
 
 		envVarName := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
+
+		if str, ok := varValue.(string); ok && declared[varName].ParsingMode == tf.VariableParseHCL {
+			varValue = util.EscapeInterpolationInString(str)
+		}
 
 		envVarValue, err := util.AsTerraformEnvVarJSONValue(varValue)
 		if err != nil {
@@ -727,6 +745,41 @@ func ToTerraformEnvVars(l log.Logger, vars map[string]any) (map[string]string, e
 	}
 
 	return out, nil
+}
+
+// declaredVariables reads how the module at modulePath declared its variables, so that only the
+// values OpenTofu/Terraform parse as HCL get escaped.
+//
+// Reading the module is skipped unless an input actually carries an interpolation sequence, and a
+// module that cannot be read yields no declarations at all: values are then passed through
+// untouched, and OpenTofu/Terraform report the malformed module themselves.
+func declaredVariables(
+	l log.Logger,
+	fsys vfs.FS,
+	modulePath string,
+	inputs map[string]any,
+) map[string]tf.ModuleVariable {
+	needsDeclarations := false
+
+	for _, value := range inputs {
+		if str, ok := value.(string); ok && strings.Contains(str, "${") {
+			needsDeclarations = true
+			break
+		}
+	}
+
+	if !needsDeclarations {
+		return nil
+	}
+
+	declared, err := tf.ModuleVariables(fsys, modulePath)
+	if err != nil {
+		l.Debugf("Failed to read variable declarations in %s: %v", modulePath, err)
+
+		return nil
+	}
+
+	return declared
 }
 
 // filterTerraformEnvVarsFromExtraArgsRunCfg extracts terraform env vars from extra args using runcfg types.

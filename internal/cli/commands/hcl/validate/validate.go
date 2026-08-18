@@ -410,12 +410,10 @@ func runValidateInputs(
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) error {
-	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
+	declared, err := tf.ModuleVariables(v.FS, opts.WorkingDir)
 	if err != nil {
 		return err
 	}
-
-	allVars := slices.Concat(required, optional)
 
 	allInputs, err := getDefinedTerragruntInputs(l, v, opts, cfg)
 	if err != nil {
@@ -426,7 +424,7 @@ func runValidateInputs(
 	unusedVars := []string{}
 
 	for _, varName := range allInputs {
-		if !slices.Contains(allVars, varName) {
+		if _, ok := declared[varName]; !ok {
 			unusedVars = append(unusedVars, varName)
 		}
 	}
@@ -434,8 +432,8 @@ func runValidateInputs(
 	// Missing variables are those that are required by the terraform config, but not defined in terragrunt.
 	missingVars := []string{}
 
-	for _, varName := range required {
-		if !slices.Contains(allInputs, varName) {
+	for _, varName := range slices.Sorted(maps.Keys(declared)) {
+		if !declared[varName].HasDefault && !slices.Contains(allInputs, varName) {
 			missingVars = append(missingVars, varName)
 		}
 	}

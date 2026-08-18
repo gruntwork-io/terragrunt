@@ -1655,7 +1655,7 @@ func ListTfFiles(fsys vfs.FS, directoryPath string) ([]string, error) {
 		return nil, err
 	}
 
-	var tfFiles []string
+	tfFiles := make([]string, 0, len(entries))
 
 	for _, entry := range entries {
 		if entry.IsDir() {
