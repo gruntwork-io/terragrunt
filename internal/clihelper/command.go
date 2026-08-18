@@ -195,13 +195,13 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 		return err
 	}
 
-	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler)
+	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, ctx.Env, errHandler)
 	if err != nil {
 		return nil, err
 	}
 
 	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().
-		NewFlagSet(cmd.Name, errHandler)
+		NewFlagSet(cmd.Name, ctx.Env, errHandler)
 	if err != nil {
 		return nil, err
 	}

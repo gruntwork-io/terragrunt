@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -260,11 +260,11 @@ func TestTFStacksWithLocalState(t *testing.T) {
 	require.FileExists(t, bazStatePath)
 
 	// Verify state files contain actual state (not empty)
-	fooStateContent, err := util.ReadFileAsString(fooStatePath)
+	fooStateContent, err := vfs.ReadFileAsString(vfs.NewOSFS(), fooStatePath)
 	require.NoError(t, err)
-	barStateContent, err := util.ReadFileAsString(barStatePath)
+	barStateContent, err := vfs.ReadFileAsString(vfs.NewOSFS(), barStatePath)
 	require.NoError(t, err)
-	bazStateContent, err := util.ReadFileAsString(bazStatePath)
+	bazStateContent, err := vfs.ReadFileAsString(vfs.NewOSFS(), bazStatePath)
 	require.NoError(t, err)
 
 	assert.Contains(t, fooStateContent, "null_resource")

@@ -202,15 +202,7 @@ linters:
 
       - linters:
           - forbidigo
-        path: ^(internal/cli/commands/browse/tui/model\.go|internal/cli/commands/catalog/cli\.go|internal/cli/commands/catalog/tui/form\.go|internal/cli/commands/catalog/tui/tags_layout\.go|internal/cli/commands/commands\.go|internal/cli/commands/hcl/validate/validate\.go|internal/cli/commands/help/cli\.go|internal/cli/commands/render/render\.go|internal/cli/commands/scaffold/cli\.go|internal/cli/commands/scaffold/scaffold\.go)$
-      # Env-var-backed flags resolve against the process environment rather
-      # than the venv's Env map, so every flag parsed from an env var bypasses
-      # the seam.
-      #
-      # TODO: Update LookupEnvFunc to close this.
-      - linters:
-          - forbidigo
-        path: ^(internal/clihelper/app\.go|internal/clihelper/flag\.go|internal/clihelper/map_flag\.go|internal/clihelper/slice_flag\.go)$
+        path: ^(internal/cli/commands/browse/tui/model\.go|internal/cli/commands/catalog/cli\.go|internal/view/tui/form/form\.go|internal/cli/commands/catalog/tui/tags_layout\.go|internal/cli/commands/commands\.go|internal/cli/commands/hcl/validate/validate\.go|internal/cli/commands/help/cli\.go|internal/cli/commands/render/render\.go|internal/cli/commands/scaffold/cli\.go|internal/cli/commands/scaffold/scaffold\.go)$
       - linters:
           - forbidigo
         path: ^(internal/tf/cache/handlers/filesystem_mirror_provider\.go|internal/tf/cache/helpers/http\.go|internal/tf/cliconfig/credentials\.go|internal/tf/getproviders/constraints\.go|internal/tf/getproviders/hash\.go|internal/tf/getproviders/lock\.go|internal/tf/getproviders/package_authentication\.go|internal/tf/source\.go|internal/tf/tf\.go)$
@@ -229,7 +221,7 @@ linters:
         path: ^pkg/options/options\.go$
       - linters:
           - forbidigo
-        path: ^(internal/discovery/helpers\.go|internal/discovery/phase_worktree\.go|internal/engine/engine\.go|internal/engine/verification\.go|internal/getter/tfrhelpers\.go|internal/git/git\.go|internal/panicreport/panicreport\.go|internal/remotestate/remote_state\.go|internal/remotestate/terraform_state_file\.go|internal/report/writer\.go|internal/services/catalog/module/doc\.go|internal/services/catalog/module/module\.go|internal/shell/git\.go|internal/shell/run_cmd\.go|internal/stacks/clean/clean\.go|internal/tfimpl/tfimpl\.go|internal/util/file\.go|internal/util/lockfile\.go|internal/worktrees/worktrees\.go)$
+        path: ^(internal/discovery/helpers\.go|internal/discovery/phase_worktree\.go|internal/engine/engine\.go|internal/engine/verification\.go|internal/getter/tfrhelpers\.go|internal/git/git\.go|internal/panicreport/panicreport\.go|internal/remotestate/remote_state\.go|internal/remotestate/terraform_state_file\.go|internal/report/writer\.go|internal/services/catalog/module/doc\.go|internal/services/catalog/module/module\.go|internal/shell/git\.go|internal/shell/run_cmd\.go|internal/stacks/clean/clean\.go|internal/tfimpl/tfimpl\.go|internal/util/lockfile\.go|internal/worktrees/worktrees\.go)$
       # We end up with duplicated content in this package to save us from duplicating code in other packages.
       - linters:
           - dupl

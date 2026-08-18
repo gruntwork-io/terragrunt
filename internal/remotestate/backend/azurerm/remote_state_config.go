@@ -1,6 +1,7 @@
 package azurerm
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
@@ -55,6 +56,12 @@ type ExtendedRemoteStateConfigAzurerm struct {
 // `azurerm` Terraform/OpenTofu backend. These are forwarded verbatim to
 // `tofu init -backend-config`.
 type RemoteStateConfigAzurerm struct {
+	// The auth toggles are pointers so an explicitly configured false is
+	// distinguishable from an absent key. Only an absent key may be turned on
+	// by an ARM_USE_* environment variable.
+	UseAzureADAuth     *bool  `mapstructure:"use_azuread_auth"`
+	UseMSI             *bool  `mapstructure:"use_msi"`
+	UseOIDC            *bool  `mapstructure:"use_oidc"`
 	StorageAccountName string `mapstructure:"storage_account_name"`
 	ContainerName      string `mapstructure:"container_name"`
 	Key                string `mapstructure:"key"`
@@ -68,9 +75,6 @@ type RemoteStateConfigAzurerm struct {
 	Environment        string `mapstructure:"environment"`
 	MSIResourceID      string `mapstructure:"msi_resource_id"`
 	OIDCTokenFilePath  string `mapstructure:"oidc_token_file_path"`
-	UseAzureADAuth     bool   `mapstructure:"use_azuread_auth"`
-	UseMSI             bool   `mapstructure:"use_msi"`
-	UseOIDC            bool   `mapstructure:"use_oidc"`
 	// Snapshot is a valid azurerm backend boolean argument. It is declared here
 	// (even though Terragrunt does not act on it) so NormalizeBoolValues coerces
 	// a string "true"/"false" into a real bool before forwarding to `tofu init`.
@@ -137,7 +141,23 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) StorageAccountConfig() *azurehelper
 	}
 }
 
-// Validate checks that the required azurerm remote-state keys are present.
+// CacheKey identifies a bootstrap request, not just a container. It extends the
+// container identity with the policies bootstrap converges, so two units naming
+// the same container with different versioning or soft-delete settings do not
+// share one "already initialized" entry: the second must run its own checks
+// instead of inheriting the first unit's convergence.
+func (cfg *ExtendedRemoteStateConfigAzurerm) CacheKey() string {
+	return strings.Join([]string{
+		cfg.RemoteStateConfigAzurerm.CacheKey(),
+		strconv.FormatBool(cfg.SkipVersioning),
+		strconv.FormatBool(cfg.EnableSoftDelete),
+		strconv.Itoa(cfg.SoftDeleteRetentionDays),
+		strconv.FormatBool(cfg.SkipStorageAccountCreation),
+		strconv.FormatBool(cfg.SkipResourceGroupCreation),
+		strconv.FormatBool(cfg.SkipContainerCreation),
+	}, "|")
+}
+
 // normalize trims surrounding whitespace from every string field.
 // azurehelper.AzureConfigBuilder trims the values it resolves, so without this
 // a padded value (common when CI injects config through naive shell
@@ -158,6 +178,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) normalize() {
 	}
 }
 
+// Validate checks that the required azurerm remote-state keys are present.
 func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	rs := cfg.RemoteStateConfigAzurerm
 

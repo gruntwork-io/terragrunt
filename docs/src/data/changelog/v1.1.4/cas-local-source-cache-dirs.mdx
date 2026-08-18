@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### CAS no longer falls back on sources that have been initialized
+
+With CAS enabled, reading a local source that had already been initialized failed and fell back to the slower standard copy. Generating a stack from such a unit logged `CAS processing failed ... source escapes repository root`. Provider caching, whether through the [provider cache server](/features/caching/provider-cache-server) or the [automatic provider cache dir](/features/caching/auto-provider-cache-dir), leaves the plugins under `.terraform` pointing into a shared cache outside the source, and CAS read those links as the source reaching outside itself.
+
+CAS now leaves `.terraform` and `.terragrunt-cache` out of local sources, keeping `.terraform.lock.hcl` and everything else. Both directories hold working state that OpenTofu, Terraform, and Terragrunt rebuild on demand, so units and stacks stop being handed a stale copy of either, and running `tofu init` in a source directory stops changing the CAS key of source that hasn't changed.

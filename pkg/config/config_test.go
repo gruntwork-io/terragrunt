@@ -1066,7 +1066,7 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	configPathRel := "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + config.RecommendedParentConfigName
 	configPath := absPath(t, configPathRel)
 
-	cfg, err := util.ReadFileAsString(configPathRel)
+	cfg, err := vfs.ReadFileAsString(vfs.NewOSFS(), configPathRel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1099,7 +1099,7 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	configPathRel := "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath
 	configPath := absPath(t, configPathRel)
 
-	cfg, err := util.ReadFileAsString(configPathRel)
+	cfg, err := vfs.ReadFileAsString(vfs.NewOSFS(), configPathRel)
 	if err != nil {
 		t.Fatal(err)
 	}

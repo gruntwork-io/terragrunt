@@ -12,7 +12,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -36,7 +35,7 @@ func TestTFDebugGeneratedInputs(t *testing.T) {
 
 	// Debug file is created in the original config directory
 	debugFile := filepath.Join(rootPath, helpers.TerragruntDebugFile)
-	assert.True(t, util.FileExists(debugFile))
+	assert.FileExists(t, debugFile)
 
 	// Find cache directory for running terraform
 	cacheWorkingDir := helpers.FindCacheWorkingDir(t, rootPath)

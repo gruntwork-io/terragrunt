@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestSplitSourceDoubleSlash(t *testing.T) {
@@ -155,7 +156,7 @@ func TestProcessStackComponent_RewritesStackSources(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -198,7 +199,7 @@ func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -253,7 +254,7 @@ func TestProcessStackComponent_UnitSourceSyntheticTreeContainsSiblings(t *testin
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -314,7 +315,7 @@ func TestProcessStackComponent_UnitSourceWithoutDoubleSlash(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -373,7 +374,7 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -436,7 +437,7 @@ func TestProcessStackComponent_DeterministicOutput(t *testing.T) {
 
 	readStackFile := func() string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-		c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 		require.NoError(t, err)
 
 		source := repoURL + "//stacks/my-stack?ref=main"
@@ -474,7 +475,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -525,7 +526,7 @@ func TestProcessStackComponent_InvalidRefFails(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -543,7 +544,7 @@ func TestProcessStackComponent_InvalidSubdirFails(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -562,7 +563,7 @@ func TestProcessStackComponent_BlobsStoredInCAS(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -597,7 +598,7 @@ func TestProcessStackComponent_AcceptsExplicitGitPrefix(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -645,7 +646,7 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

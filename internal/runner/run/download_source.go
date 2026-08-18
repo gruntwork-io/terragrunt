@@ -607,7 +607,7 @@ func tryCASDownload(
 		return false, err
 	}
 
-	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
+	c, err := cas.New(v, cas.WithCloneDepth(opts.CASCloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(

@@ -210,3 +210,21 @@ disable_checkpoint_signature = false
 		})
 	}
 }
+
+// TestCloneCredentialsAreIndependent pins that rewriting a clone's tokens leaves the source
+// config untouched. That source is what the cache server reads to authenticate upstream, so
+// sharing the backing array would swap the real token out from under it.
+func TestCloneCredentialsAreIndependent(t *testing.T) {
+	t.Parallel()
+
+	original := cliconfig.NewConfig(vfs.NewOSFS())
+	original.Credentials = []cliconfig.ConfigCredentials{
+		{Name: "registry.opentofu.org", Token: "real-token"},
+	}
+
+	clone := original.Clone()
+	clone.Credentials[0].Token = "substituted-token"
+
+	assert.Equal(t, "real-token", original.Credentials[0].Token)
+	assert.Equal(t, "substituted-token", clone.Credentials[0].Token)
+}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -116,7 +115,7 @@ func (pc *ProviderCache) Init(
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
 	if pcOpts.Dir == "" {
-		cacheDir, err := util.EnsureCacheDir()
+		cacheDir, err := util.EnsureCacheDir(v)
 		if err != nil {
 			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
@@ -156,8 +155,7 @@ func (pc *ProviderCache) Init(
 		userProviderDir,
 		cliCfg.CredentialsSource(),
 		l,
-		v.FS,
-		v.HTTP,
+		v,
 	)
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, v.HTTP, cliCfg.CredentialsSource())
 
@@ -242,7 +240,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 	var skipRunTargetCommand bool
 
 	lockfilePath := filepath.Join(tfOpts.ShellOptions.WorkingDir, tf.TerraformLockFile)
-	lockfileExists := util.FileExists(lockfilePath)
+	lockfileExists := vfs.Exists(v.FS, lockfilePath)
 
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 	switch {
@@ -306,7 +304,7 @@ func (pc *ProviderCache) warmUpCache(
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
-	if err := pc.createLocalCLIConfig(
+	if err := pc.CreateLocalCLIConfig(
 		ctx,
 		v,
 		tfOpts.TofuImplementation,
@@ -419,7 +417,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
-	if err := pc.createLocalCLIConfig(
+	if err := pc.CreateLocalCLIConfig(
 		ctx,
 		v,
 		tfOpts.TofuImplementation,
@@ -485,7 +483,7 @@ func argsRequestReadonlyLockfile(args []string) bool {
 	return false
 }
 
-// createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
+// CreateLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
 // We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider cache server, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
 // In order to force Terraform to queries our cache server instead of the original one, we use the section below.
 // https://github.com/hashicorp/terraform/issues/28309 (officially undocumented)
@@ -514,7 +512,7 @@ func argsRequestReadonlyLockfile(args []string) bool {
 // It creates two types of configuration depending on the `cacheRequestID` variable set.
 // 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
 // 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
-func (pc *ProviderCache) createLocalCLIConfig(
+func (pc *ProviderCache) CreateLocalCLIConfig(
 	ctx context.Context,
 	v *venv.Venv,
 	implementation tfimpl.Type,
@@ -526,6 +524,8 @@ func (pc *ProviderCache) createLocalCLIConfig(
 
 	filteredRegistryNames := FilterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
 	filteredRegistryNames = AppendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
+
+	cfg.Credentials = StripProxiedCredentials(cfg.Credentials, filteredRegistryNames)
 
 	providerInstallationIncludes, err := pc.configureRegistryHosts(
 		ctx,
@@ -632,7 +632,8 @@ func (pc *ProviderCache) saveCLIConfig(fs vfs.FS, cfg *cliconfig.Config, filenam
 	}
 
 	if !cfgDirExists {
-		if err := fs.MkdirAll(cfgDir, os.ModePerm); err != nil {
+		const ownerReadWriteExecutePerms = 0o700
+		if err := fs.MkdirAll(cfgDir, ownerReadWriteExecutePerms); err != nil {
 			return err
 		}
 	}
@@ -839,6 +840,30 @@ func ConvertToMultipleCommandsByPlatforms(args []string) [][]string {
 	}
 
 	return commandsArgs
+}
+
+// StripProxiedCredentials returns creds without the entries whose host is routed through the
+// cache server, keeping real registry tokens out of the generated CLI config. Those hosts
+// authenticate with the TF_TOKEN_<host> variable Terragrunt sets for exactly this set, and
+// the cache server supplies the real upstream credentials from memory. Unrouted hosts keep
+// their entry, since OpenTofu reaches them directly and no variable stands in for them.
+func StripProxiedCredentials(
+	creds []cliconfig.ConfigCredentials,
+	proxiedHosts []string,
+) []cliconfig.ConfigCredentials {
+	out := make([]cliconfig.ConfigCredentials, 0, len(creds))
+
+	for _, cred := range creds {
+		if slices.ContainsFunc(proxiedHosts, func(host string) bool {
+			return strings.EqualFold(host, cred.Name)
+		}) {
+			continue
+		}
+
+		out = append(out, cred)
+	}
+
+	return out
 }
 
 // AppendCustomHostRegistries adds custom host names from user config to the registry list

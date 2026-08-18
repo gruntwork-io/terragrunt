@@ -29,7 +29,7 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
@@ -51,7 +51,7 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
@@ -70,7 +70,7 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
@@ -105,7 +105,7 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	entry := cas.EntryPathForURL(gitStoreRoot, repoURL)
 	require.NoError(t, os.WriteFile(entry, []byte("not a directory"), 0o644))
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -143,7 +143,7 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 	storePath := filepath.Join(tempDir, "store")
 	targetPath := filepath.Join(tempDir, "repo")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -184,7 +184,7 @@ func TestCASRejectsNonOSFilesystem(t *testing.T) {
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venvtest.New()

@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const osWindows = "windows"
@@ -243,6 +244,77 @@ func TestStoreLocalDirectoryRejectsEscapingSymlink(t *testing.T) {
 	assert.Contains(t, err.Error(), "symlink target escapes")
 }
 
+// TestStoreLocalDirectoryIgnoresCacheDirs covers a local source that has been
+// initialized in place: the plugins under .terraform are links into a shared
+// provider cache outside the source, and ingesting them would have to be
+// refused. Both cache directories are left out instead, so the source stores
+// cleanly and the target gets source alone.
+func TestStoreLocalDirectoryIgnoresCacheDirs(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == osWindows {
+		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
+	}
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	pluginCache := filepath.Join(helpers.TmpDirWOSymlinks(t), "hashicorp", "aws", "5.0.0")
+	require.NoError(t, os.MkdirAll(pluginCache, 0o755))
+
+	src := writeLocalFixture(t, map[string]string{
+		"main.tf":             "ok",
+		".terraform.lock.hcl": `provider "registry.opentofu.org/hashicorp/aws" {}`,
+		".terraform/providers/hashicorp/aws/5.0.0/keep.txt": "",
+		".terragrunt-cache/aBc123/dEf456/main.tf":           "stale",
+	})
+	require.NoError(t, os.Symlink(
+		pluginCache,
+		filepath.Join(src, ".terraform", "providers", "hashicorp", "aws", "darwin_arm64"),
+	))
+
+	dst := filepath.Join(t.TempDir(), "dst")
+	require.NoError(t, c.StoreLocalDirectory(t.Context(), l, v, src, dst))
+
+	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+	assert.FileExists(
+		t,
+		filepath.Join(dst, ".terraform.lock.hcl"),
+		"the lock file is source and must survive the .terraform exclusion",
+	)
+	assert.NoDirExists(t, filepath.Join(dst, ".terraform"))
+	assert.NoDirExists(t, filepath.Join(dst, ".terragrunt-cache"))
+}
+
+// TestComputeLocalRootHashIgnoresCacheDirs pins the cache-key half of the
+// exclusion: initializing a source in place must not change the hash that
+// identifies it.
+func TestComputeLocalRootHashIgnoresCacheDirs(t *testing.T) {
+	t.Parallel()
+
+	c, v := newCAS(t)
+
+	clean := writeLocalFixture(t, map[string]string{"main.tf": "ok"})
+	initialized := writeLocalFixture(t, map[string]string{
+		"main.tf":                                 "ok",
+		".terraform/modules/modules.json":         `{"Modules":[]}`,
+		".terragrunt-cache/aBc123/dEf456/main.tf": "stale",
+	})
+
+	cleanHash, err := c.ComputeLocalRootHash(v, clean, cas.HashSHA256)
+	require.NoError(t, err)
+
+	initializedHash, err := c.ComputeLocalRootHash(v, initialized, cas.HashSHA256)
+	require.NoError(t, err)
+
+	assert.Equal(
+		t,
+		cleanHash,
+		initializedHash,
+		"working state must not change the hash of unchanged source",
+	)
+}
+
 // TestComputeLocalRootHashIncludesSymlinks pins that swapping a symlink's
 // target changes the root hash. The pre-symlink-support buildLocalTree
 // silently skipped symlinks, so two trees that differed only in link target
@@ -292,7 +364,7 @@ func newCAS(t *testing.T) (*cas.CAS, *venv.Venv) {
 	t.Helper()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

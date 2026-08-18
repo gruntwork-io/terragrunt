@@ -20,7 +20,7 @@ func TestNoHooksFlagRequiresExperiment(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
 
 	err := flags.RunActions(context.Background(), &clihelper.Context{})
 
@@ -35,7 +35,7 @@ func TestNoHooksFlagAllowedWithExperiment(t *testing.T) {
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OptionalHooks))
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
 	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
 	assert.True(t, opts.NoRunHooks)
 }
@@ -46,7 +46,7 @@ func TestNoDependencyOutputsFlagRequiresExperiment(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))
 
 	err := flags.RunActions(context.Background(), &clihelper.Context{})
 
@@ -61,7 +61,7 @@ func TestNoDependencyOutputsFlagAllowedWithExperiment(t *testing.T) {
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OptionalDependencyOutputs))
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))
 	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
 	assert.True(t, opts.SkipOutput)
 }

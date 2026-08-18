@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
@@ -152,7 +153,7 @@ func findCatalogConfig(
 			return "", "", err
 		}
 
-		configString, err := util.ReadFileAsString(newConfigPath)
+		configString, err := vfs.ReadFileAsString(pctx.Venv.FS, newConfigPath)
 		if err != nil {
 			return "", "", err
 		}

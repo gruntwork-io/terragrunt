@@ -17,7 +17,7 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 		value    any
 		expected string
 	}{
-		// plain strings: passed through unchanged (Terraform reads string vars as literals)
+		// plain strings: passed through unchanged, escaping is the caller's call
 		{"aws_region", "aws_region"},
 		{"plain ${bar} string", "plain ${bar} string"},
 		// list: JSON serialized, strings within escaped
