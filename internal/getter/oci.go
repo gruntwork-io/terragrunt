@@ -59,6 +59,28 @@ var ErrOCIMissingRegistryDomain = errors.New("oci source is missing a registry d
 // ErrOCIMissingRepositoryName reports an oci source without a repository path.
 var ErrOCIMissingRepositoryName = errors.New("oci source is missing a repository name")
 
+// ErrOCIInvalidRepositoryName reports a repository path that fails OCI reference validation.
+var ErrOCIInvalidRepositoryName = errors.New("invalid oci repository name")
+
+// OCIEmbeddedReferenceError reports a docker-style ":tag" or "@digest" suffix
+// in an oci repository path, carrying the query-form source to use instead.
+type OCIEmbeddedReferenceError struct {
+	RepositoryName  string
+	SuggestedSource string
+}
+
+func (err OCIEmbeddedReferenceError) Error() string {
+	return fmt.Sprintf(
+		"%s %q: pin the version with a query argument instead: %q",
+		ErrOCIInvalidRepositoryName, err.RepositoryName, err.SuggestedSource,
+	)
+}
+
+// Unwrap keeps [ErrOCIInvalidRepositoryName] matchable on the suffix form.
+func (err OCIEmbeddedReferenceError) Unwrap() error {
+	return ErrOCIInvalidRepositoryName
+}
+
 // ErrOCITagDigestExclusive reports an oci source that pins both a tag and a
 // digest; the wording mirrors OpenTofu so one source string fails the same
 // way in both tools.
@@ -421,6 +443,12 @@ func parseOCISource(srcURL *url.URL) (ociSourceCoordinates, error) {
 		return coords, ErrOCIMissingRepositoryName
 	}
 
+	// Validated by field, as tofu does, so a :tag suffix cannot ride through ORAS reference splitting into latest.
+	fields := registry.Reference{Registry: coords.registryDomain, Repository: coords.repositoryName}
+	if err := fields.Validate(); err != nil {
+		return coords, ociRepositoryNameError(coords, srcURL.Query(), err)
+	}
+
 	ref, err := ociRefFromQuery(srcURL.Query())
 	if err != nil {
 		return coords, err
@@ -429,6 +457,91 @@ func parseOCISource(srcURL *url.URL) (ociSourceCoordinates, error) {
 	coords.ref = ref
 
 	return coords, nil
+}
+
+// ociRepositoryNameError renders a repository validation failure, upgrading a
+// docker-style suffix to [OCIEmbeddedReferenceError] with the fully formed
+// query-pinned source, so the fix can be pasted verbatim.
+func ociRepositoryNameError(coords ociSourceCoordinates, queryValues url.Values, err error) error {
+	name, queryKey, ref, found := cutOCIEmbeddedReference(coords.repositoryName)
+	if !found {
+		// A single %w keeps the whole message intact: the CLI renderer splits multi-wrapped errors into bare bullets.
+		return fmt.Errorf("%w %q: %s", ErrOCIInvalidRepositoryName, coords.repositoryName, err.Error())
+	}
+
+	queryKey, ref = suggestedOCIQueryPin(queryValues, queryKey, ref)
+
+	return OCIEmbeddedReferenceError{
+		RepositoryName:  coords.repositoryName,
+		SuggestedSource: ociQuerySource(coords.registryDomain, name, coords.subDir, queryKey, ref),
+	}
+}
+
+// cutOCIEmbeddedReference splits a docker-style "@digest" or ":tag" suffix off
+// a repository path, recognizing a suffix only when it satisfies the digest or
+// tag grammar and leaves a valid name, so the rewrite always parses on paste.
+func cutOCIEmbeddedReference(repositoryName string) (string, string, string, bool) {
+	if name, ref, found := strings.Cut(repositoryName, "@"); found && name != "" {
+		if _, err := digest.Parse(ref); err != nil {
+			return repositoryName, "", "", false
+		}
+
+		// The digest wins over a ":tag" also present, matching Docker's NAME:TAG@DIGEST form.
+		name, _, _ = cutOCIEmbeddedTag(name)
+		if err := (registry.Reference{Repository: name}).ValidateRepository(); err != nil {
+			return repositoryName, "", "", false
+		}
+
+		return name, ociDigestQueryKey, ref, true
+	}
+
+	if name, ref, found := cutOCIEmbeddedTag(repositoryName); found {
+		if err := (registry.Reference{Repository: name}).ValidateRepository(); err != nil {
+			return repositoryName, "", "", false
+		}
+
+		return name, ociTagQueryKey, ref, true
+	}
+
+	return repositoryName, "", "", false
+}
+
+// cutOCIEmbeddedTag splits a ":tag" suffix off the last path segment when the suffix satisfies the tag grammar.
+func cutOCIEmbeddedTag(repositoryName string) (string, string, bool) {
+	idx := strings.LastIndex(repositoryName, ":")
+	if idx <= 0 || idx < strings.LastIndex(repositoryName, "/") {
+		return repositoryName, "", false
+	}
+
+	ref := repositoryName[idx+1:]
+	if err := (registry.Reference{Reference: ref}).ValidateReferenceAsTag(); err != nil {
+		return repositoryName, "", false
+	}
+
+	return repositoryName[:idx], ref, true
+}
+
+// suggestedOCIQueryPin keeps an explicit query pin over the embedded suffix in the rewrite.
+func suggestedOCIQueryPin(queryValues url.Values, queryKey, ref string) (string, string) {
+	if value := queryValues.Get(ociDigestQueryKey); value != "" {
+		return ociDigestQueryKey, value
+	}
+
+	if value := queryValues.Get(ociTagQueryKey); value != "" {
+		return ociTagQueryKey, value
+	}
+
+	return queryKey, ref
+}
+
+// ociQuerySource rebuilds the source string with the reference moved into a query argument.
+func ociQuerySource(registryDomain, repositoryName, subDir, queryKey, ref string) string {
+	src := SchemeOCI + "://" + registryDomain + "/" + repositoryName
+	if subDir != "" {
+		src += "//" + subDir
+	}
+
+	return src + "?" + queryKey + "=" + ref
 }
 
 // ociRefFromQuery validates the source query and returns the reference to
