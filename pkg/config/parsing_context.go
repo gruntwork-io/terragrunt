@@ -103,6 +103,7 @@ type ParsingContext struct {
 	JSONLogFormat       bool
 	Debug               bool
 	AutoInit            bool
+	AutoRetry           bool
 	Headless            bool
 	BackendBootstrap    bool
 	CheckDependentUnits bool
