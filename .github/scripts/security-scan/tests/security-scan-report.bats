@@ -97,6 +97,15 @@ EOF
   [ "$output" == "UNKNOWN" ]
 }
 
+@test "summary maps an unsupported severity to UNKNOWN" {
+  jq '(.Results[0].Vulnerabilities[] | select(.VulnerabilityID == "CVE-2026-1111") | .Severity) = "BOGUS"' \
+    "$CURRENT_RAW" >"${BATS_TEST_TMPDIR}/bogus-raw.json"
+  run "$SCRIPT" summary "${BATS_TEST_TMPDIR}/bogus-raw.json" "${BATS_TEST_TMPDIR}/bogus-summary.json"
+  [ "$status" -eq 0 ]
+  run jq -r '.findings[] | select(.id == "CVE-2026-1111") | .severity' "${BATS_TEST_TMPDIR}/bogus-summary.json"
+  [ "$output" == "UNKNOWN" ]
+}
+
 @test "summary orders findings most severe first" {
   run jq -r '[.findings[].severity] | join(",")' "$CURRENT"
   [ "$output" == "CRITICAL,HIGH,MEDIUM,UNKNOWN" ]
@@ -236,6 +245,16 @@ EOF
   [ "$status" -eq 0 ]
   [[ "$output" == *"Findings baseline: 4 total"* ]]
   [[ "$output" == *"At: 2026-08-17 abc123"* ]]
+}
+
+@test "scan checks its tools before doing any work" {
+  SHIMS="${BATS_TEST_TMPDIR}/shims"
+  mkdir -p "$SHIMS"
+  for tool in bash dirname basename jq; do ln -s "$(command -v "$tool")" "$SHIMS/$tool"; done
+  PATH="$SHIMS" run "$SCRIPT" scan . "${BATS_TEST_TMPDIR}/scan/out.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"trivy"* ]]
+  [ ! -d "${BATS_TEST_TMPDIR}/scan" ]
 }
 
 @test "fails on an unknown subcommand" {

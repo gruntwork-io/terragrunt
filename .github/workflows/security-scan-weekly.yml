@@ -53,6 +53,14 @@ jobs:
           ./.github/scripts/security-scan/security-scan-report.sh scan . current/scan.json
           ./.github/scripts/security-scan/security-scan-report.sh summary current/scan.json current/scan-summary.json
 
+      - name: Reuse the current summary as previous
+        # No distinct previous commit: the diff is against the same tree, so the
+        # week reports zero new and zero fixed rather than a fresh baseline.
+        if: steps.refs.outputs.same_commit == 'true'
+        run: |
+          mkdir -p previous
+          cp current/scan-summary.json previous/scan-summary.json
+
       - name: Prepare previous checkout
         if: steps.refs.outputs.same_commit != 'true'
         env:

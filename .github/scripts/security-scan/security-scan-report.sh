@@ -44,16 +44,22 @@ usage() {
 now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 this_commit() { echo "${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"; }
 
-# Shared jq defs: severity normalization/ranking and the one-line finding format.
+# Shared jq defs: severity handling, the fields every finding class has in
+# common, and the count/finding/list output formats.
 jq_lib() {
 	cat <<-'JQ'
-		def sev: if . == null then "UNKNOWN"
-			elif (["CRITICAL","HIGH","MEDIUM","LOW","UNKNOWN"] | index(.)) then .
-			else "UNKNOWN" end;
-		def sevrank: {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}[.] // 9;
+		def sev: if IN("CRITICAL", "HIGH", "MEDIUM", "LOW") then . else "UNKNOWN" end;
+		def sevrank: {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}[.] // 4;
+		def base($r): {
+			id: "", pkg: "", installed: "", fixed: "", line: 0,
+			severity: (.Severity | sev), target: ($r.Target // ""), title: (.Title // "")
+		};
+		def counts: {CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0}
+			+ (group_by(.severity) | map({(.[0].severity): length}) | add // {})
+			+ {total: length};
 		def counts_line: . as $c |
-			(["CRITICAL","HIGH","MEDIUM","LOW"]
-				| map(. as $s | select(($c[$s] // 0) > 0) | "\($c[$s]) \($s)")
+			(["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+				| map(select(($c[.] // 0) > 0) | "\($c[.]) \(.)")
 				| join(", ")) as $by_sev |
 			"\($c.total // 0) total" + (if $by_sev != "" then " (\($by_sev))" else "" end);
 		def loc: .target + (if (.line // 0) > 0 then ":\(.line)" else "" end);
@@ -67,6 +73,12 @@ jq_lib() {
 				.id + (if .title != "" then " \(.title)" else "" end)
 			end)
 			+ " (\(loc))";
+		def listed($items; $label; $limit): if ($items | length) == 0 then "" else
+			"\($label) (\($items | length)):\n"
+			+ ([$items[:$limit][] | "  \(finding_line)"] | join("\n"))
+			+ (if ($items | length) > $limit
+				then "\n  ...and \(($items | length) - $limit) more" else "" end)
+		end;
 	JQ
 }
 
@@ -75,11 +87,6 @@ cmd_scan() {
 	local src="${1:?Usage: security-scan-report.sh scan <src-dir> <out.json> [trivy args...]}"
 	local out="${2:?Usage: security-scan-report.sh scan <src-dir> <out.json> [trivy args...]}"
 	shift 2
-
-	if ! command -v trivy >/dev/null 2>&1; then
-		echo "Error: trivy not found on PATH; install it (e.g. aquasecurity/setup-trivy) first." >&2
-		exit 1
-	fi
 
 	mkdir -p "$(dirname "$out")"
 
@@ -122,51 +129,28 @@ cmd_summary() {
 		--arg timestamp "$(now_utc)" \
 		"$(jq_lib)"'
 		[.Results[]? as $r |
-			(($r.Vulnerabilities // [])[] | {
+			(($r.Vulnerabilities // [])[] | base($r) + {
 				class: "vuln",
 				id: (.VulnerabilityID // ""),
-				severity: (.Severity | sev),
-				target: ($r.Target // ""),
-				line: 0,
 				pkg: (.PkgName // ""),
 				installed: (.InstalledVersion // ""),
-				fixed: (.FixedVersion // ""),
-				title: (.Title // "")
+				fixed: (.FixedVersion // "")
 			}),
-			(($r.Misconfigurations // [])[] | select((.Status // "FAIL") == "FAIL") | {
+			(($r.Misconfigurations // [])[] | select((.Status // "FAIL") == "FAIL") | base($r) + {
 				class: "misconfig",
 				id: (.AVDID // .ID // ""),
-				severity: (.Severity | sev),
-				target: ($r.Target // ""),
-				line: (.CauseMetadata.StartLine // 0),
-				pkg: "",
-				installed: "",
-				fixed: "",
-				title: (.Title // "")
+				line: (.CauseMetadata.StartLine // 0)
 			}),
-			(($r.Secrets // [])[] | {
+			(($r.Secrets // [])[] | base($r) + {
 				class: "secret",
 				id: (.RuleID // ""),
-				severity: (.Severity | sev),
-				target: ($r.Target // ""),
-				line: (.StartLine // 0),
-				pkg: "",
-				installed: "",
-				fixed: "",
-				title: (.Title // "")
+				line: (.StartLine // 0)
 			})
 		]
 		| map(. + {key: "\(.class)|\(.target)|\(.pkg)|\(.id)"})
 		| unique_by(.key)
 		| sort_by([(.severity | sevrank), .key])
-		| {
-			commit: $commit,
-			timestamp: $timestamp,
-			counts: (reduce .[] as $f (
-				{CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0, total: 0};
-				.[$f.severity] += 1 | .total += 1)),
-			findings: .
-		}' "$input" >"$output"
+		| {commit: $commit, timestamp: $timestamp, counts: counts, findings: .}' "$input" >"$output"
 
 	echo "Summary: $output ($(jq -r '.counts.total' "$output") findings)"
 }
@@ -201,8 +185,8 @@ cmd_compare() {
 		--slurpfile prev "$previous" '
 		($cur[0]) as $c |
 		($prev[0]) as $p |
-		($c.findings | map({(.key): true}) | add // {}) as $ckeys |
-		($p.findings | map({(.key): true}) | add // {}) as $pkeys |
+		INDEX($c.findings[]; .key) as $ckeys |
+		INDEX($p.findings[]; .key) as $pkeys |
 		{
 			baseline: false,
 			current_counts: $c.counts,
@@ -322,12 +306,6 @@ cmd_payload() {
 		--argjson limit "$limit" \
 		--slurpfile rep "$report" \
 		"$(jq_lib)"'
-		def listed($items; $label): if ($items | length) > 0 then
-			"\($label) (\($items | length)):\n"
-			+ ([$items[:$limit][] | "  \(finding_line)"] | join("\n"))
-			+ (if ($items | length) > $limit then "\n  ...and \(($items | length) - $limit) more" else "" end)
-		else "" end;
-
 		($rep[0]) as $r |
 
 		(if $r.baseline then
@@ -336,25 +314,18 @@ cmd_payload() {
 			"Findings: \($r.current_counts | counts_line) (was \($r.previous_counts | counts_line))"
 		end) as $totals |
 
-		{
-			new: listed($r.new; "New this week"),
-			fixed: listed($r.fixed; "Fixed this week"),
-			current: listed($r.current_findings; "Current findings")
-		} as $lists |
+		listed($r.new; "New this week"; $limit) as $new |
+		(if ($r.baseline | not) and $new == "" then "No new findings this week." else "" end) as $none |
 
-		(if ($r.baseline | not) and $lists.new == "" then "No new findings this week." else "" end) as $none |
-
-		{
-			text: (
-				($header + "\n\n")
-				+ $totals
-				+ (if $lists.new != "" then "\n\n" + $lists.new else "" end)
-				+ (if $lists.fixed != "" then "\n\n" + $lists.fixed else "" end)
-				+ (if $none != "" then "\n\n" + $none else "" end)
-				+ (if $lists.current != "" then "\n\n" + $lists.current else "" end)
-				+ "\n\n<\($run_url)|View workflow run>"
-			)
-		}'
+		{text: ([
+			$header,
+			$totals,
+			$new,
+			listed($r.fixed; "Fixed this week"; $limit),
+			$none,
+			listed($r.current_findings; "Current findings"; $limit),
+			"<\($run_url)|View workflow run>"
+		] | map(select(. != "")) | join("\n\n"))}'
 }
 
 # Post the report to Slack
@@ -365,7 +336,8 @@ cmd_notify() {
 	local payload
 	payload=$(cmd_payload "$report")
 
-	curl -sS --fail-with-body -X POST -H "Content-Type: application/json" -d "$payload" "$webhook"
+	curl -sS --fail-with-body --connect-timeout 10 --max-time 30 \
+		-X POST -H "Content-Type: application/json" -d "$payload" "$webhook"
 	echo "Slack notification sent."
 }
 
@@ -379,22 +351,35 @@ cmd_notify_failure() {
 	payload=$(jq -n --arg run_url "$run_url" \
 		'{text: "*Weekly Security Scan: terragrunt*\nRun failed before producing a report.\n\n<\($run_url)|View workflow run>"}')
 
-	curl -sS --fail-with-body -X POST -H "Content-Type: application/json" -d "$payload" "$webhook"
+	curl -sS --fail-with-body --connect-timeout 10 --max-time 30 \
+		-X POST -H "Content-Type: application/json" -d "$payload" "$webhook"
 	echo "Slack failure notification sent."
 }
 
-# Route the subcommand to its handler
+# Fail before any work when a subcommand's tools are missing
+require_tools() {
+	local tool missing=()
+	for tool in "$@"; do
+		command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+	done
+	if [[ ${#missing[@]} -gt 0 ]]; then
+		echo "Error: not found on PATH: ${missing[*]}. Install them (e.g. aquasecurity/setup-trivy for trivy) first." >&2
+		exit 1
+	fi
+}
+
+# Route the subcommand to its handler, after checking its pre-reqs
 main() {
 	local cmd="${1:-}"
 	shift || true
 	case "$cmd" in
-	scan) cmd_scan "$@" ;;
-	summary) cmd_summary "$@" ;;
-	compare) cmd_compare "$@" ;;
-	render) cmd_render "$@" ;;
-	payload) cmd_payload "$@" ;;
-	notify) cmd_notify "$@" ;;
-	notify-failure) cmd_notify_failure "$@" ;;
+	scan) require_tools jq trivy && cmd_scan "$@" ;;
+	summary) require_tools jq && cmd_summary "$@" ;;
+	compare) require_tools jq && cmd_compare "$@" ;;
+	render) require_tools jq && cmd_render "$@" ;;
+	payload) require_tools jq && cmd_payload "$@" ;;
+	notify) require_tools jq curl && cmd_notify "$@" ;;
+	notify-failure) require_tools jq curl && cmd_notify_failure "$@" ;;
 	"" | -h | --help | help) usage ;;
 	*)
 		echo "Unknown subcommand: $cmd" >&2
