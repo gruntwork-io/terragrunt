@@ -1625,12 +1625,12 @@ EOF
 
 		// Migrate state from old unit paths to new .terragrunt-stack paths
 		tmpDir := helpers.TmpDirWOSymlinks(t)
-		tempStateFile := filepath.Join(tmpDir, "tofu.tfstate")
 
 		for _, env := range environments {
 			for _, component := range components {
 				oldUnitDir := filepath.Join(liveDir, env, component)
 				newUnitDir := filepath.Join(liveDir, env, ".terragrunt-stack", component)
+				tempStateFile := filepath.Join(tmpDir, "tofu-"+env+"-"+component+".tfstate")
 
 				// Pull state from old location
 				stateContent, _ := helpers.ExecWithMiseAndCaptureOutput(
