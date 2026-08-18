@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -634,7 +633,8 @@ func (pc *ProviderCache) saveCLIConfig(fs vfs.FS, cfg *cliconfig.Config, filenam
 	}
 
 	if !cfgDirExists {
-		if err := fs.MkdirAll(cfgDir, os.ModePerm); err != nil {
+		const ownerReadWriteExecutePerms = 0o700
+		if err := fs.MkdirAll(cfgDir, ownerReadWriteExecutePerms); err != nil {
 			return err
 		}
 	}
