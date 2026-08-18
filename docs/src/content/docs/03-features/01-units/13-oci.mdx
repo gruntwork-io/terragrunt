@@ -42,7 +42,7 @@ unit "vpc" {
 
 - `?tag=` selects a tag; `?digest=sha256:...` pins an immutable manifest digest. Setting both is an error, and no other query parameters are accepted.
 - When neither is set, Terragrunt uses the `latest` tag.
-- Docker-style `NAME:TAG` and `NAME@DIGEST` suffixes are not part of the source syntax (matching OpenTofu's behavior). Terragrunt rejects them with an error pointing at the `?tag=`/`?digest=` form.
+- Docker-style `NAME:TAG` and `NAME@DIGEST` suffixes are not part of the source syntax (matching OpenTofu's behavior). Terragrunt rejects them with an error that shows the source rewritten in the `?tag=`/`?digest=` form.
 - `//SUBDIR` selects one directory from the module package, as with other source types: `oci://ghcr.io/acme/terraform-modules/vpc//modules/subnets?tag=1.0.0`.
 
 Prefer `?digest=` for production pins: a digest can never move, while a tag can be re-pushed.

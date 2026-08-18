@@ -204,13 +204,14 @@ func TestOCIGetterGetErrors(t *testing.T) {
 			src:             "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0",
 			store:           newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
 			wantErrIs:       getter.ErrOCIInvalidRepositoryName,
-			wantErrContains: "pin a version with ?tag= or ?digest= instead of a name suffix",
+			wantErrContains: `"oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"`,
 		},
 		{
-			name:      "digest suffix is rejected",
-			src:       "oci://127.0.0.1:5000/terraform-modules/vpc@" + goodDesc.Digest.String(),
-			store:     newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
-			wantErrIs: getter.ErrOCIInvalidRepositoryName,
+			name:            "digest suffix is rejected",
+			src:             "oci://127.0.0.1:5000/terraform-modules/vpc@" + goodDesc.Digest.String(),
+			store:           newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs:       getter.ErrOCIInvalidRepositoryName,
+			wantErrContains: `"oci://127.0.0.1:5000/terraform-modules/vpc?digest=` + goodDesc.Digest.String() + `"`,
 		},
 		{
 			name:      "upper case repository is rejected",
@@ -375,6 +376,131 @@ func TestOCIGetterGetQueryValidation(t *testing.T) {
 			})
 			require.ErrorIs(t, err, tc.wantErrIs)
 			assert.Empty(t, store.gotRefs, "validation must fail before any resolution")
+		})
+	}
+}
+
+// TestOCIGetterGetEmbeddedReference: the typed error carries the exact query-form rewrite.
+func TestOCIGetterGetEmbeddedReference(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		wantErrIs error
+		name      string
+		src       string
+	}{
+		{
+			name: "docker-style tag suffix",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0",
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+			},
+		},
+		{
+			name: "docker-style digest suffix",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc@" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc@" + manifestDesc.Digest.String(),
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "docker-style full form suggests the digest pin",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0@" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0@" + manifestDesc.Digest.String(),
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "tag suffix never downgrades an explicit digest pin",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0?digest=" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "explicit query tag wins over the suffix in the rewrite",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0?tag=2.0.0",
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=2.0.0",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     filepath.Join(t.TempDir(), "module"),
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, tc.wantErrIs)
+			assert.Empty(t, store.gotRefs, "validation must fail before any resolution")
+		})
+	}
+}
+
+// TestOCIGetterGetInvalidRepositoryNameNoRewrite: names with no recognizable suffix get no misleading rewrite.
+func TestOCIGetterGetInvalidRepositoryNameNoRewrite(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "colon in a non-final segment",
+			src:  "oci://127.0.0.1:5000/team:x/vpc?tag=1.0.0",
+		},
+		{
+			name: "at-suffix that is not a digest",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc@garbage",
+		},
+		{
+			name: "colon suffix that is not a tag",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:.invalid",
+		},
+		{
+			name: "tag suffix on an invalid leftover name",
+			src:  "oci://127.0.0.1:5000/team:x/vpc:1.0.0",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     filepath.Join(t.TempDir(), "module"),
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, getter.ErrOCIInvalidRepositoryName)
+
+			var embeddedErr getter.OCIEmbeddedReferenceError
+
+			require.NotErrorAs(t, err, &embeddedErr)
+			assert.Empty(t, store.gotRefs)
 		})
 	}
 }

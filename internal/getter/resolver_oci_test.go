@@ -195,7 +195,7 @@ func TestOCIResolverResolveDigestWrongScheme(t *testing.T) {
 	require.ErrorIs(t, err, getter.ErrOCIUnexpectedScheme)
 }
 
-// TestOCIResolverResolveDigestEmbeddedReference: a docker-style suffix surfaces the typed rejection.
+// TestOCIResolverResolveDigestEmbeddedReference: a docker-style suffix surfaces the typed rewrite, subdir kept.
 func TestOCIResolverResolveDigestEmbeddedReference(t *testing.T) {
 	t.Parallel()
 
@@ -203,6 +203,11 @@ func TestOCIResolverResolveDigestEmbeddedReference(t *testing.T) {
 
 	_, err := r.ResolveDigest(t.Context(), "oci://127.0.0.1:5000/vpc:1.0.0//modules/sub")
 	require.ErrorIs(t, err, getter.ErrOCIInvalidRepositoryName)
+
+	var embeddedErr getter.OCIEmbeddedReferenceError
+
+	require.ErrorAs(t, err, &embeddedErr)
+	assert.Equal(t, "oci://127.0.0.1:5000/vpc//modules/sub?tag=1.0.0", embeddedErr.SuggestedSource)
 }
 
 // TestOCIResolverProbeConcurrentWithRacing: concurrent probes of the same and
