@@ -28,6 +28,7 @@ import (
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -203,6 +204,18 @@ func (dep *Dependency) isDisabled() bool {
 	return !dep.isEnabled()
 }
 
+// mergeKey identifies a dependency when include merging matches blocks up. Every instance
+// of an expanded block carries the same label, so matching on the label alone would fold a
+// whole set into whichever instance came last. A block that declares an expansion but has
+// not been expanded yet still merges by label, since merging runs on declarations too.
+func (dep *Dependency) mergeKey() string {
+	if dep.Expansion == nil || dep.Expansion.Key() == "" {
+		return dep.Name
+	}
+
+	return dep.Name + "[" + dep.Expansion.Key() + "]"
+}
+
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
 func (dep *Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
 	allowedCommand :=
@@ -244,6 +257,44 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 	return util.NewKeyLocks()
 }
 
+// decodeDependencyBlocks decodes a config's dependency blocks, returning one Dependency
+// per iteration element. A block that declares no expansion yields a single Dependency.
+func decodeDependencyBlocks(
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+	experiments experiment.Experiments,
+) (Dependencies, error) {
+	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(instances) == 0 {
+		return nil, nil
+	}
+
+	dependencies := make(Dependencies, 0, len(instances))
+
+	for _, instance := range instances {
+		dep := instance.Value.(*Dependency)
+		if dep.Expansion != nil {
+			if !experiments.Evaluate(experiment.BlockIteration) {
+				return nil, ExpansionRequiresExperimentError{
+					ConfigPath: file.ConfigPath,
+					BlockType:  MetadataDependency,
+					BlockLabel: dep.Name,
+				}
+			}
+
+			dep.Expansion.InstanceKey = instance.InstanceKey
+		}
+
+		dependencies = append(dependencies, *dep)
+	}
+
+	return dependencies, nil
+}
+
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
 // resulting map as a cty.Value object.
 // TODO: In the future, consider allowing importing dependency blocks from included config
@@ -261,10 +312,12 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	decodedDependency := TerragruntDependency{}
-	if err := file.Decode(&decodedDependency, evalParsingContext); err != nil {
+	dependencies, err := decodeDependencyBlocks(file, evalParsingContext, pctx.Experiments)
+	if err != nil {
 		return nil, err
 	}
+
+	decodedDependency := TerragruntDependency{Dependencies: dependencies}
 
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
