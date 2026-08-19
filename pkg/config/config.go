@@ -1838,6 +1838,16 @@ func decodeAsTerragruntConfigFile(
 	}
 
 	dependencies, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
+	if err != nil && hasSiblingAutoInclude(pctx) {
+		overrides := siblingAutoIncludeDepNames(pctx)
+		if len(overrides) > 0 {
+			dependencies, err = decodeDependencyBlocks(
+				file, evalContext, pctx.Experiments,
+				hclparse.WithSkipLabelsOnError(overrides),
+			)
+		}
+	}
+
 	if err != nil {
 		return &terragruntConfig, err
 	}

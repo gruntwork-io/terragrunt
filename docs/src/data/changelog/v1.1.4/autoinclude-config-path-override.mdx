@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Autoinclude overrides `config_path` set to a `values.*` attribute
+
+When a unit source declared `config_path = values.vpc_path` in a `dependency` block and the stack file's `autoinclude` replaced that dependency with a different `config_path`, Terragrunt raised an "Unsupported attribute" error because it tried to evaluate `values.vpc_path` before applying the autoinclude override. The `values` block no longer needed `vpc_path` since the autoinclude provided the path, but the evaluation order meant the error surfaced anyway.
+
+Terragrunt now detects dependency blocks overridden by a sibling autoinclude and bypasses their initial decode error, allowing the autoinclude replacement to resolve dependencies cleanly.

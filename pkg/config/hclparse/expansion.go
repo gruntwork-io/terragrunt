@@ -38,7 +38,8 @@ const (
 const DefaultMaxInstances = 1_000_000
 
 type expandConfig struct {
-	maxInstances int
+	skipLabelsOnError map[string]bool
+	maxInstances      int
 }
 
 // ExpandOption adjusts how [ExpandBlock] expands a block.
@@ -49,6 +50,13 @@ type ExpandOption func(*expandConfig)
 func WithMaxInstances(maxInstances int) ExpandOption {
 	return func(cfg *expandConfig) {
 		cfg.maxInstances = maxInstances
+	}
+}
+
+// WithSkipLabelsOnError silently drops a block whose first label is in the set when its decode fails, instead of propagating the error. This lets callers skip blocks whose attributes are unresolvable because an autoinclude will replace them.
+func WithSkipLabelsOnError(labels map[string]bool) ExpandOption {
+	return func(cfg *expandConfig) {
+		cfg.skipLabelsOnError = labels
 	}
 }
 
@@ -111,6 +119,11 @@ func (file *File) ExpandBlocks(
 		}
 	}
 
+	cfg := expandConfig{maxInstances: DefaultMaxInstances}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	labels := labelFields(reflect.TypeOf(out).Elem())
 	labelNames := make([]string, 0, len(labels))
 
@@ -131,6 +144,11 @@ func (file *File) ExpandBlocks(
 		expanded, err := ExpandBlock(block, out, ctx, opts...)
 		if err == nil {
 			instances = append(instances, expanded...)
+			continue
+		}
+
+		// Drop blocks whose label matches the skip set on decode failure.
+		if cfg.skipLabelsOnError != nil && len(block.Labels) > 0 && cfg.skipLabelsOnError[block.Labels[0]] {
 			continue
 		}
 

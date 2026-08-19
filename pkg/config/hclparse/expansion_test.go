@@ -640,6 +640,57 @@ dependency "vpc" {
 	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
 }
 
+// WithSkipLabelsOnError silently drops blocks whose label matches the skip set on decode failure.
+func TestExpandBlocksSkipLabelsOnError(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+dependency "broken" {
+  path = local.undefined
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	// Without skip option, the broken block causes an error.
+	_, err = file.ExpandBlocks("dependency", new(testBlock), nil)
+	require.Error(t, err, "without skip option, decode must fail")
+
+	// With skip option for the broken label, it is silently dropped.
+	instances, err := file.ExpandBlocks(
+		"dependency", new(testBlock), nil,
+		hclparse.WithSkipLabelsOnError(map[string]bool{"broken": true}),
+	)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
+}
+
+// A block whose label is NOT in the skip set still fails.
+func TestExpandBlocksSkipLabelsOnErrorNonMatchingStillFails(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+dependency "broken" {
+  path = local.undefined
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	_, err = file.ExpandBlocks(
+		"dependency", new(testBlock), nil,
+		hclparse.WithSkipLabelsOnError(map[string]bool{"other": true}),
+	)
+	require.Error(t, err, "non-matching skip label must not suppress the error")
+}
+
 func expand(
 	tb testing.TB,
 	cfg string,
