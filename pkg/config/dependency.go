@@ -4,27 +4,37 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
@@ -53,8 +63,13 @@ import (
 )
 
 const (
-	renderJSONCommand = "render-json"
-	renderCommand     = "render"
+	renderJSONCommand       = "render-json"
+	renderCommand           = "render"
+	defaultStateWorkspace   = "default"
+	defaultS3WorkspacePath  = "env:"
+	defaultAzureReadTimeout = 5 * time.Minute
+	gcsEncryptionKeyBytes   = 32
+	azureEncryptionScopeEnv = "ARM_ENCYRPTION_SCOPE" //nolint:misspell // OpenTofu exposes this misspelled name.
 
 	// downloadDirPerms is the mode given to the download directory when the
 	// dependency-output flow has to create it.
@@ -1097,12 +1112,20 @@ func isAwsS3StateMissing(err error) bool {
 	}
 }
 
+// isRemoteStateMissing reports whether err means a supported backend's state object or its
+// containing bucket/container does not exist yet.
+func isRemoteStateMissing(err error) bool {
+	return isAwsS3StateMissing(err) ||
+		errors.Is(err, storage.ErrObjectNotExist) ||
+		errors.Is(err, storage.ErrBucketNotExist) ||
+		azurehelper.IsNotFound(err)
+}
+
 // shouldFallBackToMockOutputs reports whether a failed dependency output fetch should fall back to
-// mock outputs instead of being fatal: either the target's remote state doesn't exist yet (a
-// missing S3 state object or bucket), or the command is a render, which tolerates unresolved
-// outputs.
+// mock outputs instead of being fatal: either the target's remote state doesn't exist yet, or the
+// command is a render, which tolerates unresolved outputs.
 func shouldFallBackToMockOutputs(pctx *ParsingContext, err error) bool {
-	return isAwsS3StateMissing(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
+	return isRemoteStateMissing(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
@@ -1329,7 +1352,7 @@ func resolveOutputJSON(
 		)
 		l.Debugf("Falling back to terragrunt output.")
 
-		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig)
+		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig, nil)
 
 		return out, "run", runErr
 	}
@@ -1338,6 +1361,21 @@ func resolveOutputJSON(
 	if !pctx.TFPathExplicitlySet && partialTerragruntConfig.TerraformBinary != "" {
 		pctx.TFPath = partialTerragruntConfig.TerraformBinary
 	}
+
+	// The auth provider runs from the dependency unit before output-specific extra
+	// arguments are applied, matching a normal dependency output invocation. This
+	// lets explicit extra_arguments env_vars retain the final override.
+	credentialGetter := creds.NewGetter()
+	if err := credentialGetter.ObtainAndUpdateEnvIfNecessary(
+		ctx,
+		l,
+		pctx.Venv,
+		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
+	); err != nil {
+		return nil, "", err
+	}
+
+	authProviderEnv := maps.Clone(pctx.Venv.Env)
 
 	// Apply extra_arguments env_vars for the output command so env dependent backends can be read.
 	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
@@ -1368,6 +1406,15 @@ func resolveOutputJSON(
 		targetConfig,
 		nil,
 	)
+
+	// extra_arguments env_vars are applied to the OpenTofu/Terraform process after
+	// IAM role assumption. Restore the auth-provider environment before STS so those
+	// variables do not unexpectedly become the source credentials, then apply them
+	// again below as the final override. The lightweight parse above still sees them,
+	// preserving support for remote_state expressions that read those variables.
+	clear(pctx.Venv.Env)
+	maps.Copy(pctx.Venv.Env, authProviderEnv)
+
 	// Check err before dereferencing the config: a remote_state block that references the dependency namespace makes
 	// this parse fail and return a nil config, so the short-circuit avoids a nil pointer panic.
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
@@ -1377,7 +1424,7 @@ func resolveOutputJSON(
 		)
 		l.Debugf("Falling back to terragrunt output.")
 
-		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig)
+		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig, credentialGetter)
 
 		return out, "run", runErr
 	}
@@ -1397,38 +1444,46 @@ func resolveOutputJSON(
 
 	pctx.EngineConfig = engineOpts
 
-	shouldFetchFromState := pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
-		!pctx.NoDependencyFetchOutputFromState &&
-		remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName
+	mergedIAM := iam.MergeRoleOptions(
+		remoteStateTGConfig.GetIAMRoleOptions(),
+		pctx.OriginalIAMRoleOptions,
+	)
+	if err = credentialGetter.ObtainAndUpdateEnvIfNecessary(
+		ctx,
+		l,
+		pctx.Venv,
+		amazonsts.NewProvider(l, mergedIAM, pctx.Venv.Env),
+	); err != nil {
+		return nil, "", err
+	}
 
-	if shouldFetchFromState {
+	// Match the normal runner: output-specific environment variables are the
+	// final override after auth-provider and IAM/STS credentials.
+	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
+
+	workspace := ""
+	if shouldFetchDependencyOutputFromState(pctx, remoteStateTGConfig.RemoteState) {
+		workspace, err = dependencyStateWorkspace(pctx, workingDir)
+		if err != nil {
+			l.Debugf("Could not determine dependency workspace for direct state retrieval: %v", err)
+			l.Debugf("Falling back to native output retrieval.")
+		}
+	}
+
+	if workspace != "" {
 		out, fetchErr := getTerragruntOutputJSONFromRemoteState(
 			ctx,
 			pctx,
 			l,
 			targetConfig,
 			remoteStateTGConfig.RemoteState,
-			remoteStateTGConfig.GetIAMRoleOptions(),
+			workspace,
 		)
 
 		return out, "state", fetchErr
 	}
 
 	if isInit {
-		mergedIAM := iam.MergeRoleOptions(
-			remoteStateTGConfig.GetIAMRoleOptions(),
-			pctx.OriginalIAMRoleOptions,
-		)
-		if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
-			ctx,
-			l,
-			pctx.Venv,
-			externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
-			amazonsts.NewProvider(l, mergedIAM, pctx.Venv.Env),
-		); err != nil {
-			return nil, "", err
-		}
-
 		out, fetchErr := getTerragruntOutputJSONFromInitFolder(
 			ctx,
 			pctx,
@@ -1445,7 +1500,7 @@ func resolveOutputJSON(
 		l,
 		targetConfig,
 		remoteStateTGConfig.RemoteState,
-		remoteStateTGConfig.GetIAMRoleOptions(),
+		workspace,
 	)
 
 	return out, "state", fetchErr
@@ -1454,6 +1509,896 @@ func resolveOutputJSON(
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
 func canGetRemoteState(remoteState *remotestate.RemoteState) bool {
 	return remoteState != nil && !remoteState.DisableDependencyOptimization
+}
+
+// shouldFetchDependencyOutputFromState reports whether the direct state reader owns this backend.
+// Azure additionally requires its backend experiment so configurations that did not opt in retain
+// the native OpenTofu/Terraform backend behavior promised by that experiment.
+func shouldFetchDependencyOutputFromState(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+	if remoteState == nil ||
+		!pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) ||
+		pctx.NoDependencyFetchOutputFromState {
+		return false
+	}
+
+	switch remoteState.BackendName {
+	case s3backend.BackendName:
+		return s3DirectStateReadSupported(remoteState.BackendConfig)
+	case gcsbackend.BackendName:
+		return gcsDirectStateReadSupported(pctx, remoteState)
+	case azurermbackend.BackendName:
+		return pctx.Experiments.Evaluate(experiment.AzureBackend) &&
+			azureDirectStateReadSupported(pctx, remoteState)
+	default:
+		return false
+	}
+}
+
+// s3DirectStateReadSupported preserves the native backend's validation for the
+// configurable workspace prefix. An explicit empty prefix is valid; leading or
+// trailing slashes are not.
+func s3DirectStateReadSupported(config backend.Config) bool {
+	value, configured := config["workspace_key_prefix"]
+	if !configured {
+		return true
+	}
+
+	prefix, ok := value.(string)
+	if !ok {
+		return false
+	}
+
+	return prefix == "" || (!strings.HasPrefix(prefix, "/") && !strings.HasSuffix(prefix, "/"))
+}
+
+// gcsDirectStateReadSupported keeps configurations whose native GCS credential or
+// endpoint semantics are not yet mirrored by gcphelper on the native backend path.
+// This makes the experiment an optimization without changing which identity or host
+// OpenTofu/Terraform would use.
+func gcsDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+	config := remoteState.BackendConfig
+	for key := range config {
+		if !gcsBackendConfigKeyKnown(key) {
+			return false
+		}
+	}
+
+	// path was removed from the native GCS backend and is rejected even when it
+	// is empty or null. Never let the optimization bypass that validation.
+	if _, configured := config["path"]; configured {
+		return false
+	}
+
+	stringValues := make(map[string]string)
+	configuredValues := make(map[string]bool)
+
+	for _, key := range []string{
+		"access_token",
+		"bucket",
+		"credentials",
+		"encryption_key",
+		"kms_encryption_key",
+		"prefix",
+	} {
+		value, configured, valid := backendConfigString(config, key)
+		if !valid {
+			return false
+		}
+
+		stringValues[key] = value
+		configuredValues[key] = configured
+	}
+
+	for _, key := range []string{"storage_custom_endpoint", "universe_domain"} {
+		if backendConfigValueSet(config, key) {
+			return false
+		}
+	}
+
+	accessToken := stringValues["access_token"]
+	credentials := stringValues["credentials"]
+	encryptionKey := stringValues["encryption_key"]
+	kmsEncryptionKey := stringValues["kms_encryption_key"]
+
+	// The native backend rejects simultaneous CSEK and CMEK configuration. Let it
+	// retain responsibility for that validation rather than accepting it here.
+	if encryptionKey != "" && kmsEncryptionKey != "" {
+		return false
+	}
+
+	// Native credentials accepts either inline JSON or a path. gcphelper currently
+	// accepts a path for this config field, so keep inline JSON on the native path.
+	if credentials != "" && (strings.HasPrefix(strings.TrimSpace(credentials), "{") || !filepath.IsAbs(credentials)) {
+		return false
+	}
+
+	// The shared helper requests a broader OAuth scope than the native backend
+	// for impersonation. Keep that credential flow on the native path until the
+	// clients can be constructed with identical scopes.
+	if backendConfigValueSet(config, "impersonate_service_account") ||
+		backendConfigValueSet(config, "impersonate_service_account_delegates") {
+		return false
+	}
+
+	if pctx.Venv == nil {
+		return false
+	}
+
+	env := pctx.Venv.Env
+	if (encryptionKey != "" || env["GOOGLE_ENCRYPTION_KEY"] != "") &&
+		(kmsEncryptionKey != "" || env["GOOGLE_KMS_ENCRYPTION_KEY"] != "") {
+		return false
+	}
+
+	for _, key := range []string{
+		"GOOGLE_BACKEND_CREDENTIALS",
+		"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT",
+		"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES",
+		"GOOGLE_BACKEND_STORAGE_CUSTOM_ENDPOINT",
+		"GOOGLE_BACKEND_UNIVERSE_DOMAIN",
+		"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
+		"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES",
+	} {
+		if env[key] != "" {
+			return false
+		}
+	}
+
+	for _, key := range []string{
+		"GOOGLE_CLOUD_UNIVERSE_DOMAIN",
+		"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES",
+		"GOOGLE_STORAGE_CUSTOM_ENDPOINT",
+	} {
+		if env[key] != "" || os.Getenv(key) != "" {
+			return false
+		}
+	}
+
+	// OpenTofu gives access tokens precedence over credentials and explicit
+	// credentials precedence over ADC. gcphelper's general-purpose client builder
+	// has the opposite ordering, so fall back whenever simultaneous sources would
+	// select different credentials.
+	applicationCredentials := env["GOOGLE_APPLICATION_CREDENTIALS"]
+	googleCredentials := env["GOOGLE_CREDENTIALS"]
+	oauthAccessToken := env["GOOGLE_OAUTH_ACCESS_TOKEN"]
+
+	if _, configured := env["GOOGLE_APPLICATION_CREDENTIALS"]; configured && applicationCredentials == "" && os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") != "" {
+		return false
+	}
+
+	for _, key := range []string{
+		"ALL_PROXY",
+		"APPDATA",
+		"AWS_ACCESS_KEY_ID",
+		"AWS_DEFAULT_REGION",
+		"AWS_REGION",
+		"AWS_SECRET_ACCESS_KEY",
+		"AWS_SESSION_TOKEN",
+		"GCE_METADATA_HOST",
+		"GOOGLE_API_USE_CLIENT_CERTIFICATE",
+		"GOOGLE_API_USE_MTLS_ENDPOINT",
+		"GOOGLE_CLOUD_QUOTA_PROJECT",
+		"HOME",
+		"HTTPS_PROXY",
+		"HTTP_PROXY",
+		"NO_PROXY",
+		"STORAGE_EMULATOR_HOST",
+		"STORAGE_EMULATOR_HOST_GRPC",
+		"USERPROFILE",
+		"all_proxy",
+		"http_proxy",
+		"https_proxy",
+		"no_proxy",
+	} {
+		if value, configured := env[key]; configured && value != os.Getenv(key) {
+			return false
+		}
+	}
+
+	if configuredValues["access_token"] && accessToken == "" && oauthAccessToken != "" {
+		return false
+	}
+
+	if configuredValues["encryption_key"] && encryptionKey == "" && env["GOOGLE_ENCRYPTION_KEY"] != "" {
+		return false
+	}
+
+	effectiveEncryptionKey := encryptionKey
+	if !configuredValues["encryption_key"] {
+		effectiveEncryptionKey = env["GOOGLE_ENCRYPTION_KEY"]
+	}
+
+	if !gcsEncryptionKeyDirectStateReadSupported(effectiveEncryptionKey) {
+		return false
+	}
+
+	if !gcsCredentialFileDirectStateReadSupported(pctx, credentials) ||
+		!gcsCredentialFileDirectStateReadSupported(pctx, applicationCredentials) {
+		return false
+	}
+
+	if googleCredentials != "" ||
+		(applicationCredentials != "" && !filepath.IsAbs(applicationCredentials)) {
+		return false
+	}
+
+	if accessToken != "" && (credentials != "" || applicationCredentials != "") {
+		return false
+	}
+
+	if oauthAccessToken != "" && (credentials != "" || applicationCredentials != "") {
+		return false
+	}
+
+	return credentials == "" || applicationCredentials == ""
+}
+
+// gcsEncryptionKeyDirectStateReadSupported limits direct reads to encryption-key
+// forms whose path-or-contents behavior is independent of the native backend's
+// working directory and home-directory expansion.
+func gcsEncryptionKeyDirectStateReadSupported(value string) bool {
+	if value == "" {
+		return true
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(value)
+	if err == nil && len(decoded) == gcsEncryptionKeyBytes {
+		return true
+	}
+
+	return filepath.IsAbs(value) && !strings.HasPrefix(value, "~")
+}
+
+// gcsCredentialFileDirectStateReadSupported retains credential files whose
+// authentication does not launch or configure an external subject-token
+// provider from the Terragrunt process environment.
+func gcsCredentialFileDirectStateReadSupported(pctx *ParsingContext, filename string) bool {
+	if filename == "" {
+		return true
+	}
+
+	contents, err := vfs.ReadFile(pctx.Venv.FS, filename)
+	if err != nil {
+		return false
+	}
+
+	var metadata struct {
+		Type string `json:"type"`
+	}
+
+	if err := json.Unmarshal(contents, &metadata); err != nil {
+		return false
+	}
+
+	return metadata.Type == "service_account" || metadata.Type == "authorized_user"
+}
+
+func gcsBackendConfigKeyKnown(key string) bool {
+	switch key {
+	case "access_token",
+		"bucket",
+		"credentials",
+		"encryption_key",
+		"impersonate_service_account",
+		"impersonate_service_account_delegates",
+		"kms_encryption_key",
+		"path",
+		"prefix",
+		"storage_custom_endpoint",
+		"universe_domain",
+		// Terragrunt-only bootstrap settings are stripped before native init and
+		// do not change which state object or identity is used for a read.
+		"enable_bucket_policy_only",
+		"gcs_bucket_labels",
+		"location",
+		"project",
+		"skip_bucket_creation",
+		"skip_bucket_versioning":
+		return true
+	default:
+		return false
+	}
+}
+
+// azureDirectStateReadSupported keeps configurations whose native azurerm
+// authentication, endpoint, timeout, or encryption behavior is not mirrored by
+// azurehelper on the native backend path. Direct state reads are an optimization
+// and must not select a different identity or silently skip backend validation.
+func azureDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+	config := remoteState.BackendConfig
+	for key := range config {
+		if !azureBackendConfigKeyKnown(key) {
+			return false
+		}
+	}
+
+	for _, key := range []string{
+		"access_key",
+		"client_id",
+		"client_secret",
+		"container_name",
+		"environment",
+		"key",
+		"oidc_token_file_path",
+		"resource_group_name",
+		"sas_token",
+		"storage_account_name",
+		"subscription_id",
+		"tenant_id",
+	} {
+		value, configured, valid := backendConfigString(config, key)
+		if !valid || (configured && value != strings.TrimSpace(value)) {
+			return false
+		}
+	}
+
+	for _, key := range []string{
+		"ado_service_connection_id",
+		"client_certificate",
+		"client_certificate_password",
+		"client_certificate_path",
+		"client_id_file_path",
+		"client_secret_file_path",
+		"customer_provided_key",
+		"encryption_scope",
+		"endpoint",
+		"metadata_host",
+		"msi_endpoint",
+		"msi_resource_id",
+		"oidc_token",
+	} {
+		if _, configured := config[key]; configured {
+			return false
+		}
+	}
+
+	for _, key := range []string{"lookup_blob_endpoint", "oidc_request_token", "oidc_request_url"} {
+		if _, configured := config[key]; configured {
+			// The native backend treats an explicitly configured empty value as
+			// suppressing its environment fallback. azurehelper does not consume
+			// these config fields, so even their presence requires the native path.
+			return false
+		}
+	}
+
+	if _, configured := config["timeout_seconds"]; configured {
+		return false
+	}
+
+	env := map[string]string{}
+	if pctx.Venv != nil {
+		env = pctx.Venv.Env
+	}
+
+	for _, key := range []string{
+		"ALL_PROXY",
+		"HTTPS_PROXY",
+		"HTTP_PROXY",
+		"NO_PROXY",
+		"all_proxy",
+		"http_proxy",
+		"https_proxy",
+		"no_proxy",
+	} {
+		if value, configured := env[key]; configured && value != os.Getenv(key) {
+			return false
+		}
+	}
+
+	for _, key := range []string{
+		"ARM_ACCESS_KEY",
+		"ARM_CLIENT_ID",
+		"ARM_CLIENT_SECRET",
+		"ARM_ENVIRONMENT",
+		"ARM_OIDC_TOKEN_FILE_PATH",
+		"ARM_SAS_TOKEN",
+		"ARM_SUBSCRIPTION_ID",
+		"ARM_TENANT_ID",
+		"ARM_USE_AZUREAD",
+		"ARM_USE_CLI",
+		"ARM_USE_MSI",
+		"ARM_USE_OIDC",
+		"AZURE_FEDERATED_TOKEN_FILE",
+	} {
+		if value := env[key]; value != strings.TrimSpace(value) {
+			return false
+		}
+	}
+
+	for _, key := range []string{
+		"ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID",
+		"ARM_CLIENT_CERTIFICATE",
+		"ARM_CLIENT_CERTIFICATE_PASSWORD",
+		"ARM_CLIENT_CERTIFICATE_PATH",
+		"ARM_CLIENT_ID_FILE_PATH",
+		"ARM_CLIENT_SECRET_FILE_PATH",
+		"ARM_CUSTOMER_PROVIDED_KEY",
+		azureEncryptionScopeEnv,
+		"ARM_METADATA_HOST",
+		"ARM_METADATA_HOSTNAME",
+		"ARM_MSI_ENDPOINT",
+		"ARM_MSI_RESOURCE_ID",
+		"ARM_OIDC_AZURE_SERVICE_CONNECTION_ID",
+		"ARM_OIDC_REQUEST_TOKEN",
+		"ARM_OIDC_REQUEST_URL",
+		"ARM_OIDC_TOKEN",
+		"ARM_RESOURCE_GROUP_NAME",
+		"ARM_STORAGE_ACCOUNT_NAME",
+		"ARM_TIMEOUT_SECONDS",
+		"ARM_USE_AKS_WORKLOAD_IDENTITY",
+		"ARM_USE_AZUREAD_AUTH",
+		"ARM_USE_DNS_ZONE_ENDPOINT",
+		"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID",
+		"AZURE_CLIENT_ID",
+		"AZURE_CLIENT_SECRET",
+		"AZURE_ENVIRONMENT",
+		"AZURE_FEDERATED_TOKEN_FILE",
+		"AZURE_MSI_RESOURCE_ID",
+		"AZURE_RESOURCE_GROUP_NAME",
+		"AZURE_STORAGE_ACCOUNT",
+		"AZURE_STORAGE_KEY",
+		"AZURE_STORAGE_SAS_TOKEN",
+		"AZURE_SUBSCRIPTION_ID",
+		"AZURE_TENANT_ID",
+		"ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+		"ACTIONS_ID_TOKEN_REQUEST_URL",
+		"SYSTEM_ACCESSTOKEN",
+		"SYSTEM_OIDCREQUESTURI",
+	} {
+		if env[key] != "" {
+			return false
+		}
+	}
+
+	if _, configured := env["AZURE_REGIONAL_AUTHORITY_NAME"]; configured {
+		return false
+	}
+
+	useAKS, valid := backendConfigStrictBoolWithEnv(
+		config,
+		"use_aks_workload_identity",
+		env["ARM_USE_AKS_WORKLOAD_IDENTITY"],
+		false,
+	)
+	if !valid || useAKS {
+		return false
+	}
+
+	useCLI, valid := backendConfigStrictBoolWithEnv(config, "use_cli", env["ARM_USE_CLI"], true)
+	if !valid || !useCLI {
+		return false
+	}
+
+	useAzureAD, valid := backendConfigBoolWithEnv(
+		config,
+		"use_azuread_auth",
+		env["ARM_USE_AZUREAD"],
+	)
+	if !valid {
+		return false
+	}
+
+	useMSI, valid := backendConfigBoolWithEnv(config, "use_msi", env["ARM_USE_MSI"])
+	if !valid {
+		return false
+	}
+
+	if useMSI {
+		for _, key := range []string{
+			"DEFAULT_IDENTITY_CLIENT_ID",
+			"IDENTITY_ENDPOINT",
+			"IDENTITY_HEADER",
+			"IDENTITY_SERVER_THUMBPRINT",
+			"IMDS_ENDPOINT",
+			"MSI_ENDPOINT",
+			"MSI_SECRET",
+		} {
+			if _, configured := env[key]; configured {
+				// The in-process Azure SDK reads these from the Terragrunt process,
+				// not from the dependency's virtual environment. Keep the native
+				// backend path when they affect managed-identity discovery.
+				return false
+			}
+		}
+	}
+
+	useOIDC, valid := backendConfigBoolWithEnv(config, "use_oidc", env["ARM_USE_OIDC"])
+	if !valid || (useMSI && useOIDC) {
+		return false
+	}
+
+	if useOIDC {
+		for _, key := range []string{
+			"AZURE_KUBERNETES_CA_DATA",
+			"AZURE_KUBERNETES_CA_FILE",
+			"AZURE_KUBERNETES_SNI_NAME",
+			"AZURE_KUBERNETES_TOKEN_PROXY",
+		} {
+			if _, configured := env[key]; configured || os.Getenv(key) != "" {
+				return false
+			}
+		}
+	}
+
+	_, valid = backendConfigBoolWithEnv(config, "snapshot", env["ARM_SNAPSHOT"])
+	if !valid {
+		return false
+	}
+
+	for configKey, envKeys := range map[string][]string{
+		"access_key":           {"ARM_ACCESS_KEY"},
+		"client_id":            {"ARM_CLIENT_ID"},
+		"client_secret":        {"ARM_CLIENT_SECRET"},
+		"environment":          {"ARM_ENVIRONMENT"},
+		"oidc_token_file_path": {"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE"},
+		"sas_token":            {"ARM_SAS_TOKEN"},
+		"subscription_id":      {"ARM_SUBSCRIPTION_ID"},
+		"tenant_id":            {"ARM_TENANT_ID"},
+	} {
+		value, configured, _ := backendConfigString(config, configKey)
+		if configured && value == "" && firstNonEmptyFromMap(env, envKeys...) != "" {
+			return false
+		}
+	}
+
+	accessKey, valid := backendConfigStringWithEnv(config, "access_key", env, "ARM_ACCESS_KEY")
+	if !valid {
+		return false
+	}
+
+	sasToken, valid := backendConfigStringWithEnv(config, "sas_token", env, "ARM_SAS_TOKEN")
+	if !valid || (accessKey != "" && sasToken != "") {
+		return false
+	}
+
+	clientID, valid := backendConfigStringWithEnv(config, "client_id", env, "ARM_CLIENT_ID")
+	if !valid {
+		return false
+	}
+
+	clientSecret, valid := backendConfigStringWithEnv(config, "client_secret", env, "ARM_CLIENT_SECRET")
+	if !valid {
+		return false
+	}
+
+	tenantID, valid := backendConfigStringWithEnv(config, "tenant_id", env, "ARM_TENANT_ID")
+	if !valid {
+		return false
+	}
+
+	subscriptionID, valid := backendConfigStringWithEnv(config, "subscription_id", env, "ARM_SUBSCRIPTION_ID")
+	if !valid {
+		return false
+	}
+
+	resourceGroup, _, valid := backendConfigString(config, "resource_group_name")
+	if !valid {
+		return false
+	}
+
+	storageAccount, _, valid := backendConfigString(config, "storage_account_name")
+	if !valid || !azureStorageAccountNameValid(storageAccount) {
+		return false
+	}
+
+	container, _, valid := backendConfigString(config, "container_name")
+	if !valid || !azureContainerNameValid(container) {
+		return false
+	}
+
+	environment, valid := backendConfigStringWithEnv(config, "environment", env, "ARM_ENVIRONMENT")
+	if !valid || !slices.Contains([]string{"", "public", "usgovernment", "china"}, environment) {
+		return false
+	}
+
+	tokenFile, valid := backendConfigStringWithEnv(
+		config,
+		"oidc_token_file_path",
+		env,
+		"ARM_OIDC_TOKEN_FILE_PATH",
+	)
+	if !valid || (tokenFile != "" && (!useOIDC || !filepath.IsAbs(tokenFile))) {
+		return false
+	}
+
+	if tokenFile != "" {
+		fileInfo, err := os.Stat(tokenFile)
+		if err != nil || !fileInfo.Mode().IsRegular() {
+			return false
+		}
+
+		if _, err := os.ReadFile(tokenFile); err != nil {
+			return false
+		}
+	}
+
+	hasServicePrincipal := clientID != "" && clientSecret != "" && tenantID != ""
+	if accessKey == "" && sasToken == "" && !hasServicePrincipal && useOIDC &&
+		(tokenFile == "" || clientID == "" || tenantID == "") {
+		// A token-file OIDC credential needs all three values. The native
+		// backend can reject an incomplete OIDC method and continue to another
+		// configured method; azurehelper selects OIDC eagerly, so keep that
+		// mixed/incomplete configuration on the native path.
+		return false
+	}
+
+	if accessKey == "" && sasToken == "" && !hasServicePrincipal && !useMSI && !useOIDC {
+		// The native backend's remaining default is Azure CLI only. azurehelper's
+		// fallback is a broader DefaultAzureCredential chain, so it cannot safely
+		// replace that path yet.
+		return false
+	}
+
+	if accessKey == "" && sasToken == "" && !useAzureAD &&
+		(resourceGroup == "" || subscriptionID == "") {
+		// Native token auth obtains a storage account key unless
+		// use_azuread_auth is enabled. It requires both ARM fields to do so.
+		return false
+	}
+
+	return true
+}
+
+func azureBackendConfigKeyKnown(key string) bool {
+	switch key {
+	case "access_key",
+		"ado_service_connection_id",
+		"client_certificate",
+		"client_certificate_password",
+		"client_certificate_path",
+		"client_id",
+		"client_id_file_path",
+		"client_secret",
+		"client_secret_file_path",
+		"container_name",
+		"customer_provided_key",
+		"encryption_scope",
+		"endpoint",
+		"environment",
+		"key",
+		"lookup_blob_endpoint",
+		"metadata_host",
+		"msi_endpoint",
+		"oidc_request_token",
+		"oidc_request_url",
+		"oidc_token",
+		"oidc_token_file_path",
+		"resource_group_name",
+		"sas_token",
+		"snapshot",
+		"storage_account_name",
+		"subscription_id",
+		"tenant_id",
+		"timeout_seconds",
+		"use_aks_workload_identity",
+		"use_azuread_auth",
+		"use_cli",
+		"use_msi",
+		"use_oidc",
+		// Terragrunt-only lifecycle settings are stripped before native init.
+		"access_tier",
+		"account_kind",
+		"account_replication_type",
+		"account_tier",
+		"allow_blob_public_access",
+		"enable_soft_delete",
+		"location",
+		"msi_resource_id",
+		"skip_container_creation",
+		"skip_resource_group_creation",
+		"skip_storage_account_creation",
+		"skip_versioning",
+		"soft_delete_retention_days",
+		"tags":
+		return true
+	default:
+		return false
+	}
+}
+
+func azureStorageAccountNameValid(name string) bool {
+	if len(name) < 3 || len(name) > 24 {
+		return false
+	}
+
+	for _, char := range name {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') {
+			return false
+		}
+	}
+
+	return true
+}
+
+func azureContainerNameValid(name string) bool {
+	if len(name) < 3 || len(name) > 63 || name[0] == '-' || name[len(name)-1] == '-' {
+		return false
+	}
+
+	previousHyphen := false
+
+	for _, char := range name {
+		if char == '-' {
+			if previousHyphen {
+				return false
+			}
+
+			previousHyphen = true
+
+			continue
+		}
+
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') {
+			return false
+		}
+
+		previousHyphen = false
+	}
+
+	return true
+}
+
+func backendConfigValueSet(config backend.Config, key string) bool {
+	value, ok := config[key]
+	if !ok || value == nil {
+		return false
+	}
+
+	if value, ok := value.(string); ok {
+		return value != ""
+	}
+
+	return true
+}
+
+func backendConfigString(config backend.Config, key string) (string, bool, bool) {
+	value, configured := config[key]
+	if !configured {
+		return "", false, true
+	}
+
+	parsed, valid := value.(string)
+
+	return parsed, true, valid
+}
+
+func backendConfigStringWithEnv(
+	config backend.Config,
+	key string,
+	env map[string]string,
+	envKeys ...string,
+) (string, bool) {
+	value, configured, valid := backendConfigString(config, key)
+	if !valid {
+		return "", false
+	}
+
+	if configured {
+		return value, true
+	}
+
+	return firstNonEmptyFromMap(env, envKeys...), true
+}
+
+func backendConfigBool(config backend.Config, key string) (bool, bool, bool) {
+	value, ok := config[key]
+	if !ok {
+		return false, false, false
+	}
+
+	switch value := value.(type) {
+	case bool:
+		return value, true, true
+	case string:
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return false, true, false
+		}
+
+		return parsed, true, true
+	default:
+		return false, true, false
+	}
+}
+
+func backendConfigBoolWithEnv(
+	config backend.Config,
+	key string,
+	envValue string,
+) (bool, bool) {
+	value, configured, valid := backendConfigBool(config, key)
+	if configured {
+		return value, valid
+	}
+
+	if envValue == "" {
+		return false, true
+	}
+
+	parsed, err := strconv.ParseBool(envValue)
+
+	return parsed, err == nil
+}
+
+func backendConfigStrictBoolWithEnv(
+	config backend.Config,
+	key string,
+	envValue string,
+	defaultValue bool,
+) (bool, bool) {
+	if value, configured := config[key]; configured {
+		parsed, valid := value.(bool)
+
+		return parsed, valid
+	}
+
+	if envValue == "" {
+		return defaultValue, true
+	}
+
+	parsed, err := strconv.ParseBool(envValue)
+
+	return parsed, err == nil
+}
+
+func firstNonEmptyFromMap(env map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if value := env[key]; value != "" {
+			return value
+		}
+	}
+
+	return ""
+}
+
+// dependencyStateWorkspace mirrors OpenTofu/Terraform workspace selection: a non-empty
+// TF_WORKSPACE overrides the selection persisted in TF_DATA_DIR/environment, and an absent
+// or empty selection means the default workspace. Errors are returned so callers can keep
+// the native output path rather than guessing a state object.
+func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, error) {
+	if pctx.Venv == nil {
+		return "", errors.New("determining dependency workspace: virtual environment is required")
+	}
+
+	if workspace := pctx.Venv.Env["TF_WORKSPACE"]; workspace != "" {
+		if url.PathEscape(workspace) != workspace {
+			return "", fmt.Errorf("determining dependency workspace: invalid TF_WORKSPACE value %q", workspace)
+		}
+
+		return workspace, nil
+	}
+
+	dataDir := tf.DefaultTFDataDir
+	if configured := pctx.Venv.Env["TF_DATA_DIR"]; configured != "" {
+		dataDir = configured
+	}
+
+	if !filepath.IsAbs(dataDir) {
+		dataDir = filepath.Join(workingDir, dataDir)
+	}
+
+	workspaceFile := filepath.Join(dataDir, "environment")
+
+	exists, err := vfs.FileExists(pctx.Venv.FS, workspaceFile)
+	if err != nil {
+		return "", fmt.Errorf("checking dependency workspace file %s: %w", workspaceFile, err)
+	}
+
+	if !exists {
+		return defaultStateWorkspace, nil
+	}
+
+	contents, err := vfs.ReadFile(pctx.Venv.FS, workspaceFile)
+	if err != nil {
+		return "", fmt.Errorf("reading dependency workspace file %s: %w", workspaceFile, err)
+	}
+
+	workspace := string(bytes.TrimSpace(contents))
+	if workspace == "" {
+		return defaultStateWorkspace, nil
+	}
+
+	return workspace, nil
 }
 
 // applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into pctx.Venv.Env
@@ -1604,7 +2549,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	l log.Logger,
 	targetConfigPath string,
 	remoteState *remotestate.RemoteState,
-	iamRoleOpts iam.RoleOptions,
+	workspace string,
 ) ([]byte, error) {
 	l.Debugf(
 		"Detected remote state block with generate config. Resolving dependency by pulling remote state.",
@@ -1634,22 +2579,10 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	l.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
-	mergedIAM := iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions)
-	if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
-		ctx,
-		l,
-		pctx.Venv,
-		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
-		amazonsts.NewProvider(l, mergedIAM, pctx.Venv.Env),
-	); err != nil {
-		return nil, err
-	}
-
 	tfRunOpts := setupTFRunOptsForBareTerraform(pctx, tempWorkDir)
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
-	if pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
-		!pctx.NoDependencyFetchOutputFromState {
+	if workspace != "" && shouldFetchDependencyOutputFromState(pctx, remoteState) {
 		switch backend := remoteState.BackendName; backend {
 		case s3backend.BackendName:
 			jsonBytes, s3GetErr := getTerragruntOutputJSONFromRemoteStateS3(
@@ -1657,15 +2590,51 @@ func getTerragruntOutputJSONFromRemoteState(
 				l,
 				pctx,
 				remoteState,
+				workspace,
 			)
 			if s3GetErr != nil {
 				return nil, s3GetErr
 			}
 
 			l.Debugf(
-				"Retrieved output from %s as json: %s using s3 bucket",
+				"Retrieved dependency outputs from %s using an S3 state object",
 				pctx.TerragruntConfigPath,
-				jsonBytes,
+			)
+
+			return jsonBytes, nil
+		case gcsbackend.BackendName:
+			jsonBytes, gcsGetErr := getTerragruntOutputJSONFromRemoteStateGCS(
+				ctx,
+				l,
+				pctx,
+				remoteState,
+				workspace,
+			)
+			if gcsGetErr != nil {
+				return nil, gcsGetErr
+			}
+
+			l.Debugf(
+				"Retrieved dependency outputs from %s using a GCS state object",
+				pctx.TerragruntConfigPath,
+			)
+
+			return jsonBytes, nil
+		case azurermbackend.BackendName:
+			jsonBytes, azureGetErr := getTerragruntOutputJSONFromRemoteStateAzurerm(
+				ctx,
+				l,
+				pctx,
+				remoteState,
+				workspace,
+			)
+			if azureGetErr != nil {
+				return nil, azureGetErr
+			}
+
+			l.Debugf(
+				"Retrieved dependency outputs from %s using an Azure state blob",
+				pctx.TerragruntConfigPath,
 			)
 
 			return jsonBytes, nil
@@ -1745,9 +2714,10 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 	l log.Logger,
 	pctx *ParsingContext,
 	remoteState *remotestate.RemoteState,
+	workspace string,
 ) ([]byte, error) {
 	bucket := fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])
-	key := fmt.Sprintf("%s", remoteState.BackendConfig["key"])
+	key := s3StateObjectKey(remoteState.BackendConfig, workspace)
 
 	l.Debugf("Fetching outputs directly from s3://%s/%s", bucket, key)
 
@@ -1789,7 +2759,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 				}
 			}(result.Body)
 
-			steateBody, err := io.ReadAll(result.Body)
+			stateBody, err := io.ReadAll(result.Body)
 			if err != nil {
 				return fmt.Errorf(
 					"reading dependency state body from s3://%s/%s: %w",
@@ -1799,24 +2769,12 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 				)
 			}
 
-			jsonMap := make(map[string]any)
-			if err := json.Unmarshal(steateBody, &jsonMap); err != nil {
-				return fmt.Errorf(
-					"parsing dependency state JSON from s3://%s/%s: %w",
-					bucket,
-					key,
-					err,
-				)
-			}
-
-			jsonOutputs, err = json.Marshal(jsonMap["outputs"])
+			jsonOutputs, err = terraformStateOutputsJSON(
+				stateBody,
+				fmt.Sprintf("s3://%s/%s", bucket, key),
+			)
 			if err != nil {
-				return fmt.Errorf(
-					"encoding outputs from dependency state at s3://%s/%s: %w",
-					bucket,
-					key,
-					err,
-				)
+				return err
 			}
 
 			return nil
@@ -1826,6 +2784,259 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 	}
 
 	return jsonOutputs, nil
+}
+
+// getTerragruntOutputJSONFromRemoteStateGCS pulls the output directly from a GCS bucket without calling OpenTofu/Terraform.
+func getTerragruntOutputJSONFromRemoteStateGCS(
+	ctx context.Context,
+	l log.Logger,
+	pctx *ParsingContext,
+	remoteState *remotestate.RemoteState,
+	workspace string,
+) ([]byte, error) {
+	extendedConfig, err := gcsbackend.Config(remoteState.BackendConfig).ExtendedGCSConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	stateConfig := &extendedConfig.RemoteStateConfigGCS
+	bucket := stateConfig.Bucket
+	key := gcsStateObjectKey(stateConfig, workspace)
+	location := fmt.Sprintf("gs://%s/%s", bucket, key)
+
+	l.Debugf("Fetching outputs directly from %s", location)
+
+	var jsonOutputs []byte
+
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "dependency_output_state_gcs", map[string]any{
+			"bucket": bucket,
+			"key":    key,
+		}, func(ctx context.Context, l log.Logger) error {
+			client, err := gcsbackend.NewClient(
+				ctx,
+				pctx.Venv,
+				extendedConfig,
+				&backend.Options{},
+			)
+			if err != nil {
+				return fmt.Errorf("building GCS client for %s: %w", location, err)
+			}
+
+			defer func() {
+				if err := client.Close(); err != nil {
+					l.Warnf("Failed to close GCS client for %s: %v", location, err)
+				}
+			}()
+
+			object := client.Bucket(bucket).Object(key)
+
+			object, err = gcsObjectWithEncryptionKey(pctx, object, stateConfig.EncryptionKey)
+			if err != nil {
+				return fmt.Errorf("configuring GCS state object %s: %w", location, err)
+			}
+
+			reader, err := object.NewReader(ctx)
+			if err != nil {
+				return fmt.Errorf("opening dependency state at %s: %w", location, err)
+			}
+
+			defer func() {
+				if err := reader.Close(); err != nil {
+					l.Warnf("Failed to close GCS state reader for %s: %v", location, err)
+				}
+			}()
+
+			stateBody, err := io.ReadAll(reader)
+			if err != nil {
+				return fmt.Errorf("reading dependency state body from %s: %w", location, err)
+			}
+
+			jsonOutputs, err = terraformStateOutputsJSON(stateBody, location)
+
+			return err
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonOutputs, nil
+}
+
+// getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from Azure Blob Storage without calling OpenTofu/Terraform.
+func getTerragruntOutputJSONFromRemoteStateAzurerm(
+	ctx context.Context,
+	l log.Logger,
+	pctx *ParsingContext,
+	remoteState *remotestate.RemoteState,
+	workspace string,
+) ([]byte, error) {
+	extendedConfig, err := azurermbackend.Config(remoteState.BackendConfig).ExtendedAzurermConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	stateConfig := &extendedConfig.RemoteStateConfigAzurerm
+	account := stateConfig.StorageAccountName
+	container := stateConfig.ContainerName
+	key := azurermStateBlobKey(stateConfig.Key, workspace)
+	location := fmt.Sprintf("azurerm://%s/%s/%s", account, container, key)
+
+	l.Debugf("Fetching outputs directly from %s", location)
+
+	var jsonOutputs []byte
+
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "dependency_output_state_azurerm", map[string]any{
+			"account":   account,
+			"container": container,
+			"key":       key,
+		}, func(ctx context.Context, l log.Logger) error {
+			readCtx, cancel := context.WithTimeout(ctx, defaultAzureReadTimeout)
+			defer cancel()
+
+			backendConfig := maps.Clone(remoteState.BackendConfig)
+			backendConfig["key"] = key
+
+			reader, err := azurermbackend.OpenStateBlob(
+				readCtx,
+				l,
+				pctx.Venv,
+				backendConfig,
+			)
+			if err != nil {
+				return fmt.Errorf("opening dependency state at %s: %w", location, err)
+			}
+
+			defer func() {
+				if err := reader.Close(); err != nil {
+					l.Warnf("Failed to close Azure state reader for %s: %v", location, err)
+				}
+			}()
+
+			stateBody, err := io.ReadAll(reader)
+			if err != nil {
+				return fmt.Errorf("reading dependency state body from %s: %w", location, err)
+			}
+
+			jsonOutputs, err = terraformStateOutputsJSON(stateBody, location)
+
+			return err
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonOutputs, nil
+}
+
+// s3StateObjectKey mirrors the S3 backend's workspace object layout.
+func s3StateObjectKey(config backend.Config, workspace string) string {
+	key := fmt.Sprintf("%s", config["key"])
+	if workspace == defaultStateWorkspace {
+		return key
+	}
+
+	prefix := defaultS3WorkspacePath
+	if configured, ok := config["workspace_key_prefix"].(string); ok {
+		prefix = configured
+	}
+
+	return path.Join(prefix, workspace, key)
+}
+
+// gcsStateObjectKey mirrors the GCS backend's workspace object layout.
+func gcsStateObjectKey(config *gcsbackend.RemoteStateConfigGCS, workspace string) string {
+	return path.Join(strings.TrimLeft(config.Prefix, "/"), workspace+".tfstate")
+}
+
+// azurermStateBlobKey mirrors the azurerm backend's workspace blob layout.
+func azurermStateBlobKey(key, workspace string) string {
+	if workspace == defaultStateWorkspace {
+		return key
+	}
+
+	return key + "env:" + workspace
+}
+
+// gcsObjectWithEncryptionKey applies the GCS backend's optional customer-supplied encryption key.
+func gcsObjectWithEncryptionKey(
+	pctx *ParsingContext,
+	object *storage.ObjectHandle,
+	configuredKey string,
+) (*storage.ObjectHandle, error) {
+	encodedKey := configuredKey
+	if encodedKey == "" {
+		encodedKey = pctx.Venv.Env["GOOGLE_ENCRYPTION_KEY"]
+	}
+
+	if encodedKey == "" {
+		return object, nil
+	}
+
+	keyContents, err := gcsEncryptionKeyContents(pctx, encodedKey)
+	if err != nil {
+		return nil, err
+	}
+
+	decodedKey, err := base64.StdEncoding.DecodeString(keyContents)
+	if err != nil {
+		return nil, fmt.Errorf("decoding encryption_key as base64: %w", err)
+	}
+
+	if len(decodedKey) != gcsEncryptionKeyBytes {
+		return nil, fmt.Errorf(
+			"decoding encryption_key: expected %d bytes, got %d",
+			gcsEncryptionKeyBytes,
+			len(decodedKey),
+		)
+	}
+
+	return object.Key(decodedKey), nil
+}
+
+// gcsEncryptionKeyContents resolves an encryption key as a dependency-relative file or literal data.
+func gcsEncryptionKeyContents(pctx *ParsingContext, value string) (string, error) {
+	filename := value
+	if !filepath.IsAbs(filename) {
+		filename = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), filename)
+	}
+
+	exists, err := vfs.FileExists(pctx.Venv.FS, filename)
+	if err != nil {
+		return "", fmt.Errorf("checking encryption_key file %s: %w", filename, err)
+	}
+
+	if !exists {
+		return value, nil
+	}
+
+	if vfs.IsDir(pctx.Venv.FS, filename) {
+		return "", fmt.Errorf("encryption_key path %s is a directory", filename)
+	}
+
+	contents, err := vfs.ReadFile(pctx.Venv.FS, filename)
+	if err != nil {
+		return "", fmt.Errorf("reading encryption_key file %s: %w", filename, err)
+	}
+
+	return string(contents), nil
+}
+
+// terraformStateOutputsJSON extracts the top-level outputs object from a Terraform/OpenTofu state file.
+func terraformStateOutputsJSON(stateBody []byte, location string) ([]byte, error) {
+	state := struct {
+		Outputs json.RawMessage `json:"outputs"`
+	}{}
+	if err := json.Unmarshal(stateBody, &state); err != nil {
+		return nil, fmt.Errorf("parsing dependency state JSON from %s: %w", location, err)
+	}
+
+	if len(state.Outputs) == 0 {
+		return []byte("null"), nil
+	}
+
+	return state.Outputs, nil
 }
 
 // setupTFRunOptsForBareTerraform builds a *tf.TFOptions for running terraform without
@@ -1849,6 +3060,7 @@ func runTerragruntOutputJSON(
 	pctx *ParsingContext,
 	l log.Logger,
 	targetConfig string,
+	credsGetter *creds.Getter,
 ) ([]byte, error) {
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
@@ -1877,14 +3089,16 @@ func runTerragruntOutputJSON(
 
 	runCfg := cfg.ToRunConfig(l)
 
-	credsGetter := creds.NewGetter()
-	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
-		ctx,
-		l,
-		pctx.Venv,
-		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
-	); err != nil {
-		return nil, err
+	if credsGetter == nil {
+		credsGetter = creds.NewGetter()
+		if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+			ctx,
+			l,
+			pctx.Venv,
+			externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
+		); err != nil {
+			return nil, err
+		}
 	}
 
 	// Build run.Options directly from ParsingContext fields.

@@ -8,6 +8,8 @@ env:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 This flag modifies how Terragrunt retrieves output values from dependent units. When enabled, Terragrunt will read the outputs directly from the state file instead of running `terraform output` or `tofu output`.
 
@@ -17,10 +19,20 @@ This flag is equivalent to enabling the `dependency-fetch-output-from-state` exp
 
 The main benefit this flag provides is performance. Reading directly from state is typically faster than executing the OpenTofu/Terraform binary to get the same outputs.
 
-The limitation of this approach is that it is only supported by the S3 backend, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
+<Before version="1.1.4">
+This approach is only supported by the S3 backend.
+</Before>
+
+<Since version="1.1.4">
+This approach supports S3 and GCS backends. It also supports the Azure Storage (`azurerm`) backend when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is enabled. Other backends continue to use `terraform output` or `tofu output`.
+
+Terragrunt also uses the native output path for Azure state protected by `customer_provided_key`, Azure configurations requiring native-only authentication or endpoint behavior, and GCS configurations whose backend-specific credential or endpoint behavior is not yet mirrored by the direct reader.
+</Since>
+
+OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
 
 <Aside type="caution">
-This flag is **not compatible with OpenTofu state encryption**. When OpenTofu's client-side state encryption is enabled, the state file stored in S3 is encrypted before upload. Since this flag causes Terragrunt to read the raw state file directly from S3 via the AWS SDK, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, disable this flag with `--no-dependency-fetch-output-from-state`.
+This flag is **not compatible with OpenTofu state encryption**. When OpenTofu's client-side state encryption is enabled, the state file is encrypted before upload. Since this flag causes Terragrunt to read the raw state object directly through the backend's cloud storage API, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, disable this flag with `--no-dependency-fetch-output-from-state`.
 </Aside>
 
 <Aside type="caution">

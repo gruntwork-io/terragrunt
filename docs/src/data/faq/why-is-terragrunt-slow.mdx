@@ -4,6 +4,9 @@ description: "Run fewer units with --filter, share provider downloads with the P
 order: 7
 ---
 
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
 Most slow runs come down to doing work you did not need to do: running units that did not change, downloading the same provider once per unit, or initializing dependencies just to read their outputs. The [Performance](/troubleshooting/performance/) guide covers this in full. The short version:
 
 ## Run fewer units
@@ -36,7 +39,15 @@ By default, Terragrunt runs `output -json` against each dependency, which loads 
 terragrunt run --all --experiment=dependency-fetch-output-from-state -- plan
 ```
 
-This only applies to S3 backends, and it fails outright with OpenTofu client-side state encryption, since Terragrunt cannot parse an encrypted state file. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) before turning it on.
+<Before version="1.1.4">
+This only applies to S3 backends.
+</Before>
+
+<Since version="1.1.4">
+This applies to S3 and GCS backends. Azure Storage (`azurerm`) also supports it when the `azure-backend` experiment is enabled.
+</Since>
+
+It fails outright with OpenTofu client-side state encryption, since Terragrunt cannot parse an encrypted state file. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) before turning it on.
 
 ## Cache repository clones
 

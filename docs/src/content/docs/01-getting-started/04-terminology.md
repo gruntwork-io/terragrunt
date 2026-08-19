@@ -223,7 +223,7 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies using a supported remote-state backend. This is an experimental feature, and more tooling is planned to make this easier to use.
 
 ### Feature
 

@@ -11,6 +11,7 @@ package azurerm
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
@@ -114,13 +115,10 @@ func cloudName(configured, authorityHost string) string {
 	return authorityHost
 }
 
-// newBlobClient builds the data-plane client, mirroring the native azurerm
-// backend's authorization choice. That backend uses direct Microsoft Entra
-// authorization for blob operations only when use_azuread_auth is true;
-// otherwise it authenticates to ARM, looks up a storage account key, and uses
-// shared-key authorization. Without this, an identity that may manage the
-// account and list its keys but holds no blob data-plane role would work in
-// OpenTofu/Terraform and get 403s under Terragrunt.
+// newBlobClient builds the data-plane client used by Azure lifecycle operations.
+// It prefers the native backend's shared-key authorization when possible, so an
+// identity that may list account keys but lacks a blob data-plane role still
+// works without requiring use_azuread_auth.
 //
 // The key lookup is best effort: when it fails (for example the identity may
 // read blobs but not list keys) the token credential is used instead, so this
@@ -140,6 +138,69 @@ func newBlobClient(ctx context.Context, l log.Logger, cfg *azurehelper.AzureConf
 	l.Debugf("%s: using shared-key blob authorization (set use_azuread_auth to authorize with Microsoft Entra instead)", BackendName)
 
 	return azurehelper.NewBlobClient(keyed)
+}
+
+// NewStateBlobClient builds the data-plane client used for a direct state read.
+// Unless use_azuread_auth is enabled, it strictly follows the native azurerm
+// backend by resolving a storage-account key through ARM; lookup errors are not
+// replaced with bearer authorization. It panics with
+// [azurehelper.ErrAzureConfigRequired] when cfg is nil.
+func NewStateBlobClient(
+	ctx context.Context,
+	l log.Logger,
+	cfg *azurehelper.AzureConfig,
+) (*azurehelper.BlobClient, error) {
+	if cfg == nil {
+		panic(azurehelper.ErrAzureConfigRequired)
+	}
+
+	if !armCapable(cfg) || cfg.UseAzureADAuth {
+		return azurehelper.NewBlobClient(cfg)
+	}
+
+	keyed, err := sharedKeyConfig(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("resolving storage account key for azurerm state access: %w", err)
+	}
+
+	l.Debugf("%s: using shared-key authorization for direct state access", BackendName)
+
+	return azurehelper.NewBlobClient(keyed)
+}
+
+// OpenStateBlob opens the configured state blob using the native azurerm
+// backend's authorization policy. The caller owns the returned reader and must
+// close it.
+func OpenStateBlob(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+) (io.ReadCloser, error) {
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	state := &extCfg.RemoteStateConfigAzurerm
+
+	blobClient, err := NewStateBlobClient(ctx, l, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := blobClient.Container(state.ContainerName).GetBlob(ctx, state.Key)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"opening azurerm state blob %s/%s in storage account %s: %w",
+			state.ContainerName,
+			state.Key,
+			state.StorageAccountName,
+			err,
+		)
+	}
+
+	return body, nil
 }
 
 // sharedKeyConfig returns a copy of cfg switched to access-key authentication
