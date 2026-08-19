@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestLogUnitDeployOrder_Flat(t *testing.T) {
@@ -25,7 +26,7 @@ func TestLogUnitDeployOrder_Flat(t *testing.T) {
 	runner := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
-	err := runner.LogUnitDeployOrder(l, false, false, nil)
+	err := runner.LogUnitDeployOrder(l, venvtest.New(), false, false, nil)
 	require.NoError(t, err)
 }
 
@@ -35,7 +36,7 @@ func TestLogUnitDeployOrder_Destroy(t *testing.T) {
 	runner := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
-	err := runner.LogUnitDeployOrder(l, true, false, nil)
+	err := runner.LogUnitDeployOrder(l, venvtest.New(), true, false, nil)
 	require.NoError(t, err)
 }
 
@@ -148,7 +149,7 @@ func TestLogUnitDeployOrder_DAGExperiment(t *testing.T) {
 
 	exps := experiment.NewExperiments()
 
-	err := runner.LogUnitDeployOrder(l, false, false, exps)
+	err := runner.LogUnitDeployOrder(l, venvtest.New(), false, false, exps)
 	require.NoError(t, err)
 }
 

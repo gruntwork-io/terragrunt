@@ -15,7 +15,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -32,7 +31,7 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	client := getter.NewClient(v,
 		getter.WithCAS(c, &cas.CloneOptions{}),
@@ -57,7 +56,7 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	client := getter.NewClient(v,
 		getter.WithCAS(c, &cas.CloneOptions{}),

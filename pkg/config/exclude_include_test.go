@@ -62,7 +62,7 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 
@@ -138,7 +138,7 @@ exclude {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 
@@ -202,7 +202,7 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 
@@ -261,7 +261,7 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 
@@ -319,7 +319,7 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 
@@ -143,7 +142,7 @@ func NewParsingContext(
 		opt(pctx)
 	}
 
-	pctx.ParserOptions = DefaultParserOptions(l, pctx.StrictControls)
+	pctx.ParserOptions = DefaultParserOptions(l, v, pctx.StrictControls)
 
 	return ctx, pctx
 }
@@ -233,13 +232,13 @@ func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *Par
 func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
 	var diagWriter = io.Discard
 	if l.Level() >= log.DebugLevel {
-		diagWriter = os.Stderr
+		diagWriter = ctx.Venv.Writers.ErrWriter
 	}
 
 	c := ctx.Clone()
 	c.ParserOptions = slices.Concat(
 		ctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)},
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(ctx.Venv, diagWriter, true)},
 	)
 
 	return c

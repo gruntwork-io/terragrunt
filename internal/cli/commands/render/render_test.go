@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv().WithWriter(&outputBuffer),
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
 		opts,
 	)
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv().WithWriter(&outputBuffer),
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
 		opts,
 	)
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv().WithWriter(io.Discard),
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
 		opts,
 	)
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv().WithWriter(io.Discard),
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
 		opts,
 	)
 	require.Error(t, err)
@@ -131,7 +131,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	err := render.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv().WithWriter(&renderedBuffer),
+		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer),
 		opts,
 	)
 	require.NoError(t, err)

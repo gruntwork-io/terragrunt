@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
@@ -99,7 +100,7 @@ var (
 		DefaultTerragruntConfigPath,
 	}
 
-	DefaultParserOptions = func(l log.Logger, strictControls strict.Controls) []hclparse.Option {
+	DefaultParserOptions = func(l log.Logger, v *venv.Venv, strictControls strict.Controls) []hclparse.Option {
 		writer := writer.New(
 			writer.WithLogger(l),
 			writer.WithDefaultLevel(log.ErrorLevel),
@@ -108,7 +109,7 @@ var (
 
 		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
 		parseOpts = append(parseOpts,
-			hclparse.WithDiagnosticsWriter(writer, l.Formatter().DisabledColors()),
+			hclparse.WithDiagnosticsWriter(v, writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
 		)
 

@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -159,7 +158,7 @@ func TestProcessStackComponent_RewritesStackSources(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	// Source mimics what a stack generates: <repo-url>//<subdir>?ref=<branch>
 	source := repoURL + "//stacks/my-stack?ref=main"
@@ -202,7 +201,7 @@ func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -257,7 +256,7 @@ func TestProcessStackComponent_UnitSourceSyntheticTreeContainsSiblings(t *testin
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -318,7 +317,7 @@ func TestProcessStackComponent_UnitSourceWithoutDoubleSlash(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -377,7 +376,7 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -433,7 +432,7 @@ func TestProcessStackComponent_DeterministicOutput(t *testing.T) {
 	repoURL := startStackTestServer(t)
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	readStackFile := func() string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
@@ -478,7 +477,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -529,7 +528,7 @@ func TestProcessStackComponent_InvalidRefFails(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := repoURL + "//stacks/my-stack?ref=nonexistent-tag"
 
@@ -547,7 +546,7 @@ func TestProcessStackComponent_InvalidSubdirFails(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := repoURL + "//nonexistent/path?ref=main"
 
@@ -566,7 +565,7 @@ func TestProcessStackComponent_BlobsStoredInCAS(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := repoURL + "//stacks/my-stack?ref=main"
 
@@ -601,7 +600,7 @@ func TestProcessStackComponent_AcceptsExplicitGitPrefix(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := "git::" + repoURL + "//stacks/my-stack?ref=main"
 
@@ -622,7 +621,7 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	// Bogus org so the network call fails fast. The error shape proves the
 	// shorthand was rewritten and reached `git ls-remote`.

@@ -365,10 +365,10 @@ func validateUpdateSourceWithCAS(
 // own terragrunt.hcl, which is only available once the source is materialized. Without this check
 // the relative source would be copied verbatim and silently fail to resolve from the generated
 // location, since the cas:: rewrite that gives it meaning never runs.
-func rejectTerraformUpdateSourceWithoutCAS(fs vfs.FS, dest string) error {
+func rejectTerraformUpdateSourceWithoutCAS(fsys vfs.FS, dest string) error {
 	unitFile := filepath.Join(dest, DefaultTerragruntConfigPath)
 
-	content, err := vfs.ReadFile(fs, unitFile)
+	content, err := vfs.ReadFile(fsys, unitFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil

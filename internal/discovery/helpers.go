@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -128,44 +127,27 @@ func RelPathOrAbs(l log.Logger, base, target, desc string) string {
 // isExternal checks if a component path is outside the given working directory.
 // A path is considered external if it's not within or equal to the working directory.
 // We conservatively evaluate paths as external if we cannot determine their absolute path.
-func isExternal(workingDir string, componentPath string) bool {
+func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 	if workingDir == "" {
 		return true
 	}
 
-	workingDirClean := filepath.Clean(workingDir)
-	componentPathClean := filepath.Clean(componentPath)
-
-	workingDirResolved, err := filepath.EvalSymlinks(workingDirClean)
-	if err != nil {
-		workingDirResolved = workingDirClean
-	}
-
-	componentPathResolved, err := filepath.EvalSymlinks(componentPathClean)
-	if err != nil {
-		componentPathResolved = componentPathClean
-	}
-
-	relPath, err := filepath.Rel(workingDirResolved, componentPathResolved)
-	if err != nil {
-		return true
-	}
-
-	return relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator))
+	return !vfs.Within(fsys, workingDir, componentPath)
 }
 
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.
 func componentFromDependencyPath(
+	fsys vfs.FS,
 	path string,
 	components *component.ThreadSafeComponents,
 ) component.Component {
-	if existing := components.FindByPath(path); existing != nil {
+	if existing := components.FindByPath(fsys, path); existing != nil {
 		return existing
 	}
 
-	if _, err := os.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
+	if _, err := fsys.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
 		return component.NewStack(path)
 	}
 
@@ -274,7 +256,7 @@ func sanitizeReadFiles(files []string) []string {
 }
 
 // extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
-func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
+func extractDependencyPaths(fsys vfs.FS, cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
 	if cfg == nil {
 		return nil, nil
 	}
@@ -307,7 +289,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		deduped[util.ResolvePath(depPath)] = struct{}{}
+		deduped[vfs.ResolveForCompare(fsys, depPath)] = struct{}{}
 	}
 
 	if cfg.Dependencies != nil {
@@ -316,7 +298,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
 			}
 
-			deduped[util.ResolvePath(dependency)] = struct{}{}
+			deduped[vfs.ResolveForCompare(fsys, dependency)] = struct{}{}
 		}
 	}
 

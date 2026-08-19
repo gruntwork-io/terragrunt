@@ -386,7 +386,7 @@ func DownloadTerraformSourceIfNecessary(
 				return util.NotifyIfSlow(
 					childCtx,
 					l,
-					util.SpinnerWriter(),
+					util.SpinnerWriter(v),
 					time.Second,
 					util.SlowNotifyMsg{
 						Spinner: "Downloading source from " + sourceURL + "...",

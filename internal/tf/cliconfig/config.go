@@ -34,9 +34,9 @@ type ConfigOption func(*Config) *Config
 
 // WithFS sets the filesystem for file operations.
 // If not set, defaults to the real OS filesystem.
-func WithFS(fs vfs.FS) ConfigOption {
+func WithFS(fsys vfs.FS) ConfigOption {
 	return func(cfg *Config) *Config {
-		cfg.fs = fs
+		cfg.fsys = fsys
 		return cfg
 	}
 }
@@ -44,7 +44,7 @@ func WithFS(fs vfs.FS) ConfigOption {
 // NewConfig creates a new Config that saves through fsys.
 func NewConfig(fsys vfs.FS) *Config {
 	return &Config{
-		fs: fsys,
+		fsys: fsys,
 	}
 }
 
@@ -54,9 +54,9 @@ type Config struct {
 	CredentialsHelpers   *ConfigCredentialsHelper `hcl:"credentials_helper,block"`
 	ProviderInstallation *ProviderInstallation    `hcl:"provider_installation,block"`
 
-	// fs is the filesystem for saving config. Unexported to skip HCL encoding.
+	// fsys is the filesystem for saving config. Unexported to skip HCL encoding.
 	// Defaults to vfs.NewOsFs() if nil.
-	fs vfs.FS
+	fsys vfs.FS
 
 	PluginCacheDir             string              `hcl:"plugin_cache_dir"`
 	Credentials                []ConfigCredentials `hcl:"credentials,block"`
@@ -76,7 +76,7 @@ func (cfg *Config) WithOptions(opts ...ConfigOption) *Config {
 
 // FS returns the configured filesystem.
 func (cfg *Config) FS() vfs.FS {
-	return cfg.fs
+	return cfg.fsys
 }
 
 // WithDisableCheckpoint sets DisableCheckpoint to true and returns the Config for chaining.
@@ -142,7 +142,7 @@ func (cfg *Config) Clone() *Config {
 		CredentialsHelpers:         cfg.CredentialsHelpers,
 		Hosts:                      hosts,
 		ProviderInstallation:       providerInstallation,
-		fs:                         cfg.fs,
+		fsys:                       cfg.fsys,
 	}
 }
 

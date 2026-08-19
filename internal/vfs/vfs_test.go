@@ -55,35 +55,35 @@ func TestFileExists(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		setup    func(fs vfs.FS)
+		setup    func(fsys vfs.FS)
 		path     string
 		expected bool
 	}{
 		{
 			name: "file exists",
-			setup: func(fs vfs.FS) {
-				require.NoError(t, afero.WriteFile(fs, "/test.txt", []byte("content"), 0644))
+			setup: func(fsys vfs.FS) {
+				require.NoError(t, afero.WriteFile(fsys, "/test.txt", []byte("content"), 0644))
 			},
 			path:     "/test.txt",
 			expected: true,
 		},
 		{
 			name:     "file does not exist",
-			setup:    func(fs vfs.FS) {},
+			setup:    func(fsys vfs.FS) {},
 			path:     "/nonexistent.txt",
 			expected: false,
 		},
 		{
 			name: "directory exists",
-			setup: func(fs vfs.FS) {
-				require.NoError(t, fs.MkdirAll("/testdir", 0755))
+			setup: func(fsys vfs.FS) {
+				require.NoError(t, fsys.MkdirAll("/testdir", 0755))
 			},
 			path:     "/testdir",
 			expected: true,
 		},
 		{
 			name:     "parent does not exist",
-			setup:    func(fs vfs.FS) {},
+			setup:    func(fsys vfs.FS) {},
 			path:     "/nonexistent/file.txt",
 			expected: false,
 		},

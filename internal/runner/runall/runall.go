@@ -75,7 +75,7 @@ func Run(
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 
@@ -219,6 +219,7 @@ func RunAllOnStack(
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
 	if err := rnr.LogUnitDeployOrder(
 		l,
+		v,
 		isDestroy,
 		opts.LogShowAbsPaths,
 		opts.Experiments,

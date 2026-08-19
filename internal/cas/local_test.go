@@ -367,7 +367,7 @@ func newCAS(t *testing.T) (*cas.CAS, *venv.Venv) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	return c, v
 }

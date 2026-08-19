@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -56,9 +57,9 @@ func (e *NestedGitScanDepthExceededError) Error() string {
 // captured to local buffers, so v.Writers is overridden for this call.
 func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string) (string, error) {
 	repoRoots := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
-	normalized := normalizeRepoPath(path)
+	normalized := normalizeRepoPath(v.FS, path)
 
-	if root, ok, err := lookupRepoRoot(ctx, repoRoots, normalized); err != nil {
+	if root, ok, err := lookupRepoRoot(ctx, v.FS, repoRoots, normalized); err != nil {
 		return "", err
 	} else if ok {
 		return root, nil
@@ -67,7 +68,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string
 	repoRoots.BeginResolve()
 	defer repoRoots.EndResolve()
 
-	if root, ok, err := lookupRepoRoot(ctx, repoRoots, normalized); err != nil {
+	if root, ok, err := lookupRepoRoot(ctx, v.FS, repoRoots, normalized); err != nil {
 		return "", err
 	} else if ok {
 		return root, nil
@@ -107,7 +108,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string
 
 	l.Debugf("git show-toplevel result: %s", cmdOutput)
 
-	repoRoots.Add(ctx, normalizeRepoPath(cmdOutput))
+	repoRoots.Add(ctx, normalizeRepoPath(v.FS, cmdOutput))
 
 	return cmdOutput, nil
 }
@@ -117,6 +118,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string
 // the caller falls through to a fresh git resolution.
 func lookupRepoRoot(
 	ctx context.Context,
+	fsys vfs.FS,
 	repoRoots *cache.RepoRootCache,
 	path string,
 ) (string, bool, error) {
@@ -125,7 +127,7 @@ func lookupRepoRoot(
 		return "", false, nil
 	}
 
-	nested, err := hasNestedGit(path, cached)
+	nested, err := hasNestedGit(fsys, path, cached)
 	if err != nil {
 		return "", false, err
 	}
@@ -140,7 +142,7 @@ func lookupRepoRoot(
 // hasNestedGit reports whether any directory between path and root (exclusive
 // of root) contains a `.git` entry, meaning a nested repository sits below
 // root and would invalidate root as the answer for path.
-func hasNestedGit(path, root string) (bool, error) {
+func hasNestedGit(fsys vfs.FS, path, root string) (bool, error) {
 	if path == root {
 		return false, nil
 	}
@@ -151,7 +153,7 @@ func hasNestedGit(path, root string) (bool, error) {
 			return false, nil
 		}
 
-		_, err := os.Stat(filepath.Join(current, ".git"))
+		_, err := fsys.Stat(filepath.Join(current, ".git"))
 		if err == nil {
 			return true, nil
 		}
@@ -175,22 +177,15 @@ func hasNestedGit(path, root string) (bool, error) {
 	}
 }
 
-// normalizeRepoPath canonicalizes a directory path for cache comparison. The
-// EvalSymlinks step is best-effort: failures (e.g. the path does not exist)
-// fall through to the lexical clean so the surrounding git call still
-// produces the real error.
-func normalizeRepoPath(path string) string {
+// normalizeRepoPath canonicalizes a directory path for cache comparison.
+// An empty path stays empty rather than becoming the working directory, so a
+// caller that has no path yet cannot collide in the cache with one that does.
+func normalizeRepoPath(fsys vfs.FS, path string) string {
 	if path == "" {
 		return ""
 	}
 
-	cleaned := filepath.Clean(path)
-
-	if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
-		return resolved
-	}
-
-	return cleaned
+	return vfs.ResolveForCompare(fsys, filepath.Clean(path))
 }
 
 // GitRepoTags fetches git repository tags from passed url.

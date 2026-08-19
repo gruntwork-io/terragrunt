@@ -1454,7 +1454,7 @@ func resolveOutputJSON(
 	// we need to suspend logging diagnostic errors on this attempt
 	parseOptions := slices.Concat(
 		pctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(io.Discard, true)},
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(pctx.Venv, io.Discard, true)},
 	)
 
 	remoteStateTGConfig, err := PartialParseConfigFile(

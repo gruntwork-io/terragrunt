@@ -17,7 +17,7 @@ import (
 // The user likely expected the whole subtree, so the tip shows how to include it.
 func GiveStackNestedGenerateTip(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	funcsFor inthclparse.StackFuncFactory,
 	workingDir string,
 	filters filter.Filters,
@@ -45,7 +45,7 @@ func GiveStackNestedGenerateTip(
 			dir = filepath.Join(workingDir, dir)
 		}
 
-		if !stackHasUngeneratedNestedStacks(l, fs, funcsFor, dir) {
+		if !stackHasUngeneratedNestedStacks(l, fsys, funcsFor, dir) {
 			continue
 		}
 
@@ -94,18 +94,18 @@ func literalStackFilterPath(f *filter.Filter) string {
 // exist on disk (honoring no_dot_terragrunt_stack).
 func stackHasUngeneratedNestedStacks(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	funcsFor inthclparse.StackFuncFactory,
 	dir string,
 ) bool {
-	_, nestedStackDirs, err := inthclparse.DirectComponentPaths(fs, dir, funcsFor)
+	_, nestedStackDirs, err := inthclparse.DirectComponentPaths(fsys, dir, funcsFor)
 	if err != nil {
 		l.Debugf("stack-nested-generate tip: skipping %q: %v", dir, err)
 		return false
 	}
 
 	for _, nestedDir := range nestedStackDirs {
-		if !nestedStackGenerated(l, fs, funcsFor, nestedDir) {
+		if !nestedStackGenerated(l, fsys, funcsFor, nestedDir) {
 			return true
 		}
 	}
@@ -117,23 +117,23 @@ func stackHasUngeneratedNestedStacks(
 // generated at nestedDir exists on disk, i.e. the nested stack was itself generated.
 func nestedStackGenerated(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	funcsFor inthclparse.StackFuncFactory,
 	nestedDir string,
 ) bool {
-	unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(fs, nestedDir, funcsFor)
+	unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(fsys, nestedDir, funcsFor)
 	if err != nil {
 		l.Debugf("stack-nested-generate tip: skipping %q: %v", nestedDir, err)
 		return true
 	}
 
-	return !anyPathMissing(l, fs, unitPaths) && !anyPathMissing(l, fs, stackPaths)
+	return !anyPathMissing(l, fsys, unitPaths) && !anyPathMissing(l, fsys, stackPaths)
 }
 
-// anyPathMissing reports whether any of paths does not exist on fs.
-func anyPathMissing(l log.Logger, fs vfs.FS, paths []string) bool {
+// anyPathMissing reports whether any of paths does not exist on fsys.
+func anyPathMissing(l log.Logger, fsys vfs.FS, paths []string) bool {
 	for _, p := range paths {
-		exists, err := vfs.FileExists(fs, p)
+		exists, err := vfs.FileExists(fsys, p)
 		if err != nil {
 			l.Debugf("stack-nested-generate tip: cannot stat %q: %v", p, err)
 			continue

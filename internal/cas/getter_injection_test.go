@@ -12,7 +12,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -38,7 +37,7 @@ func TestCASGetterRefOptionInjection(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &cas.CloneOptions{Depth: 1})
 	client := getter.Client{Getters: []getter.Getter{g}}

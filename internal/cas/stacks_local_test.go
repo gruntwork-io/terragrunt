@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -37,7 +36,7 @@ func TestProcessStackComponent_LocalSource_RewritesStackSources(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := root + "//stacks/my-stack"
 
@@ -79,7 +78,7 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := root + "//stacks/my-stack"
 
@@ -127,7 +126,7 @@ func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := root + "//stacks/my-stack"
 
@@ -146,7 +145,7 @@ func TestProcessStackComponent_LocalSource_DeterministicOutput(t *testing.T) {
 	root := buildLocalStackFixture(t)
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	readStackFile := func() string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
@@ -474,7 +473,7 @@ func serviceUnitCASRef(t *testing.T, root string) string {
 	result, err := c.ProcessStackComponent(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		root+"//stacks/my-stack",
 		"stack",
 	)
@@ -557,7 +556,7 @@ func TestProcessStackComponent_GitForcerRoutesRemote(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := "git::" + repoURL + "//stacks/my-stack?ref=main"
 
@@ -618,7 +617,7 @@ func TestProcessStackComponent_LocalSource_MaterializeSynthTree(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := root + "//stacks/my-stack"
 
@@ -862,7 +861,7 @@ func TestProcessStackComponent_LocalSource_SharedUnitTemplate(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := root + "//stacks/my-stack"
 
@@ -914,7 +913,7 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := root + "//stacks/parent"
 

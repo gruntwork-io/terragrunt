@@ -4,15 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/mitchellh/go-wordwrap"
-	"golang.org/x/term"
 )
 
 const (
@@ -40,11 +39,13 @@ type HumanRender struct {
 	disableColor bool
 }
 
-func NewHumanRender(disableColor bool) Render {
-	disableColor = disableColor || !term.IsTerminal(int(os.Stderr.Fd()))
+func NewHumanRender(v *venv.Venv, disableColor bool) Render {
+	v.RequireTerminal()
 
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
+	disableColor = disableColor || !v.Terminal.StderrIsTTY()
+
+	width := v.Terminal.Width()
+	if width == 0 {
 		width = defaultWidth
 	}
 

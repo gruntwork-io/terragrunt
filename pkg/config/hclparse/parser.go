@@ -6,14 +6,13 @@ package hclparse
 
 import (
 	"io"
-	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
-	"golang.org/x/term"
 )
 
 type Parser struct {
@@ -92,23 +91,20 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 	return file, nil
 }
 
-// GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
+// GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the
+// terminal v describes. A run with no terminal gets width 0, which disables
+// word-wrapping: wrapping there would split messages at positions that shift
+// with path lengths, which is awkward to read back and to test against.
 func (parser *Parser) GetDiagnosticsWriter(
+	v *venv.Venv,
 	writer io.Writer,
 	disableColor bool,
 ) hcl.DiagnosticWriter {
-	termColor := !disableColor && term.IsTerminal(int(os.Stderr.Fd()))
+	v.RequireTerminal()
 
-	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		// When not connected to a terminal (e.g., in CI, tests, or piped output),
-		// use width 0 to disable word-wrapping. This prevents error messages from
-		// being split at unpredictable positions based on path lengths, which can
-		// cause issues when parsing or testing error output.
-		termWidth = 0
-	}
+	termColor := !disableColor && v.Terminal.StderrIsTTY()
 
-	return hcl.NewDiagnosticTextWriter(writer, parser.Files(), uint(termWidth), termColor)
+	return hcl.NewDiagnosticTextWriter(writer, parser.Files(), uint(v.Terminal.Width()), termColor)
 }
 
 func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {

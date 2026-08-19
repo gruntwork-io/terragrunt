@@ -275,7 +275,7 @@ func writeDiagnostics(
 	opts *options.TerragruntOptions,
 	diags diagnostic.Diagnostics,
 ) error {
-	render := view.NewHumanRender(l.Formatter().DisabledColors())
+	render := view.NewHumanRender(v, l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
 	}
