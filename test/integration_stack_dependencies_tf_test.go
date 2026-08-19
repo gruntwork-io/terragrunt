@@ -1187,3 +1187,38 @@ func TestTFStackDepsValuesRefWithSiblingAutoInclude(t *testing.T) {
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve",
 	)
 }
+
+// TestTFStackDepsAutoIncludeOverridesConfigPathFromValues covers issue 6692: a unit dependency sets
+// config_path = values.vpc_path while the stack autoinclude replaces that dependency with a
+// different config_path and the values block omits vpc_path. Without the fix the unit fails with
+// "Unsupported attribute" because values.vpc_path is evaluated before the autoinclude override.
+func TestTFStackDepsAutoIncludeOverridesConfigPathFromValues(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncConfigPathValues)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncConfigPathValues)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncConfigPathValues, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan")
+	require.NoError(
+		t,
+		err,
+		"autoinclude must override config_path = values.vpc_path without error; stderr=%s",
+		stderr,
+	)
+
+	backendPath := helpers.FindCachedFile(
+		t,
+		filepath.Join(rootPath, inthclparse.StackDir, "app"),
+		"backend.tf",
+	)
+	backend, err := os.ReadFile(backendPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(backend), "from-autoinclude.tfstate",
+		"autoinclude dependency must override the unit's values.vpc_path config_path")
+}

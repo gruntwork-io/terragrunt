@@ -1597,3 +1597,42 @@ dependency "other" {
 	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
 	require.Error(t, err, "a non-overridden dep with unresolvable config_path must still fail")
 }
+
+// Without any autoinclude file, a dependency referencing an absent values attribute must still fail with the original error pointing at the values attribute, not a downstream dependency.vpc error.
+func TestFoldSiblingAutoIncludeDeps_MissingValuesPathWithoutAutoIncludeStillErrors(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// No autoinclude file at all.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.Error(t, err, "without autoinclude the values.vpc_path error must not be swallowed")
+	assert.Contains(t, err.Error(), "values", "error must reference the unresolvable values variable")
+}

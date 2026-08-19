@@ -314,22 +314,9 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocks(file, evalParsingContext, pctx.Experiments)
-	if err != nil && hasSiblingAutoInclude(pctx) {
-		// When a sibling autoinclude overrides dependency blocks, the unit source may
-		// reference values.* attributes the override makes unnecessary. Skip overridden
-		// blocks on retry; foldSiblingAutoIncludeDeps fills them in below.
-		overrides := siblingAutoIncludeDepNames(pctx)
-		if len(overrides) > 0 {
-			dependencies, err = decodeDependencyBlocks(
-				file, evalParsingContext, pctx.Experiments,
-				hclparse.WithSkipLabelsOnError(overrides),
-			)
-		}
-
-		if err != nil {
-			return nil, err
-		}
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeRetry(file, evalParsingContext, pctx)
+	if err != nil {
+		return nil, err
 	}
 
 	decodedDependency := TerragruntDependency{Dependencies: dependencies}
@@ -2218,6 +2205,26 @@ func parseAutoIncludeFileCached(
 	hclCache.Put(ctx, cacheKey, file)
 
 	return file, nil
+}
+
+// decodeDependencyBlocksWithAutoIncludeRetry decodes dependency blocks, retrying with label-skip when a sibling autoinclude overrides some of them and the first decode fails on unresolvable attributes. Used by both decodeAndRetrieveOutputs and decodeAsTerragruntConfigFile.
+func decodeDependencyBlocksWithAutoIncludeRetry(
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+	pctx *ParsingContext,
+) (Dependencies, error) {
+	deps, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
+	if err != nil && hasSiblingAutoInclude(pctx) {
+		overrides := siblingAutoIncludeDepNames(pctx)
+		if len(overrides) > 0 {
+			deps, err = decodeDependencyBlocks(
+				file, evalContext, pctx.Experiments,
+				hclparse.WithSkipLabelsOnError(overrides),
+			)
+		}
+	}
+
+	return deps, err
 }
 
 // siblingAutoIncludeDepNames extracts dependency block labels from the sibling autoinclude file via a lightweight HCL parse. Returns nil when no autoinclude is registered, the file is absent, or it cannot be parsed.
