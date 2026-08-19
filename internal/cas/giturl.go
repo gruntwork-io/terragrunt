@@ -2,17 +2,17 @@ package cas
 
 import "net/url"
 
-// StripGitURLParams removes the go-getter query parameters CAS consumes (ref,
-// depth) from u and returns the ref. Neither is a native git URL parameter, so
-// they must not survive into the URL handed to git: git would treat a trailing
-// "?depth=1" as part of the repository name and reject the clone.
+// StripGitURLParams removes the go-getter ref and depth query parameters from u
+// and returns the ref. Neither is a native git URL parameter, so they must not
+// survive into the URL handed to git: git would treat a trailing "?depth=1" as
+// part of the repository name and reject the clone.
 //
-// ref selects the revision to check out. depth is dropped rather than honored:
-// clone depth is a CLI concern (--cas-clone-depth), and CLI arguments take
-// precedence over configuration throughout Terragrunt, so a depth on a
-// configured source URL never overrides the ambient depth.
+// ref selects the revision to check out. depth is discarded rather than
+// honored: clone depth comes solely from --cas-clone-depth, whose default of 1
+// applies whether or not the flag was passed.
 //
-// u is mutated: its RawQuery is rewritten with both parameters removed.
+// The URL is mutated in place, with its RawQuery rewritten to drop both
+// parameters.
 func StripGitURLParams(u *url.URL) (ref string) {
 	q := u.Query()
 	if len(q) == 0 {

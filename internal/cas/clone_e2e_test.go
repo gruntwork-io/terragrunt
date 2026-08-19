@@ -221,14 +221,14 @@ func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
 	require.NoError(t, err)
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
 	l := logger.CreateLogger()
 
-	// Depth left at the CAS default so ?depth=1 in the URL is what drives the
-	// shallow clone.
+	// Ambient depth left at the CAS default of 1, which is what makes this
+	// clone shallow; the URL's ?depth=1 is stripped and discarded.
 	g := getter.NewCASGetter(l, c, v, &cas.CloneOptions{})
 	client := &getter.Client{Getters: []getter.Getter{g}}
 
@@ -246,10 +246,9 @@ func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
 	assert.Equal(t, "# tagged", string(content))
 }
 
-// TestCASClone_E2E_AmbientDepthBeatsURLDepth pins the precedence between the
-// two depth inputs: --cas-clone-depth is a CLI argument and a source URL's
-// ?depth= comes from configuration, so the CLI value wins. The URL parameter
-// is stripped and discarded, never applied. Its sibling
+// TestCASClone_E2E_AmbientDepthBeatsURLDepth pins which of the two depth inputs
+// applies: the ambient --cas-clone-depth always does, and a source URL's
+// ?depth= is stripped and discarded rather than honored. Its sibling
 // TestCASClone_E2E_DepthQueryParamWithTag leaves the ambient at the CAS default
 // of 1, where ?depth=1 is indistinguishable from no depth at all. Here the
 // ambient is full history (WithCloneDepth(-1)) against ?depth=1, so the two
@@ -279,7 +278,7 @@ func TestCASClone_E2E_AmbientDepthBeatsURLDepth(t *testing.T) {
 	storePath := filepath.Join(tempDir, "store")
 
 	// Ambient depth is full history, standing in for --cas-clone-depth=-1.
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

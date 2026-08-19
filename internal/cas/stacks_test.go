@@ -625,7 +625,7 @@ func TestProcessStackComponent_AcceptsDepthQueryParam(t *testing.T) {
 	l := logger.CreateLogger()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

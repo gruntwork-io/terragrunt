@@ -30,7 +30,7 @@ A Git source URL may carry go-getter query parameters that Terragrunt consumes t
 
 <Since version="1.1.4">
 
-- **`depth`** is accepted for go-getter compatibility, for example `...vpc.git?ref=v5.21.0&depth=1`. Like `ref`, it is a go-getter parameter rather than a native Git URL parameter, so the CAS strips it from the URL before invoking `git`. Left in place, `git` treats the trailing `?depth=1` as part of the repository name and rejects the clone. The value itself is not applied. Clone depth is controlled by the [`--cas-clone-depth`](/reference/cli/commands/run#cas-clone-depth) flag, and as a CLI argument it takes precedence over a source URL configured in your Terragrunt unit.
+- **`depth`** is accepted for go-getter compatibility, for example `...vpc.git?ref=v5.21.0&depth=1`. Like `ref`, it is a go-getter parameter rather than a native Git URL parameter, so the CAS strips it from the URL before invoking `git`. Left in place, `git` treats the trailing `?depth=1` as part of the repository name and rejects the clone. The value itself is never applied. Clone depth comes solely from the [`--cas-clone-depth`](/reference/cli/commands/run#cas-clone-depth) flag, whose default of `1` applies whether or not you pass it.
 
 </Since>
 

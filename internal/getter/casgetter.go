@@ -424,8 +424,7 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 
 // getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and depth
 // query parameters out of the URL (see [cas.StripGitURLParams]). The clone
-// depth comes from the ambient --cas-clone-depth, which as a CLI argument takes
-// precedence over any depth on the configured source URL.
+// depth comes from the ambient --cas-clone-depth.
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
 	// Strip against a copy so the request keeps the URL the caller supplied.
 	u := *req.URL()
