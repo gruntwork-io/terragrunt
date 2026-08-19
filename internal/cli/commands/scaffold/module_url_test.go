@@ -2,12 +2,15 @@ package scaffold_test
 
 import (
 	"context"
-	"sync"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -19,25 +22,78 @@ import (
 // assert on whether a lookup was attempted at all rather than on log output.
 type commandRecorder struct {
 	names []string
-	mu    sync.Mutex
 }
 
 func (r *commandRecorder) venv() *venv.Venv {
 	return venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-
 		r.names = append(r.names, inv.Name)
 
 		return vexec.Result{ExitCode: 1}
 	})
 }
 
-func (r *commandRecorder) recorded() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// registryStub answers the registry protocol for one module and records the
+// hosts it was asked about, so a test can pin which registry a source with no
+// host of its own resolves against.
+type registryStub struct {
+	modulePath string
+	versions   []string
+	seen       []string
+}
 
-	return append([]string(nil), r.names...)
+func (s *registryStub) venv() *venv.Venv {
+	return venvtest.New().WithHTTP(vhttp.NewMemClient(s.handle))
+}
+
+func (s *registryStub) handle(_ context.Context, req *http.Request) (*http.Response, error) {
+	s.seen = append(s.seen, req.URL.Host)
+
+	json := http.Header{"Content-Type": []string{"application/json"}}
+
+	if req.URL.Path == "/.well-known/terraform.json" {
+		return vhttp.Respond(http.StatusOK, []byte(`{"modules.v1":"/v1/modules/"}`), json), nil
+	}
+
+	if req.URL.Path == "/v1/modules/"+s.modulePath+"/versions" {
+		quoted := make([]string, 0, len(s.versions))
+		for _, v := range s.versions {
+			quoted = append(quoted, `{"version":"`+v+`"}`)
+		}
+
+		body := `{"modules":[{"versions":[` + strings.Join(quoted, ",") + `]}]}`
+
+		return vhttp.Respond(http.StatusOK, []byte(body), json), nil
+	}
+
+	return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+}
+
+// TestParseModuleURLPinsUnpinnedRegistrySourceToLatestStable covers the
+// registry a source that names no host of its own resolves against. Only the
+// auto provider cache dir setup detects the wrapped binary for scaffold, so a
+// run without it must still reach tofu's registry rather than Terraform's.
+func TestParseModuleURLPinsUnpinnedRegistrySourceToLatestStable(t *testing.T) {
+	t.Parallel()
+
+	registry := &registryStub{
+		modulePath: "acme/vpc/aws",
+		versions:   []string{"0.0.1", "1.2.0", "1.3.0-rc1"},
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.TofuImplementation = tfimpl.Unknown
+
+	resolved, err := scaffold.ParseModuleURL(
+		t.Context(),
+		logger.CreateLogger(),
+		registry.venv(),
+		opts,
+		map[string]any{},
+		"tfr:///acme/vpc/aws",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "tfr:///acme/vpc/aws?version=1.2.0", resolved)
+	assert.Equal(t, []string{"registry.opentofu.org", "registry.opentofu.org"}, registry.seen)
 }
 
 // TestParseModuleURLSkipsGitLookupForNonGitSchemes covers the scaffold half of
@@ -95,7 +151,7 @@ func TestParseModuleURLSkipsGitLookupForNonGitSchemes(t *testing.T) {
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.moduleURL, resolved)
-			assert.Empty(t, recorder.recorded())
+			assert.Empty(t, recorder.names)
 		})
 	}
 }
@@ -121,7 +177,7 @@ func TestParseModuleURLLooksUpTagForGitSources(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Equal(t, moduleURL, resolved)
-	assert.Contains(t, recorder.recorded(), "git")
+	assert.Contains(t, recorder.names, "git")
 }
 
 // TestParseModuleURLLeavesRegistrySourceUnpinnedWhenRegistryUnreachable pins

@@ -272,7 +272,7 @@ func Prepare(
 			"module_url": resolvedURL,
 		}, func(ctx context.Context, l log.Logger) error {
 			registryOpt := getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
-				WithTofuImplementation(opts.TofuImplementation))
+				WithTofuImplementation(registryImplementation(opts)))
 
 			if _, getErr := getter.GetAny(ctx, v, tempDir, resolvedURL, registryOpt); getErr != nil {
 				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
@@ -709,7 +709,7 @@ func downloadTemplate(
 			"template_url": baseURL.String(),
 		}, func(ctx context.Context, l log.Logger) error {
 			registryOpt := getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
-				WithTofuImplementation(opts.TofuImplementation))
+				WithTofuImplementation(registryImplementation(opts)))
 
 			if _, getErr := getter.GetAny(ctx, v, templateDir, baseURL.String(), registryOpt); getErr != nil {
 				return fmt.Errorf(
@@ -1040,6 +1040,19 @@ func IsGitShapedScheme(scheme string) bool {
 	return false
 }
 
+// registryImplementation reports which implementation the default registry
+// host follows for a tfr:// source that omits its host. Only the auto
+// provider cache dir setup fills TofuImplementation in for scaffold, so a run
+// with that setup disabled arrives here with nothing detected and falls back
+// to tofu rather than to Terraform's registry.
+func registryImplementation(opts *options.TerragruntOptions) tfimpl.Type {
+	if opts.TofuImplementation == tfimpl.Unknown {
+		return tfimpl.OpenTofu
+	}
+
+	return opts.TofuImplementation
+}
+
 // pinLatestRegistryVersion pins a tfr:// registry source carrying no
 // ?version= to the latest stable version the registry publishes, mirroring
 // what [shell.GitLastReleaseTag] pins a git source to. Any other scheme, or a
@@ -1066,7 +1079,7 @@ func pinLatestRegistryVersion(
 
 	registryDomain := rootSourceURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(opts.TofuImplementation)
+		registryDomain = tfimpl.DefaultRegistryDomain(registryImplementation(opts))
 	}
 
 	modulePath, _ := getter.SourceDirSubdir(rootSourceURL.Path)
