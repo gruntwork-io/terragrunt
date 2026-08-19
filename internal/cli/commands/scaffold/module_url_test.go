@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// commandRecorder records the commands a venv is asked to run, so a test can
-// assert on whether a lookup was attempted at all rather than on log output.
+// commandRecorder records the commands a venv runs, so a test can assert that
+// a lookup happened at all rather than reading log output.
 type commandRecorder struct {
 	names []string
 }
@@ -96,6 +96,102 @@ func TestParseModuleURLPinsUnpinnedRegistrySourceToLatestStable(t *testing.T) {
 	assert.Equal(t, []string{"registry.opentofu.org", "registry.opentofu.org"}, registry.seen)
 }
 
+// TestParseModuleURLPinsRegistrySourceHandedARef pins the version even when a
+// Ref reaches a source that has no refs. A ref written into such a source
+// satisfies the already-pinned check, which leaves the generated source free
+// to drift to whatever the registry publishes next.
+func TestParseModuleURLPinsRegistrySourceHandedARef(t *testing.T) {
+	t.Parallel()
+
+	registry := &registryStub{
+		modulePath: "acme/vpc/aws",
+		versions:   []string{"0.0.1", "1.2.0"},
+	}
+
+	resolved, err := scaffold.ParseModuleURL(
+		t.Context(),
+		logger.CreateLogger(),
+		registry.venv(),
+		options.NewTerragruntOptions(),
+		map[string]any{"Ref": "v2"},
+		"tfr:///acme/vpc/aws",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "tfr:///acme/vpc/aws?version=1.2.0", resolved)
+}
+
+// TestParseModuleURLHonorsRefForGitSources is the counterpart to
+// TestParseModuleURLPinsRegistrySourceHandedARef: a git source still takes
+// the Ref it is handed, and takes it instead of a tag lookup.
+func TestParseModuleURLHonorsRefForGitSources(t *testing.T) {
+	t.Parallel()
+
+	recorder := &commandRecorder{}
+
+	resolved, err := scaffold.ParseModuleURL(
+		t.Context(),
+		logger.CreateLogger(),
+		recorder.venv(),
+		options.NewTerragruntOptions(),
+		map[string]any{"Ref": "v2"},
+		"git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs",
+	)
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v2",
+		resolved,
+	)
+	assert.Empty(t, recorder.names)
+}
+
+// TestParseModuleURLRejectsRegistryVersionConstraint matches how a run treats
+// a constraint in ?version=. Scaffolding one would copy it into the generated
+// source, and the first run of that unit would turn it away.
+func TestParseModuleURLRejectsRegistryVersionConstraint(t *testing.T) {
+	t.Parallel()
+
+	source := "tfr:///acme/vpc/aws?version=~> 1.0"
+
+	_, err := scaffold.ParseModuleURL(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.New(),
+		options.NewTerragruntOptions(),
+		map[string]any{},
+		source,
+	)
+
+	var constraintErr scaffold.SourceVersionConstraintErr
+
+	require.ErrorAs(t, err, &constraintErr)
+	assert.Equal(t, source, constraintErr.Source)
+}
+
+// TestBuildSourceURLEncodesPinExactlyOnce pins the round trip a pin makes
+// between the two URLs. ParseModuleURL encodes the pin into the resolved URL
+// and BuildSourceURL copies it onto the original, so a copy that skipped
+// decoding would escape the percent signs a second time.
+func TestBuildSourceURLEncodesPinExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	recorder := &commandRecorder{}
+
+	original := "git::https://github.com/gruntwork-io/terragrunt.git"
+
+	resolved, err := scaffold.ParseModuleURL(
+		t.Context(),
+		logger.CreateLogger(),
+		recorder.venv(),
+		options.NewTerragruntOptions(),
+		map[string]any{"Ref": "feature/a b"},
+		original,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, original+"?ref=feature%2Fa+b", resolved)
+	assert.Equal(t, original+"?ref=feature%2Fa+b", scaffold.BuildSourceURL(original, resolved, map[string]any{}))
+}
+
 // TestParseModuleURLSkipsGitLookupForNonGitSchemes covers the scaffold half of
 // https://github.com/gruntwork-io/terragrunt/issues/3677: a source git does
 // not understand must round-trip untouched, without a `git ls-remote` that
@@ -122,6 +218,13 @@ func TestParseModuleURLSkipsGitLookupForNonGitSchemes(t *testing.T) {
 			name:      "registry source asked for git-https",
 			moduleURL: "tfr://registry.opentofu.org/terraform-aws-modules/eks/aws?version=20.31.4",
 			vars:      map[string]any{"SourceUrlType": "git-https"},
+		},
+		{
+			// The Ref names a version the source does not, so a Ref that
+			// reached either query param would show up as a changed URL.
+			name:      "registry source handed a version-shaped Ref",
+			moduleURL: "tfr://registry.opentofu.org/terraform-aws-modules/eks/aws?version=20.31.4",
+			vars:      map[string]any{"Ref": "20.31.3"},
 		},
 		{
 			name:      "http archive",
@@ -157,9 +260,9 @@ func TestParseModuleURLSkipsGitLookupForNonGitSchemes(t *testing.T) {
 }
 
 // TestParseModuleURLLooksUpTagForGitSources is the other half of
-// TestParseModuleURLSkipsGitLookupForNonGitSchemes: the git-shaped source it
-// contrasts with still reaches the tag lookup, so the skip is scheme-driven
-// rather than a lookup that stopped happening for everyone.
+// TestParseModuleURLSkipsGitLookupForNonGitSchemes. A git-shaped source still
+// reaches the tag lookup, so the scheme drives the skip rather than the lookup
+// having stopped happening for everyone.
 func TestParseModuleURLLooksUpTagForGitSources(t *testing.T) {
 	t.Parallel()
 
