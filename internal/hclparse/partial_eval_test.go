@@ -559,25 +559,34 @@ func TestPartialEval_PreservesConditionalReferencingDependency(t *testing.T) {
 func TestPartialEval_DeeplyNestedExpressionReturnsTypedError(t *testing.T) {
 	t.Parallel()
 
-	const depth = 20000
+	const (
+		maxDepth = 8
+		nesting  = maxDepth * 2
+	)
 
 	hcl := "val = " + strings.Repeat(
 		"(",
-		depth,
+		nesting,
 	) + "dependency.vpc.outputs.id" + strings.Repeat(
 		")",
-		depth,
+		nesting,
 	)
 	expr, srcBytes := parseFirstAttrExpr(t, hcl)
 
 	resultBytes, err := hclparse.PartialEval(
 		expr,
-		&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred},
+		&hclparse.EvalArgs{
+			SrcBytes: srcBytes,
+			EvalCtx:  buildEvalCtx(),
+			Deferred: testDeferred,
+			MaxDepth: maxDepth,
+		},
 	)
 
 	var depthErr hclparse.PartialEvalDepthExceededError
 
 	require.ErrorAs(t, err, &depthErr)
+	assert.Equal(t, maxDepth, depthErr.MaxDepth, "the configured cap is the one enforced")
 	assert.NotEmpty(
 		t,
 		resultBytes,
