@@ -1115,6 +1115,14 @@ func isAwsS3StateMissing(err error) bool {
 // isRemoteStateMissing reports whether err means a supported backend's state object or its
 // containing bucket/container does not exist yet.
 func isRemoteStateMissing(err error) bool {
+	// A failure to build the client is not an absent state. The azurerm key lookup
+	// calls ARM, which answers 404 for a wrong resource group, account, or
+	// subscription; treating that as "not applied yet" would swap mock outputs into
+	// a run whose state actually exists.
+	if errors.Is(err, azurermbackend.ErrStateClientSetup) {
+		return false
+	}
+
 	return isAwsS3StateMissing(err) ||
 		errors.Is(err, storage.ErrObjectNotExist) ||
 		errors.Is(err, storage.ErrBucketNotExist) ||

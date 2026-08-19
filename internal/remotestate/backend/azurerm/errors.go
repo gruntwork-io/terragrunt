@@ -59,6 +59,11 @@ func (e *CrossCloudMigrationError) Error() string {
 // always supplies.
 var ErrBackendOptionsRequired = errors.New("backend options are required")
 
+// ErrStateClientSetup marks a failure to build the state client, as opposed to the
+// state blob being absent. The ARM key lookup answers 404 for a wrong resource
+// group, account, or subscription, which callers must not read as "not applied yet".
+var ErrStateClientSetup = errors.New("building azurerm state client")
+
 // ErrAzureBackendExperimentRequired is returned when an azurerm backend
 // lifecycle operation is attempted without the `azure-backend` experiment
 // enabled. Match with errors.Is.

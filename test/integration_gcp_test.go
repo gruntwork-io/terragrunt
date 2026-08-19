@@ -65,7 +65,7 @@ func TestGcpDependencyFetchOutputFromState(t *testing.T) {
 	producerPath := filepath.Join(rootPath, "producer")
 	consumerPath := filepath.Join(rootPath, "consumer")
 	consumerPlan := "terragrunt run plan --backend-bootstrap --dependency-fetch-output-from-state " +
-		"--non-interactive --working-dir " + consumerPath
+		"--non-interactive --log-level debug --working-dir " + consumerPath
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
 	require.NoError(t, err)
@@ -79,10 +79,15 @@ func TestGcpDependencyFetchOutputFromState(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "from-gcs-state")
 	assert.NotContains(t, stdout, "mock-gcs-value")
+
+	// The value alone does not prove the optimization ran: `tofu output` returns it
+	// too. Only the direct reader logs this, naming the object it read.
+	assert.Contains(t, stderr+stdout, "Fetching outputs directly from gs://",
+		"outputs must come from the state object, not from running tofu output")
 }
 
 func TestGcpBootstrapBackend(t *testing.T) {

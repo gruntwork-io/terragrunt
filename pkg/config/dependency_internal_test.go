@@ -1166,6 +1166,21 @@ func TestIsRemoteStateMissing(t *testing.T) {
 				ErrorCode:  "AuthorizationFailure",
 			}),
 		},
+		// The azurerm key lookup calls ARM, which answers 404 for a wrong resource
+		// group, account, or subscription. Reading that as an absent state would swap
+		// mock outputs into a run whose state actually exists.
+		{
+			name: "Azure ARM resource group not found is a setup failure",
+			err: fmt.Errorf("%w: resolving storage account key: %w",
+				azurermbackend.ErrStateClientSetup,
+				&azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "ResourceGroupNotFound"}),
+		},
+		{
+			name: "Azure ARM subscription not found is a setup failure",
+			err: fmt.Errorf("%w: resolving storage account key: %w",
+				azurermbackend.ErrStateClientSetup,
+				&azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "SubscriptionNotFound"}),
+		},
 	}
 
 	for _, testCase := range testCases {

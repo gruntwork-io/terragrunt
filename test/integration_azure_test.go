@@ -50,7 +50,7 @@ func TestAzureDependencyFetchOutputFromState(t *testing.T) {
 	producerPath := filepath.Join(rootPath, "producer")
 	consumerPath := filepath.Join(rootPath, "consumer")
 	consumerPlan := "terragrunt run plan --backend-bootstrap --experiment azure-backend " +
-		"--dependency-fetch-output-from-state --non-interactive --working-dir " + consumerPath
+		"--dependency-fetch-output-from-state --non-interactive --log-level debug --working-dir " + consumerPath
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
 	require.NoError(t, err)
@@ -64,10 +64,15 @@ func TestAzureDependencyFetchOutputFromState(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "from-azure-state")
 	assert.NotContains(t, stdout, "mock-azure-value")
+
+	// The value alone does not prove the optimization ran: `tofu output` returns it
+	// too. Only the direct reader logs this, naming the blob it read.
+	assert.Contains(t, stderr+stdout, "Fetching outputs directly from azurerm://",
+		"outputs must come from the state blob, not from running tofu output")
 }
 
 // Environment variables the live tests read, most specific first. The ARM_* /

@@ -160,7 +160,11 @@ func NewStateBlobClient(
 
 	keyed, err := sharedKeyConfig(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("resolving storage account key for azurerm state access: %w", err)
+		// ErrStateClientSetup marks this as a setup failure: the ARM key lookup answers
+		// 404 for a wrong resource group, account, or subscription, and a caller must not
+		// read that as "the state blob does not exist yet".
+		return nil, fmt.Errorf("%w: resolving storage account key for azurerm state access: %w",
+			ErrStateClientSetup, err)
 	}
 
 	l.Debugf("%s: using shared-key authorization for direct state access", BackendName)
