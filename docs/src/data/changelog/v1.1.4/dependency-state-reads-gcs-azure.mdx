@@ -9,4 +9,4 @@ The `dependency-fetch-output-from-state` experiment can now read dependency outp
 
 Azure direct reads require the `azure-backend` experiment as well. Unsupported backends and configurations requiring native-only authentication, endpoint, timeout, or Azure customer-provided-key behavior continue to use the native output path.
 
-A unit whose state does not exist yet falls back to its `mock_outputs`, matching the existing S3 behavior. A misconfiguration is not treated that way: if the resource group, storage account, or subscription named in the `remote_state` block cannot be reached, Terragrunt fails with an error naming the keys to check rather than silently substituting mock values.
+When a dependency has no state yet, Terragrunt uses that dependency block's `mock_outputs`, as it already does for S3. A misconfiguration is not treated that way: if `resource_group_name`, `storage_account_name`, or `subscription_id` in the `remote_state` block names a resource that does not exist, Terragrunt fails with an error naming those keys rather than substituting mock outputs.

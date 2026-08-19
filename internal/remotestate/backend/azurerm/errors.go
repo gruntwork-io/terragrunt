@@ -61,9 +61,9 @@ var ErrBackendOptionsRequired = errors.New("backend options are required")
 
 // ErrStateClientSetup marks a client-construction failure, never an absent state blob. Match with errors.Is.
 var ErrStateClientSetup = errors.New(
-	"could not build a client for the azurerm state blob; verify resource_group_name, " +
-		"storage_account_name, and subscription_id in the remote_state block name resources " +
-		"that exist, and that the identity may read the storage account keys",
+	"could not build a client for the azurerm state blob; verify that resource_group_name, " +
+		"storage_account_name, and subscription_id in the remote_state block refer to resources " +
+		"that exist, and that the identity may list storage account keys",
 )
 
 // ErrAzureBackendExperimentRequired is returned when an azurerm backend

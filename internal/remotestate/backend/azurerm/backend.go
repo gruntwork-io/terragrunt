@@ -164,8 +164,7 @@ func NewStateBlobClient(
 	keyed, err := sharedKeyConfig(ctx, cfg)
 	if err != nil {
 		// The ARM key lookup answers 404 for a wrong resource group, account, or subscription.
-		return nil, fmt.Errorf("%w: resolving storage account key for azurerm state access: %w",
-			ErrStateClientSetup, err)
+		return nil, fmt.Errorf("%w: %w", ErrStateClientSetup, err)
 	}
 
 	l.Debugf("%s: using shared-key authorization for direct state access", BackendName)
@@ -219,6 +218,10 @@ func sharedKeyConfig(ctx context.Context, cfg *azurehelper.AzureConfig) (*azureh
 	keys, err := saClient.GetKeys(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(keys) == 0 {
+		return nil, azurehelper.ErrNoAccessKeysReturned
 	}
 
 	keyed := *cfg

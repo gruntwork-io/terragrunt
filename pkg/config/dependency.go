@@ -3125,7 +3125,8 @@ func gcsEncryptionKeyContents(pctx *ParsingContext, value string) (string, error
 		return "", fmt.Errorf("reading encryption_key file %s: %w", filename, err)
 	}
 
-	return string(contents), nil
+	// Editors append a trailing newline, which is not valid base64.
+	return strings.TrimSpace(string(contents)), nil
 }
 
 // terraformStateOutputsJSON extracts the top-level outputs object from a Terraform/OpenTofu state file.

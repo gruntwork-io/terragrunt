@@ -1190,6 +1190,32 @@ func TestIsRemoteStateMissing(t *testing.T) {
 	}
 }
 
+// TestGCSEncryptionKeyContentsTrimsFileNewline pins that a key file written by an
+// editor decodes: a trailing newline is not valid base64.
+func TestGCSEncryptionKeyContentsTrimsFileNewline(t *testing.T) {
+	t.Parallel()
+
+	key := make([]byte, gcsEncryptionKeyBytes)
+	encoded := base64.StdEncoding.EncodeToString(key)
+
+	v := venvtest.New()
+	keyPath := filepath.Join("/config", "gcs.key")
+	require.NoError(t, vfs.WriteFile(v.FS, keyPath, []byte(encoded+"\n"), 0o600))
+
+	pctx := &ParsingContext{
+		TerragruntConfigPath: filepath.Join("/config", DefaultTerragruntConfigPath),
+		Venv:                 v,
+	}
+
+	got, err := gcsEncryptionKeyContents(pctx, keyPath)
+	require.NoError(t, err)
+	assert.Equal(t, encoded, got, "a trailing newline must not reach the base64 decoder")
+
+	decoded, err := base64.StdEncoding.DecodeString(got)
+	require.NoError(t, err, "the trimmed contents must decode")
+	assert.Len(t, decoded, gcsEncryptionKeyBytes)
+}
+
 func TestGCSStateObjectKey(t *testing.T) {
 	t.Parallel()
 

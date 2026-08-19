@@ -50,7 +50,7 @@ func TestNewStateBlobClientPreservesAzurermAuthorizationPolicy(t *testing.T) {
 
 			client, err := azurerm.NewStateBlobClient(t.Context(), logger.CreateLogger(), cfg)
 			if testCase.wantErr {
-				require.ErrorContains(t, err, "resolving storage account key")
+				require.ErrorIs(t, err, azurerm.ErrStateClientSetup)
 				assert.Contains(t, err.Error(), "AuthorizationFailed")
 				require.Len(t, transport.Requests(), 1)
 
