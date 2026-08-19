@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +38,23 @@ func requireTrapReady(t *testing.T, readyPath string) {
 
 		return err == nil
 	}, 10*time.Second, 10*time.Millisecond, "child never wrote the trap-ready marker")
+}
+
+// requireInterruptCount blocks until the subprocess records that its INT trap has run
+// want times.
+func requireInterruptCount(t *testing.T, readyPath string, want int) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		content, err := os.ReadFile(readyPath)
+		if err != nil {
+			return false
+		}
+
+		got, err := strconv.Atoi(strings.TrimSpace(string(content)))
+
+		return err == nil && got == want
+	}, 10*time.Second, 10*time.Millisecond, "child never acknowledged interrupt %d", want)
 }
 
 func TestExitCodeUnix(t *testing.T) {
@@ -139,32 +157,20 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 
 	requireTrapReady(t, readyPath)
 
-	interruptAndWaitForProcess := func() (int, error) {
-		var (
-			interrupts int
-			err        error
-		)
+	// Bash defers its trap until the running `sleep` returns, so two signals delivered within
+	// one sleep window collapse into a single handler run. Waiting for the child to
+	// acknowledge each interrupt before sending the next keeps the count exact.
+	for interrupts := 1; interrupts <= expectedInterrupts; interrupts++ {
+		cmd.SendSignal(l, os.Interrupt)
 
-		for {
-			time.Sleep(500 * time.Millisecond)
-
-			select {
-			case err = <-runChannel:
-				return interrupts, err
-			default:
-				cmd.SendSignal(l, os.Interrupt)
-
-				interrupts++
-			}
-		}
+		requireInterruptCount(t, readyPath, interrupts)
 	}
 
-	interrupts, err := interruptAndWaitForProcess()
+	err := <-runChannel
 	require.Error(t, err)
 
 	retCode, err := util.GetExitCode(err)
 	require.NoError(t, err)
-	assert.LessOrEqual(t, retCode, interrupts, "Subprocess received wrong number of signals")
 	assert.Equal(t, expectedInterrupts, retCode, "Subprocess didn't receive multiple signals")
 }
 
