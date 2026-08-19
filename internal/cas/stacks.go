@@ -101,9 +101,9 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("failed to parse source URL %q: %w", detectedURL, err)
 	}
 
-	ref := StripGitURLParams(parsedURL)
+	strippedURL, ref := StripGitURLParams(parsedURL)
 
-	cleanURL := strings.TrimPrefix(parsedURL.String(), "git::")
+	cleanURL := strings.TrimPrefix(strippedURL.String(), "git::")
 
 	// Stack processing derives deterministic CAS keys from refHash, so
 	// abbreviated SHAs would produce keys that depend on the input

@@ -14,8 +14,7 @@ import (
 // out of the URL: depth is a shallow-clone hint, not a native git URL
 // parameter, so leaving it in makes git treat "?depth=1" as part of the
 // repository name and reject the clone. Only ref is returned; depth is
-// dropped, because clone depth belongs to the --cas-clone-depth CLI argument,
-// which outranks configuration.
+// discarded, because clone depth comes solely from --cas-clone-depth.
 func TestStripGitURLParams(t *testing.T) {
 	t.Parallel()
 
@@ -70,10 +69,11 @@ func TestStripGitURLParams(t *testing.T) {
 			u, err := url.Parse(tt.in)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.wantRef, cas.StripGitURLParams(u))
-			// u is mutated in place: the returned URL must no longer carry
-			// the go-getter parameters that break native git.
-			assert.Equal(t, tt.wantURL, u.String())
+			stripped, ref := cas.StripGitURLParams(u)
+
+			assert.Equal(t, tt.wantRef, ref)
+			assert.Equal(t, tt.wantURL, stripped.String())
+			assert.Equal(t, tt.in, u.String(), "the input URL must not be mutated")
 		})
 	}
 }
