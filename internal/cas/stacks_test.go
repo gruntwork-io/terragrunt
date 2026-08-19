@@ -614,9 +614,7 @@ func TestProcessStackComponent_AcceptsExplicitGitPrefix(t *testing.T) {
 }
 
 // TestProcessStackComponent_AcceptsDepthQueryParam covers the stack-source
-// half of the go-getter depth parameter: depth is not a native git URL
-// parameter, so leaving it on the URL makes git treat "?depth=1" as part of
-// the repository name and refuse to clone. The getter half is covered by
+// half of the go-getter depth parameter; the getter half is covered by
 // TestCASClone_E2E_DepthQueryParamWithTag.
 func TestProcessStackComponent_AcceptsDepthQueryParam(t *testing.T) {
 	t.Parallel()

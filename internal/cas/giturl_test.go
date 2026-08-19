@@ -10,11 +10,8 @@ import (
 )
 
 // TestStripGitURLParams pins the go-getter query-parameter handling shared by
-// the CAS git getter and stack source cloning. depth and ref must be lifted
-// out of the URL: depth is a shallow-clone hint, not a native git URL
-// parameter, so leaving it in makes git treat "?depth=1" as part of the
-// repository name and reject the clone. Only ref is returned; depth is
-// discarded, because clone depth comes solely from --cas-clone-depth.
+// the CAS git getter and stack source cloning: ref is lifted out and returned,
+// depth is lifted out and discarded, and the caller's URL is left untouched.
 func TestStripGitURLParams(t *testing.T) {
 	t.Parallel()
 
