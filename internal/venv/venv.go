@@ -5,7 +5,8 @@
 // to do its work: [vfs.FS] for filesystem reads and writes, [vexec.Exec]
 // for spawning subprocesses, [vhttp.Client] for outbound HTTP,
 // [vsops.Decrypter] for SOPS decryption, the shell environment variables and
-// platform handles read at startup, and the stdout/stderr writers. Production
+// platform handles read at startup, the stdin reader, and the stdout/stderr
+// writers. Production
 // code constructs the real bundle once at the top via [OSVenv]; tests
 // construct an in-memory bundle and drive the full CLI through it.
 //
@@ -15,6 +16,7 @@
 package venv
 
 import (
+	"bufio"
 	"errors"
 	"io"
 	"maps"
@@ -54,6 +56,11 @@ var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
 // test that forgot to set HTTP rather than a runtime condition.
 var ErrVenvHTTPUnset = errors.New("venv.Venv.HTTP is required but unset")
 
+// ErrVenvReaderUnset is the panic value [Venv.RequireReader] raises when
+// Reader is nil. Production callers build the Venv through [OSVenv], so it
+// points at a test that forgot to set Reader rather than a runtime condition.
+var ErrVenvReaderUnset = errors.New("venv.Venv.Reader is required but unset")
+
 // ErrVenvGOOSUnset is the panic value [Venv.RequireGOOS] raises when GOOS is empty.
 var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset")
 
@@ -61,10 +68,20 @@ var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset
 // when UserHomeDir is nil.
 var ErrVenvUserHomeDirUnset = errors.New("venv.Venv.Platform.UserHomeDir is required but unset")
 
+// ErrVenvUserCacheDirUnset is the panic value [Venv.RequireUserCacheDir] raises
+// when UserCacheDir is nil.
+var ErrVenvUserCacheDirUnset = errors.New("venv.Venv.Platform.UserCacheDir is required but unset")
+
+// ErrVenvTempDirUnset is the panic value [Venv.RequireTempDir] raises when
+// TempDir is nil.
+var ErrVenvTempDirUnset = errors.New("venv.Venv.Platform.TempDir is required but unset")
+
 // Platform carries the operating-system handles used below the CLI boundary.
 type Platform struct {
-	UserHomeDir func() (string, error)
-	GOOS        string
+	UserHomeDir  func() (string, error)
+	UserCacheDir func() (string, error)
+	TempDir      func() string
+	GOOS         string
 }
 
 // Venv is the root virtualized environment. It carries the filesystem,
@@ -74,15 +91,30 @@ type Platform struct {
 // inputs contributions resolve. Writers is held as a pointer so per-call
 // overrides via [writer.Writers.WithWriter] and [writer.Writers.WithErrWriter]
 // produce fresh pointers without mutating the caller's value; never mutate its
-// fields in place, since shallow-copied Venvs share the pointer.
+// fields in place, since shallow-copied Venvs share the pointer. Reader is
+// buffered once and held as a pointer for the same reason: a run that prompts
+// more than once must keep reading from a single buffer, or the first prompt's
+// read-ahead swallows the input the next prompt is waiting for.
 type Venv struct {
 	FS       vfs.FS
 	Exec     vexec.Exec
 	HTTP     vhttp.Client
 	Sops     vsops.Decrypter
+	Reader   *bufio.Reader
 	Env      map[string]string
 	Platform *Platform
 	Writers  *writer.Writers
+}
+
+// WithReader returns a copy of v that reads console input from r, buffered so
+// that every consumer shares one position in the stream. A consumer that wraps
+// its own buffer around [Venv.Reader] strands whatever that buffer read past
+// the bytes it needed.
+func (v *Venv) WithReader(r io.Reader) *Venv {
+	c := *v
+	c.Reader = bufio.NewReader(r)
+
+	return &c
 }
 
 // WithWriter returns a copy of v whose primary writer is w. The copy gets
@@ -118,6 +150,14 @@ func (v *Venv) WithHandler(h vexec.Handler) *Venv {
 	c.Exec = vexec.NewMemExec(h)
 
 	return &c
+}
+
+// WithHTTP returns a copy of v whose outbound HTTP client is c.
+func (v *Venv) WithHTTP(c vhttp.Client) *Venv {
+	cp := *v
+	cp.HTTP = c
+
+	return &cp
 }
 
 // WithSops returns a copy of v whose SOPS decrypter is d.
@@ -229,6 +269,16 @@ func (v *Venv) RequireHTTP() {
 	}
 }
 
+// RequireReader panics with [ErrVenvReaderUnset] when Reader is nil.
+// Functions that read console input call this as their first statement so a
+// missing handle panics at the offending call site instead of inside an
+// unrelated stack frame.
+func (v *Venv) RequireReader() {
+	if v.Reader == nil {
+		panic(ErrVenvReaderUnset)
+	}
+}
+
 // RequireGOOS panics with [ErrVenvGOOSUnset] when GOOS is empty.
 func (v *Venv) RequireGOOS() {
 	if v.Platform == nil || v.Platform.GOOS == "" {
@@ -243,27 +293,44 @@ func (v *Venv) RequireUserHomeDir() {
 	}
 }
 
+// RequireUserCacheDir panics with [ErrVenvUserCacheDirUnset] when UserCacheDir is nil.
+func (v *Venv) RequireUserCacheDir() {
+	if v.Platform == nil || v.Platform.UserCacheDir == nil {
+		panic(ErrVenvUserCacheDirUnset)
+	}
+}
+
+// RequireTempDir panics with [ErrVenvTempDirUnset] when TempDir is nil.
+func (v *Venv) RequireTempDir() {
+	if v.Platform == nil || v.Platform.TempDir == nil {
+		panic(ErrVenvTempDirUnset)
+	}
+}
+
 // OSVenv builds the production [Venv]: the real OS filesystem, the real OS
 // process executor, the real outbound HTTP client, platform handles, a
-// snapshot of the OS environment, and stdout/stderr wired to the real OS
-// streams.
+// snapshot of the OS environment, and stdin/stdout/stderr wired to the real
+// OS streams.
 //
 // It returns a *[Venv] so the bundle is threaded by pointer through every
-// downstream call — small parameter, no copying. Shallow-copying a
+// downstream call: small parameter, no copying. Shallow-copying a
 // pointed-to [Venv] (via `local := *v`) still shares the Env map with the
 // original, so callers must go through [Venv.WithEnvCloned] before mutating
 // environment variables; writer swaps stay independent because
 // [writer.Writers.WithWriter] returns a fresh copy.
 func OSVenv() *Venv {
 	return &Venv{
-		FS:   vfs.NewOSFS(),
-		Exec: vexec.NewOSExec(),
-		HTTP: vhttp.NewOSClient(),
-		Sops: vsops.NewOSDecrypter(),
-		Env:  ParseEnviron(os.Environ()),
+		FS:     vfs.NewOSFS(),
+		Exec:   vexec.NewOSExec(),
+		HTTP:   vhttp.NewOSClient(),
+		Sops:   vsops.NewOSDecrypter(),
+		Reader: bufio.NewReader(os.Stdin),
+		Env:    ParseEnviron(os.Environ()),
 		Platform: &Platform{
-			UserHomeDir: os.UserHomeDir,
-			GOOS:        runtime.GOOS,
+			UserHomeDir:  os.UserHomeDir,
+			UserCacheDir: os.UserCacheDir,
+			TempDir:      os.TempDir,
+			GOOS:         runtime.GOOS,
 		},
 		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}

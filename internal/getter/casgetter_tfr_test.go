@@ -17,9 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestCASGetter_TFRRoutesThroughCAS_FirstRunDownloads pins that a
@@ -38,8 +38,7 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 	l := logger.CreateLogger()
 	httpClient := server.Client()
 
-	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS()).
-		WithHTTPClient(httpClient).
+	tfr := getter.NewRegistryGetter(l, venvtest.NewWithOSFS().WithHTTP(httpClient)).
 		WithTofuImplementation(tfimpl.Terraform)
 
 	resolver := getter.NewTFRResolver().
@@ -49,7 +48,7 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -60,10 +59,11 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 	// not need this hook — the default builder uses the standard
 	// HttpGetter, which is fine for a real registry.
 	innerBuilder := func(bare gogetter.Getter, _ string) *gogetter.Client {
-		return getter.NewClient(getter.WithCustomGettersPrepended(
-			bare,
-			&gogetter.HttpGetter{Client: httpClient, Netrc: true},
-		))
+		return getter.NewClient(venvtest.NewWithOSFS(),
+			getter.WithCustomGettersPrepended(
+				bare,
+				&gogetter.HttpGetter{Client: httpClient, Netrc: true},
+			))
 	}
 
 	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{},
@@ -128,7 +128,7 @@ func TestCASGetter_TFRBareSchemeIsClaimed(t *testing.T) {
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -197,7 +198,7 @@ func (g *Generator) generateStacks(
 
 // warnOnRepeatedClaims logs a warning when a stack file is claimed by more than
 // one parent in the same invocation. All nodes here are stack files by
-// construction — ListStackFiles filters to *component.Stack only.
+// construction, since ListStackFiles filters to *component.Stack only.
 func warnOnRepeatedClaims(l log.Logger, levelNodes []*StackNode, claimedBy map[string]string) {
 	for _, node := range levelNodes {
 		parent := "root"
@@ -242,13 +243,12 @@ func generateLevel(
 		generatedFiles[node.FilePath] = true
 
 		// Best-effort skip; GenerateStackFile surfaces ENOENT if the file is removed in the TOCTOU window.
-		if !util.FileExists(node.FilePath) {
+		if !vfs.Exists(v.FS, node.FilePath) {
 			continue
 		}
 
 		wp.Submit(func() error {
-			_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-			pctx = pctx.WithVenv(v)
+			_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 			scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, node.FilePath)
 			if err != nil {
@@ -791,8 +791,6 @@ func worktreeStacksToGenerate(
 }
 
 // discoverStacks discovers stacks in a worktree.
-// User-provided filters from opts.Filters are included (restricted to stacks) so that
-// explicit exclusions like --filter '!./land-mine | type=stack' are respected.
 // When readFiles is true, all discovered stacks are parsed to populate their Reading
 // attribute (used by reading-affected detection).
 func discoverStacks(
@@ -803,11 +801,9 @@ func discoverStacks(
 	wt worktrees.Worktree,
 	readFiles bool,
 ) (component.Components, error) {
-	allFilters := slices.Concat(stackTypeFilter(), opts.Filters.RestrictToStacks())
-
 	d := discovery.NewDiscovery(wt.Path).
 		WithSuppressParseErrors().
-		WithFilters(allFilters)
+		WithFilters(StackDiscoveryFilters(opts.Filters))
 
 	if readFiles {
 		d = d.WithReadFiles()
@@ -870,7 +866,7 @@ func stacksReadingFiles(
 	matched := make([]*component.Stack, 0, len(readingFilters))
 
 	for _, f := range readingFilters {
-		evaluated, err := filter.Evaluate(l, f.Expression(), components)
+		evaluated, err := filter.Evaluate(l, filter.EvaluationContext{}, f.Expression(), components)
 		if err != nil {
 			return nil, err
 		}
@@ -891,6 +887,52 @@ func stacksReadingFiles(
 	}
 
 	return matched, nil
+}
+
+// StackDiscoveryFilters returns the filters that select which stacks a generation run
+// discovers, so that explicit exclusions like --filter '!./land-mine | type=stack' are
+// respected.
+//
+// Generation stays permissive until the user aims a filter at stacks, because a stack can
+// generate its units anywhere, so narrowing by a filter that never mentions stacks would drop
+// stacks the user still needs. Once a stack-targeted filter is present, every other filter is
+// narrowed to the stacks it matches and joins the union, rather than being dropped, which
+// would lose the stacks only that filter selects. Filters union, so a blanket type=stack
+// alongside them would select every stack and undo the exclusions.
+//
+// Git expressions are left out: they match on a component's Git reference, which discovery
+// only stamps on afterwards, so folding them in here would select nothing.
+func StackDiscoveryFilters(filters filter.Filters) filter.Filters {
+	stackFilters := filters.RestrictToStacks()
+	if len(stackFilters) == 0 {
+		return stackTypeFilter()
+	}
+
+	result := make(filter.Filters, 0, len(filters))
+	result = append(result, stackFilters...)
+
+	for _, f := range filters.ExcludingGitFilters() {
+		expr := f.Expression()
+		if expr.IsRestrictedToStacks() {
+			continue
+		}
+
+		// A filter that only excludes already subtracts from the union, so narrowing it to
+		// stacks would turn it into a selector and hand back what it set out to remove.
+		if filter.IsPureNegation(expr) {
+			result = append(result, f)
+
+			continue
+		}
+
+		attrExpr := filter.NewTypeExpression(component.StackKind)
+		result = append(result, filter.NewFilter(
+			filter.NewInfixExpression(expr, "|", attrExpr),
+			f.String(),
+		))
+	}
+
+	return result
 }
 
 // stackTypeFilter returns a filter.Filters that restricts to stack components.

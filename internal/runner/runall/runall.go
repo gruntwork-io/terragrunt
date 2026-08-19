@@ -127,7 +127,7 @@ func Run(
 	// ErrUserCancelled.
 	var wts *worktrees.Worktrees
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		wts, err = worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
 			Experiments:    opts.Experiments,
@@ -186,7 +186,7 @@ func Run(
 		}
 
 		// After generation, hint when a literal stack filter left nested stacks ungenerated.
-		funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+		funcsFor := configbridge.StackFuncFactory(ctx, l, v, opts)
 		tips.GiveStackNestedGenerateTip(l, v.FS, funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
@@ -241,13 +241,7 @@ func RunAllOnStack(
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(
-			ctx,
-			l,
-			prompt,
-			opts.NonInteractive,
-			v.Writers.ErrWriter,
-		)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 		if err != nil {
 			return err
 		}

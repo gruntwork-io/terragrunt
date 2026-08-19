@@ -3,6 +3,7 @@ package cliconfig
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -40,10 +41,10 @@ func WithFS(fs vfs.FS) ConfigOption {
 	}
 }
 
-// NewConfig creates a new Config with default values.
-func NewConfig() *Config {
+// NewConfig creates a new Config that saves through fsys.
+func NewConfig(fsys vfs.FS) *Config {
 	return &Config{
-		fs: vfs.NewOSFS(),
+		fs: fsys,
 	}
 }
 
@@ -137,7 +138,7 @@ func (cfg *Config) Clone() *Config {
 		PluginCacheDir:             cfg.PluginCacheDir,
 		DisableCheckpoint:          cfg.DisableCheckpoint,
 		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
-		Credentials:                cfg.Credentials,
+		Credentials:                slices.Clone(cfg.Credentials),
 		CredentialsHelpers:         cfg.CredentialsHelpers,
 		Hosts:                      hosts,
 		ProviderInstallation:       providerInstallation,
@@ -200,12 +201,12 @@ func (cfg *Config) Save(configPath string) error {
 	file := hclwrite.NewEmptyFile()
 	gohcl.EncodeIntoBody(cfg, file.Body())
 
-	const ownerWriteGlobalReadPerms = 0644
+	const ownerReadWritePerms = 0o600
 	if err := vfs.WriteFile(
 		cfg.FS(),
 		configPath,
 		file.Bytes(),
-		ownerWriteGlobalReadPerms,
+		ownerReadWritePerms,
 	); err != nil {
 		return err
 	}

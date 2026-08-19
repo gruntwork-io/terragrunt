@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestSSHCASGetterGet(t *testing.T) {
@@ -50,7 +51,7 @@ func TestSSHCASGetterGet(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 			storePath := filepath.Join(tmpDir, "store")
-			c, err := cas.New(cas.WithStorePath(storePath))
+			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(t, err)
 
 			v := venv.OSVenv()

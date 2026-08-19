@@ -5,6 +5,7 @@ package tflint
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -133,8 +134,9 @@ func RunTflintWithOpts(
 func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 	variables := make([]string, 0, len(inputs))
 
-	for key, value := range inputs {
-		varValue, err := util.AsTerraformEnvVarJSONValue(value)
+	// Sorted so that repeated runs produce the same command line.
+	for _, key := range slices.Sorted(maps.Keys(inputs)) {
+		varValue, err := util.AsTerraformEnvVarJSONValue(inputs[key])
 		if err != nil {
 			return nil, err
 		}
@@ -206,12 +208,12 @@ func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
 		}
 
 		if len(arg.EnvVars) > 0 {
-			// extract env_vars
-			for name, value := range arg.EnvVars {
+			// extract env_vars, sorted so that repeated runs produce the same command line
+			for _, name := range slices.Sorted(maps.Keys(arg.EnvVars)) {
 				if after, ok := strings.CutPrefix(name, tfVarPrefix); ok {
 					varName := after
 
-					varValue, err := util.AsTerraformEnvVarJSONValue(value)
+					varValue, err := util.AsTerraformEnvVarJSONValue(arg.EnvVars[name])
 					if err != nil {
 						return nil, err
 					}
@@ -316,7 +318,7 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 	}
 }
 
-// ConfigFilePath returns the configuration file specified in --config argument,
+// ConfigFilePath returns the configuration file specified in the --config argument,
 // or the result of walking parents to find a .tflint.hcl file.
 func ConfigFilePath(
 	l log.Logger,
@@ -324,9 +326,18 @@ func ConfigFilePath(
 	opts *TFLintOptions,
 	arguments []string,
 ) (string, error) {
+	// The spellings tflint accepts for the flag that names its configuration file.
+	configFlags := []string{"--config", "-c"}
+
 	for i, arg := range arguments {
-		if arg == "--config" && len(arguments) > i+1 {
-			return arguments[i+1], nil
+		for _, flag := range configFlags {
+			if arg == flag && len(arguments) > i+1 {
+				return arguments[i+1], nil
+			}
+
+			if after, ok := strings.CutPrefix(arg, flag+"="); ok {
+				return after, nil
+			}
 		}
 	}
 	// find .tflint.hcl configuration in project files if it is not provided in arguments

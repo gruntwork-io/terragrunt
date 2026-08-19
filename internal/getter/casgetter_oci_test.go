@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/assert"
@@ -145,7 +146,7 @@ func TestCASGetterDoesNotClaimOCIWithoutFetcher(t *testing.T) {
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()
@@ -265,7 +266,7 @@ func newOCICASHarness(
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

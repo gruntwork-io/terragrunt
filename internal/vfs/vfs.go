@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -66,12 +67,6 @@ type ContextLocker interface {
 	LockContext(ctx context.Context, name string) (Unlocker, error)
 }
 
-// ErrNoHardLink is returned when a filesystem does not support hard links.
-var ErrNoHardLink = errors.New("hard link not supported")
-
-// ErrNoLock is returned when a filesystem does not support locking.
-var ErrNoLock = errors.New("locking not supported")
-
 const maxSymlinkEvaluations = 255
 
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
@@ -114,6 +109,129 @@ func FileExists(vfs FS, path string) (bool, error) {
 	return false, err
 }
 
+// Exists reports whether path is present on the given filesystem. A path that
+// cannot be stat'd counts as absent, so an entry the caller may not read reads
+// the same as one that is not there. Use [FileExists] to tell those apart.
+func Exists(fsys FS, path string) bool {
+	_, err := fsys.Stat(path)
+	return err == nil
+}
+
+// IsDir reports whether path is a directory on the given filesystem,
+// following symlinks. A path that cannot be stat'd is not a directory.
+func IsDir(fsys FS, path string) bool {
+	info, err := fsys.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// checksumReadBlock is the block size FileSHA256 hashes with.
+const checksumReadBlock = 8192
+
+// IsFile reports whether path points to a regular file. A path that cannot be
+// stat'd is not a file.
+func IsFile(fsys FS, path string) bool {
+	info, err := fsys.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+// EnsureDirectory creates the directory at path, and any missing parents, when
+// nothing is there yet. A path already occupied by a file yields
+// [PathIsNotDirectory].
+func EnsureDirectory(fsys FS, path string) error {
+	if IsFile(fsys, path) {
+		return PathIsNotDirectory{path: path}
+	}
+
+	if Exists(fsys, path) {
+		return nil
+	}
+
+	const ownerReadWriteExecutePerms = 0o700
+
+	return fsys.MkdirAll(path, ownerReadWriteExecutePerms)
+}
+
+// IsDirectoryEmpty reports whether path is a directory holding no entries.
+func IsDirectoryEmpty(fsys FS, path string) (retEmpty bool, retErr error) {
+	dir, err := fsys.Open(path)
+	if err != nil {
+		return false, err
+	}
+
+	defer func() {
+		if err := dir.Close(); err != nil && retErr == nil {
+			retEmpty, retErr = false, err
+		}
+	}()
+
+	// Reading a single entry is enough to answer the question, so a directory
+	// holding a million files costs the same as one holding one.
+	if _, err := dir.Readdir(1); err == nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// FileSHA256 returns the SHA256 of the file at path, read in fixed-size blocks
+// so hashing a large archive does not pull it entirely into memory.
+func FileSHA256(fsys FS, path string) (_ []byte, retErr error) {
+	file, err := fsys.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	hash := sha256.New()
+
+	if _, err := io.CopyBuffer(hash, file, make([]byte, checksumReadBlock)); err != nil {
+		return nil, err
+	}
+
+	return hash.Sum(nil), nil
+}
+
+// CopyFile copies a file from source to destination on the given filesystem,
+// preserving the source's permissions.
+func CopyFile(fsys FS, source, destination string) error {
+	file, err := fsys.Open(source)
+	if err != nil {
+		return err
+	}
+
+	err = WriteFileWithSamePermissions(fsys, source, destination, file)
+
+	return errors.Join(err, file.Close())
+}
+
+// WriteFileWithSamePermissions writes contents to destination using the same
+// permissions as the file at source.
+func WriteFileWithSamePermissions(fsys FS, source, destination string, contents io.Reader) error {
+	fileInfo, err := fsys.Stat(source)
+	if err != nil {
+		return err
+	}
+
+	// CAS may place read-only files at the destination, which would block a plain open.
+	if err := fsys.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	file, err := fsys.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileInfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(file, contents)
+
+	return errors.Join(err, file.Close())
+}
+
 // Lstat returns the FileInfo for the named path without following symlinks.
 // Filesystems that do not implement afero.Lstater fall back to Stat.
 func Lstat(fsys FS, path string) (os.FileInfo, error) {
@@ -138,6 +256,36 @@ func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 // ReadFile reads the contents of a file from the given filesystem.
 func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
+}
+
+// ReadFileAsString reads the contents of a file from the given filesystem as a
+// string, annotating the failure with the path so a caller reading several
+// files can tell which one failed.
+func ReadFileAsString(fsys FS, filename string) (string, error) {
+	contents, err := ReadFile(fsys, filename)
+	if err != nil {
+		return "", fmt.Errorf("error reading file at path %s: %w", filename, err)
+	}
+
+	return string(contents), nil
+}
+
+// ReadFileLimit reads up to limit bytes from the start of a file on the given
+// filesystem, for callers that only need a bounded prefix (such as previewing
+// the head of a possibly-large file) rather than the whole thing.
+func ReadFileLimit(fs FS, filename string, limit int64) (data []byte, err error) {
+	f, err := fs.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+
+	return io.ReadAll(io.LimitReader(f, limit))
 }
 
 // EvalSymlinks returns path after evaluating symlinks using the supplied filesystem.
@@ -354,6 +502,101 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 	}
 
 	return err
+}
+
+// WalkDirWithSymlinks walks the file tree rooted at root like [WalkDir] does,
+// additionally descending into the directories that symbolic links resolve to.
+// Paths handed to fn are logical: they read as if the link target lived at the
+// link's own location, and a root that is itself reached through a link keeps
+// the spelling the caller passed.
+//
+// Each logical path is reported once, so a directory reachable through several
+// links is visited once, and a link pointing back at an ancestor terminates
+// instead of looping.
+func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
+	w := &symlinkWalker{
+		fsys:           fsys,
+		fn:             fn,
+		visited:        make(map[string]bool),
+		visitedLogical: make(map[string]bool),
+	}
+
+	realRoot, err := EvalSymlinks(fsys, root)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+	}
+
+	return w.walk(realRoot, filepath.Clean(root))
+}
+
+// symlinkWalker carries the bookkeeping [WalkDirWithSymlinks] needs across the
+// nested walks it starts for each followed link.
+type symlinkWalker struct {
+	fsys           FS
+	fn             fs.WalkDirFunc
+	visited        map[string]bool
+	visitedLogical map[string]bool
+}
+
+// walk traverses the tree at physical, reporting entries under logical.
+func (w *symlinkWalker) walk(physical, logical string) error {
+	return WalkDir(w.fsys, physical, func(current string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return w.fn(current, d, err)
+		}
+
+		rel, err := filepath.Rel(physical, current)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to get relative path between %s and %s: %w",
+				physical,
+				current,
+				err,
+			)
+		}
+
+		logicalPath := filepath.Join(logical, rel)
+
+		if !w.visitedLogical[logicalPath] {
+			w.visitedLogical[logicalPath] = true
+
+			if err := w.fn(logicalPath, d, nil); err != nil {
+				return err
+			}
+		}
+
+		if d.Type()&fs.ModeSymlink == 0 {
+			return nil
+		}
+
+		return w.follow(current, logicalPath)
+	})
+}
+
+// follow resolves the link at current and, when it lands on a directory,
+// walks the target as though it lived at logicalPath.
+func (w *symlinkWalker) follow(current, logicalPath string) error {
+	realPath, err := EvalSymlinks(w.fsys, current)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err)
+	}
+
+	realInfo, err := w.fsys.Stat(realPath)
+	if err != nil {
+		return fmt.Errorf("failed to describe file %s: %w", realPath, err)
+	}
+
+	if w.visited[realPath+":"+current] {
+		return nil
+	}
+
+	w.visited[realPath+":"+current] = true
+
+	if !realInfo.IsDir() {
+		return nil
+	}
+
+	return w.walk(realPath, logicalPath)
 }
 
 // osFS wraps afero.OsFs with hard link support.
@@ -601,23 +844,6 @@ const defaultZipDirMode os.FileMode = 0755
 
 // maxSymlinkTargetSize bounds a symlink target read, far above any real path.
 const maxSymlinkTargetSize = 4096
-
-// ZipDecompressedSizeLimitError reports an extraction exceeding its configured decompressed size limit.
-type ZipDecompressedSizeLimitError struct {
-	// Name is the archive entry whose extraction breached the limit.
-	Name string
-	// Size is the entry's declared uncompressed size in bytes.
-	Size uint64
-	// Limit is the configured total decompressed size limit in bytes.
-	Limit int64
-}
-
-func (err ZipDecompressedSizeLimitError) Error() string {
-	return fmt.Sprintf(
-		"extracting file %q breached the total decompressed size limit of %d (entry size %d)",
-		err.Name, err.Limit, err.Size,
-	)
-}
 
 // ZipDecompressor handles zip archive extraction with configurable limits.
 type ZipDecompressor struct {
@@ -1187,10 +1413,17 @@ func sanitizeZipPath(dst, name string) (string, error) {
 }
 
 // ValidateSymlinkTarget reports whether a symbolic link whose path is linkPath
-// and whose stored target is target would resolve inside dst. Absolute targets
-// and dot-dot targets that climb above dst are rejected so callers can safely
-// materialize symlinks from untrusted sources (zip archives, fetched tarballs,
-// git trees) without letting them escape the destination directory.
+// and whose stored target is target names a path inside dst. Absolute targets
+// and dot-dot targets that climb above dst are rejected, so a symlink from an
+// untrusted source (zip archives, fetched tarballs, git trees) cannot name a
+// path outside the destination directory.
+//
+// Only the target the link stores is examined, which is all there is to go on
+// when the link is being recorded or recreated rather than followed. When the
+// target may itself be a symlink the same untrusted source controls, this is
+// not sufficient on its own: the chain can leave dst through a link stored
+// elsewhere. Callers that follow such a link must also check where it lands,
+// with [ValidateResolvedSymlinkTarget].
 func ValidateSymlinkTarget(dst, linkPath, target string) error {
 	// Resolve the target relative to the link's directory
 	absTarget := target
@@ -1203,10 +1436,38 @@ func ValidateSymlinkTarget(dst, linkPath, target string) error {
 
 	// Ensure it stays within dst
 	if !strings.HasPrefix(absTarget, cleanDst+string(os.PathSeparator)) && absTarget != cleanDst {
-		return fmt.Errorf("symlink target escapes destination: %s -> %s", linkPath, target)
+		return fmt.Errorf("%w: %s -> %s", ErrSymlinkEscapes, linkPath, target)
 	}
 
 	return nil
+}
+
+// ValidateResolvedSymlinkTarget reports whether the link at linkPath still
+// lands inside root once its whole chain is followed. Use it before
+// dereferencing a link from an untrusted source: [ValidateSymlinkTarget]
+// examines only the target a link stores, so a chain that leaves root through
+// a link stored somewhere else passes it.
+//
+// root is resolved as well, so a link is not reported as escaping merely
+// because an ancestor of root is itself a symlink, as /var is on macOS.
+//
+// A chain that cannot be resolved at all, because it dangles, returns the
+// resolution error rather than an escape. Callers that need to tell a hostile
+// link from a broken one should check the stored target with
+// [ValidateSymlinkTarget] first, which classifies a dangling link by the path
+// it names.
+func ValidateResolvedSymlinkTarget(fsys FS, root, linkPath string) error {
+	resolved, err := EvalSymlinks(fsys, linkPath)
+	if err != nil {
+		return err
+	}
+
+	resolvedRoot, err := EvalSymlinks(fsys, root)
+	if err != nil {
+		return err
+	}
+
+	return ValidateSymlinkTarget(resolvedRoot, linkPath, resolved)
 }
 
 // extractSymlink extracts a symlink from a zip file.

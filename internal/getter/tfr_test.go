@@ -9,13 +9,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +26,7 @@ func TestRegistryGetterRootDir(t *testing.T) {
 
 	dstPath := helpers.TmpDirWOSymlinks(t)
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.NoFileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 
 	src := "tfr://" + server.Listener.Addr().
 		String() +
@@ -41,7 +39,7 @@ func TestRegistryGetterRootDir(t *testing.T) {
 		GetMode: getter.ModeDir,
 	})
 	require.NoError(t, err)
-	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.FileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 }
 
 func TestRegistryGetterSubModule(t *testing.T) {
@@ -51,7 +49,7 @@ func TestRegistryGetterSubModule(t *testing.T) {
 
 	dstPath := helpers.TmpDirWOSymlinks(t)
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.NoFileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 
 	src := "tfr://" + server.Listener.Addr().
 		String() +
@@ -64,7 +62,7 @@ func TestRegistryGetterSubModule(t *testing.T) {
 		GetMode: getter.ModeDir,
 	})
 	require.NoError(t, err)
-	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.FileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 }
 
 // TestRegistryGetterSubdirInTerraformGetHeader pins the path where the
@@ -152,7 +150,7 @@ func TestRegistryGetterWithoutVersion(t *testing.T) {
 
 	dstPath := helpers.TmpDirWOSymlinks(t)
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.NoFileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 
 	// With no ?version= query, the getter resolves the latest version (4.0.0)
 	// via the versions endpoint.
@@ -165,7 +163,7 @@ func TestRegistryGetterWithoutVersion(t *testing.T) {
 		GetMode: getter.ModeDir,
 	})
 	require.NoError(t, err)
-	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.FileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 }
 
 // TestRegistryGetterBuildMetadataVersion pins the download path for a version
@@ -181,7 +179,7 @@ func TestRegistryGetterBuildMetadataVersion(t *testing.T) {
 
 	dstPath := helpers.TmpDirWOSymlinks(t)
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.NoFileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 
 	src := "tfr://" + server.Listener.Addr().
 		String() +
@@ -194,7 +192,7 @@ func TestRegistryGetterBuildMetadataVersion(t *testing.T) {
 		GetMode: getter.ModeDir,
 	})
 	require.NoError(t, err)
-	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.FileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 	assert.Equal(t, "1.8.26+css9.10.001", requestedVersion)
 }
 
@@ -227,11 +225,10 @@ func newRegistryTestClient(t *testing.T, httpClient *http.Client, impl tfimpl.Ty
 
 	l := logger.CreateLogger()
 
-	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS()).
-		WithHTTPClient(httpClient).
+	tfr := getter.NewRegistryGetter(l, venvtest.NewWithOSFS().WithHTTP(httpClient)).
 		WithTofuImplementation(impl)
 
-	return getter.NewClient(
+	return getter.NewClient(venvtest.NewWithOSFS(),
 		getter.WithCustomGettersPrepended(
 			tfr,
 			&gogetter.HttpGetter{Client: httpClient, Netrc: true},

@@ -169,10 +169,11 @@ func TestOCIGetterGetErrors(t *testing.T) {
 	)
 
 	testCases := []struct {
-		store     *fakeStore
-		wantErrIs error
-		name      string
-		src       string
+		store           *fakeStore
+		wantErrIs       error
+		name            string
+		src             string
+		wantErrContains string
 	}{
 		{
 			name:      "unsupported query parameter",
@@ -197,6 +198,26 @@ func TestOCIGetterGetErrors(t *testing.T) {
 			src:       "oci://127.0.0.1:5000?tag=1.0.0",
 			store:     newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
 			wantErrIs: getter.ErrOCIMissingRepositoryName,
+		},
+		{
+			name:            "colon tag suffix is rejected, never latest",
+			src:             "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0",
+			store:           newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs:       getter.ErrOCIInvalidRepositoryName,
+			wantErrContains: `"oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"`,
+		},
+		{
+			name:            "digest suffix is rejected",
+			src:             "oci://127.0.0.1:5000/terraform-modules/vpc@" + goodDesc.Digest.String(),
+			store:           newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs:       getter.ErrOCIInvalidRepositoryName,
+			wantErrContains: `"oci://127.0.0.1:5000/terraform-modules/vpc?digest=` + goodDesc.Digest.String() + `"`,
+		},
+		{
+			name:      "upper case repository is rejected",
+			src:       "oci://127.0.0.1:5000/Terraform-Modules/vpc?tag=1.0.0",
+			store:     newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs: getter.ErrOCIInvalidRepositoryName,
 		},
 		{
 			name:      "artifact type rejected",
@@ -231,7 +252,11 @@ func TestOCIGetterGetErrors(t *testing.T) {
 				GetMode: gogetter.ModeDir,
 			})
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tc.wantErrIs)
+			require.ErrorIs(t, err, tc.wantErrIs)
+
+			if tc.wantErrContains != "" {
+				assert.ErrorContains(t, err, tc.wantErrContains)
+			}
 		})
 	}
 }
@@ -351,6 +376,131 @@ func TestOCIGetterGetQueryValidation(t *testing.T) {
 			})
 			require.ErrorIs(t, err, tc.wantErrIs)
 			assert.Empty(t, store.gotRefs, "validation must fail before any resolution")
+		})
+	}
+}
+
+// TestOCIGetterGetEmbeddedReference: the typed error carries the exact query-form rewrite.
+func TestOCIGetterGetEmbeddedReference(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		wantErrIs error
+		name      string
+		src       string
+	}{
+		{
+			name: "docker-style tag suffix",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0",
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+			},
+		},
+		{
+			name: "docker-style digest suffix",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc@" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc@" + manifestDesc.Digest.String(),
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "docker-style full form suggests the digest pin",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0@" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0@" + manifestDesc.Digest.String(),
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "tag suffix never downgrades an explicit digest pin",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0?digest=" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "explicit query tag wins over the suffix in the rewrite",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0?tag=2.0.0",
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=2.0.0",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     filepath.Join(t.TempDir(), "module"),
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, tc.wantErrIs)
+			assert.Empty(t, store.gotRefs, "validation must fail before any resolution")
+		})
+	}
+}
+
+// TestOCIGetterGetInvalidRepositoryNameNoRewrite: names with no recognizable suffix get no misleading rewrite.
+func TestOCIGetterGetInvalidRepositoryNameNoRewrite(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "colon in a non-final segment",
+			src:  "oci://127.0.0.1:5000/team:x/vpc?tag=1.0.0",
+		},
+		{
+			name: "at-suffix that is not a digest",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc@garbage",
+		},
+		{
+			name: "colon suffix that is not a tag",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:.invalid",
+		},
+		{
+			name: "tag suffix on an invalid leftover name",
+			src:  "oci://127.0.0.1:5000/team:x/vpc:1.0.0",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     filepath.Join(t.TempDir(), "module"),
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, getter.ErrOCIInvalidRepositoryName)
+
+			var embeddedErr getter.OCIEmbeddedReferenceError
+
+			require.NotErrorAs(t, err, &embeddedErr)
+			assert.Empty(t, store.gotRefs)
 		})
 	}
 }
@@ -850,7 +1000,7 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
-	client := getter.NewClient(
+	client := getter.NewClient(venvtest.NewWithOSFS(),
 		getter.WithLogger(logger.CreateLogger()),
 		getter.WithOCI(newTestOCIGetter(staticStore(store))),
 	)
@@ -873,7 +1023,8 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient(getter.WithLogger(logger.CreateLogger()))
+	client := getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithLogger(logger.CreateLogger()))
 	dst := filepath.Join(t.TempDir(), "module")
 
 	_, err := client.Get(t.Context(), &gogetter.Request{
@@ -890,11 +1041,13 @@ func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
 	t.Parallel()
 
-	_, found := getter.DefaultGenericFetchers()[getter.SchemeOCI]
+	v := venvtest.New()
+
+	_, found := getter.DefaultGenericFetchers(v)[getter.SchemeOCI]
 	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")
 
-	v := venvtest.New()
 	fetchers := getter.DefaultGenericFetchers(
+		v,
 		getter.WithDispatchLogger(logger.CreateLogger()),
 		getter.WithDispatchFS(v.FS),
 		getter.WithOCIConfig(v),
@@ -1002,7 +1155,8 @@ func newTestOCIGetter(newStore getter.OCINewStoreFunc) *getter.OCIGetter {
 }
 
 func newOCITestClient(g *getter.OCIGetter) *gogetter.Client {
-	return getter.NewClient(getter.WithCustomGettersPrepended(g))
+	return getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithCustomGettersPrepended(g))
 }
 
 // moduleZipBytes builds an in-memory zip holding files keyed by relative path.

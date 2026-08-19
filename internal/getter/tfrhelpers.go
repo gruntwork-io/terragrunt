@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	goversion "github.com/hashicorp/go-version"
@@ -109,6 +109,7 @@ func GetModuleRegistryURLBasePath(
 	ctx context.Context,
 	l log.Logger,
 	c vhttp.Client,
+	auth RegistryAuth,
 	domain string,
 ) (string, error) {
 	sdURL := url.URL{
@@ -117,7 +118,7 @@ func GetModuleRegistryURLBasePath(
 		Path:   serviceDiscoveryPath,
 	}
 
-	bodyData, _, err := httpGETAndGetResponse(ctx, l, c, &sdURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, l, c, auth, &sdURL)
 	if err != nil {
 		return "", err
 	}
@@ -142,9 +143,10 @@ func GetTerraformGetHeader(
 	ctx context.Context,
 	l log.Logger,
 	c vhttp.Client,
+	auth RegistryAuth,
 	url *url.URL,
 ) (string, error) {
-	body, header, err := httpGETAndGetResponse(ctx, l, c, url)
+	body, header, err := httpGETAndGetResponse(ctx, l, c, auth, url)
 	if err != nil {
 		return "", ModuleDownloadErr{sourceURL: url.String(), details: "error receiving HTTP data"}
 	}
@@ -221,12 +223,14 @@ func GetLatestModuleVersion(
 	ctx context.Context,
 	l log.Logger,
 	c vhttp.Client,
+	auth RegistryAuth,
 	registryDomain, moduleRegistryBasePath, modulePath string,
 ) (string, error) {
 	versions, err := listModuleVersions(
 		ctx,
 		l,
 		c,
+		auth,
 		registryDomain,
 		moduleRegistryBasePath,
 		modulePath,
@@ -271,6 +275,7 @@ func GetMatchingModuleVersion(
 	ctx context.Context,
 	l log.Logger,
 	c vhttp.Client,
+	auth RegistryAuth,
 	registryDomain, moduleRegistryBasePath, modulePath, constraint string,
 ) (string, error) {
 	constraints, err := goversion.NewConstraint(constraint)
@@ -282,6 +287,7 @@ func GetMatchingModuleVersion(
 		ctx,
 		l,
 		c,
+		auth,
 		registryDomain,
 		moduleRegistryBasePath,
 		modulePath,
@@ -319,6 +325,7 @@ func PinModuleVersion(
 	ctx context.Context,
 	l log.Logger,
 	c vhttp.Client,
+	auth RegistryAuth,
 	tofuImpl tfimpl.Type,
 	source, constraint string,
 ) (string, error) {
@@ -332,7 +339,7 @@ func PinModuleVersion(
 		registryDomain = tfimpl.DefaultRegistryDomain(tofuImpl)
 	}
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, c, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, c, auth, registryDomain)
 	if err != nil {
 		return "", err
 	}
@@ -343,6 +350,7 @@ func PinModuleVersion(
 		ctx,
 		l,
 		c,
+		auth,
 		registryDomain,
 		moduleRegistryBasePath,
 		modulePath,
@@ -386,23 +394,23 @@ type VersionResolver struct {
 	httpClient vhttp.Client
 	cache      map[string]string
 	flight     singleflight.Group
+	auth       RegistryAuth
 	mu         sync.Mutex
 }
 
-// NewVersionResolver returns a VersionResolver with an empty cache and a
-// [vhttp.NewOSClient] for registry-protocol requests.
-func NewVersionResolver() *VersionResolver {
+// NewVersionResolver returns a VersionResolver with an empty cache that
+// issues registry-protocol requests through c.
+func NewVersionResolver(c vhttp.Client) *VersionResolver {
 	return &VersionResolver{
-		httpClient: vhttp.NewOSClient(),
+		httpClient: c,
 		cache:      make(map[string]string),
 	}
 }
 
-// WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests routing through a
-// [net/http/httptest.Server].
-func (r *VersionResolver) WithHTTPClient(c vhttp.Client) *VersionResolver {
-	r.httpClient = c
+// WithAuth sets the credentials the registry protocol authenticates with.
+// Without it the resolver sends no Authorization header at all.
+func (r *VersionResolver) WithAuth(auth RegistryAuth) *VersionResolver {
+	r.auth = auth
 	return r
 }
 
@@ -427,7 +435,7 @@ func (r *VersionResolver) Pin(
 			return pinned, nil
 		}
 
-		pinned, err := PinModuleVersion(ctx, l, r.httpClient, tofuImpl, source, constraint)
+		pinned, err := PinModuleVersion(ctx, l, r.httpClient, r.auth, tofuImpl, source, constraint)
 		if err != nil {
 			return nil, err
 		}
@@ -471,6 +479,7 @@ func listModuleVersions(
 	ctx context.Context,
 	l log.Logger,
 	c vhttp.Client,
+	auth RegistryAuth,
 	registryDomain, moduleRegistryBasePath, modulePath string,
 ) ([]*goversion.Version, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
@@ -493,7 +502,7 @@ func listModuleVersions(
 		}
 	}
 
-	bodyData, _, err := httpGETAndGetResponse(ctx, l, c, versionsURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, l, c, auth, versionsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query module versions for %s: %w", modulePath, err)
 	}
@@ -545,21 +554,33 @@ type moduleVersion struct {
 	Version string `json:"version"`
 }
 
+// RegistryAuth carries everything the registry protocol needs to authenticate
+// a request, so nothing on the path reaches for process state of its own.
+type RegistryAuth struct {
+	Env            map[string]string
+	ReadUserConfig bool
+}
+
 // applyHostToken adds an Authorization header to req based on the user's
 // OpenTofu/Terraform CLI config or the TG_TF_REGISTRY_TOKEN env var.
-func applyHostToken(req *http.Request) (*http.Request, error) {
-	cliCfg, err := cliconfig.LoadUserConfig()
-	if err != nil {
-		return nil, err
+func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error) {
+	// The CLI config lives in the invoking user's home directory, off any
+	// virtual filesystem, so a run that is not on the real disk skips it and
+	// authenticates from the env alone.
+	if auth.ReadUserConfig {
+		cliCfg, err := cliconfig.LoadUserConfig(vfs.NewOSFS())
+		if err != nil {
+			return nil, err
+		}
+
+		if creds := cliCfg.CredentialsSource().
+			ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
+			creds.PrepareRequest(req)
+			return req, nil
+		}
 	}
 
-	if creds := cliCfg.CredentialsSource().
-		ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
-		creds.PrepareRequest(req)
-		return req, nil
-	}
-
-	if authToken := os.Getenv(authTokenEnvName); authToken != "" {
+	if authToken := auth.Env[authTokenEnvName]; authToken != "" {
 		req.Header.Add("Authorization", "Bearer "+authToken)
 	}
 
@@ -571,6 +592,7 @@ func httpGETAndGetResponse(
 	ctx context.Context,
 	l log.Logger,
 	c vhttp.Client,
+	auth RegistryAuth,
 	getURL *url.URL,
 ) ([]byte, *http.Header, error) {
 	if getURL == nil {
@@ -582,7 +604,7 @@ func httpGETAndGetResponse(
 		return nil, nil, fmt.Errorf("building registry HTTP request for %s: %w", getURL, err)
 	}
 
-	req, err = applyHostToken(req)
+	req, err = applyHostToken(req, auth)
 	if err != nil {
 		return nil, nil, fmt.Errorf("applying registry auth token for %s: %w", getURL, err)
 	}

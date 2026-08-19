@@ -39,13 +39,12 @@ func (provider *Provider) Name() string {
 	return "API calls to Amazon STS"
 }
 
-// GetCredentials implements providers.GetCredentials. v is unused for
-// amazonsts because it talks to AWS via the SDK, not a subprocess; it is
-// accepted to satisfy the providers.Provider interface contract.
+// GetCredentials implements providers.GetCredentials. The STS call rides v's
+// HTTP client.
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	_ *venv.Venv,
+	v *venv.Venv,
 ) (*providers.Credentials, error) {
 	iamRoleOpts := provider.iamRoleOpts
 	if iamRoleOpts.RoleARN == "" {
@@ -69,7 +68,7 @@ func (provider *Provider) GetCredentials(
 	}, func(ctx context.Context, l log.Logger) error {
 		var assumeErr error
 
-		resp, assumeErr = awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.env)
+		resp, assumeErr = awshelper.AssumeIamRole(ctx, v, iamRoleOpts, "")
 
 		return assumeErr
 	})

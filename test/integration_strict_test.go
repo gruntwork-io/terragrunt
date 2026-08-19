@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -15,11 +17,11 @@ const (
 	testFixtureStrictBareInclude = "fixtures/strict-bare-include"
 )
 
-// TestRootTerragruntHCLStrictMode uses globally mutated state to determine if strict mode has already
+// TestTFRootTerragruntHCLStrictMode uses globally mutated state to determine if strict mode has already
 // been triggered, so we don't run it in parallel.
 //
 //nolint:paralleltest,tparallel
-func TestRootTerragruntHCLStrictMode(t *testing.T) {
+func TestTFRootTerragruntHCLStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureFindParentWithDeprecatedRoot)
 
 	testCases := []struct {
@@ -76,11 +78,11 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 	}
 }
 
-// TestBareIncludeStrictMode uses globally mutated state to determine if strict mode has already
+// TestTFBareIncludeStrictMode uses globally mutated state to determine if strict mode has already
 // been triggered, so we don't run it in parallel.
 //
 //nolint:paralleltest,tparallel
-func TestBareIncludeStrictMode(t *testing.T) {
+func TestTFBareIncludeStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStrictBareInclude)
 
 	testCases := []struct {

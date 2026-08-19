@@ -306,7 +306,7 @@ func (doc *ComponentDoc) ensureFrontmatter() {
 
 // extractFrontmatter captures the YAML body of the README's front-matter
 // block (if any) and removes the matched block from rawContent so downstream
-// rendering (glamour, tag-stripping) does not treat the front-matter as part
+// rendering (Markdown, tag-stripping) does not treat the front-matter as part
 // of the README body. Either the dash-separated form (`---\n...\n---`) or
 // the HTML-comment-wrapped form (`<!-- Frontmatter ... -->`) is accepted.
 func (doc *ComponentDoc) extractFrontmatter() {

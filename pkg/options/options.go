@@ -63,8 +63,6 @@ const (
 )
 
 var (
-	DefaultWrappedPath = identifyDefaultWrappedExecutable(context.Background())
-
 	defaultVersionManagerFileName = []string{
 		".terraform-version",
 		".tool-versions",
@@ -150,6 +148,11 @@ type TerragruntOptions struct {
 	ReportFile string
 	// Path to a file containing filter queries, one per line. Default is .terragrunt-filters.
 	FiltersFile string
+	// DiscoveryBoundary encloses graph discovery for filters within the given
+	// directory instead of the git repository root: dependencies and dependents
+	// resolving outside it are not discovered. Gated behind the bounded-discovery
+	// experiment.
+	DiscoveryBoundary string
 	// Report format.
 	ReportFormat report.Format
 	// Path to the report schema file.
@@ -328,7 +331,7 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 // reasonable defaults for real usage.
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                   DefaultWrappedPath,
+		TFPath:                   IdentifyDefaultWrappedExecutable(vexec.NewOSExec()),
 		ExcludesFile:             defaultExcludesFile,
 		FiltersFile:              defaultFiltersFile,
 		AutoInit:                 true,
@@ -567,12 +570,17 @@ func (opts *TerragruntOptions) DataDir(env map[string]string) string {
 	return filepath.Join(opts.WorkingDir, tfDataDir)
 }
 
-// identifyDefaultWrappedExecutable returns default path used for wrapped executable.
-func identifyDefaultWrappedExecutable(ctx context.Context) string {
-	if util.IsCommandExecutable(vexec.NewOSExec(), ctx, TofuDefaultPath, "-version") {
+// IdentifyDefaultWrappedExecutable returns the IaC binary Terragrunt wraps by
+// default, preferring OpenTofu and falling back to Terraform.
+//
+// Every command resolves this during startup, so the choice comes from a PATH
+// lookup alone. Spawning the candidate to confirm it runs costs more than the
+// rest of startup combined, and commands that never wrap it would pay too.
+func IdentifyDefaultWrappedExecutable(e vexec.Exec) string {
+	if _, err := e.LookPath(TofuDefaultPath); err == nil {
 		return TofuDefaultPath
 	}
-	// fallback to Terraform if tofu is not available
+
 	return TerraformDefaultPath
 }
 

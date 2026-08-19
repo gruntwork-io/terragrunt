@@ -1,7 +1,8 @@
+//go:build tf
+
 package runnerpool_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,10 +21,10 @@ import (
 
 // Test that the runner-level fallback (WithGraphTarget) limits the stack to target + dependents,
 // and that this matches the discovery-based graph filter behavior when the filter experiment is enabled.
-func TestGraphFallbackMatchesFilterExperiment(t *testing.T) {
+func TestTFGraphFallbackMatchesFilterExperiment(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := thlogger.CreateLogger()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)

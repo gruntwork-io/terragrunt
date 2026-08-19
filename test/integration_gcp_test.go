@@ -18,6 +18,7 @@ import (
 	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -514,6 +515,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 	for i := range 20 {
 		err := util.CopyFolderContents(
 			createLogger(),
+			vfs.NewOSFS(),
 			helpers.MustAbs(t, testFixtureGcsParallelStateInit),
 			tmpEnvPath,
 			".terragrunt-test",
@@ -539,7 +541,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 		gcsBucketName,
 		"root.hcl",
 	)
-	err = util.CopyFile(tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
+	err = vfs.CopyFile(vfs.NewOSFS(), tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
 	require.NoError(t, err)
 
 	helpers.RunTerragrunt(

@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +53,7 @@ func TestAwsS3SourceURLForms(t *testing.T) {
 
 			dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "module")
 
-			_, err := tggetter.GetAny(t.Context(), dst, tt.src)
+			_, err := tggetter.GetAny(t.Context(), venv.OSVenv(), dst, tt.src)
 			require.NoError(t, err)
 			require.FileExists(t, filepath.Join(dst, "main.tf"))
 		})

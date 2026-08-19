@@ -25,17 +25,17 @@ const hgResolverTimeout = 10 * time.Second
 
 // HgResolver is a [cas.SourceResolver] for Mercurial sources.
 type HgResolver struct {
-	// Exec runs the hg binary. Required; [NewHgResolver] wires
-	// [vexec.NewOSExec]. Tests substitute an in-memory backend.
+	// Exec runs the hg binary. Required; [NewHgResolver] takes it from the
+	// caller. Tests substitute an in-memory backend.
 	Exec vexec.Exec
 	// HgBinary overrides the binary name resolved via [vexec.Exec.LookPath].
 	// Empty means "hg".
 	HgBinary string
 }
 
-// NewHgResolver returns a resolver bound to the real OS-backed exec
-// and the ambient `hg` binary on PATH.
-func NewHgResolver() *HgResolver { return &HgResolver{Exec: vexec.NewOSExec()} }
+// NewHgResolver returns a resolver that spawns `hg` through e, resolving the
+// binary name against e's PATH.
+func NewHgResolver(e vexec.Exec) *HgResolver { return &HgResolver{Exec: e} }
 
 // Scheme returns "hg".
 func (r *HgResolver) Scheme() string { return "hg" }

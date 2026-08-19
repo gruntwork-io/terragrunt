@@ -1,0 +1,27 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Applied the positive half of a filter that begins with a negation
+
+When a `--filter` query began with a negation, Terragrunt treated the whole query as an exclusion. The expressions chained after the negation stopped restricting the selection and only narrowed what got subtracted, so components matching none of them came back in the results. Those expressions are now applied.
+
+```bash
+$ terragrunt list
+bar  baz  foo
+```
+
+```bash title="Before"
+$ terragrunt list --filter '!name=foo | name=bar'
+bar  baz  foo
+```
+
+```bash title="After"
+$ terragrunt list --filter '!name=foo | name=bar'
+bar
+```
+
+This follows the left-to-right refinement that `|` has everywhere else: each expression narrows what the one before it selected. A query is only treated as an exclusion when every one of its expressions is negated, such as `'!name=foo'` or `'!name=foo | !name=bar'`.
+
+See [Combining Expressions](/features/filter/combining) for how negation, intersection and union interact.

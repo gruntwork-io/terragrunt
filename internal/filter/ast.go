@@ -23,8 +23,6 @@ type Expression interface {
 	RequiresParse() (Expression, bool)
 	// IsRestrictedToStacks returns true if the expression is restricted to stacks.
 	IsRestrictedToStacks() bool
-	// Negated returns the equivalent expression with negation flipped.
-	Negated() Expression
 }
 
 // Expressions is a slice of expressions.
@@ -59,8 +57,6 @@ func (p *PathExpression) String() string                        { return p.Value
 func (p *PathExpression) RequiresDiscovery() (Expression, bool) { return p, false }
 func (p *PathExpression) RequiresParse() (Expression, bool)     { return p, false }
 func (p *PathExpression) IsRestrictedToStacks() bool            { return false }
-
-func (p *PathExpression) Negated() Expression { return NewPrefixExpression("!", p) }
 
 // AttributeExpression represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeExpression struct {
@@ -130,9 +126,6 @@ func (a *AttributeExpression) RequiresParse() (Expression, bool) {
 func (a *AttributeExpression) IsRestrictedToStacks() bool {
 	return a.Key == "type" && a.Value == "stack"
 }
-func (a *AttributeExpression) Negated() Expression {
-	return NewPrefixExpression("!", a)
-}
 
 // PrefixExpression represents a prefix operator expression (e.g., "!name=foo").
 type PrefixExpression struct {
@@ -169,14 +162,6 @@ func (p *PrefixExpression) IsRestrictedToStacks() bool {
 		}
 	default:
 		return false
-	}
-}
-func (p *PrefixExpression) Negated() Expression {
-	switch p.Operator {
-	case "!":
-		return p.Right
-	default:
-		return NewPrefixExpression("!", p.Right)
 	}
 }
 
@@ -226,24 +211,36 @@ func (i *InfixExpression) IsRestrictedToStacks() bool {
 		return false
 	}
 }
-func (i *InfixExpression) Negated() Expression {
-	switch i.Operator {
-	case "|":
-		return NewInfixExpression(i.Left.Negated(), i.Operator, i.Right)
-	default:
-		return NewInfixExpression(i.Left.Negated(), i.Operator, i.Right)
+
+// GraphBound describes how far traversal reaches in one direction of the graph.
+// Include gates the direction entirely; Boundary confines traversal to a
+// directory and Depth caps the number of levels, with zero meaning unbounded.
+type GraphBound struct {
+	Boundary string
+	Depth    int
+	Include  bool
+}
+
+// operand renders the query operand this bound was parsed from: a "(dir)"
+// directory boundary, a numeric depth, or nothing.
+func (b GraphBound) operand() string {
+	if b.Boundary != "" {
+		return "(" + b.Boundary + ")"
 	}
+
+	if b.Depth > 0 {
+		return strconv.Itoa(b.Depth)
+	}
+
+	return ""
 }
 
 // GraphExpression represents a graph traversal expression (e.g., "...foo", "foo...", "..1foo", "foo..2").
-// Depth fields control how many levels of dependencies/dependents to traverse.
 type GraphExpression struct {
-	Target              Expression
-	IncludeDependents   bool
-	IncludeDependencies bool
-	ExcludeTarget       bool
-	DependentDepth      int
-	DependencyDepth     int
+	Target        Expression
+	Dependents    GraphBound
+	Dependencies  GraphBound
+	ExcludeTarget bool
 }
 
 // NewGraphExpression creates a new GraphExpression for the given target.
@@ -257,13 +254,13 @@ func NewGraphExpression(target Expression) *GraphExpression {
 
 // WithDependents includes dependents (reverse dependencies) in the graph traversal.
 func (g *GraphExpression) WithDependents() *GraphExpression {
-	g.IncludeDependents = true
+	g.Dependents.Include = true
 	return g
 }
 
 // WithDependencies includes dependencies in the graph traversal.
 func (g *GraphExpression) WithDependencies() *GraphExpression {
-	g.IncludeDependencies = true
+	g.Dependencies.Include = true
 	return g
 }
 
@@ -277,11 +274,8 @@ func (g *GraphExpression) expressionNode() {}
 func (g *GraphExpression) String() string {
 	result := ""
 
-	if g.IncludeDependents {
-		if g.DependentDepth > 0 {
-			result += strconv.Itoa(g.DependentDepth)
-		}
-
+	if g.Dependents.Include {
+		result += g.Dependents.operand()
 		result += "..."
 	}
 
@@ -291,12 +285,9 @@ func (g *GraphExpression) String() string {
 
 	result += g.Target.String()
 
-	if g.IncludeDependencies {
+	if g.Dependencies.Include {
 		result += "..."
-
-		if g.DependencyDepth > 0 {
-			result += strconv.Itoa(g.DependencyDepth)
-		}
+		result += g.Dependencies.operand()
 	}
 
 	return result
@@ -310,9 +301,6 @@ func (g *GraphExpression) RequiresParse() (Expression, bool) {
 	return g, true
 }
 func (g *GraphExpression) IsRestrictedToStacks() bool { return false }
-func (g *GraphExpression) Negated() Expression {
-	return NewPrefixExpression("!", g)
-}
 
 // GitExpression represents a Git-based filter expression (e.g., "[main...HEAD]" or "[main]").
 // It filters components based on changes between Git references.
@@ -338,9 +326,6 @@ func (g *GitExpression) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 func (g *GitExpression) IsRestrictedToStacks() bool { return false }
-func (g *GitExpression) Negated() Expression {
-	return NewPrefixExpression("!", g)
-}
 
 // GitExpressions is a slice of Git expressions.
 type GitExpressions []*GitExpression

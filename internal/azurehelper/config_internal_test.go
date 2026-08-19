@@ -3,11 +3,34 @@
 package azurehelper
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestCredentialUnavailableOnError_ContinuesCredentialChain(t *testing.T) {
+	t.Parallel()
+
+	want := azcore.AccessToken{Token: "fallback-token"}
+	chain, err := azidentity.NewChainedTokenCredential(
+		[]azcore.TokenCredential{
+			credentialUnavailableOnError{credential: &tokenCredential{err: errors.New("authentication failed")}},
+			&tokenCredential{token: want},
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	got, err := chain.GetToken(t.Context(), policy.TokenRequestOptions{Scopes: []string{"scope"}})
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}
 
 func TestManagedIdentityID(t *testing.T) {
 	t.Parallel()
@@ -28,4 +51,16 @@ func TestManagedIdentityID(t *testing.T) {
 
 	// Neither set falls back to the system-assigned identity.
 	assert.Nil(t, managedIdentityID(&AzureSessionConfig{}))
+}
+
+type tokenCredential struct {
+	err   error
+	token azcore.AccessToken
+}
+
+func (c *tokenCredential) GetToken(
+	_ context.Context,
+	_ policy.TokenRequestOptions,
+) (azcore.AccessToken, error) {
+	return c.token, c.err
 }

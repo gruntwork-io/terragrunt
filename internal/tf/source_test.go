@@ -16,6 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -477,12 +479,12 @@ func TestEncodeSourceVersionTracksOnlyCopiedFiles(t *testing.T) {
 				src, err := tf.NewSource(l, sourceDir, t.TempDir(), sourceDir, false)
 				require.NoError(t, err)
 
-				before, err := src.EncodeSourceVersion(l, copyOpts...)
+				before, err := src.EncodeSourceVersion(l, vfs.NewOSFS(), copyOpts...)
 				require.NoError(t, err)
 
 				tc.mutate(t, sourceDir)
 
-				after, err := src.EncodeSourceVersion(l, copyOpts...)
+				after, err := src.EncodeSourceVersion(l, vfs.NewOSFS(), copyOpts...)
 				require.NoError(t, err)
 
 				if tc.wantSame {
@@ -494,4 +496,71 @@ func TestEncodeSourceVersionTracksOnlyCopiedFiles(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestEncodeSourceVersionUsesSuppliedFilesystem pins that the version is derived from
+// the filesystem the caller hands in, and that changes made there move it.
+func TestEncodeSourceVersionUsesSuppliedFilesystem(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	src, fsys, sourceDir := memSource(t, l)
+
+	before, err := src.EncodeSourceVersion(l, fsys)
+	require.NoError(t, err)
+	require.NotEmpty(t, before)
+
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(sourceDir, "extra.tf"), []byte("# extra\n"), 0644),
+	)
+
+	after, err := src.EncodeSourceVersion(l, fsys)
+	require.NoError(t, err)
+	assert.NotEqual(t, before, after)
+}
+
+// TestWriteVersionFileUsesSuppliedFilesystem pins that the version file is written to
+// the filesystem the caller hands in.
+func TestWriteVersionFileUsesSuppliedFilesystem(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	src, fsys, _ := memSource(t, l)
+
+	require.NoError(t, src.WriteVersionFile(l, fsys))
+
+	assert.NoFileExists(t, src.VersionFile)
+
+	want, err := src.EncodeSourceVersion(l, fsys)
+	require.NoError(t, err)
+
+	got, err := vfs.ReadFile(fsys, src.VersionFile)
+	require.NoError(t, err)
+	// WriteVersionFile falls back to a random SHA when it cannot encode a version, so
+	// only the encoded version proves the encoding walk reached the staged tree.
+	assert.Equal(t, want, string(got))
+}
+
+// memSource stages a source tree that exists only in the returned filesystem, so a
+// caller that reaches for the real disk instead finds nothing.
+func memSource(t *testing.T, l log.Logger) (*tf.Source, vfs.FS, string) {
+	t.Helper()
+
+	fsys := vfs.NewMemMapFS()
+
+	sourceDir := filepath.Join(t.TempDir(), "in-memory-only")
+	require.NoError(t, fsys.MkdirAll(sourceDir, 0755))
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(sourceDir, "main.tf"), []byte("# main\n"), 0644),
+	)
+	require.NoDirExists(t, sourceDir)
+
+	src, err := tf.NewSource(l, sourceDir, t.TempDir(), sourceDir, false)
+	require.NoError(t, err)
+
+	return src, fsys, sourceDir
 }

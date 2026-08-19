@@ -119,10 +119,11 @@ type RecoveredError struct {
 	stack []byte
 }
 
-// New returns a Reporter wired with production defaults.
-func New() *Reporter {
+// New returns a Reporter that writes its crash report through fsys and reads
+// the remaining process details from the OS.
+func New(fsys vfs.FS) *Reporter {
 	return &Reporter{
-		FS:        vfs.NewOSFS(),
+		FS:        fsys,
 		Now:       time.Now,
 		Getwd:     os.Getwd,
 		GetPID:    os.Getpid,
@@ -389,14 +390,9 @@ func (r *Reporter) getPID() int {
 	return os.Getpid()
 }
 
-// writeFile writes through r.FS, falling back to a fresh OS FS when unset.
+// writeFile writes through r.FS.
 func (r *Reporter) writeFile(name string, data []byte, perm os.FileMode) error {
-	fs := r.FS
-	if fs == nil {
-		fs = vfs.NewOSFS()
-	}
-
-	return vfs.WriteFile(fs, name, data, perm)
+	return vfs.WriteFile(r.FS, name, data, perm)
 }
 
 // workingDir returns cwd, or TempDir if cwd is empty or errors.

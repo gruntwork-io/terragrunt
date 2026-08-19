@@ -1,0 +1,8 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### OCI sources reject Docker-style `:tag` suffixes instead of fetching `latest`
+
+An `oci://` source that pinned a version with a Docker-style suffix, like `oci://ghcr.io/acme/modules/vpc:1.0.0`, silently ignored the suffix and resolved the `latest` tag, so a run could fetch a different module version than the one pinned. Terragrunt now validates the registry and repository the same way OpenTofu does and rejects such sources with an error that shows the source rewritten in the supported `?tag=`/`?digest=` form, for example `oci://ghcr.io/acme/modules/vpc?tag=1.0.0`. Repository names that violate the OCI reference grammar are also rejected before any registry is contacted.

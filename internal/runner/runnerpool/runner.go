@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -369,9 +368,11 @@ func (rnr *Runner) Run(
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
+		const ownerReadWriteExecutePerms = 0o700
+
 		for _, u := range rnr.Stack.Units {
 			planFile := u.OutputFile(stackOpts.RootWorkingDir, stackOpts.OutputFolder)
-			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
+			if err := v.FS.MkdirAll(filepath.Dir(planFile), ownerReadWriteExecutePerms); err != nil {
 				return err
 			}
 		}
@@ -518,7 +519,7 @@ func (rnr *Runner) Run(
 
 				unitRunner := common.NewUnitRunner(u)
 
-				// Get credentials BEFORE config parsing — sops_decrypt_file() and
+				// Get credentials BEFORE config parsing: sops_decrypt_file() and
 				// get_aws_account_id() in locals need auth-provider credentials
 				// available in v.Env during HCL evaluation.
 				// See https://github.com/gruntwork-io/terragrunt/issues/5515
@@ -549,9 +550,9 @@ func (rnr *Runner) Run(
 						parseCtx, pctx := configbridge.NewParsingContext(
 							readCtx,
 							unitLogger,
+							unitV,
 							unitOpts,
 						)
-						pctx = pctx.WithVenv(unitV)
 
 						var readErr error
 
@@ -574,7 +575,7 @@ func (rnr *Runner) Run(
 					unitOpts.TFPath = cfg.TerraformBinary
 				}
 
-				runCfg := cfg.ToRunConfig(unitLogger)
+				runCfg := cfg.ToRunConfig(unitLogger, unitV.FS)
 
 				err = telemetry.TelemeterFromContext(childCtx).
 					Collect(childCtx, unitLogger, "unit_run", map[string]any{

@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,16 +36,16 @@ func TestKindForTag(t *testing.T) {
 
 	tests := []struct {
 		tag      string
-		wantKind tui.ComponentKind
+		wantKind component.Kind
 		wantOK   bool
 	}{
-		{tag: "module", wantKind: tui.ComponentKindModule, wantOK: true},
-		{tag: "Module", wantKind: tui.ComponentKindModule, wantOK: true},
-		{tag: "MODULE", wantKind: tui.ComponentKindModule, wantOK: true},
-		{tag: "template", wantKind: tui.ComponentKindTemplate, wantOK: true},
-		{tag: "unit", wantKind: tui.ComponentKindUnit, wantOK: true},
-		{tag: "stack", wantKind: tui.ComponentKindStack, wantOK: true},
-		{tag: "  unit  ", wantKind: tui.ComponentKindUnit, wantOK: true},
+		{tag: "module", wantKind: component.KindModule, wantOK: true},
+		{tag: "Module", wantKind: component.KindModule, wantOK: true},
+		{tag: "MODULE", wantKind: component.KindModule, wantOK: true},
+		{tag: "template", wantKind: component.KindTemplate, wantOK: true},
+		{tag: "unit", wantKind: component.KindUnit, wantOK: true},
+		{tag: "stack", wantKind: component.KindStack, wantOK: true},
+		{tag: "  unit  ", wantKind: component.KindUnit, wantOK: true},
 		{tag: "modules"},
 		{tag: "networking"},
 		{tag: ""},
@@ -98,11 +99,11 @@ func TestBuildMetaRow_TagsAlignAcrossSourceLengths(t *testing.T) {
 	const readme = "<!-- Frontmatter\ntags: [networking, aws]\n-->"
 
 	short := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindModule, "ghr://a", "", readme,
+		component.KindModule, "ghr://a", "", readme,
 	)).WithVersion("v1.0.0").WithSource("github.com/short")
 
 	long := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindModule, "ghr://b", "", readme,
+		component.KindModule, "ghr://b", "", readme,
 	)).WithVersion("v1.0.0").WithSource("github.com/much-longer-org-name/long-repo")
 
 	rowShort := stripANSI(tui.BuildMetaRow(short, 120, true, false, false))
@@ -126,11 +127,11 @@ func TestBuildMetaRow_TagsAlignAcrossKinds(t *testing.T) {
 
 	rows := map[string]string{}
 
-	for name, kind := range map[string]tui.ComponentKind{
-		"module":   tui.ComponentKindModule,
-		"template": tui.ComponentKindTemplate,
-		"unit":     tui.ComponentKindUnit,
-		"stack":    tui.ComponentKindStack,
+	for name, kind := range map[string]component.Kind{
+		"module":   component.KindModule,
+		"template": component.KindTemplate,
+		"unit":     component.KindUnit,
+		"stack":    component.KindStack,
 	} {
 		entry := tui.NewComponentEntry(tui.NewComponentForTest(
 			kind, "ghr://"+name, "", readme,

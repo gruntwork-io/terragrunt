@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	gcs "github.com/hashicorp/go-getter/gcs/v2"
 	getter "github.com/hashicorp/go-getter/v2"
 )
 
@@ -35,6 +34,7 @@ type GenericFetcherOption func(*genericFetcherConfig)
 type genericFetcherConfig struct {
 	logger     log.Logger
 	fs         vfs.FS
+	env        map[string]string
 	ociHolder  *ociStoreHolder
 	httpExtra  http.Header
 	httpsExtra http.Header
@@ -91,6 +91,12 @@ func WithDispatchFS(fs vfs.FS) GenericFetcherOption {
 	}
 }
 
+// WithDispatchEnv sets the environment the tfr dispatch entries read their
+// registry auth token from.
+func WithDispatchEnv(env map[string]string) GenericFetcherOption {
+	return func(c *genericFetcherConfig) { c.env = env }
+}
+
 // WithOCIConfig enables oci:// registration; callers must also pass [WithDispatchLogger] and [WithDispatchFS].
 func WithOCIConfig(v *venv.Venv) GenericFetcherOption {
 	holder := &ociStoreHolder{v: v}
@@ -135,15 +141,15 @@ func WithTFRConfig(impl tfimpl.Type) GenericFetcherOption {
 // uses on a cache miss. Exported so callers that build dedicated
 // CAS-only clients (the CAS-experiment path in
 // runner/run/download_source.go) share the fetcher set NewClient uses.
-func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Getter {
+func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[string]getter.Getter {
 	var cfg genericFetcherConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
 	m := map[string]getter.Getter{
-		SchemeS3:    new(S3Getter),
-		SchemeGCS:   new(gcs.Getter),
+		SchemeS3:    NewS3Getter(v),
+		SchemeGCS:   NewGCSGetter(v),
 		SchemeHTTP:  &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpExtra), Scheme: SchemeHTTP},
 		SchemeHTTPS: &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpsExtra), Scheme: SchemeHTTPS},
 		SchemeHg:    new(getter.HgGetter),
@@ -159,8 +165,8 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 			)
 		}
 
-		m[SchemeTFR] = NewRegistryGetter(cfg.logger, cfg.fs).
-			WithHTTPClient(cfg.httpClient).
+		m[SchemeTFR] = NewRegistryGetter(cfg.logger, v).
+			WithEnv(cfg.env).
 			WithTofuImplementation(cfg.tfrImpl)
 	}
 
@@ -194,29 +200,12 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 // file goes last so it does not claim sources another detector
 // recognizes.
 func buildGetters(b *builder) []Getter {
-	var (
-		out         []Getter
-		fileGetter  Getter
-		gitGetter   Getter
-		httpGetter  Getter
-		httpsGetter Getter
-	)
+	var out []Getter
 
-	fileGetter = new(getter.FileGetter)
+	var fileGetter Getter = new(getter.FileGetter)
 	if b.fileCopy != nil {
 		fileGetter = b.fileCopy
 	}
-
-	gitGetter = NewGitGetter()
-
-	httpGetter = &HTTPSchemeGetter{Inner: newHTTPGetter(b.httpClient, b.httpExtraHeader), Scheme: SchemeHTTP}
-	httpsGetter = &HTTPSchemeGetter{Inner: newHTTPGetter(b.httpClient, b.httpsExtraHeader), Scheme: SchemeHTTPS}
-
-	hgGetter := new(getter.HgGetter)
-	smbClientGetter := new(getter.SmbClientGetter)
-	smbMountGetter := new(getter.SmbMountGetter)
-	s3Getter := new(S3Getter)
-	gcsGetter := new(gcs.Getter)
 
 	if b.tfRegistry != nil {
 		out = append(out, b.tfRegistry)
@@ -225,6 +214,25 @@ func buildGetters(b *builder) []Getter {
 	if b.oci != nil {
 		out = append(out, b.oci)
 	}
+
+	gitGetter := NewGitGetter()
+
+	var httpGetter Getter = &HTTPSchemeGetter{
+		Inner:  newHTTPGetter(b.httpClient, b.httpExtraHeader),
+		Scheme: SchemeHTTP,
+	}
+
+	var httpsGetter Getter = &HTTPSchemeGetter{
+		Inner:  newHTTPGetter(b.httpClient, b.httpsExtraHeader),
+		Scheme: SchemeHTTPS,
+	}
+
+	hgGetter := new(getter.HgGetter)
+	smbClientGetter := new(getter.SmbClientGetter)
+	smbMountGetter := new(getter.SmbMountGetter)
+
+	s3Getter := NewS3Getter(b.v)
+	gcsGetter := NewGCSGetter(b.v)
 
 	if b.casStore != nil {
 		if b.httpClient == nil {
@@ -247,7 +255,8 @@ func buildGetters(b *builder) []Getter {
 			resolverOpts = append(
 				resolverOpts,
 				WithDispatchLogger(b.logger),
-				WithDispatchFS(b.tfRegistry.FS),
+				WithDispatchFS(b.tfRegistry.Venv.FS),
+				WithDispatchEnv(b.tfRegistry.Venv.Env),
 				WithTFRConfig(b.tfRegistry.TofuImplementation),
 			)
 		}
@@ -257,17 +266,17 @@ func buildGetters(b *builder) []Getter {
 		}
 
 		out = append(out,
-			NewCASProtocolGetter(b.logger, b.casStore, b.casVenv),
-			NewCASGetter(b.logger, b.casStore, b.casVenv, b.casCloneOpts,
+			NewCASProtocolGetter(b.logger, b.casStore, b.v),
+			NewCASGetter(b.logger, b.casStore, b.v, b.casCloneOpts,
 				WithGenericFetchers(fetchers),
-				WithGenericResolvers(DefaultSourceResolvers(b.httpClient, resolverOpts...)),
+				WithGenericResolvers(DefaultSourceResolvers(b.v.WithHTTP(b.httpClient), resolverOpts...)),
 			),
 		)
 	}
 
 	out = append(out, b.prepended...)
 
-	out = append(out,
+	return append(out,
 		gitGetter,
 		hgGetter,
 		smbClientGetter,
@@ -278,8 +287,6 @@ func buildGetters(b *builder) []Getter {
 		gcsGetter,
 		fileGetter,
 	)
-
-	return out
 }
 
 // newHTTPGetter constructs an HttpGetter with Netrc enabled (matching

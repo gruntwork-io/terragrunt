@@ -213,6 +213,20 @@ In general, we try to make sure that any test that requires a build tag is also 
 
 For example, all AWS tests are prefixed with `TestAws*`.
 
+The largest group of opt-in tests are the ones that drive a real OpenTofu or Terraform binary. They're prefixed with `TestTF*` and tagged with the `tf` build tag:
+
+```bash
+go test -tags=tf -run '^TestTF' ./...
+```
+
+Tests that depend on OpenTofu specifically, rather than on whichever binary `tf-path` points at, are prefixed with `TestTofu*` and tagged with the `tofu` build tag. Run them alongside the `TestTF*` tests, the way CI does:
+
+```bash
+go test -tags=tofu,tf -run '^(TestTF|TestTofu)' ./...
+```
+
+Without those tags, `go test ./...` only runs the tests that Terragrunt can satisfy on its own, so the suite stays green in an environment with no OpenTofu or Terraform installed. Add the tag whenever you touch behavior that reaches the binary.
+
 Terragrunt also includes integration tests for Google Cloud Platform (GCP). These tests are prefixed with `TestGcp*` and are tagged with the `gcp` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable, similar to AWS tests:
 
 ```bash
@@ -253,6 +267,61 @@ gcloud projects add-iam-policy-binding <gcp-project> \
   --member="<service-account>" \
   --role="roles/iam.serviceAccountTokenCreator"
 ```
+
+#### Azure tests
+
+Terragrunt also includes end-to-end tests for the Azure Storage (`azurerm`) remote-state backend. These are prefixed with `TestAzure*` and use the `azure` build tag, because they create and destroy real Azure resources. The `internal/azurehelper` tests use the same build tag; their live round-trip skips when credentials are absent.
+
+```bash
+GOFLAGS='-tags=azure' go test ./internal/azurehelper/...
+GOFLAGS='-tags=azure' go test -run 'TestAzure*' ./test
+```
+
+Unlike some other suites, these fail rather than skip when credentials are missing, so a misconfigured environment is visible instead of silently reporting success.
+
+To successfully run the Azure tests, you must set the following environment variables:
+
+- `TG_AZURE_TEST_SUBSCRIPTION_ID`: The subscription hosting the test storage account. `ARM_SUBSCRIPTION_ID` or `AZURE_SUBSCRIPTION_ID` also work.
+- `TG_AZURE_TEST_STORAGE_ACCOUNT`: The name of a pre-existing storage account the tests create containers in. `ARM_STORAGE_ACCOUNT_NAME` also works.
+- `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`: Service principal credentials. The `ARM_*` spelling of each is also accepted, and these can be omitted entirely when authenticating with `az login`.
+
+With ARM-capable authentication, the resource group is looked up from the storage account. Set `TG_AZURE_TEST_RESOURCE_GROUP` when using an access key or SAS token, because data-plane credentials cannot perform that lookup.
+
+```bash
+export TG_AZURE_TEST_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
+export TG_AZURE_TEST_STORAGE_ACCOUNT="tgteststate"
+az login
+```
+
+The identity used for Azure tests must hold the following roles:
+
+- `Storage Blob Data Contributor`, because the tests authorize blob access with Microsoft Entra rather than an account key.
+- `Storage Account Contributor`, because blob versioning and soft delete are management-plane properties of the account. Without it, `TestAzureBackendVersioningConverges` cannot converge them.
+
+You can assign these roles using the following Azure CLI commands:
+
+```bash
+RG="/subscriptions/<subscription-id>/resourceGroups/<resource-group>"
+
+az role assignment create \
+  --assignee "<client-id>" \
+  --role "Storage Blob Data Contributor" \
+  --scope "$RG"
+
+az role assignment create \
+  --assignee "<client-id>" \
+  --role "Storage Account Contributor" \
+  --scope "$RG"
+```
+
+Scoping both roles to the resource group also lets the tests resolve it from the storage account name, so no subscription-wide assignment is needed.
+
+An account key (`ARM_ACCESS_KEY`) authenticates the blob data plane and is enough for
+most of the suite, but it cannot reach the management plane at all, so
+`TestAzureBackendVersioningConverges` skips under it. Only an Entra identity runs the
+whole suite.
+
+The tests create and delete blob containers with unique names on each run; they never create or delete the storage account itself.
 
 #### Race tests
 

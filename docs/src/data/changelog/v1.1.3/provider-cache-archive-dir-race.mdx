@@ -1,0 +1,10 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Fixed a race condition that left cached provider archives in the working directory
+
+With the [provider cache server](/features/caching/provider-cache-server) enabled via `--provider-cache`, a race let the server start responding to requests before it had finished preparing the directories it caches into. A provider requested in that window had its archive and lock file written relative to the working directory instead of into the cache, leaving zip files behind in your project.
+
+That race condition has been fixed. Providers now always download into the cache directory.

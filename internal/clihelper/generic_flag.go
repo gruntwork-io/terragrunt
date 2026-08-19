@@ -5,8 +5,6 @@ import (
 	libflag "flag"
 	"fmt"
 	"strconv"
-
-	"github.com/urfave/cli/v2"
 )
 
 // GenericFlag implements Flag
@@ -48,9 +46,9 @@ type GenericFlag[T GenericType] struct {
 }
 
 // Apply applies Flag settings to the given flag set.
-func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
+func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet, env map[string]string) error {
 	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
+		return ApplyFlag(flag, set, env)
 	}
 
 	if flag.Destination == nil {
@@ -65,7 +63,7 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 		initialTextValue: value.String(),
 	}
 
-	return ApplyFlag(flag, set)
+	return ApplyFlag(flag, set, env)
 }
 
 // GetHidden returns true if the flag should be hidden from the help.
@@ -94,7 +92,7 @@ func (flag *GenericFlag[T]) GetDefaultText() string {
 
 // String returns a readable representation of this value (for usage defaults).
 func (flag *GenericFlag[T]) String() string {
-	return cli.FlagStringer(flag)
+	return stringifyFlag(flag)
 }
 
 // Names returns the names of the flag.

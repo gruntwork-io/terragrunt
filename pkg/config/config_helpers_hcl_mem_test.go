@@ -27,9 +27,8 @@ func TestHCLGetRepoRoot(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, "/synthetic/repo/root/unit/terragrunt.hcl")
+	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/synthetic/repo/root/unit/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -57,9 +56,8 @@ func TestHCLGetPathFromRepoRoot(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, "/repo/services/api/terragrunt.hcl")
+	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/repo/services/api/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 	pctx.WorkingDir = "/repo/services/api"
 
 	const hcl = `locals {
@@ -82,9 +80,8 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, "/repo/services/api/terragrunt.hcl")
+	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/repo/services/api/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 	pctx.WorkingDir = "/repo/services/api"
 
 	const hcl = `locals {
@@ -107,9 +104,8 @@ func TestHCLGetRepoRootPropagatesGitError(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, "/not/a/repo/terragrunt.hcl")
+	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/not/a/repo/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -120,7 +116,7 @@ func TestHCLGetRepoRootPropagatesGitError(t *testing.T) {
 }
 
 // TestHCLRunCmd drives `run_cmd()` through full HCL evaluation,
-// replacing the old TestRunCommand harness with the mem-backed exec.
+// replacing the old TestTFRunCommand harness with the mem-backed exec.
 // The local resolves to the subprocess stdout.
 func TestHCLRunCmd(t *testing.T) {
 	t.Parallel()
@@ -133,9 +129,8 @@ func TestHCLRunCmd(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, t.TempDir()+"/terragrunt.hcl")
+	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), t.TempDir()+"/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
 	const hcl = `locals {
   account = run_cmd("--terragrunt-quiet", "describe", "--account", "prod")

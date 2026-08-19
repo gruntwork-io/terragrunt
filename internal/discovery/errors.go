@@ -155,3 +155,49 @@ func (e StackDependencyExpansionError) Unwrap() error {
 func NewStackDependencyExpansionError(depPath string, err error) error {
 	return StackDependencyExpansionError{DepPath: depPath, Wrapped: err}
 }
+
+// DiscoveryBoundaryDirError indicates that the directory given as a graph
+// boundary (the "(dir)" operand of a filter expression, or the
+// --discovery-boundary flag) does not exist or is not a directory. Wraps the
+// underlying filesystem error, if any, so callers can extract typed details via
+// errors.As.
+type DiscoveryBoundaryDirError struct {
+	Wrapped  error
+	Boundary string
+}
+
+func (e DiscoveryBoundaryDirError) Error() string {
+	return fmt.Sprintf("discovery boundary %q is not a usable directory: %s", e.Boundary, e.Wrapped)
+}
+
+func (e DiscoveryBoundaryDirError) Unwrap() error {
+	return e.Wrapped
+}
+
+// NewDiscoveryBoundaryDirError wraps err with the boundary path that failed validation.
+func NewDiscoveryBoundaryDirError(boundary string, err error) error {
+	return DiscoveryBoundaryDirError{Boundary: boundary, Wrapped: err}
+}
+
+// DiscoveryBoundaryScopeError indicates that the working directory is not
+// inside the directory given as the boundary. Dependent discovery walks up from
+// the working directory, so a boundary that does not contain it can never take
+// effect.
+type DiscoveryBoundaryScopeError struct {
+	Boundary   string
+	WorkingDir string
+}
+
+func (e DiscoveryBoundaryScopeError) Error() string {
+	return fmt.Sprintf(
+		"discovery boundary %q does not contain the working directory %q. "+
+			"Filters that traverse dependents search upward from the working directory, "+
+			"so their boundary must be the working directory or one of its parent directories.",
+		e.Boundary, e.WorkingDir,
+	)
+}
+
+// NewDiscoveryBoundaryScopeError creates a new DiscoveryBoundaryScopeError for the given paths.
+func NewDiscoveryBoundaryScopeError(boundary, workingDir string) error {
+	return DiscoveryBoundaryScopeError{Boundary: boundary, WorkingDir: workingDir}
+}

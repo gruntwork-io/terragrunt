@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -102,7 +103,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
+	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l, venv.OSVenv())
 	proxyProviderHandler := handlers.NewProxyProviderHandler(
 		l,
 		vhttp.NewNoNetworkClient(),

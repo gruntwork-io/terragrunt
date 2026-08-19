@@ -317,6 +317,10 @@ func (c *CAS) storeFetchedContent(
 			return err
 		}
 
+		if ignoredSourceEntry(sourceDir, path, d) {
+			return dropIgnoredSourceEntry(d)
+		}
+
 		if d.IsDir() {
 			return nil
 		}

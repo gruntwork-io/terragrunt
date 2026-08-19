@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -230,7 +231,7 @@ func TestWindowsScaffold(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --working-dir '%s'",
+			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --non-interactive --working-dir '%s'",
 			tmpDir,
 		),
 	)
@@ -250,7 +251,7 @@ func TestWindowsScaffoldRef(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --working-dir '%s'",
+			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --non-interactive --working-dir '%s'",
 			tmpDir,
 		),
 	)
@@ -295,6 +296,7 @@ func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 
 	copyErr := util.CopyFolderContents(
 		createLogger(),
+		vfs.NewOSFS(),
 		helpers.MustAbs(t, environmentPath),
 		filepath.Join(targetPath, environmentPath),
 		".terragrunt-test",
@@ -318,6 +320,7 @@ func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 		t,
 		util.CopyFolderContents(
 			createLogger(),
+			vfs.NewOSFS(),
 			helpers.MustAbs(t, environmentPath),
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",

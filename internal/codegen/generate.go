@@ -2,10 +2,11 @@ package codegen
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -17,7 +18,9 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -28,6 +31,8 @@ const (
 
 	// The default prefix to use for comments in the generated file
 	DefaultCommentPrefix = "# "
+
+	generatedFilePerms = 0644
 )
 
 // GenerateConfigExists is an enum to represent valid values for if_exists.
@@ -81,6 +86,7 @@ const (
 // GenerateConfig is configuration for generating code
 type GenerateConfig struct {
 	HclFmt           *bool  `cty:"hcl_fmt"`
+	Mutable          *bool  `cty:"mutable"`
 	Path             string `cty:"path"`
 	IfExistsStr      string `cty:"if_exists"`
 	IfDisabledStr    string `cty:"if_disabled"`
@@ -92,12 +98,39 @@ type GenerateConfig struct {
 	Disable          bool `cty:"disable"`
 }
 
+// WriteOption configures a single [WriteToFile] call.
+type WriteOption func(*writeOpts)
+
+type writeOpts struct {
+	store *cas.Content
+}
+
+// WithContentStore deduplicates generated files that do not opt into
+// mutability: identical contents are written once into store and hard-linked
+// read-only into each working directory. Without it every generated file is
+// written directly and stays writable, and [GenerateConfig.Mutable] has no effect.
+func WithContentStore(store *cas.Content) WriteOption {
+	return func(o *writeOpts) { o.store = store }
+}
+
 // WriteToFile will generate a new file at the given target path with the given contents. If a file already exists at
 // the target path, the behavior depends on the value of IfExists:
 // - if ExistsError, return an error.
 // - if ExistsSkip, do nothing and return
 // - if ExistsOverwrite, overwrite the existing file
-func WriteToFile(l log.Logger, basePath string, config *GenerateConfig) error {
+func WriteToFile(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	basePath string,
+	config *GenerateConfig,
+	opts ...WriteOption,
+) error {
+	var o writeOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	// Figure out the target path to generate the code in. If relative, merge with basePath.
 	var targetPath string
 	if filepath.IsAbs(config.Path) {
@@ -106,7 +139,12 @@ func WriteToFile(l log.Logger, basePath string, config *GenerateConfig) error {
 		targetPath = filepath.Join(basePath, config.Path)
 	}
 
-	targetFileExists := util.FileExists(targetPath)
+	targetInfo, statErr := vfs.Lstat(v.FS, targetPath)
+	if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
+		return statErr
+	}
+
+	targetFileExists := statErr == nil
 
 	// If this GenerateConfig is disabled then skip further processing.
 	if config.Disable {
@@ -115,12 +153,13 @@ func WriteToFile(l log.Logger, basePath string, config *GenerateConfig) error {
 		if targetFileExists {
 			if shouldRemove, err := shouldRemoveWithFileExists(
 				l,
+				v,
 				targetPath,
 				config.IfDisabled,
 			); err != nil {
 				return err
 			} else if shouldRemove {
-				if err := os.Remove(targetPath); err != nil {
+				if err := v.FS.Remove(targetPath); err != nil {
 					return err
 				}
 			}
@@ -130,7 +169,7 @@ func WriteToFile(l log.Logger, basePath string, config *GenerateConfig) error {
 	}
 
 	if targetFileExists {
-		shouldContinue, err := shouldContinueWithFileExists(l, targetPath, config.IfExists)
+		shouldContinue, err := shouldContinueWithFileExists(l, v, targetPath, config.IfExists)
 		if err != nil || !shouldContinue {
 			return err
 		}
@@ -164,15 +203,16 @@ func WriteToFile(l log.Logger, basePath string, config *GenerateConfig) error {
 		contentsToWrite = hclwrite.Format(contentsToWrite)
 	}
 
-	// CAS may materialize the target as a read-only hard link, so remove it before writing
-	if targetFileExists && util.IsFile(targetPath) {
-		if err := os.Remove(targetPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	// A surviving target may be a read-only hard link into the store, and even a
+	// writable one would block a fresh link and silently degrade it into a copy.
+	// A symlink must go too, or the write follows it to its destination.
+	if targetFileExists && !targetInfo.IsDir() {
+		if err := v.FS.Remove(targetPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 	}
 
-	const ownerWriteGlobalReadPerms = 0644
-	if err := os.WriteFile(targetPath, contentsToWrite, ownerWriteGlobalReadPerms); err != nil {
+	if err := materialize(ctx, l, v, targetPath, contentsToWrite, config.Mutable, o.store); err != nil {
 		return err
 	}
 
@@ -181,10 +221,36 @@ func WriteToFile(l log.Logger, basePath string, config *GenerateConfig) error {
 	return nil
 }
 
+// materialize puts contents at targetPath, sharing one stored copy across
+// working directories unless the block opts into mutability.
+func materialize(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	targetPath string,
+	contents []byte,
+	mutable *bool,
+	store *cas.Content,
+) error {
+	if store == nil || (mutable != nil && *mutable) {
+		return vfs.WriteFile(v.FS, targetPath, contents, generatedFilePerms)
+	}
+
+	// Matches how the blob store keys files ingested from local sources, so a
+	// generated file also dedupes against an identical file from a module.
+	hash := cas.HashSHA256.Sum(contents)
+	if err := store.Ensure(l, v, hash, contents); err != nil {
+		return err
+	}
+
+	return store.Link(ctx, v, hash, targetPath, generatedFilePerms)
+}
+
 // Whether or not file generation should continue if the file path already exists. The answer depends on the
 // ifExists configuration.
 func shouldContinueWithFileExists(
 	l log.Logger,
+	v *venv.Venv,
 	path string,
 	ifExists GenerateConfigExists,
 ) (bool, error) {
@@ -208,7 +274,7 @@ func shouldContinueWithFileExists(
 	case ExistsOverwriteTerragrunt:
 		// If file was not generated, error out because overwrite_terragrunt if_exists setting only handles if the
 		// existing file was generated by terragrunt.
-		wasGenerated, err := fileWasGeneratedByTerragrunt(path)
+		wasGenerated, err := fileWasGeneratedByTerragrunt(v, path)
 		if err != nil {
 			return false, err
 		}
@@ -237,6 +303,7 @@ func shouldContinueWithFileExists(
 // shouldRemoveWithFileExists returns true if the already existing file should be removed.
 func shouldRemoveWithFileExists(
 	l log.Logger,
+	v *venv.Venv,
 	path string,
 	ifDisable GenerateConfigDisabled,
 ) (bool, error) {
@@ -258,7 +325,7 @@ func shouldRemoveWithFileExists(
 		// If file was not generated, error out because remove_terragrunt
 		// if_disabled setting only handles if the existing file was
 		// generated by terragrunt.
-		wasGenerated, err := fileWasGeneratedByTerragrunt(path)
+		wasGenerated, err := fileWasGeneratedByTerragrunt(v, path)
 		if err != nil {
 			return false, err
 		}
@@ -287,17 +354,30 @@ func shouldRemoveWithFileExists(
 // Check if the file was generated by terragrunt by checking if the first line of the file has the signature. Since the
 // generated string will be prefixed with the configured comment prefix, the check needs to see if the first line ends
 // with the signature string.
-func fileWasGeneratedByTerragrunt(path string) (bool, error) {
-	file, err := os.Open(path)
+func fileWasGeneratedByTerragrunt(v *venv.Venv, path string) (generated bool, err error) {
+	info, err := vfs.Lstat(v.FS, path)
 	if err != nil {
 		return false, err
 	}
-	defer file.Close()
 
-	reader := bufio.NewReader(file)
+	// Generation only ever writes a regular file or links one into place, so a
+	// symlink came from elsewhere. Reading through it would check a signature
+	// belonging to the destination, while the caller replaces the link itself.
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return false, nil
+	}
 
-	firstLine, err := reader.ReadString('\n')
+	file, err := v.FS.Open(path)
 	if err != nil {
+		return false, err
+	}
+
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+
+	firstLine, err := bufio.NewReader(file).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
 		return false, err
 	}
 

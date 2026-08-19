@@ -11,8 +11,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
 )
@@ -37,39 +37,37 @@ const versionQueryKey = "version"
 // the parent's protocol set, headers, and decompressors without keeping a
 // stale *Client field around.
 //
-// Authentication uses environment variables: TG_TF_REGISTRY_TOKEN supplies a
-// bearer token. See [tfimpl.DefaultRegistryDomain] and
+// Authentication reads TG_TF_REGISTRY_TOKEN from Env for a bearer token. See
+// [tfimpl.DefaultRegistryDomain] and
 // [github.com/gruntwork-io/terragrunt/internal/tf/cliconfig] for the rest.
 type RegistryGetter struct {
-	HTTPClient         vhttp.Client
 	Logger             log.Logger
-	FS                 vfs.FS
+	Venv               *venv.Venv
 	TofuImplementation tfimpl.Type
 }
 
-// NewRegistryGetter returns a [RegistryGetter] configured with sensible
-// defaults: a [vhttp.NewOSClient] for registry-protocol requests, the
-// supplied logger for diagnostic output, the supplied filesystem for
-// archive expansion, and [tfimpl.OpenTofu] as the default implementation.
-// A logger is required because this package does not consistently guard
-// against a nil logger, so requiring one at construction time prevents
-// nil-pointer panics at call time. Use the With* methods to customize
-// other behavior.
-func NewRegistryGetter(l log.Logger, fs vfs.FS) *RegistryGetter {
-	return &RegistryGetter{
-		HTTPClient:         vhttp.NewOSClient(),
-		Logger:             l,
-		FS:                 fs,
-		TofuImplementation: tfimpl.OpenTofu,
-	}
+// auth assembles the credentials the registry protocol authenticates with.
+// The user's CLI config lives on the real disk, so it is only consulted when
+// the getter is running against the OS filesystem.
+func (r *RegistryGetter) auth() RegistryAuth {
+	return RegistryAuth{Env: r.Venv.Env, ReadUserConfig: vfs.IsOSFS(r.Venv.FS)}
 }
 
-// WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests that swap in a [vhttp.NewMemClient] handler
-// or for callers that need custom transport configuration.
-func (r *RegistryGetter) WithHTTPClient(c vhttp.Client) *RegistryGetter {
-	r.HTTPClient = c
-	return r
+// NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol
+// requests and expands archives through v, logs diagnostics to l, and
+// defaults to [tfimpl.OpenTofu]. A logger is required because this package
+// does not consistently guard against a nil logger, so requiring one at
+// construction time prevents nil-pointer panics at call time. Use the With*
+// methods to customize other behavior.
+func NewRegistryGetter(l log.Logger, v *venv.Venv) *RegistryGetter {
+	v.RequireFS()
+	v.RequireHTTP()
+
+	return &RegistryGetter{
+		Logger:             l,
+		Venv:               v,
+		TofuImplementation: tfimpl.OpenTofu,
+	}
 }
 
 // WithTofuImplementation selects which default registry domain is used when
@@ -79,16 +77,9 @@ func (r *RegistryGetter) WithTofuImplementation(impl tfimpl.Type) *RegistryGette
 	return r
 }
 
-// WithFS sets the filesystem used for archive extraction cleanup.
-// Panics if fs is not OS-backed: getSubdir re-enters go-getter and runs
-// util.CopyFolderContentsWithFilter, both of which bypass this abstraction.
-func (r *RegistryGetter) WithFS(fs vfs.FS) *RegistryGetter {
-	if !vfs.IsOSFS(fs) {
-		panic("getter.RegistryGetter.WithFS: requires an OS-backed filesystem")
-	}
-
-	r.FS = fs
-
+// WithEnv sets the environment the registry auth token is read from.
+func (r *RegistryGetter) WithEnv(env map[string]string) *RegistryGetter {
+	r.Venv = r.Venv.WithEnv(env)
 	return r
 }
 
@@ -130,7 +121,8 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(
 		ctx,
 		r.Logger,
-		r.HTTPClient,
+		r.Venv.HTTP,
+		r.auth(),
 		registryDomain,
 	)
 	if err != nil {
@@ -153,7 +145,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.Venv.HTTP, r.auth(), moduleURL)
 	if err != nil {
 		return err
 	}
@@ -186,7 +178,7 @@ func (r *RegistryGetter) GetFile(_ context.Context, _ *getter.Request) error {
 func (r *RegistryGetter) delegateGet(ctx context.Context, dst, src string) error {
 	parent := getter.ClientFromContext(ctx)
 	if parent == nil {
-		parent = NewClient()
+		parent = NewClient(r.Venv)
 	}
 
 	_, err := parent.Get(ctx, &getter.Request{
@@ -209,13 +201,13 @@ func (r *RegistryGetter) getSubdir(
 	// Hand the consumer a non-existent path inside an existing parent so
 	// go-getter can create the destination itself, and clean up the parent
 	// on return.
-	parent, err := vfs.MkdirTemp(r.FS, "", "getter")
+	parent, err := vfs.MkdirTemp(r.Venv.FS, "", "getter")
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		if err := r.FS.RemoveAll(parent); err != nil {
+		if err := r.Venv.FS.RemoveAll(parent); err != nil {
 			l.Warnf("Error removing temporary directory %s: %v", parent, err)
 		}
 	}()
@@ -226,7 +218,7 @@ func (r *RegistryGetter) getSubdir(
 		return fmt.Errorf("downloading registry module archive from %s: %w", sourceURL, err)
 	}
 
-	return copySubdirContents(l, r.FS, tempdirPath, subDir, dstPath, sourceURL)
+	return copySubdirContents(l, r.Venv.FS, tempdirPath, subDir, dstPath, sourceURL)
 }
 
 // copySubdirContents resolves subDir under srcRoot and copies its contents
@@ -264,6 +256,7 @@ func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, sourc
 
 	return util.CopyFolderContentsWithFilter(
 		l,
+		fs,
 		sourcePath,
 		dstPath,
 		manifestFname,
@@ -296,7 +289,8 @@ func (r *RegistryGetter) resolveVersion(
 	latestVersion, err := GetLatestModuleVersion(
 		ctx,
 		r.Logger,
-		r.HTTPClient,
+		r.Venv.HTTP,
+		r.auth(),
 		registryDomain,
 		moduleRegistryBasePath,
 		modulePath,

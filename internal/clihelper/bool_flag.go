@@ -4,8 +4,6 @@ import (
 	"context"
 	libflag "flag"
 	"fmt"
-
-	"github.com/urfave/cli/v2"
 )
 
 // BoolFlag implements Flag
@@ -50,9 +48,9 @@ type BoolFlag struct {
 }
 
 // Apply applies Flag settings to the given flag set.
-func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
+func (flag *BoolFlag) Apply(set *libflag.FlagSet, env map[string]string) error {
 	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
+		return ApplyFlag(flag, set, env)
 	}
 
 	if flag.Destination == nil {
@@ -68,7 +66,7 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 		negative:         flag.Negative,
 	}
 
-	return ApplyFlag(flag, set)
+	return ApplyFlag(flag, set, env)
 }
 
 // GetHidden returns true if the flag should be hidden from the help.
@@ -103,7 +101,7 @@ func (flag *BoolFlag) GetDefaultText() string {
 
 // String returns a readable representation of this value (for usage defaults).
 func (flag *BoolFlag) String() string {
-	return cli.FlagStringer(flag)
+	return stringifyFlag(flag)
 }
 
 // Names returns the names of the flag.
