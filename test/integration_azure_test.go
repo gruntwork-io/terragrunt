@@ -69,8 +69,7 @@ func TestAzureDependencyFetchOutputFromState(t *testing.T) {
 	assert.Contains(t, stdout, "from-azure-state")
 	assert.NotContains(t, stdout, "mock-azure-value")
 
-	// The value alone does not prove the optimization ran: `tofu output` returns it
-	// too. Only the direct reader logs this, naming the blob it read.
+	// The value alone proves nothing: only the direct reader emits this line.
 	assert.Contains(t, stderr+stdout, "Fetching outputs directly from azurerm://",
 		"outputs must come from the state blob, not from running tofu output")
 }
@@ -305,8 +304,7 @@ func azureResourceGroup(ctx context.Context, t *testing.T, account string) strin
 			StorageAccountName: account,
 			UseAzureADAuth:     new(true),
 		}).
-		WithVenv(venv.OSVenv()).
-		Build(log.New())
+		Build(log.New(), venv.OSVenv())
 	require.NoError(t, err, "resolving Azure credentials")
 
 	lookupCtx, cancel := context.WithTimeout(ctx, azureLookupTimeout)
@@ -332,8 +330,7 @@ func azureTestConfig(ctx context.Context, t *testing.T, account string) *azurehe
 			StorageAccountName: account,
 			UseAzureADAuth:     new(true),
 		}).
-		WithVenv(venv.OSVenv()).
-		Build(log.New())
+		Build(log.New(), venv.OSVenv())
 	require.NoError(t, err, "resolving Azure credentials")
 
 	return cfg

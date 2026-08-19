@@ -19,7 +19,7 @@ func TestDiscoveryBoundaryFlagRequiresExperiment(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	flags := shared.NewFilterFlags(logger.CreateLogger(), opts, venvtest.New())
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}, map[string]string{}))
 
 	err := flags.RunActions(t.Context(), &clihelper.Context{})
 
@@ -33,7 +33,7 @@ func TestDiscoveryBoundaryFlagAllowedWithExperiment(t *testing.T) {
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.BoundedDiscovery))
 	flags := shared.NewFilterFlags(logger.CreateLogger(), opts, venvtest.New())
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}, map[string]string{}))
 	require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
 	assert.Equal(t, ".", opts.DiscoveryBoundary)
 }

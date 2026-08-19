@@ -71,7 +71,7 @@ func themeFor(color ColorMode, dark bool) previewTheme {
 // previewLimit bytes are read, since the pane shows just its head. It returns a
 // short dimmed placeholder for files that can't or shouldn't be previewed.
 func (m Model) renderFilePreview(n *Node, width int) string {
-	data, err := vfs.ReadFileLimit(m.fs, n.absPath, m.previewLimit)
+	data, err := vfs.ReadFileLimit(m.fsys, n.absPath, m.previewLimit)
 	if err != nil {
 		return dimStyle.Render("(unreadable)")
 	}

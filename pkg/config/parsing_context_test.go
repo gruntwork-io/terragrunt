@@ -30,7 +30,12 @@ func TestWithDependencyConfigPath_CustomDownloadDir_Preserved(t *testing.T) {
 	customDownloadDir := filepath.Join(tmpDir, "custom-cache")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewOSWithEmptyEnv(), config.WithStrictControls(controls.New()))
+	_, pctx := config.NewParsingContext(
+		t.Context(),
+		l,
+		venvtest.NewWithOSFS(),
+		config.WithStrictControls(controls.New()),
+	)
 
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
 	pctx.TerragruntConfigPath = callerConfigPath
@@ -59,7 +64,12 @@ func TestWithDependencyConfigPath_DefaultDownloadDir_Updated(t *testing.T) {
 	depConfigPath := filepath.Join(tmpDir, "modules", "vpc", "terragrunt.hcl")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewOSWithEmptyEnv(), config.WithStrictControls(controls.New()))
+	_, pctx := config.NewParsingContext(
+		t.Context(),
+		l,
+		venvtest.NewWithOSFS(),
+		config.WithStrictControls(controls.New()),
+	)
 
 	// Set DownloadDir to the caller's default (no TG_DOWNLOAD_DIR override).
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
@@ -93,7 +103,12 @@ func TestWithDependencyConfigPath_CustomDownloadDir_NotDefaultForAnyModule(t *te
 	customDownloadDir := filepath.Join(tmpDir, ".terragrunt-cache")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewOSWithEmptyEnv(), config.WithStrictControls(controls.New()))
+	_, pctx := config.NewParsingContext(
+		t.Context(),
+		l,
+		venvtest.NewWithOSFS(),
+		config.WithStrictControls(controls.New()),
+	)
 
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
 	pctx.TerragruntConfigPath = callerConfigPath

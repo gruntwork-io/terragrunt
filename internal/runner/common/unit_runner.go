@@ -3,7 +3,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -195,11 +194,16 @@ func (runner *UnitRunner) Run(
 		outputFile := runner.Unit.OutputJSONFile(opts.RootWorkingDir, opts.JSONOutputFolder)
 		jsonDir := filepath.Dir(outputFile)
 
-		if err := v.FS.MkdirAll(jsonDir, os.ModePerm); err != nil {
+		const (
+			ownerReadWriteExecutePerms = 0o700
+			ownerReadWritePerms        = 0o600
+		)
+
+		if err := v.FS.MkdirAll(jsonDir, ownerReadWriteExecutePerms); err != nil {
 			return err
 		}
 
-		if err := vfs.WriteFile(v.FS, outputFile, stdout.Bytes(), os.ModePerm); err != nil {
+		if err := vfs.WriteFile(v.FS, outputFile, stdout.Bytes(), ownerReadWritePerms); err != nil {
 			return err
 		}
 	}

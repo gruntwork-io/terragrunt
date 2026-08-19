@@ -84,8 +84,7 @@ func TestGcpDependencyFetchOutputFromState(t *testing.T) {
 	assert.Contains(t, stdout, "from-gcs-state")
 	assert.NotContains(t, stdout, "mock-gcs-value")
 
-	// The value alone does not prove the optimization ran: `tofu output` returns it
-	// too. Only the direct reader logs this, naming the object it read.
+	// The value alone proves nothing: only the direct reader emits this line.
 	assert.Contains(t, stderr+stdout, "Fetching outputs directly from gs://",
 		"outputs must come from the state object, not from running tofu output")
 }

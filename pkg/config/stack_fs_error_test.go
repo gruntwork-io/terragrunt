@@ -32,7 +32,7 @@ unit "app" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv().WithFS(statErrorFS{
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS().WithFS(statErrorFS{
 		FS:       vfs.NewOSFS(),
 		failPath: filepath.Join(tmpDir, inthclparse.AutoIncludeStackFile),
 	}), stackPath)
@@ -52,7 +52,7 @@ func TestReadValuesPropagatesStatError(t *testing.T) {
 
 	ctx, pctx := newTestParsingContext(
 		t,
-		venvtest.NewOSWithEmptyEnv().WithFS(statErrorFS{
+		venvtest.NewWithOSFS().WithFS(statErrorFS{
 			FS:       vfs.NewOSFS(),
 			failPath: filepath.Join(tmpDir, "terragrunt.values.hcl"),
 		}),

@@ -12,11 +12,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -39,7 +39,7 @@ func TestDownloadRouteRequiresSecretSegment(t *testing.T) {
 		cache.WithHostname("127.0.0.1"),
 		cache.WithToken(token),
 		cache.WithLogger(l),
-		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, vfs.NewOSFS(), vhttp.NewOSClient())),
+		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, venvtest.NewOSWithEmptyEnv())),
 		cache.WithProxyProviderHandler(
 			handlers.NewProxyProviderHandler(l, vhttp.NewNoNetworkClient(), nil),
 		),
@@ -48,7 +48,7 @@ func TestDownloadRouteRequiresSecretSegment(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
-	ln, err := server.Listen(ctx)
+	ln, err := server.Listen(ctx, venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	errGroup, ctx := errgroup.WithContext(ctx)
@@ -109,7 +109,7 @@ func TestDownloadSegmentIsRedactedFromLogs(t *testing.T) {
 	server := cache.NewServer(
 		cache.WithHostname("127.0.0.1"),
 		cache.WithLogger(l),
-		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, vfs.NewOSFS(), vhttp.NewOSClient())),
+		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, venvtest.NewOSWithEmptyEnv())),
 		cache.WithProxyProviderHandler(
 			handlers.NewProxyProviderHandler(l, vhttp.NewNoNetworkClient(), nil),
 		),
@@ -118,7 +118,7 @@ func TestDownloadSegmentIsRedactedFromLogs(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
-	ln, err := server.Listen(ctx)
+	ln, err := server.Listen(ctx, venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	errGroup, ctx := errgroup.WithContext(ctx)

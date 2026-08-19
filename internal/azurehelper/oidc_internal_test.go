@@ -26,7 +26,7 @@ func TestOIDCAssertionProvider_GitHubActions(t *testing.T) {
 
 	var gotURL, gotAuth string
 
-	b := oidcTestBuilder(map[string]string{
+	v := oidcTestVenv(map[string]string{
 		"ACTIONS_ID_TOKEN_REQUEST_URL":   "https://pipelines.example/token",
 		"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-token",
 	}, func(_ context.Context, req *http.Request) (*http.Response, error) {
@@ -36,7 +36,7 @@ func TestOIDCAssertionProvider_GitHubActions(t *testing.T) {
 		return oidcJSON(http.StatusOK, `{"value":"assertion-jwt"}`), nil
 	})
 
-	getAssertion := b.oidcAssertionProvider()
+	getAssertion := oidcAssertionProvider(v)
 	require.NotNil(t, getAssertion, "a request url must select the assertion flow")
 
 	assertion, err := getAssertion(t.Context())
@@ -51,7 +51,7 @@ func TestOIDCAssertionProvider_GitHubActions(t *testing.T) {
 func TestOIDCAssertionProvider_AzureDevOps(t *testing.T) {
 	t.Parallel()
 
-	b := oidcTestBuilder(map[string]string{
+	v := oidcTestVenv(map[string]string{
 		"SYSTEM_OIDCREQUESTURI": "https://dev.azure.example/oidc",
 		"SYSTEM_ACCESSTOKEN":    "ado-token",
 	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
@@ -59,7 +59,7 @@ func TestOIDCAssertionProvider_AzureDevOps(t *testing.T) {
 		return oidcJSON(http.StatusOK, `{"oidcToken":"assertion-jwt"}`), nil
 	})
 
-	getAssertion := b.oidcAssertionProvider()
+	getAssertion := oidcAssertionProvider(v)
 	require.NotNil(t, getAssertion)
 
 	assertion, err := getAssertion(t.Context())
@@ -70,7 +70,7 @@ func TestOIDCAssertionProvider_AzureDevOps(t *testing.T) {
 func TestOIDCAssertionProvider_MissingRequestToken(t *testing.T) {
 	t.Parallel()
 
-	b := oidcTestBuilder(map[string]string{
+	v := oidcTestVenv(map[string]string{
 		"ACTIONS_ID_TOKEN_REQUEST_URL": "https://pipelines.example/token",
 	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
 		t.Fatal("no request must be made without a bearer token")
@@ -78,7 +78,7 @@ func TestOIDCAssertionProvider_MissingRequestToken(t *testing.T) {
 		return nil, nil
 	})
 
-	_, err := b.oidcAssertionProvider()(t.Context())
+	_, err := oidcAssertionProvider(v)(t.Context())
 
 	var missing *OIDCRequestTokenMissingError
 	require.ErrorAs(t, err, &missing)
@@ -88,14 +88,14 @@ func TestOIDCAssertionProvider_MissingRequestToken(t *testing.T) {
 func TestOIDCAssertionProvider_EndpointFailure(t *testing.T) {
 	t.Parallel()
 
-	b := oidcTestBuilder(map[string]string{
+	v := oidcTestVenv(map[string]string{
 		"ACTIONS_ID_TOKEN_REQUEST_URL":   "https://pipelines.example/token",
 		"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-token",
 	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
 		return oidcJSON(http.StatusForbidden, `denied`), nil
 	})
 
-	_, err := b.oidcAssertionProvider()(t.Context())
+	_, err := oidcAssertionProvider(v)(t.Context())
 
 	var failed *OIDCTokenRequestFailedError
 	require.ErrorAs(t, err, &failed)
@@ -105,14 +105,14 @@ func TestOIDCAssertionProvider_EndpointFailure(t *testing.T) {
 func TestOIDCAssertionProvider_MissingField(t *testing.T) {
 	t.Parallel()
 
-	b := oidcTestBuilder(map[string]string{
+	v := oidcTestVenv(map[string]string{
 		"ACTIONS_ID_TOKEN_REQUEST_URL":   "https://pipelines.example/token",
 		"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-token",
 	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
 		return oidcJSON(http.StatusOK, `{"unexpected":"shape"}`), nil
 	})
 
-	_, err := b.oidcAssertionProvider()(t.Context())
+	_, err := oidcAssertionProvider(v)(t.Context())
 
 	var missing *OIDCTokenFieldMissingError
 	require.ErrorAs(t, err, &missing)
@@ -124,13 +124,13 @@ func TestOIDCAssertionProvider_MissingField(t *testing.T) {
 func TestOIDCAssertionProvider_NoRequestURL(t *testing.T) {
 	t.Parallel()
 
-	b := oidcTestBuilder(map[string]string{}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
+	v := oidcTestVenv(map[string]string{}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
 		t.Fatal("no request must be made when no request url is configured")
 
 		return nil, nil
 	})
 
-	assert.Nil(t, b.oidcAssertionProvider())
+	assert.Nil(t, oidcAssertionProvider(v))
 }
 
 // TestApplyEnvFallbacks_RequestURLImpliesOIDC verifies a federated token
@@ -143,23 +143,23 @@ func TestApplyEnvFallbacks_RequestURLImpliesOIDC(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			b := oidcTestBuilder(map[string]string{key: "https://example/token"}, nil)
+			v := oidcTestVenv(map[string]string{key: "https://example/token"}, nil)
 
 			cfg := &AzureSessionConfig{}
-			b.applyEnvFallbacks(cfg)
+			applyEnvFallbacks(v.Env, cfg)
 
 			assert.True(t, util.Deref(cfg.UseOIDC), "%s must select the OIDC tier", key)
 		})
 	}
 }
 
-func oidcTestBuilder(env map[string]string, h vhttp.Handler) *AzureConfigBuilder {
+func oidcTestVenv(env map[string]string, h vhttp.Handler) *venv.Venv {
 	v := &venv.Venv{}
 	if h != nil {
 		v.HTTP = vhttp.NewMemClient(h)
 	}
 
-	return NewAzureConfigBuilder().WithVenv(v.WithEnv(env))
+	return v.WithEnv(env)
 }
 
 func oidcJSON(status int, body string) *http.Response {
@@ -178,7 +178,7 @@ func oidcJSON(status int, body string) *http.Response {
 func TestApplyEnvFallbacks_ExplicitFalseWins(t *testing.T) {
 	t.Parallel()
 
-	b := oidcTestBuilder(map[string]string{
+	v := oidcTestVenv(map[string]string{
 		"ARM_USE_MSI":     "true",
 		"ARM_USE_OIDC":    "true",
 		"ARM_USE_AZUREAD": "true",
@@ -189,7 +189,7 @@ func TestApplyEnvFallbacks_ExplicitFalseWins(t *testing.T) {
 		UseOIDC:        new(false),
 		UseAzureADAuth: new(false),
 	}
-	b.applyEnvFallbacks(cfg)
+	applyEnvFallbacks(v.Env, cfg)
 
 	assert.False(t, util.Deref(cfg.UseMSI), "an explicit use_msi = false must win over ARM_USE_MSI")
 	assert.False(t, util.Deref(cfg.UseOIDC), "an explicit use_oidc = false must win over ARM_USE_OIDC")
@@ -197,6 +197,6 @@ func TestApplyEnvFallbacks_ExplicitFalseWins(t *testing.T) {
 
 	// An UNSET flag is still enabled by the environment.
 	unset := &AzureSessionConfig{}
-	b.applyEnvFallbacks(unset)
+	applyEnvFallbacks(v.Env, unset)
 	assert.True(t, util.Deref(unset.UseMSI), "an unset flag must still honor ARM_USE_MSI")
 }

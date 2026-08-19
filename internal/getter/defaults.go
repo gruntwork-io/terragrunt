@@ -33,7 +33,7 @@ type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
 	logger     log.Logger
-	fs         vfs.FS
+	fsys       vfs.FS
 	env        map[string]string
 	ociHolder  *ociStoreHolder
 	httpExtra  http.Header
@@ -58,13 +58,13 @@ func (h *ociStoreHolder) store(l log.Logger) OCINewStoreFunc {
 	return h.fn
 }
 
-// requireLoggerFS panics when logger or fs is unset for a scheme that needs them.
+// requireLoggerFS panics when logger or fsys is unset for a scheme that needs them.
 func requireLoggerFS(c *genericFetcherConfig, scheme string) {
 	if c.logger == nil {
 		panic("getter: " + scheme + " requires WithDispatchLogger")
 	}
 
-	if c.fs == nil {
+	if c.fsys == nil {
 		panic("getter: " + scheme + " requires WithDispatchFS")
 	}
 }
@@ -81,13 +81,13 @@ func WithDispatchLogger(l log.Logger) GenericFetcherOption {
 }
 
 // WithDispatchFS sets the shared filesystem for tfr and oci dispatch entries.
-func WithDispatchFS(fs vfs.FS) GenericFetcherOption {
+func WithDispatchFS(fsys vfs.FS) GenericFetcherOption {
 	return func(c *genericFetcherConfig) {
-		if fs == nil {
+		if fsys == nil {
 			panic("getter: WithDispatchFS requires a non-nil filesystem")
 		}
 
-		c.fs = fs
+		c.fsys = fsys
 	}
 }
 
@@ -175,7 +175,7 @@ func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[stri
 		m[SchemeOCI] = &OCIGetter{
 			NewStore: cfg.ociHolder.store(cfg.logger),
 			Logger:   cfg.logger,
-			FS:       cfg.fs,
+			FS:       cfg.fsys,
 		}
 	}
 

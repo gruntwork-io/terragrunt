@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -26,10 +27,8 @@ func (lockfile *Lockfile) Unlock() error {
 		return err
 	}
 
-	if FileExists(lockfile.Path()) {
-		if err := os.Remove(lockfile.Path()); err != nil {
-			return err
-		}
+	if err := os.Remove(lockfile.Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
 
 	return nil

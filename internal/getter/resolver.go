@@ -42,7 +42,7 @@ func DefaultSourceResolvers(
 
 	tfr := NewTFRResolver().
 		WithHTTPClient(vhttp.WithTimeout(v.HTTP, tfrResolverTimeout)).
-		WithAuth(RegistryAuth{Env: cfg.env, ReadUserConfig: vfs.IsOSFS(cfg.fs)})
+		WithAuth(RegistryAuth{Env: cfg.env, ReadUserConfig: vfs.IsOSFS(cfg.fsys)})
 
 	if cfg.tfrEnabled {
 		requireLoggerFS(&cfg, SchemeTFR)

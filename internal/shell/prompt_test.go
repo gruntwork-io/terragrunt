@@ -20,7 +20,7 @@ func TestPromptUserForInputSequential(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithReader(strings.NewReader("first\nsecond\n"))
+	v := venvtest.New().WithStdin(strings.NewReader("first\nsecond\n"))
 
 	first, err := shell.PromptUserForInput(t.Context(), l, v, "one: ", false)
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestPromptUserForYesNo(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			v := venvtest.New().WithReader(strings.NewReader(tt.input))
+			v := venvtest.New().WithStdin(strings.NewReader(tt.input))
 
 			got, err := shell.PromptUserForYesNo(t.Context(), l, v, "proceed?", false)
 			require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestPromptUserForYesNoNonInteractive(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithReader(strings.NewReader("no\n"))
+	v := venvtest.New().WithStdin(strings.NewReader("no\n"))
 
 	got, err := shell.PromptUserForYesNo(t.Context(), l, v, "proceed?", true)
 	require.NoError(t, err)
@@ -77,9 +77,9 @@ func TestPromptUserForInputPanicsOnUnsetReader(t *testing.T) {
 	t.Parallel()
 
 	v := venvtest.New()
-	v.Reader = nil
+	v.Stdin = nil
 
-	assert.PanicsWithError(t, venv.ErrVenvReaderUnset.Error(), func() {
+	assert.PanicsWithError(t, venv.ErrVenvStdinUnset.Error(), func() {
 		_, _ = shell.PromptUserForInput(t.Context(), logger.CreateLogger(), v, "one: ", false)
 	})
 }

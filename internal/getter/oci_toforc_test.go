@@ -1089,10 +1089,10 @@ func newStoreForRepo(t *testing.T, v *venv.Venv, registry, repositoryName string
 }
 
 // writeTofuConfig writes an OpenTofu CLI config file with the given body.
-func writeTofuConfig(t *testing.T, fs vfs.FS, path, body string) {
+func writeTofuConfig(t *testing.T, fsys vfs.FS, path, body string) {
 	t.Helper()
 
-	require.NoError(t, vfs.WriteFile(fs, path, []byte(body), 0o600))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(body), 0o600))
 }
 
 // tofuJSONBasicAuth renders a JSON oci_credentials block, keeping credential pairs out of source literals.

@@ -7,11 +7,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,9 +33,7 @@ func TestTFExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
-	pctx.Venv.Env = venv.OSVenv().Env
-	pctx.Venv.FS = vfs.NewOSFS()
+	ctx, pctx := newTestParsingContext(t, venv.OSVenv(), childPath)
 	pctx.TFPath = helpers.WrappedBinary(ctx)
 
 	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), childPath, nil)

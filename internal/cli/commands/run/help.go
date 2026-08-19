@@ -39,7 +39,7 @@ See also:
 // ShowTFHelp prints TF help for the given `cliCtx.Command` command.
 func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.HelpFunc {
 	return func(ctx context.Context, cliCtx *clihelper.Context) error {
-		if err := shared.NewTFPathFlag(opts).Parse(cliCtx.Args()); err != nil {
+		if err := shared.NewTFPathFlag(opts).Parse(cliCtx.Args(), v.Env); err != nil {
 			return err
 		}
 

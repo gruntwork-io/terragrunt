@@ -427,6 +427,7 @@ func NewWorktrees(
 					paths, err := createGitWorktrees(
 						gitCmdCtx,
 						l,
+						v,
 						gitRunner,
 						gitRefs,
 						repoRemote,
@@ -635,6 +636,7 @@ func recordDiffTelemetry(ctx context.Context, diffs *git.Diffs) {
 func createGitWorktrees(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	gitRunner *git.GitRunner,
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
@@ -682,7 +684,7 @@ func createGitWorktrees(
 					return util.NotifyIfSlow(
 						ctx,
 						l,
-						util.SpinnerWriter(),
+						util.SpinnerWriter(v),
 						time.Second,
 						util.SlowNotifyMsg{
 							Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),

@@ -27,8 +27,8 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 	t.Parallel()
 
 	when := time.Date(2026, 5, 15, 12, 30, 45, 0, time.UTC)
-	fs := vfs.NewMemMapFS()
-	r := newStubReporter(fs, "/wd", when, 8080)
+	fsys := vfs.NewMemMapFS()
+	r := newStubReporter(fsys, "/wd", when, 8080)
 	l, output := newPanicLogger()
 
 	r.ReportPanic(
@@ -55,7 +55,7 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 	assert.NotContains(t, logOutput, "stack-frames")
 	assert.NotContains(t, logOutput, "Terragrunt panic report")
 
-	body, err := vfs.ReadFile(fs, expectedPath)
+	body, err := vfs.ReadFile(fsys, expectedPath)
 	require.NoError(t, err)
 
 	content := string(body)
@@ -78,8 +78,8 @@ func TestReportPanicFallsBackWhenWriteFails(t *testing.T) {
 	t.Parallel()
 
 	// All writes are rejected; cwd-write fails, TempDir retry also fails (same FS), inline fallback fires.
-	fs := &rejectWritesFS{FS: vfs.NewMemMapFS(), err: errors.New("disk full")}
-	r := newStubReporter(fs, "/wd", time.Now().UTC(), os.Getpid())
+	fsys := &rejectWritesFS{FS: vfs.NewMemMapFS(), err: errors.New("disk full")}
+	r := newStubReporter(fsys, "/wd", time.Now().UTC(), os.Getpid())
 
 	l, output := newPanicLogger()
 	r.ReportPanic(l, "1.7.9", "slice bounds out of range", []byte("stack"), []string{"terragrunt"})
@@ -98,13 +98,13 @@ func TestReportPanicFallsBackWhenWriteFails(t *testing.T) {
 func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
+	fsys := vfs.NewMemMapFS()
 	when := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	r := newStubReporter(fs, "/wd", when, 1)
+	r := newStubReporter(fsys, "/wd", when, 1)
 
 	r.ReportPanic(logger.CreateLogger(), "", "", nil, []string{})
 
-	body, err := vfs.ReadFile(fs, "/wd/terragrunt-crash-20260102T030405Z-1.log")
+	body, err := vfs.ReadFile(fsys, "/wd/terragrunt-crash-20260102T030405Z-1.log")
 	require.NoError(t, err)
 
 	content := string(body)
@@ -118,10 +118,10 @@ func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
 func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
+	fsys := vfs.NewMemMapFS()
 	when := time.Now().UTC()
 	pid := os.Getpid()
-	r := newStubReporter(fs, "/wd", when, pid)
+	r := newStubReporter(fsys, "/wd", when, pid)
 	r.Getwd = func() (string, error) { return "", errors.New("denied") }
 
 	r.ReportPanic(logger.CreateLogger(), "1.7.9", "divide by zero", []byte("stack"), nil)
@@ -130,7 +130,7 @@ func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 		"/tmp",
 		"terragrunt-crash-"+when.UTC().Format("20060102T150405Z")+"-"+strconv.Itoa(pid)+".log",
 	)
-	_, err := vfs.ReadFile(fs, expectedPath)
+	_, err := vfs.ReadFile(fsys, expectedPath)
 	require.NoError(t, err, "expected crash file at %s", expectedPath)
 }
 
@@ -138,16 +138,16 @@ func TestReportPanicRetriesTempDirWhenCwdWriteFails(t *testing.T) {
 	t.Parallel()
 
 	// Reject writes under /readonly; accept anywhere else (i.e. /tmp).
-	fs := &readOnlyDirsFS{FS: vfs.NewMemMapFS(), readOnlyDirs: []string{"/readonly"}}
+	fsys := &readOnlyDirsFS{FS: vfs.NewMemMapFS(), readOnlyDirs: []string{"/readonly"}}
 	when := time.Date(2026, 5, 22, 12, 30, 45, 0, time.UTC)
 	pid := 4242
-	r := newStubReporter(fs, "/readonly", when, pid)
+	r := newStubReporter(fsys, "/readonly", when, pid)
 
 	l, output := newPanicLogger()
 	r.ReportPanic(l, "1.7.9", "boom", []byte("stack"), []string{"terragrunt"})
 
 	tempPath := "/tmp/terragrunt-crash-20260522T123045Z-4242.log"
-	_, err := vfs.ReadFile(fs, tempPath)
+	_, err := vfs.ReadFile(fsys, tempPath)
 	require.NoError(t, err, "expected fallback file at %s", tempPath)
 
 	assert.Contains(t, output.String(), tempPath)
@@ -175,9 +175,9 @@ func TestPanicHandler(t *testing.T) {
 	t.Run("returns true and writes report when rec is set", func(t *testing.T) {
 		t.Parallel()
 
-		fs := vfs.NewMemMapFS()
+		fsys := vfs.NewMemMapFS()
 		when := time.Date(2026, 5, 22, 12, 30, 45, 0, time.UTC)
-		r := newStubReporter(fs, "/wd", when, 9999)
+		r := newStubReporter(fsys, "/wd", when, 9999)
 
 		l, output := newPanicLogger()
 
@@ -201,7 +201,7 @@ func TestPanicHandler(t *testing.T) {
 
 		expectedPath := "/wd/terragrunt-crash-20260522T123045Z-9999.log"
 
-		body, err := vfs.ReadFile(fs, expectedPath)
+		body, err := vfs.ReadFile(fsys, expectedPath)
 		require.NoError(t, err)
 		assert.Contains(t, output.String(), "TERRAGRUNT CRASH")
 		assert.Contains(t, output.String(), "boom")
@@ -442,9 +442,9 @@ func newPanicLogger() (log.Logger, *bytes.Buffer) {
 	), buf
 }
 
-func newStubReporter(fs vfs.FS, workDir string, now time.Time, pid int) *panicreport.Reporter {
+func newStubReporter(fsys vfs.FS, workDir string, now time.Time, pid int) *panicreport.Reporter {
 	return &panicreport.Reporter{
-		FS:        fs,
+		FS:        fsys,
 		Now:       func() time.Time { return now },
 		Getwd:     func() (string, error) { return workDir, nil },
 		GetPID:    func() int { return pid },

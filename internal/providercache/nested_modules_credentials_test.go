@@ -18,10 +18,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -103,7 +103,13 @@ func TestNestedModuleCredentials(t *testing.T) {
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l, vfs.NewOSFS(), vhttp.NewOSClient())
+	providerService := services.NewProviderService(
+		providerCacheDir,
+		pluginCacheDir,
+		nil,
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+	)
 	proxyProviderHandler := handlers.NewProxyProviderHandler(
 		l,
 		vhttp.NewNoNetworkClient(),
@@ -132,7 +138,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	ln, err := server.Listen(ctx)
+	ln, err := server.Listen(ctx, venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

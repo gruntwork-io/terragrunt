@@ -149,7 +149,12 @@ func TestRunWritesComponentsFromTheCatalogBlock(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.NewWithOSFS().WithWriter(&buf)
+	// The clone lands under the venv's temp dir, which has to be a real one
+	// here because the repo is cloned on the real filesystem.
+	tempDir := t.TempDir()
+	v := venvtest.NewWithOSFS().
+		WithWriter(&buf).
+		WithTempDir(func() string { return tempDir })
 
 	writeLocalRepo(t, v, repoDir)
 	require.NoError(t, vfs.WriteFile(

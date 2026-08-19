@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -157,8 +156,7 @@ func testProviderCache(t *testing.T, c vhttp.Client) {
 				pluginCacheDir,
 				nil,
 				l,
-				vfs.NewOSFS(),
-				c,
+				venvtest.NewOSWithEmptyEnv().WithHTTP(c),
 			)
 			providerHandler := handlers.NewDirectProviderHandler(
 				l,
@@ -176,7 +174,7 @@ func testProviderCache(t *testing.T, c vhttp.Client) {
 
 			server := cache.NewServer(tc.opts...)
 
-			ln, err := server.Listen(t.Context())
+			ln, err := server.Listen(t.Context(), venvtest.NewOSWithEmptyEnv())
 			require.NoError(t, err)
 
 			defer ln.Close()
@@ -384,7 +382,7 @@ func TestProviderCacheHomeless(t *testing.T) {
 
 	_, err := providercache.InitServer(
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		&pcoptions.ProviderCacheOptions{
 			Dir: cacheDir,
 		},

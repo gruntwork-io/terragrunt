@@ -499,7 +499,7 @@ func (repo *Repo) performClone(
 			return err
 		}
 
-		casStore, err := cas.New(cas.WithCloneDepth(cloneDepth))
+		casStore, err := cas.New(v, cas.WithCloneDepth(cloneDepth))
 		if err != nil {
 			return err
 		}
@@ -550,7 +550,7 @@ func (repo *Repo) performClone(
 	}
 
 	if repo.slowReporting {
-		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(v), time.Second, util.SlowNotifyMsg{
 			Spinner: "Cloning repository " + repo.cloneURL + "...",
 			Done:    "Cloned repository " + repo.cloneURL,
 		}, cloneFunc)

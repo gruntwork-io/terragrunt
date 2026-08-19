@@ -34,7 +34,7 @@ func FuzzHCLStringHelpers(f *testing.F) {
 	f.Fuzz(func(t *testing.T, raw string) {
 		args := strings.Split(raw, "\x00")
 
-		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 		swOut, swErr := config.StartsWith(ctx, pctx, args)
 		ewOut, ewErr := config.EndsWith(ctx, pctx, args)

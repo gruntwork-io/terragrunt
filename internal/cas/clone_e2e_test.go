@@ -10,9 +10,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
@@ -23,10 +23,10 @@ func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -64,10 +64,10 @@ func TestCASClone_E2E_CommitFormRefRoundTrip(t *testing.T) {
 	headHash := resolveHeadE2E(t, repoURL)
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -93,10 +93,10 @@ func TestCASClone_E2E_ThroughCASGetter(t *testing.T) {
 	repoURL := startTestServer(t)
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -140,10 +140,10 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	require.NoError(t, err)
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -178,10 +178,10 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 	repoURL := startTestServer(t)
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 

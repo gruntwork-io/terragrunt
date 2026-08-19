@@ -323,7 +323,7 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			pctx := &ParsingContext{Venv: venv.OSVenv().WithEnv(tc.initial)}
+			pctx := &ParsingContext{Venv: venvtest.NewOSWithEmptyEnv().WithEnv(tc.initial)}
 			applyExtraArgsEnvVarsForOutput(pctx, tc.terraform)
 			assert.Equal(t, tc.want, pctx.Venv.Env)
 		})
@@ -1166,9 +1166,7 @@ func TestIsRemoteStateMissing(t *testing.T) {
 				ErrorCode:  "AuthorizationFailure",
 			}),
 		},
-		// The azurerm key lookup calls ARM, which answers 404 for a wrong resource
-		// group, account, or subscription. Reading that as an absent state would swap
-		// mock outputs into a run whose state actually exists.
+		// An ARM 404 means a misconfigured coordinate, not a state blob that is absent.
 		{
 			name: "Azure ARM resource group not found is a setup failure",
 			err: fmt.Errorf("%w: resolving storage account key: %w",
