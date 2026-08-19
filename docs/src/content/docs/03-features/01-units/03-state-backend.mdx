@@ -334,7 +334,7 @@ remote_state {
   config = {
     skip_bucket_versioning    = true
     enable_bucket_policy_only = false
-    encryption_key            = get_env("GOOGLE_ENCRYPTION_KEY")
+    encryption_key            = "GOOGLE_ENCRYPTION_KEY"
   }
 }
 ```
