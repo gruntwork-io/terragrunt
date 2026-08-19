@@ -7,7 +7,7 @@ unit "app" {
   source = "../catalog/app"
   path   = "app"
 
-  # values intentionally omits vpc_path — the autoinclude provides the dependency override.
+  # values intentionally omits vpc_path; the autoinclude provides the dependency override.
   values = {
     region = "us-east-1"
   }

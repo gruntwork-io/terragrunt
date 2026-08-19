@@ -1188,10 +1188,9 @@ func TestTFStackDepsValuesRefWithSiblingAutoInclude(t *testing.T) {
 	)
 }
 
-// TestTFStackDepsAutoIncludeOverridesConfigPathFromValues covers issue 6692: a unit dependency sets
-// config_path = values.vpc_path while the stack autoinclude replaces that dependency with a
-// different config_path and the values block omits vpc_path. Without the fix the unit fails with
-// "Unsupported attribute" because values.vpc_path is evaluated before the autoinclude override.
+// TestTFStackDepsAutoIncludeOverridesConfigPathFromValues verifies that a unit dependency with
+// config_path = values.vpc_path resolves when the stack autoinclude replaces that dependency
+// with a different config_path and the values block omits vpc_path.
 func TestTFStackDepsAutoIncludeOverridesConfigPathFromValues(t *testing.T) {
 	t.Parallel()
 

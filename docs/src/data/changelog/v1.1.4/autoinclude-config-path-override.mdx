@@ -5,10 +5,10 @@ category: "bug-fixes"
 
 #### Autoinclude can replace a dependency whose `config_path` uses `values.*`
 
-A unit dependency block that set `config_path = values.vpc_path` no longer fails with "Unsupported attribute" when a sibling autoinclude — including one generated from a stack `autoinclude` block — supplies a different `config_path` and the values file does not define `vpc_path`.
+A unit dependency block with `config_path = values.vpc_path` no longer fails with "Unsupported attribute" when a sibling autoinclude, including one generated from a stack `autoinclude` block, supplies a different `config_path` and the values file does not define `vpc_path`.
 
 ```hcl
-# unit source: units/tgw/terragrunt.hcl
+# unit source: units/app/terragrunt.hcl
 dependency "vpc" {
   config_path = values.vpc_path
 }
@@ -16,13 +16,18 @@ dependency "vpc" {
 
 ```hcl
 # stack: stacks/prod/terragrunt.stack.hcl
-unit "tgw" {
-  source = "../../units/tgw"
-  path   = "tgw"
+unit "vpc" {
+  source = "../../units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../../units/app"
+  path   = "app"
   values = { region = "us-east-1" }   # vpc_path intentionally absent
   autoinclude {
     dependency "vpc" {
-      config_path = stack.mgmt_infra.path
+      config_path = unit.vpc.path
     }
   }
 }

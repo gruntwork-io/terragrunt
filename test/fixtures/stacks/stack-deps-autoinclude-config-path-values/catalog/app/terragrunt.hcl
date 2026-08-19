@@ -2,9 +2,7 @@ terraform {
   source = "."
 }
 
-# The config_path references values.vpc_path, which the stack autoinclude will override.
-# Without the fix, this fails with "Unsupported attribute" because values.vpc_path is evaluated
-# before the autoinclude replacement is applied (issue 6692).
+# The config_path references values.vpc_path, which the stack autoinclude overrides.
 dependency "vpc" {
   config_path = values.vpc_path
 
