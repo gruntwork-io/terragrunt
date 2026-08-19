@@ -2,18 +2,16 @@ package tflint_test
 
 import (
 	"context"
-	"io"
 	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +28,22 @@ func TestInputsToTflintVar(t *testing.T) {
 		{
 			name:     "strings",
 			inputs:   map[string]any{"region": "eu-central-1", "instance_count": 3},
-			expected: []string{"--var=region=eu-central-1", "--var=instance_count=3"},
+			expected: []string{"--var=instance_count=3", "--var=region=eu-central-1"},
+		},
+		{
+			name: "keys are emitted in sorted order",
+			inputs: map[string]any{
+				"zeta":  1,
+				"alpha": 2,
+				"mu":    3,
+				"beta":  4,
+			},
+			expected: []string{
+				"--var=alpha=2",
+				"--var=beta=4",
+				"--var=mu=3",
+				"--var=zeta=1",
+			},
 		},
 		{
 			name:     "strings and arrays",
@@ -56,7 +69,7 @@ func TestInputsToTflintVar(t *testing.T) {
 
 			actual, err := tflint.InputsToTflintVar(tc.inputs)
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tc.expected, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -99,6 +112,27 @@ func TestTFArgumentsToVar(t *testing.T) {
 				},
 			}},
 			expected: []string{"--var='region=us-east-1'"},
+		},
+		{
+			name: "TF_VAR_ env vars are emitted in sorted order",
+			hook: runcfg.Hook{Commands: []string{"plan"}},
+			cfg: runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{
+				{
+					Commands: []string{"plan"},
+					EnvVars: map[string]string{
+						"TF_VAR_zeta":  "1",
+						"TF_VAR_alpha": "2",
+						"TF_VAR_mu":    "3",
+						"TF_VAR_beta":  "4",
+					},
+				},
+			}},
+			expected: []string{
+				"--var='alpha=2'",
+				"--var='beta=4'",
+				"--var='mu=3'",
+				"--var='zeta=1'",
+			},
 		},
 		{
 			name: "-var= and -var-file= arguments split correctly",
@@ -154,11 +188,11 @@ func TestTFArgumentsToVar(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			fs := vfs.NewMemMapFS()
-			require.NoError(t, vfs.WriteFile(fs, optionalPresent, []byte("x = 1"), 0o644))
+			fsys := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fsys, optionalPresent, []byte("x = 1"), 0o644))
 
 			l := logger.CreateLogger()
-			actual, err := tflint.TFArgumentsToVar(l, fs, &tc.hook, &tc.cfg)
+			actual, err := tflint.TFArgumentsToVar(l, fsys, &tc.hook, &tc.cfg)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -168,35 +202,103 @@ func TestTFArgumentsToVar(t *testing.T) {
 func TestConfigFilePath_ShortCircuitsOnConfigFlag(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
-	l := logger.CreateLogger()
+	const explicit = "/explicit/.tflint.hcl"
 
-	got, err := tflint.ConfigFilePath(l, fs, &tflint.TFLintOptions{
-		WorkingDir:        "/work/unit",
-		RootWorkingDir:    "/work",
-		MaxFoldersToCheck: 5,
-	}, []string{"tflint", "--config", "/explicit/.tflint.hcl"})
+	testCases := []struct {
+		name      string
+		arguments []string
+	}{
+		{
+			name:      "long flag, space separated",
+			arguments: []string{"tflint", "--config", explicit},
+		},
+		{
+			name:      "long flag, equals separated",
+			arguments: []string{"tflint", "--config=" + explicit},
+		},
+		{
+			name:      "short flag, space separated",
+			arguments: []string{"tflint", "-c", explicit},
+		},
+		{
+			name:      "short flag, equals separated",
+			arguments: []string{"tflint", "-c=" + explicit},
+		},
+		{
+			name:      "flag follows unrelated arguments",
+			arguments: []string{"tflint", "--minimum-failure-severity=error", "--config=" + explicit},
+		},
+		{
+			name:      "earliest of several config flags is used",
+			arguments: []string{"tflint", "--config=" + explicit, "--config=/other/.tflint.hcl"},
+		},
+	}
 
-	require.NoError(t, err)
-	assert.Equal(t, "/explicit/.tflint.hcl", got)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// An empty FS makes the parent walk impossible, so a successful
+			// return can only have come from the arguments.
+			fsys := vfs.NewMemMapFS()
+			l := logger.CreateLogger()
+
+			got, err := tflint.ConfigFilePath(l, fsys, &tflint.TFLintOptions{
+				WorkingDir:        "/work/unit",
+				RootWorkingDir:    "/work",
+				MaxFoldersToCheck: 5,
+			}, tc.arguments)
+
+			require.NoError(t, err)
+			assert.Equal(t, explicit, got)
+		})
+	}
 }
 
-func TestConfigFilePath_FallsBackToProjectWalk(t *testing.T) {
+func TestConfigFilePath_IgnoresNonConfigArguments(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/work/.tflint.hcl", []byte("config {}"), 0o644))
+	testCases := []struct {
+		name      string
+		arguments []string
+	}{
+		{
+			name:      "no config flag at all",
+			arguments: []string{"tflint"},
+		},
+		{
+			name:      "flag names sharing the config prefix",
+			arguments: []string{"tflint", "--config-file=/other/.tflint.hcl", "--chdir=/other"},
+		},
+		{
+			name:      "long flag with no value to consume",
+			arguments: []string{"tflint", "--config"},
+		},
+		{
+			name:      "short flag with no value to consume",
+			arguments: []string{"tflint", "-c"},
+		},
+	}
 
-	l := logger.CreateLogger()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	got, err := tflint.ConfigFilePath(l, fs, &tflint.TFLintOptions{
-		WorkingDir:        "/work/unit",
-		RootWorkingDir:    "/work",
-		MaxFoldersToCheck: 5,
-	}, []string{"tflint"})
+			fsys := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fsys, "/work/.tflint.hcl", []byte("config {}"), 0o644))
 
-	require.NoError(t, err)
-	assert.Equal(t, "/work/.tflint.hcl", got)
+			l := logger.CreateLogger()
+
+			got, err := tflint.ConfigFilePath(l, fsys, &tflint.TFLintOptions{
+				WorkingDir:        "/work/unit",
+				RootWorkingDir:    "/work",
+				MaxFoldersToCheck: 5,
+			}, tc.arguments)
+
+			require.NoError(t, err)
+			assert.Equal(t, "/work/.tflint.hcl", got)
+		})
+	}
 }
 
 func TestFindConfigInProject(t *testing.T) {
@@ -276,14 +378,14 @@ func TestFindConfigInProject(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			fs := vfs.NewMemMapFS()
+			fsys := vfs.NewMemMapFS()
 			for _, p := range tc.seedFiles {
-				require.NoError(t, vfs.WriteFile(fs, p, []byte("config {}"), 0o644))
+				require.NoError(t, vfs.WriteFile(fsys, p, []byte("config {}"), 0o644))
 			}
 
 			l := logger.CreateLogger()
 
-			got, err := tflint.FindConfigInProject(l, fs, &tc.opts)
+			got, err := tflint.FindConfigInProject(l, fsys, &tc.opts)
 			if tc.wantErrType != nil {
 				require.Error(t, err)
 
@@ -304,8 +406,8 @@ func TestFindConfigInProject(t *testing.T) {
 func TestRunTflintWithOpts_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
 
 	var calls []vexec.Invocation
 
@@ -315,17 +417,18 @@ func TestRunTflintWithOpts_HappyPath(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	runErr := runWithOpts(t, fs, exec, &runcfg.Hook{
+	runErr := runWithOpts(t, fsys, exec, &runcfg.Hook{
 		Name:     "tflint",
 		Commands: []string{"plan"},
 		Execute:  []string{"tflint"},
 	}, &runcfg.RunConfig{
-		Inputs: map[string]any{"region": "us-east-1"},
+		Inputs: map[string]any{"region": "us-east-1", "instance_count": 3},
 		Terraform: runcfg.TerraformConfig{
 			ExtraArgs: []runcfg.TerraformExtraArguments{
 				{
 					Commands:  []string{"plan"},
 					Arguments: []string{"-var=foo=bar"},
+					EnvVars:   map[string]string{"TF_VAR_zone": "a", "TF_VAR_ami": "b"},
 				},
 			},
 		},
@@ -345,19 +448,24 @@ func TestRunTflintWithOpts_HappyPath(t *testing.T) {
 		calls[0].Args,
 	)
 
-	// lint call: the fixed prefix is deterministic; --var/--var-file order is
-	// map-iteration dependent so check membership separately.
-	require.GreaterOrEqual(t, len(calls[1].Args), 5)
-	assert.Equal(t, []string{"--config", "./.tflint.hcl", "--chdir", "./unit"}, calls[1].Args[:4])
-	assert.Contains(t, calls[1].Args, "--var=region=us-east-1")
-	assert.Contains(t, calls[1].Args, "--var='foo=bar'")
+	assert.Equal(t, []string{
+		"--config", "./.tflint.hcl",
+		"--chdir", "./unit",
+		"--var=instance_count=3",
+		"--var=region=us-east-1",
+		"--var='ami=b'",
+		"--var='zone=a'",
+		"--var='foo=bar'",
+	}, calls[1].Args)
 }
 
-func TestRunTflintWithOpts_StripsExternalTflintFlag(t *testing.T) {
+func TestRunTflintWithOpts_HonorsConfigFlagInHook(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
+	fsys := vfs.NewMemMapFS()
+	// Deliberately not seeded anywhere the parent walk would reach, so the
+	// run can only succeed by reading the path out of the hook arguments.
+	require.NoError(t, vfs.WriteFile(fsys, "/elsewhere/custom.tflint.hcl", []byte("config {}"), 0o644))
 
 	var calls []vexec.Invocation
 
@@ -367,7 +475,35 @@ func TestRunTflintWithOpts_StripsExternalTflintFlag(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	require.NoError(t, runWithOpts(t, fs, exec, &runcfg.Hook{
+	require.NoError(t, runWithOpts(t, fsys, exec, &runcfg.Hook{
+		Name:     "tflint",
+		Commands: []string{"plan"},
+		Execute:  []string{"tflint", "--config=/elsewhere/custom.tflint.hcl"},
+	}, &runcfg.RunConfig{}))
+
+	require.Len(t, calls, 2)
+	assert.Equal(t, []string{
+		"--init",
+		"--config", "../../elsewhere/custom.tflint.hcl",
+		"--chdir", "./unit",
+	}, calls[0].Args)
+}
+
+func TestRunTflintWithOpts_StripsExternalTflintFlag(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
+
+	var calls []vexec.Invocation
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		calls = append(calls, cloneInvocation(&inv))
+
+		return vexec.Result{}
+	})
+
+	require.NoError(t, runWithOpts(t, fsys, exec, &runcfg.Hook{
 		Name:     "tflint",
 		Commands: []string{"plan"},
 		Execute: []string{
@@ -390,8 +526,8 @@ func TestRunTflintWithOpts_StripsExternalTflintFlag(t *testing.T) {
 func TestRunTflintWithOpts_InitFailureWraps(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
 
 	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if slices.Contains(inv.Args, "--init") {
@@ -401,7 +537,7 @@ func TestRunTflintWithOpts_InitFailureWraps(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	err := runWithOpts(t, fs, exec, &runcfg.Hook{
+	err := runWithOpts(t, fsys, exec, &runcfg.Hook{
 		Name:     "tflint",
 		Commands: []string{"plan"},
 		Execute:  []string{"tflint"},
@@ -418,8 +554,8 @@ func TestRunTflintWithOpts_InitFailureWraps(t *testing.T) {
 func TestRunTflintWithOpts_LintFailureWraps(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
 
 	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if slices.Contains(inv.Args, "--init") {
@@ -429,7 +565,7 @@ func TestRunTflintWithOpts_LintFailureWraps(t *testing.T) {
 		return vexec.Result{ExitCode: 2, Stderr: []byte("3 issue(s) found\n")}
 	})
 
-	err := runWithOpts(t, fs, exec, &runcfg.Hook{
+	err := runWithOpts(t, fsys, exec, &runcfg.Hook{
 		Name:     "tflint",
 		Commands: []string{"plan"},
 		Execute:  []string{"tflint"},
@@ -446,13 +582,13 @@ func TestRunTflintWithOpts_LintFailureWraps(t *testing.T) {
 func TestRunTflintWithOpts_MissingConfigSurfacesNotFound(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
+	fsys := vfs.NewMemMapFS()
 	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		t.Fatal("subprocess invoked despite missing config")
 		return vexec.Result{}
 	})
 
-	err := runWithOpts(t, fs, exec, &runcfg.Hook{
+	err := runWithOpts(t, fsys, exec, &runcfg.Hook{
 		Name:     "tflint",
 		Commands: []string{"plan"},
 		Execute:  []string{"tflint"},
@@ -469,7 +605,7 @@ func TestRunTflintWithOpts_MissingConfigSurfacesNotFound(t *testing.T) {
 // rebuild the same TFLintOptions and Venv.
 func runWithOpts(
 	t *testing.T,
-	fs vfs.FS,
+	fsys vfs.FS,
 	exec vexec.Exec,
 	hook *runcfg.Hook,
 	cfg *runcfg.RunConfig,
@@ -483,16 +619,11 @@ func runWithOpts(
 		MaxFoldersToCheck: 5,
 	}
 
-	v := venv.Venv{
-		Exec:    exec,
-		FS:      fs,
-		Env:     map[string]string{},
-		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
-	}
+	v := venvtest.New().WithExec(exec).WithFS(fsys)
 
 	l := logger.CreateLogger()
 
-	return tflint.RunTflintWithOpts(t.Context(), l, &v, opts, cfg, hook)
+	return tflint.RunTflintWithOpts(t.Context(), l, v, opts, cfg, hook)
 }
 
 func cloneInvocation(inv *vexec.Invocation) vexec.Invocation {

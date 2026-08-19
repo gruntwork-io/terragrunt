@@ -11,10 +11,10 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -95,7 +95,7 @@ func (p *GraphPhase) Run(
 	allComponents := make([]component.Component, 0, len(input.Components)+len(candidateComponents))
 	allComponents = append(allComponents, input.Components...)
 	allComponents = append(allComponents, candidateComponents...)
-	threadSafeComponents := component.NewThreadSafeComponents(allComponents)
+	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
 
 	graphTargetCandidates := make([]DiscoveryResult, 0, len(input.Candidates))
 	otherCandidates := make([]DiscoveryResult, 0, len(input.Candidates))
@@ -199,22 +199,34 @@ func (p *GraphPhase) processGraphTarget(
 		})
 	}
 
-	if graphExpr.IncludeDependencies {
+	if graphExpr.Dependencies.Include {
 		depth := p.maxDepth
-		if graphExpr.DependencyDepth > 0 {
-			depth = graphExpr.DependencyDepth
+		if graphExpr.Dependencies.Depth > 0 {
+			depth = graphExpr.Dependencies.Depth
 		}
 
-		err := p.discoverDependencies(ctx, l, v, state, c, depth)
+		// An inline "(dir)" operand overrides --discovery-boundary for this expression.
+		boundary := state.discovery.discoveryBoundary
+
+		if graphExpr.Dependencies.Boundary != "" {
+			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
+			if err != nil {
+				return err
+			}
+
+			boundary = resolved
+		}
+
+		err := p.discoverDependencies(ctx, l, v, state, c, depth, boundary)
 		if err != nil {
 			return err
 		}
 	}
 
-	if graphExpr.IncludeDependents {
+	if graphExpr.Dependents.Include {
 		depth := p.maxDepth
-		if graphExpr.DependentDepth > 0 {
-			depth = graphExpr.DependentDepth
+		if graphExpr.Dependents.Depth > 0 {
+			depth = graphExpr.Dependents.Depth
 		}
 
 		err := p.discoverDependents(ctx, l, v, state, c, depth)
@@ -222,17 +234,37 @@ func (p *GraphPhase) processGraphTarget(
 			return err
 		}
 
-		if state.discovery.gitRoot != "" {
-			startDir := state.discovery.workingDir
-			boundaryRoot := state.discovery.gitRoot
+		// The upstream dependent walk is capped by an explicit boundary when the
+		// expression carries one, otherwise by --discovery-boundary, otherwise by
+		// the detected git root.
+		startDir := state.discovery.workingDir
+		boundaryRoot := state.discovery.dependentWalkBoundary()
 
+		if graphExpr.Dependents.Boundary != "" {
+			resolved, rerr := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependents.Boundary)
+			if rerr != nil {
+				return rerr
+			}
+
+			if isExternal(v.FS, resolved, startDir) {
+				return NewDiscoveryBoundaryScopeError(resolved, startDir)
+			}
+
+			boundaryRoot = resolved
+		}
+
+		// Only fall back to the component's own working directory when the user
+		// named no boundary at all; an explicit one must not be silently widened.
+		if graphExpr.Dependents.Boundary == "" && state.discovery.discoveryBoundary == "" {
 			if dCtx := c.DiscoveryContext(); dCtx != nil &&
 				dCtx.WorkingDir != "" &&
 				dCtx.WorkingDir != state.discovery.workingDir {
 				startDir = dCtx.WorkingDir
 				boundaryRoot = dCtx.WorkingDir
 			}
+		}
 
+		if boundaryRoot != "" {
 			l.Debugf(
 				"Starting upstream dependent discovery from %s to boundary %s",
 				startDir,
@@ -262,6 +294,8 @@ func (p *GraphPhase) processGraphTarget(
 }
 
 // discoverDependencies recursively discovers dependencies of a component.
+// When boundary is non-empty, dependencies that resolve outside it are neither
+// read nor traversed, so the dependency closure stays within that directory.
 func (p *GraphPhase) discoverDependencies(
 	ctx context.Context,
 	l log.Logger,
@@ -269,6 +303,7 @@ func (p *GraphPhase) discoverDependencies(
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
+	boundary string,
 ) error {
 	if depthRemaining <= 0 {
 		return nil
@@ -291,7 +326,7 @@ func (p *GraphPhase) discoverDependencies(
 
 	cfg := unit.Config()
 
-	depPaths, err := extractDependencyPaths(cfg, c)
+	depPaths, err := extractDependencyPaths(v.FS, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -315,8 +350,13 @@ func (p *GraphPhase) discoverDependencies(
 
 	for _, depPath := range depPaths {
 		g.Go(func() error {
+			if boundary != "" && isExternal(v.FS, boundary, depPath) {
+				l.Debugf("Dependency %s is outside discovery boundary %s; skipping", depPath, boundary)
+				return nil
+			}
+
 			depComponent, err := p.resolveDependency(
-				c, depPath, state.threadSafeComponents,
+				v.FS, c, depPath, state.threadSafeComponents,
 			)
 			if err != nil {
 				errMu.Lock()
@@ -347,6 +387,7 @@ func (p *GraphPhase) discoverDependencies(
 					state,
 					depComponent,
 					depthRemaining-1,
+					boundary,
 				)
 				if err != nil {
 					errMu.Lock()
@@ -449,9 +490,9 @@ type upstreamDiscoveryState struct {
 }
 
 // discoverDependentsUpstream discovers dependents by walking up the filesystem
-// from the target component's directory to gitRoot (or filesystem root if gitRoot is empty).
-// At each directory level, it walks down to find terragrunt configs and checks if they
-// depend on the target component.
+// from the target component's directory to boundaryRoot (or filesystem root if
+// boundaryRoot is empty). At each directory level, it walks down to find
+// terragrunt configs and checks if they depend on the target component.
 func (p *GraphPhase) discoverDependentsUpstream(
 	ctx context.Context,
 	l log.Logger,
@@ -488,7 +529,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		return nil
 	}
 
-	resolvedTargetPath := util.ResolvePath(target.Path())
+	resolvedTargetPath := vfs.ResolveForCompare(v.FS, target.Path())
 
 	// When the target is from a worktree, we need to compare using relative suffixes
 	// because the absolute paths will differ (worktree vs original directory).
@@ -496,19 +537,16 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	targetRelSuffix := ""
 
 	if targetDCtx := target.DiscoveryContext(); targetDCtx != nil && targetDCtx.WorkingDir != "" {
-		resolvedWorkingDir := util.ResolvePath(targetDCtx.WorkingDir)
+		resolvedWorkingDir := vfs.ResolveForCompare(v.FS, targetDCtx.WorkingDir)
 		targetRelSuffix = strings.TrimPrefix(resolvedTargetPath, resolvedWorkingDir)
 	}
 
 	// Resolve discovery.workingDir for consistent path comparison.
-	resolvedDiscoveryWorkingDir := util.ResolvePath(state.discovery.workingDir)
+	resolvedDiscoveryWorkingDir := vfs.ResolveForCompare(v.FS, state.discovery.workingDir)
 
 	var candidates []component.Component
 
-	walkFn := filepath.WalkDir
-	if state.opts != nil && state.opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFn = util.WalkDirWithSymlinks
-	}
+	walkFn := walkDirFunc(v, state.opts)
 
 	err := walkFn(currentDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -702,7 +740,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	cfg := unit.Config()
 
-	deps, err := extractDependencyPaths(cfg, candidate)
+	deps, err := extractDependencyPaths(v.FS, cfg, candidate)
 	if err != nil {
 		state.errMu.Lock()
 
@@ -736,6 +774,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	}
 
 	canonicalCandidate, _ := state.graphTraversalState.threadSafeComponents.EnsureComponent(
+		v.FS,
 		candidate,
 	)
 
@@ -745,21 +784,23 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	for _, dep := range deps {
 		depComponent := componentFromDependencyPath(
+			v.FS,
 			dep,
 			state.graphTraversalState.threadSafeComponents,
 		)
 
 		if parentCtx != nil {
-			assignGraphDiscoveryContext(depComponent, parentCtx, dep)
+			assignGraphDiscoveryContext(v.FS, depComponent, parentCtx, dep)
 		}
 
 		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(
+			v.FS,
 			depComponent,
 		)
 
 		// Compare paths: first try exact match, then try relative suffix match
 		// for worktree scenarios where target is in a different directory.
-		resolvedDep := util.ResolvePath(dep)
+		resolvedDep := vfs.ResolveForCompare(v.FS, dep)
 
 		switch {
 		case resolvedDep == state.resolvedTargetPath:
@@ -795,6 +836,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 // resolveDependency resolves a dependency path to a component.
 func (p *GraphPhase) resolveDependency(
+	fsys vfs.FS,
 	parent component.Component,
 	depPath string,
 	threadSafeComponents *component.ThreadSafeComponents,
@@ -808,11 +850,11 @@ func (p *GraphPhase) resolveDependency(
 		return nil, NewMissingWorkingDirectoryError(parent.Path())
 	}
 
-	depComponent := componentFromDependencyPath(depPath, threadSafeComponents)
+	depComponent := componentFromDependencyPath(fsys, depPath, threadSafeComponents)
 
-	assignGraphDiscoveryContext(depComponent, parentCtx, depPath)
+	assignGraphDiscoveryContext(fsys, depComponent, parentCtx, depPath)
 
-	addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
+	addedComponent, _ := threadSafeComponents.EnsureComponent(fsys, depComponent)
 
 	parent.AddDependency(addedComponent)
 
@@ -830,6 +872,7 @@ func (p *GraphPhase) resolveDependency(
 // It is a no-op once the component already has a working directory, which keeps
 // the assignment to the first goroutine to reach the component along any path.
 func assignGraphDiscoveryContext(
+	fsys vfs.FS,
 	dep component.Component,
 	parentCtx *component.DiscoveryContext,
 	depPath string,
@@ -847,7 +890,7 @@ func assignGraphDiscoveryContext(
 
 	dep.SetDiscoveryContext(copiedCtx)
 
-	if isExternal(parentCtx.WorkingDir, depPath) {
+	if isExternal(fsys, parentCtx.WorkingDir, depPath) {
 		if ext, ok := dep.(*component.Unit); ok {
 			ext.SetExternal()
 		}

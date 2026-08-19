@@ -1,0 +1,25 @@
+---
+version: "v1.1.3"
+category: "experiments-added"
+---
+
+#### `mutable-generate` — Deduplicated `generate` block output
+
+The `mutable-generate` experiment has been added. With it enabled, the contents a `generate` block produces are stored in the [Content Addressable Store (CAS)](/features/caching/cas), and the file written at `path` is a read-only link to that stored copy rather than a file of its own.
+
+Since the stored copy is addressed by the hash of its contents, anything generating identical contents links to the same copy. A `generate` block inherited by several hundred units therefore costs one copy in `.terragrunt-cache` rather than several hundred.
+
+The link is read-only because that copy is shared. Where a generated file does need to be edited in place, a new `mutable` attribute on the `generate` block gives it a writable file of its own:
+
+```hcl
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite"
+  mutable   = true
+  contents  = "..."
+}
+```
+
+Setting `mutable` without the experiment enabled is an error, since earlier Terragrunt versions reject the attribute. The CAS is required, so `--no-cas` writes generated files directly and `mutable` has no effect.
+
+For details, see the [experiment documentation](/reference/experiments/active#mutable-generate).

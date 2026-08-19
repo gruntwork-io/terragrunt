@@ -148,7 +148,9 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 		}
 
 		if repo.walkWithSymlinks {
-			walkFunc = util.WalkDirWithSymlinks
+			walkFunc = func(root string, fn fs.WalkDirFunc) error {
+				return vfs.WalkDirWithSymlinks(fsys, root, fn)
+			}
 		}
 
 		err = walkFunc(modulesPath,
@@ -497,7 +499,7 @@ func (repo *Repo) performClone(
 			return err
 		}
 
-		casStore, err := cas.New(cas.WithCloneDepth(cloneDepth))
+		casStore, err := cas.New(v, cas.WithCloneDepth(cloneDepth))
 		if err != nil {
 			return err
 		}
@@ -513,11 +515,11 @@ func (repo *Repo) performClone(
 
 		clientOpts = append(
 			clientOpts,
-			getter.WithCAS(casStore, v, &cloneOpts),
+			getter.WithCAS(casStore, &cloneOpts),
 		)
 	}
 
-	client := getter.NewClient(clientOpts...)
+	client := getter.NewClient(v, clientOpts...)
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {
@@ -548,7 +550,7 @@ func (repo *Repo) performClone(
 	}
 
 	if repo.slowReporting {
-		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(v), time.Second, util.SlowNotifyMsg{
 			Spinner: "Cloning repository " + repo.cloneURL + "...",
 			Done:    "Cloned repository " + repo.cloneURL,
 		}, cloneFunc)

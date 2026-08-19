@@ -12,12 +12,15 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/md"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -44,11 +47,6 @@ func EmitExitMessage(finalModel tea.Model, errWriter io.Writer, l log.Logger) {
 type sessionState int
 
 type button int
-
-const (
-	titleForegroundColor = "#A8ACB1"
-	titleBackgroundColor = "#1D252F"
-)
 
 const (
 	ListState sessionState = iota
@@ -97,20 +95,27 @@ type Model struct {
 	// errCh carries the loader's final result, drained after componentCh
 	// closes so completion is observed only after every component.
 	errCh chan error
-	// mdRenderer is the cached glamour renderer for README markdown. It is
-	// reused while mdRendererWidth and mdRendererDark still match the
-	// current width and background, and rebuilt otherwise.
-	mdRenderer *glamour.TermRenderer
+	// warnCh carries warnings captured from the background loaders. The
+	// welcome model arms the session's single listener and hands the channel
+	// over at the model swap; the Warning handler re-arms it here.
+	warnCh <-chan viewtui.Warning
+	// toasts is the stack of floating warning notifications composited over
+	// the view, carried over from the welcome model at the swap.
+	toasts viewtui.ToastStack
+	// mdRenderer is the cached renderer for README markdown. It is reused
+	// while mdRendererWidth and mdRendererDark still match the current
+	// width and background, and rebuilt otherwise.
+	mdRenderer *md.TerminalRenderer
 	// form is the variable-entry form, nil until a formReadyMsg arrives
 	// from scaffold-variable discovery.
-	form *FormModel
+	form *form.Model
 	// scaffoldPlan is the prepared plan backing the active form. Its
 	// temporary source download is cleaned up when the form is abandoned
 	// or the scaffold is consumed.
 	scaffoldPlan *scaffold.Plan
 	// valuesRefs holds the `values.*` references collected from a copyable
 	// unit/stack, used to build that component's values form.
-	valuesRefs *ValuesReferences
+	valuesRefs *component.ValuesReferences
 	// terminalErr is the failure that ended the session (a scaffold, copy,
 	// or form-discovery error). Run returns it so the catalog command exits
 	// nonzero; a deliberate quit leaves it nil.
@@ -173,7 +178,8 @@ type Model struct {
 	// mdRendererDark is the background brightness the cached mdRenderer was
 	// built for; a change invalidates it.
 	mdRendererDark bool
-	// softWrap toggles glamour's word-wrap in the pager view. Default true
+	// softWrap toggles the Markdown renderer's word-wrap in the pager view.
+	// Default true
 	// matches the prior behavior; the `w` key flips it so users reading a
 	// README with intentionally long lines (ascii diagrams, wide tables)
 	// can see them as-authored.
@@ -229,7 +235,7 @@ func (m Model) Err() error {
 	return m.terminalErr
 }
 
-// SoftWrap reports whether the pager's glamour renderer wraps long
+// SoftWrap reports whether the pager's Markdown renderer wraps long
 // lines at terminal width. Exposed for tests that drive the `w` key
 // and verify the toggle.
 func (m Model) SoftWrap() bool {
@@ -420,8 +426,8 @@ func newModelWithItems(
 	delegate := newCatalogDelegate(delegateKeys)
 
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(titleForegroundColor)).
-		Background(lipgloss.Color(titleBackgroundColor)).
+		Foreground(lipgloss.Color(viewtui.TitleForeground)).
+		Background(lipgloss.Color(viewtui.TitleBackground)).
 		Padding(0, 1)
 
 	var lists [numTabs]list.Model
@@ -465,7 +471,7 @@ func newModelWithItems(
 		// Matches lipgloss.HasDarkBackground's fallback. Corrected on the
 		// first tea.BackgroundColorMsg.
 		hasDarkBG: true,
-		// Soft-wrap on by default keeps glamour wrapping at terminal width
+		// Soft-wrap on by default keeps rendering wrapped at terminal width
 		// like before; `w` flips it.
 		softWrap: true,
 	}

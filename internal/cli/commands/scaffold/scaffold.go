@@ -14,10 +14,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -34,7 +36,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/go-cleanhttp"
 )
 
 const (
@@ -149,8 +150,6 @@ func NewBoilerplateOptions(
 // HCL fragments via the values argument, and Cleanup removes the temporary
 // directories Prepare allocated. Callers must invoke Cleanup exactly once,
 // typically via defer.
-//
-//nolint:govet // field order chosen for readability over alignment
 type Plan struct {
 	logger            log.Logger
 	Required          []*config.ParsedVariable
@@ -161,6 +160,20 @@ type Plan struct {
 	originalModuleURL string
 	resolvedModuleURL string
 	outputDir         string
+	sourceDir         string
+	values            component.ValuesReferences
+	kind              component.Kind
+}
+
+// FormFields returns what a user is asked to fill in before this plan is
+// generated: the variables of a module or template, or the `values.*`
+// references a unit or stack makes. Empty when the source asks for nothing.
+func (p *Plan) FormFields() []form.Field {
+	if p.kind.IsCopyable() {
+		return form.FieldsFromValuesReferences(p.values)
+	}
+
+	return form.FieldsFromParsedVariables(p.Required, p.Optional)
 }
 
 // Cleanup removes the temporary directories allocated during Prepare.
@@ -197,7 +210,7 @@ func Prepare(
 	}
 
 	// scaffold only in empty directories
-	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
+	if empty, err := vfs.IsDirectoryEmpty(v.FS, opts.WorkingDir); !empty || err != nil {
 		if err != nil {
 			return nil, err
 		}
@@ -245,7 +258,7 @@ func Prepare(
 	plan.originalModuleURL = moduleURL
 
 	// parse module url (transforms for go-getter download)
-	resolvedURL, err := parseModuleURL(ctx, l, v, opts, vars, moduleURL)
+	resolvedURL, err := ParseModuleURL(ctx, l, v, opts, vars, moduleURL)
 	if err != nil {
 		return nil, err
 	}
@@ -258,10 +271,10 @@ func Prepare(
 		Collect(ctx, l, "scaffold_get_module", map[string]any{
 			"module_url": resolvedURL,
 		}, func(ctx context.Context, l log.Logger) error {
-			getterOpts := getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			registryOpt := getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
 				WithTofuImplementation(opts.TofuImplementation))
 
-			if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL, getterOpts); getErr != nil {
+			if _, getErr := getter.GetAny(ctx, v, tempDir, resolvedURL, registryOpt); getErr != nil {
 				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 			}
 
@@ -270,8 +283,34 @@ func Prepare(
 		return nil, err
 	}
 
+	markers, err := component.Inspect(v.FS, tempDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// A unit or a stack is already a Terragrunt configuration, so there is
+	// nothing to generate from it: rendering the module template would point
+	// terraform.source at a directory holding no .tf files at all. Its own
+	// files are what the user wants, which is what the catalog user interface
+	// gives them, so Generate copies them instead.
+	if kind, ok := markers.CopyKind(); ok {
+		warnUnusedScaffoldInputs(l, opts, templateURL, kind)
+
+		values, err := component.Values(v.FS, kind, tempDir)
+		if err != nil {
+			return nil, err
+		}
+
+		plan.kind = kind
+		plan.sourceDir = tempDir
+		plan.values = values
+		success = true
+
+		return plan, nil
+	}
+
 	// extract variables from downloaded module
-	requiredVariables, optionalVariables, err := parseVariables(l, v.FS, opts, tempDir)
+	requiredVariables, optionalVariables, err := parseVariables(l, v, opts, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -311,6 +350,13 @@ func (p *Plan) Generate(
 	opts *options.TerragruntOptions,
 	values map[string]string,
 ) error {
+	// The zero kind is a module, so a plan whose source was never classified
+	// as copyable renders, which is every plan Prepare built before units and
+	// stacks could be scaffolded by copying.
+	if p.kind.IsCopyable() {
+		return p.copyComponent(l, v, values)
+	}
+
 	applyUserValues(p.Required, values)
 	applyUserValues(p.Optional, values)
 
@@ -318,7 +364,7 @@ func (p *Plan) Generate(
 	p.vars["requiredVariables"] = p.Required
 	p.vars["optionalVariables"] = p.Optional
 
-	// Build sourceUrl from the original URL with the ref that parseModuleURL resolved.
+	// Build sourceUrl from the original URL with the ref that ParseModuleURL resolved.
 	p.vars["sourceUrl"] = BuildSourceURL(p.originalModuleURL, p.resolvedModuleURL, p.vars)
 
 	// Only set these if the `vars` map doesn't already have them set
@@ -369,6 +415,62 @@ func (p *Plan) Generate(
 	l.Debug("Scaffolding completed")
 
 	return nil
+}
+
+// copyComponent scaffolds a unit or stack into the output directory, alongside
+// a terragrunt.values.hcl for the `values.*` references its configuration
+// makes. It is the same work the catalog user interface does, so a component
+// lands identically whichever one the user reaches for.
+func (p *Plan) copyComponent(l log.Logger, v *venv.Venv, values map[string]string) error {
+	paths := component.Paths{Root: p.sourceDir, Src: p.sourceDir, Dst: p.outputDir}
+
+	result, err := component.Scaffold(v.FS, p.kind, paths, values)
+	if err != nil {
+		return err
+	}
+
+	l.Infof("Scaffolded %s into %s", p.kind, p.outputDir)
+
+	valuesPath := filepath.Join(p.outputDir, component.ValuesFileName)
+
+	if result.ValuesWritten {
+		l.Infof("Generated %s; fill in each TODO before running Terragrunt", valuesPath)
+	}
+
+	if result.ValuesSkipped {
+		l.Warnf(
+			"%s already exists and was left untouched; check that it sets %s",
+			valuesPath,
+			strings.Join(result.References.AllNames(), ", "),
+		)
+	}
+
+	return nil
+}
+
+// warnUnusedScaffoldInputs reports the inputs that only apply when generating
+// a configuration, so a user who passed them does not go looking for their
+// effect in a component that was copied verbatim.
+func warnUnusedScaffoldInputs(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	templateURL string,
+	kind component.Kind,
+) {
+	if templateURL != "" {
+		l.Warnf("A %s is copied as it is written, so the template argument is ignored.", kind)
+	}
+
+	if len(opts.ScaffoldVars) > 0 || len(opts.ScaffoldVarFiles) > 0 {
+		l.Warnf(
+			"A %s is copied as it is written, so --%s and --%s are ignored."+
+				" Set its values in %s instead.",
+			kind,
+			VarFlagName,
+			VarFileFlagName,
+			component.ValuesFileName,
+		)
+	}
 }
 
 // setVarDefault writes value to vars[key] when the key is absent; if
@@ -507,8 +609,7 @@ func applyCatalogConfigToScaffold(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
@@ -607,10 +708,10 @@ func downloadTemplate(
 		Collect(ctx, l, "scaffold_get_template", map[string]any{
 			"template_url": baseURL.String(),
 		}, func(ctx context.Context, l log.Logger) error {
-			getterOpts := getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			registryOpt := getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
 				WithTofuImplementation(opts.TofuImplementation))
 
-			if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String(), getterOpts); getErr != nil {
+			if _, getErr := getter.GetAny(ctx, v, templateDir, baseURL.String(), registryOpt); getErr != nil {
 				return fmt.Errorf(
 					"downloading scaffold template from %s: %w",
 					baseURL.String(),
@@ -663,9 +764,8 @@ func prepareBoilerplateFiles(
 	}
 
 	// if boilerplate dir is not found, create one with default template
-	if !util.IsDir(boilerplateDir) {
-		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-		pctx = pctx.WithVenv(v)
+	if !vfs.IsDir(v.FS, boilerplateDir) {
+		_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {
@@ -709,11 +809,11 @@ func prepareBoilerplateFiles(
 // parseVariables - parse variables from tf files.
 func parseVariables(
 	l log.Logger,
-	fsys vfs.FS,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, fsys, opts.StrictControls, moduleDir)
+	inputs, err := config.ParseVariables(l, v, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -735,8 +835,12 @@ func parseVariables(
 	return requiredVariables, optionalVariables, nil
 }
 
-// parseModuleURL - parse module url and rewrite it if required
-func parseModuleURL(
+// ParseModuleURL resolves moduleURL into the URL scaffold downloads from,
+// rewriting it to git-ssh when vars asks for it and pinning it to a version
+// when the source carries none.
+//
+// Exported so tests can assert the resolution directly.
+func ParseModuleURL(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -783,27 +887,11 @@ func rewriteModuleURL(
 		sourceURLType = fmt.Sprintf("%s", value)
 	}
 
-	// The scheme/host/path regex below only matters for the git-ssh rewrite.
-	// For every other source URL type, moduleURL is already a successfully
-	// parsed URL (from tf.ToSourceURL upstream), so skip the regex parse
-	// entirely rather than logging a misleading "Failed to parse url" for
-	// schemes it was never meant to handle (tfr://, s3://, plain https://, ...).
+	// Only the git ssh rewrite needs the scheme/host/path regex. Running it
+	// on every source warns "Failed to parse url" for schemes it was never
+	// meant to match, such as tfr:// and s3://.
 	if sourceURLType == sourceURLTypeGit {
-		parsedValue, err := parseURL(l, moduleURL)
-		if err != nil {
-			l.Warnf("Failed to parse module url %s", moduleURL)
-		} else if parsedValue.scheme == "https" {
-			// try to rewrite module url if is https and is requested to be git
-			// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
-			// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
-			gitUser := sourceGitSSHUser
-			if value, found := vars[sourceGitSSHUserVar]; found {
-				gitUser = fmt.Sprintf("%s", value)
-			}
-
-			path := strings.TrimPrefix(parsedValue.path, "/")
-			updatedModuleURL = fmt.Sprintf("%s@%s:%s", gitUser, parsedValue.host, path)
-		}
+		updatedModuleURL = gitSSHModuleURL(l, vars, moduleURL)
 	}
 
 	// persist changes in url.URL
@@ -813,6 +901,28 @@ func rewriteModuleURL(
 	}
 
 	return parsedModuleURL, nil
+}
+
+// gitSSHModuleURL rewrites an https module url to its git ssh equivalent:
+// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+// A url the rewrite does not recognize is returned unchanged.
+func gitSSHModuleURL(l log.Logger, vars map[string]any, moduleURL string) string {
+	parsedValue, err := parseURL(l, moduleURL)
+	if err != nil {
+		return moduleURL
+	}
+
+	if parsedValue.scheme != "https" {
+		return moduleURL
+	}
+
+	gitUser := sourceGitSSHUser
+	if value, found := vars[sourceGitSSHUserVar]; found {
+		gitUser = fmt.Sprintf("%s", value)
+	}
+
+	return fmt.Sprintf("%s@%s:%s", gitUser, parsedValue.host, strings.TrimPrefix(parsedValue.path, "/"))
 }
 
 // rewriteTemplateURL rewrites template url with reference to tag
@@ -837,9 +947,14 @@ func rewriteTemplateURL(
 			return nil, err
 		}
 
-		if !isGitShapedScheme(rootSourceURL.Scheme) {
+		if rootSourceURL.Scheme == "" || rootSourceURL.Scheme == "file" {
+			l.Debugf("Skipping git tag lookup for local template path: %s", rootSourceURL)
+			return updatedTemplateURL, nil
+		}
+
+		if !IsGitShapedScheme(rootSourceURL.Scheme) {
 			l.Debugf("Skipping git tag lookup for non-git template URL: %s", rootSourceURL)
-			return pinLatestRegistryVersion(ctx, l, opts, updatedTemplateURL, rootSourceURL), nil
+			return pinLatestRegistryVersion(ctx, l, v, opts, updatedTemplateURL, rootSourceURL), nil
 		}
 
 		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
@@ -886,12 +1001,12 @@ func addRefToModuleURL(
 			return nil, err
 		}
 
-		// Non-git schemes (registry, cloud storage, HTTP, OCI, local paths) have no
-		// git tags to look up, and shelling out to `git ls-remote` against them
-		// fails with a confusing "not a git command" error.
-		if !isGitShapedScheme(rootSourceURL.Scheme) {
+		// Registry, cloud storage, HTTP, and OCI sources have no git tags to
+		// look up. Shelling out to `git ls-remote` against them fails with a
+		// confusing "not a git command" error.
+		if !IsGitShapedScheme(rootSourceURL.Scheme) {
 			l.Debugf("Skipping git tag lookup for non-git source URL: %s", rootSourceURL)
-			return pinLatestRegistryVersion(ctx, l, opts, moduleURL, rootSourceURL), nil
+			return pinLatestRegistryVersion(ctx, l, v, opts, moduleURL, rootSourceURL), nil
 		}
 
 		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
@@ -906,18 +1021,17 @@ func addRefToModuleURL(
 	return moduleURL, nil
 }
 
-// isGitShapedScheme reports whether scheme belongs to a source that git
-// understands, so a `git ls-remote` tag lookup makes sense. Forced-getter
-// URLs (git::..., s3::..., gcs::...) carry the getter name as a "::"
-// separated scheme segment; a bare scheme (tfr, oci, http, https, ...) with
-// no "git"/"ssh" segment means the URL was never detected as a git remote,
-// and shelling out to git for it just fails with a confusing error.
-func isGitShapedScheme(scheme string) bool {
+// IsGitShapedScheme reports whether git can resolve a source carrying this
+// scheme, so a `git ls-remote` tag lookup is worth attempting. A local path,
+// which arrives with an empty or file scheme, counts, since it may be a
+// clone. A forced getter carries its name as a "::" separated segment, so
+// git::https is git shaped and s3::https is not.
+func IsGitShapedScheme(scheme string) bool {
 	if scheme == "" || scheme == "file" {
 		return true
 	}
 
-	for _, part := range strings.Split(scheme, "::") {
+	for part := range strings.SplitSeq(scheme, "::") {
 		if part == "git" || part == "ssh" {
 			return true
 		}
@@ -926,20 +1040,20 @@ func isGitShapedScheme(scheme string) bool {
 	return false
 }
 
-// pinLatestRegistryVersion pins a tfr:// registry source with no ?version=
-// query param to the latest stable version published on the registry,
-// mirroring the git-ref pinning shell.GitLastReleaseTag does for git
-// sources. Any other scheme, or a source that already has a version
-// pinned, is returned unchanged. Resolution failures are non-fatal,
-// matching the "leave ref unset on failure" behavior for git: warn and
-// return the source unpinned rather than failing the whole scaffold.
+// pinLatestRegistryVersion pins a tfr:// registry source carrying no
+// ?version= to the latest stable version the registry publishes, mirroring
+// what [shell.GitLastReleaseTag] pins a git source to. Any other scheme, or a
+// source already pinned, is returned unchanged. A registry that cannot be
+// reached leaves the source unpinned with a warning, matching what a failed
+// tag lookup does for git rather than failing the whole scaffold.
 func pinLatestRegistryVersion(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	sourceURL, rootSourceURL *url.URL,
 ) *url.URL {
-	if rootSourceURL.Scheme != "tfr" {
+	if rootSourceURL.Scheme != getter.SchemeTFR {
 		return sourceURL
 	}
 
@@ -948,21 +1062,23 @@ func pinLatestRegistryVersion(
 		return sourceURL
 	}
 
+	v.RequireHTTP()
+
 	registryDomain := rootSourceURL.Host
 	if registryDomain == "" {
 		registryDomain = tfimpl.DefaultRegistryDomain(opts.TofuImplementation)
 	}
 
 	modulePath, _ := getter.SourceDirSubdir(rootSourceURL.Path)
-	httpClient := cleanhttp.DefaultClient()
+	auth := getter.RegistryAuth{Env: v.Env, ReadUserConfig: vfs.IsOSFS(v.FS)}
 
-	basePath, err := getter.GetModuleRegistryURLBasePath(ctx, l, httpClient, registryDomain)
+	basePath, err := getter.GetModuleRegistryURLBasePath(ctx, l, v.HTTP, auth, registryDomain)
 	if err != nil {
 		l.Warnf("Failed to resolve latest version for registry module %s: %v", rootSourceURL, err)
 		return sourceURL
 	}
 
-	latest, err := getter.GetLatestModuleVersion(ctx, l, httpClient, registryDomain, basePath, modulePath)
+	latest, err := getter.GetLatestModuleVersion(ctx, l, v.HTTP, auth, registryDomain, basePath, modulePath)
 	if err != nil {
 		l.Warnf("Failed to resolve latest version for registry module %s: %v", rootSourceURL, err)
 		return sourceURL

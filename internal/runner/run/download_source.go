@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"path/filepath"
 	"slices"
@@ -26,10 +27,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// ErrNonOSFilesystem is returned by DownloadTerraformSource when Options.FS
-// is not OS-backed. See the doc comment on Options.FS for why this is
-// required.
-var ErrNonOSFilesystem = errors.New("download requires an OS-backed filesystem; see run.Options.FS")
+// ErrNonOSFilesystem is returned when a source can only be fetched by a getter
+// that bypasses the venv filesystem. See [requireOSFilesystemForSource].
+var ErrNonOSFilesystem = errors.New("download requires an OS-backed filesystem")
+
+// ErrNilSource is the panic value [requireOSFilesystemForSource] raises when
+// handed a nil source. Sources are built by [tf.NewSource], whose error every
+// caller checks first, so a nil arriving here is a programming mistake rather
+// than a condition to recover from.
+var ErrNilSource = errors.New("terraform source is required but nil")
 
 // ModuleManifestName is the manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
 const (
@@ -60,15 +66,11 @@ func DownloadTerraformSource(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) (*Options, error) {
-	if !vfs.IsOSFS(opts.FS) {
-		return nil, ErrNonOSFilesystem
-	}
-
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.StrictControls)
 
-	source, err := resolveTerraformModuleVersion(ctx, l, source, opts, cfg)
+	source, err := resolveTerraformModuleVersion(ctx, l, v, source, opts, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +83,10 @@ func DownloadTerraformSource(
 		walkWithSymlinks,
 	)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := requireOSFilesystemForSource(v.FS, terraformSource); err != nil {
 		return nil, err
 	}
 
@@ -131,6 +137,7 @@ func DownloadTerraformSource(
 			}, func(_ context.Context, l log.Logger) error {
 				return util.CopyFolderContents(
 					l,
+					v.FS,
 					opts.UnitDir,
 					terraformSource.WorkingDir,
 					ModuleManifestName,
@@ -157,6 +164,40 @@ func DownloadTerraformSource(
 	updatedOpts.CacheDir = terraformSource.WorkingDir
 
 	return updatedOpts, nil
+}
+
+// requireOSFilesystemForSource rejects sources whose getter cannot honor a
+// virtual filesystem. The file, tfr, and oci getters read and write through
+// the filesystem they are handed; every other protocol either shells out
+// (git, hg, smb) or writes through os, so on a virtual filesystem it would
+// silently touch the real disk.
+//
+// A cas:: source belongs with the rejected ones rather than alongside tfr and
+// oci: the store it reads and writes is a real git repository on disk, which
+// is why [github.com/gruntwork-io/terragrunt/internal/cas] refuses a non-OS
+// filesystem itself.
+//
+// It panics with [ErrNilSource] on a nil source, so the contract fails where
+// it is broken rather than at whichever field is read first.
+func requireOSFilesystemForSource(fsys vfs.FS, src *tf.Source) error {
+	if src == nil {
+		panic(ErrNilSource)
+	}
+
+	if vfs.IsOSFS(fsys) {
+		return nil
+	}
+
+	if tf.IsLocalSource(src.CanonicalSourceURL) {
+		return nil
+	}
+
+	switch src.CanonicalSourceURL.Scheme {
+	case getter.SchemeTFR, getter.SchemeOCI:
+		return nil
+	}
+
+	return ErrNonOSFilesystem
 }
 
 // moduleCopyOptions returns the copy options for the module copy into the
@@ -186,6 +227,7 @@ func moduleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
 func resolveTerraformModuleVersion(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -218,7 +260,7 @@ func resolveTerraformModuleVersion(
 		return source, nil
 	}
 
-	pinned, err := ModuleVersionResolverFromContext(ctx).Pin(
+	pinned, err := ModuleVersionResolverFromContext(ctx, v).Pin(
 		ctx,
 		l,
 		opts.TofuImplementation,
@@ -250,8 +292,8 @@ func (e SourceVersionConstraintErr) Error() string {
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been
 // downloaded. It returns true if a download was performed, or false if the existing cache was up to date.
 //
-// opts.FS must be the OS-backed filesystem from [vfs.NewOSFS]; see [Options.FS]
-// for why. Returns [ErrNonOSFilesystem] otherwise.
+// Returns [ErrNonOSFilesystem] when the source needs a getter that cannot
+// honor v.FS; see [requireOSFilesystemForSource].
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
@@ -261,8 +303,8 @@ func DownloadTerraformSourceIfNecessary(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) (bool, error) {
-	if !vfs.IsOSFS(opts.FS) {
-		return false, ErrNonOSFilesystem
+	if err := requireOSFilesystemForSource(v.FS, terraformSource); err != nil {
+		return false, err
 	}
 
 	copyOpts := moduleCopyOptions(opts, cfg)
@@ -273,17 +315,17 @@ func DownloadTerraformSourceIfNecessary(
 			terraformSource.DownloadDir,
 		)
 
-		if err := opts.FS.RemoveAll(terraformSource.DownloadDir); err != nil {
+		if err := v.FS.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return false, err
 		}
 	} else {
-		alreadyLatest, err := AlreadyHaveLatestCode(l, terraformSource, opts, copyOpts...)
+		alreadyLatest, err := AlreadyHaveLatestCode(l, v, terraformSource, opts, copyOpts...)
 		if err != nil {
 			return false, err
 		}
 
 		if alreadyLatest {
-			if err := ValidateWorkingDir(terraformSource); err != nil {
+			if err := ValidateWorkingDir(v.FS, terraformSource); err != nil {
 				return false, err
 			}
 
@@ -304,13 +346,13 @@ func DownloadTerraformSourceIfNecessary(
 	var previousVersion = ""
 	// read previous source version
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	versionFileExists, err := vfs.FileExists(opts.FS, terraformSource.VersionFile)
+	versionFileExists, err := vfs.FileExists(v.FS, terraformSource.VersionFile)
 	if err != nil {
 		return false, err
 	}
 
 	if versionFileExists {
-		previousVersion, err = readVersionFile(terraformSource)
+		previousVersion, err = readVersionFile(v.FS, terraformSource)
 		if err != nil {
 			return false, err
 		}
@@ -344,7 +386,7 @@ func DownloadTerraformSourceIfNecessary(
 				return util.NotifyIfSlow(
 					childCtx,
 					l,
-					util.SpinnerWriter(),
+					util.SpinnerWriter(v),
 					time.Second,
 					util.SlowNotifyMsg{
 						Spinner: "Downloading source from " + sourceURL + "...",
@@ -366,15 +408,15 @@ func DownloadTerraformSourceIfNecessary(
 		}
 	}
 
-	if err := terraformSource.WriteVersionFile(l, copyOpts...); err != nil {
+	if err := terraformSource.WriteVersionFile(l, v.FS, copyOpts...); err != nil {
 		return false, err
 	}
 
-	if err := ValidateWorkingDir(terraformSource); err != nil {
+	if err := ValidateWorkingDir(v.FS, terraformSource); err != nil {
 		return false, err
 	}
 
-	currentVersion, err := terraformSource.EncodeSourceVersion(l, copyOpts...)
+	currentVersion, err := terraformSource.EncodeSourceVersion(l, v.FS, copyOpts...)
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
@@ -386,7 +428,7 @@ func DownloadTerraformSourceIfNecessary(
 
 		initFile := filepath.Join(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
-		f, createErr := opts.FS.Create(initFile)
+		f, createErr := v.FS.Create(initFile)
 		if createErr != nil {
 			return false, createErr
 		}
@@ -405,12 +447,13 @@ func DownloadTerraformSourceIfNecessary(
 // copyOpts would deliver. See the ProcessTerraformSource method for more info.
 func AlreadyHaveLatestCode(
 	l log.Logger,
+	v *venv.Venv,
 	terraformSource *tf.Source,
 	opts *Options,
 	copyOpts ...util.CopyOption,
 ) (bool, error) {
 	for _, path := range []string{terraformSource.DownloadDir, terraformSource.WorkingDir, terraformSource.VersionFile} {
-		exists, err := vfs.FileExists(opts.FS, path)
+		exists, err := vfs.FileExists(v.FS, path)
 		if err != nil {
 			return false, err
 		}
@@ -420,7 +463,7 @@ func AlreadyHaveLatestCode(
 		}
 	}
 
-	hasFiles, err := util.DirContainsTFFiles(terraformSource.WorkingDir)
+	hasFiles, err := util.DirContainsTFFiles(v.FS, terraformSource.WorkingDir)
 	if err != nil {
 		return false, err
 	}
@@ -434,7 +477,7 @@ func AlreadyHaveLatestCode(
 		return false, nil
 	}
 
-	currentVersion, err := terraformSource.EncodeSourceVersion(l, copyOpts...)
+	currentVersion, err := terraformSource.EncodeSourceVersion(l, v.FS, copyOpts...)
 	// If we fail to calculate the source version (e.g. because walking the
 	// directory tree failed) use a random version instead, bypassing the cache.
 	if err != nil {
@@ -444,7 +487,7 @@ func AlreadyHaveLatestCode(
 		}
 	}
 
-	previousVersion, err := readVersionFile(terraformSource)
+	previousVersion, err := readVersionFile(v.FS, terraformSource)
 	if err != nil {
 		return false, err
 	}
@@ -455,8 +498,13 @@ func AlreadyHaveLatestCode(
 // Return the version number stored in the DownloadDir. This version number can be used to check if the Terraform code
 // that has already been downloaded is the same as the version the user is currently requesting. The version number is
 // calculated using the encodeSourceVersion method.
-func readVersionFile(terraformSource *tf.Source) (string, error) {
-	return util.ReadFileAsString(terraformSource.VersionFile)
+func readVersionFile(fsys vfs.FS, terraformSource *tf.Source) (string, error) {
+	contents, err := vfs.ReadFile(fsys, terraformSource.VersionFile)
+	if err != nil {
+		return "", fmt.Errorf("error reading file at path %s: %w", terraformSource.VersionFile, err)
+	}
+
+	return string(contents), nil
 }
 
 // downloadSource downloads the canonical source URL into src.DownloadDir.
@@ -508,7 +556,7 @@ func downloadSource(
 		}
 	}
 
-	return opts.RunWithErrorHandling(ctx, l, r, func() error {
+	return opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		client, err := BuildDownloadClient(l, v, opts, cfg)
 		if err != nil {
 			return err
@@ -559,7 +607,7 @@ func tryCASDownload(
 		return false, err
 	}
 
-	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
+	c, err := cas.New(v, cas.WithCloneDepth(opts.CASCloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
@@ -596,6 +644,7 @@ func tryCASDownload(
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithDispatchLogger(l),
 		getter.WithDispatchFS(v.FS),
+		getter.WithDispatchEnv(v.Env),
 		getter.WithTFRConfig(opts.TofuImplementation),
 	}
 
@@ -636,7 +685,7 @@ func tryCASDownload(
 		// Clear any partial CAS output before the fallback runs; mixing
 		// leftover CAS files with the standard getter's output leaves the
 		// module dir in an inconsistent state.
-		if removeErr := opts.FS.RemoveAll(src.DownloadDir); removeErr != nil {
+		if removeErr := v.FS.RemoveAll(src.DownloadDir); removeErr != nil {
 			l.Warnf("Failed to clean partial CAS output at %s: %v", src.DownloadDir, removeErr)
 		}
 
@@ -654,10 +703,9 @@ func tryCASDownload(
 // symlinking), RegistryGetter (resolves tfr:// sources), and, behind the oci
 // experiment, OCIGetter (resolves oci:// sources).
 //
-// v.FS must be the OS-backed filesystem from [vfs.NewOSFS]; it backs the
-// file-copy getter and the registry getter's archive expansion, both of
-// which shell out to go-getter and other libraries that bypass the vfs
-// abstraction. Returns [ErrNonOSFilesystem] otherwise.
+// The client carries the full protocol set whatever v.FS is. Sources that
+// need a getter which cannot honor a virtual filesystem are rejected up front
+// by [requireOSFilesystemForSource], so they never reach the client.
 //
 // Exported so tests can assert the protocol set directly.
 func BuildDownloadClient(
@@ -666,10 +714,6 @@ func BuildDownloadClient(
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) (*getter.Client, error) {
-	if !vfs.IsOSFS(v.FS) {
-		return nil, ErrNonOSFilesystem
-	}
-
 	clientOpts := []getter.Option{
 		getter.WithLogger(l),
 		getter.WithHTTP(v.HTTP),
@@ -678,38 +722,40 @@ func BuildDownloadClient(
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
-		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
-			WithHTTPClient(v.HTTP).
+		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
+			WithEnv(v.Env).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
 
 	if opts.Experiments.Evaluate(experiment.OCI) {
-		clientOpts = append(clientOpts, getter.WithOCI(&getter.OCIGetter{
-			NewStore: getter.NewOCIRepositoryStore(l, v),
-			Logger:   l,
-			FS:       v.FS,
-		}))
+		clientOpts = append(clientOpts, getter.WithOCI(getter.NewOCIGetter(l, v)))
 	}
 
-	return getter.NewClient(clientOpts...), nil
+	return getter.NewClient(v, clientOpts...), nil
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
-func ValidateWorkingDir(terraformSource *tf.Source) error {
+func ValidateWorkingDir(fsys vfs.FS, terraformSource *tf.Source) error {
 	workingLocalDir := strings.ReplaceAll(
 		terraformSource.WorkingDir,
 		terraformSource.DownloadDir+filepath.FromSlash("/"),
 		"",
 	)
-	if util.IsFile(terraformSource.WorkingDir) {
-		return WorkingDirNotDir{
+
+	info, err := fsys.Stat(terraformSource.WorkingDir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return WorkingDirNotFound{
 			Dir:    workingLocalDir,
 			Source: terraformSource.CanonicalSourceURL.String(),
 		}
 	}
 
-	if !util.IsDir(terraformSource.WorkingDir) {
-		return WorkingDirNotFound{
+	if err != nil {
+		return err
+	}
+
+	if !info.IsDir() {
+		return WorkingDirNotDir{
 			Dir:    workingLocalDir,
 			Source: terraformSource.CanonicalSourceURL.String(),
 		}

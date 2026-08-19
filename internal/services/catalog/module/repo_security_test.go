@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestNewRepoRejectsSymlinkRootBeforeCleanup(t *testing.T) {
@@ -29,7 +29,7 @@ func TestNewRepoRejectsSymlinkRootBeforeCleanup(t *testing.T) {
 	require.NoError(t, os.WriteFile(sentinel, []byte("do not remove\n"), 0o644))
 	require.NoError(t, os.Symlink(attackerParent, predictableRoot))
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	v.HTTP = vhttp.NewNoNetworkClient()
 
 	_, err := module.NewRepo(t.Context(), logger.CreateLogger(), v, &module.RepoOpts{

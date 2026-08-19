@@ -31,9 +31,17 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// registryTestModuleSource is the source used by the version-constraint and
+// scaffold registry fixtures. The module has exactly two published versions,
+// 0.0.1 and 0.0.2, so version resolution against it is deterministic. It sits
+// here rather than beside either set of tests because the version-constraint
+// tests are behind the `tf` build tag and the scaffold tests are not.
+const registryTestModuleSource = "tfr://registry.opentofu.org/yorinasub17/terragrunt-registry-test/null"
 
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
@@ -293,7 +301,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 func unmarshalFile(t *testing.T, filename string, dest any) {
 	t.Helper()
 
-	if !util.FileExists(filename) {
+	if !vfs.Exists(vfs.NewOSFS(), filename) {
 		return
 	}
 

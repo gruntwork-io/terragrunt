@@ -13,9 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
+	// The pinned go-getter/s3/v2 builds its S3 client on aws-sdk-go v1, so the
+	// dependency-contract tests below have to drive the deprecated v1 chain.
+	"github.com/aws/aws-sdk-go/aws"         //nolint:staticcheck
+	"github.com/aws/aws-sdk-go/aws/session" //nolint:staticcheck
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,7 +80,7 @@ func TestDefaultClientCanonicalizesS3SourceURLs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := getter.NewClient()
+			client := getter.NewClient(venvtest.NewWithOSFS())
 			req := &gogetter.Request{Src: tt.src, GetMode: getter.ModeAny}
 
 			claimed := false

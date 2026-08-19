@@ -60,6 +60,12 @@ func (l *Lexer) NextToken() Token {
 	case ']':
 		tok = NewToken(RBRACKET, string(l.ch), startPosition)
 		l.readChar()
+	case '(':
+		tok = NewToken(LPAREN, string(l.ch), startPosition)
+		l.readChar()
+	case ')':
+		tok = NewToken(RPAREN, string(l.ch), startPosition)
+		l.readChar()
 	case '^':
 		tok = NewToken(CARET, string(l.ch), startPosition)
 		l.readChar()
@@ -262,6 +268,7 @@ func (l *Lexer) containsSlashBeforeSpecialChar() bool {
 func isSpecialChar(ch byte) bool {
 	return ch == '!' || ch == '|' || ch == '=' || ch == '{' || ch == '}' || ch == '[' ||
 		ch == ']' ||
+		ch == '(' || ch == ')' ||
 		ch == '^' ||
 		ch == 0
 }

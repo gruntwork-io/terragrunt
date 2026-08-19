@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,9 +18,9 @@ func TestNoHooksFlagRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	flags := runcommand.NewFlags(logger.CreateLogger(), opts, nil)
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
 
 	err := flags.RunActions(context.Background(), &clihelper.Context{})
 
@@ -32,9 +33,35 @@ func TestNoHooksFlagAllowedWithExperiment(t *testing.T) {
 
 	opts := options.NewTerragruntOptions()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OptionalHooks))
-	flags := runcommand.NewFlags(logger.CreateLogger(), opts, nil)
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
-	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}))
+	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
 	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
 	assert.True(t, opts.NoRunHooks)
+}
+
+func TestNoDependencyOutputsFlagRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
+
+	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))
+
+	err := flags.RunActions(context.Background(), &clihelper.Context{})
+
+	require.ErrorIs(t, err, runcommand.ErrNoDependencyOutputsRequiresExperiment)
+	assert.True(t, opts.SkipOutput)
+}
+
+func TestNoDependencyOutputsFlagAllowedWithExperiment(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OptionalDependencyOutputs))
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
+
+	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))
+	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
+	assert.True(t, opts.SkipOutput)
 }

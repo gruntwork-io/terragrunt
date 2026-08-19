@@ -3,10 +3,7 @@ package clihelper
 import (
 	"context"
 	libflag "flag"
-	"os"
 	"strings"
-
-	"github.com/urfave/cli/v2"
 )
 
 // SliceFlag implements Flag
@@ -59,9 +56,9 @@ type SliceFlag[T SliceFlagType] struct {
 }
 
 // Apply applies Flag settings to the given flag set.
-func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
+func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet, env map[string]string) error {
 	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
+		return ApplyFlag(flag, set, env)
 	}
 
 	if flag.Destination == nil {
@@ -76,16 +73,6 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 		flag.EnvVarSep = SliceFlagEnvVarSep
 	}
 
-	if flag.LookupEnvFunc == nil {
-		flag.LookupEnvFunc = func(key string) []string {
-			if val, ok := os.LookupEnv(key); ok {
-				return flag.Splitter(val, flag.EnvVarSep)
-			}
-
-			return nil
-		}
-	}
-
 	valueType := FlagVariable[T](new(genericVar[T]))
 	value := newSliceValue(valueType, flag.EnvVarSep, flag.Destination, flag.Setter)
 
@@ -95,7 +82,16 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 		initialTextValue: value.String(),
 	}
 
-	return ApplyFlag(flag, set)
+	return ApplyFlag(flag, set, env)
+}
+
+// LookupEnv implements `Flag` interface.
+func (flag *SliceFlag[T]) LookupEnv(envVar string, env map[string]string) []string {
+	if val, ok := env[envVar]; ok {
+		return flag.Splitter(val, flag.EnvVarSep)
+	}
+
+	return nil
 }
 
 // GetHidden returns true if the flag should be hidden from the help.
@@ -124,7 +120,7 @@ func (flag *SliceFlag[T]) GetDefaultText() string {
 
 // String returns a readable representation of this value (for usage defaults).
 func (flag *SliceFlag[T]) String() string {
-	return cli.FlagStringer(flag)
+	return stringifyFlag(flag)
 }
 
 // Names returns the names of the flag.

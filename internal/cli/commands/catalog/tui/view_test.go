@@ -11,9 +11,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +29,7 @@ func TestWelcomeLoadingView_RendersSpinnerAndStatus(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, blockingLoad)
+	m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, blockingLoad)
 	m = updateModel(m, windowSize).(tui.WelcomeModel)
 
 	view := m.View()
@@ -52,7 +53,7 @@ func TestWelcomeLoadingView_StatusTextUpdates(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, blockingLoad)
+	m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, blockingLoad)
 	m = updateModel(m, windowSize).(tui.WelcomeModel)
 
 	content := stripANSI(m.View().Content)
@@ -86,7 +87,7 @@ func TestWelcomeNoSourcesView_RendersHelpText(t *testing.T) {
 		return nil
 	}
 
-	m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad)
+	m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, noSourcesLoad)
 	m = updateModel(m, windowSize).(tui.WelcomeModel)
 
 	m = updateModel(m, tui.DiscoveryCompleteMsg{Err: nil}).(tui.WelcomeModel)
@@ -131,7 +132,7 @@ func TestWelcomeDiscoveryErrorView_RendersErrorAndHint(t *testing.T) {
 		return errors.New("network unreachable")
 	}
 
-	m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, erroringLoad)
+	m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, erroringLoad)
 	m = updateModel(m, windowSize).(tui.WelcomeModel)
 
 	m = updateModel(m, tui.DiscoveryCompleteMsg{Err: errors.New("network unreachable")}).(tui.WelcomeModel)
@@ -158,7 +159,7 @@ func TestWelcomeDiscoveryErrorView_AllSourcesFailedDetail(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, blockingLoad)
+	m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, blockingLoad)
 	m = updateModel(m, windowSize).(tui.WelcomeModel)
 
 	srcErr := &tui.SourceLoadError{
@@ -200,7 +201,7 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 	require.NotEmpty(t, components)
 
 	componentCh := make(chan *tui.ComponentEntry, 10)
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.New(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(tui.Model)
@@ -239,7 +240,7 @@ func TestComponentListView_PartialSourceFailureNotice(t *testing.T) {
 	require.NotEmpty(t, components)
 
 	componentCh := make(chan *tui.ComponentEntry, 10)
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.New(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(tui.Model)
@@ -285,7 +286,7 @@ func TestComponentListView_MetadataRowRendered(t *testing.T) {
 		WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *tui.ComponentEntry, 10)
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, entry, componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.New(), opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(tui.Model)
@@ -310,14 +311,14 @@ func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	l := logger.CreateLogger()
 
 	template := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindTemplate,
+		component.KindTemplate,
 		"github.com/gruntwork-io/templates-repo",
 		"templates/unit",
 		"# Unit Template\nA boilerplate template.",
 	)).WithSource("github.com/gruntwork-io/templates-repo")
 
 	componentCh := make(chan *tui.ComponentEntry, 10)
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, template, componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.New(), opts, template, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(tui.Model)
@@ -344,7 +345,7 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 	entry := components[0].WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *tui.ComponentEntry, 10)
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, entry, componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.New(), opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(tui.Model)
@@ -381,14 +382,14 @@ func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
 	const longSource = "github.com/gruntwork-io/terragrunt-scale-catalog-extra-long-path-that-must-be-abbreviated/subdir"
 
 	entry := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		longSource,
 		"modules/vpc",
 		"# VPC",
 	)).WithSource(longSource)
 
 	componentCh := make(chan *tui.ComponentEntry, 1)
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, entry, componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.New(), opts, entry, componentCh, nil)
 
 	// Narrow terminal forces the source column to shrink below the raw width,
 	// which forces abbreviateMiddle to truncate.
@@ -431,7 +432,7 @@ func TestWelcomeStreamingFlowWithRacing(t *testing.T) {
 			return nil
 		}
 
-		var m tea.Model = tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, streamingLoad)
+		var m tea.Model = tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, streamingLoad)
 
 		m = updateModel(m, windowSize)
 		m = runUntilQuiet(t, m, m.Init(), 5*time.Second)
@@ -554,7 +555,7 @@ func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscoveryWithRacing(t *
 			return nil
 		}
 
-		var m tea.Model = tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, streamingLoad)
+		var m tea.Model = tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, streamingLoad)
 
 		m = updateModel(m, windowSize)
 
@@ -641,7 +642,7 @@ func TestWelcomeLoadingSpinnerWithRacing(t *testing.T) {
 			return nil
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, slowLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, slowLoad)
 
 		finalModel := driveModel(t, m, 120, 40, []tea.Msg{
 			tea.KeyPressMsg{Code: 'q', Text: "q"},

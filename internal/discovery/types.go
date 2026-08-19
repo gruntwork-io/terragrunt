@@ -126,8 +126,22 @@ type Discovery struct {
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
-	// gitRoot is the git repository root, used as boundary for dependent discovery.
+	// resolvedWorkingDir is workingDir with symlinks resolved, which is how
+	// boundaries and dependency paths name it. Discover fills it in before any
+	// phase runs.
+	resolvedWorkingDir string
+
+	// gitRoot is the detected git repository root: the default ceiling for the
+	// upstream dependent walk. It is detected lazily and only when needed, so
+	// it stays empty when a discoveryBoundary is set (see
+	// [Discovery.dependentWalkBoundary]).
 	gitRoot string
+
+	// discoveryBoundary is the user-supplied --discovery-boundary enclosure (resolved
+	// to an absolute path). When set, it caps the dependent walk in place of
+	// gitRoot and prunes dependencies that resolve outside it. Empty unless the
+	// bounded-discovery experiment's flag is used.
+	discoveryBoundary string
 
 	// graphTarget is the target path for graph filtering (prune to target + dependents).
 	graphTarget string
@@ -168,6 +182,9 @@ type Discovery struct {
 
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
+
+	// parseStackConfigs determines whether to parse discovered stack config files.
+	parseStackConfigs bool
 
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool

@@ -2,12 +2,9 @@ package runnerpool
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-
-	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
@@ -55,7 +52,7 @@ func WithMaxConcurrency(concurrency int) ControllerOption {
 	}
 }
 
-// NewController creates a new Controller with the given options and a pre-built queue.
+// NewController creates a new Controller with the given options and a pre-built queue, which must not be nil.
 func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOption) *Controller {
 	dr := &Controller{
 		q:           q,
@@ -74,11 +71,6 @@ func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOp
 	dr.unitsMap = unitsMap
 	for _, opt := range opts {
 		opt(dr)
-	}
-
-	if dr.q == nil {
-		// If the queue was not set, create an empty queue
-		dr.q = &queue.Queue{Entries: []*queue.Entry{}}
 	}
 
 	return dr
@@ -100,7 +92,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			)
 
 			if dr.runner == nil {
-				return errors.New("runner Pool Controller: runner is not set, cannot run")
+				return ErrRunnerNotSet
 			}
 
 			l.Debugf("Runner Pool Controller: starting with %d tasks, concurrency %d",
@@ -145,10 +137,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 						unit := dr.unitsMap[ent.Component.Path()]
 						if unit == nil {
-							err := fmt.Errorf(
-								"unit for path %s not found in discovered units",
-								ent.Component.Path(),
-							)
+							err := NewUnitNotDiscoveredError(ent.Component.Path())
 							l.Errorf(
 								"Runner Pool Controller: unit for path %s not found in discovered units, skipping execution",
 								ent.Component.Path(),

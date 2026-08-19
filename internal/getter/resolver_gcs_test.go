@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -279,7 +280,7 @@ func (c *fakeGCSClient) Object(_, name string) getter.GCSObject {
 func (c *fakeGCSClient) Close() error { return nil }
 
 func newGCSResolverWith(client *fakeGCSClient) *getter.GCSResolver {
-	r := getter.NewGCSResolver()
+	r := getter.NewGCSResolver(venvtest.New())
 	r.NewClient = func(_ context.Context) (getter.GCSClient, error) {
 		return client, nil
 	}

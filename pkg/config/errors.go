@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 )
 
 // Custom error types
@@ -300,6 +302,51 @@ func (err TerragruntOutputEncodingError) Error() string {
 	)
 }
 
+// StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs
+// and has no mock to stand in for them.
+type StackUnitOutputFetchError struct {
+	Err      error
+	UnitName string
+}
+
+func (err StackUnitOutputFetchError) Error() string {
+	return fmt.Sprintf("stack unit %s output fetch failed: %s", err.UnitName, err.Err)
+}
+
+func (err StackUnitOutputFetchError) Unwrap() error {
+	return err.Err
+}
+
+// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs that
+// isn't keyed by unit name, so no unit can be matched against it.
+type StackMockOutputsTypeError struct {
+	DependencyName string
+	UnitName       string
+	Actual         string
+}
+
+func (err StackMockOutputsTypeError) Error() string {
+	return fmt.Sprintf(
+		"mock_outputs for dependency %s must be a map or object keyed by stack unit name (e.g. { %s = { ... } }), but got %s",
+		err.DependencyName,
+		err.UnitName,
+		err.Actual,
+	)
+}
+
+// DependencyLabelCollisionError is returned when one dependency label has to address both a
+// whole block and the instances of an expanded block.
+type DependencyLabelCollisionError struct {
+	Name string
+}
+
+func (err DependencyLabelCollisionError) Error() string {
+	return fmt.Sprintf(
+		"dependency %q is declared both with and without an expansion, so the block and its instances claim the same address; rename one of them",
+		err.Name,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string
@@ -438,6 +485,21 @@ func (err VersionAttributeRequiresExperimentError) Error() string {
 	)
 }
 
+// MutableGenerateRequiresExperimentError is returned when a generate block sets the
+// mutable attribute without the mutable-generate experiment enabled.
+type MutableGenerateRequiresExperimentError struct {
+	ConfigPath string
+	BlockName  string
+}
+
+func (err MutableGenerateRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"the generate block %q in %s sets the mutable attribute, which requires the 'mutable-generate' experiment; enable it with --experiment mutable-generate",
+		err.BlockName,
+		err.ConfigPath,
+	)
+}
+
 // VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
 // version attribute but its source is not a tfr:// registry URL, where a version
 // constraint has no meaning.
@@ -462,5 +524,28 @@ func (err VersionAttributeSourceConstraintConflictError) Error() string {
 	return fmt.Sprintf(
 		"the terraform block in %s sets both the version attribute and an inline ?version= on its source; specify the version in only one place",
 		err.ConfigPath,
+	)
+}
+
+// ExpansionRequiresExperimentError is returned when a dependency, unit, or stack block
+// carries an expansion block without the block-iteration experiment enabled.
+type ExpansionRequiresExperimentError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+}
+
+func (err ExpansionRequiresExperimentError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s uses an expansion block, which requires the '%s' experiment; enable it with --experiment %s",
+		block,
+		err.ConfigPath,
+		experiment.BlockIteration,
+		experiment.BlockIteration,
 	)
 }

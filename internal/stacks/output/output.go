@@ -82,7 +82,7 @@ func StackOutput(
 	l.Debugf("Generating output from %s", opts.WorkingDir)
 
 	// Create worktrees internally if filter-flag experiment is enabled and git filters are present
-	wts, err := buildWorktreesIfNeeded(ctx, l, opts)
+	wts, err := buildWorktreesIfNeeded(ctx, l, v, opts)
 	if err != nil {
 		return cty.NilVal, fmt.Errorf("failed to create worktrees: %w", err)
 	}
@@ -133,8 +133,7 @@ func StackOutput(
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
 
-		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-		pctx = pctx.WithVenv(v)
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {
@@ -347,6 +346,7 @@ func readUnitOutput(
 func buildWorktreesIfNeeded(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*worktrees.Worktrees, error) {
 	gitFilters := opts.Filters.UniqueGitFilters()
@@ -354,7 +354,7 @@ func buildWorktreesIfNeeded(
 		return nil, nil
 	}
 
-	return worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+	return worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 		WorkingDir:     opts.WorkingDir,
 		GitExpressions: gitFilters,
 		Experiments:    opts.Experiments,

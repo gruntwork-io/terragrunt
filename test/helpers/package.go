@@ -51,6 +51,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	writerpkg "github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
@@ -132,6 +133,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		t,
 		util.CopyFolderContents(
 			logger.CreateLogger(),
+			vfs.NewOSFS(),
 			MustAbs(t, environmentPath),
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",
@@ -209,7 +211,7 @@ func CopyAndFillMapPlaceholders(
 ) {
 	t.Helper()
 
-	contents, err := util.ReadFileAsString(srcPath)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), srcPath)
 	require.NoError(t, err, "Error reading file at %s: %v", srcPath, err)
 
 	// iterate over placeholders and replace placeholders
@@ -259,7 +261,7 @@ func CreateS3ClientForTest(
 	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
 		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
-		Build(t.Context(), logger.CreateLogger())
+		Build(t.Context(), logger.CreateLogger(), venv.OSVenv())
 	require.NoError(t, err, "Error creating S3 client")
 
 	return s3.NewFromConfig(cfg)
@@ -284,7 +286,7 @@ func CreateDynamoDBClientForTest(
 	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(sessionConfig).
 		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
-		Build(t.Context(), logger.CreateLogger())
+		Build(t.Context(), logger.CreateLogger(), venv.OSVenv())
 	require.NoError(t, err, "Error creating DynamoDB client")
 
 	return dynamodb.NewFromConfig(cfg)
@@ -782,11 +784,11 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 func unmarshalFile(t *testing.T, filename string, dest any) {
 	t.Helper()
 
-	if !util.FileExists(filename) {
+	data, err := os.ReadFile(filename)
+	if errors.Is(err, os.ErrNotExist) {
 		return
 	}
 
-	data, err := os.ReadFile(filename)
 	require.NoError(t, err)
 	err = json.Unmarshal(data, dest)
 	require.NoError(t, err)
@@ -1206,7 +1208,7 @@ func RunTerragruntCommandWithContext(
 
 	ctx = log.ContextWithLogger(ctx, l)
 
-	return app.RunContext(ctx, args)
+	return app.RunContext(ctx, l, v, args)
 }
 
 func RunTerragruntCommand(
@@ -1319,7 +1321,7 @@ func RunTerragruntValidateInputs(
 	t.Helper()
 
 	maybeNested := filepath.Join(moduleDir, "module")
-	if util.FileExists(maybeNested) {
+	if vfs.Exists(vfs.NewOSFS(), maybeNested) {
 		// Nested module test case with included file, so run terragrunt from the nested module.
 		moduleDir = maybeNested
 	}

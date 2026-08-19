@@ -12,9 +12,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestCASCloneByCommitRef(t *testing.T) {
@@ -24,13 +24,13 @@ func TestCASCloneByCommitRef(t *testing.T) {
 	repoURL := startTestServer(t)
 	headHash := resolveHead(t, repoURL)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	t.Run("clone with full commit SHA", func(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
 
-		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(tempDir, "repo")
@@ -47,7 +47,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
 
-		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(tempDir, "repo")
@@ -65,7 +65,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		// Prime the central git store.
@@ -94,7 +94,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
 
-		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "repo")),
@@ -190,10 +190,10 @@ func TestCASClone_NonTipCommit(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	targetPath := filepath.Join(tempDir, "repo")
 	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
@@ -240,10 +240,10 @@ func TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -293,10 +293,10 @@ func TestCASClone_HexBranchNameResolvesViaLsRemote(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	targetPath := filepath.Join(tempDir, "repo")
 	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
@@ -322,10 +322,10 @@ func TestCASClone_TagRef(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	targetPath := filepath.Join(tempDir, "repo")
 	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
@@ -480,10 +480,10 @@ func TestCASClone_OfflineWhenCommitCached(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -516,10 +516,10 @@ func TestCASGetterGet_WithCommitRef(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &cas.CloneOptions{Depth: -1})
 	client := getter.Client{Getters: []getter.Getter{g}}
@@ -557,10 +557,10 @@ func TestCAS_CommitRefFallbackWhenGitStoreFails(t *testing.T) {
 	blocker := cas.EntryPathForURL(gitStoreRoot, repoURL)
 	require.NoError(t, os.WriteFile(blocker, []byte("not a directory"), 0o644))
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	targetPath := filepath.Join(tempDir, "repo")
 	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
@@ -586,10 +586,10 @@ func TestCASCloneByCommitRefConcurrentWithRacing(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	const workers = 4
 

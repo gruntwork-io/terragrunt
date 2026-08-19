@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -71,16 +72,6 @@ func (caches ProviderCaches) FindByRequestID(requestID string) ProviderCaches {
 	}
 
 	return foundCaches
-}
-
-func (caches ProviderCaches) removeArchive() error {
-	for _, cache := range caches {
-		if err := cache.removeArchive(); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 type ProviderCache struct {
@@ -348,9 +339,9 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 // 1. Checks if the required provider exists in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. If so, creates a symlink to this folder. (Some providers are not available for darwin_arm64, in this case we can use https://github.com/kreuzwerker/m1-terraform-provider-helper which compiles and saves providers to the user plugins directory)
 // 2. Downloads the provider from the original registry, unpacks and saves it into the cache directory.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
-	fs := cache.ProviderService.FS()
+	fsys := cache.ProviderService.FS()
 
-	exists, err := vfs.FileExists(fs, cache.packageDir)
+	exists, err := vfs.FileExists(fsys, cache.packageDir)
 	if err != nil {
 		return err
 	}
@@ -364,15 +355,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	// before that directory was moved or deleted) reports as non-existent here
 	// but still trips MkdirAll downstream with "file exists". Remove only the
 	// symlink itself before the download or user-plugin symlink path runs.
-	if err := RemoveStaleSymlink(fs, cache.packageDir); err != nil {
+	if err := RemoveStaleSymlink(fsys, cache.packageDir); err != nil {
 		return err
 	}
 
-	if err := fs.MkdirAll(filepath.Dir(cache.packageDir), os.ModePerm); err != nil {
+	if err := fsys.MkdirAll(filepath.Dir(cache.packageDir), os.ModePerm); err != nil {
 		return err
 	}
 
-	userProviderExists, err := vfs.FileExists(fs, cache.userProviderDir)
+	userProviderExists, err := vfs.FileExists(fsys, cache.userProviderDir)
 	if err != nil {
 		return err
 	}
@@ -380,7 +371,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if userProviderExists {
 		cache.logger.Debugf("Create symlink file %s to %s", cache.packageDir, cache.userProviderDir)
 
-		if err := vfs.Symlink(fs, cache.userProviderDir, cache.packageDir); err != nil {
+		if err := vfs.Symlink(fsys, cache.userProviderDir, cache.packageDir); err != nil {
 			return err
 		}
 
@@ -393,7 +384,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.New("not found provider download url")
 	}
 
-	downloadURLIsLocalFile, err := cache.isLocalFile(fs, cache.DownloadURL)
+	downloadURLIsLocalFile, err := cache.isLocalFile(fsys, cache.DownloadURL)
 	if err != nil {
 		return err
 	}
@@ -430,7 +421,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		vfs.WithFilesLimit(DefaultProviderFilesLimit),
 	).Unzip(
 		cache.logger,
-		fs,
+		fsys,
 		cache.packageDir,
 		cache.archivePath,
 		unzipFileMode,
@@ -469,8 +460,8 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 // RemoveStaleSymlink removes a dangling symlink at path. A regular file or
 // directory there returns UnexpectedProviderCachePathError without deletion;
 // a missing path returns nil.
-func RemoveStaleSymlink(fs vfs.FS, path string) error {
-	info, err := vfs.Lstat(fs, path)
+func RemoveStaleSymlink(fsys vfs.FS, path string) error {
+	info, err := vfs.Lstat(fsys, path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
@@ -483,29 +474,8 @@ func RemoveStaleSymlink(fs vfs.FS, path string) error {
 		return &UnexpectedProviderCachePathError{Path: path, Mode: info.Mode()}
 	}
 
-	if err := fs.Remove(path); err != nil {
+	if err := fsys.Remove(path); err != nil {
 		return fmt.Errorf("failed to clear stale provider package symlink %q: %w", path, err)
-	}
-
-	return nil
-}
-
-func (cache *ProviderCache) removeArchive() error {
-	fs := cache.ProviderService.FS()
-
-	if cache.archiveCached {
-		exists, err := vfs.FileExists(fs, cache.archivePath)
-		if err != nil {
-			return err
-		}
-
-		if exists {
-			cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
-
-			if err := fs.Remove(cache.archivePath); err != nil {
-				return err
-			}
-		}
 	}
 
 	return nil
@@ -514,12 +484,12 @@ func (cache *ProviderCache) removeArchive() error {
 // isLocalFile checks whether the given path refers to an existing local file.
 // Remote URLs (containing "://") are never checked against the filesystem because
 // on Windows the colon in "https:" is invalid path syntax and causes an error.
-func (cache *ProviderCache) isLocalFile(fs vfs.FS, path string) (bool, error) {
+func (cache *ProviderCache) isLocalFile(fsys vfs.FS, path string) (bool, error) {
 	if strings.Contains(path, "://") {
 		return false, nil
 	}
 
-	return vfs.FileExists(fs, path)
+	return vfs.FileExists(fsys, path)
 }
 
 func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile, error) {
@@ -554,53 +524,45 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 // ProviderServiceOption configures a ProviderService.
 type ProviderServiceOption func(*ProviderService)
 
-// WithFS sets the filesystem for file operations.
-// If not set, defaults to the real OS filesystem.
-func WithFS(fs vfs.FS) ProviderServiceOption {
-	return func(ps *ProviderService) {
-		ps.fs = fs
-	}
-}
-
-// WithHTTPClient sets the HTTP client used for upstream provider fetches.
-// If not set, defaults to [vhttp.NewOSClient].
-func WithHTTPClient(c vhttp.Client) ProviderServiceOption {
-	return func(ps *ProviderService) {
-		ps.httpClient = c
-	}
-}
-
 type ProviderService struct {
-	logger                log.Logger
+	logger log.Logger
+
+	// venv supplies the filesystem, outbound HTTP client, and temp-directory
+	// handle every cached provider is fetched and unpacked through.
+	venv *venv.Venv
+
+	initErr               error
 	providerCacheWarmUpCh chan *ProviderCache
 	credsSource           *cliconfig.CredentialsSource
 
-	// fs is the filesystem for file operations.
-	fs vfs.FS
-
-	httpClient vhttp.Client
-
-	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
-	cacheDir string
-
-	// The path to a predictable temporary directory for provider archives and lock files.
+	// tempDir is a predictable temporary directory for provider lock files.
 	tempDir string
 
-	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
-	userCacheDir   string
+	archiveDir string
+
+	// userCacheDir is the user plugins directory, by default:
+	// %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on
+	// other systems.
+	userCacheDir string
+
+	// cacheDir is the path to store unpacked providers. The file structure is
+	// the same as the terraform plugin cache dir.
+	cacheDir string
+
 	providerCaches ProviderCaches
 	cacheMu        sync.RWMutex
 	cacheReadyMu   sync.RWMutex
+	initOnce       sync.Once
 }
 
 // FS returns the configured filesystem.
 func (service *ProviderService) FS() vfs.FS {
-	return service.fs
+	return service.venv.FS
 }
 
 // HTTPClient returns the configured HTTP client.
 func (service *ProviderService) HTTPClient() vhttp.Client {
-	return service.httpClient
+	return service.venv.HTTP
 }
 
 func NewProviderService(
@@ -608,6 +570,7 @@ func NewProviderService(
 	userCacheDir string,
 	credsSource *cliconfig.CredentialsSource,
 	l log.Logger,
+	v *venv.Venv,
 	opts ...ProviderServiceOption,
 ) *ProviderService {
 	service := &ProviderService{
@@ -616,8 +579,7 @@ func NewProviderService(
 		providerCacheWarmUpCh: make(chan *ProviderCache, providerCacheWarmUpChBufferSize),
 		credsSource:           credsSource,
 		logger:                l,
-		fs:                    vfs.NewOSFS(),
-		httpClient:            vhttp.NewOSClient(),
+		venv:                  v,
 	}
 
 	for _, opt := range opts {
@@ -734,7 +696,7 @@ func (service *ProviderService) CacheProvider(
 			provider.Platform(),
 		),
 		lockfilePath: filepath.Join(service.tempDir, packageName+".lock"),
-		archivePath:  filepath.Join(service.tempDir, packageName+path.Ext(provider.Filename)),
+		archivePath:  filepath.Join(service.archiveDir, packageName+path.Ext(provider.Filename)),
 	}
 
 	service.logger.Debugf("Sending provider %s to warm up channel", provider)
@@ -769,10 +731,25 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	return nil
 }
 
-// Run is responsible to handle a new caching requestID and removing temporary files upon completion.
-func (service *ProviderService) Run(ctx context.Context) error {
+// Init creates the directories the service caches into. It runs at most once,
+// whichever caller reaches it first, and returns the same result to the rest.
+//
+// The server calls it before it serves a single request, because
+// [ProviderService.CacheProvider] builds every path it hands a provider out of
+// these directories: a request answered before they exist would write the
+// provider's archive and lock file to whatever the working directory happens
+// to be.
+func (service *ProviderService) Init() error {
+	service.initOnce.Do(func() {
+		service.initErr = service.init()
+	})
+
+	return service.initErr
+}
+
+func (service *ProviderService) init() error {
 	if service.cacheDir == "" {
-		return errors.New("provider cache directory not specified")
+		return ErrCacheDirNotSpecified
 	}
 
 	service.logger.Debugf("Starting provider cache service with cache dir: %q", service.cacheDir)
@@ -781,13 +758,33 @@ func (service *ProviderService) Run(ctx context.Context) error {
 		return err
 	}
 
-	tempDir, err := util.EnsureTempDir()
+	tempDir, err := util.EnsureTempDir(service.venv)
 	if err != nil {
 		return err
 	}
 
 	service.tempDir = filepath.Join(tempDir, "providers")
 	service.logger.Debugf("Provider cache service temp dir: %s", service.tempDir)
+
+	if err := service.FS().MkdirAll(service.tempDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	service.archiveDir, err = vfs.MkdirTemp(service.FS(), service.tempDir, "archives-")
+	if err != nil {
+		return err
+	}
+
+	service.logger.Debugf("Provider cache service archive dir: %s", service.archiveDir)
+
+	return nil
+}
+
+// Run is responsible to handle a new caching requestID and removing temporary files upon completion.
+func (service *ProviderService) Run(ctx context.Context) error {
+	if err := service.Init(); err != nil {
+		return err
+	}
 
 	var (
 		errs   []error
@@ -833,7 +830,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				errs = append(errs, err)
 			}
 
-			if err := service.providerCaches.removeArchive(); err != nil {
+			if err := service.FS().RemoveAll(service.archiveDir); err != nil {
 				errs = append(errs, err)
 			}
 

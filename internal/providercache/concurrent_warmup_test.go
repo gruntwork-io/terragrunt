@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -120,7 +121,13 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
-	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
+	providerService := services.NewProviderService(
+		providerCacheDir,
+		pluginCacheDir,
+		nil,
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+	)
 
 	// The pre-populated discovery cache points version and platform lookups at
 	// the fake upstream over plain HTTP, without DNS lookups.
@@ -148,7 +155,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	ln, err := server.Listen(ctx)
+	ln, err := server.Listen(ctx, venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

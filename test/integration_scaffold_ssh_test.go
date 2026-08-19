@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/stretchr/testify/assert"
@@ -169,7 +169,7 @@ EnableRootInclude: false
 	))
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpEnvPath+"/terragrunt.hcl")
 	require.NoError(t, err)
 	assert.NotContains(t, content, "find_in_parent_folders")
 }

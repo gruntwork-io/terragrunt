@@ -10,10 +10,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestIntegration_CloneAndReuse(t *testing.T) {
@@ -22,7 +22,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
@@ -31,7 +31,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		// First clone
 		firstClonePath := filepath.Join(tempDir, "first")
-		cas1, err := cas.New(cas.WithStorePath(storePath))
+		cas1, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, cas1.Clone(t.Context(), l, v, repoURL, cas.WithDir(firstClonePath),
 			cas.WithDepth(-1)))
@@ -43,7 +43,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		// Second clone
 		secondClonePath := filepath.Join(tempDir, "second")
-		cas2, err := cas.New(cas.WithStorePath(storePath))
+		cas2, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, cas2.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondClonePath),
 			cas.WithDepth(-1)))
@@ -65,7 +65,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
 
-		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "repo")),
@@ -82,7 +82,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
 
-		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, v, "http://127.0.0.1:1/nonexistent-repo.git",
@@ -99,7 +99,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()
@@ -107,7 +107,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone to populate store
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, c.Clone(ctx, l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "repo")),
 			cas.WithDepth(-1)))

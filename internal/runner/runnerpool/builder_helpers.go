@@ -113,6 +113,10 @@ func prepareDiscovery(
 		d = d.WithFilters(opts.Filters)
 	}
 
+	if opts.DiscoveryBoundary != "" {
+		d = d.WithDiscoveryBoundary(opts.DiscoveryBoundary)
+	}
+
 	// Apply worktrees for git filter expressions
 	if w := extractWorktrees(runnerOpts); w != nil {
 		d = d.WithWorktrees(w)
@@ -232,8 +236,8 @@ func checkUnitVersionConstraints(
 
 	// This is almost definitely already parsed, but we'll check just in case.
 	if unitConfig == nil {
-		configCtx, pctx := configbridge.NewParsingContext(ctx, l, unitOpts)
-		pctx = pctx.WithVenv(v).WithDecodeList(
+		configCtx, pctx := configbridge.NewParsingContext(ctx, l, v, unitOpts)
+		pctx = pctx.WithDecodeList(
 			config.TerragruntVersionConstraints,
 			config.FeatureFlagsBlock,
 		)

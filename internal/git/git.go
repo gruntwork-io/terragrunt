@@ -66,10 +66,6 @@ func ExtractRepoName(repo string) string {
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	if g == nil {
-		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec(), repoRootMu: &sync.Mutex{}}
-	}
-
 	// GetRepoRoot writes the memo fields under repoRootMu, so the copy must
 	// hold the same lock to avoid racing with a concurrent memoization.
 	g.repoRootMu.Lock()

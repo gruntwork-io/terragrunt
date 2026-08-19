@@ -5,6 +5,7 @@ package tflint
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -133,8 +134,9 @@ func RunTflintWithOpts(
 func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 	variables := make([]string, 0, len(inputs))
 
-	for key, value := range inputs {
-		varValue, err := util.AsTerraformEnvVarJSONValue(value)
+	// Sorted so that repeated runs produce the same command line.
+	for _, key := range slices.Sorted(maps.Keys(inputs)) {
+		varValue, err := util.AsTerraformEnvVarJSONValue(inputs[key])
 		if err != nil {
 			return nil, err
 		}
@@ -192,7 +194,7 @@ func (err ConfigNotFound) Error() string {
 }
 
 // TFArgumentsToVar converts variables from the terraform config to a list of tflint variables.
-func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
+func TFArgumentsToVar(l log.Logger, fsys vfs.FS, hook *runcfg.Hook,
 	tfCfg *runcfg.TerraformConfig) ([]string, error) {
 	var variables []string
 
@@ -206,12 +208,12 @@ func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
 		}
 
 		if len(arg.EnvVars) > 0 {
-			// extract env_vars
-			for name, value := range arg.EnvVars {
+			// extract env_vars, sorted so that repeated runs produce the same command line
+			for _, name := range slices.Sorted(maps.Keys(arg.EnvVars)) {
 				if after, ok := strings.CutPrefix(name, tfVarPrefix); ok {
 					varName := after
 
-					varValue, err := util.AsTerraformEnvVarJSONValue(value)
+					varValue, err := util.AsTerraformEnvVarJSONValue(arg.EnvVars[name])
 					if err != nil {
 						return nil, err
 					}
@@ -250,7 +252,7 @@ func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
 		if len(arg.OptionalVarFiles) > 0 {
 			// extract optional variables
 			for _, file := range util.RemoveDuplicatesKeepLast(arg.OptionalVarFiles) {
-				exists, err := vfs.FileExists(fs, file)
+				exists, err := vfs.FileExists(fsys, file)
 				if err != nil {
 					l.Debugf("Skipping tflint var-file %s: %v", file, err)
 					continue
@@ -274,7 +276,7 @@ func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
 // FindConfigInProject looks for a .tflint.hcl file in the current
 // folder or it's parents. When running from cache, we start searching
 // from the original config directory to find config in the source directory.
-func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, error) {
+func FindConfigInProject(l log.Logger, fsys vfs.FS, opts *TFLintOptions) (string, error) {
 	startDir := opts.WorkingDir
 	if opts.TerragruntConfigPath != "" {
 		startDir = filepath.Dir(opts.TerragruntConfigPath)
@@ -296,7 +298,7 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 
 		fileToFind := filepath.Join(previousDir, ".tflint.hcl")
 
-		exists, err := vfs.FileExists(fs, fileToFind)
+		exists, err := vfs.FileExists(fsys, fileToFind)
 		if err != nil {
 			return "", err
 		}
@@ -316,21 +318,30 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 	}
 }
 
-// ConfigFilePath returns the configuration file specified in --config argument,
+// ConfigFilePath returns the configuration file specified in the --config argument,
 // or the result of walking parents to find a .tflint.hcl file.
 func ConfigFilePath(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	opts *TFLintOptions,
 	arguments []string,
 ) (string, error) {
+	// The spellings tflint accepts for the flag that names its configuration file.
+	configFlags := []string{"--config", "-c"}
+
 	for i, arg := range arguments {
-		if arg == "--config" && len(arguments) > i+1 {
-			return arguments[i+1], nil
+		for _, flag := range configFlags {
+			if arg == flag && len(arguments) > i+1 {
+				return arguments[i+1], nil
+			}
+
+			if after, ok := strings.CutPrefix(arg, flag+"="); ok {
+				return after, nil
+			}
 		}
 	}
 	// find .tflint.hcl configuration in project files if it is not provided in arguments
-	projectConfigFile, err := FindConfigInProject(l, fs, opts)
+	projectConfigFile, err := FindConfigInProject(l, fsys, opts)
 	if err != nil {
 		return "", err
 	}

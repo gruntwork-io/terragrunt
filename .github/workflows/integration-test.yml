@@ -13,13 +13,16 @@ jobs:
         integration:
           - name: Fixtures with OpenTofu
             os: ubuntu
-            target: ./test
-            tags: tofu
+            target: ./...
+            tags: "tofu,tf"
+            run: "^(TestTF|TestTofu)"
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
           - name: Fixtures with Latest Terraform
             os: ubuntu
-            target: ./test
+            target: ./...
+            tags: tf
+            run: "^TestTF"
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
           - name: Independent Integration Tests
@@ -111,6 +114,43 @@ jobs:
                 AZURE_TENANT_ID,
                 TG_AZURE_TEST_STORAGE_ACCOUNT,
                 TG_AZURE_TEST_SUBSCRIPTION_ID,
+                ARM_CLIENT_ID,
+                ARM_CLIENT_SECRET,
+                ARM_TENANT_ID,
+                ARM_SUBSCRIPTION_ID,
+              ]
+          - name: Azure Integration
+            os: ubuntu
+            target: ./test
+            tags: azure
+            run: ^TestAzure
+            secrets:
+              [
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+                TG_AZURE_TEST_RESOURCE_GROUP,
+                ARM_CLIENT_ID,
+                ARM_CLIENT_SECRET,
+                ARM_TENANT_ID,
+                ARM_SUBSCRIPTION_ID,
+              ]
+          - name: OCI Registries
+            os: ubuntu
+            target: ./test
+            tags: ocilive
+            run: "^TestOCILive"
+            test_args: "-count=1"
+            skip: false
+            setup_scripts:
+              - .github/scripts/setup/ecr-credential-helper.sh
+            secrets:
+              [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
+                TG_OCI_TEST_ECR_REPOSITORY,
+                TG_OCI_TEST_GHCR_REPOSITORY,
+                TG_OCI_TEST_GHCR_USERNAME,
+                TG_OCI_TEST_GHCR_TOKEN,
               ]
           - name: Windows
             os: windows
@@ -122,19 +162,21 @@ jobs:
           - name: Provider Cache Server with Latest Terraform
             os: ubuntu
             target: ./test
+            tags: tf
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/terraform-switch-latest.sh
           - name: Provider Cache Server with Tofu
             os: ubuntu
             target: ./test
-            tags: tofu
+            tags: "tofu,tf"
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/tofu-switch.sh
           - name: Race
             os: ubuntu
             target: ./...
+            tags: tf
             run: ".*WithRacing"
             test_args: "-race"
           - name: Parse
@@ -145,6 +187,7 @@ jobs:
           - name: Experiment mode
             os: ubuntu
             target: ./...
+            tags: tf
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
           - name: OpenTofu Unit Tests
@@ -218,6 +261,15 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           TG_AZURE_TEST_STORAGE_ACCOUNT: ${{ secrets.TG_AZURE_TEST_STORAGE_ACCOUNT }}
           TG_AZURE_TEST_SUBSCRIPTION_ID: ${{ secrets.TG_AZURE_TEST_SUBSCRIPTION_ID }}
+          TG_AZURE_TEST_RESOURCE_GROUP: ${{ secrets.TG_AZURE_TEST_RESOURCE_GROUP }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          TG_OCI_TEST_ECR_REPOSITORY: ${{ secrets.TG_OCI_TEST_ECR_REPOSITORY }}
+          TG_OCI_TEST_GHCR_REPOSITORY: ${{ secrets.TG_OCI_TEST_GHCR_REPOSITORY }}
+          TG_OCI_TEST_GHCR_USERNAME: ${{ secrets.TG_OCI_TEST_GHCR_USERNAME }}
+          TG_OCI_TEST_GHCR_TOKEN: ${{ secrets.TG_OCI_TEST_GHCR_TOKEN }}
         shell: bash
 
       - name: Setup

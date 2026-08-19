@@ -10,6 +10,7 @@ import (
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -217,14 +218,16 @@ func TestTofuFindAllTerraformFiles(t *testing.T) {
 		"modules/security": {"main.tofu", "variables.tf", "data.tofu.json"},
 	}
 
+	fsys := vfs.NewMemMapFS()
+
 	for moduleDir, files := range modules {
 		modulePath := filepath.Join(tmpDir, moduleDir)
-		require.NoError(t, os.MkdirAll(modulePath, 0755))
+		require.NoError(t, fsys.MkdirAll(modulePath, 0755))
 
 		for _, file := range files {
 			filePath := filepath.Join(modulePath, file)
 			content := "# Test content for " + file
-			require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
+			require.NoError(t, vfs.WriteFile(fsys, filePath, []byte(content), 0644))
 		}
 	}
 
@@ -233,7 +236,7 @@ func TestTofuFindAllTerraformFiles(t *testing.T) {
 
 	opts.WorkingDir = tmpDir
 
-	allFiles, err := util.FindTFFiles(tmpDir)
+	allFiles, err := util.FindTFFiles(fsys, tmpDir)
 	require.NoError(t, err)
 
 	var files []string

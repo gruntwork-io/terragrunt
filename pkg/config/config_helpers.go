@@ -19,6 +19,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
@@ -41,7 +42,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -795,7 +795,7 @@ func findInParentFoldersImpl(
 
 		fileToFind := parentFileCandidate(currentDir, fileToFindParam)
 
-		if parentFileExists(ctx, probes, fileToFind) {
+		if parentFileExists(ctx, pctx.Venv.FS, probes, fileToFind) {
 			return fileToFind, nil
 		}
 
@@ -830,12 +830,17 @@ func parentFileCandidate(dir, fileName string) string {
 // created in an already-probed ancestor part-way through a run is therefore not
 // observed. Nothing Terragrunt generates lands in an ancestor it has already
 // walked past, and the cache lives only as long as one run.
-func parentFileExists(ctx context.Context, probes *cache.Cache[bool], path string) bool {
+func parentFileExists(
+	ctx context.Context,
+	fsys vfs.FS,
+	probes *cache.Cache[bool],
+	path string,
+) bool {
 	if exists, found := probes.Get(ctx, path); found {
 		return exists
 	}
 
-	exists := util.FileExists(path)
+	exists := vfs.Exists(fsys, path)
 	probes.Put(ctx, path, exists)
 
 	return exists
@@ -999,9 +1004,8 @@ func getAWSField(
 	fetchFn func(context.Context, *aws.Config) (string, error),
 ) (string, error) {
 	awsConfig, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(pctx.Venv.Env).
 		WithIAMRoleOptions(pctx.IAMRoleOptions).
-		Build(ctx, l)
+		Build(ctx, l, pctx.Venv)
 	if err != nil {
 		return "", err
 	}
@@ -1060,9 +1064,9 @@ func ParseTerragruntConfig(
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(configPath, pctx.TerragruntConfigPath)
+	targetConfig := getCleanedTargetConfigPath(pctx.Venv.FS, configPath, pctx.TerragruntConfigPath)
 
-	targetConfigFileExists := util.FileExists(targetConfig)
+	targetConfigFileExists := vfs.Exists(pctx.Venv.FS, targetConfig)
 
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, TerragruntConfigNotFoundError{Path: targetConfig}
@@ -1199,7 +1203,7 @@ func readTerragruntConfigAsFuncImpl(
 // Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
 // paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
 // path is a directory.
-func getCleanedTargetConfigPath(configPath string, workingPath string) string {
+func getCleanedTargetConfigPath(fsys vfs.FS, configPath string, workingPath string) string {
 	cwd := filepath.Dir(workingPath)
 
 	targetConfig := configPath
@@ -1207,7 +1211,7 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 		targetConfig = filepath.Join(cwd, targetConfig)
 	}
 
-	if util.IsDir(targetConfig) {
+	if vfs.IsDir(fsys, targetConfig) {
 		targetConfig = GetDefaultConfigPath(targetConfig)
 	}
 
@@ -1564,7 +1568,7 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 		varFile = filepath.Clean(varFile)
 	}
 
-	if !util.FileExists(varFile) {
+	if !vfs.Exists(pctx.Venv.FS, varFile) {
 		return "", TFVarFileNotFoundError{File: varFile}
 	}
 
@@ -1699,7 +1703,7 @@ func markGlobAsRead(
 		opts = append(opts, glob.WithBoundary(boundary))
 	}
 
-	matches, err := glob.Expand(vfs.NewOSFS(), pattern, opts...)
+	matches, err := glob.Expand(pctx.Venv.FS, pattern, opts...)
 	if err != nil {
 		if errors.Is(err, glob.ErrOutsideBoundary) {
 			return nil, fmt.Errorf(

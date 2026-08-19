@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 )
 
 const (
@@ -28,11 +29,11 @@ func computeKindColumnWidth() int {
 
 	var maxW int
 
-	for _, k := range []ComponentKind{
-		ComponentKindModule,
-		ComponentKindTemplate,
-		ComponentKindUnit,
-		ComponentKindStack,
+	for _, k := range []component.Kind{
+		component.KindModule,
+		component.KindTemplate,
+		component.KindUnit,
+		component.KindStack,
 	} {
 		if w := lipgloss.Width(style.Render(k.String())); w > maxW {
 			maxW = w

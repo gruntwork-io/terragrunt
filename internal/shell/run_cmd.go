@@ -335,7 +335,7 @@ func runCommand(
 		forwardSignalDelay = SignalForwardingDelay
 	}
 
-	cmd := exec.Command(ctx, v.Exec, cmdOpts.Command, cmdOpts.Args...)
+	cmd := exec.Command(ctx, v, cmdOpts.Command, cmdOpts.Args...)
 	cmd.SetDir(cmdOpts.CommandDir)
 	cmd.SetStdout(cmdStdout)
 	cmd.SetStderr(cmdStderr)

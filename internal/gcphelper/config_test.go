@@ -4,14 +4,44 @@ package gcphelper_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// serviceAccountJSON builds a complete service-account credentials payload.
+// Credentials are validated where they are detected, so a payload naming only
+// its type is rejected before it can stand in for a real one.
+func serviceAccountJSON(t *testing.T) []byte {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	sa, err := json.Marshal(map[string]string{
+		"type":         "service_account",
+		"project_id":   "test-project",
+		"client_email": "test@test-project.iam.gserviceaccount.com",
+		"token_uri":    "https://oauth2.googleapis.com/token",
+		"private_key": string(pem.EncodeToMemory(&pem.Block{
+			Type:  "PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
+		})),
+	})
+	require.NoError(t, err)
+
+	return sa
+}
 
 func TestGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 	t.Parallel()
@@ -21,14 +51,14 @@ func TestGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 	// Create a temporary credentials file
 	tmpDir := t.TempDir()
 	credsFile := filepath.Join(tmpDir, "credentials.json")
-	err := os.WriteFile(credsFile, []byte(`{"type":"service_account"}`), 0644)
+	err := os.WriteFile(credsFile, serviceAccountJSON(t), 0644)
 	require.NoError(t, err)
 
 	env := map[string]string{
 		"GOOGLE_APPLICATION_CREDENTIALS": credsFile,
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -42,7 +72,7 @@ func TestGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
 		"GOOGLE_OAUTH_ACCESS_TOKEN": "test-oauth-token",
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -68,7 +98,7 @@ func TestGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
 		"GOOGLE_CREDENTIALS": credsJSON,
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -81,7 +111,7 @@ func TestGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 	// Create a temporary credentials file
 	tmpDir := t.TempDir()
 	credsFile := filepath.Join(tmpDir, "credentials.json")
-	err := os.WriteFile(credsFile, []byte(`{"type":"service_account"}`), 0644)
+	err := os.WriteFile(credsFile, serviceAccountJSON(t), 0644)
 	require.NoError(t, err)
 
 	env := map[string]string{}
@@ -92,8 +122,7 @@ func TestGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 
 	clientOpts, err := gcphelper.NewGCPConfigBuilder().
 		WithSessionConfig(gcpCfg).
-		WithEnv(env).
-		Build(ctx)
+		Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -111,8 +140,7 @@ func TestGcpConfigWithAccessTokenFromConfig(t *testing.T) {
 
 	clientOpts, err := gcphelper.NewGCPConfigBuilder().
 		WithSessionConfig(gcpCfg).
-		WithEnv(env).
-		Build(ctx)
+		Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -127,10 +155,10 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 	envCredsFile := filepath.Join(tmpDir, "env-credentials.json")
 	configCredsFile := filepath.Join(tmpDir, "config-credentials.json")
 
-	err := os.WriteFile(envCredsFile, []byte(`{"type":"service_account"}`), 0644)
+	err := os.WriteFile(envCredsFile, serviceAccountJSON(t), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(configCredsFile, []byte(`{"type":"service_account"}`), 0644)
+	err = os.WriteFile(configCredsFile, serviceAccountJSON(t), 0644)
 	require.NoError(t, err)
 
 	// Set environment variable - this should take precedence over config
@@ -145,8 +173,7 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 
 	clientOpts, err := gcphelper.NewGCPConfigBuilder().
 		WithSessionConfig(gcpCfg).
-		WithEnv(env).
-		Build(ctx)
+		Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 
@@ -171,7 +198,7 @@ func TestGcpConfigWithImpersonation(t *testing.T) {
 
 	// This will fail because we don't have real credentials, but we can verify
 	// that the impersonation configuration is attempted
-	_, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(gcpCfg).WithEnv(env).Build(ctx)
+	_, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(gcpCfg).Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	// We expect an error because impersonation requires valid base credentials
 	// The error should be about impersonation, not about missing credentials
 	require.Error(t, err)
@@ -186,7 +213,7 @@ func TestGcpConfigWithNoCredentials(t *testing.T) {
 	env := map[string]string{}
 
 	// No credentials provided - should return empty options (will use default credentials)
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	// Should return empty options when no credentials are provided
 	// (default credentials will be used by GCP client)
@@ -217,7 +244,7 @@ func TestGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 		"GOOGLE_CREDENTIALS": credsFile,
 	}
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().WithEnv(env).Build(ctx)
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().Build(ctx, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }

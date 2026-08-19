@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -16,10 +18,10 @@ const (
 	runCmdOutputMarker             = "RUN_CMD_OUTPUT_MARKER_12345"
 )
 
-// TestRunCmdOutputFromIncludedFileInStack verifies that run_cmd output from included
+// TestTFRunCmdOutputFromIncludedFileInStack verifies that run_cmd output from included
 // files (like root.hcl) is visible when running terragrunt commands on a stack.
 // This is a regression test for issue #5400.
-func TestRunCmdOutputFromIncludedFileInStack(t *testing.T) {
+func TestTFRunCmdOutputFromIncludedFileInStack(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureRunCmdIncludeOutput)

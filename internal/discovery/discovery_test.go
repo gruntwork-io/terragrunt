@@ -8,10 +8,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -267,7 +267,7 @@ func TestDiscovery_SimpleFilesystem(t *testing.T) {
 		WorkingDir: tmpDir,
 	})
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 3, "should discover 3 components")
 }
@@ -307,7 +307,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components in apps/")
 }
@@ -347,7 +347,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (excluding bar)")
 
@@ -392,7 +392,7 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (apps/* minus baz)")
 
@@ -513,7 +513,7 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithReadFiles()
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Find the app component
@@ -564,7 +564,7 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	_, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
+	_, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.Error(t, err)
 
 	var coexistErr discovery.CoexistenceError
@@ -595,8 +595,69 @@ func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 1)
 	assert.Equal(t, component.UnitKind, components[0].Kind())
+}
+
+// TestDiscovery_ParsesStackConfigs verifies that WithParseStackConfigs stores
+// parsed stack configs on discovered stack components, and that parse failures
+// are skipped without failing discovery.
+func TestDiscovery_ParsesStackConfigs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	stackDir := filepath.Join(tmpDir, "stack")
+	brokenDir := filepath.Join(tmpDir, "broken")
+
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+	require.NoError(t, os.MkdirAll(brokenDir, 0755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(`
+unit "app" {
+	source = "../units/app"
+	path   = "app"
+}
+`),
+		0644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(brokenDir, "terragrunt.stack.hcl"),
+		[]byte("unit {\n"),
+		0644,
+	))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir:     tmpDir,
+		RootWorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
+		WithParseStackConfigs()
+
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	stacks := make(map[string]*component.Stack)
+
+	for _, c := range components {
+		if s, ok := c.(*component.Stack); ok {
+			stacks[s.Path()] = s
+		}
+	}
+
+	parsed := stacks[stackDir]
+	require.NotNil(t, parsed, "stack component should be discovered")
+	require.NotNil(t, parsed.Config(), "stack config should be parsed and stored")
+	require.Len(t, parsed.Config().Units, 1)
+	assert.Equal(t, "app", parsed.Config().Units[0].Name)
+
+	broken := stacks[brokenDir]
+	require.NotNil(t, broken, "broken stack component should still be discovered")
+	assert.Nil(t, broken.Config(), "unparsable stack config should be skipped")
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ import (
 func TestAwsExampleLiveStacks(t *testing.T) {
 	uniqueID := strings.ToLower(helpers.UniqueID())
 
-	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger())
+	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger(), venv.OSVenv())
 	require.NoError(t, err, "Error creating AWS config")
 
 	stsClient := sts.NewFromConfig(awsCfg)

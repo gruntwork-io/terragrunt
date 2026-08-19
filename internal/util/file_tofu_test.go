@@ -155,24 +155,22 @@ func TestDirContainsTFFiles(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			// Create temporary directory
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			fsys := vfs.NewMemMapFS()
+			tmpDir := "/work"
 
-			// Create directories
+			require.NoError(t, fsys.MkdirAll(tmpDir, 0755))
+
 			for _, dir := range tc.directories {
-				dirPath := filepath.Join(tmpDir, dir)
-				require.NoError(t, os.MkdirAll(dirPath, 0755))
+				require.NoError(t, fsys.MkdirAll(filepath.Join(tmpDir, dir), 0755))
 			}
 
-			// Create files
 			for _, file := range tc.files {
 				filePath := filepath.Join(tmpDir, file)
-				// Ensure directory exists
-				require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0755))
-				require.NoError(t, os.WriteFile(filePath, []byte("# Test file content"), 0644))
+				require.NoError(t, fsys.MkdirAll(filepath.Dir(filePath), 0755))
+				require.NoError(t, vfs.WriteFile(fsys, filePath, []byte("# Test file content"), 0644))
 			}
 
-			actual, err := util.DirContainsTFFiles(tmpDir)
+			actual, err := util.DirContainsTFFiles(fsys, tmpDir)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -261,24 +259,22 @@ func TestFindTFFiles(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			// Create temporary directory
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			fsys := vfs.NewMemMapFS()
+			tmpDir := "/work"
 
-			// Create directories
+			require.NoError(t, fsys.MkdirAll(tmpDir, 0755))
+
 			for _, dir := range tc.directories {
-				dirPath := filepath.Join(tmpDir, dir)
-				require.NoError(t, os.MkdirAll(dirPath, 0755))
+				require.NoError(t, fsys.MkdirAll(filepath.Join(tmpDir, dir), 0755))
 			}
 
-			// Create files
 			for _, file := range tc.files {
 				filePath := filepath.Join(tmpDir, file)
-				// Ensure directory exists
-				require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0755))
-				require.NoError(t, os.WriteFile(filePath, []byte("# Test file content"), 0644))
+				require.NoError(t, fsys.MkdirAll(filepath.Dir(filePath), 0755))
+				require.NoError(t, vfs.WriteFile(fsys, filePath, []byte("# Test file content"), 0644))
 			}
 
-			actual, err := util.FindTFFiles(tmpDir)
+			actual, err := util.FindTFFiles(fsys, tmpDir)
 			require.NoError(t, err)
 
 			// Check count
@@ -469,7 +465,7 @@ module "database" {
 			regex, err := regexp.Compile(tc.pattern)
 			require.NoError(t, err)
 
-			actual, err := util.RegexFoundInTFFiles(tmpDir, regex)
+			actual, err := util.RegexFoundInTFFiles(vfs.NewOSFS(), tmpDir, regex)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expected, actual, "For test case: %s", tc.description)
@@ -485,7 +481,7 @@ func TestRegexFoundInTFFilesErrorHandling(t *testing.T) {
 		t.Parallel()
 
 		regex := regexp.MustCompile("test")
-		_, err := util.RegexFoundInTFFiles("/non/existent/directory", regex)
+		_, err := util.RegexFoundInTFFiles(vfs.NewOSFS(), "/non/existent/directory", regex)
 		assert.Error(t, err)
 	})
 
@@ -509,7 +505,7 @@ func TestRegexFoundInTFFilesErrorHandling(t *testing.T) {
 		}()
 
 		regex := regexp.MustCompile("test")
-		_, err = util.RegexFoundInTFFiles(tmpDir, regex)
+		_, err = util.RegexFoundInTFFiles(vfs.NewOSFS(), tmpDir, regex)
 		// We expect an error due to permission denied, but don't fail the test
 		// if the OS doesn't enforce permission restrictions in the test environment
 		if err == nil {
@@ -678,7 +674,7 @@ func BenchmarkDirContainsTFFiles(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		result, err := util.DirContainsTFFiles(tmpDir)
+		result, err := util.DirContainsTFFiles(vfs.NewOSFS(), tmpDir)
 		require.NoError(b, err)
 
 		benchmarkBoolSink = benchmarkBoolSink != result

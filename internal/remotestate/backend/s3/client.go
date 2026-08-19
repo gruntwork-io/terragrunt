@@ -91,10 +91,9 @@ func NewClient(
 
 	builder := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
-		WithEnv(v.Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions)
 
-	cfg, err := builder.Build(ctx, l)
+	cfg, err := builder.Build(ctx, l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +104,7 @@ func NewClient(
 		}
 	}
 
-	s3Client, err := builder.BuildS3Client(ctx, l)
+	s3Client, err := builder.BuildS3Client(ctx, l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -161,13 +160,7 @@ func (client *Client) CreateS3BucketIfNecessary(
 		bucketName,
 	)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -239,13 +232,7 @@ func (client *Client) UpdateS3BucketIfNecessary(
 		bucketName,
 	)
 
-	shouldUpdateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -749,13 +736,7 @@ func (client *Client) CreateLogsS3BucketIfNecessary(
 		logsBucketName,
 	)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}

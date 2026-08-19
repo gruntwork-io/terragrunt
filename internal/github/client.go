@@ -18,6 +18,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -234,6 +235,7 @@ func NewGitHubReleasesDownloadClient(
 // from GitHub releases using the standard GitHub releases URL format.
 func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 	ctx context.Context,
+	v *venv.Venv,
 	assets *ReleaseAssets,
 ) (*DownloadResult, error) {
 	if assets.Repository == "" {
@@ -315,7 +317,7 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 				}
 			}
 
-			if _, err := getter.GetFile(downloadCtx, localPath, url, opts...); err != nil {
+			if _, err := getter.GetFile(downloadCtx, v, localPath, url, opts...); err != nil {
 				return fmt.Errorf("failed to download %s: %w", url, err)
 			}
 

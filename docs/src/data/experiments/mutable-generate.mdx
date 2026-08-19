@@ -1,0 +1,77 @@
+---
+name: mutable-generate
+since: "1.1.2"
+---
+
+Deduplicate the files produced by `generate` blocks through content-addressable storage, with a `mutable` attribute to opt out.
+
+### `mutable-generate` - What it does
+
+With the experiment enabled, the contents a `generate` block produces are stored
+in the [CAS](/features/caching/cas), and the file written at `path` is a
+read-only link to that stored copy rather than a file of its own. The link is
+read-only because the stored copy is shared: an edit through one path would
+otherwise change what every later reader of that content sees.
+
+Because the stored copy is addressed by the hash of its contents, anything
+generating identical contents links to the same copy instead of writing its own.
+That matters most for a `generate` block declared in a parent configuration,
+which writes the same content into every unit that includes it. A provider or
+backend block shared across a few hundred units used to mean a few hundred copies
+in `.terragrunt-cache`, and now means one.
+
+The experiment also adds a `mutable` attribute to the `generate` block, for cases
+where a shared read-only file does not work:
+
+```hcl
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite"
+  mutable   = true
+  contents  = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+```
+
+`mutable = true` gives the block a writable file of its own. Use it when
+something rewrites the generated file in place, such as a hook that patches it
+before `tofu`/`terraform` runs. Terragrunt regenerates the file rather than
+editing it, and `tofu`/`terraform` only read it, so most `generate` blocks do
+not need it.
+
+Setting `mutable` without the experiment enabled is an error, because older
+Terragrunt versions reject the attribute outright. The CAS is required, so
+`--no-cas` writes generated files directly and `mutable` has no effect.
+
+### `mutable-generate` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt --experiment mutable-generate run --all -- apply
+
+# Via environment variable
+export TG_EXPERIMENT=mutable-generate
+terragrunt run --all -- apply
+```
+
+### `mutable-generate` - How to provide feedback
+
+Track and discuss this experiment in [gruntwork-io/terragrunt#6559](https://github.com/gruntwork-io/terragrunt/issues/6559).
+When reporting issues or providing feedback, please include:
+
+- Whether anything in your pipeline writes to a generated file after Terragrunt creates it.
+- The `generate` blocks involved, and how many units share them.
+- The disk usage of `.terragrunt-cache` before and after enabling the experiment.
+
+### `mutable-generate` - Criteria for stabilization
+
+To transition the `mutable-generate` feature to a stable release, the following must be addressed, at a minimum:
+
+- [x] A `mutable` attribute on the `generate` block, parsed from both the block and attribute forms.
+- [x] Deduplication of non-mutable generated files through the CAS store, materialized as read-only hard links.
+- [ ] Confirmation that read-only generated files break no established workflow, including hooks and IaC engines.
+- [ ] A decision on whether `remote_state.generate` should participate, given its per-unit backend keys rarely repeat.
+- [ ] Community feedback on the disk savings actually observed at scale.

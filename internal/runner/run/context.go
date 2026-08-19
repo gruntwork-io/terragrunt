@@ -5,6 +5,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 type configKey byte
@@ -29,17 +31,22 @@ func GetRunVersionCache(ctx context.Context) *cache.Cache[string] {
 // WithModuleVersionResolver installs a shared tfr:// version-constraint
 // resolver so that units sharing a module source and constraint query the
 // registry once per run instead of once each.
-func WithModuleVersionResolver(ctx context.Context) context.Context {
-	return context.WithValue(ctx, moduleVersionResolverContextKey, getter.NewVersionResolver())
+func WithModuleVersionResolver(ctx context.Context, v *venv.Venv) context.Context {
+	return context.WithValue(ctx, moduleVersionResolverContextKey, newModuleVersionResolver(v))
 }
 
 // ModuleVersionResolverFromContext returns the resolver installed by
 // [WithModuleVersionResolver]. If none was installed, it returns a fresh
-// resolver whose memoization is scoped to the caller alone.
-func ModuleVersionResolverFromContext(ctx context.Context) *getter.VersionResolver {
+// resolver, on v's client, whose memoization is scoped to the caller alone.
+func ModuleVersionResolverFromContext(ctx context.Context, v *venv.Venv) *getter.VersionResolver {
 	if resolver, ok := ctx.Value(moduleVersionResolverContextKey).(*getter.VersionResolver); ok {
 		return resolver
 	}
 
-	return getter.NewVersionResolver()
+	return newModuleVersionResolver(v)
+}
+
+func newModuleVersionResolver(v *venv.Venv) *getter.VersionResolver {
+	return getter.NewVersionResolver(v.HTTP).
+		WithAuth(getter.RegistryAuth{Env: v.Env, ReadUserConfig: vfs.IsOSFS(v.FS)})
 }

@@ -13,13 +13,12 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
-	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"charm.land/lipgloss/v2"
@@ -27,7 +26,7 @@ import (
 
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
-	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
 		NoHidden:          opts.NoHidden,
@@ -36,37 +35,20 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		Exclude:           opts.Exclude,
 		Include:           opts.Include,
 		Reading:           opts.Reading,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,
 	})
 	if err != nil {
 		return err
 	}
 
-	// We do worktree generation here instead of in the discovery constructor
-	// so that we can defer cleanup in the same context.
-	gitFilters := opts.Filters.UniqueGitFilters()
+	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, opts.TerragruntOptions, d)
 
-	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
-		WorkingDir:     opts.WorkingDir,
-		GitExpressions: gitFilters,
-		Experiments:    opts.Experiments,
-	})
-	if worktreeErr != nil {
-		return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
-	}
+	defer cleanupWorktrees(ctx)
 
-	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l)
-		if cleanupErr != nil {
-			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
-		}
-	}()
-
-	if err := generate.WorktreeStacks(ctx, l, v, opts.TerragruntOptions, worktrees); err != nil {
+	if err != nil {
 		return err
 	}
-
-	d = d.WithWorktrees(worktrees)
 
 	var (
 		components  component.Components
@@ -131,7 +113,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, v.Writers.Writer, foundComponents)
+		return outputText(l, v, foundComponents)
 	case FormatJSON:
 		return outputJSON(v.Writers.Writer, foundComponents)
 	default:
@@ -321,21 +303,16 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 }
 
 // outputText outputs the discovered components in text format.
-func outputText(l log.Logger, w io.Writer, components FoundComponents) error {
+func outputText(l log.Logger, v *venv.Venv, components FoundComponents) error {
 	var buf strings.Builder
 
-	colorizer := NewColorizer(shouldColor(l))
+	colorizer := NewColorizer(stdout.ShouldColor(l, v))
 
 	for _, c := range components {
 		buf.WriteString(colorizer.Colorize(c) + "\n")
 	}
 
-	_, err := w.Write([]byte(buf.String()))
+	_, err := v.Writers.Writer.Write([]byte(buf.String()))
 
 	return err
-}
-
-// shouldColor returns true if the output should be colored.
-func shouldColor(l log.Logger) bool {
-	return !l.Formatter().DisabledColors() && !stdout.IsRedirected()
 }

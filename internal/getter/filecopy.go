@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"path/filepath"
 
 	"errors"
 
@@ -22,6 +23,15 @@ const SourceManifestName = ".terragrunt-source-manifest"
 // path resolves to a file rather than a directory. Exported so callers can
 // match on it via errors.Is.
 var ErrSourceNotADirectory = errors.New("source path must be a directory")
+
+// ErrSourceNotAFile is returned by FileCopyGetter.GetFile when the source path
+// resolves to a directory rather than a file. Exported so callers can match on
+// it via errors.Is.
+var ErrSourceNotAFile = errors.New("source path must be a file")
+
+// dstDirPerms is the mode given to parent directories created on the way to a
+// single-file destination.
+const dstDirPerms = 0o700
 
 // FileCopyGetter is the file-protocol Getter Terragrunt uses in place of
 // go-getter's default FileGetter. The default FileGetter creates symlinks
@@ -64,26 +74,59 @@ func (g *FileCopyGetter) Get(_ context.Context, req *getter.Request) error {
 		copyOpts = append(copyOpts, util.WithFastCopy())
 	}
 
-	return util.CopyFolderContents(g.Logger, path, req.Dst, SourceManifestName, copyOpts...)
+	return util.CopyFolderContents(g.Logger, g.FS, path, req.Dst, SourceManifestName, copyOpts...)
 }
 
-// GetFile copies a single file. We delegate to v2's FileGetter with Copy=true
-// so we don't have to reimplement the file-copy details.
-func (g *FileCopyGetter) GetFile(ctx context.Context, req *getter.Request) error {
-	clone := *req
-	clone.Copy = true
+// GetFile copies the single file referenced by req into req.Dst. v2's
+// FileGetter would do the same, but it reaches for os directly, so a
+// virtual filesystem would never see the write.
+func (g *FileCopyGetter) GetFile(_ context.Context, req *getter.Request) error {
+	u := req.URL()
 
-	if err := (&getter.FileGetter{}).GetFile(ctx, &clone); err != nil {
+	path := u.Path
+	if u.RawPath != "" {
+		path = u.RawPath
+	}
+
+	fi, err := g.FS.Stat(path)
+	if err != nil {
+		return fmt.Errorf("source path error: %w", err)
+	}
+
+	if fi.IsDir() {
+		return ErrSourceNotAFile
+	}
+
+	if err := g.FS.MkdirAll(filepath.Dir(req.Dst), dstDirPerms); err != nil {
+		return err
+	}
+
+	if err := vfs.CopyFile(g.FS, path, req.Dst); err != nil {
 		return fmt.Errorf("failed to copy file to %s: %w", req.Dst, err)
 	}
 
 	return nil
 }
 
-// Mode delegates to v2's FileGetter so the directory/file probe matches the
-// stock implementation exactly.
-func (g *FileCopyGetter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
-	return (&getter.FileGetter{}).Mode(ctx, u)
+// Mode reports whether the source path is a directory or a single file. v2's
+// FileGetter probes the same way, but through os rather than the filesystem
+// this getter was built with.
+func (g *FileCopyGetter) Mode(_ context.Context, u *url.URL) (getter.Mode, error) {
+	path := u.Path
+	if u.RawPath != "" {
+		path = u.RawPath
+	}
+
+	fi, err := g.FS.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+
+	if fi.IsDir() {
+		return getter.ModeDir, nil
+	}
+
+	return getter.ModeFile, nil
 }
 
 // Detect delegates to v2's FileGetter so the URL canonicalization matches the
@@ -94,8 +137,8 @@ func (g *FileCopyGetter) Detect(req *getter.Request) (bool, error) {
 
 // NewFileCopyGetter returns a FileCopyGetter backed by the supplied
 // filesystem. Use the With* methods to customize other behavior.
-func NewFileCopyGetter(fs vfs.FS) *FileCopyGetter {
-	return &FileCopyGetter{FS: fs}
+func NewFileCopyGetter(fsys vfs.FS) *FileCopyGetter {
+	return &FileCopyGetter{FS: fsys}
 }
 
 // WithLogger sets the logger used by [util.CopyFolderContents] during a copy.
@@ -104,17 +147,9 @@ func (g *FileCopyGetter) WithLogger(l log.Logger) *FileCopyGetter {
 	return g
 }
 
-// WithFS sets the filesystem used to stat source paths before copying.
-// Panics if fs is not OS-backed: Get delegates to util.CopyFolderContents
-// and GetFile to go-getter's FileGetter, both of which bypass the
-// abstraction.
-func (g *FileCopyGetter) WithFS(fs vfs.FS) *FileCopyGetter {
-	if !vfs.IsOSFS(fs) {
-		panic("getter.FileCopyGetter.WithFS: requires an OS-backed filesystem")
-	}
-
-	g.FS = fs
-
+// WithFS sets the filesystem every read and write of the copy runs through.
+func (g *FileCopyGetter) WithFS(fsys vfs.FS) *FileCopyGetter {
+	g.FS = fsys
 	return g
 }
 

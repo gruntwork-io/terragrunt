@@ -1,9 +1,12 @@
 package venv_test
 
 import (
+	"context"
 	"errors"
 	"io"
+	"net/http"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +15,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/internal/vsops"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
 
 func TestParseEnviron(t *testing.T) {
@@ -41,6 +47,11 @@ func TestParseEnviron(t *testing.T) {
 			name:    "entry without separator is dropped",
 			environ: []string{"NOSEP"},
 			want:    map[string]string{},
+		},
+		{
+			name:    "empty entry is dropped",
+			environ: []string{"", "FOO=bar"},
+			want:    map[string]string{"FOO": "bar"},
 		},
 		{
 			name:    "windows per-drive key keeps leading equals",
@@ -171,4 +182,166 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
 		(&venv.Venv{}).RequireUserHomeDir()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).RequirePlatform()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvWritersUnset, func() {
+		(&venv.Venv{}).RequireWriters()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvListenUnset, func() {
+		(&venv.Venv{}).RequireListen()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvStdinUnset, func() {
+		(&venv.Venv{}).RequireStdin()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvWritersUnset, func() {
+		// A non-nil Writers whose fields are nil is the case a bare nil check
+		// would wave through, and the one that fails furthest from its cause.
+		(&venv.Venv{Writers: &writer.Writers{}}).RequireWriters()
+	})
+}
+
+// TestVenvPlatformBuildersRequireAPlatform pins that refining one platform
+// handle on a Venv carrying no platform fails at the builder. Filling in a
+// blank platform instead would hand back a Venv whose other handles are nil,
+// and the nil would surface somewhere else entirely.
+func TestVenvPlatformBuildersRequireAPlatform(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithGOOS("plan9")
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithUserHomeDir(func() (string, error) { return "", nil })
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithTempDir(func() string { return "" })
+	})
+}
+
+// TestVenvHandleBuildersReturnCopies pins the builder contract: the returned
+// copy carries the new handle, the receiver keeps none of them.
+func TestVenvHandleBuildersReturnCopies(t *testing.T) {
+	t.Parallel()
+
+	memFS := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(memFS, "/tracer.txt", []byte("tracer"), 0o644))
+
+	wantSopsErr := errors.New("decrypt failed")
+	echo := vexec.Handler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		return vexec.Result{Stdout: []byte(inv.Name + " " + strings.Join(inv.Args, " "))}
+	})
+
+	testCases := []struct {
+		build  func(v *venv.Venv) *venv.Venv
+		verify func(t *testing.T, got *venv.Venv)
+		name   string
+	}{
+		{
+			name:  "WithFS",
+			build: func(v *venv.Venv) *venv.Venv { return v.WithFS(memFS) },
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				data, err := vfs.ReadFile(got.FS, "/tracer.txt")
+				require.NoError(t, err)
+				assert.Equal(t, "tracer", string(data))
+			},
+		},
+		{
+			name:   "WithExec",
+			build:  func(v *venv.Venv) *venv.Venv { return v.WithExec(vexec.NewMemExec(echo)) },
+			verify: assertExecEchoes,
+		},
+		{
+			name:   "WithHandler",
+			build:  func(v *venv.Venv) *venv.Venv { return v.WithHandler(echo) },
+			verify: assertExecEchoes,
+		},
+		{
+			name: "WithSops",
+			build: func(v *venv.Venv) *venv.Venv {
+				return v.WithSops(vsops.NewMemDecrypter(func(string, string) ([]byte, error) {
+					return nil, wantSopsErr
+				}))
+			},
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				_, err := got.Sops.DecryptFile("/secrets.yaml", "yaml")
+				require.ErrorIs(t, err, wantSopsErr)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			original := &venv.Venv{}
+			got := tc.build(original)
+
+			require.NotSame(t, original, got)
+			assert.Nil(t, original.FS)
+			assert.Nil(t, original.Exec)
+			assert.Nil(t, original.Sops)
+			tc.verify(t, got)
+		})
+	}
+}
+
+// TestVenvWithStdinSharesOneStream pins the stdin contract: every derived venv
+// reads the one stream, unwrapped, so a second consumer resumes exactly where
+// the first stopped, and a later replacement swaps the stream for that copy
+// alone.
+func TestVenvWithStdinSharesOneStream(t *testing.T) {
+	t.Parallel()
+
+	original := &venv.Venv{}
+	stdin := strings.NewReader("first\nsecond\n")
+	got := original.WithStdin(stdin)
+
+	assert.Nil(t, original.Stdin)
+	require.Same(t, stdin, got.Stdin)
+
+	derived := got.WithFS(vfs.NewMemMapFS())
+	require.Same(t, got.Stdin, derived.Stdin)
+
+	replaced := got.WithStdin(strings.NewReader("third\n"))
+	require.NotSame(t, got.Stdin, replaced.Stdin)
+	require.Same(t, stdin, got.Stdin)
+}
+
+// TestVenvRequireStdinAndHTTP pins the Stdin and HTTP contracts: the zero
+// Venv panics with the sentinel, a populated Venv passes.
+func TestVenvRequireStdinAndHTTP(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvStdinUnset, func() {
+		(&venv.Venv{FS: vfs.NewMemMapFS()}).RequireStdin()
+	})
+
+	assert.NotPanics(t, func() {
+		(&venv.Venv{}).WithStdin(strings.NewReader("")).RequireStdin()
+	})
+
+	assert.PanicsWithValue(t, venv.ErrVenvHTTPUnset, func() {
+		(&venv.Venv{FS: vfs.NewMemMapFS()}).RequireHTTP()
+	})
+
+	assert.NotPanics(t, func() {
+		(&venv.Venv{HTTP: vhttp.NewMemClient(okHandler)}).RequireHTTP()
+	})
+}
+
+func assertExecEchoes(t *testing.T, got *venv.Venv) {
+	t.Helper()
+
+	out, err := got.Exec.Command(t.Context(), "terraform", "version").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "terraform version", string(out))
+}
+
+func okHandler(_ context.Context, _ *http.Request) (*http.Response, error) {
+	return vhttp.Respond(http.StatusOK, nil, nil), nil
 }

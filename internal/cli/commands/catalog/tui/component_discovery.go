@@ -5,23 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/ignore"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
-)
-
-// boilerplateDirName and boilerplateConfigName are the two markers that
-// classify a directory as a template.
-const (
-	boilerplateDirName    = ".boilerplate"
-	boilerplateConfigName = "boilerplate.yml"
-
-	// placeholderTFFile matches the legacy ignore in module/module.go so
-	// repos that contain the Terraform Cloud/Enterprise private registry
-	// placeholder aren't misclassified as modules.
-	placeholderTFFile = "terraform-cloud-enterprise-private-module-registry-placeholder.tf"
 )
 
 // ComponentDiscovery walks an already-cloned repo and classifies every
@@ -73,7 +60,9 @@ func (cd *ComponentDiscovery) Discover(fsys vfs.FS, repo *module.Repo) (Componen
 	}
 
 	if cd.walkWithSymlinks {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(fsys, root, fn)
+		}
 	}
 
 	ignoreMatcher, err := ignore.Load(fsys, repoPath)
@@ -119,11 +108,12 @@ func (cd *ComponentDiscovery) Discover(fsys vfs.FS, repo *module.Repo) (Componen
 			return fs.SkipDir
 		}
 
-		kind, isComponent, err := classifyDir(fsys, dir)
+		markers, err := component.Inspect(fsys, dir)
 		if err != nil {
 			return err
 		}
 
+		kind, isComponent := markers.Kind()
 		if !isComponent {
 			return nil
 		}
@@ -138,8 +128,8 @@ func (cd *ComponentDiscovery) Discover(fsys vfs.FS, repo *module.Repo) (Componen
 		// Skip descent for kinds that own their whole subtree so nested
 		// artifacts (boilerplate.yml, generated .terragrunt-stack output,
 		// nested .tf files inside a unit) don't surface as separate components.
-		if kind == ComponentKindTemplate || kind == ComponentKindUnit ||
-			kind == ComponentKindStack {
+		if kind == component.KindTemplate || kind == component.KindUnit ||
+			kind == component.KindStack {
 			return fs.SkipDir
 		}
 
@@ -150,60 +140,6 @@ func (cd *ComponentDiscovery) Discover(fsys vfs.FS, repo *module.Repo) (Componen
 	}
 
 	return components, nil
-}
-
-func classifyDir(fsys vfs.FS, dir string) (ComponentKind, bool, error) {
-	entries, err := vfs.ReadDirEntries(fsys, dir)
-	if err != nil {
-		return 0, false, err
-	}
-
-	var (
-		hasTF       bool
-		hasTemplate bool
-		hasUnit     bool
-		hasStack    bool
-	)
-
-	for _, entry := range entries {
-		name := entry.Name()
-
-		if entry.IsDir() {
-			if name == boilerplateDirName {
-				hasTemplate = true
-			}
-
-			continue
-		}
-
-		switch name {
-		case config.DefaultStackFile:
-			hasStack = true
-		case config.DefaultTerragruntConfigPath:
-			hasUnit = true
-		case boilerplateConfigName:
-			hasTemplate = true
-		case placeholderTFFile:
-			// Ignore: legacy Terraform Cloud/Enterprise placeholder.
-		default:
-			if util.IsTFFile(name) {
-				hasTF = true
-			}
-		}
-	}
-
-	switch {
-	case hasTemplate:
-		return ComponentKindTemplate, true, nil
-	case hasStack:
-		return ComponentKindStack, true, nil
-	case hasUnit:
-		return ComponentKindUnit, true, nil
-	case hasTF:
-		return ComponentKindModule, true, nil
-	}
-
-	return 0, false, nil
 }
 
 // isSkippableDir reports whether a directory name should not be descended
@@ -218,7 +154,7 @@ func newComponent(
 	fsys vfs.FS,
 	repo *module.Repo,
 	repoPath, cloneURL, relDir string,
-	kind ComponentKind,
+	kind component.Kind,
 ) (*Component, error) {
 	doc, err := FindComponentDoc(fsys, filepath.Join(repoPath, relDir))
 	if err != nil {

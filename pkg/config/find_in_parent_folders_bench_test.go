@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +23,7 @@ func BenchmarkFindInParentFolders(b *testing.B) {
 
 			b.Run("depth="+strconv.Itoa(depth)+"/units="+strconv.Itoa(units), func(b *testing.B) {
 				l := logger.CreateLogger()
-				baseCtx, pctx := newTestParsingContext(b, configPaths[0])
+				baseCtx, pctx := newTestParsingContext(b, venvtest.NewWithOSFS(), configPaths[0])
 				params := []string{benchRootFileName}
 
 				for b.Loop() {
