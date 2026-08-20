@@ -625,7 +625,7 @@ func TestProcessStackComponent_AcceptsDepthQueryParam(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	source := "git::" + repoURL + "//stacks/my-stack?depth=1&ref=main"
 
