@@ -361,7 +361,7 @@ OpenTofu/Terraform's native `azurerm` backend is used as-is.
 </Before>
 <Since version="1.1.2">
 With the experiment enabled, Terragrunt bootstraps, deletes, and migrates Azure Storage state resources.
-Otherwise, these operations return an error. Normal state reading and writing is handled by
+Otherwise, these operations return an error. Reading and writing the state itself is always handled by
 OpenTofu/Terraform's native `azurerm` backend.
 
 <Since version="1.1.4">

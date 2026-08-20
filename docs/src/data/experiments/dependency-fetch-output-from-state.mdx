@@ -2,9 +2,6 @@
 name: dependency-fetch-output-from-state
 ---
 
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
-
 Support for fetching dependency outputs directly from state files.
 
 ### `dependency-fetch-output-from-state` - What it does
@@ -12,12 +9,6 @@ By default, Terragrunt retrieves dependency outputs by running `tofu output` or 
 
 **Current Backend Support:**
 
-<Before version="1.1.4">
-- S3 backend: Fully supported
-- Other backends: Falls back to the normal method (using `tofu/terraform output`)
-</Before>
-
-<Since version="1.1.4">
 - S3 and GCS backends: Direct state reads are supported
 - Azure Storage (`azurerm`) backend: Direct state reads are supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled
 - Other backends: Falls back to the normal method (using `tofu/terraform output`)
@@ -25,7 +16,6 @@ By default, Terragrunt retrieves dependency outputs by running `tofu output` or 
 Azure state protected with `customer_provided_key`, and Azure configurations that rely on native-only authentication, metadata-host, or timeout settings, also fall back to the normal method.
 
 GCS configurations that rely on backend-only credential environment variables, inline or relative credential paths, service-account impersonation, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also stay on the normal method. This preserves the native backend's authentication and endpoint behavior.
-</Since>
 
 When an unsupported backend is encountered, Terragrunt will automatically fall back to the default method of using `tofu/terraform output`.
 
@@ -51,17 +41,9 @@ Provide your feedback in the dedicated [GitHub discussion](https://github.com/gr
 ### `dependency-fetch-output-from-state` - Criteria for stabilization
 To transition the `dependency-fetch-output-from-state` feature to a stable release, the following must be addressed, at a minimum:
 
-<Before version="1.1.4">
-- [ ] Add support for additional backends (e.g., GCS, etc.)
-- [ ] Comprehensive integration testing across different backend types
-</Before>
-
-<Since version="1.1.4">
 - [x] Add support for additional backends (GCS and Azure Storage)
 - [x] Live direct-state-read integration coverage for S3, GCS, and Azure Storage
 - [ ] Comprehensive integration testing across backend authentication, encryption, workspace, and error scenarios
-</Since>
-
 - [ ] Performance benchmarking to validate speed improvements
 - [ ] Error handling and edge case testing
 - [x] Documentation of supported backends and limitations

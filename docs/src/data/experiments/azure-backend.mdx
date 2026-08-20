@@ -57,13 +57,6 @@ Without the experiment enabled, these lifecycle operations return an error namin
 the experiment; normal state reading and writing is handled by the native
 OpenTofu/Terraform `azurerm` backend.
 
-<Before version="1.1.4">
-Direct state file reads for
-[`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state)
-are not implemented yet.
-</Before>
-
-<Since version="1.1.4">
 When both this experiment and
 [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state)
 are enabled, Terragrunt can read dependency outputs directly from the Azure state
@@ -72,7 +65,6 @@ State protected with `customer_provided_key`, and configurations that rely on
 native-only authentication, metadata-host, or timeout settings, continue through
 the native backend path. This preserves the backend's identity, endpoint, and
 decryption behavior.
-</Since>
 
 See the [Azure Storage backend documentation](/features/units/state-backend#azure-storage-azurerm-backend)
 for configuration keys and known limitations.
@@ -104,12 +96,7 @@ To transition the `azure-backend` feature to a stable release, the following mus
 - [x] Bootstrap of storage accounts and blob containers, including versioning and soft delete convergence.
 - [ ] Optional RBAC role assignment for `use_azuread_auth` during bootstrap (the data-plane role must currently be granted manually).
 - [x] Delete operations for state blobs and containers, with confirmation prompts, and state migration within a storage account.
-<Before version="1.1.4">
-- [ ] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
-</Before>
-<Since version="1.1.4">
 - [x] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
-</Since>
 - [x] Documentation covering authentication methods, configuration keys, and troubleshooting.
 - [x] End-to-end live coverage against a real subscription for container bootstrap, blob versioning convergence, backend delete, and direct dependency state reads, behind the `azure` build tag.
 - [ ] End-to-end live coverage for resource group and storage account creation, soft-delete retention convergence, and state migration. The current live tests assume a pre-existing storage account.
