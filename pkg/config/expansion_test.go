@@ -59,9 +59,21 @@ stack "team" {
 }
 `
 
-// TestValidateExpansionExperiment pins which blocks the gate rejects while the
-// block-iteration experiment is off, and that it names the offending block.
-func TestValidateExpansionExperiment(t *testing.T) {
+// unitWithExpansionJSON is the JSON encoding of unitWithExpansionHCL. Stack files are only
+// ever HCL, but an include block may point at a JSON file, so the gate has to read one.
+const unitWithExpansionJSON = `{
+  "unit": {
+    "app": {
+      "expansion": {"for_each": ["web"]},
+      "source": "./modules/app",
+      "path": "app/${each.value}"
+    }
+  }
+}`
+
+// TestValidateBlockIterationExperimentGatesExpansion pins which block types reject an
+// expansion block while the experiment is off, and that the error names the offending block.
+func TestValidateBlockIterationExperimentGatesExpansion(t *testing.T) {
 	t.Parallel()
 
 	skipInExperimentMode(t)
@@ -96,6 +108,14 @@ func TestValidateExpansionExperiment(t *testing.T) {
 			cfg:           stackWithExpansionHCL,
 			wantBlockType: "stack",
 			wantLabel:     "team",
+			wantErr:       true,
+		},
+		{
+			name:          "unit with expansion in a json body",
+			configPath:    "extra.json",
+			cfg:           unitWithExpansionJSON,
+			wantBlockType: "unit",
+			wantLabel:     "app",
 			wantErr:       true,
 		},
 		{
@@ -140,7 +160,7 @@ generate "backend" {
 
 			file := parseHCLString(t, tc.cfg, tc.configPath)
 
-			err := config.ValidateExpansionExperiment(experiment.NewExperiments(), file)
+			err := config.ValidateBlockIterationExperiment(experiment.NewExperiments(), file)
 
 			if !tc.wantErr {
 				require.NoError(t, err)
@@ -156,9 +176,9 @@ generate "backend" {
 	}
 }
 
-// TestValidateExpansionExperimentEnabled pins that enabling the experiment clears the
-// gate for every block type it covers.
-func TestValidateExpansionExperimentEnabled(t *testing.T) {
+// TestValidateBlockIterationExperimentGateClearsWhenOn pins that turning the experiment on
+// clears the gate for both expansion blocks and bare enabled attributes.
+func TestValidateBlockIterationExperimentGateClearsWhenOn(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -181,6 +201,16 @@ func TestValidateExpansionExperimentEnabled(t *testing.T) {
 			configPath: config.DefaultStackFile,
 			cfg:        stackWithExpansionHCL,
 		},
+		{
+			name:       "unit with enabled",
+			configPath: config.DefaultStackFile,
+			cfg:        unitWithEnabledHCL,
+		},
+		{
+			name:       "stack with enabled",
+			configPath: config.DefaultStackFile,
+			cfg:        stackWithEnabledHCL,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -192,7 +222,7 @@ func TestValidateExpansionExperimentEnabled(t *testing.T) {
 
 			require.NoError(
 				t,
-				config.ValidateExpansionExperiment(
+				config.ValidateBlockIterationExperiment(
 					experiments,
 					parseHCLString(t, tc.cfg, tc.configPath),
 				),

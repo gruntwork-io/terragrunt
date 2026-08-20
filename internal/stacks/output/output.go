@@ -154,6 +154,10 @@ func StackOutput(
 		targetDir := filepath.Join(dir, config.StackDir)
 
 		for _, stack := range stackFile.Stacks {
+			if !stack.IsEnabled() {
+				continue
+			}
+
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
 			l.Debugf(
 				"Registered stack %s at path %s",
@@ -163,6 +167,10 @@ func StackOutput(
 		}
 
 		for _, unit := range stackFile.Units {
+			if !unit.IsEnabled() {
+				continue
+			}
+
 			unitDir := unit.GeneratedPath(dir)
 
 			// Excluded units are fully omitted from the final output, matching stack run behavior.
