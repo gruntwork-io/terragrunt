@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### `scaffold` works with `tfr://` registry sources
+
+`terragrunt scaffold tfr:///terraform-aws-modules/eks/aws?version=20.31.4` failed with `Failed to parse url`, `git: 'remote-tfr' is not a git command`, and a download error, even though the same source worked in the `source` attribute of a `terraform` block. `scaffold` treated every source as if it were a git repository, so it looked for a release tag with `git` and had no way to fetch from a module registry.
+
+`scaffold` now fetches modules and templates from the [OpenTofu and Terraform module registries](/reference/hcl/blocks/#terraform). It skips the release tag lookup for sources git does not understand, such as `tfr://`, `s3://`, `gcs://`, and `oci://`. When a `tfr://` source carries no `?version=`, `scaffold` pins the generated `source` to the latest version the registry publishes, the same way it pins a git source to the latest release tag.

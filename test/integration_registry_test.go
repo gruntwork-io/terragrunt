@@ -29,11 +29,6 @@ const (
 	registryFixtureVersionConstraintMultiModulePath   = "version-constraint-multi"
 	registryFixtureVersionConstraintNoMatchModulePath = "version-constraint-no-match"
 	registryFixtureVersionConstraintInQueryModulePath = "version-constraint-in-query"
-
-	// registryTestModuleSource is the source used by the version-constraint
-	// fixtures. The module has exactly two published versions, 0.0.1 and
-	// 0.0.2, so constraint resolution against it is deterministic.
-	registryTestModuleSource = "tfr://registry.opentofu.org/yorinasub17/terragrunt-registry-test/null"
 )
 
 func TestTFTerraformRegistryFetchingRootModule(t *testing.T) {

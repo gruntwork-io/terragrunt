@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -47,6 +48,8 @@ const (
 	refVar              = "Ref"
 	// refParam - ?ref param from url
 	refParam = "ref"
+	// versionParam - ?version param from url, used for tfr:// registry sources
+	versionParam = "version"
 
 	moduleURLPattern = `(?:git|hg|s3|gcs)::([^:]+)://([^/]+)(/.*)`
 	moduleURLParts   = 4
@@ -255,7 +258,7 @@ func Prepare(
 	plan.originalModuleURL = moduleURL
 
 	// parse module url (transforms for go-getter download)
-	resolvedURL, err := parseModuleURL(ctx, l, v, opts, vars, moduleURL)
+	resolvedURL, err := ParseModuleURL(ctx, l, v, opts, vars, moduleURL)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +271,10 @@ func Prepare(
 		Collect(ctx, l, "scaffold_get_module", map[string]any{
 			"module_url": resolvedURL,
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, v, tempDir, resolvedURL); getErr != nil {
+			registryOpt := getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
+				WithTofuImplementation(registryImplementation(opts)))
+
+			if _, getErr := getter.GetAny(ctx, v, tempDir, resolvedURL, registryOpt); getErr != nil {
 				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 			}
 
@@ -358,7 +364,6 @@ func (p *Plan) Generate(
 	p.vars["requiredVariables"] = p.Required
 	p.vars["optionalVariables"] = p.Optional
 
-	// Build sourceUrl from the original URL with the ref that parseModuleURL resolved.
 	p.vars["sourceUrl"] = BuildSourceURL(p.originalModuleURL, p.resolvedModuleURL, p.vars)
 
 	// Only set these if the `vars` map doesn't already have them set
@@ -523,9 +528,10 @@ func Run(
 	return plan.Generate(ctx, l, v, opts, nil)
 }
 
-// BuildSourceURL returns the original module URL with the ref query param
-// from the resolved URL appended, so the scaffolded source preserves the
-// user's original URL format while including the resolved version tag.
+// BuildSourceURL returns the original module URL with the pin query param the
+// resolved URL carries appended: ref for git sources, version for tfr registry
+// sources. The scaffolded source keeps the format the user typed and gains the
+// resolved pin.
 //
 // When vars sets SourceUrlType to git-ssh, the resolved URL is returned
 // instead so that the scaffolded source carries the Git/SSH rewrite that
@@ -536,21 +542,37 @@ func BuildSourceURL(originalURL, resolvedURL string, vars map[string]any) string
 		return resolvedURL
 	}
 
-	refVal := ExtractQueryParam(resolvedURL, refParam)
-	if refVal == "" {
+	pinParam, pinVal := extractPinParam(resolvedURL)
+	if pinVal == "" {
 		return originalURL
 	}
 
 	base, rawQuery := splitURLQuery(originalURL)
 
 	params, err := url.ParseQuery(rawQuery)
-	if err != nil || params.Has(refParam) {
+	if err != nil || params.Has(pinParam) {
 		return originalURL
 	}
 
-	params.Set(refParam, refVal)
+	params.Set(pinParam, pinVal)
 
 	return base + "?" + params.Encode()
+}
+
+// extractPinParam returns whichever version-pinning query param resolvedURL
+// carries: ref for git sources, or version for tfr registry sources. Scaffold
+// resolves a source through either the git tag lookup or the registry version
+// lookup, never both, so only one of the two can be present.
+func extractPinParam(resolvedURL string) (string, string) {
+	if ref := ExtractQueryParam(resolvedURL, refParam); ref != "" {
+		return refParam, ref
+	}
+
+	if version := ExtractQueryParam(resolvedURL, versionParam); version != "" {
+		return versionParam, version
+	}
+
+	return "", ""
 }
 
 // ExtractQueryParam extracts a query parameter value from a URL string.
@@ -685,7 +707,10 @@ func downloadTemplate(
 		Collect(ctx, l, "scaffold_get_template", map[string]any{
 			"template_url": baseURL.String(),
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, v, templateDir, baseURL.String()); getErr != nil {
+			registryOpt := getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
+				WithTofuImplementation(registryImplementation(opts)))
+
+			if _, getErr := getter.GetAny(ctx, v, templateDir, baseURL.String(), registryOpt); getErr != nil {
 				return fmt.Errorf(
 					"downloading scaffold template from %s: %w",
 					baseURL.String(),
@@ -809,8 +834,13 @@ func parseVariables(
 	return requiredVariables, optionalVariables, nil
 }
 
-// parseModuleURL - parse module url and rewrite it if required
-func parseModuleURL(
+// ParseModuleURL resolves moduleURL into the URL scaffold downloads from. It
+// rewrites the URL to git ssh when vars asks for that, and pins it when the
+// source carries no version of its own. A registry source whose ?version= holds
+// a constraint rather than an exact version yields [SourceVersionConstraintErr].
+//
+// Exported so tests can assert the resolution directly.
+func ParseModuleURL(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -824,6 +854,10 @@ func parseModuleURL(
 	}
 
 	moduleURL = parsedModuleURL.String()
+
+	if getter.SourceHasVersionConstraint(moduleURL) {
+		return "", SourceVersionConstraintErr{Source: moduleURL}
+	}
 
 	// rewrite module url, if required
 	parsedModuleURL, err = rewriteModuleURL(l, opts, vars, moduleURL)
@@ -857,29 +891,11 @@ func rewriteModuleURL(
 		sourceURLType = fmt.Sprintf("%s", value)
 	}
 
-	// expand module url
-	parsedValue, err := parseURL(l, moduleURL)
-	if err != nil {
-		l.Warnf("Failed to parse module url %s", moduleURL)
-
-		parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-
-		return parsedModuleURL, nil
-	}
-	// try to rewrite module url if is https and is requested to be git
-	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
-	// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
-	if parsedValue.scheme == "https" && sourceURLType == sourceURLTypeGit {
-		gitUser := sourceGitSSHUser
-		if value, found := vars[sourceGitSSHUserVar]; found {
-			gitUser = fmt.Sprintf("%s", value)
-		}
-
-		path := strings.TrimPrefix(parsedValue.path, "/")
-		updatedModuleURL = fmt.Sprintf("%s@%s:%s", gitUser, parsedValue.host, path)
+	// Only the git ssh rewrite needs the scheme/host/path regex. Running it
+	// on every source warns "Failed to parse url" for schemes it was never
+	// meant to match, such as tfr:// and s3://.
+	if sourceURLType == sourceURLTypeGit {
+		updatedModuleURL = gitSSHModuleURL(l, vars, moduleURL)
 	}
 
 	// persist changes in url.URL
@@ -891,7 +907,31 @@ func rewriteModuleURL(
 	return parsedModuleURL, nil
 }
 
-// rewriteTemplateURL rewrites template url with reference to tag
+// gitSSHModuleURL rewrites an https module url to its git ssh equivalent:
+// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+// A url the rewrite does not recognize comes back unchanged.
+func gitSSHModuleURL(l log.Logger, vars map[string]any, moduleURL string) string {
+	parsedValue, err := parseURL(l, moduleURL)
+	if err != nil {
+		return moduleURL
+	}
+
+	if parsedValue.scheme != "https" {
+		return moduleURL
+	}
+
+	gitUser := sourceGitSSHUser
+	if value, found := vars[sourceGitSSHUserVar]; found {
+		gitUser = fmt.Sprintf("%s", value)
+	}
+
+	return fmt.Sprintf("%s@%s:%s", gitUser, parsedValue.host, strings.TrimPrefix(parsedValue.path, "/"))
+}
+
+// rewriteTemplateURL pins a template url that carries no ref of its own: a git
+// template takes its last release tag, a registry template the latest version
+// published.
 // github.com/denis256/terragrunt-tests.git//scaffold/base-template =>
 // github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
 func rewriteTemplateURL(
@@ -918,22 +958,26 @@ func rewriteTemplateURL(
 			return updatedTemplateURL, nil
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
-		if err != nil || tag == "" {
-			l.Warnf(
-				"Failed to find last release tag for URL %s, so will not add a ref param to the URL",
-				rootSourceURL,
-			)
-		} else {
-			templateParams.Add(refParam, tag)
-			updatedTemplateURL.RawQuery = templateParams.Encode()
+		if !IsGitShapedScheme(rootSourceURL.Scheme) {
+			l.Debugf("Skipping git tag lookup for non-git template URL: %s", rootSourceURL)
+			return pinLatestRegistryVersion(ctx, l, v, opts, updatedTemplateURL, rootSourceURL), nil
 		}
+
+		tag := lastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
+		if tag == "" {
+			return updatedTemplateURL, nil
+		}
+
+		templateParams.Add(refParam, tag)
+		updatedTemplateURL.RawQuery = templateParams.Encode()
 	}
 
 	return updatedTemplateURL, nil
 }
 
-// addRefToModuleURL adds ref to module url if is passed through variables or find it from git tags
+// addRefToModuleURL pins a module url. A git source takes the ref passed
+// through variables, or its last release tag when no variable sets one. A
+// registry source takes the latest version the registry publishes.
 func addRefToModuleURL(
 	ctx context.Context,
 	l log.Logger,
@@ -943,35 +987,148 @@ func addRefToModuleURL(
 	vars map[string]any,
 ) (*url.URL, error) {
 	moduleURL := parsedModuleURL
-	// append ref to source url, if is passed through variables or find it from git tags
+
+	rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if !IsGitShapedScheme(rootSourceURL.Scheme) {
+		if _, found := vars[refVar]; found {
+			l.Warnf(
+				"Ignoring %s for %s, which is not a git source. Registry sources take a ?version= query parameter instead.",
+				refVar,
+				rootSourceURL,
+			)
+		}
+
+		l.Debugf("Skipping git tag lookup for non-git source URL: %s", rootSourceURL)
+
+		return pinLatestRegistryVersion(ctx, l, v, opts, moduleURL, rootSourceURL), nil
+	}
+
 	params := moduleURL.Query()
 
-	refReplacement, refVarPassed := vars[refVar]
-	if refVarPassed {
+	if refReplacement, found := vars[refVar]; found {
 		params.Set(refParam, fmt.Sprintf("%s", refReplacement))
 		moduleURL.RawQuery = params.Encode()
 	}
 
-	ref := params.Get(refParam)
-	if ref == "" {
-		// if ref is not passed, find last release tag
-		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
-		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
-		rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
-		if err != nil {
-			return nil, err
-		}
+	if params.Get(refParam) != "" {
+		return moduleURL, nil
+	}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
-		if err != nil || tag == "" {
-			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
-		} else {
-			params.Add(refParam, tag)
-			moduleURL.RawQuery = params.Encode()
+	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
+	tag := lastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
+	if tag == "" {
+		return moduleURL, nil
+	}
+
+	params.Add(refParam, tag)
+	moduleURL.RawQuery = params.Encode()
+
+	return moduleURL, nil
+}
+
+// lastReleaseTag returns the last release tag gitRepo publishes, or an empty
+// string when the lookup finds none. A lookup that fails leaves the source
+// unpinned rather than failing the whole command.
+func lastReleaseTag(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	workingDir string,
+	gitRepo *url.URL,
+) string {
+	tag, err := shell.GitLastReleaseTag(ctx, l, v, workingDir, gitRepo)
+	if err != nil || tag == "" {
+		l.Warnf("Failed to find last release tag for %s, so will not add a ref param to the URL", gitRepo)
+		return ""
+	}
+
+	return tag
+}
+
+// IsGitShapedScheme reports whether git can resolve a source carrying this
+// scheme, so a `git ls-remote` tag lookup is worth attempting. A local path,
+// which arrives with an empty or file scheme, counts, since it may be a
+// clone. A forced getter carries its name as a "::" separated segment, so
+// git::https is git shaped and s3::https is not.
+func IsGitShapedScheme(scheme string) bool {
+	if scheme == "" || scheme == "file" {
+		return true
+	}
+
+	for part := range strings.SplitSeq(scheme, "::") {
+		if part == "git" || part == "ssh" {
+			return true
 		}
 	}
 
-	return moduleURL, nil
+	return false
+}
+
+// registryImplementation reports which implementation the default registry
+// host follows for a tfr:// source that omits its host. Only the auto provider
+// cache dir setup fills [options.TerragruntOptions.TofuImplementation] in for
+// scaffold. A run with that setup disabled arrives here with nothing detected,
+// so the fallback is tofu rather than Terraform's registry.
+func registryImplementation(opts *options.TerragruntOptions) tfimpl.Type {
+	if opts.TofuImplementation == tfimpl.Unknown {
+		return tfimpl.OpenTofu
+	}
+
+	return opts.TofuImplementation
+}
+
+// pinLatestRegistryVersion pins a tfr:// registry source carrying no ?version=
+// to the latest stable version the registry publishes, mirroring what
+// [shell.GitLastReleaseTag] pins a git source to. Any other scheme, or a source
+// already pinned, comes back unchanged. A registry it cannot reach leaves the
+// source unpinned with a warning.
+func pinLatestRegistryVersion(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	sourceURL, rootSourceURL *url.URL,
+) *url.URL {
+	if rootSourceURL.Scheme != getter.SchemeTFR {
+		return sourceURL
+	}
+
+	params := sourceURL.Query()
+	if params.Get(versionParam) != "" {
+		return sourceURL
+	}
+
+	v.RequireHTTP()
+
+	registryDomain := rootSourceURL.Host
+	if registryDomain == "" {
+		registryDomain = tfimpl.DefaultRegistryDomain(registryImplementation(opts))
+	}
+
+	modulePath, _ := getter.SourceDirSubdir(rootSourceURL.Path)
+	auth := getter.RegistryAuth{Env: v.Env, ReadUserConfig: vfs.IsOSFS(v.FS)}
+
+	basePath, err := getter.GetModuleRegistryURLBasePath(ctx, l, v.HTTP, auth, registryDomain)
+	if err != nil {
+		l.Warnf("Failed to resolve latest version for registry module %s: %v", rootSourceURL, err)
+		return sourceURL
+	}
+
+	latest, err := getter.GetLatestModuleVersion(ctx, l, v.HTTP, auth, registryDomain, basePath, modulePath)
+	if err != nil {
+		l.Warnf("Failed to resolve latest version for registry module %s: %v", rootSourceURL, err)
+		return sourceURL
+	}
+
+	params.Set(versionParam, latest)
+	sourceURL.RawQuery = params.Encode()
+
+	return sourceURL
 }
 
 // parseURL parses module url to scheme, host and path
@@ -1041,4 +1198,18 @@ type NoModuleURLPassed struct{}
 
 func (err NoModuleURLPassed) Error() string {
 	return "No module URL passed."
+}
+
+// SourceVersionConstraintErr is returned when a tfr:// module URL pins its
+// version with a constraint rather than the exact version the registry
+// protocol resolves.
+type SourceVersionConstraintErr struct {
+	Source string
+}
+
+func (err SourceVersionConstraintErr) Error() string {
+	return fmt.Sprintf(
+		"the source %q sets a version constraint in its ?version= query, which accepts an exact version only",
+		err.Source,
+	)
 }
