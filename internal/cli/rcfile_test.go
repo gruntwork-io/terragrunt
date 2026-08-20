@@ -148,9 +148,10 @@ func runApp(t *testing.T, workingDir string, args ...string) (*options.Terragrun
 	testVenv.Writers = &writer.Writers{Writer: &bytes.Buffer{}, ErrWriter: &bytes.Buffer{}}
 
 	opts := options.NewTerragruntOptions()
-	app := cli.NewApp(logger.CreateLogger(), opts, testVenv)
+	l := logger.CreateLogger()
+	app := cli.NewApp(l, opts, testVenv)
 
-	err := app.Run(append([]string{"terragrunt", "--working-dir", workingDir}, args...))
+	err := app.Run(l, testVenv, append([]string{"terragrunt", "--working-dir", workingDir}, args...))
 
 	return opts, err
 }

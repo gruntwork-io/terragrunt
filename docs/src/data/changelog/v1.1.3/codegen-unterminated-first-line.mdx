@@ -3,6 +3,8 @@ version: "v1.1.3"
 category: "bug-fixes"
 ---
 
-#### Fix `overwrite_terragrunt` and `remove_terragrunt` on files with no trailing newline
+#### Fixed `overwrite_terragrunt` and `remove_terragrunt` on files with no trailing newline
 
-`generate` blocks using `if_exists = "overwrite_terragrunt"` or `if_disabled = "remove_terragrunt"` failed with a bare `EOF` error whenever the file already at the target path had no newline after its first line, an empty file included. Terragrunt now reads that first line up to the end of the file, so a file carrying the Terragrunt signature is overwritten or removed as configured, and a file without it produces the usual error naming the path Terragrunt would not touch.
+`generate` blocks using `if_exists = "overwrite_terragrunt"` or `if_disabled = "remove_terragrunt"` failed to properly handle existing files when the file at the target path had no newline after its first line, empty files included.
+
+Terragrunt now properly handles files like this, so a file carrying the Terragrunt signature is overwritten or removed as configured, and a file without it produces the usual error naming the path Terragrunt would not touch.

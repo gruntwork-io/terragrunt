@@ -70,6 +70,9 @@ type App struct {
 	// AutocompleteUninstallFlag is the global flag name for uninstalling the autocompletion handlers for the user's shell.
 	AutocompleteUninstallFlag string
 
+	// Env is the environment the app resolves env-var-backed flags against.
+	Env map[string]string
+
 	// Commands is a list of commands to execute.
 	Commands Commands
 
@@ -89,8 +92,13 @@ type App struct {
 	DisabledErrorOnMultipleSetFlag bool
 }
 
-// NewApp returns app new App instance.
-func NewApp() *App {
+// NewApp returns app new App instance that resolves env-var-backed flags
+// against env.
+func NewApp(env map[string]string) *App {
+	if env == nil {
+		panic(ErrEnvUnset)
+	}
+
 	cliApp := cli.NewApp()
 	cliApp.ExitErrHandler = func(_ *cli.Context, _ error) {}
 	cliApp.HideHelp = true
@@ -105,6 +113,7 @@ func NewApp() *App {
 
 	return &App{
 		App:          cliApp,
+		Env:          env,
 		OsExiter:     os.Exit,
 		Autocomplete: true,
 	}
@@ -153,7 +162,7 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 				return app.handleExitCoder(cliCtx, err)
 			}
 
-			if compLine := os.Getenv(envCompleteLine); compLine != "" {
+			if compLine := app.Env[envCompleteLine]; compLine != "" {
 				args = strings.Fields(compLine)
 				if args[0] == app.Name {
 					args = args[1:]

@@ -15,6 +15,10 @@ const (
 	// FormatJSONL writes each discovered component to standard output as a
 	// JSON object on its own line.
 	FormatJSONL = format.JSONL
+
+	// FormatMD writes the discovered components to standard output as a
+	// Markdown document, with a section per component.
+	FormatMD = format.MD
 )
 
 // ErrFormatRequiresExperiment is returned when a non-interactive format is
@@ -49,6 +53,8 @@ func (o *Options) validateFormat() error {
 	case FormatTUI:
 		return nil
 	case FormatJSONL:
+		return nil
+	case FormatMD:
 		return nil
 	default:
 		return errors.New("invalid format: " + o.Format)

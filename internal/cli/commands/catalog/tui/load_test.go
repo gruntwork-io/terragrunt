@@ -10,20 +10,21 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestCreateCatalogTempPathResolvesSymlinkedTmpDir verifies the clone dir is
-// anchored at a symlink-resolved temp dir. macOS reports os.TempDir() as a
+// anchored at a symlink-resolved temp dir. macOS reports the temp dir as a
 // /var/folders symlink to /private/var/folders; an unresolved root makes
 // discovery's filepath.Rel emit a "../" traversal that go-getter rejects.
 func TestCreateCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
-	// t.Setenv forbids t.Parallel.
+	t.Parallel()
+
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 
@@ -34,10 +35,10 @@ func TestCreateCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
 	linkTmp := filepath.Join(base, "link")
 	require.NoError(t, os.Symlink(realTmp, linkTmp))
 
-	t.Setenv("TMPDIR", linkTmp)
+	v := venvtest.NewWithOSFS().WithTempDir(func() string { return linkTmp })
 
 	got, err := tui.CreateCatalogTempPath(
-		vfs.NewOSFS(),
+		v,
 		"github.com/gruntwork-io/terragrunt-scale-catalog",
 	)
 	require.NoError(t, err)
@@ -51,13 +52,14 @@ func TestCreateCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
 func TestCreateCatalogTempPathUsesFreshDirectory(t *testing.T) {
 	t.Parallel()
 
-	fsys := vfs.NewMemMapFS()
+	v := venvtest.New()
+	fsys := v.FS
 	repoURL := "github.com/gruntwork-io/terragrunt-scale-catalog"
 
-	first, err := tui.CreateCatalogTempPath(fsys, repoURL)
+	first, err := tui.CreateCatalogTempPath(v, repoURL)
 	require.NoError(t, err)
 
-	second, err := tui.CreateCatalogTempPath(fsys, repoURL)
+	second, err := tui.CreateCatalogTempPath(v, repoURL)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, first, second)
@@ -88,7 +90,7 @@ func TestLoadURLKeepsTempDirAfterEmittingComponentOnCancel(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	tracker := tui.NewTempDirTracker(v.FS)
 	ctx, cancel := context.WithCancel(t.Context())
 	componentCh := make(chan *tui.ComponentEntry)

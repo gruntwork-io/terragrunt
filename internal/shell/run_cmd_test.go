@@ -7,9 +7,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +46,7 @@ func TestGitTopLevelDirPrefixHit(t *testing.T) {
 	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	c.Add(ctx, root)
 
-	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venv.OSVenv(), subdir)
+	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), subdir)
 	require.NoError(t, err)
 	assert.Equal(t, root, got)
 }
@@ -69,7 +69,7 @@ func TestGitTopLevelDirNestedRepoBypass(t *testing.T) {
 	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	c.Add(ctx, root)
 
-	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venv.OSVenv(), deep)
+	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), deep)
 	if err == nil {
 		assert.NotEqual(
 			t,

@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +34,7 @@ func TestNewWorktrees(t *testing.T) {
 	w, err := worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
 		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.NoError(t, err)
@@ -68,6 +70,7 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	_, err = worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
 		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.Error(t, err)
@@ -668,6 +671,7 @@ func TestWorktreeCleanup(t *testing.T) {
 	_, err = worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
 		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.Error(t, err)

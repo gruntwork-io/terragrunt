@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,9 +12,11 @@ import (
 
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,7 +70,7 @@ var terragruntFuncNames = []string{
 func newStackParsePctx(t *testing.T, baseDir string) *config.ParsingContext {
 	t.Helper()
 
-	_, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger())
+	_, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.NewWithOSFS())
 	pctx.TerragruntConfigPath = filepath.Join(baseDir, "terragrunt.hcl")
 	pctx.WorkingDir = baseDir
 	pctx.MaxFoldersToCheck = 100
@@ -315,6 +318,14 @@ unit "vpc" {
 `), 0644))
 
 	pctx := newStackParsePctx(t, stackDir)
+
+	// The unit's path attribute is whatever run_cmd prints.
+	pctx.Venv = pctx.Venv.WithHandler(
+		func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			return vexec.Result{Stdout: []byte(strings.Join(inv.Args, " ") + "\n")}
+		},
+	)
+
 	funcsFor := func(dir string) (map[string]function.Function, error) {
 		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
 	}

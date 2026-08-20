@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -441,9 +442,9 @@ func TestTerragruntFullLockfile(t *testing.T) {
 			helpers.RunTerragrunt(t, cmd)
 
 			lockfilePath := filepath.Join(rootPath, ".terraform.lock.hcl")
-			require.True(
+			require.FileExists(
 				t,
-				util.FileExists(lockfilePath),
+				lockfilePath,
 				"expected lock file to exist at %s",
 				lockfilePath,
 			)
@@ -885,4 +886,146 @@ func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
 		"terragrunt workspace list --non-interactive --working-dir "+rootPath,
 	)
 	require.Error(t, err, "expected error when invoking unknown top-level command without 'run'")
+}
+
+// TestTerragruntMutableGenerateBlock verifies that units generating identical
+// contents share one read-only file, and that a block asking to stay mutable
+// gets its own writable copy.
+func TestTerragruntMutableGenerateBlock(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "mutable-generate")
+
+	generated := map[string]os.FileInfo{}
+
+	for _, unit := range []string{"unit-a", "unit-b", "unit-mutable"} {
+		unitPath := filepath.Join(fixtureRoot, unit)
+		helpers.CleanupTerraformFolder(t, unitPath)
+		helpers.CleanupTerragruntFolder(t, unitPath)
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt exec --experiment mutable-generate --working-dir "+unitPath+" -- true",
+		)
+		require.NoError(t, err)
+
+		generated[unit] = statGeneratedFile(t, unitPath, "provider.tf")
+	}
+
+	assert.True(t, os.SameFile(generated["unit-a"], generated["unit-b"]),
+		"units generating identical contents must share one file")
+	assert.Equal(t, os.FileMode(0444), generated["unit-a"].Mode().Perm(),
+		"deduplicated files must be read-only so an edit cannot reach the shared store")
+
+	assert.False(t, os.SameFile(generated["unit-a"], generated["unit-mutable"]),
+		"a mutable generate block must get its own file")
+	assert.NotZero(t, generated["unit-mutable"].Mode().Perm()&0200,
+		"a mutable generate block must stay writable")
+}
+
+// TestTerragruntMutableGenerateBlockRequiresExperiment verifies that the mutable
+// attribute is rejected until the experiment gating it is enabled.
+func TestTerragruntMutableGenerateBlockRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, so the experiment-disabled error this test pins cannot occur")
+	}
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	unitPath := filepath.Join(
+		tmpEnvPath,
+		testFixtureCodegenPath,
+		"mutable-generate",
+		"unit-mutable",
+	)
+	helpers.CleanupTerraformFolder(t, unitPath)
+	helpers.CleanupTerragruntFolder(t, unitPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt exec --working-dir "+unitPath+" -- true",
+	)
+
+	var experimentErr config.MutableGenerateRequiresExperimentError
+	require.ErrorAs(t, err, &experimentErr)
+}
+
+// statGeneratedFile locates a generated file inside the unit's cache dir, which
+// is nested under content-addressed directory names the test cannot predict.
+func statGeneratedFile(t *testing.T, unitPath, name string) os.FileInfo {
+	t.Helper()
+
+	var found os.FileInfo
+
+	require.NoError(t, filepath.WalkDir(
+		filepath.Join(unitPath, util.TerragruntCacheDir),
+		func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if d.IsDir() || d.Name() != name {
+				return nil
+			}
+
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+
+			found = info
+
+			return nil
+		},
+	))
+	require.NotNil(t, found, "expected %s to be generated under %s", name, unitPath)
+
+	return found
+}
+
+func TestDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
+	noOutputPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration", "skip-dependency-outputs")
+
+	t.Run("plan without flag fails", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+noOutputPath)
+		require.ErrorContains(t, err, "resolving dependency \"app1\" outputs")
+	})
+
+	t.Run("flag rejected without experiment", func(t *testing.T) {
+		t.Parallel()
+
+		if helpers.IsExperimentMode(t) {
+			t.Skip("Skipping: TG_EXPERIMENT_MODE forces the optional-dependency-outputs experiment on, so its disabled-state error can't be verified")
+		}
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
+		require.ErrorContains(t, err, "--no-dependency-outputs requires the 'optional-dependency-outputs' experiment")
+	})
+
+	for _, cmd := range []string{"init", "validate", "plan"} {
+		t.Run(cmd+" succeeds with flag", func(t *testing.T) {
+			t.Parallel()
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+cmd+" --experiment optional-dependency-outputs --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
+			require.NoError(t, err)
+		})
+	}
+
+	for _, cmd := range []string{"init", "validate", "plan"} {
+		t.Run("run --all "+cmd+" succeeds with flag", func(t *testing.T) {
+			t.Parallel()
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --experiment optional-dependency-outputs "+cmd+" --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
+			require.NoError(t, err)
+		})
+	}
 }

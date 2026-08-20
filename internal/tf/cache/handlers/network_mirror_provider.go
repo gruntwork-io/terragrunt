@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
@@ -116,7 +115,7 @@ func (handler *NetworkMirrorProviderHandler) GetPlatform(
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
 		resp = (&models.ResponseBody{
-			Filename:    filepath.Base(archive.URL),
+			Filename:    models.FilenameFromURL(archive.URL),
 			DownloadURL: archive.URL,
 		}).ResolveRelativeReferences(handler.networkMirrorURL.ResolveReference(&url.URL{
 			Path: path.Join(handler.networkMirrorURL.Path, provider.Address()),

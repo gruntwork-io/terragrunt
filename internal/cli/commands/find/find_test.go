@@ -2,6 +2,7 @@ package find_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,10 +12,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -516,7 +519,7 @@ locals {
 			r, w, err := os.Pipe()
 			require.NoError(t, err)
 
-			err = find.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
+			err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
@@ -578,7 +581,7 @@ dependency "target" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = find.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
+	err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())
@@ -636,4 +639,185 @@ func TestColorizer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestColorizerUnknownKind pins that a component of an unknown kind is emitted verbatim.
+func TestColorizerUnknownKind(t *testing.T) {
+	t.Parallel()
+
+	colorizer := find.NewColorizer(true)
+
+	testCases := []struct {
+		name string
+		path string
+	}{
+		{name: "nested path", path: "path/to/component"},
+		{name: "bare path", path: "component"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			found := &find.FoundComponent{Type: component.Kind("unknown"), Path: tc.path}
+			assert.Equal(t, tc.path, colorizer.Colorize(found))
+		})
+	}
+}
+
+// TestRunJSONReportsExcludeAndInclude pins the JSON fields that only appear with their flag.
+func TestRunJSONReportsExcludeAndInclude(t *testing.T) {
+	t.Parallel()
+
+	root := "/find-json"
+	fsys := newUnitsFS(t, root, map[string]string{
+		"root.hcl": "",
+		"unit1/terragrunt.hcl": `
+include "root" {
+  path = "../root.hcl"
+}
+
+exclude {
+  if      = true
+  actions = ["plan"]
+}
+`,
+	})
+
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := find.NewOptions(tgOpts)
+	opts.Format = find.FormatJSON
+	opts.Exclude = true
+	opts.Include = true
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+
+	var found find.FoundComponents
+
+	require.NoError(t, json.Unmarshal([]byte(buf.String()), &found))
+	require.Len(t, found, 1)
+	require.NotNil(t, found[0].Exclude)
+	assert.True(t, found[0].Exclude.If)
+	assert.Equal(t, []string{"plan"}, found[0].Exclude.Actions)
+	assert.Equal(t, map[string]string{"root": "root.hcl"}, found[0].Include)
+}
+
+// TestRunFailsWhenTheWriterFails pins that a failed write is reported rather than swallowed.
+func TestRunFailsWhenTheWriterFails(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		format string
+	}{
+		{name: "text", format: find.FormatText},
+		{name: "json", format: find.FormatJSON},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/find-writer"
+			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := find.NewOptions(tgOpts)
+			opts.Format = tc.format
+
+			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
+			require.ErrorIs(t, find.Run(t.Context(), newTestLogger(t), v, opts), errWriteFailed)
+		})
+	}
+}
+
+// TestRunRejectsUnsupportedOptions pins that Run refuses an option it cannot honor.
+func TestRunRejectsUnsupportedOptions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		format           string
+		mode             string
+		queueConstructAs string
+	}{
+		{name: "unsupported format", format: "yaml", mode: find.ModeNormal},
+		{name: "unsupported mode", format: find.FormatText, mode: "topological"},
+		{
+			name:             "unparsable queue construct as",
+			format:           find.FormatText,
+			mode:             find.ModeNormal,
+			queueConstructAs: `"plan`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/find-invalid"
+			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := find.NewOptions(tgOpts)
+			opts.Format = tc.format
+			opts.Mode = tc.mode
+			opts.QueueConstructAs = tc.queueConstructAs
+
+			var buf strings.Builder
+
+			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+
+			require.Error(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+			assert.Empty(t, buf.String())
+		})
+	}
+}
+
+// errWriteFailed is what failingWriter returns, so a rejected write is told apart.
+var errWriteFailed = errors.New("write failed")
+
+// failingWriter rejects every write with errWriteFailed.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errWriteFailed
+}
+
+// newUnitsFS returns an in-memory filesystem holding files, each path relative to root.
+func newUnitsFS(t *testing.T, root string, files map[string]string) vfs.FS {
+	t.Helper()
+
+	fsys := vfs.NewMemMapFS()
+
+	for path, content := range files {
+		require.NoError(
+			t,
+			vfs.WriteFile(fsys, filepath.Join(root, path), []byte(content), 0o644),
+		)
+	}
+
+	return fsys
+}
+
+// newTestLogger returns a logger with colors off, so output is comparable byte for byte.
+func newTestLogger(t *testing.T) log.Logger {
+	t.Helper()
+
+	l := logger.CreateLogger()
+	l.Formatter().SetDisabledColors(true)
+
+	return l
 }

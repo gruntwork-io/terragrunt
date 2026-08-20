@@ -10,9 +10,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestMaterializeTree_FromSynthStore(t *testing.T) {
@@ -28,7 +28,7 @@ func TestMaterializeTree_FromSynthStore(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -47,7 +47,7 @@ func TestMaterializeTree_FromSynthStore(t *testing.T) {
 	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
 
 	// Build a CAS instance using the same store paths
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -73,7 +73,7 @@ func TestMaterializeTree_FromGitTreeStore(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -90,7 +90,7 @@ func TestMaterializeTree_FromGitTreeStore(t *testing.T) {
 	treeContent := cas.NewContent(treeStore)
 	require.NoError(t, treeContent.Store(l, v, treeHash, treeData))
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -108,10 +108,10 @@ func TestMaterializeTree_NotFound(t *testing.T) {
 
 	storeDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	destDir := helpers.TmpDirWOSymlinks(t)
 	l := logger.CreateLogger()
@@ -134,7 +134,7 @@ func TestMaterializeTree_SynthTakesPrecedence(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -155,7 +155,7 @@ func TestMaterializeTree_SynthTakesPrecedence(t *testing.T) {
 	gitContent := cas.NewContent(treeStore)
 	require.NoError(t, gitContent.Store(l, v, hash, []byte("100644 blob blobB\tfile.txt\n")))
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -202,7 +202,7 @@ func TestCASProtocolGetterGet(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -218,7 +218,7 @@ func TestCASProtocolGetterGet(t *testing.T) {
 	synthContent := cas.NewContent(synthStore)
 	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	g := getter.NewCASProtocolGetter(l, c, v)
@@ -257,7 +257,7 @@ func TestCASProtocolGetterGet_Mutable(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -273,7 +273,7 @@ func TestCASProtocolGetterGet_Mutable(t *testing.T) {
 	synthContent := cas.NewContent(synthStore)
 	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	g := getter.NewCASProtocolGetter(l, c, v)
@@ -306,10 +306,10 @@ func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
 
 	storeDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 	g := getter.NewCASProtocolGetter(l, c, v)

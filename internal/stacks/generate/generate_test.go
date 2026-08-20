@@ -9,9 +9,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +58,7 @@ func TestGenerateStacksCyclicSource_FailsAtMaxLevel(t *testing.T) {
 
 	err := generate.NewGenerator().
 		WithMaxLevel(maxLevel).
-		GenerateStacks(t.Context(), l, venv.OSVenv(), opts, nil)
+		GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, nil)
 
 	require.ErrorContains(
 		t,
@@ -147,7 +147,7 @@ func TestStackDiscoveryFilters(t *testing.T) {
 			parsed, err := filter.ParseFilterQueries(l, tt.filters)
 			require.NoError(t, err)
 
-			selected, err := generate.StackDiscoveryFilters(parsed).Evaluate(l, stacks)
+			selected, err := generate.StackDiscoveryFilters(parsed).Evaluate(l, filter.EvaluationContext{}, stacks)
 			require.NoError(t, err)
 
 			selectedPaths := make([]string, 0, len(selected))

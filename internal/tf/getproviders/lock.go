@@ -17,7 +17,6 @@ import (
 	"unicode"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -32,12 +31,14 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 		file     = hclwrite.NewFile()
 	)
 
-	if util.FileExists(filename) {
-		content, err := os.ReadFile(filename)
-		if err != nil {
-			return err
-		}
+	// A missing lock file is the first-run case: the empty file built above is
+	// written out as-is.
+	content, err := os.ReadFile(filename)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
 
+	if err == nil {
 		var diags hcl.Diagnostics
 
 		file, diags = hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
@@ -324,12 +325,13 @@ func UpdateLockfileConstraints(
 ) error {
 	filename := filepath.Join(workingDir, tf.TerraformLockFile)
 
-	if !util.FileExists(filename) {
-		return nil
-	}
-
 	content, err := os.ReadFile(filename)
 	if err != nil {
+		// Nothing to update when no lock file has been written yet.
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+
 		return err
 	}
 

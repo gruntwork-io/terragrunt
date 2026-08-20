@@ -3,11 +3,10 @@ package remotestate
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // TODO: this file could be changed to use the Terraform Go code to read state files, but that code is relatively
@@ -52,29 +51,30 @@ func (state *TerraformState) IsRemote() bool {
 // file from the location specified by workingDir. If no location is specified, search the current
 // directory. If the file doesn't exist at any of the default locations, return nil.
 func ParseTerraformStateFileFromLocation(
+	fsys vfs.FS,
 	backend string,
 	config backend.Config,
 	workingDir, dataDir string,
 ) (*TerraformState, error) {
 	if stateFile := config.Path(); backend == "local" && stateFile != "" &&
-		util.FileExists(stateFile) {
-		return ParseTerraformStateFile(stateFile)
+		vfs.Exists(fsys, stateFile) {
+		return ParseTerraformStateFile(fsys, stateFile)
 	}
 
-	if util.FileExists(filepath.Join(dataDir, DefaultPathToRemoteStateFile)) {
-		return ParseTerraformStateFile(filepath.Join(dataDir, DefaultPathToRemoteStateFile))
+	if remoteStateFile := filepath.Join(dataDir, DefaultPathToRemoteStateFile); vfs.Exists(fsys, remoteStateFile) {
+		return ParseTerraformStateFile(fsys, remoteStateFile)
 	}
 
-	if util.FileExists(filepath.Join(workingDir, DefaultPathToLocalStateFile)) {
-		return ParseTerraformStateFile(filepath.Join(workingDir, DefaultPathToLocalStateFile))
+	if localStateFile := filepath.Join(workingDir, DefaultPathToLocalStateFile); vfs.Exists(fsys, localStateFile) {
+		return ParseTerraformStateFile(fsys, localStateFile)
 	}
 
 	return nil, nil
 }
 
 // ParseTerraformStateFile parses the Terraform .tfstate file located at the specified path.
-func ParseTerraformStateFile(path string) (*TerraformState, error) {
-	bytes, err := os.ReadFile(path)
+func ParseTerraformStateFile(fsys vfs.FS, path string) (*TerraformState, error) {
+	bytes, err := vfs.ReadFile(fsys, path)
 	if err != nil {
 		return nil, CantParseTerraformStateFileError{Path: path, UnderlyingErr: err}
 	}

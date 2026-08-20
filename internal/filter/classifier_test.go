@@ -640,7 +640,7 @@ func TestClassifier_AgreesWithEvaluateOnSingleFilters(t *testing.T) {
 				newTestStack("./stacks/stack2"),
 			}
 
-			kept, err := filters.Evaluate(l, components)
+			kept, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier(filters)

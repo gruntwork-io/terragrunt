@@ -32,7 +32,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
-			Usage:       "Output format for the catalog. Valid values: tui, jsonl.",
+			Usage:       "Output format for the catalog. Valid values: tui, jsonl, md.",
 			DefaultText: FormatTUI,
 		}),
 		flags.NewFlag(&clihelper.GenericFlag[string]{

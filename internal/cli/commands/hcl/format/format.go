@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -50,7 +50,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 			return errors.New("both stdin and path flags are specified")
 		}
 
-		return formatFromStdin(l, v.Writers.Writer)
+		return formatFromStdin(l, v)
 	}
 
 	if targetFile != "" {
@@ -60,7 +60,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 		l.Debugf("Formatting hcl file at: %s.", targetFile)
 
-		return formatTgHCL(l, v.Writers.Writer, opts, targetFile)
+		return formatTgHCL(l, v, opts, targetFile)
 	}
 
 	var (
@@ -74,7 +74,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 	// the discovery package because we want to find non-comps like includes.
 	files := []string{}
 
-	err = filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
+	err = vfs.WalkDir(v.FS, workingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -82,12 +82,12 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 		basename := filepath.Base(path)
 		if slices.Contains(excludePaths, basename) {
 			l.Debugf("%s directory ignored by default", path)
-			return filepath.SkipDir
+			return fs.SkipDir
 		}
 
 		if slices.Contains(opts.HclExclude, basename) {
 			l.Debugf("%s directory ignored due to the %s flag", path, ExcludeDirFlagName)
-			return filepath.SkipDir
+			return fs.SkipDir
 		}
 
 		if d.IsDir() {
@@ -129,7 +129,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	for i, c := range components {
 		g.Go(func() error {
-			err := formatTgHCL(l, v.Writers.Writer, opts, c.Path())
+			err := formatTgHCL(l, v, opts, c.Path())
 			if err != nil {
 				errs[i] = err
 			}
@@ -179,7 +179,7 @@ func RunForFiles(
 		}
 
 		g.Go(func() error {
-			if err := formatTgHCL(l, v.Writers.Writer, opts, file); err != nil {
+			if err := formatTgHCL(l, v, opts, file); err != nil {
 				mu.Lock()
 
 				errs = append(errs, err)
@@ -195,15 +195,15 @@ func RunForFiles(
 	return errors.Join(errs...)
 }
 
-func formatFromStdin(l log.Logger, w io.Writer) error {
-	contents, err := io.ReadAll(os.Stdin)
+func formatFromStdin(l log.Logger, v *venv.Venv) error {
+	contents, err := io.ReadAll(v.Stdin)
 	if err != nil {
 		l.Errorf("Error reading from stdin: %s", err)
 
 		return fmt.Errorf("error reading from stdin: %w", err)
 	}
 
-	if err = checkErrors(l, l.Formatter().DisabledColors(), contents, "stdin"); err != nil {
+	if err = checkErrors(l, v, contents, "stdin"); err != nil {
 		l.Errorf("Error parsing hcl from stdin")
 
 		return fmt.Errorf("error parsing hcl from stdin: %w", err)
@@ -211,7 +211,7 @@ func formatFromStdin(l log.Logger, w io.Writer) error {
 
 	newContents := hclwrite.Format(contents)
 
-	buf := bufio.NewWriter(w)
+	buf := bufio.NewWriter(v.Writers.Writer)
 
 	if _, err = buf.Write(newContents); err != nil {
 		l.Errorf("Failed to write to stdout")
@@ -232,25 +232,25 @@ func formatFromStdin(l log.Logger, w io.Writer) error {
 // ensure that there are no syntax errors, before attempting to format it.
 func formatTgHCL(
 	l log.Logger,
-	w io.Writer,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	tgHclFile string,
 ) error {
 	l.Debugf("Formatting %s", tgHclFile)
 
-	info, err := os.Stat(tgHclFile)
+	info, err := v.FS.Stat(tgHclFile)
 	if err != nil {
 		l.Errorf("Error retrieving file info of %s", tgHclFile)
 		return fmt.Errorf("failed to get file info for %s: %w", tgHclFile, err)
 	}
 
-	contents, err := os.ReadFile(tgHclFile)
+	contents, err := vfs.ReadFile(v.FS, tgHclFile)
 	if err != nil {
 		l.Errorf("Error reading %s", tgHclFile)
 		return fmt.Errorf("failed to read %s: %w", tgHclFile, err)
 	}
 
-	err = checkErrors(l, l.Formatter().DisabledColors(), contents, tgHclFile)
+	err = checkErrors(l, v, contents, tgHclFile)
 	if err != nil {
 		l.Errorf("Error parsing %s", tgHclFile)
 		return err
@@ -261,7 +261,7 @@ func formatTgHCL(
 	fileUpdated := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && fileUpdated {
-		if _, err := w.Write(bytesDiff(contents, newContents, tgHclFile)); err != nil {
+		if _, err := v.Writers.Writer.Write(bytesDiff(contents, newContents, tgHclFile)); err != nil {
 			l.Errorf("Failed to print diff for %s", tgHclFile)
 			return err
 		}
@@ -272,20 +272,20 @@ func formatTgHCL(
 	}
 
 	if fileUpdated {
-		l.Infof("%s was updated", tgHclFile)
-		return os.WriteFile(tgHclFile, newContents, info.Mode())
+		l.Debugf("Updating %s", tgHclFile)
+		return vfs.WriteFile(v.FS, tgHclFile, newContents, info.Mode())
 	}
 
 	return nil
 }
 
 // checkErrors takes in the contents of a hcl file and looks for syntax errors.
-func checkErrors(l log.Logger, disableColor bool, contents []byte, tgHclFile string) error {
+func checkErrors(l log.Logger, v *venv.Venv, contents []byte, tgHclFile string) error {
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
 
 	writer := writer.New(writer.WithLogger(l), writer.WithDefaultLevel(log.ErrorLevel))
-	diagWriter := parser.GetDiagnosticsWriter(writer, disableColor)
+	diagWriter := parser.GetDiagnosticsWriter(v, writer, l.Formatter().DisabledColors())
 
 	err := diagWriter.WriteDiagnostics(diags)
 	if err != nil {

@@ -8,6 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/rcfile"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // maxEarlyFlagsParse bounds the early flag scan, so that an unexpected argument list
@@ -22,17 +24,17 @@ const maxEarlyFlagsParse = 1000
 // including the provider cache server, which starts before the Terragrunt configuration
 // is read. Discovery starts at the working directory, and the file is only honored while
 // the experiment is enabled, so both are resolved from the raw arguments first.
-func (app *App) setupRCFile(args []string) error {
+func (app *App) setupRCFile(l log.Logger, v *venv.Venv, args []string) error {
 	// These are throwaway copies of the flags rather than the ones on the app: parsing a
 	// flag marks it as set, and the app's own flags have to look untouched when the
 	// command line is parsed for real, or setting them again reports them as set twice.
-	earlyFlags := global.NewFlags(app.l, app.opts, nil).Filter(
+	earlyFlags := global.NewFlags(l, app.opts, nil).Filter(
 		global.WorkingDirFlagName,
 		global.ExperimentFlagName,
 		global.ExperimentModeFlagName,
 	)
 
-	if err := parseEarlyFlags(earlyFlags, args); err != nil {
+	if err := parseEarlyFlags(earlyFlags, v.Env, args); err != nil {
 		return err
 	}
 
@@ -50,7 +52,7 @@ func (app *App) setupRCFile(args []string) error {
 	// fails the runs that asked for the feature. Discovery itself still runs, so that a
 	// file nobody enabled is reported rather than silently doing nothing.
 	if !app.opts.Experiments.Evaluate(experiment.TerragruntRC) {
-		app.l.Warnf(
+		l.Warnf(
 			"Ignoring %s because the %s experiment is not enabled. Enable it with --experiment %s.",
 			path,
 			experiment.TerragruntRC,
@@ -65,7 +67,7 @@ func (app *App) setupRCFile(args []string) error {
 		return err
 	}
 
-	if err := app.applyRCFileEnv(cfg); err != nil {
+	if err := applyRCFileEnv(l, v, cfg); err != nil {
 		return err
 	}
 
@@ -73,7 +75,7 @@ func (app *App) setupRCFile(args []string) error {
 		return cfg.FlagValues(cmdPath, flag.Names())
 	}
 
-	app.l.Debugf("Read flag defaults from %s", cfg.Path)
+	l.Debugf("Read flag defaults from %s", cfg.Path)
 
 	return nil
 }
@@ -83,7 +85,7 @@ func (app *App) setupRCFile(args []string) error {
 //
 // Variables are exported to the process, which is what everything reading os.Getenv sees,
 // and to the environment Terragrunt hands to the commands it runs.
-func (app *App) applyRCFileEnv(cfg *rcfile.Config) error {
+func applyRCFileEnv(l log.Logger, v *venv.Venv, cfg *rcfile.Config) error {
 	for name, value := range cfg.EnvVars() {
 		if _, ok := os.LookupEnv(name); ok {
 			continue
@@ -93,11 +95,11 @@ func (app *App) applyRCFileEnv(cfg *rcfile.Config) error {
 			return fmt.Errorf("failed to set %s declared in %s: %w", name, cfg.Path, err)
 		}
 
-		if app.env != nil {
-			app.env[name] = value
+		if v.Env != nil {
+			v.Env[name] = value
 		}
 
-		app.l.Debugf("Set %s from %s", name, cfg.Path)
+		l.Debugf("Set %s from %s", name, cfg.Path)
 	}
 
 	return nil
@@ -119,14 +121,15 @@ func rcFileSearchStart(workingDir string) (string, error) {
 }
 
 // parseEarlyFlags parses the given flags from anywhere in args, before the application
-// parses its command line for real.
+// parses its command line for real. env is what the env-var-backed flags resolve
+// against, the same environment the real parse uses.
 //
 // The standard flag package stops at the first argument that is not a known flag, so
 // parsing resumes right after it. Errors are deliberately ignored: every argument that
 // belongs to another flag or to a command shows up as one here, and the real parse
 // reports genuine mistakes with the context needed to explain them.
-func parseEarlyFlags(flags clihelper.Flags, args []string) error {
-	flagSet, err := flags.NewFlagSet(AppName, func(error) error { return nil })
+func parseEarlyFlags(flags clihelper.Flags, env map[string]string, args []string) error {
+	flagSet, err := flags.NewFlagSet(AppName, env, func(error) error { return nil })
 	if err != nil {
 		return err
 	}

@@ -17,9 +17,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/md"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -287,10 +289,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, tea.Quit
 
-	case FormSubmitMsg:
+	case form.SubmitMsg:
 		return m.handleFormSubmit(msg.Values)
 
-	case FormCancelMsg:
+	case form.CancelMsg:
 		m.abandonForm()
 
 		m.State = m.priorState
@@ -344,7 +346,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // renderComponentContent prepares the pager body, prepending tag pills
 // when configured. Markdown components run through the model's cached
-// glamour renderer, which may itself be (re)allocated.
+// renderer, which may itself be (re)allocated.
 func (m Model) renderComponentContent(
 	c *Component,
 	tagsStyle TagsDetailStyle,
@@ -369,21 +371,21 @@ func (m Model) renderComponentContent(
 		body += TagsMarkdownSection(tags)
 	}
 
-	md, err := renderer.Render(body)
+	rendered, err := renderer.Render(body)
 	if err != nil {
 		return m, "", err
 	}
 
 	if tagsStyle == TagsDetailStylePills {
 		if pills := RenderDetailTagPills(tags); pills != "" {
-			md = lipgloss.NewStyle().PaddingLeft(glamourDocumentMargin).Render(pills) + "\n\n" + md
+			rendered = lipgloss.NewStyle().PaddingLeft(md.DocumentMargin).Render(pills) + "\n\n" + rendered
 		}
 	}
 
-	return m, md, nil
+	return m, rendered, nil
 }
 
-// RendererErrMsg signals that the glamour markdown renderer failed to
+// RendererErrMsg signals that the Markdown renderer failed to
 // build or render a component's content.
 type RendererErrMsg struct{ Err error }
 
@@ -404,7 +406,7 @@ type ScaffoldFinishedMsg struct {
 // Interactive distinguishes the form-submit path from the placeholder path.
 type CopyFinishedMsg struct {
 	Err         error
-	Result      CopyResult
+	Result      component.Result
 	Interactive bool
 }
 
@@ -482,12 +484,12 @@ func formatSourceFailureNotice(err error, accent string) string {
 // screen, so the box lands in the user's scrollback. interactive controls
 // the body copy: the form path tells the user which lines they still need
 // to revisit, while the placeholder path describes the full TODO flow.
-func formatCopyValuesMessage(r CopyResult, interactive bool) string {
+func formatCopyValuesMessage(r component.Result, interactive bool) string {
 	if r.References.IsEmpty() {
 		return ""
 	}
 
-	path := displayPath(r.WorkingDir, filepath.Join(r.WorkingDir, valuesFileName))
+	path := displayPath(r.Dir, filepath.Join(r.Dir, component.ValuesFileName))
 
 	switch {
 	case r.ValuesWritten:
@@ -524,7 +526,7 @@ func formatCopyValuesMessage(r CopyResult, interactive bool) string {
 			Bold(true).
 			Render("terragrunt.values.hcl left untouched")
 
-		summary := "Referenced values.* keys: " + strings.Join(r.References.allNames(), ", ")
+		summary := "Referenced values.* keys: " + strings.Join(r.References.AllNames(), ", ")
 
 		body := "An existing file was found at the destination, so no stub was written.\n" +
 			"Make sure each referenced key above has a real value before running terragrunt."
@@ -633,13 +635,13 @@ func displayPath(baseDir, abs string) string {
 	return "." + string(filepath.Separator) + rel
 }
 
-// formReadyMsg is delivered once discovery has built a populated FormModel
+// formReadyMsg is delivered once discovery has built a populated form.Model
 // and (for module/template) the prepared scaffold.Plan, or (for unit/stack)
-// the captured ValuesReferences.
+// the captured component.ValuesReferences.
 type formReadyMsg struct {
-	form *FormModel
+	form *form.Model
 	plan *scaffold.Plan
-	refs *ValuesReferences
+	refs *component.ValuesReferences
 }
 
 // formDiscoveryErrMsg signals that the pre-form discovery step failed
@@ -665,7 +667,7 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 // discoverFormCmd runs the kind-appropriate variable discovery off the UI
 // thread. For module/template that means downloading the source and
 // parsing variables via scaffold.Prepare; for unit/stack it means reading
-// the source HCL and walking it via CollectValuesReferences. ctx is the
+// the source HCL and walking it via component.CollectValuesReferences. ctx is the
 // model's cancellable context so a Ctrl+C during discovery aborts the
 // download instead of running it to completion.
 func discoverFormCmd(
@@ -677,7 +679,7 @@ func discoverFormCmd(
 ) tea.Cmd {
 	return func() tea.Msg {
 		if c.Kind.IsCopyable() {
-			return discoverValuesFields(c)
+			return discoverValuesFields(v, c)
 		}
 
 		return discoverModuleFields(ctx, l, v, opts, c)
@@ -708,10 +710,10 @@ func discoverModuleFields(
 		return formDiscoveryErrMsg{err: err}
 	}
 
-	fields := FieldsFromParsedVariables(plan.Required, plan.Optional)
+	fields := form.FieldsFromParsedVariables(plan.Required, plan.Optional)
 
 	return formReadyMsg{
-		form: NewFormModel(c, fields),
+		form: form.NewModel(c.Title(), fields),
 		plan: plan,
 	}
 }
@@ -719,33 +721,33 @@ func discoverModuleFields(
 // discoverValuesFields walks the unit/stack's HCL for `values.*` refs and
 // returns a formReadyMsg. CollectValuesReferences operates on the already
 // cloned local copy, so there's no download.
-func discoverValuesFields(c *Component) tea.Msg {
-	configName := configFileForKind(c.Kind)
+func discoverValuesFields(v *venv.Venv, c *Component) tea.Msg {
+	configName := c.Kind.ConfigFile()
 	if configName == "" {
 		return formDiscoveryErrMsg{
 			err: fmt.Errorf("component kind %q has no associated HCL file", c.Kind),
 		}
 	}
 
-	refs, err := CollectValuesReferences(
-		vfs.NewOSFS(),
+	refs, err := component.CollectValuesReferences(
+		v.FS,
 		filepath.Join(c.Repo.Path(), c.Dir, configName),
 	)
 	if err != nil {
 		return formDiscoveryErrMsg{err: err}
 	}
 
-	fields := FieldsFromValuesReferences(refs)
+	fields := form.FieldsFromValuesReferences(refs)
 
 	return formReadyMsg{
-		form: NewFormModel(c, fields),
+		form: form.NewModel(c.Title(), fields),
 		refs: &refs,
 	}
 }
 
 // updateForm routes messages while the form is on screen. It delegates
-// keypresses (and any other input) to the embedded FormModel, which may
-// in turn emit FormSubmitMsg or FormCancelMsg for the outer Update.
+// keypresses (and any other input) to the embedded form.Model, which may
+// in turn emit form.SubmitMsg or form.CancelMsg for the outer Update.
 func updateForm(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	if m.form == nil {
 		// Discovery is still in flight. Swallow input until the

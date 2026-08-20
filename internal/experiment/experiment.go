@@ -103,6 +103,14 @@ const (
 	BlockIteration = "block-iteration"
 	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
 	BrowseTUI = "browse-tui"
+	// MutableGenerate gates the mutable attribute on the generate block and the
+	// default it changes: generated files are deduplicated through
+	// content-addressable storage and hard-linked into each working directory
+	// rather than written per unit.
+	MutableGenerate = "mutable-generate"
+	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
+	// all dependency output resolution during a run.
+	OptionalDependencyOutputs = "optional-dependency-outputs"
 	// TerragruntRC gates reading the `.terragruntrc` file, which supplies environment
 	// variables and CLI flag defaults from a file that can be committed to a repository
 	// instead of being exported by every engineer.
@@ -218,6 +226,12 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: BrowseTUI,
+		},
+		{
+			Name: MutableGenerate,
+		},
+		{
+			Name: OptionalDependencyOutputs,
 		},
 		{
 			Name: TerragruntRC,

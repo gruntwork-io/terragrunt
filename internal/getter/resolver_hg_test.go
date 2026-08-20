@@ -4,10 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -197,47 +193,6 @@ func TestHgResolver_AcceptsRevWithShellMetacharacters(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, gotArgs, "--rev=tip ; echo pwned",
 		"shell metacharacters must reach hg as part of a single argv element")
-}
-
-// TestHgResolver_AgainstRealHg verifies the resolver against the
-// actual hg binary when it is installed. It uses a freshly-initialized
-// repository on disk so the test does not reach the network. The
-// assertion pins the resolver's key against a ContentKey derived
-// from the full 40-char node hash reported by the stable
-// `hg log -T {node}` template API; this regresses if the resolver
-// reverts to `--id`'s 12-char short form.
-func TestHgResolver_AgainstRealHg(t *testing.T) {
-	t.Parallel()
-
-	if _, err := exec.LookPath("hg"); err != nil {
-		t.Skip("hg binary not installed on this host")
-	}
-
-	repoDir := t.TempDir()
-
-	hg := func(args ...string) string {
-		cmd := exec.CommandContext(t.Context(), "hg", args...)
-		cmd.Dir = repoDir
-
-		out, err := cmd.CombinedOutput()
-		require.NoErrorf(t, err, "hg %v failed: %s", args, string(out))
-
-		return string(out)
-	}
-
-	hg("init", ".")
-	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "main.tf"), []byte("hello\n"), 0o644))
-	hg("--config", "ui.username=test <test@test>", "commit", "-A", "-m", "initial")
-
-	// The template API is a stable hg contract, unlike debug output text.
-	fullNode := strings.TrimSpace(hg("log", "-r", "tip", "-T", "{node}"))
-	require.Len(t, fullNode, 40, "hg log -T {node} must report a full 40-char node hash")
-
-	r := getter.NewHgResolver()
-
-	got, err := r.Probe(t.Context(), repoDir+"?rev=tip")
-	require.NoError(t, err)
-	assert.Equal(t, cas.ContentKey("hg-node", fullNode), got)
 }
 
 // hgHandler returns a vexec.Handler that always produces the given

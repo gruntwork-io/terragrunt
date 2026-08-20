@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,7 @@ func TestWindowsExitCode(t *testing.T) {
 	for i := 0; i <= 255; i++ {
 		cmd := exec.Command(
 			t.Context(),
-			vexec.NewOSExec(),
+			venvtest.New().WithExec(vexec.NewOSExec()),
 			`testdata\test_exit_code.bat`,
 			strconv.Itoa(i),
 		)
@@ -75,7 +76,7 @@ func TestWindowsNewSignalsForwarderWait(t *testing.T) {
 
 	cmd := exec.Command(
 		t.Context(),
-		vexec.NewOSExec(),
+		venvtest.New().WithExec(vexec.NewOSExec()),
 		`testdata\test_sigint_wait.bat`,
 		strconv.Itoa(expectedWait),
 	)

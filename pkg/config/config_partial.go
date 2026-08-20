@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
 
@@ -233,7 +233,13 @@ func DecodeBaseBlocks(
 	// Feature defaults from includes must be visible while decoding base blocks like
 	// locals and exclude, but they must remain local to this parse instead of being
 	// stored in shared command options.
-	mergedFeatureFlags, err := mergeIncludedFeatureFlags(ctx, pctx, l, trackInclude, tgFlags.FeatureFlags)
+	mergedFeatureFlags, err := mergeIncludedFeatureFlags(
+		ctx,
+		pctx,
+		l,
+		trackInclude,
+		tgFlags.FeatureFlags,
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -268,7 +274,13 @@ func DecodeBaseBlocks(
 }
 
 // mergeIncludedFeatureFlags merges feature defaults from included configs into the current parse.
-func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.Logger, trackInclude *TrackInclude, childFlags FeatureFlags) (FeatureFlags, error) {
+func mergeIncludedFeatureFlags(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	trackInclude *TrackInclude,
+	childFlags FeatureFlags,
+) (FeatureFlags, error) {
 	if trackInclude == nil || len(trackInclude.CurrentList) == 0 {
 		return childFlags, nil
 	}
@@ -293,7 +305,12 @@ func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.
 			return childFlags, err
 		}
 
-		mergedConfig, err := mergeFeatureFlagConfig(l, mergeStrategy, baseConfig, parsedIncludeConfig.FeatureFlags)
+		mergedConfig, err := mergeFeatureFlagConfig(
+			l,
+			mergeStrategy,
+			baseConfig,
+			parsedIncludeConfig.FeatureFlags,
+		)
 		if err != nil {
 			return childFlags, err
 		}
@@ -305,7 +322,12 @@ func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.
 }
 
 // mergeFeatureFlagConfig applies an include merge strategy to feature defaults only.
-func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseConfig *TerragruntConfig, includeFlags FeatureFlags) (*TerragruntConfig, error) {
+func mergeFeatureFlagConfig(
+	l log.Logger,
+	mergeStrategy MergeStrategyType,
+	baseConfig *TerragruntConfig,
+	includeFlags FeatureFlags,
+) (*TerragruntConfig, error) {
 	includeOnlyConfig := &TerragruntConfig{FeatureFlags: includeFlags}
 
 	switch mergeStrategy {
@@ -322,7 +344,13 @@ func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseC
 	case DeepMergeMapOnly:
 		return nil, InvalidMergeStrategyTypeError(mergeStrategy)
 	default:
-		return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+		return nil, fmt.Errorf(
+			"you reached an impossible condition. "+
+				"This is most likely a bug in terragrunt. "+
+				"Please open an issue at github.com/gruntwork-io/terragrunt "+
+				"with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s",
+			mergeStrategy,
+		)
 	}
 
 	return includeOnlyConfig, nil
@@ -707,12 +735,16 @@ func PartialParseConfig(
 			}
 
 		case DependencyBlock:
-			decoded := TerragruntDependency{}
-
-			err := file.Decode(&decoded, evalParsingContext)
+			decodedDeps, err := decodeDependencyBlocks(
+				file,
+				evalParsingContext,
+				pctx.Experiments,
+			)
 			if err != nil {
 				return nil, err
 			}
+
+			decoded := TerragruntDependency{Dependencies: decodedDeps}
 
 			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
@@ -985,7 +1017,7 @@ func registerSiblingAutoInclude(
 		return
 	}
 
-	if !util.FileExists(autoIncludePath) {
+	if !vfs.Exists(pctx.Venv.FS, autoIncludePath) {
 		return
 	}
 
@@ -1129,19 +1161,19 @@ func autoIncludeCacheKeySuffix(
 		return suffix
 	}
 
-	suffix := autoIncludeContentSuffix(autoIncludePath)
+	suffix := autoIncludeContentSuffix(pctx.Venv.FS, autoIncludePath)
 	memo.Put(ctx, fingerprint, suffix)
 
 	return suffix
 }
 
 // autoIncludeContentSuffix folds the sibling autoinclude existence and content into the cache key, with distinct sentinels for absent and unreadable.
-func autoIncludeContentSuffix(autoIncludePath string) string {
-	if !util.FileExists(autoIncludePath) {
+func autoIncludeContentSuffix(fsys vfs.FS, autoIncludePath string) string {
+	if !vfs.Exists(fsys, autoIncludePath) {
 		return fmt.Sprintf("-autoinclude:%#v", false)
 	}
 
-	content, err := util.ReadFileAsString(autoIncludePath)
+	content, err := vfs.ReadFileAsString(fsys, autoIncludePath)
 	if err != nil {
 		// An unreadable autoinclude must not collide with the absent sentinel; key on the error text.
 		return fmt.Sprintf("-autoinclude:%#v-err:%#v", true, err.Error())

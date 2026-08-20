@@ -10,10 +10,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,15 +27,15 @@ func copyFinishedFromNames(
 	required, optional []string,
 	valuesWritten, valuesSkipped bool,
 ) tui.CopyFinishedMsg {
-	opt := make([]tui.OptionalValue, len(optional))
+	opt := make([]component.OptionalValue, len(optional))
 	for i, name := range optional {
-		opt[i] = tui.OptionalValue{Name: name}
+		opt[i] = component.OptionalValue{Name: name}
 	}
 
 	return tui.CopyFinishedMsg{
-		Result: tui.CopyResult{
-			WorkingDir:    workingDir,
-			References:    tui.ValuesReferences{Required: required, Optional: opt},
+		Result: component.Result{
+			Dir:           workingDir,
+			References:    component.ValuesReferences{Required: required, Optional: opt},
 			ValuesWritten: valuesWritten,
 			ValuesSkipped: valuesSkipped,
 		},
@@ -49,13 +50,13 @@ func makeComponents(t *testing.T) []*tui.ComponentEntry {
 
 	return []*tui.ComponentEntry{
 		tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/test-repo-1",
 			"modules/aws-vpc",
 			"# AWS VPC Module\nThis module creates a VPC in AWS.",
 		)).WithSource("github.com/gruntwork-io/test-repo-1"),
 		tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/test-repo-2",
 			"modules/eks-cluster",
 			"# AWS EKS Module\nThis module creates an EKS cluster.",
@@ -80,7 +81,7 @@ func TestModelStreamingInsertsSortedWithRacing(t *testing.T) {
 		m := tui.NewModelStreaming(
 			t.Context(),
 			l,
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			opts,
 			components[len(components)-1],
 			componentCh,
@@ -123,13 +124,13 @@ func makeMixedComponents(t *testing.T) []*tui.ComponentEntry {
 
 	return []*tui.ComponentEntry{
 		tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/test-repo",
 			"modules/aws-vpc",
 			"# AWS VPC",
 		)).WithSource("github.com/gruntwork-io/test-repo"),
 		tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindTemplate,
+			component.KindTemplate,
 			"github.com/gruntwork-io/test-repo",
 			"templates/service",
 			"# Service Template",
@@ -153,7 +154,7 @@ func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 		m := tui.NewModelStreaming(
 			t.Context(),
 			l,
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			opts,
 			components[0],
 			componentCh,
@@ -179,7 +180,7 @@ func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 
 		templatesItems := finalModel.List().Items()
 		require.Len(t, templatesItems, 1, "Templates tab should contain only the one template")
-		assert.Equal(t, tui.ComponentKindTemplate, templatesItems[0].(*tui.ComponentEntry).Kind())
+		assert.Equal(t, component.KindTemplate, templatesItems[0].(*tui.ComponentEntry).Kind())
 	})
 }
 
@@ -199,7 +200,7 @@ func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 		m := tui.NewModelStreaming(
 			t.Context(),
 			l,
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			opts,
 			components[0],
 			componentCh,
@@ -229,7 +230,7 @@ func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 // the interactive scaffold key (`s`) on a copyable component transitions
 // the Model to FormState. The discovery goroutine runs synchronously via
 // tea.Cmd, so once the form is ready the model has both a form pointer and
-// a captured ValuesReferences.
+// a captured component.ValuesReferences.
 func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -249,7 +250,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
-		require.Equal(t, tui.ComponentKindUnit, components[0].Kind)
+		require.Equal(t, component.KindUnit, components[0].Kind)
 
 		opts, err := options.NewTerragruntOptionsForTest("")
 		require.NoError(t, err)
@@ -265,7 +266,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 		m := tui.NewModelStreaming(
 			t.Context(),
 			logger.CreateLogger(),
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			opts,
 			entry,
 			componentCh,
@@ -305,7 +306,7 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 		components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
-		require.Equal(t, tui.ComponentKindUnit, components[0].Kind)
+		require.Equal(t, component.KindUnit, components[0].Kind)
 
 		opts, err := options.NewTerragruntOptionsForTest("")
 		require.NoError(t, err)
@@ -321,7 +322,7 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 		m := tui.NewModelStreaming(
 			t.Context(),
 			logger.CreateLogger(),
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			opts,
 			entry,
 			componentCh,
@@ -374,7 +375,15 @@ func TestModelCtrlDOnPagerScaffoldsImmediatelyWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			logger.CreateLogger(),
+			venvtest.NewOSWithEmptyEnv(),
+			opts,
+			entry,
+			componentCh,
+			nil,
+		)
 
 		// First enter: list → pager. Then ctrl+d: pager → immediate
 		// placeholder scaffold, no form in between.
@@ -407,7 +416,7 @@ func TestModelStreamingDeduplicatesWithRacing(t *testing.T) {
 		m := tui.NewModelStreaming(
 			t.Context(),
 			l,
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			opts,
 			components[0],
 			componentCh,
@@ -447,7 +456,7 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	// Copy-written: 2 required TODOs (exercises the plural "entries" branch)
 	// and 1 optional (exercises the singular "default" branch).
@@ -491,7 +500,7 @@ func TestModelCopyFinishedSkippedValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	msg := copyFinishedFromNames(workingDir,
 		[]string{"zeta"},
@@ -530,7 +539,7 @@ func TestModelCopyFinishedEmptyReferencesLeavesNoExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	msg := copyFinishedFromNames(opts.WorkingDir, nil, nil, false, false)
 
@@ -558,7 +567,7 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(tui.ScaffoldFinishedMsg{})
 	finalModel := updated.(tui.Model)
@@ -585,7 +594,7 @@ func TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(tui.ScaffoldFinishedMsg{})
 	finalModel := updated.(tui.Model)
@@ -625,7 +634,7 @@ func TestModelCopyFinishedDisplayPathEscapesBaseDir(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	msg := copyFinishedFromNames(baseTmp, []string{"a"}, nil, true, false)
 
@@ -656,7 +665,7 @@ func TestModelScaffoldFailureQuitsWithError(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	scaffoldErr := errors.New("generate failed")
 
@@ -693,7 +702,7 @@ func TestModelCopyFailureQuitsWithError(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	copyErr := errors.New("destination exists")
 
@@ -725,7 +734,7 @@ func TestModelCleanQuitHasNoErrorWithRacing(t *testing.T) {
 		m := tui.NewModelStreaming(
 			t.Context(),
 			l,
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			opts,
 			components[0],
 			componentCh,
@@ -755,7 +764,7 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
 
 	// Seed the viewport with a WindowSizeMsg so it has a positive size,
 	// otherwise the pager view will produce a degenerate string.
@@ -792,7 +801,7 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 		// A plain module component (not copyable): pressing Enter pushes
 		// into PagerState rather than kicking off a copy action.
 		entry := tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/fake-repo",
 			"modules/vpc",
 			"# VPC Module\nA module.",
@@ -801,7 +810,7 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, entry, componentCh, nil)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: tea.KeyEnter},
@@ -821,7 +830,7 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 // TestModelPagerWToggleFlipsSoftWrapWithRacing exercises the `w` key in
 // PagerState: starting from default soft-wrap on, one press flips it
 // off, a second flips it back. The toggle also rebuilds the cached
-// glamour renderer, which is hard to inspect from outside, so we rely on
+// Markdown renderer, which is hard to inspect from outside, so we rely on
 // the visible softWrap accessor to verify the lifecycle.
 func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
 	t.Parallel()
@@ -835,7 +844,7 @@ func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
 		l := logger.CreateLogger()
 
 		entry := tui.NewComponentEntry(tui.NewComponentForTest(
-			tui.ComponentKindModule,
+			component.KindModule,
 			"github.com/gruntwork-io/fake-repo",
 			"modules/vpc",
 			"# VPC Module\nA module.",
@@ -844,7 +853,7 @@ func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, entry, componentCh, nil)
 
 		// Enter pager, then toggle `w` twice. driveModel runs the
 		// messages through Update in order and returns the final model.

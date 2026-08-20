@@ -46,6 +46,7 @@ func TestApplyFlagDefaults(t *testing.T) {
 
 	app := &clihelper.App{
 		App:          &urfaveCli.App{Writer: io.Discard},
+		Env:          map[string]string{},
 		FlagDefaults: newFlagDefaults(nil, "foo", []string{"from-rc"}, &seen),
 	}
 
@@ -78,6 +79,7 @@ func TestApplyFlagDefaultsIsOverriddenByArg(t *testing.T) {
 
 	app := &clihelper.App{
 		App:          &urfaveCli.App{Writer: io.Discard},
+		Env:          map[string]string{},
 		FlagDefaults: newFlagDefaults(nil, "foo", []string{"from-rc"}, &seen),
 	}
 
@@ -96,7 +98,7 @@ func TestApplyFlagDefaultsIsOverriddenByArg(t *testing.T) {
 
 //nolint:paralleltest // sets an environment variable the flag reads.
 func TestApplyFlagDefaultsIsOverriddenByEnvVar(t *testing.T) {
-	t.Setenv("TG_CLIHELPER_TEST_FOO", "from-env")
+	t.Parallel()
 
 	var (
 		destination string
@@ -105,6 +107,7 @@ func TestApplyFlagDefaultsIsOverriddenByEnvVar(t *testing.T) {
 
 	app := &clihelper.App{
 		App:          &urfaveCli.App{Writer: io.Discard},
+		Env:          map[string]string{"TG_CLIHELPER_TEST_FOO": "from-env"},
 		FlagDefaults: newFlagDefaults(nil, "foo", []string{"from-rc"}, &seen),
 	}
 
@@ -134,6 +137,7 @@ func TestApplyFlagDefaultsRunsTheFlagAction(t *testing.T) {
 
 	app := &clihelper.App{
 		App:          &urfaveCli.App{Writer: io.Discard},
+		Env:          map[string]string{},
 		FlagDefaults: newFlagDefaults(nil, "foo", []string{"from-rc"}, &seen),
 	}
 
@@ -167,6 +171,7 @@ func TestApplyFlagDefaultsForSubcommand(t *testing.T) {
 
 	app := &clihelper.App{
 		App: &urfaveCli.App{Writer: io.Discard},
+		Env: map[string]string{},
 		FlagDefaults: newFlagDefaults(
 			[][]string{{"hcl"}, {"fmt"}},
 			"bar",
@@ -215,6 +220,7 @@ func TestApplyFlagDefaultsWithSkippedFlagParsing(t *testing.T) {
 
 	app := &clihelper.App{
 		App:          &urfaveCli.App{Writer: io.Discard},
+		Env:          map[string]string{},
 		FlagDefaults: newFlagDefaults([][]string{{"cmd"}}, "foo", []string{"from-rc"}, &seen),
 	}
 
@@ -248,6 +254,7 @@ func TestApplyFlagDefaultsInvalidValue(t *testing.T) {
 
 	app := &clihelper.App{
 		App:          &urfaveCli.App{Writer: io.Discard},
+		Env:          map[string]string{},
 		FlagDefaults: newFlagDefaults(nil, "foo", []string{"not-a-bool"}, &seen),
 	}
 
@@ -267,7 +274,7 @@ func TestApplyFlagDefaultsWithoutSource(t *testing.T) {
 
 	var destination string
 
-	app := &clihelper.App{App: &urfaveCli.App{Writer: io.Discard}}
+	app := &clihelper.App{App: &urfaveCli.App{Writer: io.Discard}, Env: map[string]string{}}
 
 	cmd := clihelper.Command{
 		Name:   "terragrunt",

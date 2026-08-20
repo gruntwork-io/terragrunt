@@ -11,10 +11,12 @@ trap int_handler INT
 # shellcheck disable=SC2329  # invoked indirectly via trap
 function int_handler() {
 	INT_COUNTER=$((INT_COUNTER + 1))
+	printf '%s\n' "$INT_COUNTER" >"$READY_FILE"
 }
 
-# The marker tells the test the INT trap is installed and a signal can be sent.
-: >"$READY_FILE"
+# A readable count tells the test the INT trap is installed and, from then on, how many
+# signals have actually been handled.
+printf '%s\n' "$INT_COUNTER" >"$READY_FILE"
 
 while [[ $INT_COUNTER -lt $INT_REQUIRED ]]; do
 	sleep 0.1

@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/middleware"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -96,10 +97,10 @@ func (server *Server) DiscoveryURL(
 }
 
 // Listen starts listening to the given configuration address. It also automatically chooses a free port if not explicitly specified.
-func (server *Server) Listen(ctx context.Context) (net.Listener, error) {
-	lc := &net.ListenConfig{}
+func (server *Server) Listen(ctx context.Context, v *venv.Venv) (net.Listener, error) {
+	v.RequireListen()
 
-	ln, err := lc.Listen(ctx, "tcp", server.Addr())
+	ln, err := v.Listen(ctx, "tcp", server.Addr())
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +115,16 @@ func (server *Server) Listen(ctx context.Context) (net.Listener, error) {
 // Run starts the webserver and workers.
 func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 	server.logger.Infof("Start Terragrunt Cache server")
+
+	// Initialize before serving, not alongside it: the listener is already
+	// accepting connections by the time Run is called, so a service still
+	// building its state in a goroutine can be handed a request that reads
+	// that state half-built.
+	for _, service := range server.services {
+		if err := service.Init(); err != nil {
+			return err
+		}
+	}
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 

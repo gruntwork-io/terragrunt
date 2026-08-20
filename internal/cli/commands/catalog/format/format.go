@@ -12,8 +12,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 )
 
-// JSONL names the JSON Lines format: one JSON object per line.
-const JSONL = "jsonl"
+const (
+	// JSONL names the JSON Lines format: one JSON object per line.
+	JSONL = "jsonl"
+
+	// MD names the Markdown format: one document, with a section per component.
+	MD = "md"
+)
 
 // ErrUnsupportedFormat is returned by [NewRenderer] for a format name that
 // has no renderer.
@@ -40,6 +45,8 @@ func NewRenderer(name string) (Renderer, error) {
 	switch name {
 	case JSONL:
 		return NewJSONLRenderer(), nil
+	case MD:
+		return NewMarkdownRenderer(), nil
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedFormat, name)
 	}

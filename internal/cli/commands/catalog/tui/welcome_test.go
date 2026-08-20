@@ -12,9 +12,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +86,7 @@ func TestWelcomeLoadingScreen_NoSourcesWithRacing(t *testing.T) {
 			return nil
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, noSourcesLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -114,7 +114,7 @@ func TestWelcomeDiscoveryErrorQuitPropagatesErrorWithRacing(t *testing.T) {
 			return discoveryErr
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, erroringLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, erroringLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -149,7 +149,7 @@ func TestWelcomeAllSourcesFailedPropagatesTypedErrorWithRacing(t *testing.T) {
 			}
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, allFailedLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, allFailedLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -189,7 +189,7 @@ func TestWelcomeCleanQuitReturnsNoErrorWithRacing(t *testing.T) {
 			return nil
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, noSourcesLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -226,7 +226,7 @@ func TestWelcomeLoadingScreen_TransitionsToComponentListWithRacing(t *testing.T)
 			return nil
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, withComponentsLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, withComponentsLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -268,7 +268,7 @@ func TestWelcomeLoadingScreen_ComponentListNavigationWithRacing(t *testing.T) {
 			return nil
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, withComponentsLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, withComponentsLoad)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: tea.KeyEnter},
@@ -304,7 +304,7 @@ func TestWelcomeLoadingScreen_QuitDuringLoadingWithRacing(t *testing.T) {
 			return nil
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, slowLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, slowLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -332,7 +332,7 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocsWithRacing(t *testing.T) {
 
 		var openedURL string
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad).
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, noSourcesLoad).
 			WithOpenURL(func(url string) error {
 				openedURL = url
 				return nil
@@ -371,7 +371,7 @@ func TestWelcomeNoSourcesScreen_UnhandledKeyWithRacing(t *testing.T) {
 			return nil
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, noSourcesLoad)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: 'x', Text: "x"},
@@ -411,7 +411,7 @@ func TestWelcomeStreamingComponentsWithRacing(t *testing.T) {
 			return nil
 		}
 
-		m := tui.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, streamingLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, streamingLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 

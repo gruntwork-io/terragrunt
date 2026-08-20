@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
@@ -99,7 +100,7 @@ var (
 		DefaultTerragruntConfigPath,
 	}
 
-	DefaultParserOptions = func(l log.Logger, strictControls strict.Controls) []hclparse.Option {
+	DefaultParserOptions = func(l log.Logger, v *venv.Venv, strictControls strict.Controls) []hclparse.Option {
 		writer := writer.New(
 			writer.WithLogger(l),
 			writer.WithDefaultLevel(log.ErrorLevel),
@@ -108,7 +109,7 @@ var (
 
 		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
 		parseOpts = append(parseOpts,
-			hclparse.WithDiagnosticsWriter(writer, l.Formatter().DisabledColors()),
+			hclparse.WithDiagnosticsWriter(v, writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
 		)
 
@@ -512,6 +513,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			genBody.SetAttributeValue("hcl_fmt", goboolToCty(*gen.HclFmt))
 		}
 
+		if gen.Mutable != nil {
+			genBody.SetAttributeValue("mutable", goboolToCty(*gen.Mutable))
+		}
+
 		rootBody.AppendBlock(genBlock)
 	}
 
@@ -763,10 +768,11 @@ type terragruntConfigFile struct {
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
-	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
-	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
-	Exclude                  *ExcludeConfig      `hcl:"exclude,block"`
-	Errors                   *ErrorsConfig       `hcl:"errors,block"`
+	DependencyBlocks         []dependencyHeader  `hcl:"dependency,block"`
+	TerragruntDependencies   []Dependency
+	FeatureFlags             []*FeatureFlag `hcl:"feature,block"`
+	Exclude                  *ExcludeConfig `hcl:"exclude,block"`
+	Errors                   *ErrorsConfig  `hcl:"errors,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -801,6 +807,13 @@ type terragruntLocal struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
+// dependencyHeader keeps `dependency` in the config file's schema without evaluating the
+// block body.
+type dependencyHeader struct {
+	Remain hcl.Body `hcl:",remain"`
+	Name   string   `hcl:",label"`
+}
+
 type terragruntIncludeIgnore struct {
 	Remain hcl.Body `hcl:",remain"`
 	Name   string   `hcl:"name,label"`
@@ -814,6 +827,7 @@ type terragruntGenerateBlock struct {
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
 	Disable          *bool   `hcl:"disable,attr"           mapstructure:"disable"`
 	HclFmt           *bool   `hcl:"hcl_fmt,attr"           mapstructure:"hcl_fmt"`
+	Mutable          *bool   `hcl:"mutable,attr"           mapstructure:"mutable"`
 	Name             string  `hcl:",label"                 mapstructure:",omitempty"`
 	Path             string  `hcl:"path,attr"              mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr"         mapstructure:"if_exists"`
@@ -1086,7 +1100,7 @@ func (args *TerraformExtraArguments) String() string {
 		args.EnvVars)
 }
 
-func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
+func (args *TerraformExtraArguments) GetVarFiles(l log.Logger, fsys vfs.FS) []string {
 	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
@@ -1099,7 +1113,7 @@ func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
 	// duplicates.
 	if args.OptionalVarFiles != nil {
 		for _, file := range util.RemoveDuplicatesKeepLast(*args.OptionalVarFiles) {
-			if util.FileExists(file) {
+			if vfs.Exists(fsys, file) {
 				varFiles = append(varFiles, file)
 			} else {
 				l.Debugf("Skipping var-file %s as it does not exist", file)
@@ -1688,7 +1702,16 @@ func DetectInputsCtyUsage(file *hclparse.File) bool {
 				continue
 			}
 
-			attrTraversal, ok := traversal[2].(hcl.TraverseAttr)
+			rest := traversal[2:]
+			if _, indexed := rest[0].(hcl.TraverseIndex); indexed {
+				rest = rest[1:]
+			}
+
+			if len(rest) == 0 {
+				continue
+			}
+
+			attrTraversal, ok := rest[0].(hcl.TraverseAttr)
 			if !ok || attrTraversal.Name != MetadataInputs {
 				continue
 			}
@@ -1813,14 +1836,23 @@ func decodeAsTerragruntConfigFile(
 
 		ok := errors.As(err, &diagErr)
 
-		// in case of render-json command and inputs reference error, we update the inputs with default value
-		if (!ok || !isRenderJSONCommand(pctx) || !isAttributeAccessError(diagErr)) &&
-			(!ok || !isRenderCommand(pctx) || !isAttributeAccessError(diagErr)) {
+		// Suppress attribute access errors when a sibling autoinclude will merge on top, or during render-json/render commands; the autoinclude merge replaces the affected inputs.
+		canSuppress := ok && isAttributeAccessError(diagErr) &&
+			(isRenderJSONCommand(pctx) || isRenderCommand(pctx) || hasSiblingAutoInclude(pctx))
+
+		if !canSuppress {
 			return &terragruntConfig, err
 		}
 
-		l.Warnf("Failed to decode inputs %v", diagErr)
+		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
+
+	dependencies, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
+	if err != nil {
+		return &terragruntConfig, err
+	}
+
+	terragruntConfig.TerragruntDependencies = dependencies
 
 	if terragruntConfig.Inputs != nil {
 		inputs, err := ctyhelper.UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
@@ -2089,8 +2121,18 @@ func convertToTerragruntConfig(
 			return nil, err
 		}
 
+		if block.Mutable != nil && !pctx.Experiments.Evaluate(experiment.MutableGenerate) {
+			errs = append(errs, MutableGenerateRequiresExperimentError{
+				ConfigPath: configPath,
+				BlockName:  block.Name,
+			})
+
+			continue
+		}
+
 		genConfig := codegen.GenerateConfig{
 			HclFmt:        block.HclFmt,
+			Mutable:       block.Mutable,
 			Path:          block.Path,
 			IfExists:      ifExists,
 			IfExistsStr:   block.IfExists,
@@ -2253,7 +2295,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 			fullPath = path.Join(ctx.WorkingDir, fullPath)
 		}
 
-		if !util.IsDir(fullPath) {
+		if !vfs.IsDir(ctx.Venv.FS, fullPath) {
 			missingDependencies = append(
 				missingDependencies,
 				fmt.Sprintf("%s (%s)", dependencyPath, fullPath),
@@ -2576,6 +2618,11 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 	}
 
 	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
+}
+
+// hasSiblingAutoInclude reports whether a sibling autoinclude is registered for this parse.
+func hasSiblingAutoInclude(pctx *ParsingContext) bool {
+	return pctx.TrackInclude != nil && pctx.TrackInclude.AutoIncludeOverride != nil
 }
 
 // mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.

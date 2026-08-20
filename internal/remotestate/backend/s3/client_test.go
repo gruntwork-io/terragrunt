@@ -19,8 +19,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,6 +29,7 @@ import (
 const defaultTestRegion = "us-east-1"
 
 // CreateS3ClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
+// The client it returns talks to real AWS, so it gets the OS venv rather than a hermetic one.
 func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 	t.Helper()
 
@@ -42,7 +43,7 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 
 	l := logger.CreateLogger()
 
-	client, err := s3backend.NewClient(t.Context(), l, venvtest.New(), extS3Cfg, mockOptions)
+	client, err := s3backend.NewClient(t.Context(), l, venv.OSVenv(), extS3Cfg, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return client

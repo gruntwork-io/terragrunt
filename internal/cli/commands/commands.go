@@ -198,7 +198,7 @@ func WrapWithTelemetry(
 				}
 			}()
 
-			if err := initialSetup(cliCtx, l, opts); err != nil {
+			if err := initialSetup(cliCtx, l, v, opts); err != nil {
 				return err
 			}
 
@@ -230,7 +230,7 @@ func WrapWithTelemetry(
 // on a sufficiently new version of OpenTofu.
 func GiveWindowsSymlinksTip(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	goos string,
 	allTips tips.Tips,
 	envs map[string]string,
@@ -246,14 +246,14 @@ func GiveWindowsSymlinksTip(
 		return
 	}
 
-	tmp, err := vfs.MkdirTemp(fs, "", "terragrunt-test-symlink")
+	tmp, err := vfs.MkdirTemp(fsys, "", "terragrunt-test-symlink")
 	if err != nil {
 		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
 		return
 	}
 
 	defer func() {
-		if err := fs.RemoveAll(tmp); err != nil {
+		if err := fsys.RemoveAll(tmp); err != nil {
 			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
 		}
 	}()
@@ -261,12 +261,12 @@ func GiveWindowsSymlinksTip(
 	source := filepath.Join(tmp, "source")
 	target := filepath.Join(tmp, "target")
 
-	if err := fs.Mkdir(source, 0755); err != nil { //nolint:mnd
+	if err := fsys.Mkdir(source, 0755); err != nil { //nolint:mnd
 		l.Debugf("Failed to create source directory for testing symlink: %v", err)
 		return
 	}
 
-	err = vfs.Symlink(fs, source, target)
+	err = vfs.Symlink(fsys, source, target)
 	if err == nil {
 		return
 	}
@@ -342,7 +342,7 @@ func RunAction(
 			return err
 		}
 
-		ln, err := server.Listen(actionCtx)
+		ln, err := server.Listen(actionCtx, v)
 		if err != nil {
 			return err
 		}
@@ -446,7 +446,7 @@ func setupAutoProviderCacheDir(
 	// Set up the provider cache directory
 	providerCacheDir := opts.ProviderCacheOptions.Dir
 	if providerCacheDir == "" {
-		cacheDir, err := util.EnsureCacheDir()
+		cacheDir, err := util.EnsureCacheDir(v)
 		if err != nil {
 			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
@@ -476,7 +476,12 @@ func setupAutoProviderCacheDir(
 }
 
 // mostly preparing terragrunt options
-func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func initialSetup(
+	cliCtx *clihelper.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(clihelper.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
@@ -565,7 +570,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	var fileFilterStrings []string
 
-	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
+	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(v.FS, opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
@@ -575,6 +580,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	// Process filters file if the filters file is not disabled
 	if !opts.NoFiltersFile {
 		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(
+			v.FS,
 			opts.WorkingDir,
 			opts.FiltersFile,
 		)

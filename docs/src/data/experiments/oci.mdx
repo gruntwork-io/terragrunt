@@ -41,12 +41,10 @@ and `~/.terraformrc` that exists (on Windows, `%APPDATA%\tofu.rc` and
 `%APPDATA%\terraform.rc`). Unless one of those environment variables is set, it
 also merges the `*.tfrc` and `*.tfrc.json` files in OpenTofu's config directory. Terragrunt also reads ambient Docker and containers
 auth files (`~/.docker/config.json` and containers `auth.json`), following the
-containers-auth search order OpenTofu uses. Set `docker_style_config_files` in
+[containers-auth search order](https://opentofu.org/docs/cli/oci_registries/credentials/)
+OpenTofu uses as of OpenTofu 1.12. Set `docker_style_config_files` in
 `oci_default_credentials` to replace those default search paths, or an empty
 list to disable ambient discovery entirely.
-
-A CLI config that exists but is invalid is an error, matching `tofu`, rather
-than being skipped in a way that would change which credentials are sent.
 
 Terragrunt ranks every matching CLI-config and ambient credential together by how
 much of the repository path each one matches, and uses the single best match. A
@@ -94,8 +92,9 @@ To transition the `oci` feature to a stable release, the following must be addre
 - [x] A getter that resolves `oci://` sources, selecting the `application/vnd.opentofu.modulepkg` artifact and its `archive/zip` layer, with blob digest verification.
 - [x] OpenTofu CLI-config and ambient Docker-config credential discovery matching OpenTofu's search order.
 - [x] Credential-helper support (`docker-credential-*`, `ecr-login`) so ECR and other helper-backed registries work through the configured helper.
-- [ ] Content-addressable caching keyed on the resolved manifest digest, with correct re-resolution of mutable tags.
-- [ ] A portability guarantee that one source string produces an identical module via `tofu` and Terragrunt.
-- [ ] Documentation covering the source syntax, authentication tiers, and publishing contract.
-- [ ] Integration test coverage against a real registry, gated behind a build tag.
+- [x] Content-addressable caching keyed on the resolved manifest digest, with correct re-resolution of mutable tags.
+- [x] A portability guarantee that one source string produces an identical module via `tofu` and Terragrunt.
+- [x] Documentation covering the source syntax, authentication tiers, and publishing contract.
+- [x] Integration test coverage driving the full download chain against a local OCI Distribution registry.
+- [ ] Gated CI coverage against hosted registries (GHCR, ECR) with real credentials.
 - [ ] Community feedback on real-world usage.

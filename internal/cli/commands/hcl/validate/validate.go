@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/google/shlex"
@@ -29,7 +30,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -121,6 +121,7 @@ func RunValidate(
 	worktrees, parseErr := worktrees.NewWorktrees(
 		ctx,
 		l,
+		v,
 		worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
@@ -161,8 +162,7 @@ func RunValidate(
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 
-			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser = parser.WithVenv(componentV)
+			ctx, parser := configbridge.NewParsingContext(ctx, l, componentV, parseOpts)
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -213,8 +213,7 @@ func RunValidate(
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx = pctx.WithVenv(componentV)
+		_, pctx := configbridge.NewParsingContext(ctx, l, componentV, parseOpts)
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
@@ -276,7 +275,7 @@ func writeDiagnostics(
 	opts *options.TerragruntOptions,
 	diags diagnostic.Diagnostics,
 ) error {
-	render := view.NewHumanRender(l.Formatter().DisabledColors())
+	render := view.NewHumanRender(v, l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
 	}
@@ -317,6 +316,7 @@ func RunValidateInputs(
 	worktrees, worktreeErr := worktrees.NewWorktrees(
 		ctx,
 		l,
+		v,
 		worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
@@ -382,16 +382,17 @@ func RunValidateInputs(
 
 		// Generate config
 		if err := prepare.PrepareGenerate(
+			ctx,
 			l,
 			unitV,
 			updatedOpts,
-			prepared.Cfg.ToRunConfig(l),
+			prepared.Cfg.ToRunConfig(l, unitV.FS),
 		); err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		if err := runValidateInputs(l, unitV.Env, updatedOpts, prepared.Cfg); err != nil {
+		if err := runValidateInputs(l, unitV, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -405,18 +406,16 @@ func RunValidateInputs(
 
 func runValidateInputs(
 	l log.Logger,
-	env map[string]string,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) error {
-	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
+	declared, err := tf.ModuleVariables(v.FS, opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 
-	allVars := slices.Concat(required, optional)
-
-	allInputs, err := getDefinedTerragruntInputs(l, env, opts, cfg)
+	allInputs, err := getDefinedTerragruntInputs(l, v, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -425,7 +424,7 @@ func runValidateInputs(
 	unusedVars := []string{}
 
 	for _, varName := range allInputs {
-		if !slices.Contains(allVars, varName) {
+		if _, ok := declared[varName]; !ok {
 			unusedVars = append(unusedVars, varName)
 		}
 	}
@@ -433,8 +432,8 @@ func runValidateInputs(
 	// Missing variables are those that are required by the terraform config, but not defined in terragrunt.
 	missingVars := []string{}
 
-	for _, varName := range required {
-		if !slices.Contains(allInputs, varName) {
+	for _, varName := range slices.Sorted(maps.Keys(declared)) {
+		if !declared[varName].HasDefault && !slices.Contains(allInputs, varName) {
 			missingVars = append(missingVars, varName)
 		}
 	}
@@ -492,14 +491,14 @@ func runValidateInputs(
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
 func getDefinedTerragruntInputs(
 	l log.Logger,
-	env map[string]string,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) ([]string, error) {
-	envVarTFVars := getTerraformInputNamesFromEnvVar(env, cfg)
+	envVarTFVars := getTerraformInputNamesFromEnvVar(v.Env, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
 
-	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, cfg)
+	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, v.FS, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +508,7 @@ func getDefinedTerragruntInputs(
 		return nil, err
 	}
 
-	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(l, opts)
+	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(l, v.FS, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -596,6 +595,7 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 // extra_arguments block required_var_files and optional_var_files settings of the given terragrunt config.
 func getTerraformInputNamesFromVarFiles(
 	l log.Logger,
+	fsys vfs.FS,
 	terragruntConfig *config.TerragruntConfig,
 ) ([]string, error) {
 	if terragruntConfig.Terraform == nil {
@@ -604,7 +604,7 @@ func getTerraformInputNamesFromVarFiles(
 
 	varFiles := []string{}
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		varFiles = append(varFiles, arg.GetVarFiles(l)...)
+		varFiles = append(varFiles, arg.GetVarFiles(l, fsys)...)
 	}
 
 	return getVarNamesFromVarFiles(l, varFiles)
@@ -650,18 +650,19 @@ func getTerraformInputNamesFromCLIArgs(
 // getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
 func getTerraformInputNamesFromAutomaticVarFiles(
 	l log.Logger,
+	fsys vfs.FS,
 	opts *options.TerragruntOptions,
 ) ([]string, error) {
 	base := opts.WorkingDir
 	automaticVarFiles := []string{}
 
 	tfTFVarsFile := filepath.Join(base, "terraform.tfvars")
-	if util.FileExists(tfTFVarsFile) {
+	if vfs.Exists(fsys, tfTFVarsFile) {
 		automaticVarFiles = append(automaticVarFiles, tfTFVarsFile)
 	}
 
 	tfTFVarsJSONFile := filepath.Join(base, "terraform.tfvars.json")
-	if util.FileExists(tfTFVarsJSONFile) {
+	if vfs.Exists(fsys, tfTFVarsJSONFile) {
 		automaticVarFiles = append(automaticVarFiles, tfTFVarsJSONFile)
 	}
 

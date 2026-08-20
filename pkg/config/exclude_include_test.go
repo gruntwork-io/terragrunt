@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +62,7 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 
@@ -137,7 +138,7 @@ exclude {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 
@@ -201,7 +202,7 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 
@@ -260,7 +261,7 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 
@@ -318,7 +319,7 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 
 			l := logger.CreateLogger()
 

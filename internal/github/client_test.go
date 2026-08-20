@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -292,7 +293,7 @@ func TestDownloadReleaseAssetsValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := client.DownloadReleaseAssets(ctx, tc.assets)
+			_, err := client.DownloadReleaseAssets(ctx, venvtest.NewWithOSFS(), tc.assets)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, tc.errorMsg)
 		})
@@ -342,7 +343,7 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := client.DownloadReleaseAssets(ctx, assets)
+	result, err := client.DownloadReleaseAssets(ctx, venvtest.NewWithOSFS(), assets)
 	require.NoError(t, err)
 
 	// Verify result
@@ -407,7 +408,7 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 			// Direct URLs don't use checksum files
 		}
 
-		_, err := client.DownloadReleaseAssets(ctx, assets)
+		_, err := client.DownloadReleaseAssets(ctx, venvtest.NewWithOSFS(), assets)
 		require.NoError(t, err)
 	})
 
@@ -430,7 +431,7 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 			PackageFile: filepath.Join(tempDir, "package.zip"),
 			// Direct URLs don't use checksum files
 		}
-		_, err := client.DownloadReleaseAssets(ctx, assets)
+		_, err := client.DownloadReleaseAssets(ctx, venvtest.NewWithOSFS(), assets)
 		require.NoError(t, err)
 	})
 }
@@ -455,7 +456,7 @@ func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 		// Note: No Version, ChecksumFile, or ChecksumSigFile for direct URLs
 	}
 
-	result, err := client.DownloadReleaseAssets(t.Context(), assets)
+	result, err := client.DownloadReleaseAssets(t.Context(), venvtest.NewWithOSFS(), assets)
 	require.NoError(t, err)
 
 	// Verify result

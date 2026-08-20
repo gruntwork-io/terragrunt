@@ -92,6 +92,17 @@ func (f Filters) HasGraphBoundary() bool {
 	return false
 }
 
+// HasDependents reports whether any filter traverses the dependent direction.
+func (f Filters) HasDependents() bool {
+	for _, filter := range f {
+		if filter.HasDependents() {
+			return true
+		}
+	}
+
+	return false
+}
+
 // RequiresDiscovery returns the first expression that requires discovery of Terragrunt components if any do.
 func (f Filters) RequiresDiscovery() (Expression, bool) {
 	for _, filter := range f {
@@ -217,6 +228,7 @@ func (f Filters) RestrictToStacks() Filters {
 // If logger is provided, it will be used for logging warnings during evaluation.
 func (f Filters) Evaluate(
 	l log.Logger,
+	evalCtx EvaluationContext,
 	components component.Components,
 ) (component.Components, error) {
 	if len(f) == 0 {
@@ -239,7 +251,7 @@ func (f Filters) Evaluate(
 	}
 
 	// Phase 1: Get initial set of components, which might need to be filtered further by negative filters
-	combined, err := initialComponents(l, positiveFilters, components)
+	combined, err := initialComponents(l, evalCtx, positiveFilters, components)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +268,7 @@ func (f Filters) Evaluate(
 	rejected := make(map[string]struct{}, len(combined))
 
 	for _, filter := range negativeFilters {
-		kept, err := filter.Evaluate(l, combined)
+		kept, err := filter.Evaluate(l, evalCtx, combined)
 		if err != nil {
 			return nil, err
 		}
@@ -320,7 +332,7 @@ func (f Filters) EvaluateOnFiles(
 		return comps, nil
 	}
 
-	return f.Evaluate(l, comps)
+	return f.Evaluate(l, EvaluationContext{WorkingDir: workingDir}, comps)
 }
 
 // String returns a JSON array representation of all filter strings.
@@ -356,6 +368,7 @@ func containsGitExpression(expr Expression) bool {
 
 func initialComponents(
 	l log.Logger,
+	evalCtx EvaluationContext,
 	positiveFilters []*Filter,
 	components component.Components,
 ) (component.Components, error) {
@@ -366,7 +379,7 @@ func initialComponents(
 	seen := make(map[string]component.Component, len(components))
 
 	for _, filter := range positiveFilters {
-		result, err := filter.Evaluate(l, components)
+		result, err := filter.Evaluate(l, evalCtx, components)
 		if err != nil {
 			return nil, err
 		}

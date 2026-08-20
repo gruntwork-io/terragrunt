@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,7 +68,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			err = graph.Run(
 				b.Context(),
 				logger.CreateLogger(),
-				venv.OSVenv().WithWriter(io.Discard),
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
 				terragruntOptions,
 			)
 

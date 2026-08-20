@@ -103,9 +103,12 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 			c = g.Venv.HTTP
 		}
 
+		g.Venv.RequireExec()
+
 		g.fetchers = DefaultGenericFetchers(
+			g.Venv,
 			slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
-		g.resolvers = DefaultSourceResolvers(c, opts...)
+		g.resolvers = DefaultSourceResolvers(g.Venv.WithHTTP(c), opts...)
 	}
 }
 
@@ -419,20 +422,10 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	return clone.String()
 }
 
-// getGit clones via [cas.CAS.Clone] after lifting ?ref= out of the URL
-// into [cas.CloneOptions.Branch].
+// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and depth
+// query parameters out of the URL (see [cas.StripGitURLParams]).
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
-	ref := ""
-
-	u := req.URL()
-
-	q := u.Query()
-	if len(q) > 0 {
-		ref = q.Get("ref")
-		q.Del("ref")
-
-		u.RawQuery = q.Encode()
-	}
+	u, ref := cas.StripGitURLParams(req.URL())
 
 	return g.CAS.Clone(ctx, g.Logger, g.Venv, GitCloneURL(u.String()),
 		cas.WithDir(req.Dst),
@@ -559,8 +552,10 @@ func pinnedOCIURL(rawURL, digestValue string) string {
 // default protocol set is available for [RegistryGetter]'s delegated
 // archive download. Every other scheme uses a single-getter client.
 func defaultInnerClientBuilder(bare getter.Getter, scheme string) *getter.Client {
-	if scheme == SchemeTFR {
-		return NewClient(WithCustomGettersPrepended(bare))
+	// The bare tfr getter carries the venv its delegated archive download
+	// needs; the fallback client builds s3 and gcs getters that require one.
+	if tfr, ok := bare.(*RegistryGetter); ok && scheme == SchemeTFR {
+		return NewClient(tfr.Venv, WithCustomGettersPrepended(bare))
 	}
 
 	return &getter.Client{Getters: []getter.Getter{bare}}

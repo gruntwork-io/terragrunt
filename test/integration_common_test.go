@@ -31,6 +31,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -293,7 +294,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 func unmarshalFile(t *testing.T, filename string, dest any) {
 	t.Helper()
 
-	if !util.FileExists(filename) {
+	if !vfs.Exists(vfs.NewOSFS(), filename) {
 		return
 	}
 

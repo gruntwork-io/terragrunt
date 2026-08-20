@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -129,7 +130,7 @@ func (g *Generator) generateStacks(
 	wts *worktrees.Worktrees,
 	scope stackScope,
 ) error {
-	workingDir, err := util.CanonicalResolvedPath(opts.WorkingDir, opts.WorkingDir)
+	workingDir, err := util.CanonicalResolvedPath(v.FS, opts.WorkingDir, opts.WorkingDir)
 	if err != nil {
 		return &CanonicalizeWorkingDirError{Path: opts.WorkingDir, Err: err}
 	}
@@ -197,7 +198,7 @@ func (g *Generator) generateStacks(
 
 // warnOnRepeatedClaims logs a warning when a stack file is claimed by more than
 // one parent in the same invocation. All nodes here are stack files by
-// construction — ListStackFiles filters to *component.Stack only.
+// construction, since ListStackFiles filters to *component.Stack only.
 func warnOnRepeatedClaims(l log.Logger, levelNodes []*StackNode, claimedBy map[string]string) {
 	for _, node := range levelNodes {
 		parent := "root"
@@ -242,13 +243,12 @@ func generateLevel(
 		generatedFiles[node.FilePath] = true
 
 		// Best-effort skip; GenerateStackFile surfaces ENOENT if the file is removed in the TOCTOU window.
-		if !util.FileExists(node.FilePath) {
+		if !vfs.Exists(v.FS, node.FilePath) {
 			continue
 		}
 
 		wp.Submit(func() error {
-			_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-			pctx = pctx.WithVenv(v)
+			_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 			scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, node.FilePath)
 			if err != nil {
@@ -463,12 +463,12 @@ func ListStackFiles(
 
 	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
 
-	foundFiles, err = appendStackFilePaths(foundFiles, discoveredComponents, opts.WorkingDir)
+	foundFiles, err = appendStackFilePaths(v.FS, foundFiles, discoveredComponents, opts.WorkingDir)
 	if err != nil {
 		return nil, err
 	}
 
-	foundFiles, err = appendStackFilePaths(foundFiles, worktreeStacks, opts.WorkingDir)
+	foundFiles, err = appendStackFilePaths(v.FS, foundFiles, worktreeStacks, opts.WorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -509,6 +509,7 @@ func ListStackFilesWithExcludes(
 	}
 
 	foundFiles, excludedPaths, err := collectStackAndExcludedPaths(
+		v.FS,
 		discoveredComponents,
 		opts.WorkingDir,
 	)
@@ -516,7 +517,7 @@ func ListStackFilesWithExcludes(
 		return nil, nil, err
 	}
 
-	foundFiles, err = appendStackFilePaths(foundFiles, worktreeStacks, opts.WorkingDir)
+	foundFiles, err = appendStackFilePaths(v.FS, foundFiles, worktreeStacks, opts.WorkingDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -526,6 +527,7 @@ func ListStackFilesWithExcludes(
 
 // collectStackAndExcludedPaths splits discovered components into canonical stack-file paths and excluded unit paths.
 func collectStackAndExcludedPaths(
+	fsys vfs.FS,
 	components component.Components,
 	workingDir string,
 ) ([]string, map[string]struct{}, error) {
@@ -536,6 +538,7 @@ func collectStackAndExcludedPaths(
 		switch v := c.(type) {
 		case *component.Stack:
 			canonical, err := util.CanonicalResolvedPath(
+				fsys,
 				filepath.Join(c.Path(), config.DefaultStackFile),
 				workingDir,
 			)
@@ -549,7 +552,7 @@ func collectStackAndExcludedPaths(
 				continue
 			}
 
-			canonical, err := util.CanonicalResolvedPath(v.Path(), workingDir)
+			canonical, err := util.CanonicalResolvedPath(fsys, v.Path(), workingDir)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -564,6 +567,7 @@ func collectStackAndExcludedPaths(
 // appendStackFilePaths appends the canonical terragrunt.stack.hcl path of every stack component in
 // components to dst, resolving each against workingDir. Non-stack components are skipped.
 func appendStackFilePaths(
+	fsys vfs.FS,
 	dst []string,
 	components component.Components,
 	workingDir string,
@@ -574,6 +578,7 @@ func appendStackFilePaths(
 		}
 
 		canonical, err := util.CanonicalResolvedPath(
+			fsys,
 			filepath.Join(c.Path(), config.DefaultStackFile),
 			workingDir,
 		)
@@ -605,7 +610,7 @@ func worktreeStacksToGenerate(
 		return component.Components{}, nil
 	}
 
-	stacksToGenerate := component.NewThreadSafeComponents(component.Components{})
+	stacksToGenerate := component.NewThreadSafeComponents(v.FS, component.Components{})
 
 	// If we edit a stack in a worktree, we need to generate it, at the minimum.
 	stackDiff := w.Stacks()
@@ -620,7 +625,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, stack := range editedStacks {
-		stacksToGenerate.EnsureComponent(stack)
+		stacksToGenerate.EnsureComponent(v.FS, stack)
 	}
 
 	// When the expanded filter for a given Git expression requires parsing,
@@ -722,11 +727,11 @@ func worktreeStacksToGenerate(
 			}
 
 			for _, c := range allFromStacks {
-				stacksToGenerate.EnsureComponent(c)
+				stacksToGenerate.EnsureComponent(v.FS, c)
 			}
 
 			for _, c := range allToStacks {
-				stacksToGenerate.EnsureComponent(c)
+				stacksToGenerate.EnsureComponent(v.FS, c)
 			}
 
 			matchedToStacks, err := stacksReadingFiles(l, toReadFilters, allToStacks)
@@ -866,7 +871,7 @@ func stacksReadingFiles(
 	matched := make([]*component.Stack, 0, len(readingFilters))
 
 	for _, f := range readingFilters {
-		evaluated, err := filter.Evaluate(l, f.Expression(), components)
+		evaluated, err := filter.Evaluate(l, filter.EvaluationContext{}, f.Expression(), components)
 		if err != nil {
 			return nil, err
 		}

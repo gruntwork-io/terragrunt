@@ -19,7 +19,7 @@ const (
 )
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
-	cmdFlags := NewFlags(l, opts, nil)
+	cmdFlags := NewFlags(l, opts, v, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
 
 	cmd := &clihelper.Command{

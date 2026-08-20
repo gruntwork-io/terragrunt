@@ -137,7 +137,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, components, result)
 	})
@@ -149,7 +149,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -174,7 +174,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -198,7 +198,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -225,7 +225,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -252,7 +252,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -275,7 +275,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -305,7 +305,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -407,7 +407,7 @@ func TestFilters_EvaluateCompoundNegation(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filters)
 			require.NoError(t, err)
 
-			result, err := filters.Evaluate(l, newComponents())
+			result, err := filters.Evaluate(l, filter.EvaluationContext{}, newComponents())
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, tt.expected, paths(result))
@@ -418,7 +418,7 @@ func TestFilters_EvaluateCompoundNegation(t *testing.T) {
 
 			// A single filter has no union or subtraction to arrange, so Filters.Evaluate owes
 			// the same answer as walking the filter's own AST.
-			direct, err := filters[0].Evaluate(l, newComponents())
+			direct, err := filters[0].Evaluate(l, filter.EvaluationContext{}, newComponents())
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, paths(direct), paths(result))
@@ -456,7 +456,7 @@ func TestFilters_EvaluateNegationsAreOrderIndependent(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, order)
 			require.NoError(t, err)
 
-			result, err := filters.Evaluate(l, components)
+			result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 			require.NoError(t, err)
 
 			assert.Empty(t, paths(result), "excluding db and its dependents leaves nothing")

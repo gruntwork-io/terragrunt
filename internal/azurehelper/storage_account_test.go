@@ -285,6 +285,23 @@ func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
 	assert.Contains(t, tr.lastPutBody(), `"days":30`, "in-range retention must reach the request")
 }
 
+func TestFindResourceGroupForAccount_BoundsPages(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"value":    []any{},
+		"nextLink": "https://management.azure.com/next",
+	})}
+
+	_, err := azurehelper.FindResourceGroupForAccount(t.Context(), cfgWithTransport(tr), testAccount)
+
+	var tooMany *azurehelper.TooManyStorageAccountPagesError
+	require.ErrorAs(t, err, &tooMany)
+	assert.Equal(t, testAccount, tooMany.Account)
+	assert.Equal(t, testSub, tooMany.SubscriptionID)
+	assert.Equal(t, 100, tooMany.MaxPages)
+}
+
 // jsonBody marshals body to JSON, panicking on error since test inputs are literals.
 func jsonBody(body any) []byte {
 	b, err := json.Marshal(body)

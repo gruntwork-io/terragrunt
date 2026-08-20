@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -518,6 +519,40 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 					config.Dependency{
 						Name:       "vpc",
 						ConfigPath: cty.StringVal("../vpc"),
+					},
+				},
+			},
+		},
+		// Deep merge a dependency that expands, where only the source declares expansion
+		{
+			name: "dependency expansion",
+			source: &config.TerragruntConfig{
+				TerragruntDependencies: config.Dependencies{
+					config.Dependency{
+						Name:       "vpc",
+						ConfigPath: cty.StringVal("../vpc"),
+						Expansion: &hclparse.ExpansionBlock{
+							ForEach: new(cty.SetVal([]cty.Value{cty.StringVal("web")})),
+						},
+					},
+				},
+			},
+			target: &config.TerragruntConfig{
+				TerragruntDependencies: config.Dependencies{
+					config.Dependency{
+						Name:       "vpc",
+						ConfigPath: cty.StringVal("../vpc"),
+					},
+				},
+			},
+			expected: &config.TerragruntConfig{
+				TerragruntDependencies: config.Dependencies{
+					config.Dependency{
+						Name:       "vpc",
+						ConfigPath: cty.StringVal("../vpc"),
+						Expansion: &hclparse.ExpansionBlock{
+							ForEach: new(cty.SetVal([]cty.Value{cty.StringVal("web")})),
+						},
 					},
 				},
 			},

@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -27,6 +28,7 @@ const (
 	NoEngineFlagName                         = "no-engine"
 	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
 	NoHooksFlagName                          = "no-hooks"
+	NoDependencyOutputsFlagName              = "no-dependency-outputs"
 	TFForwardStdoutFlagName                  = "tf-forward-stdout"
 	UnitsThatIncludeFlagName                 = "units-that-include"
 	DependencyFetchOutputFromStateFlagName   = "dependency-fetch-output-from-state"
@@ -90,8 +92,12 @@ var ErrNoHooksRequiresExperiment = errors.New(
 	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
 )
 
+var ErrNoDependencyOutputsRequiresExperiment = errors.New(
+	"--no-dependency-outputs requires the 'optional-dependency-outputs' experiment to be enabled (e.g., --experiment=optional-dependency-outputs)",
+)
+
 // NewFlags creates and returns global flags.
-func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	cmdFlags := clihelper.Flags{
@@ -202,6 +208,24 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				}
 
 				return ErrNoHooksRequiresExperiment
+			},
+		}),
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:        NoDependencyOutputsFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoDependencyOutputsFlagName),
+			Destination: &opts.SkipOutput,
+			Usage:       "Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output. Requires the 'optional-dependency-outputs' experiment.",
+			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
+				if !value {
+					return nil
+				}
+
+				if opts.Experiments.Evaluate(experiment.OptionalDependencyOutputs) {
+					return nil
+				}
+
+				return ErrNoDependencyOutputsRequiresExperiment
 			},
 		}),
 
@@ -632,7 +656,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	cmdFlags = cmdFlags.Add(shared.NewFailFastFlag(opts))
 	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewQueueFlags(opts, prefix)...)
-	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts, v)...)
 	cmdFlags = cmdFlags.Add(shared.NewParallelismFlag(opts))
 	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, prefix)...)
 

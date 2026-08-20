@@ -49,10 +49,17 @@ func Run(
 	}
 
 	tempDirs := tui.NewTempDirTracker(v.FS)
+
+	streamCtx, stopStream := context.WithCancel(ctx)
+	defer stopStream()
+
+	stopNotify := notifyBrokenPipe(ctx, stopStream)
+	defer stopNotify()
+
 	defer tempDirs.Cleanup(l)
 
 	return Stream(
-		ctx, l, v.Writers.Writer, renderer,
+		streamCtx, l, v.Writers.Writer, renderer,
 		newLoadFunc(l, v, opts.TerragruntOptions, tempDirs, repoURL),
 	)
 }
@@ -69,7 +76,7 @@ func runTUI(
 ) error {
 	// Fail fast with a clear error when there is no terminal to attach the
 	// TUI to, instead of surfacing bubbletea's raw TTY failure.
-	if err := tui.EnsureOSTTY(l); err != nil {
+	if err := viewtui.EnsureOSTTY(); err != nil {
 		return err
 	}
 
@@ -123,11 +130,11 @@ func discoverAndLoad(
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return discoverCatalogConfigURLs(gctx, l, opts, urlCh)
+		return discoverCatalogConfigURLs(gctx, l, v, opts, urlCh)
 	})
 
 	g.Go(func() error {
-		return discoverSourceFileURLs(gctx, l, opts, urlCh)
+		return discoverSourceFileURLs(gctx, l, v, opts, urlCh)
 	})
 
 	go func() {
@@ -207,10 +214,11 @@ func discoverAndLoad(
 func discoverCatalogConfigURLs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
@@ -234,10 +242,11 @@ func discoverCatalogConfigURLs(
 func discoverSourceFileURLs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
-	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
 	if err != nil {

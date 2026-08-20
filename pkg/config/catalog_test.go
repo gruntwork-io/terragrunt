@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -133,7 +134,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			_, catalogPctx := newTestParsingContext(t, tt.configPath)
+			_, catalogPctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tt.configPath)
 			catalogPctx.ScaffoldRootFileName = filepath.Base(tt.configPath)
 			config, err := config.ReadCatalogConfig(t.Context(), l, catalogPctx)
 

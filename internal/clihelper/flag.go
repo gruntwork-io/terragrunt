@@ -2,13 +2,19 @@ package clihelper
 
 import (
 	"context"
+	"errors"
 	libflag "flag"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
 )
+
+// ErrEnvUnset is the panic value [NewApp] and [ApplyFlag] raise when the
+// environment map is nil. Flag values are resolved against the environment the
+// run was started with, so a nil map points at a caller that never wired one
+// rather than at a run whose environment happens to be empty.
+var ErrEnvUnset = errors.New("clihelper: flag environment is required but unset")
 
 var (
 	// FlagSplitter uses to separate arguments and env vars with multiple values.
@@ -74,8 +80,33 @@ type FlagValue interface {
 }
 
 type Flag interface {
-	// `urfave/cli/v2` uses to generate help
-	cli.DocGenerationFlag
+	fmt.Stringer
+
+	// Apply registers the flag with the given flag set, resolving any environment
+	// variable the flag declares against env.
+	Apply(set *libflag.FlagSet, env map[string]string) error
+
+	// Names returns the flag name along with its aliases.
+	Names() []string
+
+	// IsSet returns true if the flag was set either by env var or CLI arg.
+	IsSet() bool
+
+	// TakesValue returns true if the flag needs to be given a value.
+	TakesValue() bool
+
+	// GetUsage returns the usage string for the flag.
+	GetUsage() string
+
+	// GetValue returns the flag value as a string representation and an empty
+	// string if the flag takes no value at all.
+	GetValue() string
+
+	// GetDefaultText returns the default text for the flag.
+	GetDefaultText() string
+
+	// GetEnvVars returns the names of the environment variables the flag reads.
+	GetEnvVars() []string
 
 	// Value returns the `FlagValue` interface for interacting with the flag value.
 	Value() FlagValue
@@ -86,18 +117,16 @@ type Flag interface {
 	// RunAction runs the flag action.
 	RunAction(ctx context.Context, cliCtx *Context) error
 
-	// LookupEnv gets and splits the environment variable depending on the flag type: common, map, slice.
-	LookupEnv(envVar string) []string
+	// LookupEnv reads envVar from env and splits it depending on the flag type: common, map, slice.
+	LookupEnv(envVar string, env map[string]string) []string
 
 	// AllowedSubcommandScope returns true if the flag is allowed to be specified in subcommands,
 	// and not only after the command it belongs to.
 	AllowedSubcommandScope() bool
 
-	// Parse parses the given args and environment variables to set the flag value.
-	Parse(args Args) error
+	// Parse parses the given args and env to set the flag value.
+	Parse(args Args, env map[string]string) error
 }
-
-type LookupEnvFuncType func(key string) []string
 
 // FlagDefaultsFunc returns the values an external source, such as a configuration file,
 // declares for a flag.
@@ -252,26 +281,19 @@ func (flag *flagValue) Getter(name string) FlagValueGetter {
 // flag is a common flag related to parsing flags in cli.
 type flag struct {
 	FlagValue
-	LookupEnvFunc LookupEnvFuncType
 }
 
 // Parse implements `Flag` interface.
-func (flag *flag) Parse(args Args) error {
+func (flag *flag) Parse(args Args, env map[string]string) error {
 	return nil
 }
 
-func (flag *flag) LookupEnv(envVar string) []string {
-	if flag.LookupEnvFunc == nil {
-		flag.LookupEnvFunc = func(key string) []string {
-			if val, ok := os.LookupEnv(key); ok {
-				return []string{val}
-			}
-
-			return nil
-		}
+func (flag *flag) LookupEnv(envVar string, env map[string]string) []string {
+	if val, ok := env[envVar]; ok {
+		return []string{val}
 	}
 
-	return flag.LookupEnvFunc(envVar)
+	return nil
 }
 
 func (flag *flag) Value() FlagValue {
@@ -302,9 +324,13 @@ func (flag *flag) AllowedSubcommandScope() bool {
 	return true
 }
 
-func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
+func ApplyFlag(flag Flag, set *libflag.FlagSet, env map[string]string) error {
+	if env == nil {
+		panic(ErrEnvUnset)
+	}
+
 	for _, name := range flag.GetEnvVars() {
-		for _, val := range flag.LookupEnv(name) {
+		for _, val := range flag.LookupEnv(name, env) {
 			if val == "" || (flag.Value().IsEnvSet() && !flag.Value().MultipleSet()) {
 				continue
 			}
@@ -321,5 +347,24 @@ func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
 		}
 	}
 
+	return nil
+}
+
+// stringifyFlag renders flag as a help entry.
+func stringifyFlag(flag Flag) string {
+	return cli.FlagStringer(urfaveFlag{Flag: flag})
+}
+
+// urfaveFlag adapts a Flag to the narrower `cli.Flag` interface that
+// `urfave/cli`'s help machinery accepts. Terragrunt flags read environment
+// variables from the environment the run was started with, so their `Apply`
+// takes an argument `urfave/cli` knows nothing about.
+type urfaveFlag struct {
+	Flag
+}
+
+// Apply shadows the wrapped flag's own `Apply` to satisfy `cli.Flag`.
+// Rendering a help entry never registers anything with a flag set.
+func (flag urfaveFlag) Apply(*libflag.FlagSet) error {
 	return nil
 }

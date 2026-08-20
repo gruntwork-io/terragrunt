@@ -7,10 +7,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +28,7 @@ func sizedWelcomeModel(t *testing.T) tui.WelcomeModel {
 		return nil
 	}
 
-	m := tui.NewWelcomeModel(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, noSourcesLoad)
+	m := tui.NewWelcomeModel(t.Context(), logger.CreateLogger(), venvtest.New(), opts, noSourcesLoad)
 
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
@@ -71,7 +72,7 @@ func TestToastsCarryOverToListModel(t *testing.T) {
 	// The first component swaps the welcome model for the streaming list
 	// model; the active toast must survive the swap.
 	entry := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/gruntwork-io/test-repo-1",
 		"modules/aws-vpc",
 		"# AWS VPC Module",

@@ -41,7 +41,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				Action: func(ctx context.Context, _ *clihelper.Context) error {
 					return RunGenerate(ctx, l, v, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(l, opts, nil),
+				Flags: defaultFlags(l, opts, v, nil),
 			},
 			&clihelper.Command{
 				Name:  runCommandName,
@@ -49,7 +49,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				Action: func(ctx context.Context, _ *clihelper.Context) error {
 					return Run(ctx, l, v, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(l, opts, nil),
+				Flags: defaultFlags(l, opts, v, nil),
 			},
 			&clihelper.Command{
 				Name:  outputCommandName,
@@ -62,7 +62,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 
 					return RunOutput(ctx, l, v, opts.OptionsFromContext(ctx), index)
 				},
-				Flags: outputFlags(l, opts, nil),
+				Flags: outputFlags(l, opts, v, nil),
 			},
 			&clihelper.Command{
 				Name:  cleanCommandName,
@@ -79,6 +79,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 func defaultFlags(
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	v *venv.Venv,
 	prefix flags.Prefix,
 ) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
@@ -93,12 +94,13 @@ func defaultFlags(
 		}),
 	}
 
-	return append(runcmd.NewFlags(l, opts, nil), flags...)
+	return append(runcmd.NewFlags(l, opts, v, nil), flags...)
 }
 
 func outputFlags(
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	v *venv.Venv,
 	prefix flags.Prefix,
 ) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
@@ -128,5 +130,5 @@ func outputFlags(
 		}),
 	}
 
-	return append(defaultFlags(l, opts, prefix), flags...)
+	return append(defaultFlags(l, opts, v, prefix), flags...)
 }

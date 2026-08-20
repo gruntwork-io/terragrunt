@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -26,6 +28,7 @@ import (
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -38,10 +41,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -51,6 +56,10 @@ import (
 const (
 	renderJSONCommand = "render-json"
 	renderCommand     = "render"
+
+	// downloadDirPerms is the mode given to the download directory when the
+	// dependency-output flow has to create it.
+	downloadDirPerms = 0o700
 )
 
 type Dependencies []Dependency
@@ -62,6 +71,8 @@ type dependencyOutputCache struct {
 }
 
 type Dependency struct {
+	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
+
 	ConfigPath                          cty.Value  `hcl:"config_path,attr"                             cty:"config_path"`
 	Enabled                             *bool      `hcl:"enabled,attr"                                 cty:"enabled"`
 	SkipOutputs                         *bool      `hcl:"skip_outputs,attr"                            cty:"skip"`
@@ -86,9 +97,14 @@ type Dependency struct {
 //   - For MockOutputs, the two maps will be deeply merged together. This means that maps are recursively merged, while
 //     lists are concatenated together.
 //   - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
+//   - For Expansion, the source block replaces the target block outright.
 //
 // Note that RenderedOutputs is ignored in the deep merge operation.
 func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
+	if sourceDepConfig.Expansion != nil {
+		dep.Expansion = sourceDepConfig.Expansion
+	}
+
 	if sourceDepConfig.ConfigPath.AsString() != "" {
 		dep.ConfigPath = sourceDepConfig.ConfigPath
 	}
@@ -188,6 +204,29 @@ func (dep *Dependency) isDisabled() bool {
 	return !dep.isEnabled()
 }
 
+// instanceKey returns the key of the expansion element this dependency came from. A declared
+// expansion is not proof of one: blocks decoded outside the expanding decoder (the autoinclude
+// decode) carry the declaration with no key, and callers must read those as whole blocks.
+func (dep *Dependency) instanceKey() (string, bool) {
+	if dep.Expansion == nil {
+		return "", false
+	}
+
+	return dep.Expansion.Key(), dep.Expansion.Expanded()
+}
+
+// mergeKey identifies a dependency when include merging matches blocks up. Every instance
+// of an expanded block carries the same label, so matching on the label alone would fold a
+// whole set into whichever instance came last.
+func (dep *Dependency) mergeKey() string {
+	key, expanded := dep.instanceKey()
+	if !expanded {
+		return dep.Name
+	}
+
+	return dep.Name + "[" + key + "]"
+}
+
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
 func (dep *Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
 	allowedCommand :=
@@ -229,6 +268,44 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 	return util.NewKeyLocks()
 }
 
+// decodeDependencyBlocks decodes a config's dependency blocks, returning one Dependency
+// per iteration element. A block that declares no expansion yields a single Dependency.
+func decodeDependencyBlocks(
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+	experiments experiment.Experiments,
+) (Dependencies, error) {
+	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(instances) == 0 {
+		return nil, nil
+	}
+
+	dependencies := make(Dependencies, 0, len(instances))
+
+	for _, instance := range instances {
+		dep := instance.Value.(*Dependency)
+		if dep.Expansion != nil {
+			if !experiments.Evaluate(experiment.BlockIteration) {
+				return nil, ExpansionRequiresExperimentError{
+					ConfigPath: file.ConfigPath,
+					BlockType:  MetadataDependency,
+					BlockLabel: dep.Name,
+				}
+			}
+
+			dep.Expansion.InstanceKey = instance.InstanceKey
+		}
+
+		dependencies = append(dependencies, *dep)
+	}
+
+	return dependencies, nil
+}
+
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
 // resulting map as a cty.Value object.
 // TODO: In the future, consider allowing importing dependency blocks from included config
@@ -246,10 +323,12 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	decodedDependency := TerragruntDependency{}
-	if err := file.Decode(&decodedDependency, evalParsingContext); err != nil {
+	dependencies, err := decodeDependencyBlocks(file, evalParsingContext, pctx.Experiments)
+	if err != nil {
 		return nil, err
 	}
+
+	decodedDependency := TerragruntDependency{Dependencies: dependencies}
 
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
@@ -368,9 +447,13 @@ func decodeDependencies(
 			return &updatedDependencies, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 
-		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), pctx.TerragruntConfigPath)
+		depPath := getCleanedTargetConfigPath(
+			pctx.Venv.FS,
+			dep.ConfigPath.AsString(),
+			pctx.TerragruntConfigPath,
+		)
 
-		if !util.FileExists(depPath) {
+		if !vfs.Exists(pctx.Venv.FS, depPath) {
 			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 
 			continue
@@ -500,10 +583,14 @@ func checkForDependencyBlockCycles(
 			return DependencyInvalidConfigPathError{DependencyName: dependency.Name}
 		}
 
-		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
+		dependencyPath := getCleanedTargetConfigPath(
+			pctx.Venv.FS,
+			dependency.ConfigPath.AsString(),
+			configPath,
+		)
 
 		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
-		if !util.FileExists(dependencyPath) {
+		if !vfs.Exists(pctx.Venv.FS, dependencyPath) {
 			continue
 		}
 
@@ -555,10 +642,10 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	for _, dependency := range dependencyPaths {
-		dependencyPath := getCleanedTargetConfigPath(dependency, dependencyPath)
+		dependencyPath := getCleanedTargetConfigPath(pctx.Venv.FS, dependency, dependencyPath)
 
 		// Skip cycle checking for nonexistent dependency targets such as stack directories.
-		if !util.FileExists(dependencyPath) {
+		if !vfs.Exists(pctx.Venv.FS, dependencyPath) {
 			continue
 		}
 
@@ -622,6 +709,9 @@ func getDependencyBlockConfigPathsByFilepath(
 //   - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
 //     dependency.
 //
+// An expanded block instead maps its name to one such mapping per instance, keyed by the instance key, so that
+// `dependency.foo["bar"].outputs` addresses a single element of the set.
+//
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 // The traceCtx parameter is the trace context from the parent span (parse_dependencies) to establish parent-child
 // relationship for individual dependency traces.
@@ -636,6 +726,7 @@ func dependencyBlocksToCtyValue(
 	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
 	// various attributes for accessing information about the target config (including the module outputs).
 	dependencyMap := map[string]cty.Value{}
+	instanceMaps := map[string]map[string]cty.Value{}
 	lock := sync.Mutex{}
 	dependencyErrGroup, _ := errgroup.WithContext(traceCtx)
 
@@ -698,12 +789,21 @@ func dependencyBlocksToCtyValue(
 				return err
 			}
 
-			// Lock the map as only one goroutine should be writing to the map at a time
 			lock.Lock()
 			defer lock.Unlock()
 
-			// Finally, feed the encoded dependency into the higher order map under the block name
-			dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
+			instanceKey, expanded := dependencyConfig.instanceKey()
+			if !expanded {
+				dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
+
+				return nil
+			}
+
+			if instanceMaps[dependencyConfig.Name] == nil {
+				instanceMaps[dependencyConfig.Name] = map[string]cty.Value{}
+			}
+
+			instanceMaps[dependencyConfig.Name][instanceKey] = dependencyEncodingMapEncoded
 
 			return nil
 		})
@@ -711,6 +811,19 @@ func dependencyBlocksToCtyValue(
 
 	if err := dependencyErrGroup.Wait(); err != nil {
 		return nil, err
+	}
+
+	for name, instances := range instanceMaps {
+		if _, taken := dependencyMap[name]; taken {
+			return nil, DependencyLabelCollisionError{Name: name}
+		}
+
+		encodedInstances, err := gocty.ToCtyValue(instances, generateTypeFromValuesMap(instances))
+		if err != nil {
+			return nil, TerragruntOutputListEncodingError{Paths: paths, Err: err}
+		}
+
+		dependencyMap[name] = encodedInstances
 	}
 
 	// We need to convert the value map to a single cty.Value at the end so that it can be used in the execution ctx
@@ -770,6 +883,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
 	targetConfig := getCleanedTargetConfigPath(
+		pctx.Venv.FS,
 		dependencyConfig.ConfigPath.AsString(),
 		pctx.TerragruntConfigPath,
 	)
@@ -825,6 +939,7 @@ func getTerragruntOutput(
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(
+		pctx.Venv.FS,
 		dependencyConfig.ConfigPath.AsString(),
 		pctx.TerragruntConfigPath,
 	)
@@ -836,13 +951,13 @@ func getTerragruntOutput(
 		return stackOutput, stackOutput == nil, err
 	}
 
-	if !util.FileExists(targetConfigPath) {
+	if !vfs.Exists(pctx.Venv.FS, targetConfigPath) {
 		return nil, true, DependencyConfigNotFound{Path: targetConfigPath}
 	}
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
 	if err != nil {
-		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) {
+		if !shouldFallBackToMockOutputs(pctx, err) {
 			return nil, true, err
 		}
 
@@ -883,6 +998,7 @@ func collectStackUnitOutputs(
 	l log.Logger,
 	stackDir string,
 	units []*Unit,
+	dependencyConfig *Dependency,
 ) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
 
@@ -890,7 +1006,7 @@ func collectStackUnitOutputs(
 		unitDir := unit.GeneratedPath(stackDir)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
-		if !util.FileExists(unitConfigPath) {
+		if !vfs.Exists(pctx.Venv.FS, unitConfigPath) {
 			l.Warnf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
 
 			continue
@@ -898,7 +1014,28 @@ func collectStackUnitOutputs(
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			return nil, fmt.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
+			if !shouldFallBackToMockOutputs(pctx, err) ||
+				!dependencyConfig.shouldReturnMockOutputs(pctx) {
+				return nil, StackUnitOutputFetchError{UnitName: unit.Name, Err: err}
+			}
+
+			mock, ok, mockErr := unitMockOutput(dependencyConfig, unit.Name)
+			if mockErr != nil {
+				return nil, mockErr
+			}
+
+			if ok {
+				unitOutputs[unit.Name] = mock
+				continue
+			}
+
+			l.Warnf(
+				"Stack unit %s has no remote state at %s yet, skipping",
+				unit.Name,
+				unitConfigPath,
+			)
+
+			continue
 		}
 
 		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
@@ -922,6 +1059,37 @@ func collectStackUnitOutputs(
 	return unitOutputs, nil
 }
 
+// unitMockOutput returns the mock declared for a named stack unit in the dependency's mock_outputs.
+// It lets a partially applied stack resolve: applied units contribute real outputs while unapplied
+// ones fall back to their mock.
+//
+// Callers are responsible for checking that mocks are allowed for the current command. ok is false
+// when mock_outputs is absent or declares no entry for the unit. A mock_outputs that can't be keyed
+// by unit name at all is a config error rather than a missing mock, so it returns an error instead
+// of leaving the caller to drop the unit and surface the mistake as an unresolved attribute later.
+func unitMockOutput(dep *Dependency, unitName string) (cty.Value, bool, error) {
+	if dep.MockOutputs == nil {
+		return cty.NilVal, false, nil
+	}
+
+	mock := *dep.MockOutputs
+	if mock.IsNull() || !mock.IsKnown() {
+		return cty.NilVal, false, nil
+	}
+
+	if mockType := mock.Type(); !mockType.IsObjectType() && !mockType.IsMapType() {
+		return cty.NilVal, false, StackMockOutputsTypeError{
+			DependencyName: dep.Name,
+			UnitName:       unitName,
+			Actual:         mockType.FriendlyName(),
+		}
+	}
+
+	unitMock, ok := mock.AsValueMap()[unitName]
+
+	return unitMock, ok, nil
+}
+
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
 // (contains terragrunt.stack.hcl) and resolves aggregated outputs from all
 // units in the stack. Returns (output, handled, error) where handled=true
@@ -941,7 +1109,7 @@ func tryGetStackOutput(
 		return nil, false, nil
 	}
 
-	if !util.FileExists(stackFilePath) {
+	if !vfs.Exists(pctx.Venv.FS, stackFilePath) {
 		return nil, false, nil
 	}
 
@@ -966,7 +1134,14 @@ func tryGetStackOutput(
 		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	unitOutputs, err := collectStackUnitOutputs(
+		ctx,
+		pctx,
+		l,
+		stackDir,
+		stackConfig.Units,
+		dependencyConfig,
+	)
 	if err != nil {
 		return nil, true, fmt.Errorf(
 			"failed to collect stack unit outputs for %s: %w",
@@ -1004,13 +1179,30 @@ func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool)
 	}
 }
 
-func isAwsS3NoSuchKey(err error) bool {
-	if err != nil {
-		errStr := err.Error()
-		return strings.Contains(errStr, "NoSuchKey") || strings.Contains(errStr, "NotFound")
+// isAwsS3StateMissing reports whether err means the dependency's S3 state object or bucket doesn't
+// exist yet, the signal to fall back to mock outputs. It matches on the error code because GetObject
+// returns NoSuchBucket as a generic API error, not a *s3types.NoSuchBucket that errors.As could
+// match; AWS SDK v2 exposes no constants for the codes.
+func isAwsS3StateMissing(err error) bool {
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) {
+		return false
 	}
 
-	return false
+	switch apiErr.ErrorCode() {
+	case "NoSuchKey", "NoSuchBucket", "NotFound":
+		return true
+	default:
+		return false
+	}
+}
+
+// shouldFallBackToMockOutputs reports whether a failed dependency output fetch should fall back to
+// mock outputs instead of being fatal: either the target's remote state doesn't exist yet (a
+// missing S3 state object or bucket), or the command is a render, which tolerates unresolved
+// outputs.
+func shouldFallBackToMockOutputs(pctx *ParsingContext, err error) bool {
+	return isAwsS3StateMissing(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
@@ -1262,7 +1454,7 @@ func resolveOutputJSON(
 	// we need to suspend logging diagnostic errors on this attempt
 	parseOptions := slices.Concat(
 		pctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(io.Discard, true)},
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(pctx.Venv, io.Discard, true)},
 	)
 
 	remoteStateTGConfig, err := PartialParseConfigFile(
@@ -1437,7 +1629,7 @@ func terragruntAlreadyInit(
 	// NOTE: if the ref changes, the workingDir would be different as the download dir includes a base64 encoded hash of
 	// the source URL with ref. This would ensure that this routine would not return true if the new ref is not already
 	// init-ed.
-	return util.FileExists(filepath.Join(workingDir, ".terraform")), workingDir, nil
+	return vfs.Exists(pctx.Venv.FS, filepath.Join(workingDir, ".terraform")), workingDir, nil
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
@@ -1520,17 +1712,21 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Create working directory where we will run terraform in. We will create the temporary directory in the download
 	// directory for consistency with other file generation capabilities of terragrunt. Make sure it is cleaned up
 	// before the function returns.
-	if err := util.EnsureDirectory(pctx.DownloadDir); err != nil {
+	//
+	// The parent has to be created on the venv filesystem rather than the host:
+	// MkdirTemp below and CopyLockFile further down both work through it, and a
+	// memory-backed filesystem has no parent to place the temp dir in otherwise.
+	if err := pctx.Venv.FS.MkdirAll(pctx.DownloadDir, downloadDirPerms); err != nil {
 		return nil, err
 	}
 
-	tempWorkDir, err := os.MkdirTemp(pctx.DownloadDir, "")
+	tempWorkDir, err := vfs.MkdirTemp(pctx.Venv.FS, pctx.DownloadDir, "")
 	if err != nil {
 		return nil, err
 	}
 
 	defer func(path string) {
-		err := os.RemoveAll(path)
+		err := pctx.Venv.FS.RemoveAll(path)
 		if err != nil {
 			l.Warnf("Failed to remove %s: %v", path, err)
 		}
@@ -1590,7 +1786,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		}
 	}
 
-	if err := remoteState.GenerateOpenTofuCode(l, tempWorkDir); err != nil {
+	if err := remoteState.GenerateOpenTofuCode(ctx, l, pctx.Venv, tempWorkDir); err != nil {
 		return nil, err
 	}
 
@@ -1598,8 +1794,9 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
-	if err := CopyLockFile(
+	if err := runcfg.CopyLockFile(
 		l,
+		pctx.Venv.FS,
 		pctx.RootWorkingDir,
 		pctx.LogShowAbsPaths,
 		terragruntDir,
@@ -1671,9 +1868,8 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 
 			s3Client, err := awshelper.NewAWSConfigBuilder().
 				WithSessionConfig(sessionConfig).
-				WithEnv(pctx.Venv.Env).
 				WithIAMRoleOptions(pctx.IAMRoleOptions).
-				BuildS3Client(ctx, l)
+				BuildS3Client(ctx, l, pctx.Venv)
 			if err != nil {
 				return fmt.Errorf("building s3 client for s3://%s/%s: %w", bucket, key, err)
 			}
@@ -1779,7 +1975,7 @@ func runTerragruntOutputJSON(
 		return nil, err
 	}
 
-	runCfg := cfg.ToRunConfig(l)
+	runCfg := cfg.ToRunConfig(l, pctx.Venv.FS)
 
 	credsGetter := creds.NewGetter()
 	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(

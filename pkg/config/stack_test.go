@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,7 @@ stack "projects" {
 }
 
 `
-	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	terragruntStackConfig, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
@@ -111,7 +112,7 @@ stack "network" {
     no_dot_terragrunt_stack = true
 }
 `
-	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	terragruntStackConfig, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
@@ -175,7 +176,7 @@ locals {
 	project = "my-project
 }
 `
-	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	_, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),

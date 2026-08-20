@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -859,7 +860,7 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 
 			for _, appName := range []string{"app1", "app2", "app3"} {
 				appPath := filepath.Join(rootPath, appName)
-				assert.True(t, util.FileExists(appPath))
+				assert.DirExists(t, appPath)
 
 				lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
 				lockfileContent, err := os.ReadFile(lockfilePath)
@@ -881,11 +882,11 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 					assert.NotNil(t, providerBlock)
 
 					providerPath := filepath.Join(providerCacheDir, provider)
-					assert.True(t, util.FileExists(providerPath))
+					assert.True(t, vfs.Exists(vfs.NewOSFS(), providerPath))
 
 					for _, platform := range platforms {
 						platformPath := filepath.Join(providerPath, platform)
-						assert.True(t, util.FileExists(platformPath))
+						assert.True(t, vfs.Exists(vfs.NewOSFS(), platformPath))
 					}
 				}
 			}
@@ -1246,7 +1247,8 @@ func TestTFRunCommand(t *testing.T) {
 }
 
 // TestTFInputsWithInterpolationPatterns validates that input variables containing ${...} patterns
-// are passed to Terraform without triggering HCL interpolation errors (issue #3368).
+// reach the module as literal text, whether OpenTofu/Terraform read the variable's value verbatim
+// or parse it as HCL.
 func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	t.Parallel()
 
@@ -1279,6 +1281,23 @@ func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	require.True(t, ok, "map_with_interpolation value is not a map")
 	assert.Equal(t, "test ${bar} test", mapValue["foo"])
 	assert.Equal(t, "no interpolation here", mapValue["baz"])
+
+	// A variable declared as a string is read verbatim, so it keeps the file contents as they are.
+	fileContents, err := os.ReadFile(filepath.Join(rootPath, "stuff.json"))
+	require.NoError(t, err)
+
+	stringOutput, ok := outputs["string_with_interpolation"]
+	require.True(t, ok, "string_with_interpolation output not found")
+	assert.Equal(t, string(fileContents), stringOutput.Value)
+
+	// A variable declared as any is parsed as HCL, so the same contents arrive as an object whose
+	// values still read literally.
+	anyOutput, ok := outputs["any_with_interpolation"]
+	require.True(t, ok, "any_with_interpolation output not found")
+	anyValue, ok := anyOutput.Value.(map[string]any)
+	require.True(t, ok, "any_with_interpolation value is not an object")
+	assert.Equal(t, "test ${bar} test", anyValue["foo"])
+	assert.Equal(t, "no interpolation here", anyValue["baz"])
 }
 
 func TestTFTerragruntMissingDependenciesFail(t *testing.T) {
@@ -3129,6 +3148,7 @@ func TestTFReadTerragruntConfigFull(t *testing.T) {
 				"path":              "provider.tf",
 				"if_exists":         "overwrite_terragrunt",
 				"hcl_fmt":           nil,
+				"mutable":           nil,
 				"if_disabled":       "skip",
 				"comment_prefix":    "# ",
 				"disable_signature": false,
@@ -4194,7 +4214,7 @@ func TestTFAutoInitWhenSourceIsChanged(t *testing.T) {
 
 	terragruntHcl := filepath.Join(testPath, "terragrunt.hcl")
 
-	contents, err := util.ReadFileAsString(terragruntHcl)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), terragruntHcl)
 	if err != nil {
 		require.NoError(t, err)
 	}

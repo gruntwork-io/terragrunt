@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 )
 
 const (
@@ -75,7 +76,7 @@ func (m Model) pagerView() string {
 // we render a loading hint so the user knows the TUI is working.
 func (m Model) formView() string {
 	if m.form == nil {
-		return formMetaStyle.Render("Discovering variables…")
+		return form.Meta("Discovering variables…")
 	}
 
 	return m.form.View()

@@ -34,7 +34,7 @@ func FuzzHCLStringHelpers(f *testing.F) {
 	f.Fuzz(func(t *testing.T, raw string) {
 		args := strings.Split(raw, "\x00")
 
-		ctx, pctx := newTestParsingContext(t, "")
+		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 		swOut, swErr := config.StartsWith(ctx, pctx, args)
 		ewOut, ewErr := config.EndsWith(ctx, pctx, args)
@@ -67,7 +67,7 @@ func FuzzHCLStringHelpers(f *testing.F) {
 
 // FuzzHCLRunCommand fuzzes config.RunCommand with arbitrary argv. Subprocess execution
 // is intercepted by an in-memory vexec backend installed via pctx.Exec, so no real host
-// commands ever run — even mutator-supplied paths like "/bin/sh\x00-c\x00rm -rf /" are
+// commands ever run, even mutator-supplied paths like "/bin/sh\x00-c\x00rm -rf /" are
 // captured by the mock instead of reaching the operating system.
 //
 // Asserts:
@@ -98,7 +98,7 @@ func FuzzHCLRunCommand(f *testing.F) {
 		"\x00",
 		"\x00\x00",
 		"--terragrunt-quiet\x00\x00/bin/echo\x00hi", // empty arg between flags and command
-		"/bin/echo\x00--terragrunt-quiet",           // trailing flag (not stripped — only leading flags are)
+		"/bin/echo\x00--terragrunt-quiet",           // trailing flag (not stripped, since only leading flags are)
 		" \x00--terragrunt-quiet\x00cmd",            // whitespace as command
 	}
 	for _, s := range seeds {
@@ -123,8 +123,7 @@ func FuzzHCLRunCommand(f *testing.F) {
 			return vexec.Result{Stdout: []byte(mockOutput)}
 		})
 
-		ctx, pctx := newTestParsingContext(t, "")
-		pctx.Venv = venvtest.New().WithExec(memExec)
+		ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(memExec), "")
 
 		l := logger.CreateLogger()
 		out, err := config.RunCommand(ctx, pctx, l, argsForCall)

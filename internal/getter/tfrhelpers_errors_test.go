@@ -70,6 +70,7 @@ func TestGetTerraformGetHeaderFallsBackToBodyLocation(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
+		getter.RegistryAuth{},
 		parseURL(t, server.URL),
 	)
 	require.NoError(t, err)
@@ -92,6 +93,7 @@ func TestGetTerraformGetHeaderMissing(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
+		getter.RegistryAuth{},
 		parseURL(t, server.URL),
 	)
 	require.Error(t, err)
@@ -117,6 +119,7 @@ func TestGetModuleRegistryURLBasePathMissingModulesV1(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
+		getter.RegistryAuth{},
 		addrFromURL(t, server.URL),
 	)
 	require.Error(t, err)
@@ -140,6 +143,7 @@ func TestHTTPGETAndGetResponseNonOK(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
+		getter.RegistryAuth{},
 		addrFromURL(t, server.URL),
 	)
 	require.Error(t, err)
@@ -149,13 +153,14 @@ func TestHTTPGETAndGetResponseNonOK(t *testing.T) {
 	require.ErrorAs(t, err, &typed)
 }
 
-// TestApplyHostTokenViaEnv pins the env-var fallback path for registry auth.
-// When the OpenTofu/Terraform CLI config doesn't carry credentials for the
-// host, TG_TF_REGISTRY_TOKEN is sent as a bearer token.
+// TestApplyHostTokenViaEnv pins the env-var path for registry auth: the
+// TG_TF_REGISTRY_TOKEN carried on RegistryAuth is sent as a bearer token. The
+// token comes from the supplied env rather than the process environment, so a
+// run against a virtual filesystem still authenticates.
 func TestApplyHostTokenViaEnv(t *testing.T) {
-	const want = "Bearer my-test-token"
+	t.Parallel()
 
-	t.Setenv("TG_TF_REGISTRY_TOKEN", "my-test-token")
+	const want = "Bearer my-test-token"
 
 	var got string
 
@@ -173,6 +178,7 @@ func TestApplyHostTokenViaEnv(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
+		getter.RegistryAuth{Env: map[string]string{"TG_TF_REGISTRY_TOKEN": "my-test-token"}},
 		addrFromURL(t, server.URL),
 	)
 	require.NoError(t, err)
@@ -196,6 +202,7 @@ func TestHTTPGETAndGetResponseRespectsContextCancellation(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		server.Client(),
+		getter.RegistryAuth{},
 		addrFromURL(t, server.URL),
 	)
 	require.Error(t, err)

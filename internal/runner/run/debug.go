@@ -3,6 +3,7 @@ package run
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -21,6 +23,7 @@ const defaultPermissions = int(0600)
 // that terragrunt invokes the module, so that users can debug issues with the terragrunt config.
 func WriteTerragruntDebugFile(
 	l log.Logger,
+	fsys vfs.FS,
 	env map[string]string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -31,12 +34,12 @@ func WriteTerragruntDebugFile(
 		opts.CacheDir,
 	)
 
-	required, optional, err := tf.ModuleVariables(opts.CacheDir)
+	declared, err := tf.ModuleVariables(fsys, opts.CacheDir)
 	if err != nil {
 		return err
 	}
 
-	variables := slices.Concat(required, optional)
+	variables := slices.Sorted(maps.Keys(declared))
 
 	tofuImpl := "tofu"
 	if opts.TofuImplementation != "" {

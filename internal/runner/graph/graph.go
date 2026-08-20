@@ -27,7 +27,7 @@ import (
 // Run executes the configured terraform command against the dependency
 // graph of the unit in the working directory.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
-	// Get credentials BEFORE config parsing — sops_decrypt_file() and
+	// Get credentials BEFORE config parsing: sops_decrypt_file() and
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in v.Env during HCL evaluation.
 	// *Getter discarded: graph.Run only needs creds in v.Env for initial config parse.
@@ -44,8 +44,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 		return err
 	}
 
-	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -82,7 +81,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 

@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -855,7 +856,7 @@ func TestTFStackApplyDestroyWithDependency(t *testing.T) {
 
 	// check that the data.txt file was deleted
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.True(t, util.FileNotExists(dataPath))
+	assert.NoFileExists(t, dataPath)
 }
 
 func TestTFStackOutputWithDependency(t *testing.T) {
@@ -918,7 +919,7 @@ func TestTFStackApplyStrictInclude(t *testing.T) {
 
 	// check that test file wasn't created
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.True(t, util.FileNotExists(dataPath))
+	assert.NoFileExists(t, dataPath)
 }
 
 func TestTFStackApplyStrictIncludeWithFilter(t *testing.T) {
@@ -947,7 +948,7 @@ func TestTFStackApplyStrictIncludeWithFilter(t *testing.T) {
 
 	// check that test file wasn't created
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.True(t, util.FileNotExists(dataPath))
+	assert.NoFileExists(t, dataPath)
 }
 
 func TestTFStacksSourceMap(t *testing.T) {
@@ -966,6 +967,7 @@ func TestTFStacksSourceMap(t *testing.T) {
 
 	if err := util.CopyFolderContentsWithFilter(
 		logger.CreateLogger(),
+		vfs.NewOSFS(),
 		filepath.Join(localTmpEnvPath, "fixtures"),
 		localTmpTest,
 		".terragrunt-test",
@@ -1563,22 +1565,25 @@ func TestTFStackRunAllNoStackDir(t *testing.T) {
 
 	// Verify that no .terragrunt-stack directory was created since all units have no_dot_terragrunt_stack = true
 	stackDir := filepath.Join(rootPath, ".terragrunt-stack")
-	stackDirExists := util.FileExists(stackDir)
+	stackDirExists := vfs.Exists(vfs.NewOSFS(), stackDir)
 	t.Logf("Stack directory exists: %v", stackDirExists)
 
 	// Verify that units were generated in the same directory as terragrunt.stack.hcl
 	expectedUnits := []string{"foo", "bar"}
 	for _, unit := range expectedUnits {
 		unitPath := filepath.Join(rootPath, unit)
-		assert.True(
+		assert.DirExists(
 			t,
-			util.FileExists(unitPath),
+			unitPath,
 			"Expected unit %s to exist in root directory",
 			unit,
 		)
-		assert.True(t, util.FileExists(
+		assert.FileExists(
+			t,
 			filepath.Join(unitPath, "terragrunt.hcl"),
-		), "Expected terragrunt.hcl to exist in unit %s", unit)
+			"Expected terragrunt.hcl to exist in unit %s",
+			unit,
+		)
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
@@ -1719,7 +1724,7 @@ func TestTFStackOutputWithExclude(t *testing.T) {
 	// Verify no terraform was attempted for excluded units
 	for _, excluded := range []string{"excluded-app", "excluded-all"} {
 		tfDir := filepath.Join(rootPath, ".terragrunt-stack", excluded, ".terraform")
-		assert.True(t, util.FileNotExists(tfDir),
+		assert.NoDirExists(t, tfDir,
 			"excluded unit %s should not have .terraform directory", excluded)
 	}
 }
