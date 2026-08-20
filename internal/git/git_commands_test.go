@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -50,7 +51,7 @@ func TestNewGitRunner(t *testing.T) {
 func TestGitRunner_WithWorkDir(t *testing.T) {
 	t.Parallel()
 
-	t.Run("resets memoized repo root", func(t *testing.T) {
+	t.Run("resets memoized repo prefix", func(t *testing.T) {
 		t.Parallel()
 
 		var dirs []string
@@ -58,22 +59,57 @@ func TestGitRunner_WithWorkDir(t *testing.T) {
 		parent := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
 			dirs = append(dirs, inv.Dir)
 
-			return vexec.Result{Stdout: []byte(inv.Dir + "\n")}
+			return vexec.Result{Stdout: []byte(filepath.Base(inv.Dir) + "/\n")}
 		}).WithWorkDir("/repo/a")
 
-		root, err := parent.GetRepoRoot(t.Context())
+		prefix, err := parent.RepoPrefix(t.Context())
 		require.NoError(t, err)
-		assert.Equal(t, "/repo/a", root)
+		assert.Equal(t, "a", prefix)
 
-		root, err = parent.WithWorkDir("/repo/b").GetRepoRoot(t.Context())
+		prefix, err = parent.WithWorkDir("/repo/b").RepoPrefix(t.Context())
 		require.NoError(t, err)
-		assert.Equal(t, "/repo/b", root)
+		assert.Equal(t, "b", prefix)
 		assert.Equal(t, []string{"/repo/a", "/repo/b"}, dirs)
 	})
 }
 
-func TestGitRunner_GetRepoRoot(t *testing.T) {
+func TestGitRunner_RepoPrefix(t *testing.T) {
 	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		stdout string
+		want   string
+	}{
+		{
+			name:   "repository root",
+			stdout: "\n",
+			want:   "",
+		},
+		{
+			name:   "subdirectory",
+			stdout: "live/\n",
+			want:   "live",
+		},
+		{
+			name:   "nested subdirectory",
+			stdout: "live/prod/\n",
+			want:   filepath.Join("live", "prod"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runner := newMemRunner(t, staticResult(vexec.Result{Stdout: []byte(tc.stdout)})).
+				WithWorkDir("/repo/live")
+
+			prefix, err := runner.RepoPrefix(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, prefix)
+		})
+	}
 
 	t.Run("memoizes success", func(t *testing.T) {
 		t.Parallel()
@@ -82,13 +118,13 @@ func TestGitRunner_GetRepoRoot(t *testing.T) {
 		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
 			calls++
 
-			return vexec.Result{Stdout: []byte("/repo\n")}
+			return vexec.Result{Stdout: []byte("unit/\n")}
 		}).WithWorkDir("/repo/unit")
 
 		for range 2 {
-			root, err := runner.GetRepoRoot(t.Context())
+			prefix, err := runner.RepoPrefix(t.Context())
 			require.NoError(t, err)
-			assert.Equal(t, "/repo", root)
+			assert.Equal(t, "unit", prefix)
 		}
 
 		assert.Equal(t, 1, calls)
@@ -104,15 +140,15 @@ func TestGitRunner_GetRepoRoot(t *testing.T) {
 				return vexec.Result{ExitCode: 128}
 			}
 
-			return vexec.Result{Stdout: []byte("/repo\n")}
+			return vexec.Result{Stdout: []byte("unit/\n")}
 		}).WithWorkDir("/repo/unit")
 
-		_, err := runner.GetRepoRoot(t.Context())
+		_, err := runner.RepoPrefix(t.Context())
 		require.ErrorIs(t, err, git.ErrCommandSpawn)
 
-		root, err := runner.GetRepoRoot(t.Context())
+		prefix, err := runner.RepoPrefix(t.Context())
 		require.NoError(t, err)
-		assert.Equal(t, "/repo", root)
+		assert.Equal(t, "unit", prefix)
 		assert.Equal(t, 2, calls)
 	})
 
@@ -121,7 +157,7 @@ func TestGitRunner_GetRepoRoot(t *testing.T) {
 
 		runner := newMemRunner(t, staticResult(vexec.Result{}))
 
-		_, err := runner.GetRepoRoot(t.Context())
+		_, err := runner.RepoPrefix(t.Context())
 		require.ErrorIs(t, err, git.ErrNoWorkDir)
 	})
 }

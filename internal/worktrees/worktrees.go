@@ -67,23 +67,19 @@ type WorktreeOpts struct {
 }
 
 // WorkingDir returns the path within a worktree that corresponds to the user's
-// original working directory. This is used for display purposes after discovery completes.
+// original working directory. It falls back to the worktree root when that
+// correspondence cannot be established.
 func (w *Worktrees) WorkingDir(ctx context.Context, worktreePath string) string {
 	if w.gitRunner == nil {
 		return worktreePath
 	}
 
-	repoRoot, err := w.gitRunner.GetRepoRoot(ctx)
-	if err != nil {
+	prefix, err := w.gitRunner.RepoPrefix(ctx)
+	if err != nil || prefix == "" {
 		return worktreePath
 	}
 
-	relPath, err := filepath.Rel(repoRoot, w.OriginalWorkingDir)
-	if err != nil || relPath == "." {
-		return worktreePath
-	}
-
-	return filepath.Join(worktreePath, relPath)
+	return filepath.Join(worktreePath, prefix)
 }
 
 // DisplayPath translates a worktree path to the equivalent path in the original repository

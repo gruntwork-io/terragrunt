@@ -31,12 +31,12 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	exec           vexec.Exec
-	repoRootMu     *sync.Mutex
-	GitPath        string
-	WorkDir        string
-	repoRoot       string
-	repoRootCached bool
+	exec             vexec.Exec
+	memoMu           *sync.Mutex
+	GitPath          string
+	WorkDir          string
+	repoPrefix       string
+	repoPrefixCached bool
 }
 
 // NewGitRunner creates a new GitRunner instance. The provided vexec.Exec is
@@ -52,9 +52,9 @@ func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
 	}
 
 	return &GitRunner{
-		GitPath:    gitPath,
-		exec:       e,
-		repoRootMu: &sync.Mutex{},
+		GitPath: gitPath,
+		exec:    e,
+		memoMu:  &sync.Mutex{},
 	}, nil
 }
 
@@ -66,17 +66,17 @@ func ExtractRepoName(repo string) string {
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	// GetRepoRoot writes the memo fields under repoRootMu, so the copy must
-	// hold the same lock to avoid racing with a concurrent memoization.
-	g.repoRootMu.Lock()
+	// RepoPrefix writes the memo fields under memoMu, so the copy must hold the
+	// same lock to avoid racing with a concurrent memoization.
+	g.memoMu.Lock()
 	newRunner := *g
-	g.repoRootMu.Unlock()
+	g.memoMu.Unlock()
 
 	newRunner.WorkDir = workDir
-	// A different WorkDir may resolve to a different root, so reset the memo.
-	newRunner.repoRootMu = &sync.Mutex{}
-	newRunner.repoRoot = ""
-	newRunner.repoRootCached = false
+	// A different WorkDir may resolve to a different prefix, so reset the memo.
+	newRunner.memoMu = &sync.Mutex{}
+	newRunner.repoPrefix = ""
+	newRunner.repoPrefixCached = false
 
 	return &newRunner
 }
@@ -94,31 +94,36 @@ func (g *GitRunner) RequiresWorkDir() error {
 	return nil
 }
 
-// GetRepoRoot returns the root directory of the git repository. The
-// successful result is memoized per-runner so subsequent calls skip the
-// `git rev-parse` fork; failures are not cached so callers can retry.
-// WithWorkDir clears the memo so a derived runner resolves its own root.
-func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
+// RepoPrefix returns the working directory's path relative to the root of the repository,
+// with OS-native separators and no trailing separator. It is empty when the working directory
+// is the root of the repository. The successful result is memoized per-runner so subsequent
+// calls skip the `git rev-parse` fork; failures are not cached so callers can retry.
+// WithWorkDir clears the memo so a derived runner resolves its own prefix.
+//
+// Git resolves symlinks when it reports paths, so asking it for the prefix avoids the
+// mismatch that comparing its repository root against an unresolved working directory
+// produces (on macOS, /tmp against /private/tmp).
+func (g *GitRunner) RepoPrefix(ctx context.Context) (string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return "", err
 	}
 
-	g.repoRootMu.Lock()
-	defer g.repoRootMu.Unlock()
+	g.memoMu.Lock()
+	defer g.memoMu.Unlock()
 
-	if g.repoRootCached {
-		return g.repoRoot, nil
+	if g.repoPrefixCached {
+		return g.repoPrefix, nil
 	}
 
-	root, err := g.runRepoRoot(ctx)
+	prefix, err := g.runRepoPrefix(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	g.repoRoot = root
-	g.repoRootCached = true
+	g.repoPrefix = prefix
+	g.repoPrefixCached = true
 
-	return root, nil
+	return prefix, nil
 }
 
 // LsRemoteResult represents the output of git ls-remote
@@ -843,10 +848,10 @@ func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-// runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
-// GetRepoRoot for the memoized entry point.
-func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
-	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
+// runRepoPrefix performs the uncached `git rev-parse --show-prefix`. Use
+// RepoPrefix for the memoized entry point.
+func (g *GitRunner) runRepoPrefix(ctx context.Context) (string, error) {
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-prefix")
 
 	var stdout, stderr bytes.Buffer
 
@@ -861,7 +866,9 @@ func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
 		}
 	}
 
-	return strings.TrimSpace(stdout.String()), nil
+	prefix := strings.TrimSuffix(strings.TrimSpace(stdout.String()), "/")
+
+	return filepath.FromSlash(prefix), nil
 }
 
 // Add stages the given paths in the working directory.

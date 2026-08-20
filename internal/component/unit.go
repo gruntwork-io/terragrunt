@@ -340,10 +340,7 @@ func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) strin
 		return ""
 	}
 
-	// Use discoveryContext.WorkingDir as base (always populated).
-	// This is critical for git-based filters where units are discovered in temporary worktrees.
-	// Using rootWorkingDir would cause relative paths to escape the outputFolder.
-	relPath, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path)
+	relPath, err := filepath.Rel(u.outputKeyBase(), u.path)
 	if err != nil {
 		relPath = u.path
 	}
@@ -357,4 +354,22 @@ func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) strin
 	dir = filepath.Clean(dir)
 
 	return filepath.Join(dir, fileName)
+}
+
+// outputKeyBase returns the directory that plan output paths are computed relative to.
+func (u *Unit) outputKeyBase() string {
+	// A unit found by a Git filter lives in a temporary worktree, and its discovery context
+	// records the worktree root, so mirroring from there keys the plan by the unit's path from
+	// the root of the repository while a filesystem walk keys the same unit by its path from
+	// the working directory. OutputKeyBase is the working directory's counterpart inside the
+	// worktree, which makes the two agree.
+	//
+	// A unit outside the working directory, which only a Git filter reaches, keys off the
+	// worktree root instead: that always contains it, so the mirrored path stays inside the
+	// output folder.
+	if base := u.discoveryContext.OutputKeyBase; base != "" && util.HasPathPrefix(u.path, base) {
+		return base
+	}
+
+	return u.discoveryContext.WorkingDir
 }

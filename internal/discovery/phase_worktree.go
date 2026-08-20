@@ -223,6 +223,7 @@ func (p *WorktreePhase) discoverInWorktree(
 	discoveryContext := discovery.discoveryContext.Copy()
 	discoveryContext.Ref = wt.Ref
 	discoveryContext.WorkingDir = wt.Path
+	discoveryContext.OutputKeyBase = discovery.worktrees.WorkingDir(ctx, wt.Path)
 	discoveryContext.SuggestOrigin(component.OriginWorktreeDiscovery)
 
 	if discoveryContext.Args != nil {
@@ -446,61 +447,39 @@ func (p *WorktreePhase) walkChangedStack(
 
 	parentFilters := discovery.filters.ExcludingGitFilters()
 
-	discoveryGroup.Go(func() error {
-		fromDiscovery := NewDiscovery(fromStack.Path()).
-			WithDiscoveryContext(fromDiscoveryContext).
-			WithFilters(parentFilters).
-			WithNumWorkers(p.numWorkers)
+	for _, side := range []struct {
+		stack            *component.Stack
+		discoveryContext *component.DiscoveryContext
+		components       *component.Components
+	}{
+		{stack: fromStack, discoveryContext: fromDiscoveryContext, components: &fromComponents},
+		{stack: toStack, discoveryContext: toDiscoveryContext, components: &toComponents},
+	} {
+		discoveryGroup.Go(func() error {
+			components, err := p.walkStackSide(
+				discoveryCtx,
+				l,
+				v,
+				input,
+				side.stack,
+				side.discoveryContext,
+				parentFilters,
+			)
+			if err != nil {
+				mu.Lock()
 
-		var fromDiscoveryErr error
+				errs = append(errs, err)
 
-		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, v, input.Opts)
-		if fromDiscoveryErr != nil {
-			mu.Lock()
+				mu.Unlock()
 
-			errs = append(errs, fromDiscoveryErr)
+				return nil
+			}
 
-			mu.Unlock()
-
-			return nil
-		}
-
-		for _, c := range fromComponents {
-			dc := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
-			dc.WorkingDir = fromStack.DiscoveryContext().WorkingDir
-			c.SetDiscoveryContext(dc)
-		}
-
-		return nil
-	})
-
-	discoveryGroup.Go(func() error {
-		toDiscovery := NewDiscovery(toStack.Path()).
-			WithDiscoveryContext(toDiscoveryContext).
-			WithFilters(parentFilters).
-			WithNumWorkers(p.numWorkers)
-
-		var toDiscoveryErr error
-
-		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, v, input.Opts)
-		if toDiscoveryErr != nil {
-			mu.Lock()
-
-			errs = append(errs, toDiscoveryErr)
-
-			mu.Unlock()
+			*side.components = components
 
 			return nil
-		}
-
-		for _, c := range toComponents {
-			dc := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
-			dc.WorkingDir = toStack.DiscoveryContext().WorkingDir
-			c.SetDiscoveryContext(dc)
-		}
-
-		return nil
-	})
+		})
+	}
 
 	if err = discoveryGroup.Wait(); err != nil {
 		return nil, err
@@ -569,6 +548,38 @@ func (p *WorktreePhase) walkChangedStack(
 	}
 
 	return finalComponents, nil
+}
+
+// walkStackSide walks one side of a changed stack and records the components it finds as
+// worktree discoveries rooted at that side's worktree.
+func (p *WorktreePhase) walkStackSide(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	input *PhaseInput,
+	stack *component.Stack,
+	discoveryContext *component.DiscoveryContext,
+	filters filter.Filters,
+) (component.Components, error) {
+	discovery := input.Discovery
+
+	components, err := NewDiscovery(stack.Path()).
+		WithDiscoveryContext(discoveryContext).
+		WithFilters(filters).
+		WithNumWorkers(p.numWorkers).
+		Discover(ctx, l, v, input.Opts)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, c := range components {
+		dc := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
+		dc.WorkingDir = stack.DiscoveryContext().WorkingDir
+		dc.OutputKeyBase = discovery.worktrees.WorkingDir(ctx, dc.WorkingDir)
+		c.SetDiscoveryContext(dc)
+	}
+
+	return components, nil
 }
 
 // ComponentPair represents a pair of matched components from different worktrees.
