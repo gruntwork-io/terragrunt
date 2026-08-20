@@ -155,7 +155,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 		runChannel <- cmd.Run(l)
 	}()
 
-	requireTrapReady(t, readyPath)
+	requireInterruptCount(t, readyPath, 0)
 
 	// Bash defers its trap until the running `sleep` returns, so two signals delivered within
 	// one sleep window collapse into a single handler run. Waiting for the child to
