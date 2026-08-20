@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -2201,6 +2203,193 @@ func TestAwsUpdatePolicy(t *testing.T) {
 	// check that policy is created
 	_, err = bucketPolicy(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	require.NoError(t, err)
+}
+
+// TestAwsBucketRootAccess pins the state bucket policy Terragrunt writes when it bootstraps a
+// bucket: the `RootAccess` statement appears only when `enable_bucket_root_access` asks for it,
+// and `skip_bucket_root_access` no longer influences it either way.
+func TestAwsBucketRootAccess(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		rootAccessConfig string
+		expectRootAccess bool
+	}{
+		{
+			name:             "no-root-access-config",
+			rootAccessConfig: "",
+			expectRootAccess: false,
+		},
+		{
+			name:             "skip-bucket-root-access-false",
+			rootAccessConfig: "skip_bucket_root_access = false",
+			expectRootAccess: false,
+		},
+		{
+			name:             "enable-bucket-root-access-true",
+			rootAccessConfig: "enable_bucket_root_access = true",
+			expectRootAccess: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			s3BucketName := bootstrapBucketWithRootAccessConfig(t, tc.rootAccessConfig)
+
+			sids := bucketPolicySids(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+			// Terragrunt always writes this one, so its presence confirms the bucket really was
+			// bootstrapped rather than left policy-less.
+			assert.Contains(t, sids, s3backend.SidEnforcedTLSPolicy)
+
+			if tc.expectRootAccess {
+				assert.Contains(t, sids, s3backend.SidRootPolicy)
+
+				return
+			}
+
+			assert.NotContains(t, sids, s3backend.SidRootPolicy)
+		})
+	}
+}
+
+// TestAwsBucketRootAccessLeavesExistingStatementAlone pins the upgrade path for buckets that were
+// bootstrapped while Terragrunt still wrote the `RootAccess` statement unconditionally. Terragrunt
+// must leave the statement in place rather than treating its own no-longer-writing it as drift.
+func TestAwsBucketRootAccessLeavesExistingStatementAlone(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := bootstrapBucketWithRootAccessConfig(t, "enable_bucket_root_access = true")
+
+	// Guards against the assertion below passing because setup never wrote the statement at all.
+	require.Contains(
+		t,
+		bucketPolicySids(t, helpers.TerraformRemoteStateS3Region, s3BucketName),
+		s3backend.SidRootPolicy,
+	)
+
+	bootstrapBucketDirectly(t, s3BucketName, nil)
+
+	assert.Contains(
+		t,
+		bucketPolicySids(t, helpers.TerraformRemoteStateS3Region, s3BucketName),
+		s3backend.SidRootPolicy,
+	)
+}
+
+// TestAwsBucketRootAccessOptInOnExistingBucket covers the update path rather than the create path:
+// opting in must add the statement to a bucket that Terragrunt already bootstrapped without it.
+func TestAwsBucketRootAccessOptInOnExistingBucket(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := bootstrapBucketWithRootAccessConfig(t, "")
+
+	require.NotContains(
+		t,
+		bucketPolicySids(t, helpers.TerraformRemoteStateS3Region, s3BucketName),
+		s3backend.SidRootPolicy,
+	)
+
+	bootstrapBucketDirectly(t, s3BucketName, backend.Config{"enable_bucket_root_access": true})
+
+	assert.Contains(
+		t,
+		bucketPolicySids(t, helpers.TerraformRemoteStateS3Region, s3BucketName),
+		s3backend.SidRootPolicy,
+	)
+}
+
+// bootstrapBucketWithRootAccessConfig bootstraps a fresh state bucket through the CLI, splicing
+// rootAccessConfig into the `remote_state` config block, and returns the bucket name.
+func bootstrapBucketWithRootAccessConfig(t *testing.T, rootAccessConfig string) string {
+	t.Helper()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	t.Cleanup(func() {
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	})
+
+	configContents := fmt.Sprintf(`
+remote_state {
+  backend = "s3"
+  config = {
+    encrypt = true
+    bucket  = %q
+    key     = "tofu.tfstate"
+    region  = %q
+
+    %s
+  }
+}
+`, s3BucketName, helpers.TerraformRemoteStateS3Region, rootAccessConfig)
+
+	configPath := helpers.CreateTmpTerragruntConfigContent(
+		t,
+		configContents,
+		config.DefaultTerragruntConfigPath,
+	)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s",
+			configPath,
+			rootPath,
+		),
+	)
+
+	return s3BucketName
+}
+
+// bootstrapBucketDirectly re-bootstraps an existing bucket with extraConfig merged into the backend
+// config. It drives the backend rather than the CLI because a second CLI run in the same process
+// short-circuits on the inited-config cache, whose key covers only the bucket, region and lock
+// table, so a changed root access setting would not reach the bootstrap path at all.
+func bootstrapBucketDirectly(t *testing.T, s3BucketName string, extraConfig backend.Config) {
+	t.Helper()
+
+	backendConfig := backend.Config{
+		"encrypt": true,
+		"bucket":  s3BucketName,
+		"key":     "tofu.tfstate",
+		"region":  helpers.TerraformRemoteStateS3Region,
+	}
+	maps.Copy(backendConfig, extraConfig)
+
+	require.NoError(t, s3backend.NewBackend().Bootstrap(
+		t.Context(),
+		logger.CreateLogger(),
+		venv.OSVenv(),
+		backendConfig,
+		&backend.Options{NonInteractive: true},
+	))
+}
+
+// bucketPolicySids returns the Sid of every statement in the bucket's policy.
+func bucketPolicySids(t *testing.T, awsRegion, bucketName string) []string {
+	t.Helper()
+
+	policy, err := bucketPolicy(t, awsRegion, bucketName)
+	require.NoError(t, err)
+	require.NotNil(t, policy.Policy)
+
+	policyInBucket, err := awshelper.UnmarshalPolicy(*policy.Policy)
+	require.NoError(t, err)
+
+	sids := make([]string, 0, len(policyInBucket.Statement))
+	for _, statement := range policyInBucket.Statement {
+		sids = append(sids, statement.Sid)
+	}
+
+	return sids
 }
 
 func TestAwsAssumeRoleDuration(t *testing.T) {

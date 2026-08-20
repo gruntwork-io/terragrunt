@@ -1,0 +1,33 @@
+---
+version: "v1.2.0"
+category: "breaking-changes"
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+#### S3 state buckets no longer get the `RootAccess` bucket policy statement
+
+When bootstrapping an S3 state bucket, Terragrunt attached a bucket policy statement with the `Sid` `RootAccess` that granted `s3:*` on the bucket and its objects to `arn:aws:iam::<account-id>:root`, an ARN that grants access to the AWS account as a whole rather than only to its root user. That statement has been removed. It widened reach to state files that routinely hold secrets, and the account already owns the bucket.
+
+The `skip_bucket_root_access` config no longer has anything to skip, and is now deprecated. Terragrunt still accepts it, and warns about it when bootstrapping a backend whose config carries it. Enable the [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control to turn that warning into an error.
+
+To grant the AWS account root user access to the state bucket, set the new `enable_bucket_root_access` config:
+
+```hcl
+# root.hcl
+remote_state {
+  # ... other args omitted for brevity ...
+  config = {
+    # ... other config omitted for brevity ...
+    enable_bucket_root_access = true
+  }
+}
+```
+
+Buckets that already carry the statement keep it. The [state backend docs](/features/units/state-backend#root-user-access-to-the-state-bucket) cover how to remove it yourself.
+
+<Aside type="note" title="Why this is a bugfix listed under breaking changes">
+This is a bugfix, not a violation of the [Terragrunt 1.0 Guarantees](/process/1-0-guarantees). The bucket policy Terragrunt writes is not part of the CLI, HCL, or output schemas that 1.x pins, and `skip_bucket_root_access` remains valid configuration.
+
+It is listed here so that it is easier to spot, as you may depend on this policy being set automatically on state buckets. As a reminder, this is a pattern that will hold for all of 1.x: fixing behavior that Terragrunt maintainers consider a bug can require you to update your workflows, as long as the fix stays inside the 1.0 guarantees. Where a fix that potentially impacts workflows can be made opt-out, as `enable_bucket_root_access` enables here, it will be.
+</Aside>
