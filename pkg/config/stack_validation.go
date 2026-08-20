@@ -105,7 +105,7 @@ func validateUnits(units []*Unit) error {
 		"unit",
 		func(element any, i int) (string, string, string) {
 			unit := element.(*Unit)
-			return unit.Name, unit.Path, unit.Source
+			return componentAddress(unit.Name, unit.Expansion), unit.Path, unit.Source
 		},
 	)
 }
@@ -117,7 +117,7 @@ func validateStacks(stacks []*Stack) error {
 		"stack",
 		func(element any, i int) (string, string, string) {
 			stack := element.(*Stack)
-			return stack.Name, stack.Path, stack.Source
+			return componentAddress(stack.Name, stack.Expansion), stack.Path, stack.Source
 		},
 	)
 }

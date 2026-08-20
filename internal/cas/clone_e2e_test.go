@@ -221,7 +221,7 @@ func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	l := logger.CreateLogger()
 
 	// Ambient depth left at the CAS default of 1, which is what makes this
@@ -272,7 +272,7 @@ func TestCASClone_E2E_AmbientDepthBeatsURLDepth(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	l := logger.CreateLogger()
 
 	g := getter.NewCASGetter(l, c, v, &cas.CloneOptions{})
