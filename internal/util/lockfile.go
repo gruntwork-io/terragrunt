@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/gofrs/flock"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 type Lockfile struct {
@@ -14,31 +15,27 @@ type Lockfile struct {
 
 func NewLockfile(filename string) *Lockfile {
 	return &Lockfile{
-		flock.New(filename),
+		Flock: flock.New(filename),
 	}
 }
 
-func (lockfile *Lockfile) Unlock() error {
-	if lockfile.Flock == nil {
-		return nil
-	}
-
-	if err := lockfile.Flock.Unlock(); err != nil {
+func (lf *Lockfile) Unlock(fsys vfs.FS) error {
+	if err := lf.Flock.Unlock(); err != nil {
 		return err
 	}
 
-	if err := os.Remove(lockfile.Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := fsys.Remove(lf.Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
 	return nil
 }
 
-func (lockfile *Lockfile) TryLock() error {
-	if locked, err := lockfile.Flock.TryLock(); err != nil {
+func (lf *Lockfile) TryLock() error {
+	if locked, err := lf.Flock.TryLock(); err != nil {
 		return err
 	} else if !locked {
-		return fmt.Errorf("unable to lock file %s", lockfile.Path())
+		return fmt.Errorf("unable to lock file %s", lf.Path())
 	}
 
 	return nil

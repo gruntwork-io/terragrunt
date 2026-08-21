@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"maps"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -20,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
@@ -99,7 +99,7 @@ var (
 		DefaultTerragruntConfigPath,
 	}
 
-	DefaultParserOptions = func(l log.Logger, strictControls strict.Controls) []hclparse.Option {
+	DefaultParserOptions = func(l log.Logger, v *venv.Venv, strictControls strict.Controls) []hclparse.Option {
 		writer := writer.New(
 			writer.WithLogger(l),
 			writer.WithDefaultLevel(log.ErrorLevel),
@@ -108,7 +108,7 @@ var (
 
 		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
 		parseOpts = append(parseOpts,
-			hclparse.WithDiagnosticsWriter(writer, l.Formatter().DisabledColors()),
+			hclparse.WithDiagnosticsWriter(v, writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
 		)
 
@@ -205,6 +205,7 @@ func (cfg *TerragruntConfig) GetRemoteState(
 
 		tfSource, err := tf.NewSource(
 			l,
+			pctx.Venv.FS,
 			canonicalSourceURL,
 			pctx.DownloadDir,
 			pctx.WorkingDir,
@@ -1221,9 +1222,9 @@ func adjustSourceWithMap(
 
 // GetDefaultConfigPath returns the default path to use for the Terragrunt configuration
 // that exists within the path giving preference to `terragrunt.hcl`
-func GetDefaultConfigPath(workingDir string) string {
+func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
-	if info, err := os.Stat(workingDir); err == nil && !info.IsDir() {
+	if info, err := fsys.Stat(workingDir); err == nil && !info.IsDir() {
 		return workingDir
 	}
 
@@ -1234,7 +1235,7 @@ func GetDefaultConfigPath(workingDir string) string {
 			configPath = filepath.Join(workingDir, configPath)
 		}
 
-		if _, err := os.Stat(configPath); err == nil {
+		if _, err := fsys.Stat(configPath); err == nil {
 			break
 		}
 	}
@@ -1701,7 +1702,16 @@ func DetectInputsCtyUsage(file *hclparse.File) bool {
 				continue
 			}
 
-			attrTraversal, ok := traversal[2].(hcl.TraverseAttr)
+			rest := traversal[2:]
+			if _, indexed := rest[0].(hcl.TraverseIndex); indexed {
+				rest = rest[1:]
+			}
+
+			if len(rest) == 0 {
+				continue
+			}
+
+			attrTraversal, ok := rest[0].(hcl.TraverseAttr)
 			if !ok || attrTraversal.Name != MetadataInputs {
 				continue
 			}
@@ -2328,8 +2338,8 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
-func configFileHasDependencyBlock(configPath string) (bool, error) {
-	configBytes, err := os.ReadFile(configPath)
+func configFileHasDependencyBlock(fsys vfs.FS, configPath string) (bool, error) {
+	configBytes, err := vfs.ReadFile(fsys, configPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return false, DependencyFileNotFoundError{Path: configPath}

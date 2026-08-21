@@ -8,9 +8,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -23,6 +25,35 @@ const gitSymlinkMode = "120000"
 // trees. It is chosen independently of any git repository's object format because
 // local sources have no repository to inherit a format from.
 const DefaultLocalHashAlgorithm = HashSHA256
+
+// ignoredSourceDirs names directories left out of every tree CAS builds by
+// walking a source directory. Both hold working state rather than source:
+// OpenTofu/Terraform puts provider plugins in .terraform, which a provider
+// cache fills with links into a shared cache outside the source tree, and
+// .terragrunt-cache holds Terragrunt's own working copies. Taking either in
+// would tie the content hash to state that changes on every init and store
+// links resolving outside the tree they are materialized into.
+var ignoredSourceDirs = []string{util.TerraformCacheDir, util.TerragruntCacheDir}
+
+// ignoredSourceEntry reports whether the entry at path, reached by a walk rooted
+// at root, is one of [ignoredSourceDirs]. The root is exempt, because a
+// source directory carrying one of these names is the content the caller asked
+// for and dropping it would leave nothing behind.
+func ignoredSourceEntry(root, path string, d fs.DirEntry) bool {
+	return path != root && slices.Contains(ignoredSourceDirs, d.Name())
+}
+
+// dropIgnoredSourceEntry returns the walk result that drops an entry
+// [ignoredSourceEntry] matched. A link standing in for a cache directory is
+// dropped on its own, since filepath.SkipDir from a non-directory would skip
+// the rest of the entries beside it.
+func dropIgnoredSourceEntry(d fs.DirEntry) error {
+	if d.IsDir() {
+		return filepath.SkipDir
+	}
+
+	return nil
+}
 
 // StoreLocalDirectory persists all content from a local source directory into the CAS
 // and then links the persisted files to the target directory.
@@ -94,6 +125,10 @@ func (c *CAS) buildLocalTree(v *venv.Venv, dir string, alg HashAlgorithm) (strin
 	err := vfs.WalkDir(v.FS, dir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+
+		if ignoredSourceEntry(dir, path, d) {
+			return dropIgnoredSourceEntry(d)
 		}
 
 		if d.IsDir() {

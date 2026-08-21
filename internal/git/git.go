@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -32,6 +34,7 @@ const (
 // GitRunner handles git command execution
 type GitRunner struct {
 	exec           vexec.Exec
+	env            map[string]string
 	repoRootMu     *sync.Mutex
 	GitPath        string
 	WorkDir        string
@@ -39,10 +42,15 @@ type GitRunner struct {
 	repoRootCached bool
 }
 
-// NewGitRunner creates a new GitRunner instance. The provided vexec.Exec is
-// used to resolve the `git` binary on PATH.
-func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
-	gitPath, err := e.LookPath("git")
+// NewGitRunner creates a new GitRunner instance. It resolves the `git` binary
+// through the venv's exec handle. Every git command it prepares carries the
+// venv's environment, so a subprocess does not inherit the process
+// environment.
+func NewGitRunner(v *venv.Venv) (*GitRunner, error) {
+	v.RequireExec()
+	v.RequireEnv()
+
+	gitPath, err := v.Exec.LookPath("git")
 	if err != nil {
 		return nil, &WrappedError{
 			Op:      "git",
@@ -53,7 +61,8 @@ func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
 
 	return &GitRunner{
 		GitPath:    gitPath,
-		exec:       e,
+		exec:       v.Exec,
+		env:        v.Env,
 		repoRootMu: &sync.Mutex{},
 	}, nil
 }
@@ -401,13 +410,16 @@ func (g *GitRunner) HasObject(ctx context.Context, hash string) (bool, error) {
 }
 
 // CreateTempDir creates a new temporary directory for git operations
-func (g *GitRunner) CreateTempDir() (string, func() error, error) {
+func (g *GitRunner) CreateTempDir(v *venv.Venv) (string, func() error, error) {
+	v.RequireFS()
+	v.RequireTempDir()
+
 	prefix := "terragrunt-cas-"
 
 	// Add a timestamp to the prefix to avoid conflicts
 	prefix += strconv.FormatInt(time.Now().UnixNano(), 10)
 
-	tempDir, err := os.MkdirTemp("", prefix+"*")
+	tempDir, err := vfs.MkdirTemp(v.FS, v.Platform.TempDir(), prefix)
 	if err != nil {
 		return "", nil, &WrappedError{
 			Op:      "create_temp_dir",
@@ -419,7 +431,7 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 	g.WorkDir = tempDir
 
 	cleanup := func() error {
-		if err := os.RemoveAll(tempDir); err != nil {
+		if err := v.FS.RemoveAll(tempDir); err != nil {
 			return &WrappedError{
 				Op:      "cleanup_temp_dir",
 				Context: err.Error(),
@@ -970,6 +982,7 @@ func (g *GitRunner) ConfigSet(ctx context.Context, name, value string) error {
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) vexec.Cmd {
 	cmd := g.exec.Command(ctx, g.GitPath, append([]string{name}, args...)...)
+	cmd.SetEnv(venv.Environ(g.env))
 	cmd.SetCancel(func() error {
 		sig := signal.SignalFromContext(ctx)
 		if sig == nil {

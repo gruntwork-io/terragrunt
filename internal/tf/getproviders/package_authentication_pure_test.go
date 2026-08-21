@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +87,7 @@ func TestPackageAuthenticationAllAuthenticate(t *testing.T) {
 			passingChecksumAuth("second.zip", want),
 		)
 
-		result, err := auth.Authenticate("unused-path")
+		result, err := auth.Authenticate(vfs.NewOSFS(), "unused-path")
 		require.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -105,7 +106,7 @@ func TestPackageAuthenticationAllAuthenticate(t *testing.T) {
 			passingChecksumAuth("second.zip", want),
 		)
 
-		_, err := auth.Authenticate("unused-path")
+		_, err := auth.Authenticate(vfs.NewOSFS(), "unused-path")
 		require.Error(t, err)
 	})
 }

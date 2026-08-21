@@ -29,6 +29,7 @@ import (
 const defaultTestRegion = "us-east-1"
 
 // CreateS3ClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
+// The client it returns talks to real AWS, so it gets the OS venv rather than a hermetic one.
 func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 	t.Helper()
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/text/cases"
@@ -39,12 +40,17 @@ type Cmd struct {
 	gracefulShutdownRegistered atomic.Bool
 }
 
-// Command returns a `Cmd` configured to execute the named program with
-// the given arguments via the provided vexec.Exec. PTY allocation requires
-// an OS-backed Exec; non-OS backends are accepted but `WithUsePTY(true)`
-// will fail at Start with ErrPTYRequiresOSBackend.
-func Command(ctx context.Context, e vexec.Exec, name string, args ...string) *Cmd {
-	vc := e.Command(ctx, name, args...)
+// Command returns a `Cmd` configured to execute the named program with the
+// given arguments through v's executor, with the three standard streams wired
+// to v's console handles. PTY allocation requires an OS-backed Exec; non-OS
+// backends are accepted but `WithUsePTY(true)` will fail at Start with
+// ErrPTYRequiresOSBackend.
+func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cmd {
+	v.RequireExec()
+	v.RequireStdin()
+	v.RequireWriters()
+
+	vc := v.Exec.Command(ctx, name, args...)
 
 	cmd := &Cmd{
 		vc:              vc,
@@ -52,9 +58,9 @@ func Command(ctx context.Context, e vexec.Exec, name string, args ...string) *Cm
 		interruptSignal: signal.InterruptSignal,
 	}
 
-	cmd.SetStdin(os.Stdin)
-	cmd.SetStdout(os.Stdout)
-	cmd.SetStderr(os.Stderr)
+	cmd.SetStdin(v.Stdin)
+	cmd.SetStdout(v.Writers.Writer)
+	cmd.SetStderr(v.Writers.ErrWriter)
 
 	vc.SetWaitDelay(DefaultGracefulShutdownDelay)
 

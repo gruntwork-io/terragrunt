@@ -1,7 +1,8 @@
 package cliconfig
 
 import (
-	"os"
+	"maps"
+	"slices"
 	"strings"
 
 	svchost "github.com/hashicorp/terraform-svchost"
@@ -11,11 +12,14 @@ import (
 type CredentialsSource struct {
 	// configured describes the credentials explicitly configured in the CLI config via "credentials" blocks.
 	configured map[svchost.Hostname]string
+	// env is the run's environment, held by reference so credentials an auth
+	// provider contributes part-way through a run are still found here.
+	env map[string]string
 }
 
 func (s *CredentialsSource) ForHost(host svchost.Hostname) svcauth.HostCredentials {
 	// The first order of precedence for credentials is a host-specific environment variable
-	if envCreds := hostCredentialsFromEnv(host); envCreds != nil {
+	if envCreds := hostCredentialsFromEnv(s.env, host); envCreds != nil {
 		return envCreds
 	}
 
@@ -30,8 +34,8 @@ func (s *CredentialsSource) ForHost(host svchost.Hostname) svcauth.HostCredentia
 // hostCredentialsFromEnv returns a token credential by searching for a hostname-specific environment variable. The host parameter is expected to be in the "comparison" form, for example, hostnames containing non-ASCII characters like "café.fr" should be expressed as "xn--caf-dma.fr". If the variable based on the hostname is not defined, nil is returned.
 //
 // Hyphen and period characters are allowed in environment variable names, but are not valid POSIX variable names. However, it's still possible to set variable names with these characters using utilities like env or docker. Variable names may have periods translated to underscores and hyphens translated to double underscores in the variable name. For the example "café.fr", you may use the variable names "TF_TOKEN_xn____caf__dma_fr", "TF_TOKEN_xn--caf-dma_fr", or "TF_TOKEN_xn--caf-dma.fr"
-func hostCredentialsFromEnv(host svchost.Hostname) svcauth.HostCredentials {
-	token, ok := collectCredentialsFromEnv()[host]
+func hostCredentialsFromEnv(env map[string]string, host svchost.Hostname) svcauth.HostCredentials {
+	token, ok := collectCredentialsFromEnv(env)[host]
 	if !ok {
 		return nil
 	}
@@ -39,20 +43,20 @@ func hostCredentialsFromEnv(host svchost.Hostname) svcauth.HostCredentials {
 	return svcauth.HostCredentialsToken(token)
 }
 
-func collectCredentialsFromEnv() map[svchost.Hostname]string {
+func collectCredentialsFromEnv(env map[string]string) map[svchost.Hostname]string {
 	const prefix = "TF_TOKEN_"
 
 	ret := make(map[svchost.Hostname]string)
 
-	for _, ev := range os.Environ() {
-		name, value, ok := strings.Cut(ev, "=")
-		if !ok {
-			continue
-		}
-
+	// A host spells as either UTF-8 or Punycode, and casing folds away as well,
+	// so two variable names can normalize to one hostname. Sorting keeps the
+	// winner from depending on map iteration order.
+	for _, name := range slices.Sorted(maps.Keys(env)) {
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
+
+		value := env[name]
 
 		rawHost := name[len(prefix):]
 

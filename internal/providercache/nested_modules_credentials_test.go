@@ -18,10 +18,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -91,7 +91,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 			{Name: "127.0.0.1", Token: realUserToken},
 		},
 	}
-	credsSource := cliCfg.CredentialsSource()
+	credsSource := cliCfg.CredentialsSource(map[string]string{})
 
 	// The fake discoverer returns the upstream's full URL as modules.v1, so the
 	// proxy targets the httptest server (HTTP, not HTTPS) without DNS lookups.
@@ -103,7 +103,13 @@ func TestNestedModuleCredentials(t *testing.T) {
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l, venv.OSVenv())
+	providerService := services.NewProviderService(
+		providerCacheDir,
+		pluginCacheDir,
+		nil,
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+	)
 	proxyProviderHandler := handlers.NewProxyProviderHandler(
 		l,
 		vhttp.NewNoNetworkClient(),
@@ -132,7 +138,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	ln, err := server.Listen(ctx)
+	ln, err := server.Listen(ctx, venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

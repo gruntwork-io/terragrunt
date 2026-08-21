@@ -21,15 +21,25 @@ var deferredRoots = map[string]bool{
 	varDependency: true,
 }
 
-// maxPartialEvalDepth bounds recursion for pathological deeply-nested expressions; past this, fall back to source bytes.
-const maxPartialEvalDepth = 10000
+// defaultMaxPartialEvalDepth bounds recursion for pathological deeply-nested expressions; past this, fall back to source bytes.
+const defaultMaxPartialEvalDepth = 10000
 
 // EvalArgs bundles the shared arguments for partial evaluation functions.
 type EvalArgs struct {
 	EvalCtx  *hcl.EvalContext
 	Deferred map[string]bool
 	SrcBytes []byte
+	MaxDepth int
 	depth    int
+}
+
+// maxDepth returns the recursion bound to enforce, falling back to defaultMaxPartialEvalDepth when the caller leaves MaxDepth unset.
+func (args *EvalArgs) maxDepth() int {
+	if args.MaxDepth > 0 {
+		return args.MaxDepth
+	}
+
+	return defaultMaxPartialEvalDepth
 }
 
 // PartialEval walks an hclsyntax.Expression tree and returns HCL source text; pure parts evaluate to literals, deferred parts stay verbatim, error signals pathological inputs.
@@ -38,12 +48,13 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 		return RangeBytes(args.SrcBytes, expr.Range()), nil
 	}
 
-	if args.depth > maxPartialEvalDepth {
+	maxDepth := args.maxDepth()
+	if args.depth > maxDepth {
 		return RangeBytes(
 				args.SrcBytes,
 				expr.Range(),
 			), PartialEvalDepthExceededError{
-				MaxDepth: maxPartialEvalDepth,
+				MaxDepth: maxDepth,
 			}
 	}
 
@@ -413,7 +424,7 @@ func valueToHCLBytes(val cty.Value) []byte {
 }
 
 // maxCtyRenderWalkDepth bounds the valueRendersAsHCLLiteral walk to prevent stack overflow on pathological values.
-const maxCtyRenderWalkDepth = maxPartialEvalDepth
+const maxCtyRenderWalkDepth = defaultMaxPartialEvalDepth
 
 // valueRendersAsHCLLiteral reports whether val and its nested elements contain no non-finite number (which hclwrite emits as an invalid bare "Inf").
 func valueRendersAsHCLLiteral(val cty.Value, depth int) bool {

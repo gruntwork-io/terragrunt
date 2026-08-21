@@ -8,10 +8,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ func sizedWelcomeModel(t *testing.T) tui.WelcomeModel {
 		return nil
 	}
 
-	m := tui.NewWelcomeModel(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, noSourcesLoad)
+	m := tui.NewWelcomeModel(t.Context(), logger.CreateLogger(), venvtest.New(), opts, noSourcesLoad)
 
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 

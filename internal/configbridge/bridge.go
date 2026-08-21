@@ -94,8 +94,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 }
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
-func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	s := shell.NewShellOptions().
+func ShellRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *shell.ShellOptions {
+	s := shell.NewShellOptions(env).
 		WithWorkingDir(opts.WorkingDir).
 		WithTelemetry(opts.Telemetry).
 		WithEngine(opts.EngineConfig, opts.EngineOptions).
@@ -121,23 +121,23 @@ func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 }
 
 // RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
-func RemoteStateOptsFromOpts(opts *options.TerragruntOptions) *remotestate.Options {
+func RemoteStateOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *remotestate.Options {
 	return &remotestate.Options{
 		Options:             *BackendOptsFromOpts(opts),
 		DisableBucketUpdate: opts.DisableBucketUpdate,
-		TFRunOpts:           TFRunOptsFromOpts(opts),
+		TFRunOpts:           TFRunOptsFromOpts(env, opts),
 	}
 }
 
 // TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions.
-func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
+func TFRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                opts.JSONLogFormat,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         opts.TerragruntConfigPath,
 		TofuImplementation:           opts.TofuImplementation,
 		TerraformCliArgs:             opts.TerraformCliArgs,
-		ShellOptions:                 ShellRunOptsFromOpts(opts),
+		ShellOptions:                 ShellRunOptsFromOpts(env, opts),
 	}
 }
 

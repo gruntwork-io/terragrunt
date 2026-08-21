@@ -50,7 +50,7 @@ type RegistryGetter struct {
 // The user's CLI config lives on the real disk, so it is only consulted when
 // the getter is running against the OS filesystem.
 func (r *RegistryGetter) auth() RegistryAuth {
-	return RegistryAuth{Env: r.Venv.Env, ReadUserConfig: vfs.IsOSFS(r.Venv.FS)}
+	return RegistryAuth{Env: r.Venv.Env, FS: r.Venv.FS}
 }
 
 // NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol
@@ -112,7 +112,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 
 	registryDomain := srcURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(r.TofuImplementation)
+		registryDomain = tfimpl.DefaultRegistryDomain(r.Venv.Env, r.TofuImplementation)
 	}
 
 	queryValues := srcURL.Query()
@@ -223,25 +223,25 @@ func (r *RegistryGetter) getSubdir(
 
 // copySubdirContents resolves subDir under srcRoot and copies its contents
 // into dstPath, replacing whatever was there. source only labels errors.
-func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, source string) error {
+func copySubdirContents(l log.Logger, fsys vfs.FS, srcRoot, subDir, dstPath, source string) error {
 	sourcePath, err := SubdirGlob(srcRoot, subDir)
 	if err != nil {
 		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
 	}
 
-	if _, err := fs.Stat(sourcePath); err != nil {
+	if _, err := fsys.Stat(sourcePath); err != nil {
 		return ModuleDownloadErr{
 			sourceURL: source,
 			details:   fmt.Sprintf("could not stat download path %s: %s", sourcePath, err),
 		}
 	}
 
-	if err := fs.RemoveAll(dstPath); err != nil {
+	if err := fsys.RemoveAll(dstPath); err != nil {
 		return fmt.Errorf("clearing destination path %s: %w", dstPath, err)
 	}
 
 	const ownerWriteGlobalReadExecutePerms = 0755
-	if err := fs.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
+	if err := fsys.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
 		return fmt.Errorf("creating destination path %s: %w", dstPath, err)
 	}
 
@@ -249,14 +249,14 @@ func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, sourc
 	manifestPath := filepath.Join(dstPath, manifestFname)
 
 	defer func(name string) {
-		if err := fs.Remove(name); err != nil {
+		if err := fsys.Remove(name); err != nil {
 			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 
 	return util.CopyFolderContentsWithFilter(
 		l,
-		fs,
+		fsys,
 		sourcePath,
 		dstPath,
 		manifestFname,

@@ -3,6 +3,7 @@ package hclparse
 import (
 	"io"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 )
@@ -17,9 +18,9 @@ func WithLogger(logger log.Logger) Option {
 	}
 }
 
-func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
+func WithDiagnosticsWriter(v *venv.Venv, writer io.Writer, disableColor bool) Option {
 	return func(parser *Parser) *Parser {
-		diagsWriter := parser.GetDiagnosticsWriter(writer, disableColor)
+		diagsWriter := parser.GetDiagnosticsWriter(v, writer, disableColor)
 
 		parser.diagsWriterFunc = func(diags hcl.Diagnostics) error {
 			if !diags.HasErrors() {

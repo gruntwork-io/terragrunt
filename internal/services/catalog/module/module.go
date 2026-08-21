@@ -2,12 +2,12 @@
 package module
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -31,7 +31,7 @@ type Module struct {
 }
 
 // NewModule returns a module instance if the given `moduleDir` path contains an OpenTofu/Terraform module, otherwise returns nil.
-func NewModule(l log.Logger, repo *Repo, moduleDir string) (*Module, error) {
+func NewModule(l log.Logger, fsys vfs.FS, repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
 		Repo:      repo,
 		cloneURL:  repo.cloneURL,
@@ -39,7 +39,7 @@ func NewModule(l log.Logger, repo *Repo, moduleDir string) (*Module, error) {
 		moduleDir: moduleDir,
 	}
 
-	if ok, err := module.isValid(); !ok || err != nil {
+	if ok, err := module.isValid(fsys); !ok || err != nil {
 		return nil, err
 	}
 
@@ -51,7 +51,7 @@ func NewModule(l log.Logger, repo *Repo, moduleDir string) (*Module, error) {
 
 	modulePath := filepath.Join(module.repoPath, module.moduleDir)
 
-	doc, err := FindDoc(modulePath)
+	doc, err := FindDoc(fsys, modulePath)
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +106,8 @@ func (module *Module) TerraformSourcePath() string {
 	return result
 }
 
-func (module *Module) isValid() (bool, error) {
-	files, err := os.ReadDir(filepath.Join(module.repoPath, module.moduleDir))
+func (module *Module) isValid(fsys vfs.FS) (bool, error) {
+	files, err := vfs.ReadDir(fsys, filepath.Join(module.repoPath, module.moduleDir))
 	if err != nil {
 		return false, err
 	}

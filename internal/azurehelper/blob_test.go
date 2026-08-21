@@ -175,7 +175,12 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		assert.Panics(t, func() { _ = c.Container(tc[0]).CopyBlob(t.Context(), log.New(), tc[1], c.Container(tc[2]), tc[3]) }, "CopyBlob%v should panic", tc)
+		assert.Panics(
+			t,
+			func() { _ = c.Container(tc[0]).CopyBlob(t.Context(), log.New(), tc[1], c.Container(tc[2]), tc[3]) },
+			"CopyBlob%v should panic",
+			tc,
+		)
 	}
 }
 
@@ -201,8 +206,7 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 			StorageAccountName: account,
 			UseAzureADAuth:     new(true),
 		}).
-		WithVenv(testVenv).
-		Build(log.New())
+		Build(log.New(), testVenv)
 	require.NoError(t, err, "Build config")
 
 	bc, err := azurehelper.NewBlobClient(cfg)

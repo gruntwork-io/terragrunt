@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/require"
 )
@@ -193,7 +194,7 @@ func TestTFRunnerPoolFailFast(t *testing.T) {
 			reportFilePath := filepath.Join(testPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
 
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+			runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 			require.NoError(t, err)
 
 			// Verify expected units are in the report

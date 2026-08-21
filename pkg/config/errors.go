@@ -334,6 +334,19 @@ func (err StackMockOutputsTypeError) Error() string {
 	)
 }
 
+// DependencyLabelCollisionError is returned when one dependency label has to address both a
+// whole block and the instances of an expanded block.
+type DependencyLabelCollisionError struct {
+	Name string
+}
+
+func (err DependencyLabelCollisionError) Error() string {
+	return fmt.Sprintf(
+		"dependency %q is declared both with and without an expansion, so the block and its instances claim the same address; rename one of them",
+		err.Name,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string

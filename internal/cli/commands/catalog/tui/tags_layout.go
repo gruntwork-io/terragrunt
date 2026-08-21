@@ -1,8 +1,9 @@
 package tui
 
 import (
-	"os"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
 // TagsListLayout selects how tag pills appear in the catalog list view.
@@ -43,8 +44,10 @@ const EnvTagsDetailStyle = "TG_TMP_CATALOG_TAGS_DETAIL"
 
 // ResolveTagsListLayout reads EnvTagsListLayout and returns the selected
 // layout. Unknown values fall back silently to the default (meta).
-func ResolveTagsListLayout() TagsListLayout {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(EnvTagsListLayout))) {
+func ResolveTagsListLayout(env map[string]string) TagsListLayout {
+	venv.RequireEnvMap(env)
+
+	switch strings.ToLower(strings.TrimSpace(env[EnvTagsListLayout])) {
 	case "row":
 		return TagsListLayoutRow
 	default:
@@ -54,8 +57,10 @@ func ResolveTagsListLayout() TagsListLayout {
 
 // ResolveTagsDetailStyle reads EnvTagsDetailStyle and returns the selected
 // style. Unknown values fall back silently to the default (pills).
-func ResolveTagsDetailStyle() TagsDetailStyle {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(EnvTagsDetailStyle))) {
+func ResolveTagsDetailStyle(env map[string]string) TagsDetailStyle {
+	venv.RequireEnvMap(env)
+
+	switch strings.ToLower(strings.TrimSpace(env[EnvTagsDetailStyle])) {
 	case "section":
 		return TagsDetailStyleSection
 	default:

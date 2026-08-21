@@ -8,8 +8,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // serveTimeout bounds how long the test waits for a server that should never
@@ -35,10 +35,10 @@ func TestServerRunInitializesServicesBeforeServing(t *testing.T) {
 	server := cache.NewServer(
 		cache.WithHostname("127.0.0.1"),
 		cache.WithLogger(l),
-		cache.WithProviderService(services.NewProviderService("", t.TempDir(), nil, l, venv.OSVenv())),
+		cache.WithProviderService(services.NewProviderService("", t.TempDir(), nil, l, venvtest.NewOSWithEmptyEnv())),
 	)
 
-	ln, err := server.Listen(t.Context())
+	ln, err := server.Listen(t.Context(), venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	done := make(chan error, 1)

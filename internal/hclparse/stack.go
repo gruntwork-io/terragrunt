@@ -2,7 +2,7 @@ package hclparse
 
 import (
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path/filepath"
 
 	"errors"
@@ -164,28 +164,28 @@ type discoveryAutoIncludeDecode struct {
 }
 
 // ParseStackFileFromPath reads a terragrunt.stack.hcl from disk and runs ParseStackFile; returns (nil, nil) when the file is absent.
-func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
-	if fs == nil {
-		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fs is nil (stackDir=%q)", stackDir))
+func ParseStackFileFromPath(fsys vfs.FS, stackDir string) (*ParseResult, error) {
+	if fsys == nil {
+		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fsys is nil (stackDir=%q)", stackDir))
 	}
 
 	if stackDir == "" {
 		panic("hclparse.ParseStackFileFromPath: stackDir is empty")
 	}
 
-	stackDir = util.ResolvePath(stackDir)
+	stackDir = vfs.ResolveForCompare(fsys, stackDir)
 	stackFile := filepath.Join(stackDir, stackFileName)
 
-	data, err := vfs.ReadFile(fs, stackFile)
+	data, err := vfs.ReadFile(fsys, stackFile)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 
 		return nil, FileReadError{FilePath: stackFile, Err: err}
 	}
 
-	return ParseStackFile(fs, &ParseStackFileInput{
+	return ParseStackFile(fsys, &ParseStackFileInput{
 		Src:      data,
 		Filename: stackFileName,
 		StackDir: stackDir,
@@ -210,12 +210,12 @@ type StackFuncFactory func(stackDir string) (map[string]function.Function, error
 // funcsFor builds the dir-scoped HCL function map for each stack directory visited; it
 // must be non-nil and must return a non-nil map.
 func UnitPathsFromStackDir(
-	fs vfs.FS,
+	fsys vfs.FS,
 	stackDir string,
 	funcsFor StackFuncFactory,
 ) ([]string, error) {
-	if fs == nil {
-		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
+	if fsys == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fsys is nil (stackDir=%q)", stackDir))
 	}
 
 	if stackDir == "" {
@@ -228,7 +228,7 @@ func UnitPathsFromStackDir(
 		)
 	}
 
-	return unitPathsFromStackDir(fs, stackDir, funcsFor, make(map[string]struct{}), 0)
+	return unitPathsFromStackDir(fsys, stackDir, funcsFor, make(map[string]struct{}), 0)
 }
 
 // DirectComponentPaths returns the generated on-disk paths of the direct unit and
@@ -237,12 +237,12 @@ func UnitPathsFromStackDir(
 // file yields empty slices and a nil error. funcsFor must be non-nil and return a
 // non-nil map.
 func DirectComponentPaths(
-	fs vfs.FS,
+	fsys vfs.FS,
 	stackDir string,
 	funcsFor StackFuncFactory,
 ) (unitPaths, stackPaths []string, err error) {
-	if fs == nil {
-		panic(fmt.Sprintf("hclparse.DirectComponentPaths: fs is nil (stackDir=%q)", stackDir))
+	if fsys == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: fsys is nil (stackDir=%q)", stackDir))
 	}
 
 	if stackDir == "" {
@@ -253,7 +253,7 @@ func DirectComponentPaths(
 		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor is nil (stackDir=%q)", stackDir))
 	}
 
-	stackDir = util.ResolvePath(stackDir)
+	stackDir = vfs.ResolveForCompare(fsys, stackDir)
 	stackFile := filepath.Join(stackDir, stackFileName)
 
 	funcs, err := funcsFor(stackDir)
@@ -270,7 +270,7 @@ func DirectComponentPaths(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
+	units, stacks, err := decodeDiscovery(fsys, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -291,7 +291,7 @@ func DirectComponentPaths(
 // ancestor symlink loops), and depth caps the chain length (backstop for symlink cycles
 // EvalSymlinks reports as errors and therefore cannot collapse to a seen path).
 func unitPathsFromStackDir(
-	fs vfs.FS,
+	fsys vfs.FS,
 	stackDir string,
 	funcsFor StackFuncFactory,
 	visited map[string]struct{},
@@ -304,7 +304,7 @@ func unitPathsFromStackDir(
 		}
 	}
 
-	stackDir = util.ResolvePath(stackDir)
+	stackDir = vfs.ResolveForCompare(fsys, stackDir)
 
 	if _, seen := visited[stackDir]; seen {
 		return nil, nil
@@ -329,7 +329,7 @@ func unitPathsFromStackDir(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
+	units, stacks, err := decodeDiscovery(fsys, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, err
 	}
@@ -352,7 +352,7 @@ func unitPathsFromStackDir(
 			stack.NoStack != nil && *stack.NoStack,
 		)
 
-		nestedPaths, nestedErr := unitPathsFromStackDir(fs, nestedDir, funcsFor, visited, depth+1)
+		nestedPaths, nestedErr := unitPathsFromStackDir(fsys, nestedDir, funcsFor, visited, depth+1)
 		if nestedErr != nil {
 			return nil, nestedErr
 		}
@@ -368,13 +368,13 @@ func unitPathsFromStackDir(
 // funcs is the function map injected into the discovery eval context; callers
 // must supply a non-nil map (validated at the public entrypoint).
 func decodeDiscovery(
-	fs vfs.FS,
+	fsys vfs.FS,
 	stackDir, stackFile string,
 	funcs map[string]function.Function,
 ) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
-	data, err := vfs.ReadFile(fs, stackFile)
+	data, err := vfs.ReadFile(fsys, stackFile)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil, nil
 		}
 
@@ -395,7 +395,7 @@ func decodeDiscovery(
 	// as the `values` variable, so locals (and unit/stack attributes) referencing
 	// values.* resolve during discovery exactly as they do in the full stack parse.
 	// An absent file leaves the variable unset, matching a stack that received no values.
-	values, err := readDiscoveryValues(fs, stackDir, funcs)
+	values, err := readDiscoveryValues(fsys, stackDir, funcs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -412,7 +412,7 @@ func decodeDiscovery(
 
 	srcByFilename := map[string][]byte{stackFile: data}
 
-	mergedRemain, err := mergeIncludes(fs, parsedFile, stackDir, evalCtx, srcByFilename)
+	mergedRemain, err := mergeIncludes(fsys, parsedFile, stackDir, evalCtx, srcByFilename)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -442,7 +442,7 @@ func decodeDiscovery(
 	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl, overriding same-name
 	// base blocks the same way a full stack parse does. The autoinclude file's own names are validated for
 	// uniqueness inside the merge.
-	if err := mergeDiscoveryStackAutoInclude(fs, stackDir, evalCtx, decoded); err != nil {
+	if err := mergeDiscoveryStackAutoInclude(fsys, stackDir, evalCtx, decoded); err != nil {
 		return nil, nil, err
 	}
 
@@ -465,15 +465,15 @@ func decodeDiscovery(
 // function call in a (normally literal-only, generated) values file resolves
 // against the stack directory being expanded.
 func readDiscoveryValues(
-	fs vfs.FS,
+	fsys vfs.FS,
 	stackDir string,
 	funcs map[string]function.Function,
 ) (*cty.Value, error) {
 	valuesPath := filepath.Join(stackDir, valuesFileName)
 
-	data, err := vfs.ReadFile(fs, valuesPath)
+	data, err := vfs.ReadFile(fsys, valuesPath)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 
@@ -509,16 +509,16 @@ func readDiscoveryValues(
 // edges the full parse would reject: the dependency-values backstop, and a strict decode that allows only
 // unit and stack blocks at the top level.
 func mergeDiscoveryStackAutoInclude(
-	fs vfs.FS,
+	fsys vfs.FS,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	decoded *discoveryDecode,
 ) error {
 	autoIncludePath := filepath.Join(stackDir, AutoIncludeStackFile)
 
-	data, err := vfs.ReadFile(fs, autoIncludePath)
+	data, err := vfs.ReadFile(fsys, autoIncludePath)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 

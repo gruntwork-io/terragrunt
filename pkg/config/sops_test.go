@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -34,7 +32,7 @@ func generateTestSecretFiles(t *testing.T, count int) []string {
 
 		secretFile := filepath.Join(unitDir, "secret.enc.json")
 		require.NoError(t, os.WriteFile(secretFile,
-			[]byte(fmt.Sprintf(`{"value":"secret-from-unit-%02d"}`, i)), 0644))
+			fmt.Appendf(nil, `{"value":"secret-from-unit-%02d"}`, i), 0644))
 
 		files = append(files, secretFile)
 	}
@@ -43,211 +41,84 @@ func generateTestSecretFiles(t *testing.T, count int) []string {
 }
 
 // TestSOPSDecryptEnvPropagation is a deterministic regression test for
-// https://github.com/gruntwork-io/terragrunt/issues/5515
+// https://github.com/gruntwork-io/terragrunt/issues/5515, where
+// sops_decrypt_file() could not authenticate to KMS because the auth provider's
+// credentials had not reached the decrypt.
 //
-// The original customer-reported bug: sops_decrypt_file() during HCL evaluation
-// couldn't authenticate to KMS because auth-provider credentials were not yet
-// loaded into opts.Env. This caused SOPS to return empty/wrong secrets.
-//
-// This test verifies the env propagation contract of sopsDecryptFileImpl:
-//   - Existing process env vars are preserved (not overridden by opts.Env)
-//   - Missing env vars from opts.Env are set during decrypt and unset after
-//   - Without credentials, decrypt fails (reproduces the original bug)
-//   - Concurrent goroutines with different credentials are properly isolated
-func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // mutates process env vars
+// A decrypt runs with the credentials the venv carries, and the config layer
+// hands that environment to the decrypter as it stands. Publishing them into
+// the process environment for the length of one decrypt belongs to the OS
+// decrypter, so internal/vsops covers that window, and
+// [TestSOPSDecryptConcurrencyWithRacing] covers units decrypting at once.
+func TestSOPSDecryptEnvPropagation(t *testing.T) {
+	t.Parallel()
+
 	const authKey = "SOPS_TEST_AUTH_CRED"
 
-	t.Cleanup(func() {
-		os.Unsetenv(authKey) //nolint:errcheck
+	secretFile := generateTestSecretFiles(t, 1)[0]
+
+	authRequiringDecrypter := vsops.NewMemDecrypter(
+		func(env map[string]string, path string, _ string) ([]byte, error) {
+			if env[authKey] == "" {
+				return nil, errors.New("KMS auth failed: no credential set")
+			}
+
+			return os.ReadFile(path)
+		})
+
+	t.Run("creds_from_venv_reach_the_decrypter", func(t *testing.T) {
+		t.Parallel()
+
+		l := logger.CreateLogger()
+		ctx := WithConfigValues(t.Context())
+		v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "fresh-token"})
+
+		_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+		pctx.WorkingDir = filepath.Dir(secretFile)
+
+		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
+		require.NoError(t, err, "decrypt must succeed with credentials from the venv")
+		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 	})
 
-	secretFiles := generateTestSecretFiles(t, 1)
-	secretFile := secretFiles[0]
+	t.Run("missing_creds_fails_decrypt", func(t *testing.T) {
+		t.Parallel()
 
-	// Mock decrypter that requires authKey to be set, simulating KMS auth.
-	authRequiringDecrypter := vsops.NewMemDecrypter(func(path string, _ string) ([]byte, error) {
-		token := os.Getenv(authKey)
-		if token == "" {
-			return nil, errors.New("KMS auth failed: no credential set")
-		}
+		l := logger.CreateLogger()
+		ctx := WithConfigValues(t.Context())
+		v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
+		_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+		pctx.WorkingDir = filepath.Dir(secretFile)
+
+		_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
+		require.Error(t, err,
+			"decrypt must fail without auth credentials, reproducing original issue #5515")
+	})
+}
+
+// TestSOPSDecryptLeavesProcessEnvAlone pins that a credential the run was
+// started with outlives a decrypt that carried its own value for the same name.
+func TestSOPSDecryptLeavesProcessEnvAlone(t *testing.T) { //nolint:paralleltest // t.Setenv
+	const authKey = "SOPS_TEST_UNTOUCHED_CRED"
+
+	t.Setenv(authKey, "real-ci-token")
+
+	secretFile := generateTestSecretFiles(t, 1)[0]
+
+	d := vsops.NewMemDecrypter(func(_ map[string]string, path string, _ string) ([]byte, error) {
 		return os.ReadFile(path)
 	})
 
-	// Subtest 1: Existing process env vars are preserved (not overridden).
-	// Models: CI runner has real AWS_SESSION_TOKEN, auth-provider returns empty token.
-	// sopsDecryptFileImpl must NOT override the real token with empty, since SOPS uses process env.
-	t.Run(
-		"existing_process_env_preserved",
-		func(t *testing.T) { //nolint:paralleltest // mutates process env
-			t.Setenv(authKey, "real-ci-token")
+	l := logger.CreateLogger()
+	ctx := WithConfigValues(t.Context())
+	v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "venv-token"})
 
-			l := logger.CreateLogger()
-			ctx := WithConfigValues(t.Context())
-			v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: ""})
+	_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+	pctx.WorkingDir = filepath.Dir(secretFile)
 
-			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
-			pctx.WorkingDir = filepath.Dir(secretFile)
+	_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", d)
+	require.NoError(t, err)
 
-			result, err := sopsDecryptFileImpl(
-				ctx,
-				pctx,
-				l,
-				secretFile,
-				"json",
-				authRequiringDecrypter,
-			)
-			require.NoError(t, err, "decrypt must succeed using existing process env credentials")
-			assert.Contains(t, result, `"value":"secret-from-unit-01"`)
-
-			// Process env must still have the real token, not overridden
-			assert.Equal(t, "real-ci-token", os.Getenv(authKey),
-				"existing process env var must not be overridden")
-		},
-	)
-
-	// Subtest 2: Credentials injected when absent from process env.
-	// Models: first run, auth-provider loaded creds into opts.Env, process env was empty.
-	t.Run( //nolint:paralleltest // mutates process env
-		"new_creds_set_when_absent_from_process_env",
-		func(t *testing.T) {
-			os.Unsetenv(authKey) //nolint:errcheck
-
-			l := logger.CreateLogger()
-			ctx := WithConfigValues(t.Context())
-			v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "fresh-token"})
-
-			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
-			pctx.WorkingDir = filepath.Dir(secretFile)
-
-			result, err := sopsDecryptFileImpl(
-				ctx,
-				pctx,
-				l,
-				secretFile,
-				"json",
-				authRequiringDecrypter,
-			)
-			require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
-			assert.Contains(t, result, `"value":"secret-from-unit-01"`)
-
-			// Process env must be unset (not empty string) after decrypt
-			_, exists := os.LookupEnv(authKey)
-			assert.False(t, exists,
-				"env var must be unset after decrypt, not set to empty string")
-		},
-	)
-
-	// Subtest 3: Missing credentials cause decrypt failure.
-	// Reproduces the ORIGINAL bug: auth-provider hasn't run yet, opts.Env has no
-	// auth token, process env has no auth token → SOPS can't authenticate to KMS.
-	t.Run( //nolint:paralleltest // mutates process env
-		"missing_creds_fails_decrypt",
-		func(t *testing.T) {
-			os.Unsetenv(authKey) //nolint:errcheck
-
-			l := logger.CreateLogger()
-			ctx := WithConfigValues(t.Context())
-			v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
-
-			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
-			pctx.WorkingDir = filepath.Dir(secretFile)
-
-			_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
-			require.Error(t, err,
-				"decrypt must fail without auth credentials, reproducing original issue #5515")
-		},
-	)
-
-	// Subtest 4: Concurrent goroutines with DIFFERENT auth tokens are isolated.
-	// Models production: multiple units decrypt in parallel, each with different
-	// auth-provider credentials. The lock must ensure each sees its OWN token.
-	t.Run( //nolint:paralleltest // mutates process env
-		"concurrent_different_creds_isolated",
-		func(t *testing.T) {
-			const numGoroutines = 5
-
-			os.Unsetenv(authKey) //nolint:errcheck
-
-			files := generateTestSecretFiles(t, numGoroutines)
-
-			var wg sync.WaitGroup
-
-			barrier := make(chan struct{})
-
-			var failures atomic.Int32
-
-			ctx := WithConfigValues(t.Context())
-
-			for i, f := range files {
-				wg.Add(1)
-
-				go func(idx int, filePath string) {
-					defer wg.Done()
-
-					<-barrier
-
-					expectedToken := fmt.Sprintf("token-%d", idx)
-
-					// Each goroutine's decrypter verifies it sees ITS OWN token
-					tokenCheckDecrypter := vsops.NewMemDecrypter(
-						func(path string, _ string) ([]byte, error) {
-							actual := os.Getenv(authKey)
-							if actual != expectedToken {
-								return nil, fmt.Errorf(
-									"goroutine %d: expected %q, got %q",
-									idx,
-									expectedToken,
-									actual,
-								)
-							}
-
-							return os.ReadFile(path)
-						},
-					)
-
-					l := logger.CreateLogger()
-					v := venvtest.NewWithOSFS().
-						WithEnv(map[string]string{authKey: expectedToken})
-
-					_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
-					pctx.WorkingDir = filepath.Dir(filePath)
-
-					result, decryptErr := sopsDecryptFileImpl(
-						ctx,
-						pctx,
-						l,
-						filePath,
-						"json",
-						tokenCheckDecrypter,
-					)
-					if decryptErr != nil {
-						t.Logf("goroutine %d failed: %v", idx, decryptErr)
-						failures.Add(1)
-
-						return
-					}
-
-					expectedPrefix := `{"value":"secret-from-unit-`
-					if len(result) < len(expectedPrefix) ||
-						result[:len(expectedPrefix)] != expectedPrefix {
-						t.Logf("goroutine %d: wrong content: %s", idx, result)
-						failures.Add(1)
-					}
-				}(i, f)
-			}
-
-			close(barrier)
-			wg.Wait()
-
-			require.Zero(
-				t,
-				failures.Load(),
-				"all goroutines must see their own auth token during decrypt; env isolation failed",
-			)
-
-			assert.Empty(t, os.Getenv(authKey),
-				"process env must be clean after all concurrent decrypts")
-		},
-	)
+	assert.Equal(t, "real-ci-token", os.Getenv(authKey))
 }

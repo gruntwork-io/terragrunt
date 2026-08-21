@@ -40,8 +40,7 @@ func TestAzureBlobRoundTrip(t *testing.T) {
 			SubscriptionID:     sub,
 			StorageAccountName: account,
 		}).
-		WithVenv(venv.OSVenv()).
-		Build(log.New())
+		Build(log.New(), venv.OSVenv())
 	require.NoError(t, err, "Build config")
 
 	bc, err := azurehelper.NewBlobClient(cfg)

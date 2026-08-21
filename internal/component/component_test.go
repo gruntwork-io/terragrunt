@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -173,14 +174,15 @@ func TestUnitStringConcurrent(t *testing.T) {
 func TestThreadSafeComponentsEnsureNoDuplicates(t *testing.T) {
 	t.Parallel()
 
-	tsc := component.NewThreadSafeComponents(component.Components{})
+	fsys := vfs.NewMemMapFS()
+	tsc := component.NewThreadSafeComponents(fsys, component.Components{})
 
 	// Add same path twice - should not duplicate
 	unit1 := component.NewUnit("/test/path")
 	unit2 := component.NewUnit("/test/path")
 
-	added1, wasAdded1 := tsc.EnsureComponent(unit1)
-	added2, wasAdded2 := tsc.EnsureComponent(unit2)
+	added1, wasAdded1 := tsc.EnsureComponent(fsys, unit1)
+	added2, wasAdded2 := tsc.EnsureComponent(fsys, unit2)
 
 	assert.True(t, wasAdded1, "first component should be added")
 	assert.False(t, wasAdded2, "second component should not be added (duplicate)")
@@ -192,22 +194,24 @@ func TestThreadSafeComponentsFindByPath(t *testing.T) {
 	t.Parallel()
 
 	unit := component.NewUnit("/test/path")
-	tsc := component.NewThreadSafeComponents(component.Components{unit})
+	fsys := vfs.NewMemMapFS()
+	tsc := component.NewThreadSafeComponents(fsys, component.Components{unit})
 
 	// Find by exact path
-	found := tsc.FindByPath("/test/path")
+	found := tsc.FindByPath(fsys, "/test/path")
 	assert.NotNil(t, found, "should find component by exact path")
 	assert.Equal(t, "/test/path", found.Path())
 
 	// Find non-existent path
-	notFound := tsc.FindByPath("/nonexistent")
+	notFound := tsc.FindByPath(fsys, "/nonexistent")
 	assert.Nil(t, notFound, "should not find non-existent path")
 }
 
 func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	tsc := component.NewThreadSafeComponents(component.Components{})
+	fsys := vfs.NewMemMapFS()
+	tsc := component.NewThreadSafeComponents(fsys, component.Components{})
 
 	var wg sync.WaitGroup
 
@@ -217,7 +221,7 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 	for range goroutines {
 		wg.Go(func() {
 			unit := component.NewUnit("/test/path")
-			tsc.EnsureComponent(unit)
+			tsc.EnsureComponent(fsys, unit)
 		})
 	}
 
@@ -225,7 +229,7 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 	for range goroutines {
 		wg.Go(func() {
 			for range 100 {
-				_ = tsc.FindByPath("/test/path")
+				_ = tsc.FindByPath(fsys, "/test/path")
 				_ = tsc.Len()
 				_ = tsc.ToComponents()
 			}

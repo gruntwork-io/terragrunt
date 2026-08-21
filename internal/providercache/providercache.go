@@ -153,11 +153,11 @@ func (pc *ProviderCache) Init(
 	providerService := services.NewProviderService(
 		pcOpts.Dir,
 		userProviderDir,
-		cliCfg.CredentialsSource(),
+		cliCfg.CredentialsSource(v.Env),
 		l,
 		v,
 	)
-	proxyProviderHandler := handlers.NewProxyProviderHandler(l, v.HTTP, cliCfg.CredentialsSource())
+	proxyProviderHandler := handlers.NewProxyProviderHandler(l, v.HTTP, cliCfg.CredentialsSource(v.Env))
 
 	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — FilterRegistriesByImplementation
 	// relies on that slice containing only the standard registries to detect impl-based filtering.
@@ -168,6 +168,8 @@ func (pc *ProviderCache) Init(
 		cliCfg,
 		l,
 		v.HTTP,
+		v.FS,
+		v.Env,
 		registryNamesForHandlers,
 	)
 	if err != nil {
@@ -181,7 +183,7 @@ func (pc *ProviderCache) Init(
 	proxyModuleHandler := handlers.NewProxyModuleHandler(
 		l,
 		v.HTTP,
-		cliCfg.CredentialsSource(),
+		cliCfg.CredentialsSource(v.Env),
 		providerHandlers,
 		registryNamesForHandlers,
 	)
@@ -331,6 +333,8 @@ func (pc *ProviderCache) warmUpCache(
 	}
 
 	providerConstraints, err := getproviders.ParseProviderConstraints(
+		v.FS,
+		v.Env,
 		tfOpts.TofuImplementation,
 		filepath.Dir(tfOpts.TerragruntConfigPath),
 	)
@@ -386,7 +390,7 @@ func (pc *ProviderCache) warmUpCache(
 		}
 	}
 
-	err = getproviders.UpdateLockfile(ctx, tfOpts.ShellOptions.WorkingDir, caches)
+	err = getproviders.UpdateLockfile(ctx, v.FS, tfOpts.ShellOptions.WorkingDir, caches)
 	if err != nil {
 		return nil, err
 	}
@@ -400,6 +404,7 @@ func (pc *ProviderCache) warmUpCache(
 
 		err = getproviders.UpdateLockfileConstraints(
 			ctx,
+			v.FS,
 			tfOpts.ShellOptions.WorkingDir,
 			providerConstraints,
 		)
@@ -623,17 +628,17 @@ func (pc *ProviderCache) registrySupportsModules(
 }
 
 // saveCLIConfig writes the CLI config to disk, creating the directory if needed.
-func (pc *ProviderCache) saveCLIConfig(fs vfs.FS, cfg *cliconfig.Config, filename string) error {
+func (pc *ProviderCache) saveCLIConfig(fsys vfs.FS, cfg *cliconfig.Config, filename string) error {
 	cfgDir := filepath.Dir(filename)
 
-	cfgDirExists, err := vfs.FileExists(fs, cfgDir)
+	cfgDirExists, err := vfs.FileExists(fsys, cfgDir)
 	if err != nil {
 		return err
 	}
 
 	if !cfgDirExists {
 		const ownerReadWriteExecutePerms = 0o700
-		if err := fs.MkdirAll(cfgDir, ownerReadWriteExecutePerms); err != nil {
+		if err := fsys.MkdirAll(cfgDir, ownerReadWriteExecutePerms); err != nil {
 			return err
 		}
 	}

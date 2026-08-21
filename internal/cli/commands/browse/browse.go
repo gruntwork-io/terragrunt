@@ -69,11 +69,13 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	root := tui.NewRoot(opts.WorkingDir)
 
 	color := tui.ColorDisabled
-	if stdout.ShouldColor(l) {
+	if stdout.ShouldColor(l, v) {
 		color = tui.ColorEnabled
 	}
 
-	err = tui.Run(ctx, l, v.FS, root, color, resultCh, warnCh)
+	v.RequireUserHomeDir()
+
+	err = tui.Run(ctx, l, v.FS, v.Platform.UserHomeDir, root, color, resultCh, warnCh)
 
 	cancel()
 	<-done

@@ -113,7 +113,7 @@ func Run(
 			ctx,
 			l,
 			srcV,
-			configbridge.RemoteStateOptsFromOpts(srcOpts),
+			configbridge.RemoteStateOptsFromOpts(v.Env, srcOpts),
 		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
@@ -130,8 +130,8 @@ func Run(
 	return srcRemoteState.Migrate(
 		ctx, l,
 		srcV, dstV,
-		configbridge.RemoteStateOptsFromOpts(srcOpts),
-		configbridge.RemoteStateOptsFromOpts(dstOpts),
+		configbridge.RemoteStateOptsFromOpts(v.Env, srcOpts),
+		configbridge.RemoteStateOptsFromOpts(v.Env, dstOpts),
 		dstRemoteState,
 	)
 }

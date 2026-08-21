@@ -2,7 +2,6 @@ package tui
 
 import (
 	"errors"
-	"os"
 	"slices"
 	"strings"
 
@@ -36,7 +35,7 @@ const (
 
 // Model is the bubbletea model backing the Miller-columns browser.
 type Model struct {
-	fs           vfs.FS
+	fsys         vfs.FS
 	current      *Node
 	cursor       map[*Node]int
 	colorizer    *dag.Colorizer
@@ -68,13 +67,14 @@ type Model struct {
 // condition.
 var ErrChannelsRequired = errors.New("browse: result and warning channels must not be nil")
 
-// NewModel builds a Model rooted at the given tree. fs backs the on-demand reads
+// NewModel builds a Model rooted at the given tree. fsys backs the on-demand reads
 // of surrounding entries and file previews. resultCh delivers the background
 // discovery result, and warnCh the warnings logged while it runs; both are
 // required, and NewModel panics if either is nil.
 func NewModel(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
+	userHomeDir func() (string, error),
 	root *Node,
 	color ColorMode,
 	resultCh <-chan DiscoveryResult,
@@ -90,7 +90,7 @@ func NewModel(
 
 	// Resolve the home directory once; the path bar abbreviates against it on
 	// every render. An error leaves it empty, which disables abbreviation.
-	home, err := os.UserHomeDir()
+	home, err := userHomeDir()
 	if err != nil {
 		l.Debugf("Could not resolve home directory for path abbreviation: %v", err)
 	}
@@ -100,7 +100,7 @@ func NewModel(
 		current:      root,
 		cursor:       map[*Node]int{},
 		colorizer:    dag.NewColorizer(bool(color)),
-		fs:           fs,
+		fsys:         fsys,
 		keys:         newKeyMap(),
 		searchInput:  search,
 		previewLimit: previewByteLimit,

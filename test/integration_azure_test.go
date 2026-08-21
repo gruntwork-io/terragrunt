@@ -262,8 +262,7 @@ func azureResourceGroup(ctx context.Context, t *testing.T, account string) strin
 			StorageAccountName: account,
 			UseAzureADAuth:     new(true),
 		}).
-		WithVenv(venv.OSVenv()).
-		Build(log.New())
+		Build(log.New(), venv.OSVenv())
 	require.NoError(t, err, "resolving Azure credentials")
 
 	lookupCtx, cancel := context.WithTimeout(ctx, azureLookupTimeout)
@@ -289,8 +288,7 @@ func azureTestConfig(ctx context.Context, t *testing.T, account string) *azurehe
 			StorageAccountName: account,
 			UseAzureADAuth:     new(true),
 		}).
-		WithVenv(venv.OSVenv()).
-		Build(log.New())
+		Build(log.New(), venv.OSVenv())
 	require.NoError(t, err, "resolving Azure credentials")
 
 	return cfg

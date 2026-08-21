@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -33,23 +34,23 @@ type ParsedVariable struct {
 // ParseVariables - parse variables from tf files.
 func ParseVariables(
 	l log.Logger,
-	fsys vfs.FS,
+	v *venv.Venv,
 	strictControls strict.Controls,
 	directoryPath string,
 ) ([]*ParsedVariable, error) {
 	// list all tf files
-	tfFiles, err := util.ListTfFiles(fsys, directoryPath)
+	tfFiles, err := util.ListTfFiles(v.FS, directoryPath)
 	if err != nil {
 		return nil, err
 	}
 
-	parser := hclparse.NewParser(DefaultParserOptions(l, strictControls)...)
+	parser := hclparse.NewParser(DefaultParserOptions(l, v, strictControls)...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable
 
 	for _, tfFile := range tfFiles {
-		content, err := vfs.ReadFile(fsys, tfFile)
+		content, err := vfs.ReadFile(v.FS, tfFile)
 		if err != nil {
 			return nil, err
 		}

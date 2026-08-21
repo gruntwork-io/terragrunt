@@ -96,6 +96,7 @@ func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 
 	pinned, err := tf.NewSource(
 		l,
+		vfs.NewOSFS(),
 		registryTestModuleSource+"?version=0.0.2",
 		filepath.Join(rootPath, ".terragrunt-cache"),
 		rootPath,
@@ -113,6 +114,7 @@ func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	// below could not tell 0.0.2 apart from 0.0.1.
 	otherPin, err := tf.NewSource(
 		l,
+		vfs.NewOSFS(),
 		registryTestModuleSource+"?version=0.0.1",
 		filepath.Join(rootPath, ".terragrunt-cache"),
 		rootPath,
@@ -154,6 +156,7 @@ func TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *test
 
 		pinned, err := tf.NewSource(
 			l,
+			vfs.NewOSFS(),
 			registryTestModuleSource+"?version=0.0.2",
 			filepath.Join(unitPath, ".terragrunt-cache"),
 			unitPath,

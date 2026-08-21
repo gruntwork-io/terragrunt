@@ -31,6 +31,6 @@ func TestRunTreatsCancelledContextAsCleanExit(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	err := tui.Run(ctx, l, vfs.NewMemMapFS(), tui.NewRoot("/repo"), tui.ColorDisabled, resultCh, warnCh)
+	err := tui.Run(ctx, l, vfs.NewMemMapFS(), stubHomeDir, tui.NewRoot("/repo"), tui.ColorDisabled, resultCh, warnCh)
 	require.NoError(t, err)
 }

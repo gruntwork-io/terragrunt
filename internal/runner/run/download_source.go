@@ -77,6 +77,7 @@ func DownloadTerraformSource(
 
 	terraformSource, err := tf.NewSource(
 		l,
+		v.FS,
 		source,
 		opts.DownloadDir,
 		opts.UnitDir,
@@ -386,7 +387,7 @@ func DownloadTerraformSourceIfNecessary(
 				return util.NotifyIfSlow(
 					childCtx,
 					l,
-					util.SpinnerWriter(),
+					util.SpinnerWriter(v),
 					time.Second,
 					util.SlowNotifyMsg{
 						Spinner: "Downloading source from " + sourceURL + "...",
@@ -620,7 +621,7 @@ func tryCASDownload(
 		return false, nil
 	}
 
-	if _, err := git.NewGitRunner(v.Exec); err != nil {
+	if _, err := git.NewGitRunner(v); err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,

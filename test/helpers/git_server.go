@@ -17,7 +17,7 @@ import (
 
 	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/require"
 )
 
@@ -560,7 +560,7 @@ func commitDirs(
 func InitTestGitRunner(t *testing.T, tmpDir string) *git.GitRunner {
 	t.Helper()
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)

@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -133,7 +133,7 @@ func RunValidate(
 	}
 
 	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l)
+		cleanupErr := worktrees.Cleanup(ctx, l, v.FS)
 		if cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
@@ -275,7 +275,7 @@ func writeDiagnostics(
 	opts *options.TerragruntOptions,
 	diags diagnostic.Diagnostics,
 ) error {
-	render := view.NewHumanRender(l.Formatter().DisabledColors())
+	render := view.NewHumanRender(v, l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
 	}
@@ -328,7 +328,7 @@ func RunValidateInputs(
 	}
 
 	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l)
+		cleanupErr := worktrees.Cleanup(ctx, l, v.FS)
 		if cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
@@ -503,7 +503,7 @@ func getDefinedTerragruntInputs(
 		return nil, err
 	}
 
-	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(l, opts, cfg)
+	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(l, v.FS, opts, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -607,7 +607,7 @@ func getTerraformInputNamesFromVarFiles(
 		varFiles = append(varFiles, arg.GetVarFiles(l, fsys)...)
 	}
 
-	return getVarNamesFromVarFiles(l, varFiles)
+	return getVarNamesFromVarFiles(l, fsys, varFiles)
 }
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
@@ -615,6 +615,7 @@ func getTerraformInputNamesFromVarFiles(
 // config and those that are directly passed in via the CLI.
 func getTerraformInputNamesFromCLIArgs(
 	l log.Logger,
+	fsys vfs.FS,
 	opts *options.TerragruntOptions,
 	terragruntConfig *config.TerragruntConfig,
 ) ([]string, error) {
@@ -637,7 +638,7 @@ func getTerraformInputNamesFromCLIArgs(
 		}
 	}
 
-	fileVars, err := getVarNamesFromVarFiles(l, varFiles)
+	fileVars, err := getVarNamesFromVarFiles(l, fsys, varFiles)
 	if err != nil {
 		return inputNames, err
 	}
@@ -654,42 +655,39 @@ func getTerraformInputNamesFromAutomaticVarFiles(
 	opts *options.TerragruntOptions,
 ) ([]string, error) {
 	base := opts.WorkingDir
-	automaticVarFiles := []string{}
 
-	tfTFVarsFile := filepath.Join(base, "terraform.tfvars")
-	if vfs.Exists(fsys, tfTFVarsFile) {
-		automaticVarFiles = append(automaticVarFiles, tfTFVarsFile)
-	}
-
-	tfTFVarsJSONFile := filepath.Join(base, "terraform.tfvars.json")
-	if vfs.Exists(fsys, tfTFVarsJSONFile) {
-		automaticVarFiles = append(automaticVarFiles, tfTFVarsJSONFile)
-	}
-
-	varFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars"))
-	if err != nil {
+	entries, err := vfs.ReadDir(fsys, base)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 
-	automaticVarFiles = append(automaticVarFiles, varFiles...)
+	automaticVarFiles := make([]string, 0, len(entries))
 
-	jsonVarFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars.json"))
-	if err != nil {
-		return nil, err
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+
+		named := name == "terraform.tfvars" || name == "terraform.tfvars.json"
+		automatic := strings.HasSuffix(name, ".auto.tfvars") || strings.HasSuffix(name, ".auto.tfvars.json")
+
+		if named || automatic {
+			automaticVarFiles = append(automaticVarFiles, filepath.Join(base, name))
+		}
 	}
 
-	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
-
-	return getVarNamesFromVarFiles(l, automaticVarFiles)
+	return getVarNamesFromVarFiles(l, fsys, automaticVarFiles)
 }
 
 // getVarNamesFromVarFiles will parse all the given var files and returns a list of names of variables that are
 // configured in all of them combined together.
-func getVarNamesFromVarFiles(l log.Logger, varFiles []string) ([]string, error) {
+func getVarNamesFromVarFiles(l log.Logger, fsys vfs.FS, varFiles []string) ([]string, error) {
 	inputNames := []string{}
 
 	for _, varFile := range varFiles {
-		fileVars, err := getVarNamesFromVarFile(l, varFile)
+		fileVars, err := getVarNamesFromVarFile(l, fsys, varFile)
 		if err != nil {
 			return inputNames, err
 		}
@@ -702,8 +700,8 @@ func getVarNamesFromVarFiles(l log.Logger, varFiles []string) ([]string, error) 
 
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
-func getVarNamesFromVarFile(l log.Logger, varFile string) ([]string, error) {
-	fileContents, err := os.ReadFile(varFile)
+func getVarNamesFromVarFile(l log.Logger, fsys vfs.FS, varFile string) ([]string, error) {
+	fileContents, err := vfs.ReadFile(fsys, varFile)
 	if err != nil {
 		return nil, err
 	}

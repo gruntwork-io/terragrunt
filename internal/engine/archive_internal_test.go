@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func TestExtractArchiveWithLimitsAcceptsSmallArchive(t *testing.T) {
 		},
 	})
 
-	err := extractArchiveWithLimits(logger.CreateLogger(), archivePath, engineFile, 1024, 2)
+	err := extractArchiveWithLimits(logger.CreateLogger(), vfs.NewOSFS(), archivePath, engineFile, 1024, 2)
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(engineFile)
@@ -47,7 +48,7 @@ func TestExtractArchiveWithLimitsAcceptsExactSizeLimit(t *testing.T) {
 		},
 	})
 
-	err := extractArchiveWithLimits(logger.CreateLogger(), archivePath, engineFile, 8, 2)
+	err := extractArchiveWithLimits(logger.CreateLogger(), vfs.NewOSFS(), archivePath, engineFile, 8, 2)
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(engineFile)
@@ -77,7 +78,7 @@ func TestExtractArchiveWithLimitsRejectsTooManyFiles(t *testing.T) {
 		},
 	})
 
-	err := extractArchiveWithLimits(logger.CreateLogger(), archivePath, engineFile, 1024, 2)
+	err := extractArchiveWithLimits(logger.CreateLogger(), vfs.NewOSFS(), archivePath, engineFile, 1024, 2)
 
 	var extractionErr *archiveExtractionError
 	require.ErrorAs(t, err, &extractionErr)
@@ -102,7 +103,7 @@ func TestExtractArchiveWithLimitsRejectsOversizedContent(t *testing.T) {
 		},
 	})
 
-	err := extractArchiveWithLimits(logger.CreateLogger(), archivePath, engineFile, 8, 2)
+	err := extractArchiveWithLimits(logger.CreateLogger(), vfs.NewOSFS(), archivePath, engineFile, 8, 2)
 
 	var extractionErr *archiveExtractionError
 	require.ErrorAs(t, err, &extractionErr)

@@ -94,7 +94,7 @@ func testCommandOutput(
 		t.Context(),
 		l,
 		v,
-		configbridge.ShellRunOptsFromOpts(terragruntOptions),
+		configbridge.ShellRunOptsFromOpts(map[string]string{}, terragruntOptions),
 		"",
 		!allocateStdout,
 		false,
