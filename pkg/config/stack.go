@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -84,6 +85,7 @@ type Unit struct {
 
 	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
 
+	Enabled             *bool      `hcl:"enabled,attr"`
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
@@ -92,6 +94,13 @@ type Unit struct {
 	Name                string     `hcl:",label"`
 	Source              string     `hcl:"source,attr"`
 	Path                string     `hcl:"path,attr"`
+}
+
+// IsEnabled reports whether this unit is present at all. Omitting enabled keeps the unit,
+// so only an explicit false drops it. Unlike expansion, this never changes the unit's
+// address, so toggling it leaves references and generated paths intact.
+func (u *Unit) IsEnabled() bool {
+	return u.Enabled == nil || *u.Enabled
 }
 
 // GeneratedPath returns the on-disk path this unit generates to under stackDir.
@@ -105,6 +114,7 @@ type Stack struct {
 
 	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
 
+	Enabled             *bool      `hcl:"enabled,attr"`
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
@@ -113,6 +123,12 @@ type Stack struct {
 	Name                string     `hcl:",label"`
 	Source              string     `hcl:"source,attr"`
 	Path                string     `hcl:"path,attr"`
+}
+
+// IsEnabled reports whether this stack is present at all. Omitting enabled keeps the
+// stack, so only an explicit false drops it.
+func (s *Stack) IsEnabled() bool {
+	return s.Enabled == nil || *s.Enabled
 }
 
 // GeneratedPath returns the on-disk path this stack generates to under stackDir.
@@ -169,6 +185,17 @@ func GenerateStackFile(
 		return err
 	}
 
+	// Without this the run is silent: every per-component log line belongs to a component
+	// that is generating, so a file where none of them do says nothing at all.
+	if !hasEnabledComponents(stackFile) {
+		l.Infof(
+			"Nothing to generate from %s: every unit and stack it declares is disabled or expanded to no elements",
+			util.RelPathForLog(pctx.RootWorkingDir, stackFilePath, pctx.LogShowAbsPaths),
+		)
+
+		return nil
+	}
+
 	cs, err := setupCAS(l, pctx.Venv, casEnabled, pctx.CASCloneDepth)
 	if err != nil {
 		return err
@@ -205,6 +232,12 @@ func GenerateStackFile(
 	}
 
 	return nil
+}
+
+// hasEnabledComponents reports whether any unit or stack in the file generates anything.
+func hasEnabledComponents(stackFile *StackConfig) bool {
+	return slices.ContainsFunc(stackFile.Units, (*Unit).IsEnabled) ||
+		slices.ContainsFunc(stackFile.Stacks, (*Stack).IsEnabled)
 }
 
 // ValidateStackAutoIncludes runs the strict autoinclude parse over the stack file at
@@ -472,6 +505,12 @@ func generateUnits(
 	units []*Unit,
 ) error {
 	for _, unit := range units {
+		if !unit.IsEnabled() {
+			l.Debugf("Skipping disabled unit %s", componentAddress(unit.Name, unit.Expansion))
+
+			continue
+		}
+
 		pool.Submit(func() error {
 			item := componentToGenerate{
 				sourceDir:    opts.sourceDir,
@@ -519,6 +558,12 @@ func generateStacks(
 	stacks []*Stack,
 ) error {
 	for _, stack := range stacks {
+		if !stack.IsEnabled() {
+			l.Debugf("Skipping disabled stack %s", componentAddress(stack.Name, stack.Expansion))
+
+			continue
+		}
+
 		pool.Submit(func() error {
 			item := componentToGenerate{
 				sourceDir:    opts.sourceDir,
@@ -1146,7 +1191,7 @@ func ParseStackConfig(
 		parser = parser.WithValues(values)
 	}
 
-	if err := ValidateExpansionExperiment(parser.Experiments, file); err != nil {
+	if err := ValidateBlockIterationExperiment(parser.Experiments, file); err != nil {
 		return nil, err
 	}
 
@@ -1224,6 +1269,13 @@ func ParseStackConfig(
 		Locals: localsParsed,
 		Stacks: config.Stacks,
 		Units:  config.Units,
+	}
+
+	// Counted from the declared blocks rather than the resolved components, so a file whose
+	// every component is disabled or expanded over an empty collection generates nothing
+	// instead of failing.
+	if len(config.UnitBlocks) == 0 && len(config.StackBlocks) == 0 {
+		return nil, ErrStackHasNoComponents
 	}
 
 	if err := ValidateStackConfig(config, filepath.Dir(file.ConfigPath)); err != nil {
@@ -1636,7 +1688,7 @@ func processStackConfigIncludes(
 			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
 
-		if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+		if err := ValidateBlockIterationExperiment(experiments, incFile); err != nil {
 			return err
 		}
 
@@ -1660,6 +1712,8 @@ func processStackConfigIncludes(
 
 		config.Units = append(config.Units, included.Units...)
 		config.Stacks = append(config.Stacks, included.Stacks...)
+		config.UnitBlocks = append(config.UnitBlocks, included.UnitBlocks...)
+		config.StackBlocks = append(config.StackBlocks, included.StackBlocks...)
 	}
 
 	// Validate no duplicate unit names after merge.
@@ -1737,7 +1791,7 @@ func mergeStackAutoIncludeFile(
 		return *typed
 	}
 
-	if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+	if err := ValidateBlockIterationExperiment(experiments, incFile); err != nil {
 		return err
 	}
 
@@ -1770,6 +1824,8 @@ func mergeStackAutoIncludeFile(
 	// A same-name injected unit/stack overrides the base block wholesale, matching unit autoinclude override semantics.
 	config.Units = util.MergeNamed(config.Units, included.Units, unitName)
 	config.Stacks = util.MergeNamed(config.Stacks, included.Stacks, stackName)
+	config.UnitBlocks = append(config.UnitBlocks, included.UnitBlocks...)
+	config.StackBlocks = append(config.StackBlocks, included.StackBlocks...)
 
 	return nil
 }

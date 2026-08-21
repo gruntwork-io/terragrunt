@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -563,3 +564,32 @@ func (err ExpansionRequiresExperimentError) Error() string {
 		experiment.BlockIteration,
 	)
 }
+
+// EnabledRequiresExperimentError is returned when a unit or stack block carries a bare
+// enabled attribute while the block-iteration experiment is off.
+type EnabledRequiresExperimentError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+}
+
+func (err EnabledRequiresExperimentError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s uses an enabled attribute, which requires the '%s' experiment; enable it with --experiment %s",
+		block,
+		err.ConfigPath,
+		experiment.BlockIteration,
+		experiment.BlockIteration,
+	)
+}
+
+// ErrStackHasNoComponents is returned when a stack file declares no unit or stack block at
+// all. A file whose blocks resolve to no components is a different thing entirely and stays
+// valid: every block may be disabled, or expanded over an empty collection, leaving nothing
+// to generate.
+var ErrStackHasNoComponents = errors.New("stack config must contain at least one unit or stack")
