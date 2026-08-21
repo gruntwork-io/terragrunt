@@ -9,18 +9,20 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestRenderJSON_Basic(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 
 	var outputBuffer bytes.Buffer
 
@@ -48,7 +50,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 func TestRenderJSON_WithMetadata(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 
 	var outputBuffer bytes.Buffer
 
@@ -76,7 +78,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 func TestRenderJSON_WriteToFile(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 	outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "output.json")
 	opts.Format = render.FormatJSON
 	opts.RenderMetadata = false
@@ -107,7 +109,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 func TestRenderJSON_InvalidFormat(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 	opts.Format = "invalid"
 
 	err := render.Run(
@@ -123,7 +125,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 func TestRenderJSON_HCLFormat(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 	opts.Format = render.FormatHCL
 
 	var renderedBuffer bytes.Buffer
@@ -139,13 +141,37 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	assert.Equal(t, testTerragruntConfigFixture, renderedBuffer.String())
 }
 
-// setupTest creates a temporary directory with a terragrunt config file and returns the necessary test setup
-func setupTest(t *testing.T) (*render.Options, string) {
+func TestRenderJSON_NumberOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	opts, configPath := setupTest(t, testExtremeExponentConfigFixture)
+	depDir := filepath.Join(filepath.Dir(configPath), "dep")
+	require.NoError(t, os.MkdirAll(depDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0644))
+
+	opts.Format = render.FormatJSON
+	opts.Write = false
+
+	err := render.Run(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
+		opts,
+	)
+
+	var rangeErr ctyhelper.NumberOutOfRangeError
+
+	require.ErrorAs(t, err, &rangeErr)
+	assert.Equal(t, cty.GetAttrPath("dependency").GetAttr("dep").GetAttr("mock_outputs").GetAttr("count"), rangeErr.Path)
+}
+
+// setupTest writes config to a terragrunt.hcl in a fresh temporary directory
+func setupTest(t *testing.T, config string) (*render.Options, string) {
 	t.Helper()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	err := os.WriteFile(configPath, []byte(testTerragruntConfigFixture), 0644)
+	err := os.WriteFile(configPath, []byte(config), 0644)
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest(configPath)
@@ -231,5 +257,15 @@ inputs = {
   }
   number_input = 42
   string_input = "test"
+}
+`
+
+const testExtremeExponentConfigFixture = `dependency "dep" {
+  config_path  = "./dep"
+  skip_outputs = true
+
+  mock_outputs = {
+    count = 9E9999999
+  }
 }
 `
