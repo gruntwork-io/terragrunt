@@ -10,7 +10,6 @@ import (
 	"io"
 	"maps"
 	"net/url"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -1837,6 +1836,7 @@ func terragruntAlreadyInit(
 
 	terraformSource, err := tf.NewSource(
 		l,
+		pctx.Venv.FS,
 		sourceURL,
 		pctx.DownloadDir,
 		pctx.WorkingDir,
@@ -2185,7 +2185,7 @@ func runTerragruntOutputJSON(
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
-	s := shell.NewShellOptions().
+	s := shell.NewShellOptions(pctx.Venv.Env).
 		WithWorkingDir(pctx.WorkingDir).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
@@ -2364,7 +2364,7 @@ func parseAutoIncludeFileCached(
 	pctx *ParsingContext,
 	autoIncludePath string,
 ) (*hclparse.File, error) {
-	fileInfo, err := os.Stat(autoIncludePath)
+	fileInfo, err := pctx.Venv.FS.Stat(autoIncludePath)
 	if err != nil {
 		return nil, err
 	}

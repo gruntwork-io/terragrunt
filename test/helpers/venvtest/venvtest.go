@@ -1,6 +1,7 @@
 // Package venvtest builds in-memory [venv.Venv] values for tests. New seeds
 // the mem defaults; callers refine individual handles with venv.Venv's fluent
 // With methods (WithHandler, WithExec, WithFS, WithSops, WithEnv, WithGOOS,
+// WithGOARCH,
 // WithUserHomeDir). Production code builds venvs through [venv.OSVenv] instead.
 package venvtest
 
@@ -59,7 +60,7 @@ func New() *venv.Venv {
 		Exec: vexec.NewNoSpawnExec(),
 		FS:   vfs.NewMemMapFS(),
 		HTTP: vhttp.NewNoNetworkClient(),
-		Sops: vsops.NewMemDecrypter(func(string, string) ([]byte, error) { return nil, nil }),
+		Sops: vsops.NewMemDecrypter(func(map[string]string, string, string) ([]byte, error) { return nil, nil }),
 		Listen: func(context.Context, string, string) (net.Listener, error) {
 			return nil, ErrNoListen
 		},
@@ -81,7 +82,8 @@ func New() *venv.Venv {
 			GetPID: func() int {
 				return memPID
 			},
-			GOOS: runtime.GOOS,
+			GOOS:   runtime.GOOS,
+			GOARCH: runtime.GOARCH,
 		},
 		Terminal: &venv.Terminal{
 			StdinIsTTY:  func() bool { return false },

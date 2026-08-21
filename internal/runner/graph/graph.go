@@ -33,7 +33,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 	// *Getter discarded: graph.Run only needs creds in v.Env for initial config parse.
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
-	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
+	shellOpts := configbridge.ShellRunOptsFromOpts(v.Env, opts)
 	if _, err := creds.ObtainCredsForParsing(
 		ctx,
 		l,

@@ -39,7 +39,7 @@ func TestRunCommandMemBackendWithRacing(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	opts := shell.NewShellOptions()
+	opts := shell.NewShellOptions(map[string]string{})
 
 	v := venvtest.New().WithExec(e).WithWriter(stdout).WithErrWriter(stderr)
 
@@ -77,7 +77,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	opts := shell.NewShellOptions()
+	opts := shell.NewShellOptions(map[string]string{})
 
 	v := venvtest.New().WithExec(e).WithWriter(stdout).WithErrWriter(stderr)
 

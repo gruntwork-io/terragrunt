@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -47,7 +47,7 @@ var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config
 func walkDirFunc(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
-) func(string, iofs.WalkDirFunc) error {
+) func(string, fs.WalkDirFunc) error {
 	v.RequireFS()
 
 	if opts == nil {
@@ -55,12 +55,12 @@ func walkDirFunc(
 	}
 
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
-		return func(root string, fn iofs.WalkDirFunc) error {
+		return func(root string, fn fs.WalkDirFunc) error {
 			return vfs.WalkDirWithSymlinks(v.FS, root, fn)
 		}
 	}
 
-	return func(root string, fn iofs.WalkDirFunc) error {
+	return func(root string, fn fs.WalkDirFunc) error {
 		return vfs.WalkDir(v.FS, root, fn)
 	}
 }
@@ -392,7 +392,7 @@ func stackDependencyPaths(
 		info, statErr := v.FS.Stat(depPath)
 		// Real I/O errors (permission denied, etc.) must surface so a malformed DAG isn't silently
 		// produced; only ENOENT is treated as "keep the raw path".
-		if statErr != nil && !errors.Is(statErr, iofs.ErrNotExist) {
+		if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
 			return nil, NewStackDependencyExpansionError(depPath, statErr)
 		}
 

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -17,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -25,7 +25,7 @@ import (
 )
 
 // UpdateLockfile updates the dependency lock file. If `.terraform.lock.hcl` does not exist, it will be created, otherwise it will be updated.
-func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider) error {
+func UpdateLockfile(ctx context.Context, fsys vfs.FS, workingDir string, providers []Provider) error {
 	var (
 		filename = filepath.Join(workingDir, tf.TerraformLockFile)
 		file     = hclwrite.NewFile()
@@ -33,7 +33,7 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 
 	// A missing lock file is the first-run case: the empty file built above is
 	// written out as-is.
-	content, err := os.ReadFile(filename)
+	content, err := vfs.ReadFile(fsys, filename)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
@@ -47,24 +47,24 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 		}
 	}
 
-	if err := updateLockfile(ctx, file, providers); err != nil {
+	if err := updateLockfile(ctx, fsys, file, providers); err != nil {
 		return err
 	}
 
 	// CAS may materialize the lock file as a read-only hard link, so remove it before writing
-	if err := os.Remove(filename); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := fsys.Remove(filename); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("failed to remove lock file %s before writing: %w", filename, err)
 	}
 
 	const ownerWriteGlobalReadPerms = 0644
-	if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
+	if err := vfs.WriteFile(fsys, filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func updateLockfile(ctx context.Context, file *hclwrite.File, providers []Provider) error {
+func updateLockfile(ctx context.Context, fsys vfs.FS, file *hclwrite.File, providers []Provider) error {
 	sort.Slice(providers, func(i, j int) bool {
 		return providers[i].Address() < providers[j].Address()
 	})
@@ -73,7 +73,7 @@ func updateLockfile(ctx context.Context, file *hclwrite.File, providers []Provid
 		providerBlock := file.Body().FirstMatchingBlock("provider", []string{provider.Address()})
 		if providerBlock != nil {
 			// update the existing provider block
-			if err := updateProviderBlock(ctx, providerBlock, provider); err != nil {
+			if err := updateProviderBlock(ctx, fsys, providerBlock, provider); err != nil {
 				return err
 			}
 		} else {
@@ -81,7 +81,7 @@ func updateLockfile(ctx context.Context, file *hclwrite.File, providers []Provid
 			file.Body().AppendNewline()
 			providerBlock = file.Body().AppendNewBlock("provider", []string{provider.Address()})
 
-			if err := updateProviderBlock(ctx, providerBlock, provider); err != nil {
+			if err := updateProviderBlock(ctx, fsys, providerBlock, provider); err != nil {
 				return err
 			}
 		}
@@ -93,6 +93,7 @@ func updateLockfile(ctx context.Context, file *hclwrite.File, providers []Provid
 // updateProviderBlock updates the provider block in the dependency lock file.
 func updateProviderBlock(
 	ctx context.Context,
+	fsys vfs.FS,
 	providerBlock *hclwrite.Block,
 	provider Provider,
 ) error {
@@ -117,7 +118,7 @@ func updateProviderBlock(
 		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(constraintsValue))
 	}
 
-	newHashes, err := collectNewHashes(ctx, provider)
+	newHashes, err := collectNewHashes(ctx, fsys, provider)
 	if err != nil {
 		return err
 	}
@@ -142,8 +143,8 @@ func updateProviderBlock(
 // entry for the running platform. When the registry supplies per-platform
 // hashes (the OpenTofu 1.12 `packages` field), those are merged in; otherwise
 // the shasums document supplies the additional `zh:` hashes.
-func collectNewHashes(ctx context.Context, provider Provider) ([]Hash, error) {
-	h1Hash, err := PackageHashV1(provider.PackageDir())
+func collectNewHashes(ctx context.Context, fsys vfs.FS, provider Provider) ([]Hash, error) {
+	h1Hash, err := PackageHashV1(fsys, provider.PackageDir())
 	if err != nil {
 		return nil, err
 	}
@@ -320,12 +321,13 @@ func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
 // but no providers were newly downloaded
 func UpdateLockfileConstraints(
 	ctx context.Context,
+	fsys vfs.FS,
 	workingDir string,
 	constraints ProviderConstraints,
 ) error {
 	filename := filepath.Join(workingDir, tf.TerraformLockFile)
 
-	content, err := os.ReadFile(filename)
+	content, err := vfs.ReadFile(fsys, filename)
 	if err != nil {
 		// Nothing to update when no lock file has been written yet.
 		if errors.Is(err, fs.ErrNotExist) {
@@ -384,7 +386,7 @@ func UpdateLockfileConstraints(
 
 	if updated {
 		const ownerWriteGlobalReadPerms = 0644
-		if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
+		if err := vfs.WriteFile(fsys, filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
 			return err
 		}
 	}

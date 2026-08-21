@@ -173,7 +173,7 @@ func ProcessErrorHooks(
 						ctx,
 						l,
 						hookV,
-						opts.shellRunOptions(),
+						opts.shellRunOptions(env),
 						curHook.WorkingDir,
 						curHook.SuppressStdout,
 						false,
@@ -281,7 +281,7 @@ func runHook(
 		ctx,
 		l,
 		hookV,
-		opts.shellRunOptions(),
+		opts.shellRunOptions(env),
 		workingDir,
 		suppressStdout,
 		false,
@@ -310,7 +310,7 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(), cfg, curHook)
+	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(v.Env), cfg, curHook)
 	if err != nil {
 		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
 		return err

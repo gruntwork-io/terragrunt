@@ -21,12 +21,16 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	fsys vfs.FS,
+	userHomeDir func() (string, error),
 	root *Node,
 	color ColorMode,
 	resultCh <-chan DiscoveryResult,
 	warnCh <-chan viewtui.Warning,
 ) error {
-	_, err := tea.NewProgram(NewModel(l, fsys, root, color, resultCh, warnCh), tea.WithContext(ctx)).Run()
+	_, err := tea.NewProgram(
+		NewModel(l, fsys, userHomeDir, root, color, resultCh, warnCh),
+		tea.WithContext(ctx),
+	).Run()
 	if err == nil {
 		return nil
 	}

@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"errors"
 
@@ -216,7 +215,7 @@ func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		}
 	}
 
-	runner, err := git.NewGitRunner(r.Venv.Exec)
+	runner, err := git.NewGitRunner(r.Venv)
 	if err != nil {
 		return "", err
 	}
@@ -337,7 +336,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 	opts *CloneOptions,
 	ref *symbolicRef,
 ) error {
-	gitRunner, err := git.NewGitRunner(v.Exec)
+	gitRunner, err := git.NewGitRunner(v)
 	if err != nil {
 		return err
 	}
@@ -387,7 +386,7 @@ func (c *CAS) populateTreeFromCommitRef(
 	opts *CloneOptions,
 	ref *commitRef,
 ) (string, error) {
-	gitRunner, err := git.NewGitRunner(v.Exec)
+	gitRunner, err := git.NewGitRunner(v)
 	if err != nil {
 		return "", err
 	}
@@ -804,6 +803,8 @@ func (c *CAS) ensureBlob(
 	hash string,
 	gitPerm os.FileMode,
 ) (err error) {
+	v.RequireGOOS()
+
 	needsWrite, lock, err := c.blobStore.EnsureWithWait(v, hash)
 	if err != nil {
 		return err
@@ -839,7 +840,7 @@ func (c *CAS) ensureBlob(
 		return err
 	}
 
-	if runtime.GOOS == "windows" {
+	if v.Platform.GOOS == WindowsOS {
 		if err = tmpHandle.Sync(); err != nil {
 			return err
 		}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -1724,7 +1725,7 @@ func TestParseJSONRunsFromFile(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFile)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.NoError(t, err)
 		require.Len(t, runs, 1)
 		assert.Equal(t, "test-unit", runs[0].Name)
@@ -1733,7 +1734,7 @@ func TestParseJSONRunsFromFile(t *testing.T) {
 	t.Run("non-existent file", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := report.ParseJSONRunsFromFile(filepath.Join(tmp, "does-not-exist.json"))
+		_, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), filepath.Join(tmp, "does-not-exist.json"))
 		require.Error(t, err)
 	})
 }
@@ -1931,7 +1932,7 @@ func TestParseCSVRunsFromFile(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		runs, err := report.ParseCSVRunsFromFile(reportFile)
+		runs, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.NoError(t, err)
 		require.Len(t, runs, 1)
 		assert.Equal(t, "test-unit", runs[0].Name)
@@ -1940,7 +1941,7 @@ func TestParseCSVRunsFromFile(t *testing.T) {
 	t.Run("non-existent file", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := report.ParseCSVRunsFromFile(filepath.Join(tmp, "does-not-exist.csv"))
+		_, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), filepath.Join(tmp, "does-not-exist.csv"))
 		require.Error(t, err)
 	})
 }
@@ -2109,7 +2110,7 @@ func TestParseJSONRunsFromFileValidation(t *testing.T) {
 			err := os.WriteFile(reportFile, []byte(tt.input), 0644)
 			require.NoError(t, err)
 
-			_, err = report.ParseJSONRunsFromFile(reportFile)
+			_, err = report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -2128,7 +2129,7 @@ func TestParseJSONRunsFromFileValidation(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		_, err = report.ParseJSONRunsFromFile(reportFile)
+		_, err = report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.Error(t, err)
 
 		var schemaErr *report.SchemaValidationError

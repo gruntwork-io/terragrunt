@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -87,6 +88,9 @@ var ErrVenvPlatformUnset = errors.New("venv.Venv.Platform is required but unset"
 // ErrVenvGOOSUnset is the panic value [Venv.RequireGOOS] raises when GOOS is empty.
 var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset")
 
+// ErrVenvGOARCHUnset is the panic value [Venv.RequireGOARCH] raises when GOARCH is empty.
+var ErrVenvGOARCHUnset = errors.New("venv.Venv.Platform.GOARCH is required but unset")
+
 // ErrVenvUserHomeDirUnset is the panic value [Venv.RequireUserHomeDir] raises
 // when UserHomeDir is nil.
 var ErrVenvUserHomeDirUnset = errors.New("venv.Venv.Platform.UserHomeDir is required but unset")
@@ -107,6 +111,7 @@ type Platform struct {
 	Getwd        func() (string, error)
 	GetPID       func() int
 	GOOS         string
+	GOARCH       string
 }
 
 // Terminal reports the console a run's output is adapting to: whether each
@@ -237,6 +242,19 @@ func (v *Venv) WithGOOS(goos string) *Venv {
 	return &c
 }
 
+// WithGOARCH returns a copy of v whose architecture identifier is goarch.
+func (v *Venv) WithGOARCH(goarch string) *Venv {
+	v.RequirePlatform()
+
+	platform := *v.Platform
+	platform.GOARCH = goarch
+
+	c := *v
+	c.Platform = &platform
+
+	return &c
+}
+
 // WithUserHomeDir returns a copy of v whose home-directory lookup is userHomeDir.
 func (v *Venv) WithUserHomeDir(userHomeDir func() (string, error)) *Venv {
 	v.RequirePlatform()
@@ -292,6 +310,16 @@ func (v *Venv) WithEnvCloned() *Venv {
 // functions that write into the shared environment.
 func (v *Venv) RequireEnv() {
 	if v.Env == nil {
+		panic(ErrVenvEnvUnset)
+	}
+}
+
+// RequireEnvMap panics with [ErrVenvEnvUnset] when env is nil. A nil map reads
+// as empty rather than failing, so a function handed one would resolve every
+// lookup to "" and report a run that simply found no environment. Callers that
+// take an environment as a parameter assert it here.
+func RequireEnvMap(env map[string]string) {
+	if env == nil {
 		panic(ErrVenvEnvUnset)
 	}
 }
@@ -382,6 +410,16 @@ func (v *Venv) RequireGOOS() {
 	}
 }
 
+// RequireGOARCH panics with [ErrVenvGOARCHUnset] when GOARCH is empty. The two
+// halves of a platform identifier have to come from the same place: a run that
+// took its GOOS from the venv and its architecture from the binary would name
+// a target that exists on no machine.
+func (v *Venv) RequireGOARCH() {
+	if v.Platform == nil || v.Platform.GOARCH == "" {
+		panic(ErrVenvGOARCHUnset)
+	}
+}
+
 // RequireUserHomeDir panics with [ErrVenvUserHomeDirUnset] when UserHomeDir is nil.
 func (v *Venv) RequireUserHomeDir() {
 	if v.Platform == nil || v.Platform.UserHomeDir == nil {
@@ -430,6 +468,7 @@ func OSVenv() *Venv {
 			Getwd:        os.Getwd,
 			GetPID:       os.Getpid,
 			GOOS:         runtime.GOOS,
+			GOARCH:       runtime.GOARCH,
 		},
 		Terminal: &Terminal{
 			StdinIsTTY:  func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
@@ -451,6 +490,20 @@ func osTerminalWidth() int {
 	}
 
 	return width
+}
+
+// Environ turns an environment map back into os.Environ-style KEY=VALUE
+// entries, sorted so the result does not vary with map iteration order. It is
+// the inverse of [ParseEnviron].
+func Environ(env map[string]string) []string {
+	out := make([]string, 0, len(env))
+	for k, v := range env {
+		out = append(out, k+"="+v)
+	}
+
+	slices.Sort(out)
+
+	return out
 }
 
 // ParseEnviron turns os.Environ-style KEY=VALUE entries into a map, splitting

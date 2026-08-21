@@ -48,7 +48,7 @@ func RunGenerate(
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context, l log.Logger) error {
 			l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
-			return clean.CleanStacks(l, opts)
+			return clean.CleanStacks(l, v.FS, opts)
 		})
 		if err != nil {
 			return fmt.Errorf(
@@ -79,7 +79,7 @@ func RunGenerate(
 		}
 
 		defer func() {
-			cleanupErr := wts.Cleanup(ctx, l)
+			cleanupErr := wts.Cleanup(ctx, l, v.FS)
 			if cleanupErr != nil {
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}
@@ -219,14 +219,14 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 }
 
 // RunClean recursively removes all stack directories under the specified WorkingDir.
-func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func RunClean(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	telemeter := telemetry.TelemeterFromContext(ctx)
 
 	err := telemeter.Collect(ctx, l, "stack_clean", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context, l log.Logger) error {
-		return clean.CleanStacks(l, opts)
+		return clean.CleanStacks(l, v.FS, opts)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)

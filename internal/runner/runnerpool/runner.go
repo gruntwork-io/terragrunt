@@ -531,7 +531,7 @@ func (rnr *Runner) Run(
 					unitLogger,
 					unitV,
 					unitOpts.AuthProviderCmd,
-					configbridge.ShellRunOptsFromOpts(unitOpts),
+					configbridge.ShellRunOptsFromOpts(v.Env, unitOpts),
 				)
 				if err != nil {
 					logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)

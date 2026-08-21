@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -20,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -89,7 +89,7 @@ func (p *WorktreePhase) Run(
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters, err := pair.Expand()
+			fromFilters, toFilters, err := pair.Expand(v.FS)
 			if err != nil {
 				return err
 			}
@@ -543,7 +543,7 @@ func (p *WorktreePhase) walkChangedStack(
 		shaGroup.Go(func() error {
 			var localErr error
 
-			fromSHA, localErr = GenerateDirSHA256(pair.FromComponent.Path())
+			fromSHA, localErr = GenerateDirSHA256(v.FS, pair.FromComponent.Path())
 
 			return localErr
 		})
@@ -551,7 +551,7 @@ func (p *WorktreePhase) walkChangedStack(
 		shaGroup.Go(func() error {
 			var localErr error
 
-			toSHA, localErr = GenerateDirSHA256(pair.ToComponent.Path())
+			toSHA, localErr = GenerateDirSHA256(v.FS, pair.ToComponent.Path())
 
 			return localErr
 		})
@@ -673,10 +673,10 @@ func TranslateDiscoveryContextArgsForWorktree(
 }
 
 // GenerateDirSHA256 calculates a single SHA256 checksum for all files in a directory.
-func GenerateDirSHA256(rootDir string) (string, error) {
+func GenerateDirSHA256(fsys vfs.FS, rootDir string) (string, error) {
 	var filePaths []string
 
-	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDir(fsys, rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -715,7 +715,7 @@ func GenerateDirSHA256(rootDir string) (string, error) {
 		_, _ = hash.Write([]byte(normalizedPath))
 		_, _ = hash.Write([]byte{0})
 
-		f, err := os.Open(path)
+		f, err := fsys.Open(path)
 		if err != nil {
 			return "", fmt.Errorf("could not open file %s: %w", path, err)
 		}

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -214,7 +215,7 @@ func azureDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestat
 		return false
 	}
 
-	tokenFile, ok := azureResolveOIDCTokenFile(config, env, toggles.useOIDC)
+	tokenFile, ok := azureResolveOIDCTokenFile(pctx, config, env, toggles.useOIDC)
 	if !ok {
 		return false
 	}
@@ -258,6 +259,7 @@ func azureDependencyEnv(pctx *ParsingContext) map[string]string {
 // azureEnvSupported rejects dependency environments that diverge from the Terragrunt process or that azurehelper cannot mirror.
 func azureEnvSupported(env map[string]string) bool {
 	for _, key := range azureProcessEnvPassthroughKeys {
+		//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
 		if value, configured := env[key]; configured && value != os.Getenv(key) {
 			return false
 		}
@@ -347,6 +349,7 @@ func azureEnvKeysUnset(env map[string]string, keys []string) bool {
 // azureEnvKeysUnsetInVenvAndProcess also rejects keys the in-process SDK would read from the Terragrunt process.
 func azureEnvKeysUnsetInVenvAndProcess(env map[string]string, keys []string) bool {
 	for _, key := range keys {
+		//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
 		if _, configured := env[key]; configured || os.Getenv(key) != "" {
 			return false
 		}
@@ -437,7 +440,12 @@ func azureCloudEnvironmentSupported(config backend.Config, env map[string]string
 }
 
 // azureResolveOIDCTokenFile rejects token files that are not absolute, not regular, or unreadable from this process.
-func azureResolveOIDCTokenFile(config backend.Config, env map[string]string, useOIDC bool) (string, bool) {
+func azureResolveOIDCTokenFile(
+	pctx *ParsingContext,
+	config backend.Config,
+	env map[string]string,
+	useOIDC bool,
+) (string, bool) {
 	tokenFile, valid := backendConfigStringWithEnv(
 		config,
 		"oidc_token_file_path",
@@ -452,12 +460,11 @@ func azureResolveOIDCTokenFile(config backend.Config, env map[string]string, use
 		return "", true
 	}
 
-	fileInfo, err := os.Stat(tokenFile)
-	if err != nil || !fileInfo.Mode().IsRegular() {
+	if vfs.IsDir(pctx.Venv.FS, tokenFile) {
 		return "", false
 	}
 
-	if _, err := os.ReadFile(tokenFile); err != nil {
+	if _, err := vfs.ReadFile(pctx.Venv.FS, tokenFile); err != nil {
 		return "", false
 	}
 

@@ -4,9 +4,7 @@ package commands
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
-	"runtime"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -308,10 +306,12 @@ func RunAction(
 		}
 	}
 
+	v.RequireGOOS()
+
 	GiveWindowsSymlinksTip(
 		l,
 		v.FS,
-		runtime.GOOS,
+		v.Platform.GOOS,
 		opts.Tips,
 		v.Env,
 		opts.ProviderCacheOptions.Enabled,
@@ -403,7 +403,7 @@ func setupAutoProviderCacheDir(
 
 	if opts.TerraformVersion == nil {
 		_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
 			WorkingDir:   opts.WorkingDir,
 			VersionFiles: opts.VersionManagerFileName,
 		})
@@ -464,7 +464,7 @@ func setupAutoProviderCacheDir(
 	const cacheDirMode = 0755
 
 	// Create the cache directory if it doesn't exist
-	if err := os.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
+	if err := v.FS.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
 		return fmt.Errorf("failed to create provider cache directory: %w", err)
 	}
 
@@ -516,7 +516,7 @@ func initialSetup(
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {
-		currentDir, err := os.Getwd()
+		currentDir, err := v.Platform.Getwd()
 		if err != nil {
 			return err
 		}
@@ -556,7 +556,7 @@ func initialSetup(
 
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
-		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
+		opts.TerragruntConfigPath = config.GetDefaultConfigPath(v.FS, opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runcmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
 		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, opts.TerragruntConfigPath)

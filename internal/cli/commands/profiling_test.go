@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -22,7 +23,7 @@ func TestWrapWithProfilingRequiresExperiment(t *testing.T) {
 
 	v := venvtest.New()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.ProfileCPU = filepath.Join(t.TempDir(), "cpu.prof")
 
 	called := false
@@ -45,7 +46,7 @@ func TestWrapWithProfilingNoFlagsRunsAction(t *testing.T) {
 
 	v := venvtest.New()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 	called := false
 	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
@@ -64,7 +65,7 @@ func TestWrapWithProfilingWritesProfile(t *testing.T) {
 
 	v := venvtest.New()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Profiling))
 
@@ -85,7 +86,7 @@ func TestWrapWithProfilingTightensExistingFilePermissions(t *testing.T) {
 
 	v := venvtest.New()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Profiling))
 

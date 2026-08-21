@@ -431,6 +431,7 @@ func gcsUnsupportedEnvUnset(env map[string]string) bool {
 	}
 
 	for _, key := range gcsUnsupportedProcessEnvKeys {
+		//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
 		if env[key] != "" || os.Getenv(key) != "" {
 			return false
 		}
@@ -442,11 +443,13 @@ func gcsUnsupportedEnvUnset(env map[string]string) bool {
 // gcsProcessEnvDivergenceSupported rejects venv values the in-process client would not see, since it reads the real process.
 func gcsProcessEnvDivergenceSupported(env map[string]string) bool {
 	value, configured := env["GOOGLE_APPLICATION_CREDENTIALS"]
+	//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
 	if configured && value == "" && os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") != "" {
 		return false
 	}
 
 	for _, key := range gcsProcessSharedEnvKeys {
+		//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
 		if value, configured := env[key]; configured && value != os.Getenv(key) {
 			return false
 		}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -55,7 +56,11 @@ func TestRunUnwindsCleanlyWhenContextCancelledWithRacing(t *testing.T) {
 func TestNewCommandIsNamedBrowse(t *testing.T) {
 	t.Parallel()
 
-	cmd := browse.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), venvtest.NewOSWithEmptyEnv())
+	cmd := browse.NewCommand(
+		logger.CreateLogger(),
+		options.NewTerragruntOptions(vexec.NewOSExec()),
+		venvtest.NewOSWithEmptyEnv(),
+	)
 
 	require.NotNil(t, cmd)
 	assert.Equal(t, browse.CommandName, cmd.Name)

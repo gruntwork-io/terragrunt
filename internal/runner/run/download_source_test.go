@@ -689,7 +689,7 @@ func createConfig(
 		l,
 		versionV,
 		run.PopulateTFVersionInput{
-			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			TFOpts:       configbridge.TFRunOptsFromOpts(map[string]string{}, opts),
 			WorkingDir:   opts.WorkingDir,
 			VersionFiles: opts.VersionManagerFileName,
 		},
@@ -1609,6 +1609,7 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 
 	src, err := tf.NewSource(
 		logger.CreateLogger(),
+		v.FS,
 		"git::https://github.com/gruntwork-io/terragrunt.git//foo",
 		t.TempDir(),
 		opts.WorkingDir,

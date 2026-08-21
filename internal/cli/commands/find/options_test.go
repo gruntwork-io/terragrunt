@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,7 +14,7 @@ import (
 func TestNewOptionsDefaultsValidate(t *testing.T) {
 	t.Parallel()
 
-	opts := find.NewOptions(options.NewTerragruntOptions())
+	opts := find.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	assert.Equal(t, find.FormatText, opts.Format)
 	assert.Equal(t, find.ModeNormal, opts.Mode)
@@ -59,7 +60,7 @@ func TestOptionsValidate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := find.NewOptions(options.NewTerragruntOptions())
+			opts := find.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
 			opts.Format = tc.format
 			opts.Mode = tc.mode
 

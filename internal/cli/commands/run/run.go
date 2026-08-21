@@ -86,7 +86,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v,
-		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
+		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(v.Env, opts)),
 	); err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func runVersionCommand(
 		ctx,
 		l,
 		v,
-		configbridge.TFRunOptsFromOpts(opts),
+		configbridge.TFRunOptsFromOpts(v.Env, opts),
 		opts.TerraformCliArgs.Slice()...)
 }
 
@@ -221,7 +221,7 @@ func checkVersionConstraints(
 	}
 
 	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
 		WorkingDir:   opts.WorkingDir,
 		VersionFiles: opts.VersionManagerFileName,
 	})

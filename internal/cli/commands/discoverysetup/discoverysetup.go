@@ -39,7 +39,7 @@ func Worktrees(
 	}
 
 	cleanup := func(ctx context.Context) {
-		if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
+		if cleanupErr := wts.Cleanup(ctx, l, v.FS); cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
 	}

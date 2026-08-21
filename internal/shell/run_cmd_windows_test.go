@@ -28,6 +28,7 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	l := logger.CreateLogger()
+	v := venv.OSVenv()
 
 	errCh := make(chan error)
 	expectedWait := 5
@@ -40,8 +41,8 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 		_, err := shell.RunCommandWithOutput(
 			ctx,
 			l,
-			venv.OSVenv(),
-			configbridge.ShellRunOptsFromOpts(terragruntOptions),
+			v,
+			configbridge.ShellRunOptsFromOpts(v.Env, terragruntOptions),
 			"",
 			false,
 			false,

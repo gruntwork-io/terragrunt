@@ -220,26 +220,28 @@ func TestTagsMarkdownSection(t *testing.T) {
 }
 
 func TestEnvTagsListLayoutToggle(t *testing.T) {
-	t.Setenv(tui.EnvTagsListLayout, "row")
-	assert.True(t, (tui.ResolveTagsListLayout() == tui.TagsListLayoutRow))
+	t.Parallel()
 
-	t.Setenv(tui.EnvTagsListLayout, "META")
-	assert.True(t, (tui.ResolveTagsListLayout() == tui.TagsListLayoutMeta))
+	layoutFor := func(value string) tui.TagsListLayout {
+		return tui.ResolveTagsListLayout(map[string]string{tui.EnvTagsListLayout: value})
+	}
 
-	t.Setenv(tui.EnvTagsListLayout, "")
-	assert.True(t, (tui.ResolveTagsListLayout() == tui.TagsListLayoutMeta))
-
-	t.Setenv(tui.EnvTagsListLayout, "garbage")
-	assert.True(t, (tui.ResolveTagsListLayout() == tui.TagsListLayoutMeta))
+	assert.Equal(t, tui.TagsListLayoutRow, layoutFor("row"))
+	assert.Equal(t, tui.TagsListLayoutMeta, layoutFor("META"))
+	assert.Equal(t, tui.TagsListLayoutMeta, layoutFor(""))
+	assert.Equal(t, tui.TagsListLayoutMeta, layoutFor("garbage"))
+	assert.Equal(t, tui.TagsListLayoutMeta, tui.ResolveTagsListLayout(map[string]string{}))
 }
 
 func TestEnvTagsDetailStyleToggle(t *testing.T) {
-	t.Setenv(tui.EnvTagsDetailStyle, "section")
-	assert.True(t, (tui.ResolveTagsDetailStyle() == tui.TagsDetailStyleSection))
+	t.Parallel()
 
-	t.Setenv(tui.EnvTagsDetailStyle, "")
-	assert.True(t, (tui.ResolveTagsDetailStyle() == tui.TagsDetailStylePills))
+	styleFor := func(value string) tui.TagsDetailStyle {
+		return tui.ResolveTagsDetailStyle(map[string]string{tui.EnvTagsDetailStyle: value})
+	}
 
-	t.Setenv(tui.EnvTagsDetailStyle, "garbage")
-	assert.True(t, (tui.ResolveTagsDetailStyle() == tui.TagsDetailStylePills))
+	assert.Equal(t, tui.TagsDetailStyleSection, styleFor("section"))
+	assert.Equal(t, tui.TagsDetailStylePills, styleFor(""))
+	assert.Equal(t, tui.TagsDetailStylePills, styleFor("garbage"))
+	assert.Equal(t, tui.TagsDetailStylePills, tui.ResolveTagsDetailStyle(map[string]string{}))
 }

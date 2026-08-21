@@ -336,7 +336,7 @@ func PinModuleVersion(
 
 	registryDomain := sourceURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(tofuImpl)
+		registryDomain = tfimpl.DefaultRegistryDomain(auth.Env, tofuImpl)
 	}
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, c, auth, registryDomain)
@@ -557,23 +557,23 @@ type moduleVersion struct {
 // RegistryAuth carries everything the registry protocol needs to authenticate
 // a request, so nothing on the path reaches for process state of its own.
 type RegistryAuth struct {
-	Env            map[string]string
-	ReadUserConfig bool
+	Env map[string]string
+	FS  vfs.FS
 }
 
 // applyHostToken adds an Authorization header to req based on the user's
 // OpenTofu/Terraform CLI config or the TG_TF_REGISTRY_TOKEN env var.
 func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error) {
-	// The CLI config lives in the invoking user's home directory, off any
-	// virtual filesystem, so a run that is not on the real disk skips it and
-	// authenticates from the env alone.
-	if auth.ReadUserConfig {
-		cliCfg, err := cliconfig.LoadUserConfig(vfs.NewOSFS())
+	// LoadUserConfig's vendored loader reads the invoking user's home directory
+	// directly, ignoring the filesystem it is handed, so it is only consulted
+	// when that filesystem is the real one.
+	if vfs.IsOSFS(auth.FS) {
+		cliCfg, err := cliconfig.LoadUserConfig(auth.FS)
 		if err != nil {
 			return nil, err
 		}
 
-		if creds := cliCfg.CredentialsSource().
+		if creds := cliCfg.CredentialsSource(auth.Env).
 			ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
 			creds.PrepareRequest(req)
 			return req, nil

@@ -50,7 +50,7 @@ type RegistryGetter struct {
 // The user's CLI config lives on the real disk, so it is only consulted when
 // the getter is running against the OS filesystem.
 func (r *RegistryGetter) auth() RegistryAuth {
-	return RegistryAuth{Env: r.Venv.Env, ReadUserConfig: vfs.IsOSFS(r.Venv.FS)}
+	return RegistryAuth{Env: r.Venv.Env, FS: r.Venv.FS}
 }
 
 // NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol
@@ -112,7 +112,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 
 	registryDomain := srcURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(r.TofuImplementation)
+		registryDomain = tfimpl.DefaultRegistryDomain(r.Venv.Env, r.TofuImplementation)
 	}
 
 	queryValues := srcURL.Query()

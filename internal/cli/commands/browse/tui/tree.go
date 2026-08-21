@@ -180,7 +180,7 @@ func (m *Model) loadDir(n *Node) {
 
 	n.othersLoaded = true
 
-	entries, err := vfs.ReadDirEntries(m.fsys, n.absPath)
+	entries, err := vfs.ReadDir(m.fsys, n.absPath)
 	if err != nil {
 		return
 	}

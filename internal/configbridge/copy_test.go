@@ -183,7 +183,7 @@ func TestShellRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
+	shellOpts := configbridge.ShellRunOptsFromOpts(map[string]string{}, opts)
 	require.NotNil(t, shellOpts)
 
 	assert.Equal(t, opts.WorkingDir, shellOpts.WorkingDir, "commands run in the working dir of the unit")
@@ -205,7 +205,7 @@ func TestTFRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	tfOpts := configbridge.TFRunOptsFromOpts(opts)
+	tfOpts := configbridge.TFRunOptsFromOpts(map[string]string{}, opts)
 	require.NotNil(t, tfOpts)
 
 	assert.True(t, tfOpts.JSONLogFormat)
