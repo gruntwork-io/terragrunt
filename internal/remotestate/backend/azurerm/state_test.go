@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -184,6 +186,8 @@ func stateAzureConfig(transport policy.Transporter) *azurehelper.AzureConfig {
 		ClientOptions: policy.ClientOptions{
 			Transport: transport,
 			Cloud:     cloud.AzurePublic,
+			// The stub answers immediately; retrying a fixed status only adds wall time.
+			Retry: policy.RetryOptions{MaxRetries: -1},
 		},
 		Method: azurehelper.AuthMethodAzureAD,
 	}
@@ -208,4 +212,122 @@ func stateResponse(
 		ContentLength: int64(len(body)),
 		Request:       req,
 	}
+}
+
+// TestNewStateBlobClientSeparatesTransientFromCoordinateFailures pins that only
+// causes pointing at configuration or permissions carry the coordinate guidance:
+// throttling, a 5xx, or a cancelled context say nothing about the config.
+func TestNewStateBlobClientSeparatesTransientFromCoordinateFailures(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		armStatus    int
+		wantGuidance bool
+	}{
+		{name: "missing resource group", armStatus: http.StatusNotFound, wantGuidance: true},
+		{name: "permission denied", armStatus: http.StatusForbidden, wantGuidance: true},
+		{name: "bad request", armStatus: http.StatusBadRequest, wantGuidance: true},
+		{name: "throttled", armStatus: http.StatusTooManyRequests},
+		{name: "service unavailable", armStatus: http.StatusServiceUnavailable},
+		{name: "internal server error", armStatus: http.StatusInternalServerError},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := stateAzureConfig(&stateTransport{armStatus: testCase.armStatus})
+
+			_, err := azurerm.NewStateBlobClient(t.Context(), logger.CreateLogger(), cfg)
+			require.Error(t, err)
+
+			// The phase marker is always present so callers can tell setup from an absent blob.
+			require.ErrorIs(t, err, azurerm.ErrStateClientSetup)
+			assert.Equal(t, testCase.wantGuidance, errors.Is(err, azurerm.ErrStateClientCoordinates),
+				"coordinate guidance must appear only for configuration or permission causes")
+		})
+	}
+}
+
+// TestNewStateBlobClientCancelledContextOmitsGuidance pins that a cancelled run
+// is not reported as a misconfiguration.
+func TestNewStateBlobClientCancelledContextOmitsGuidance(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), stateAzureConfig(&stateTransport{}))
+	require.Error(t, err)
+	require.ErrorIs(t, err, azurerm.ErrStateClientSetup)
+	assert.NotErrorIs(t, err, azurerm.ErrStateClientCoordinates,
+		"a cancelled context must not be reported as a configuration problem")
+}
+
+// TestStateClientCacheReusesSharedKey pins that repeated reads against one
+// storage account cost a single ARM ListKeys call, and that a different account
+// or identity never reuses another's key.
+func TestStateClientCacheReusesSharedKey(t *testing.T) {
+	t.Parallel()
+
+	listKeyCalls := func(t *testing.T, ctx context.Context, mutate func(*azurehelper.AzureConfig)) int {
+		t.Helper()
+
+		transport := &stateTransport{}
+
+		for range 3 {
+			cfg := stateAzureConfig(transport)
+			if mutate != nil {
+				mutate(cfg)
+			}
+
+			_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), cfg)
+			require.NoError(t, err)
+		}
+
+		calls := 0
+
+		for _, req := range transport.Requests() {
+			if strings.Contains(req.URL.Path, "listKeys") {
+				calls++
+			}
+		}
+
+		return calls
+	}
+
+	t.Run("uncached context resolves every time", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, 3, listKeyCalls(t, t.Context(), nil))
+	})
+
+	t.Run("cached context resolves once", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, 1, listKeyCalls(t, azurerm.WithStateClientCache(t.Context()), nil))
+	})
+
+	t.Run("a different account does not reuse the key", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := azurerm.WithStateClientCache(t.Context())
+		accounts := 0
+
+		assert.Equal(t, 3, listKeyCalls(t, ctx, func(cfg *azurehelper.AzureConfig) {
+			accounts++
+			cfg.AccountName = fmt.Sprintf("stateaccount%d", accounts)
+		}))
+	})
+
+	t.Run("a different identity does not reuse the key", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := azurerm.WithStateClientCache(t.Context())
+		identities := 0
+
+		assert.Equal(t, 3, listKeyCalls(t, ctx, func(cfg *azurehelper.AzureConfig) {
+			identities++
+			cfg.ClientID = fmt.Sprintf("client-%d", identities)
+		}))
+	})
 }

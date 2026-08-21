@@ -330,8 +330,27 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // t.Setenv below clears the ambient environment and forbids t.Parallel.
 func TestShouldFetchDependencyOutputFromState(t *testing.T) {
-	t.Parallel()
+	// The eligibility predicates read the ambient process environment because the
+	// in-process cloud SDKs do. Clear it so the table does not depend on the
+	// developer or runner environment. t.Setenv forbids t.Parallel.
+	for _, key := range []string{
+		"GOOGLE_APPLICATION_CREDENTIALS",
+		"GOOGLE_CLOUD_UNIVERSE_DOMAIN",
+		"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES",
+		"GOOGLE_STORAGE_CUSTOM_ENDPOINT",
+		"AZURE_KUBERNETES_CA_DATA",
+		"AZURE_KUBERNETES_CA_FILE",
+		"AZURE_KUBERNETES_SNI_NAME",
+		"AZURE_KUBERNETES_TOKEN_PROXY",
+		"all_proxy",
+		"http_proxy",
+		"https_proxy",
+		"no_proxy",
+	} {
+		t.Setenv(key, "")
+	}
 
 	testDir := t.TempDir()
 	oidcTokenPath := filepath.Join(testDir, "oidc-token")
@@ -1025,8 +1044,6 @@ func TestShouldFetchDependencyOutputFromState(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
 			env := testCase.env
 			if env == nil {
 				env = map[string]string{}

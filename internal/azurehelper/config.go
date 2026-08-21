@@ -116,6 +116,8 @@ type AzureConfig struct {
 	SubscriptionID string
 	// TenantID is the Azure AD tenant scope. May be empty for non-AD methods.
 	TenantID string
+	// ClientID is the resolved service principal or workload identity client id.
+	ClientID string
 	// AccountName is the storage account name.
 	AccountName string
 	// ResourceGroup is the resource group containing the storage account.
@@ -166,6 +168,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 		UseAzureADAuth: util.Deref(resolved.UseAzureADAuth),
 		SubscriptionID: resolved.SubscriptionID,
 		TenantID:       resolved.TenantID,
+		ClientID:       resolved.ClientID,
 		AccountName:    resolved.StorageAccountName,
 		ResourceGroup:  resolved.ResourceGroupName,
 		CloudConfig:    cloudCfg,

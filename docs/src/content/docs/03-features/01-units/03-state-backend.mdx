@@ -365,7 +365,7 @@ Otherwise, these operations return an error. Reading and writing the state itsel
 OpenTofu/Terraform's native `azurerm` backend.
 
 <Since version="1.1.4">
-When both `azure-backend` and [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) are enabled, Terragrunt reads dependency outputs directly from the Azure state blob. Normal state reads and writes remain with the native backend.
+When both `azure-backend` and [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) are enabled, and the Azure backend configuration is supported by the direct reader, Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path. Normal state reads and writes remain with the native backend.
 </Since>
 </Since>
 </Aside>

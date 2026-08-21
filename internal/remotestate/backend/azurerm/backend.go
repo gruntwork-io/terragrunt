@@ -10,6 +10,7 @@ package azurerm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -161,15 +162,53 @@ func NewStateBlobClient(
 		return azurehelper.NewBlobClient(cfg)
 	}
 
-	keyed, err := sharedKeyConfig(ctx, cfg)
+	keyed, err := cachedSharedKeyConfig(ctx, cfg)
 	if err != nil {
-		// The ARM key lookup answers 404 for a wrong resource group, account, or subscription.
-		return nil, fmt.Errorf("%w: %w", ErrStateClientSetup, err)
+		// Throttling, a 5xx, or a cancelled context says nothing about the configuration.
+		if transientStateClientFailure(err) {
+			return nil, fmt.Errorf("%w: %w", ErrStateClientSetup, err)
+		}
+
+		return nil, fmt.Errorf("%w: %w: %w", ErrStateClientSetup, ErrStateClientCoordinates, err)
 	}
 
 	l.Debugf("%s: using shared-key authorization for direct state access", BackendName)
 
 	return azurehelper.NewBlobClient(keyed)
+}
+
+// cachedSharedKeyConfig resolves the account key once per run when the context
+// carries a cache, so N dependencies on one account cost one ARM ListKeys call.
+func cachedSharedKeyConfig(
+	ctx context.Context,
+	cfg *azurehelper.AzureConfig,
+) (*azurehelper.AzureConfig, error) {
+	keyCache := stateClientCacheFromContext(ctx)
+	if keyCache == nil {
+		return sharedKeyConfig(ctx, cfg)
+	}
+
+	cacheKey := sharedKeyCacheKey(cfg)
+	if cached, found := keyCache.Get(ctx, cacheKey); found {
+		return cached, nil
+	}
+
+	keyed, err := sharedKeyConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	keyCache.Put(ctx, cacheKey, keyed)
+
+	return keyed, nil
+}
+
+// transientStateClientFailure reports whether a client-setup failure is a passing
+// service condition rather than a configuration or permissions problem.
+func transientStateClientFailure(err error) bool {
+	return azurehelper.IsRetryable(err) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded)
 }
 
 // OpenStateBlob opens the configured state blob using the native azurerm

@@ -237,7 +237,7 @@ linters:
         path: ^(internal/runner/common/unit_runner\.go|internal/runner/run/debug\.go|internal/runner/run/run\.go|internal/runner/runnerpool/runner\.go)$
       - linters:
           - forbidigo
-        path: ^(pkg/config/catalog\.go|pkg/config/config_helpers\.go|pkg/config/config_partial\.go|pkg/config/config\.go|pkg/config/dependency\.go|pkg/config/stack\.go)$
+        path: ^(pkg/config/catalog\.go|pkg/config/config_helpers\.go|pkg/config/config_partial\.go|pkg/config/config\.go|pkg/config/dependency\.go|pkg/config/dependency_state_azurerm\.go|pkg/config/dependency_state_gcs\.go|pkg/config/stack\.go)$
       # DefaultWrappedPath is a package-level var, so it probes for `tofu` at
       # init time, before any venv exists.
       #
