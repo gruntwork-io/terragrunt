@@ -55,7 +55,7 @@ type FlagValue interface {
 
 	GetInitialTextValue() string
 
-	// IsSet returns true if the flag was set either by env var or CLI arg.
+	// IsSet returns true if the flag was set by a CLI arg, an env var or an external default.
 	IsSet() bool
 
 	// IsArgSet returns true if the flag was set by CLI arg.
@@ -63,6 +63,10 @@ type FlagValue interface {
 
 	// IsEnvSet returns true if the flag was set by env var.
 	IsEnvSet() bool
+
+	// IsDefaultSet returns true if the flag was set from an external default, such as a
+	// configuration file, rather than by the user.
+	IsDefaultSet() bool
 
 	// IsBoolFlag returns true if the flag is of type bool.
 	IsBoolFlag() bool
@@ -124,10 +128,28 @@ type Flag interface {
 	Parse(args Args, env map[string]string) error
 }
 
+// FlagDefaultsFunc returns the values an external source, such as a configuration file,
+// declares for a flag.
+//
+// cmdPath is the chain of commands from the root command down to the command being
+// parsed, one entry per command, each holding the names that command answers to: its own
+// name first, then its aliases. It is empty for the global flags of the application
+// itself.
+//
+// A flag that accepts multiple values yields one string per value, exactly as the flag
+// would be repeated on the command line. The second return value reports whether the
+// source declares anything for the flag at all.
+type FlagDefaultsFunc func(cmdPath [][]string, flag Flag) ([]string, bool)
+
 type FlagValueGetter interface {
 	libflag.Getter
 
 	EnvSet(str string) error
+
+	// DefaultSet assigns a value that came from an external default, such as a
+	// configuration file. The flag counts as set, so its action runs, but it is not
+	// reported as having been given by the user.
+	DefaultSet(str string) error
 }
 
 type flagValueGetter struct {
@@ -136,40 +158,45 @@ type flagValueGetter struct {
 }
 
 func (flag *flagValueGetter) EnvSet(val string) error {
-	var err error
+	firstSet := !flag.envHasBeenSet
+	flag.envHasBeenSet = true
 
-	if !flag.envHasBeenSet {
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
-		flag.value.Reset()
-		flag.envHasBeenSet = true
-	} else if !flag.multipleSet {
-		err = ErrMultipleTimesSettingEnvVar
-	}
+	return flag.assign(val, firstSet, ErrMultipleTimesSettingEnvVar)
+}
 
-	flag.name = flag.valueName
+func (flag *flagValueGetter) DefaultSet(val string) error {
+	firstSet := !flag.defaultHasBeenSet
+	flag.defaultHasBeenSet = true
 
-	if err := flag.value.Set(val); err != nil {
-		return err
-	}
-
-	return err
+	return flag.assign(val, firstSet, ErrMultipleTimesSettingFlag)
 }
 
 func (flag *flagValueGetter) Set(val string) error {
+	firstSet := !flag.hasBeenSet
+	flag.hasBeenSet = true
+
+	return flag.assign(val, firstSet, ErrMultipleTimesSettingFlag)
+}
+
+// assign gives the flag a value on behalf of one of its sources.
+//
+// The first value a source assigns clears whatever the flag held before, which may be a
+// built-in default or a value from a lower priority source. Assigning a second time from
+// the same source reports repeatedErr, unless the flag takes multiple values, and the
+// value is assigned either way.
+func (flag *flagValueGetter) assign(val string, firstSet bool, repeatedErr error) error {
 	var err error
 
-	if !flag.hasBeenSet {
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
+	if firstSet {
 		flag.value.Reset()
-		flag.hasBeenSet = true
 	} else if !flag.multipleSet {
-		err = ErrMultipleTimesSettingFlag
+		err = repeatedErr
 	}
 
 	flag.name = flag.valueName
 
-	if err := flag.value.Set(val); err != nil {
-		return err
+	if setErr := flag.value.Set(val); setErr != nil {
+		return setErr
 	}
 
 	return err
@@ -182,13 +209,14 @@ type Value interface {
 
 // flag is a common flag related to parsing flags in cli.
 type flagValue struct {
-	value            Value
-	name             string
-	initialTextValue string
-	multipleSet      bool
-	hasBeenSet       bool
-	envHasBeenSet    bool
-	negative         bool
+	value             Value
+	name              string
+	initialTextValue  string
+	multipleSet       bool
+	hasBeenSet        bool
+	envHasBeenSet     bool
+	defaultHasBeenSet bool
+	negative          bool
 }
 
 func (flag *flagValue) MultipleSet() bool {
@@ -227,7 +255,7 @@ func (flag *flagValue) GetInitialTextValue() string {
 }
 
 func (flag *flagValue) IsSet() bool {
-	return flag.hasBeenSet || flag.envHasBeenSet
+	return flag.hasBeenSet || flag.envHasBeenSet || flag.defaultHasBeenSet
 }
 
 func (flag *flagValue) IsArgSet() bool {
@@ -236,6 +264,10 @@ func (flag *flagValue) IsArgSet() bool {
 
 func (flag *flagValue) IsEnvSet() bool {
 	return flag.envHasBeenSet
+}
+
+func (flag *flagValue) IsDefaultSet() bool {
+	return flag.defaultHasBeenSet
 }
 
 func (flag *flagValue) GetName() string {
