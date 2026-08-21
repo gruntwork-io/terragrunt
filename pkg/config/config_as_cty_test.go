@@ -397,6 +397,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "locals", true
 	case "TerragruntDependencies":
 		return "dependency", true
+	case "DependencyDefaults":
+		return "dependency_defaults", true
 	case "GenerateConfigs":
 		return "generate", true
 	case "IsPartial":

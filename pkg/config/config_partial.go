@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -34,6 +35,7 @@ const (
 	TerragruntVersionConstraints
 	RemoteStateBlock
 	FeatureFlagsBlock
+	DependencyDefaultsBlock
 	EngineBlock
 	ExcludeBlock
 	ErrorsBlock
@@ -56,6 +58,13 @@ type terragruntDependencies struct {
 type terragruntFeatureFlags struct {
 	Remain       hcl.Body     `hcl:",remain"`
 	FeatureFlags FeatureFlags `hcl:"feature,block"`
+}
+
+// terragruntDependencyDefaults is used when dependency defaults must be decoded
+// before dependency outputs are resolved.
+type terragruntDependencyDefaults struct {
+	Remain             hcl.Body            `hcl:",remain"`
+	DependencyDefaults *DependencyDefaults `hcl:"dependency_defaults,block"`
 }
 
 // terragruntErrors struct to decode errors block
@@ -177,6 +186,7 @@ type terragruntEngine struct {
 // - locals
 // - features
 // - include
+// - dependency_defaults
 func DecodeBaseBlocks(
 	ctx context.Context,
 	pctx *ParsingContext,
@@ -265,11 +275,78 @@ func DecodeBaseBlocks(
 		return nil, err
 	}
 
+	defaultsPctx := pctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal).WithLocals(&localsAsCtyVal)
+
+	defaultsEvalContext, err := createTerragruntEvalContext(ctx, defaultsPctx, l, file.ConfigPath)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	var defaults *DependencyDefaults
+	if defaultsEvalContext != nil {
+		defaults, err = decodeAndMergeDependencyDefaults(ctx, defaultsPctx, l, file, defaultsEvalContext, trackInclude)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	return &DecodedBaseBlocks{
-		TrackInclude: trackInclude,
-		Locals:       &localsAsCtyVal,
-		FeatureFlags: &flagsAsCtyVal,
+		TrackInclude:       trackInclude,
+		Locals:             &localsAsCtyVal,
+		FeatureFlags:       &flagsAsCtyVal,
+		DependencyDefaults: defaults,
 	}, errors.Join(errs...)
+}
+
+func decodeAndMergeDependencyDefaults(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+	trackInclude *TrackInclude,
+) (*DependencyDefaults, error) {
+	decoded := terragruntDependencyDefaults{}
+	if err := file.Decode(&decoded, evalContext); err != nil {
+		return nil, err
+	}
+
+	if decoded.DependencyDefaults != nil && !pctx.Experiments.Evaluate(experiment.DependencyDefaults) {
+		return nil, fmt.Errorf("dependency_defaults requires the %q experiment to be enabled", experiment.DependencyDefaults)
+	}
+
+	defaults := decoded.DependencyDefaults.clone()
+	if trackInclude == nil {
+		return defaults, nil
+	}
+
+	includePctx := pctx.WithDecodeList(DependencyDefaultsBlock)
+
+	for i := len(trackInclude.CurrentList) - 1; i >= 0; i-- {
+		includeConfig := trackInclude.CurrentList[i]
+
+		strategy, err := includeConfig.GetMergeStrategy()
+		if err != nil {
+			return nil, err
+		}
+
+		if strategy == NoMerge {
+			continue
+		}
+
+		included, err := partialParseIncludedConfig(ctx, includePctx, l, &includeConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		if defaults == nil && included.DependencyDefaults != nil {
+			// A child default overrides an inherited one. There is currently one
+			// default attribute, so both shallow and deep includes use replacement.
+			defaults = included.DependencyDefaults.clone()
+		}
+	}
+
+	return defaults, nil
 }
 
 // mergeIncludedFeatureFlags merges feature defaults from included configs into the current parse.
@@ -650,6 +727,7 @@ func PartialParseConfig(
 		pctx = pctx.WithTrackInclude(baseBlocks.TrackInclude)
 		pctx = pctx.WithFeatures(baseBlocks.FeatureFlags)
 		pctx = pctx.WithLocals(baseBlocks.Locals)
+		pctx = pctx.WithDependencyDefaults(baseBlocks.DependencyDefaults)
 	}
 
 	// Set parsed Locals on the parsed config
@@ -659,6 +737,7 @@ func PartialParseConfig(
 	}
 
 	output.IsPartial = true
+	output.DependencyDefaults = pctx.DependencyDefaults.clone()
 
 	// Provide a dependency placeholder so remote_state can reference dependency outputs during partial decode.
 	if pctx.DecodedDependencies == nil && pctx.SkipOutputsResolution {
@@ -737,7 +816,7 @@ func PartialParseConfig(
 			decodedDeps, err := decodeDependencyBlocks(
 				file,
 				evalParsingContext,
-				pctx.Experiments,
+				pctx,
 			)
 			if err != nil {
 				return nil, err
@@ -841,6 +920,16 @@ func PartialParseConfig(
 				output.FeatureFlags = flags
 			} else {
 				output.FeatureFlags = decoded.FeatureFlags
+			}
+
+		case DependencyDefaultsBlock:
+			decoded := terragruntDependencyDefaults{}
+			if err := file.Decode(&decoded, evalParsingContext); err != nil {
+				return nil, err
+			}
+
+			if decoded.DependencyDefaults != nil {
+				output.DependencyDefaults = decoded.DependencyDefaults.clone()
 			}
 
 		case ExcludeBlock:

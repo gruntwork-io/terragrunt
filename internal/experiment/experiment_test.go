@@ -50,6 +50,15 @@ func TestOptionalHooksIsOngoing(t *testing.T) {
 	assert.Equal(t, experiment.StatusOngoing, got.Status, "optional-hooks must be ongoing")
 	assert.False(t, got.Evaluate(), "optional-hooks must be disabled by default")
 }
+func TestDependencyDefaultsIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.DependencyDefaults)
+	require.NotNil(t, got, "dependency-defaults experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "dependency-defaults must be ongoing")
+	assert.False(t, got.Evaluate(), "dependency-defaults must be disabled by default")
+}
 
 func TestProfilingIsOngoing(t *testing.T) {
 	t.Parallel()
