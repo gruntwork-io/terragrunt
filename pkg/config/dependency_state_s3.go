@@ -16,7 +16,6 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -47,72 +46,37 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 ) ([]byte, error) {
 	bucket := fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])
 	key := s3StateObjectKey(remoteState.BackendConfig, workspace)
+	location := fmt.Sprintf("s3://%s/%s", bucket, key)
 
-	l.Debugf("Fetching outputs directly from s3://%s/%s", bucket, key)
+	open := func(ctx context.Context, l log.Logger) (io.ReadCloser, error) {
+		s3ConfigExtended, err := s3backend.Config(remoteState.BackendConfig).ParseExtendedS3Config()
+		if err != nil {
+			return nil, fmt.Errorf("parsing s3 backend config for %s: %w", location, err)
+		}
 
-	var jsonOutputs []byte
+		s3Client, err := awshelper.NewAWSConfigBuilder().
+			WithSessionConfig(s3ConfigExtended.GetAwsSessionConfig()).
+			WithIAMRoleOptions(pctx.IAMRoleOptions).
+			BuildS3Client(ctx, l, pctx.Venv)
+		if err != nil {
+			return nil, fmt.Errorf("building s3 client for %s: %w", location, err)
+		}
 
-	err := telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "dependency_output_state_s3", map[string]any{
-			"bucket": bucket,
-			"key":    key,
-		}, func(ctx context.Context, l log.Logger) error {
-			s3ConfigExtended, err := s3backend.Config(remoteState.BackendConfig).
-				ParseExtendedS3Config()
-			if err != nil {
-				return fmt.Errorf("parsing s3 backend config for s3://%s/%s: %w", bucket, key, err)
-			}
-
-			sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
-
-			s3Client, err := awshelper.NewAWSConfigBuilder().
-				WithSessionConfig(sessionConfig).
-				WithIAMRoleOptions(pctx.IAMRoleOptions).
-				BuildS3Client(ctx, l, pctx.Venv)
-			if err != nil {
-				return fmt.Errorf("building s3 client for s3://%s/%s: %w", bucket, key, err)
-			}
-
-			result, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
-				Bucket: aws.String(bucket),
-				Key:    aws.String(key),
-			})
-			if err != nil {
-				return fmt.Errorf("fetching dependency state from s3://%s/%s: %w", bucket, key, err)
-			}
-
-			defer func(Body io.ReadCloser) {
-				err := Body.Close()
-				if err != nil {
-					l.Warnf("Failed to close remote state response %v", err)
-				}
-			}(result.Body)
-
-			stateBody, err := io.ReadAll(result.Body)
-			if err != nil {
-				return fmt.Errorf(
-					"reading dependency state body from s3://%s/%s: %w",
-					bucket,
-					key,
-					err,
-				)
-			}
-
-			jsonOutputs, err = terraformStateOutputsJSON(
-				stateBody,
-				fmt.Sprintf("s3://%s/%s", bucket, key),
-			)
-			if err != nil {
-				return err
-			}
-
-			return nil
+		result, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
 		})
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, fmt.Errorf("fetching dependency state from %s: %w", location, err)
+		}
+
+		return result.Body, nil
 	}
 
-	return jsonOutputs, nil
+	return readDependencyStateOutputs(ctx, l, "dependency_output_state_s3", map[string]any{
+		"bucket": bucket,
+		"key":    key,
+	}, location, open)
 }
 
 // s3StateObjectKey mirrors the S3 backend's workspace object layout.

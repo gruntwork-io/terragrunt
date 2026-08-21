@@ -15,7 +15,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -621,52 +620,31 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(
 	key := azurermStateBlobKey(stateConfig.Key, workspace)
 	location := fmt.Sprintf("azurerm://%s/%s/%s", account, container, key)
 
-	l.Debugf("Fetching outputs directly from %s", location)
+	open := func(ctx context.Context, l log.Logger) (io.ReadCloser, error) {
+		readCtx, cancel := context.WithTimeout(ctx, defaultAzureReadTimeout)
 
-	var jsonOutputs []byte
+		backendConfig := maps.Clone(remoteState.BackendConfig)
+		backendConfig["key"] = key
 
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "dependency_output_state_azurerm", map[string]any{
-			"account":   account,
-			"container": container,
-			"key":       key,
-		}, func(ctx context.Context, l log.Logger) error {
-			readCtx, cancel := context.WithTimeout(ctx, defaultAzureReadTimeout)
-			defer cancel()
+		reader, err := azurermbackend.OpenStateBlob(readCtx, l, pctx.Venv, backendConfig)
+		if err != nil {
+			cancel()
 
-			backendConfig := maps.Clone(remoteState.BackendConfig)
-			backendConfig["key"] = key
+			return nil, fmt.Errorf("opening dependency state at %s: %w", location, err)
+		}
 
-			reader, err := azurermbackend.OpenStateBlob(
-				readCtx,
-				l,
-				pctx.Venv,
-				backendConfig,
-			)
-			if err != nil {
-				return fmt.Errorf("opening dependency state at %s: %w", location, err)
-			}
-
-			defer func() {
-				if err := reader.Close(); err != nil {
-					l.Warnf("Failed to close Azure state reader for %s: %v", location, err)
-				}
-			}()
-
-			stateBody, err := io.ReadAll(reader)
-			if err != nil {
-				return fmt.Errorf("reading dependency state body from %s: %w", location, err)
-			}
-
-			jsonOutputs, err = terraformStateOutputsJSON(stateBody, location)
-
-			return err
-		})
-	if err != nil {
-		return nil, err
+		// The read runs under readCtx, so the timeout is released with the stream.
+		return stateStream{
+			Reader:  reader,
+			closers: []io.Closer{reader, closerFunc(func() error { cancel(); return nil })},
+		}, nil
 	}
 
-	return jsonOutputs, nil
+	return readDependencyStateOutputs(ctx, l, "dependency_output_state_azurerm", map[string]any{
+		"account":   account,
+		"container": container,
+		"key":       key,
+	}, location, open)
 }
 
 // azurermStateBlobKey mirrors the azurerm backend's workspace blob layout.

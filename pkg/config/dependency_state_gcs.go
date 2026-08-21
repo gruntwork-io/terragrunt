@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,7 +17,6 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -208,63 +208,29 @@ func getTerragruntOutputJSONFromRemoteStateGCS(
 	key := gcsStateObjectKey(stateConfig, workspace)
 	location := fmt.Sprintf("gs://%s/%s", bucket, key)
 
-	l.Debugf("Fetching outputs directly from %s", location)
+	open := func(ctx context.Context, l log.Logger) (io.ReadCloser, error) {
+		client, err := gcsbackend.NewClient(ctx, pctx.Venv, extendedConfig, &backend.Options{})
+		if err != nil {
+			return nil, fmt.Errorf("building GCS client for %s: %w", location, err)
+		}
 
-	var jsonOutputs []byte
+		object, err := gcsObjectWithEncryptionKey(pctx, client.Bucket(bucket).Object(key), stateConfig.EncryptionKey)
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("configuring GCS state object %s: %w", location, err), client.Close())
+		}
 
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "dependency_output_state_gcs", map[string]any{
-			"bucket": bucket,
-			"key":    key,
-		}, func(ctx context.Context, l log.Logger) error {
-			client, err := gcsbackend.NewClient(
-				ctx,
-				pctx.Venv,
-				extendedConfig,
-				&backend.Options{},
-			)
-			if err != nil {
-				return fmt.Errorf("building GCS client for %s: %w", location, err)
-			}
+		reader, err := object.NewReader(ctx)
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("opening dependency state at %s: %w", location, err), client.Close())
+		}
 
-			defer func() {
-				if err := client.Close(); err != nil {
-					l.Warnf("Failed to close GCS client for %s: %v", location, err)
-				}
-			}()
-
-			object := client.Bucket(bucket).Object(key)
-
-			object, err = gcsObjectWithEncryptionKey(pctx, object, stateConfig.EncryptionKey)
-			if err != nil {
-				return fmt.Errorf("configuring GCS state object %s: %w", location, err)
-			}
-
-			reader, err := object.NewReader(ctx)
-			if err != nil {
-				return fmt.Errorf("opening dependency state at %s: %w", location, err)
-			}
-
-			defer func() {
-				if err := reader.Close(); err != nil {
-					l.Warnf("Failed to close GCS state reader for %s: %v", location, err)
-				}
-			}()
-
-			stateBody, err := io.ReadAll(reader)
-			if err != nil {
-				return fmt.Errorf("reading dependency state body from %s: %w", location, err)
-			}
-
-			jsonOutputs, err = terraformStateOutputsJSON(stateBody, location)
-
-			return err
-		})
-	if err != nil {
-		return nil, err
+		return stateStream{Reader: reader, closers: []io.Closer{reader, client}}, nil
 	}
 
-	return jsonOutputs, nil
+	return readDependencyStateOutputs(ctx, l, "dependency_output_state_gcs", map[string]any{
+		"bucket": bucket,
+		"key":    key,
+	}, location, open)
 }
 
 // gcsStateObjectKey mirrors the GCS backend's workspace object layout.
