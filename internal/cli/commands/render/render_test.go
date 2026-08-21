@@ -104,6 +104,64 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	validateRenderedJSON(t, result, false)
 }
 
+func TestRenderWriteWithoutOutputPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		check    func(t *testing.T, content []byte)
+		name     string
+		format   string
+		filename string
+	}{
+		{
+			name:     "hcl",
+			format:   render.FormatHCL,
+			filename: "terragrunt.rendered.hcl",
+			check: func(t *testing.T, content []byte) {
+				t.Helper()
+
+				assert.Equal(t, testTerragruntConfigFixture, string(content))
+			},
+		},
+		{
+			name:     "json",
+			format:   render.FormatJSON,
+			filename: "terragrunt.rendered.json",
+			check: func(t *testing.T, content []byte) {
+				t.Helper()
+
+				var result map[string]any
+
+				require.NoError(t, json.Unmarshal(content, &result))
+				validateRenderedJSON(t, result, false)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, configPath := setupTest(t)
+			opts.Format = tc.format
+			opts.Write = true
+
+			err := render.Run(
+				t.Context(),
+				logger.CreateLogger(),
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
+				opts,
+			)
+			require.NoError(t, err)
+
+			content, err := os.ReadFile(filepath.Join(filepath.Dir(configPath), tc.filename))
+			require.NoError(t, err)
+
+			tc.check(t, content)
+		})
+	}
+}
+
 func TestRenderJSON_InvalidFormat(t *testing.T) {
 	t.Parallel()
 
