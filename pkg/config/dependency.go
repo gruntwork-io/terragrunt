@@ -28,6 +28,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -273,8 +274,9 @@ func decodeDependencyBlocks(
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 	experiments experiment.Experiments,
+	opts ...hclparse.ExpandOption,
 ) (Dependencies, error) {
-	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext)
+	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +324,7 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocks(file, evalParsingContext, pctx.Experiments)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeRetry(file, evalParsingContext, pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -2240,6 +2242,64 @@ func parseAutoIncludeFileCached(
 	hclCache.Put(ctx, cacheKey, file)
 
 	return file, nil
+}
+
+// decodeDependencyBlocksWithAutoIncludeRetry decodes dependency blocks, retrying with label-skip when a sibling autoinclude overrides some of them and the first decode fails on unresolvable attributes. Used by both decodeAndRetrieveOutputs and decodeAsTerragruntConfigFile.
+func decodeDependencyBlocksWithAutoIncludeRetry(
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+	pctx *ParsingContext,
+) (Dependencies, error) {
+	deps, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
+	if err != nil && hasSiblingAutoInclude(pctx) {
+		overrides := siblingAutoIncludeDepNames(pctx)
+		if len(overrides) > 0 {
+			deps, err = decodeDependencyBlocks(
+				file, evalContext, pctx.Experiments,
+				hclparse.WithSkipLabelsOnError(overrides),
+			)
+		}
+	}
+
+	return deps, err
+}
+
+// siblingAutoIncludeDepNames extracts dependency block labels from the sibling autoinclude file via a lightweight HCL parse. Returns nil when no autoinclude is registered, the file is absent, or it cannot be parsed.
+func siblingAutoIncludeDepNames(pctx *ParsingContext) map[string]bool {
+	if !hasSiblingAutoInclude(pctx) {
+		return nil
+	}
+
+	autoPath := pctx.TrackInclude.AutoIncludeOverride.Path
+
+	data, err := vfs.ReadFile(pctx.Venv.FS, autoPath)
+	if err != nil {
+		return nil
+	}
+
+	file, diags := hclsyntax.ParseConfig(data, autoPath, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	names := make(map[string]bool)
+
+	for _, block := range body.Blocks {
+		if block.Type == MetadataDependency && len(block.Labels) > 0 {
+			names[block.Labels[0]] = true
+		}
+	}
+
+	if len(names) == 0 {
+		return nil
+	}
+
+	return names
 }
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.

@@ -734,10 +734,10 @@ func PartialParseConfig(
 			}
 
 		case DependencyBlock:
-			decodedDeps, err := decodeDependencyBlocks(
+			decodedDeps, err := decodeDependencyBlocksWithAutoIncludeRetry(
 				file,
 				evalParsingContext,
-				pctx.Experiments,
+				pctx,
 			)
 			if err != nil {
 				return nil, err

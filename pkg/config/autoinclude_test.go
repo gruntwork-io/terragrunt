@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // tfInitCommand is the terraform command these autoinclude tests resolve dependency mock outputs against.
@@ -1403,4 +1404,235 @@ inputs = {
 
 	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"], "autoinclude must win for vpc_id")
 	assert.Equal(t, "10.0.0.0/16", parsed.Inputs["cidr"], "original values.cidr must survive")
+}
+
+// When a unit source references values.vpc_path in a dependency config_path and the autoinclude overrides that entire dependency, the parse must succeed even though values.vpc_path is absent.
+func TestFoldSiblingAutoIncludeDeps_OverridesConfigPathFromValues(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// Dependency target referenced by the autoinclude override.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "vpc"), 0755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "vpc", config.DefaultTerragruntConfigPath),
+		[]byte(``), 0644,
+	))
+
+	const marker = "autoinclude-overrides-values-config-path"
+
+	// Unit references values.vpc_path, which does NOT exist in the values.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "from-unit"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+}
+`), 0644))
+
+	// Autoinclude overrides the dependency with a valid config_path.
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    id = "`+marker+`"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	// Values that intentionally omit vpc_path.
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.values.hcl"), []byte(`
+region = "us-east-1"
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err, "autoinclude dependency override must suppress the unresolvable values.vpc_path")
+	require.NotNil(t, parsed)
+	assert.Equal(t, marker, parsed.Inputs["vpc_id"], "autoinclude's mock output must win")
+}
+
+// A unit with two deps—one overridden by autoinclude and one valid—must resolve both.
+func TestFoldSiblingAutoIncludeDeps_OverridesConfigPathMixedDeps(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	for _, sub := range []string{"vpc", "db"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, sub), 0755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(tmpDir, sub, config.DefaultTerragruntConfigPath),
+			[]byte(``), 0644,
+		))
+	}
+
+	// "vpc" references an absent values.vpc_path; "db" has a valid literal path.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+dependency "db" {
+  config_path  = "./db"
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-db"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+  db_id  = dependency.db.outputs.id
+}
+`), 0644))
+
+	// Autoinclude overrides only "vpc".
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    id = "autoinclude-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err, "mixed deps must resolve when autoinclude overrides the unresolvable one")
+	require.NotNil(t, parsed)
+	assert.Equal(t, "autoinclude-vpc", parsed.Inputs["vpc_id"], "autoinclude must win for vpc")
+	assert.Equal(t, "unit-db", parsed.Inputs["db_id"], "unit's own db dep must survive")
+}
+
+// When an autoinclude overrides a different dep than the one that fails, the parse must still fail.
+func TestFoldSiblingAutoIncludeDeps_NonOverriddenFailureStillErrors(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "other"), 0755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "other", config.DefaultTerragruntConfigPath),
+		[]byte(``), 0644,
+	))
+
+	// "vpc" references an absent values.vpc_path; no autoinclude overrides it.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	// Autoinclude overrides only "other", not "vpc".
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+dependency "other" {
+  config_path  = "./other"
+  skip_outputs = true
+  mock_outputs = {
+    id = "autoinclude-other"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.Error(t, err, "a non-overridden dep with unresolvable config_path must still fail")
+}
+
+// Without any autoinclude file, a dependency referencing an absent values attribute must still fail with the original error pointing at the values attribute, not a downstream dependency.vpc error.
+func TestFoldSiblingAutoIncludeDeps_MissingValuesPathWithoutAutoIncludeStillErrors(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// No autoinclude file at all.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.Error(t, err, "without autoinclude the values.vpc_path error must not be swallowed")
+	assert.Contains(t, err.Error(), "values", "error must reference the unresolvable values variable")
 }
