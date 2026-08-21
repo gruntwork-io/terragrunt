@@ -9,6 +9,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestApplyDependencyDefaults(t *testing.T) {
+	t.Parallel()
+
+	defaultsCommands := []string{"plan", "validate"}
+	defaults := &DependencyDefaults{MockOutputsAllowedTerraformCommands: &defaultsCommands}
+
+	t.Run("uses defaults when the dependency omits the setting", func(t *testing.T) {
+		t.Parallel()
+		dep := &Dependency{}
+		applyDependencyDefaults(dep, defaults)
+
+		require.NotNil(t, dep.MockOutputsAllowedTerraformCommands)
+		assert.Equal(t, defaultsCommands, *dep.MockOutputsAllowedTerraformCommands)
+
+		(*dep.MockOutputsAllowedTerraformCommands)[0] = "apply"
+
+		assert.Equal(t, []string{"plan", "validate"}, defaultsCommands)
+	})
+
+	t.Run("explicit dependency setting wins", func(t *testing.T) {
+		t.Parallel()
+
+		explicit := []string{"apply"}
+		dep := &Dependency{MockOutputsAllowedTerraformCommands: &explicit}
+		applyDependencyDefaults(dep, defaults)
+
+		assert.Equal(t, []string{"apply"}, *dep.MockOutputsAllowedTerraformCommands)
+	})
+}
+
 // TestExtractFirstJSONObject verifies that we can isolate the first JSON object emitted by
 // `tofu/terraform output -json` even when stdout is polluted with non-JSON content on either
 // side of the JSON. See https://github.com/gruntwork-io/terragrunt/issues/6001 for the trailing-

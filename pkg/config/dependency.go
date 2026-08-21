@@ -70,6 +70,34 @@ type dependencyOutputCache struct {
 	Inputs  cty.Value
 }
 
+type DependencyDefaults struct {
+	MockOutputsAllowedTerraformCommands *[]string `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
+}
+
+func (defaults *DependencyDefaults) clone() *DependencyDefaults {
+	if defaults == nil {
+		return nil
+	}
+
+	clone := *defaults
+	if defaults.MockOutputsAllowedTerraformCommands != nil {
+		commands := slices.Clone(*defaults.MockOutputsAllowedTerraformCommands)
+		clone.MockOutputsAllowedTerraformCommands = &commands
+	}
+
+	return &clone
+}
+
+func applyDependencyDefaults(dep *Dependency, defaults *DependencyDefaults) {
+	if defaults == nil || dep.MockOutputsAllowedTerraformCommands != nil ||
+		defaults.MockOutputsAllowedTerraformCommands == nil {
+		return
+	}
+
+	commands := slices.Clone(*defaults.MockOutputsAllowedTerraformCommands)
+	dep.MockOutputsAllowedTerraformCommands = &commands
+}
+
 type Dependency struct {
 	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
 
@@ -273,7 +301,7 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 func decodeDependencyBlocks(
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
-	experiments experiment.Experiments,
+	pctx *ParsingContext,
 ) (Dependencies, error) {
 	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext)
 	if err != nil {
@@ -289,7 +317,7 @@ func decodeDependencyBlocks(
 	for _, instance := range instances {
 		dep := instance.Value.(*Dependency)
 		if dep.Expansion != nil {
-			if !experiments.Evaluate(experiment.BlockIteration) {
+			if !pctx.Experiments.Evaluate(experiment.BlockIteration) {
 				return nil, ExpansionRequiresExperimentError{
 					ConfigPath: file.ConfigPath,
 					BlockType:  MetadataDependency,
@@ -299,6 +327,8 @@ func decodeDependencyBlocks(
 
 			dep.Expansion.InstanceKey = instance.InstanceKey
 		}
+
+		applyDependencyDefaults(dep, pctx.DependencyDefaults)
 
 		dependencies = append(dependencies, *dep)
 	}
@@ -323,7 +353,7 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocks(file, evalParsingContext, pctx.Experiments)
+	dependencies, err := decodeDependencyBlocks(file, evalParsingContext, pctx)
 	if err != nil {
 		return nil, err
 	}
