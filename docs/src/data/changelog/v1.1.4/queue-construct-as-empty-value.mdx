@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### `find` and `list` reject a `--queue-construct-as` value that holds no command
+
+A value made only of shell punctuation, such as `terragrunt find --queue-construct-as=';'`, ended the run with a crash report. A value that quotes an empty command, such as `--queue-construct-as='""'`, was accepted even though it names no command.
+
+`find` and `list` now exit with an error that repeats the value you passed and shows what [`--queue-construct-as`](/reference/cli/commands/list#queue-construct-as) expects instead.
