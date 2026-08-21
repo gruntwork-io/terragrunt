@@ -302,6 +302,51 @@ func (err TerragruntOutputEncodingError) Error() string {
 	)
 }
 
+// StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs
+// and has no mock to stand in for them.
+type StackUnitOutputFetchError struct {
+	Err      error
+	UnitName string
+}
+
+func (err StackUnitOutputFetchError) Error() string {
+	return fmt.Sprintf("stack unit %s output fetch failed: %s", err.UnitName, err.Err)
+}
+
+func (err StackUnitOutputFetchError) Unwrap() error {
+	return err.Err
+}
+
+// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs that
+// isn't keyed by unit name, so no unit can be matched against it.
+type StackMockOutputsTypeError struct {
+	DependencyName string
+	UnitName       string
+	Actual         string
+}
+
+func (err StackMockOutputsTypeError) Error() string {
+	return fmt.Sprintf(
+		"mock_outputs for dependency %s must be a map or object keyed by stack unit name (e.g. { %s = { ... } }), but got %s",
+		err.DependencyName,
+		err.UnitName,
+		err.Actual,
+	)
+}
+
+// DependencyLabelCollisionError is returned when one dependency label has to address both a
+// whole block and the instances of an expanded block.
+type DependencyLabelCollisionError struct {
+	Name string
+}
+
+func (err DependencyLabelCollisionError) Error() string {
+	return fmt.Sprintf(
+		"dependency %q is declared both with and without an expansion, so the block and its instances claim the same address; rename one of them",
+		err.Name,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string

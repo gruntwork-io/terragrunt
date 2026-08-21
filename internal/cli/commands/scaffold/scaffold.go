@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -146,8 +147,6 @@ func NewBoilerplateOptions(
 // HCL fragments via the values argument, and Cleanup removes the temporary
 // directories Prepare allocated. Callers must invoke Cleanup exactly once,
 // typically via defer.
-//
-//nolint:govet // field order chosen for readability over alignment
 type Plan struct {
 	logger            log.Logger
 	Required          []*config.ParsedVariable
@@ -159,7 +158,19 @@ type Plan struct {
 	resolvedModuleURL string
 	outputDir         string
 	sourceDir         string
+	values            component.ValuesReferences
 	kind              component.Kind
+}
+
+// FormFields returns what a user is asked to fill in before this plan is
+// generated: the variables of a module or template, or the `values.*`
+// references a unit or stack makes. Empty when the source asks for nothing.
+func (p *Plan) FormFields() []form.Field {
+	if p.kind.IsCopyable() {
+		return form.FieldsFromValuesReferences(p.values)
+	}
+
+	return form.FieldsFromParsedVariables(p.Required, p.Optional)
 }
 
 // Cleanup removes the temporary directories allocated during Prepare.
@@ -196,7 +207,7 @@ func Prepare(
 	}
 
 	// scaffold only in empty directories
-	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
+	if empty, err := vfs.IsDirectoryEmpty(v.FS, opts.WorkingDir); !empty || err != nil {
 		if err != nil {
 			return nil, err
 		}
@@ -257,7 +268,7 @@ func Prepare(
 		Collect(ctx, l, "scaffold_get_module", map[string]any{
 			"module_url": resolvedURL,
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
+			if _, getErr := getter.GetAny(ctx, v, tempDir, resolvedURL); getErr != nil {
 				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 			}
 
@@ -279,15 +290,21 @@ func Prepare(
 	if kind, ok := markers.CopyKind(); ok {
 		warnUnusedScaffoldInputs(l, opts, templateURL, kind)
 
+		values, err := component.Values(v.FS, kind, tempDir)
+		if err != nil {
+			return nil, err
+		}
+
 		plan.kind = kind
 		plan.sourceDir = tempDir
+		plan.values = values
 		success = true
 
 		return plan, nil
 	}
 
 	// extract variables from downloaded module
-	requiredVariables, optionalVariables, err := parseVariables(l, v.FS, opts, tempDir)
+	requiredVariables, optionalVariables, err := parseVariables(l, v, opts, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -668,7 +685,7 @@ func downloadTemplate(
 		Collect(ctx, l, "scaffold_get_template", map[string]any{
 			"template_url": baseURL.String(),
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+			if _, getErr := getter.GetAny(ctx, v, templateDir, baseURL.String()); getErr != nil {
 				return fmt.Errorf(
 					"downloading scaffold template from %s: %w",
 					baseURL.String(),
@@ -721,7 +738,7 @@ func prepareBoilerplateFiles(
 	}
 
 	// if boilerplate dir is not found, create one with default template
-	if !util.IsDir(boilerplateDir) {
+	if !vfs.IsDir(v.FS, boilerplateDir) {
 		_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)
@@ -766,11 +783,11 @@ func prepareBoilerplateFiles(
 // parseVariables - parse variables from tf files.
 func parseVariables(
 	l log.Logger,
-	fsys vfs.FS,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, fsys, opts.StrictControls, moduleDir)
+	inputs, err := config.ParseVariables(l, v, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, err
 	}

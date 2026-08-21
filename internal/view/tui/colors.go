@@ -11,4 +11,9 @@ const (
 	// SelectionText is the dark slate drawn on top of SelectionBlue, e.g.
 	// the label text on a full-width selection bar.
 	SelectionText = "#1D252F"
+
+	// TitleForeground and TitleBackground are the muted grey on slate of a
+	// title strip, shared by every screen that draws one.
+	TitleForeground = "#A8ACB1"
+	TitleBackground = "#1D252F"
 )

@@ -1,7 +1,6 @@
 package runnerpool_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,7 +35,7 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(context.Background(), l, opts, discovered)
+	runner, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, discovered)
 	require.NoError(t, err)
 
 	units := runner.GetStack().Units

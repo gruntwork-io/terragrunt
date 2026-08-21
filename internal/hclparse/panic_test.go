@@ -28,7 +28,7 @@ func assertPanicsContaining(t *testing.T, want string, fn func()) {
 
 func TestParseStackFile_NilFS_Panics(t *testing.T) {
 	t.Parallel()
-	assertPanicsContaining(t, "hclparse.ParseStackFile: fs is nil", func() {
+	assertPanicsContaining(t, "hclparse.ParseStackFile: fsys is nil", func() {
 		_, _ = hclparse.ParseStackFile(nil, &hclparse.ParseStackFileInput{StackDir: "/x"})
 	})
 }
@@ -49,7 +49,7 @@ func TestParseStackFile_EmptyStackDir_Panics(t *testing.T) {
 
 func TestParseStackFileFromPath_NilFS_Panics(t *testing.T) {
 	t.Parallel()
-	assertPanicsContaining(t, "hclparse.ParseStackFileFromPath: fs is nil", func() {
+	assertPanicsContaining(t, "hclparse.ParseStackFileFromPath: fsys is nil", func() {
 		_, _ = hclparse.ParseStackFileFromPath(nil, "/x")
 	})
 }
@@ -63,7 +63,7 @@ func TestParseStackFileFromPath_EmptyStackDir_Panics(t *testing.T) {
 
 func TestUnitPathsFromStackDir_NilFS_Panics(t *testing.T) {
 	t.Parallel()
-	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: fs is nil", func() {
+	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: fsys is nil", func() {
 		_, _ = hclparse.UnitPathsFromStackDir(nil, "/x", noFuncs)
 	})
 }
@@ -84,7 +84,7 @@ func TestUnitPathsFromStackDir_NilFuncsFactory_Panics(t *testing.T) {
 
 func TestAutoIncludeDependencyPaths_NilFS_Panics(t *testing.T) {
 	t.Parallel()
-	assertPanicsContaining(t, "hclparse.AutoIncludeDependencyPaths: fs is nil", func() {
+	assertPanicsContaining(t, "hclparse.AutoIncludeDependencyPaths: fsys is nil", func() {
 		_, _ = hclparse.AutoIncludeDependencyPaths(nil, "/x")
 	})
 }
@@ -103,7 +103,7 @@ func TestAutoIncludeDependencyPaths_EmptyUnitDir_ReturnsError(t *testing.T) {
 
 func TestGenerateAutoIncludeFile_NilFS_Panics(t *testing.T) {
 	t.Parallel()
-	assertPanicsContaining(t, "hclparse.GenerateAutoIncludeFile: fs is nil", func() {
+	assertPanicsContaining(t, "hclparse.GenerateAutoIncludeFile: fsys is nil", func() {
 		_ = hclparse.GenerateAutoIncludeFile(nil, nil, "/x", nil, nil)
 	})
 }

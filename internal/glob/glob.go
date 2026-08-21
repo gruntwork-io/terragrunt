@@ -95,16 +95,16 @@ func WithBoundary(boundary string) ExpandOption {
 	}
 }
 
-// Expand returns the absolute paths that match pattern on fs. The pattern
+// Expand returns the absolute paths that match pattern on fsys. The pattern
 // uses '/' as the separator on all platforms and '\' as the escape character.
 // A pattern that matches nothing returns an empty slice and a nil error.
 //
 // Pass [WithBoundary] to constrain the walk to a directory; a pattern whose
 // walk root falls outside it returns [ErrOutsideBoundary].
 //
-// Most callers pass [vfs.NewOSFS] for fs; tests can pass an in-memory
+// Most callers pass [vfs.NewOSFS] for fsys; tests can pass an in-memory
 // filesystem from [vfs.NewMemMapFS].
-func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
+func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 	var o expandOptions
 	for _, opt := range opts {
 		opt(&o)
@@ -114,12 +114,12 @@ func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 
 	root, hasMeta := splitRoot(pattern)
 
-	if err := o.checkBoundary(fs, root); err != nil {
+	if err := o.checkBoundary(fsys, root); err != nil {
 		return nil, err
 	}
 
 	if !hasMeta {
-		info, err := fs.Stat(root)
+		info, err := fsys.Stat(root)
 		if err != nil {
 			if errors.Is(err, iofs.ErrNotExist) {
 				return nil, nil
@@ -142,7 +142,7 @@ func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 
 	var matches []string
 
-	walkErr := vfs.WalkDir(fs, root, func(entry string, d iofs.DirEntry, walkErr error) error {
+	walkErr := vfs.WalkDir(fsys, root, func(entry string, d iofs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if d != nil && d.IsDir() {
 				return iofs.SkipDir
@@ -204,45 +204,14 @@ func splitRoot(pattern string) (string, bool) {
 
 // checkBoundary reports whether walking from root is permitted. An empty
 // boundary imposes no constraint; otherwise root must fall inside it.
-func (o expandOptions) checkBoundary(fs vfs.FS, root string) error {
+func (o expandOptions) checkBoundary(fsys vfs.FS, root string) error {
 	if o.boundary == "" {
 		return nil
 	}
 
-	// Compare symlink-resolved paths so a boundary and a walk root that differ
-	// only by a symlinked parent are recognized as the same location.
-	if !withinBoundary(resolvePath(fs, o.boundary), resolvePath(fs, root)) {
+	if !vfs.Within(fsys, o.boundary, root) {
 		return fmt.Errorf("%w: %q is outside %q", ErrOutsideBoundary, root, o.boundary)
 	}
 
 	return nil
-}
-
-// resolvePath returns the symlink-resolved form of p. EvalSymlinks resolves
-// only paths that exist, so resolving the longest existing ancestor and
-// rejoining the remaining components keeps an absent path comparable with a
-// resolved one instead of leaving it merely cleaned.
-func resolvePath(fs vfs.FS, p string) string {
-	p = filepath.Clean(p)
-
-	if resolved, err := vfs.EvalSymlinks(fs, p); err == nil {
-		return resolved
-	}
-
-	if parent := filepath.Dir(p); parent != p {
-		return filepath.Join(resolvePath(fs, parent), filepath.Base(p))
-	}
-
-	return p
-}
-
-// withinBoundary reports whether p is boundary or a descendant of it. Both
-// paths must already be cleaned.
-func withinBoundary(boundary, p string) bool {
-	rel, err := filepath.Rel(boundary, p)
-	if err != nil {
-		return false
-	}
-
-	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }

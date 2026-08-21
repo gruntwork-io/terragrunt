@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -68,7 +67,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := t.Context()
 
-			v := venv.OSVenv()
+			v := venvtest.NewOSWithEmptyEnv()
 			v.HTTP = vhttp.NewNoNetworkClient()
 
 			repo, err := module.NewRepo(

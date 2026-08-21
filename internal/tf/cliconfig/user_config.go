@@ -3,18 +3,20 @@ package cliconfig
 import (
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/hashicorp/terraform/tfdiags"
 )
 
 // LoadUserConfig loads the user configuration is read as raw data and stored at the top of the saved configuration file.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
-func LoadUserConfig(opts ...ConfigOption) (*Config, error) {
-	return loadUserConfig(cliconfig.LoadConfig, opts...)
+func LoadUserConfig(fsys vfs.FS, opts ...ConfigOption) (*Config, error) {
+	return loadUserConfig(cliconfig.LoadConfig, fsys, opts...)
 }
 
 func loadUserConfig(
 	loadConfigFn func() (*cliconfig.Config, tfdiags.Diagnostics),
+	fsys vfs.FS,
 	opts ...ConfigOption,
 ) (*Config, error) {
 	cfg, diag := loadConfigFn()
@@ -22,7 +24,7 @@ func loadUserConfig(
 		return nil, diag.Err()
 	}
 
-	config := NewConfig().
+	config := NewConfig(fsys).
 		WithPluginCacheDir(cfg.PluginCacheDir).
 		WithCredentials(getUserCredentials(cfg)).
 		WithCredentialsHelpers(getUserCredentialsHelpers(cfg)).

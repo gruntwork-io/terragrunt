@@ -75,7 +75,7 @@ func Run(
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 
@@ -127,7 +127,7 @@ func Run(
 	// ErrUserCancelled.
 	var wts *worktrees.Worktrees
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		wts, err = worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
 			Experiments:    opts.Experiments,
@@ -219,6 +219,7 @@ func RunAllOnStack(
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
 	if err := rnr.LogUnitDeployOrder(
 		l,
+		v,
 		isDestroy,
 		opts.LogShowAbsPaths,
 		opts.Experiments,

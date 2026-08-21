@@ -69,18 +69,18 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 //     evaluated the same way: only dependency.* (and any expression referencing it) is
 //     preserved verbatim for runtime resolution.
 //
-// Requires non-nil fs and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
+// Requires non-nil fsys and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
 func GenerateAutoIncludeFile(
-	fs vfs.FS,
+	fsys vfs.FS,
 	resolved *AutoIncludeResolved,
 	targetDir string,
 	srcBytes []byte,
 	evalCtx *hcl.EvalContext,
 ) error {
-	if fs == nil {
+	if fsys == nil {
 		panic(
 			fmt.Sprintf(
-				"hclparse.GenerateAutoIncludeFile: fs is nil (targetDir=%q, sourceFile=%q)",
+				"hclparse.GenerateAutoIncludeFile: fsys is nil (targetDir=%q, sourceFile=%q)",
 				targetDir,
 				resolvedSourceFile(resolved),
 			),
@@ -140,20 +140,20 @@ func GenerateAutoIncludeFile(
 
 	filePath := filepath.Join(targetDir, AutoIncludeFileNameForKind(resolved.Kind))
 
-	if err := fs.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
+	if err := fsys.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
 		return DirCreateError{DirPath: targetDir, Err: err}
 	}
 
 	formatted := hclwrite.Format(out.Bytes())
 
 	// CAS may materialize the target as a read-only hard link, so remove it before writing
-	if info, statErr := fs.Stat(filePath); statErr == nil && info.Mode().IsRegular() {
-		if err := fs.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if info, statErr := fsys.Stat(filePath); statErr == nil && info.Mode().IsRegular() {
+		if err := fsys.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return FileWriteError{FilePath: filePath, Err: err}
 		}
 	}
 
-	if err := vfs.WriteFile(fs, filePath, formatted, autoIncludeFilePerm); err != nil {
+	if err := vfs.WriteFile(fsys, filePath, formatted, autoIncludeFilePerm); err != nil {
 		return FileWriteError{FilePath: filePath, Err: err}
 	}
 

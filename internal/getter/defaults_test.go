@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,7 @@ import (
 func TestDefaultClientRegistersS3GCS(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient()
+	client := getter.NewClient(venvtest.NewWithOSFS())
 
 	assert.True(
 		t,
@@ -37,7 +38,7 @@ func TestDefaultClientRegistersS3GCS(t *testing.T) {
 func TestDefaultClientCoversCanonicalProtocols(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient()
+	client := getter.NewClient(venvtest.NewWithOSFS())
 
 	assert.True(t, hasGetter[*getter.GitGetter](client.Getters), "git")
 	assert.True(t, hasGetter[*getter.HgGetter](client.Getters), "hg")
@@ -52,7 +53,9 @@ func TestDefaultClientCoversCanonicalProtocols(t *testing.T) {
 func TestWithFileCopyReplacesFileGetter(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
+	client := getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
+	)
 
 	assert.True(
 		t,
@@ -94,7 +97,8 @@ func TestForcedGettersRouteToTheirGetter(t *testing.T) {
 			t.Parallel()
 
 			stub := &forcedRecordingGetter{forced: tc.forced}
-			client := getter.NewClient(getter.WithCustomGettersPrepended(stub))
+			client := getter.NewClient(venvtest.NewWithOSFS(),
+				getter.WithCustomGettersPrepended(stub))
 
 			_, err := client.Get(t.Context(), &getter.Request{
 				Src:     tc.src,

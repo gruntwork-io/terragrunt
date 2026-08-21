@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -109,7 +109,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	// Replace the custom key with a new one, and check that the key is updated in s3
 	helpers.CleanupTerraformFolder(t, testPath)
 
-	contents, err := util.ReadFileAsString(tmpTerragruntConfigPath)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpTerragruntConfigPath)
 	require.NoError(t, err)
 
 	err = os.Remove(tmpTerragruntConfigPath)
@@ -309,9 +309,9 @@ func TestAwsSkipBackend(t *testing.T) {
 	require.Error(t, err)
 
 	dotTerraformDir := filepath.Join(testPath, ".terraform")
-	assert.False(
+	assert.NoDirExists(
 		t,
-		util.FileExists(dotTerraformDir),
+		dotTerraformDir,
 		".terraform directory %s exists",
 		dotTerraformDir,
 	)
@@ -325,9 +325,9 @@ func TestAwsSkipBackend(t *testing.T) {
 	// .terraform is created in the cache directory, not the original config directory
 	cacheDir := helpers.FindCacheWorkingDir(t, testPath)
 	cacheDotTerraformDir := filepath.Join(cacheDir, ".terraform")
-	assert.True(
+	assert.DirExists(
 		t,
-		util.FileExists(cacheDotTerraformDir),
+		cacheDotTerraformDir,
 		".terraform directory %s does not exist",
 		cacheDotTerraformDir,
 	)

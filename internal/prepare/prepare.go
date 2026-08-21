@@ -98,7 +98,7 @@ func PrepareSource(
 		opts.Errors = errConfig
 	}
 
-	runCfg := cfg.ToRunConfig(l)
+	runCfg := cfg.ToRunConfig(l, v.FS)
 
 	l, optsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
@@ -217,7 +217,7 @@ func PrepareInputsAsEnvVars(
 		return err
 	}
 
-	return run.SetTerragruntInputsAsEnvVars(l, v.Env, cfg)
+	return run.SetTerragruntInputsAsEnvVars(l, v.FS, v.Env, runOpts.CacheDir, cfg)
 }
 
 // PrepareInit runs terraform init if needed. This is the final preparation stage.
@@ -237,7 +237,7 @@ func PrepareInit(
 		return err
 	}
 
-	if err := run.SetTerragruntInputsAsEnvVars(l, v.Env, cfg); err != nil {
+	if err := run.SetTerragruntInputsAsEnvVars(l, v.FS, v.Env, runOpts.CacheDir, cfg); err != nil {
 		return err
 	}
 

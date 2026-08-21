@@ -11,10 +11,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestCASGetterMode(t *testing.T) {
@@ -109,10 +109,10 @@ func TestCASGetterGet(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	opts := &cas.CloneOptions{
 		Depth: -1,
@@ -161,10 +161,10 @@ func TestCASGetterLocalDir(t *testing.T) {
 	tmp := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tmp, "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	opts := &cas.CloneOptions{
 		Branch: "main",
@@ -217,10 +217,10 @@ func TestCASGetterLocalDir(t *testing.T) {
 func newTestCASGetter(t *testing.T, opts *cas.CloneOptions) *getter.CASGetter {
 	t.Helper()
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	return getter.NewCASGetter(logger.CreateLogger(), c, v, opts)
 }

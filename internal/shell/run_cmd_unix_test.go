@@ -15,8 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
@@ -48,7 +48,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 		_, err := shell.RunCommandWithOutput(
 			ctx,
 			l,
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			shellOpts,
 			"",
 			false,

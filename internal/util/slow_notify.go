@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"golang.org/x/term"
 )
 
 // spinnerFrames are braille dot characters used for the progress spinner.
@@ -34,11 +33,13 @@ type SlowNotifyMsg struct {
 	Done string
 }
 
-// SpinnerWriter returns os.Stderr if it is an interactive terminal, nil otherwise.
-// Use the returned writer as the spinnerW argument to NotifyIfSlow.
-func SpinnerWriter() io.Writer {
-	if term.IsTerminal(int(os.Stderr.Fd())) {
-		return os.Stderr
+// SpinnerWriter returns v's error writer if it is an interactive terminal, nil
+// otherwise. Use the returned writer as the spinnerW argument to NotifyIfSlow.
+func SpinnerWriter(v *venv.Venv) io.Writer {
+	v.RequireTerminal()
+
+	if v.Terminal.StderrIsTTY() {
+		return v.Writers.ErrWriter
 	}
 
 	return nil

@@ -70,7 +70,7 @@ func DownloadTerraformSource(
 
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.StrictControls)
 
-	source, err := resolveTerraformModuleVersion(ctx, l, source, opts, cfg)
+	source, err := resolveTerraformModuleVersion(ctx, l, v, source, opts, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -227,6 +227,7 @@ func moduleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
 func resolveTerraformModuleVersion(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -259,7 +260,7 @@ func resolveTerraformModuleVersion(
 		return source, nil
 	}
 
-	pinned, err := ModuleVersionResolverFromContext(ctx).Pin(
+	pinned, err := ModuleVersionResolverFromContext(ctx, v).Pin(
 		ctx,
 		l,
 		opts.TofuImplementation,
@@ -385,7 +386,7 @@ func DownloadTerraformSourceIfNecessary(
 				return util.NotifyIfSlow(
 					childCtx,
 					l,
-					util.SpinnerWriter(),
+					util.SpinnerWriter(v),
 					time.Second,
 					util.SlowNotifyMsg{
 						Spinner: "Downloading source from " + sourceURL + "...",
@@ -606,7 +607,7 @@ func tryCASDownload(
 		return false, err
 	}
 
-	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
+	c, err := cas.New(v, cas.WithCloneDepth(opts.CASCloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
@@ -721,8 +722,7 @@ func BuildDownloadClient(
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
-		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
-			WithHTTPClient(v.HTTP).
+		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
 			WithEnv(v.Env).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
@@ -731,7 +731,7 @@ func BuildDownloadClient(
 		clientOpts = append(clientOpts, getter.WithOCI(getter.NewOCIGetter(l, v)))
 	}
 
-	return getter.NewClient(clientOpts...), nil
+	return getter.NewClient(v, clientOpts...), nil
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory

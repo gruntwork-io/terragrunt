@@ -26,7 +26,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 
-	app := clihelper.NewApp()
+	app := clihelper.NewApp(map[string]string{})
 	app.Flags = clihelper.Flags{
 		&clihelper.GenericFlag[string]{
 			Name:    "working-dir",

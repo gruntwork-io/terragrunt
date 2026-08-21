@@ -4,6 +4,9 @@ description: Learn how to source OpenTofu/Terraform modules from OCI registries.
 slug: features/units/oci
 sidebar:
   order: 13
+  badge:
+    variant: tip
+    text: exp
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -20,6 +23,7 @@ OCI sources take the form `oci://REGISTRY_HOST/REPOSITORY[//SUBDIR][?tag=TAG|?di
 
 ```hcl
 # terragrunt.hcl
+
 terraform {
   source = "oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0"
 }
@@ -29,6 +33,7 @@ The same syntax works in the `unit` and `stack` blocks of a `terragrunt.stack.hc
 
 ```hcl
 # terragrunt.stack.hcl
+
 unit "vpc" {
   source = "oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0"
   path   = "vpc"
@@ -37,6 +42,7 @@ unit "vpc" {
 
 - `?tag=` selects a tag; `?digest=sha256:...` pins an immutable manifest digest. Setting both is an error, and no other query parameters are accepted.
 - When neither is set, Terragrunt uses the `latest` tag.
+- Docker-style `NAME:TAG` and `NAME@DIGEST` suffixes are not part of the source syntax (matching OpenTofu's behavior). Terragrunt rejects them with an error that shows the source rewritten in the `?tag=`/`?digest=` form.
 - `//SUBDIR` selects one directory from the module package, as with other source types: `oci://ghcr.io/acme/terraform-modules/vpc//modules/subnets?tag=1.0.0`.
 
 Prefer `?digest=` for production pins: a digest can never move, while a tag can be re-pushed.
@@ -59,7 +65,7 @@ oras push ghcr.io/acme/terraform-modules/vpc:1.0.0 \
 
 ## Authentication
 
-Terragrunt resolves registry credentials the way OpenTofu does, so one configuration serves both tools. When nothing matches a registry, Terragrunt pulls anonymously.
+Terragrunt resolves registry credentials the same way OpenTofu does, so one configuration serves both tools. When nothing matches a registry, Terragrunt pulls anonymously.
 
 ### OpenTofu CLI configuration
 
@@ -67,6 +73,7 @@ Credentials come from `oci_credentials` and `oci_default_credentials` blocks in 
 
 ```hcl
 # ~/.tofurc
+
 oci_credentials "ghcr.io" {
   username = "octocat"
   password = "ghp_example"
@@ -122,7 +129,7 @@ Terragrunt ranks every matching credential, from CLI configuration and ambient f
 
 ## Caching
 
-With [Content Addressable Storage](/features/caching/cas) enabled, `terraform.source` downloads are [cached by the resolved manifest digest](/features/caching/cas/oci). Tags are re-resolved each time Terragrunt downloads the source, so a re-pushed tag misses the cache and fetches the new content while unchanged tags keep hitting the same entry. On later runs of an already-downloaded unit, Terragrunt reuses `.terragrunt-cache` without contacting the registry; pass `--source-update` to pick up a re-pushed tag. `unit` and `stack` components fetch directly from the registry without the cache.
+[Content Addressable Storage](/features/caching/cas) is enabled by default (disable it with `--no-cas`). With it, `terraform.source` downloads are [cached by the resolved manifest digest](/features/caching/cas/oci). Tags are re-resolved each time Terragrunt downloads the source, so a re-pushed tag misses the cache and fetches the new content while unchanged tags keep hitting the same entry. On later runs of an already-downloaded unit, Terragrunt reuses `.terragrunt-cache` without contacting the registry; pass `--source-update` to pick up a re-pushed tag. `unit` and `stack` components fetch directly from the registry without the cache.
 
 ## Limits
 

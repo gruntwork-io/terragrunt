@@ -302,8 +302,8 @@ func (s *GitStore) repoPaths(url string) (dir, repo, lockPath string) {
 // repository. Checking for HEAD is enough: `git init --bare` writes it as
 // part of repository setup, so its presence lets acquire skip the
 // per-call init spawn once a store entry exists.
-func bareRepoInitialized(fs vfs.FS, repoPath string) (bool, error) {
-	return vfs.FileExists(fs, filepath.Join(repoPath, "HEAD"))
+func bareRepoInitialized(fsys vfs.FS, repoPath string) (bool, error) {
+	return vfs.FileExists(fsys, filepath.Join(repoPath, "HEAD"))
 }
 
 // repoSession bundles the locked repo handle, the runner pointed at it,

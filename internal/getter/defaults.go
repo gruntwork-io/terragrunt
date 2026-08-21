@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	gcs "github.com/hashicorp/go-getter/gcs/v2"
 	getter "github.com/hashicorp/go-getter/v2"
 )
 
@@ -34,7 +33,7 @@ type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
 	logger     log.Logger
-	fs         vfs.FS
+	fsys       vfs.FS
 	env        map[string]string
 	ociHolder  *ociStoreHolder
 	httpExtra  http.Header
@@ -59,13 +58,13 @@ func (h *ociStoreHolder) store(l log.Logger) OCINewStoreFunc {
 	return h.fn
 }
 
-// requireLoggerFS panics when logger or fs is unset for a scheme that needs them.
+// requireLoggerFS panics when logger or fsys is unset for a scheme that needs them.
 func requireLoggerFS(c *genericFetcherConfig, scheme string) {
 	if c.logger == nil {
 		panic("getter: " + scheme + " requires WithDispatchLogger")
 	}
 
-	if c.fs == nil {
+	if c.fsys == nil {
 		panic("getter: " + scheme + " requires WithDispatchFS")
 	}
 }
@@ -82,13 +81,13 @@ func WithDispatchLogger(l log.Logger) GenericFetcherOption {
 }
 
 // WithDispatchFS sets the shared filesystem for tfr and oci dispatch entries.
-func WithDispatchFS(fs vfs.FS) GenericFetcherOption {
+func WithDispatchFS(fsys vfs.FS) GenericFetcherOption {
 	return func(c *genericFetcherConfig) {
-		if fs == nil {
+		if fsys == nil {
 			panic("getter: WithDispatchFS requires a non-nil filesystem")
 		}
 
-		c.fs = fs
+		c.fsys = fsys
 	}
 }
 
@@ -142,15 +141,15 @@ func WithTFRConfig(impl tfimpl.Type) GenericFetcherOption {
 // uses on a cache miss. Exported so callers that build dedicated
 // CAS-only clients (the CAS-experiment path in
 // runner/run/download_source.go) share the fetcher set NewClient uses.
-func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Getter {
+func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[string]getter.Getter {
 	var cfg genericFetcherConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
 	m := map[string]getter.Getter{
-		SchemeS3:    new(S3Getter),
-		SchemeGCS:   new(gcs.Getter),
+		SchemeS3:    NewS3Getter(v),
+		SchemeGCS:   NewGCSGetter(v),
 		SchemeHTTP:  &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpExtra), Scheme: SchemeHTTP},
 		SchemeHTTPS: &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpsExtra), Scheme: SchemeHTTPS},
 		SchemeHg:    new(getter.HgGetter),
@@ -166,8 +165,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 			)
 		}
 
-		m[SchemeTFR] = NewRegistryGetter(cfg.logger, cfg.fs).
-			WithHTTPClient(cfg.httpClient).
+		m[SchemeTFR] = NewRegistryGetter(cfg.logger, v).
 			WithEnv(cfg.env).
 			WithTofuImplementation(cfg.tfrImpl)
 	}
@@ -177,7 +175,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 		m[SchemeOCI] = &OCIGetter{
 			NewStore: cfg.ociHolder.store(cfg.logger),
 			Logger:   cfg.logger,
-			FS:       cfg.fs,
+			FS:       cfg.fsys,
 		}
 	}
 
@@ -232,8 +230,9 @@ func buildGetters(b *builder) []Getter {
 	hgGetter := new(getter.HgGetter)
 	smbClientGetter := new(getter.SmbClientGetter)
 	smbMountGetter := new(getter.SmbMountGetter)
-	s3Getter := new(S3Getter)
-	gcsGetter := new(gcs.Getter)
+
+	s3Getter := NewS3Getter(b.v)
+	gcsGetter := NewGCSGetter(b.v)
 
 	if b.casStore != nil {
 		if b.httpClient == nil {
@@ -256,8 +255,8 @@ func buildGetters(b *builder) []Getter {
 			resolverOpts = append(
 				resolverOpts,
 				WithDispatchLogger(b.logger),
-				WithDispatchFS(b.tfRegistry.FS),
-				WithDispatchEnv(b.tfRegistry.Env),
+				WithDispatchFS(b.tfRegistry.Venv.FS),
+				WithDispatchEnv(b.tfRegistry.Venv.Env),
 				WithTFRConfig(b.tfRegistry.TofuImplementation),
 			)
 		}
@@ -267,10 +266,10 @@ func buildGetters(b *builder) []Getter {
 		}
 
 		out = append(out,
-			NewCASProtocolGetter(b.logger, b.casStore, b.casVenv),
-			NewCASGetter(b.logger, b.casStore, b.casVenv, b.casCloneOpts,
+			NewCASProtocolGetter(b.logger, b.casStore, b.v),
+			NewCASGetter(b.logger, b.casStore, b.v, b.casCloneOpts,
 				WithGenericFetchers(fetchers),
-				WithGenericResolvers(DefaultSourceResolvers(b.httpClient, resolverOpts...)),
+				WithGenericResolvers(DefaultSourceResolvers(b.v.WithHTTP(b.httpClient), resolverOpts...)),
 			),
 		)
 	}

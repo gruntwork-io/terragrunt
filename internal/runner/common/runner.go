@@ -26,6 +26,7 @@ type StackRunner interface {
 	// LogUnitDeployOrder logs the order in which units will be deployed.
 	LogUnitDeployOrder(
 		l log.Logger,
+		v *venv.Venv,
 		isDestroy bool,
 		showAbsPaths bool,
 		experiments experiment.Experiments,

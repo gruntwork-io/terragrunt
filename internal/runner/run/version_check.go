@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -56,6 +57,7 @@ func PopulateTFVersion(
 ) (log.Logger, *version.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(
+		v.FS,
 		in.WorkingDir,
 		in.VersionFiles,
 		in.TFOpts.ShellOptions.TFPath,
@@ -273,22 +275,27 @@ func parseTerraformImplementationType(versionCommandOutput string) (tfimpl.Type,
 // the key because the same working directory can legitimately resolve to
 // different binaries within a single run (e.g. when terraform_binary overrides
 // the default), and conflating those produces the wrong version string.
-func computeVersionFilesCacheKey(workingDir string, versionFiles []string, tfPath string) string {
+func computeVersionFilesCacheKey(
+	fsys vfs.FS,
+	workingDir string,
+	versionFiles []string,
+	tfPath string,
+) string {
 	var hashes []string
 
 	for _, file := range versionFiles {
 		path := filepath.Join(workingDir, file)
 
-		if !util.FileExists(path) {
+		if !vfs.Exists(fsys, path) {
 			continue
 		}
 
-		sanitizedPath, err := util.SanitizePath(workingDir, file)
+		sanitizedPath, err := util.SanitizePath(fsys, workingDir, file)
 		if err != nil {
 			sanitizedPath = path
 		}
 
-		hash, err := util.FileSHA256(sanitizedPath)
+		hash, err := vfs.FileSHA256(fsys, sanitizedPath)
 		if err == nil {
 			hashes = append(hashes, file+":"+hex.EncodeToString(hash))
 		}

@@ -182,7 +182,7 @@ func TestFileManifest(t *testing.T) {
 	assert.NoError(t, manifest.Clean(l))
 	// test if the files have been deleted
 	for _, file := range testfiles {
-		assert.False(t, util.FileExists(file))
+		assert.NoFileExists(t, file)
 	}
 }
 
@@ -1072,7 +1072,7 @@ func TestEmptyDir(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			emptyValue, err := util.IsDirectoryEmpty(tc.path)
+			emptyValue, err := vfs.IsDirectoryEmpty(vfs.NewOSFS(), tc.path)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectEmpty, emptyValue, "For path %s", tc.path)
 		})
@@ -1148,7 +1148,7 @@ func Test_sanitizePath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := util.SanitizePath(tt.baseDir, tt.file)
+			got, err := util.SanitizePath(vfs.NewOSFS(), tt.baseDir, tt.file)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -1160,6 +1160,26 @@ func Test_sanitizePath(t *testing.T) {
 			assert.Equalf(t, tt.want, got, "sanitizePath(%v, %v)", tt.baseDir, tt.file)
 		})
 	}
+}
+
+// TestSanitizePathRejectsSymlinkOutOfBaseDir pins the containment check against
+// a link, not just a "../" traversal. A relative path that stays inside baseDir
+// on paper still reaches outside it when a component along the way is a symlink.
+func TestSanitizePathRejectsSymlinkOutOfBaseDir(t *testing.T) {
+	t.Parallel()
+
+	base := helpers.TmpDirWOSymlinks(t)
+
+	baseDir := filepath.Join(base, "unit")
+	require.NoError(t, os.MkdirAll(baseDir, 0o755))
+
+	outside := filepath.Join(base, "outside.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("secret"), 0o644))
+
+	require.NoError(t, os.Symlink(outside, filepath.Join(baseDir, "escape.txt")))
+
+	_, err := util.SanitizePath(vfs.NewOSFS(), baseDir, "escape.txt")
+	require.ErrorIs(t, err, util.ErrPathEscapesBaseDir)
 }
 
 func TestMoveFile(t *testing.T) {

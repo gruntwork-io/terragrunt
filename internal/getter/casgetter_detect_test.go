@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
@@ -348,10 +349,10 @@ func TestCASGetterDetect_SchemeNotInRegistryFallsThrough(t *testing.T) {
 	// matcher. (A higher-priority getter, TFR for instance, wins the
 	// outer registry race in this case.)
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	// No generic dispatch wired: only the git+file paths are active.
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
@@ -374,7 +375,7 @@ func TestNewCASGetter_PanicsOnNilVenvFS(t *testing.T) {
 	t.Parallel()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	require.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
@@ -390,7 +391,7 @@ func TestNewCASGetter_PanicsOnNilVenvExec(t *testing.T) {
 	t.Parallel()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := &venv.Venv{FS: vfs.NewOSFS()}
@@ -409,10 +410,10 @@ func TestNewCASGetter_PanicsOnNilVenvHTTPWithDispatch(t *testing.T) {
 	t.Parallel()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	v.HTTP = nil
 
 	require.PanicsWithValue(t, venv.ErrVenvHTTPUnset, func() {
@@ -428,7 +429,7 @@ func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
 	t.Parallel()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	g := &getter.CASGetter{
@@ -492,10 +493,10 @@ func newCASGetterForDetect(t *testing.T) *getter.CASGetter {
 	t.Helper()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	return getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewNoNetworkClient())))

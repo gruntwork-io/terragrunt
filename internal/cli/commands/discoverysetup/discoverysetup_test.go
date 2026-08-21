@@ -8,10 +8,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestWorktreesNoGitFilters(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	opts := options.NewTerragruntOptions()
@@ -43,7 +43,7 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	// A plain directory with no git repository makes worktree creation fail.
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -73,7 +73,7 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	runner := helpers.InitTestGitRunner(t, tmpDir)
 

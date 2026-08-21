@@ -91,10 +91,9 @@ func NewClient(
 
 	builder := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
-		WithEnv(v.Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions)
 
-	cfg, err := builder.Build(ctx, l)
+	cfg, err := builder.Build(ctx, l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +104,7 @@ func NewClient(
 		}
 	}
 
-	s3Client, err := builder.BuildS3Client(ctx, l)
+	s3Client, err := builder.BuildS3Client(ctx, l, v)
 	if err != nil {
 		return nil, err
 	}

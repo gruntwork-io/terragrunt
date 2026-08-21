@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
 // gcsResolverTimeout caps the Attrs call so a slow remote can't stall CAS
@@ -50,14 +51,17 @@ type GCSClient interface {
 // GCSResolver is a [cas.SourceResolver] for objects in Google Cloud
 // Storage.
 type GCSResolver struct {
-	// NewClient builds a GCS client per request. Nil means
-	// [storage.NewClient] with the ambient application default
-	// credentials.
+	// NewClient builds a GCS client per request. Nil means a client built
+	// from Venv.
 	NewClient func(ctx context.Context) (GCSClient, error)
+	// Venv carries the SDK's requests, credentials, and filesystem.
+	// Required when NewClient is nil; [NewGCSResolver] takes it from the
+	// caller.
+	Venv *venv.Venv
 }
 
-// NewGCSResolver returns a resolver wired to the ambient ADC.
-func NewGCSResolver() *GCSResolver { return &GCSResolver{} }
+// NewGCSResolver returns a resolver that reads object metadata through v.
+func NewGCSResolver(v *venv.Venv) *GCSResolver { return &GCSResolver{Venv: v} }
 
 // Scheme returns "gcs".
 func (r *GCSResolver) Scheme() string { return "gcs" }
@@ -125,7 +129,7 @@ func (r *GCSResolver) client(ctx context.Context) (GCSClient, error) {
 		return r.NewClient(ctx)
 	}
 
-	c, err := storage.NewClient(ctx)
+	c, err := gcphelper.NewGCPConfigBuilder().BuildGCSClient(ctx, r.Venv)
 	if err != nil {
 		return nil, err
 	}

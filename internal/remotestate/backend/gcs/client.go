@@ -40,8 +40,7 @@ func NewClient(
 ) (*Client, error) {
 	gcsClient, err := gcphelper.NewGCPConfigBuilder().
 		WithSessionConfig(config.GetGCPSessionConfig()).
-		WithEnv(v.Env).
-		BuildGCSClient(ctx)
+		BuildGCSClient(ctx, v)
 	if err != nil {
 		return nil, err
 	}

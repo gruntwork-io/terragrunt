@@ -231,7 +231,7 @@ func TestWindowsScaffold(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --working-dir '%s'",
+			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --non-interactive --working-dir '%s'",
 			tmpDir,
 		),
 	)
@@ -251,7 +251,7 @@ func TestWindowsScaffoldRef(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --working-dir '%s'",
+			"terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --non-interactive --working-dir '%s'",
 			tmpDir,
 		),
 	)

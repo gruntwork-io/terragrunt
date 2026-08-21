@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	goversion "github.com/hashicorp/go-version"
@@ -397,21 +398,13 @@ type VersionResolver struct {
 	mu         sync.Mutex
 }
 
-// NewVersionResolver returns a VersionResolver with an empty cache and a
-// [vhttp.NewOSClient] for registry-protocol requests.
-func NewVersionResolver() *VersionResolver {
+// NewVersionResolver returns a VersionResolver with an empty cache that
+// issues registry-protocol requests through c.
+func NewVersionResolver(c vhttp.Client) *VersionResolver {
 	return &VersionResolver{
-		httpClient: vhttp.NewOSClient(),
+		httpClient: c,
 		cache:      make(map[string]string),
 	}
-}
-
-// WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests routing through a
-// [net/http/httptest.Server].
-func (r *VersionResolver) WithHTTPClient(c vhttp.Client) *VersionResolver {
-	r.httpClient = c
-	return r
 }
 
 // WithAuth sets the credentials the registry protocol authenticates with.
@@ -575,7 +568,7 @@ func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error)
 	// virtual filesystem, so a run that is not on the real disk skips it and
 	// authenticates from the env alone.
 	if auth.ReadUserConfig {
-		cliCfg, err := cliconfig.LoadUserConfig()
+		cliCfg, err := cliconfig.LoadUserConfig(vfs.NewOSFS())
 		if err != nil {
 			return nil, err
 		}

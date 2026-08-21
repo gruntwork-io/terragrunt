@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -129,11 +128,11 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), filename)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), filename)
 	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
-	pctx.Venv.Env = venv.OSVenv().Env
+	pctx.Venv.Env = venvtest.NewOSWithEmptyEnv().Env
 	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
@@ -184,7 +183,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
@@ -225,7 +224,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), filename)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), filename)
 	pctx.OriginalTerragruntConfigPath = filename
 	pctx.SkipOutput = true
 
@@ -248,7 +247,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctxB, pctxB := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), unitBFilename)
+	ctxB, pctxB := newTestParsingContext(t, venvtest.NewWithOSFS(), unitBFilename)
 	pctxB.OriginalTerragruntConfigPath = unitBFilename
 
 	unitBConfig, err := config.ParseConfigFile(
@@ -279,7 +278,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation

@@ -39,6 +39,7 @@ func TestMapFlagStringStringApply(t *testing.T) {
 		},
 		{
 			flag:          clihelper.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
+			envs:          map[string]string{},
 			expectedValue: map[string]string{},
 		},
 		{
@@ -66,6 +67,7 @@ func TestMapFlagStringStringApply(t *testing.T) {
 					},
 				),
 			},
+			envs: map[string]string{},
 			expectedValue: map[string]string{
 				"default1-key": "default1-value",
 				"default2-key": "default2-value",
@@ -119,6 +121,7 @@ func TestMapFlagStringIntApply(t *testing.T) {
 				Name:        "foo",
 				Destination: new(map[string]int{"default1-key": 50, "default2-key": 51}),
 			},
+			envs:          map[string]string{},
 			expectedValue: map[string]int{"default1-key": 50, "default2-key": 51},
 		},
 	}
@@ -155,22 +158,10 @@ func testMapFlagApply[K clihelper.MapFlagKeyType, V clihelper.MapFlagValueType](
 		expectedDefaultValue = *flag.Destination
 	}
 
-	flag.LookupEnvFunc = func(key string) []string {
-		if envs == nil {
-			return nil
-		}
-
-		if val, ok := envs[key]; ok {
-			return flag.Splitter(val, flag.EnvVarSep)
-		}
-
-		return nil
-	}
-
 	flagSet := libflag.NewFlagSet("test-cmd", libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	err := flag.Apply(flagSet)
+	err := flag.Apply(flagSet, envs)
 	require.NoError(t, err)
 
 	err = flagSet.Parse(args)

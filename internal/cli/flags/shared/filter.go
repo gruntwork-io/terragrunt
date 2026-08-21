@@ -9,7 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -30,7 +30,7 @@ var ErrDiscoveryBoundaryRequiresExperiment = errors.New(
 )
 
 // NewFilterFlags creates flags for specifying filter queries.
-func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
+func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 
 	return clihelper.Flags{
@@ -78,7 +78,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 					}
 
 					// Check for uncommitted changes
-					gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
+					gitRunner, err := git.NewGitRunner(v.Exec)
 					if err != nil {
 						return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 					}

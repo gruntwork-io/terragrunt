@@ -21,7 +21,7 @@
     "@astrojs/sitemap": "3.7.3",
     "@astrojs/starlight": "0.41.3",
     "@astrojs/starlight-tailwind": "5.0.0",
-    "@astrojs/vercel": "11.0.0",
+    "@astrojs/vercel": "11.0.3",
     "@tailwindcss/vite": "^4.3.2",
     "astro": "7.1.0",
     "astro-d2": "^0.11.0",

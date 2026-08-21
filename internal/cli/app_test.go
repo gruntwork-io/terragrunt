@@ -23,13 +23,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -920,7 +920,7 @@ func TestTerragruntVersion(t *testing.T) {
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptions()
 
-		testV := venv.OSVenv()
+		testV := venvtest.New()
 
 		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
@@ -942,7 +942,7 @@ func TestTerragruntHelp(t *testing.T) {
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
 	opts := options.NewTerragruntOptions()
-	app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+	app := cli.NewApp(logger.CreateLogger(), opts, venvtest.New())
 
 	testCases := []struct {
 		expected    string
@@ -982,7 +982,7 @@ func TestTerragruntHelp(t *testing.T) {
 			output := &bytes.Buffer{}
 			opts := options.NewTerragruntOptions()
 
-			testV := venv.OSVenv()
+			testV := venvtest.New()
 
 			testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
@@ -1008,7 +1008,7 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 	opts := options.NewTerragruntOptions()
 
-	testV := venv.OSVenv()
+	testV := venvtest.New()
 
 	testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
@@ -1034,15 +1034,17 @@ func runAppTest(
 ) (*options.TerragruntOptions, error) {
 	emptyAction := func(ctx context.Context, cliCtx *clihelper.Context) error { return nil }
 
-	terragruntCommands := commands.New(l, opts, venv.OSVenv())
+	testV := venvtest.New()
+
+	terragruntCommands := commands.New(l, opts, testV)
 	setCommandAction(emptyAction, terragruntCommands...)
 
-	app := clihelper.NewApp()
+	app := clihelper.NewApp(testV.Env)
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
 
-	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, venv.OSVenv()))
+	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, testV, nil)...)
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, testV))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx context.Context, cliCtx *clihelper.Context) error {
 		for _, arg := range cliCtx.Args() {
@@ -1099,12 +1101,14 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 	}
 
 	for _, tc := range testCases {
-		t.Setenv("COMP_LINE", "terragrunt "+tc.compLine)
-
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptions()
 
-		testV := venv.OSVenv()
+		// Autocomplete reads COMP_LINE from the venv's environment, so the
+		// completion request is handed over rather than exported to the process.
+		testV := venvtest.New().WithEnv(map[string]string{
+			"COMP_LINE": "terragrunt " + tc.compLine,
+		})
 
 		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 

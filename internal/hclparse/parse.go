@@ -67,8 +67,8 @@ type ParseResult struct {
 }
 
 // ParseStackFile runs the phase flow and returns partial results when decode partially succeeds.
-func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
-	validateParseStackFileInput(fs, input)
+func ParseStackFile(fsys vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
+	validateParseStackFileInput(fsys, input)
 
 	result := &ParseResult{AutoIncludes: map[string]*AutoIncludeResolved{}}
 
@@ -91,7 +91,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
 	// Phase 3 resolves include blocks and merges included Remain bodies.
-	mergedRemain, err := mergeIncludes(fs, parsedStackFile, input.StackDir, evalCtx, srcByFilename)
+	mergedRemain, err := mergeIncludes(fsys, parsedStackFile, input.StackDir, evalCtx, srcByFilename)
 	if err != nil {
 		return result, err
 	}
@@ -129,14 +129,14 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 }
 
 // validateParseStackFileInput panics on malformed parser input.
-func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
-	if fs == nil {
+func validateParseStackFileInput(fsys vfs.FS, input *ParseStackFileInput) {
+	if fsys == nil {
 		filename := ""
 		if input != nil {
 			filename = input.Filename
 		}
 
-		panic(fmt.Sprintf("hclparse.ParseStackFile: fs is nil (filename=%q)", filename))
+		panic(fmt.Sprintf("hclparse.ParseStackFile: fsys is nil (filename=%q)", filename))
 	}
 
 	if input == nil {
@@ -391,7 +391,7 @@ type resolvedInclude struct {
 
 // mergeIncludes resolves include paths and merges included Remain bodies.
 func mergeIncludes(
-	fs vfs.FS,
+	fsys vfs.FS,
 	parsedFile *StackFileHCL,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
@@ -400,7 +400,7 @@ func mergeIncludes(
 	bodies := []hcl.Body{parsedFile.Remain}
 
 	for _, inc := range parsedFile.Includes {
-		resolved, err := mergeOneInclude(fs, inc, stackDir, evalCtx)
+		resolved, err := mergeOneInclude(fsys, inc, stackDir, evalCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -419,7 +419,7 @@ func mergeIncludes(
 
 // mergeOneInclude reads and parses one included file.
 func mergeOneInclude(
-	fs vfs.FS,
+	fsys vfs.FS,
 	inc *StackIncludeHCL,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
@@ -473,7 +473,7 @@ func mergeOneInclude(
 		includePath = filepath.Join(stackDir, includePath)
 	}
 
-	data, err := vfs.ReadFile(fs, includePath)
+	data, err := vfs.ReadFile(fsys, includePath)
 	if err != nil {
 		return resolvedInclude{}, FileReadError{FilePath: includePath, Err: err}
 	}

@@ -18,6 +18,15 @@ var ErrNoLock = errors.New("locking not supported")
 // cannot be followed at all.
 var ErrSymlinkEscapes = errors.New("symlink target escapes destination")
 
+// PathIsNotDirectory is returned when the given path is unexpectedly not a directory.
+type PathIsNotDirectory struct {
+	path string
+}
+
+func (err PathIsNotDirectory) Error() string {
+	return err.path + " is not a directory"
+}
+
 // ZipDecompressedSizeLimitError reports an extraction exceeding its configured decompressed size limit.
 type ZipDecompressedSizeLimitError struct {
 	// Name is the archive entry whose extraction breached the limit.

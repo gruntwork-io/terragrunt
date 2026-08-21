@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ func TestScanVariables(t *testing.T) {
 
 	inputs, err := config.ParseVariables(
 		logger.CreateLogger(),
-		vfs.NewOSFS(),
+		venvtest.NewWithOSFS(),
 		controls.New(),
 		"../../test/fixtures/inputs",
 	)
@@ -74,7 +75,7 @@ func TestParseVariablesIgnoresSubdirectories(t *testing.T) {
 		),
 	)
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), fsys, controls.New(), moduleDir)
+	inputs, err := config.ParseVariables(logger.CreateLogger(), venvtest.New().WithFS(fsys), controls.New(), moduleDir)
 	require.NoError(t, err)
 
 	require.Len(t, inputs, 1)
@@ -86,7 +87,7 @@ func TestScanDefaultVariables(t *testing.T) {
 
 	inputs, err := config.ParseVariables(
 		logger.CreateLogger(),
-		vfs.NewOSFS(),
+		venvtest.NewWithOSFS(),
 		controls.New(),
 		"../../test/fixtures/inputs-defaults",
 	)

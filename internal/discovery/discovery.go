@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -227,7 +228,7 @@ func (d *Discovery) Discover(
 		components = filtered
 	}
 
-	components = d.dropOutsideBoundary(l, components)
+	components = d.dropOutsideBoundary(l, v.FS, components)
 
 	cycleCheckErr := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "discovery_cycle_check", map[string]any{},
@@ -255,7 +256,7 @@ func (d *Discovery) Discover(
 	}
 
 	if d.graphTarget != "" {
-		components = d.filterGraphTarget(components)
+		components = d.filterGraphTarget(v.FS, components)
 	}
 
 	components = d.applyQueueFilters(opts, components)
@@ -554,7 +555,7 @@ func (d *Discovery) buildDependencyGraph(
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
 ) []error {
-	threadSafeComponents := component.NewThreadSafeComponents(allComponents)
+	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
 
 	var (
 		errs []error
@@ -614,7 +615,7 @@ func (d *Discovery) buildComponentDependencies(
 
 	cfg := unit.Config()
 
-	depPaths, err := extractDependencyPaths(cfg, c)
+	depPaths, err := extractDependencyPaths(v.FS, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -634,21 +635,21 @@ func (d *Discovery) buildComponentDependencies(
 	}
 
 	for _, depPath := range depPaths {
-		depComponent := componentFromDependencyPath(depPath, threadSafeComponents)
+		depComponent := componentFromDependencyPath(v.FS, depPath, threadSafeComponents)
 
 		if dctx := depComponent.DiscoveryContext(); dctx == nil || dctx.WorkingDir == "" {
 			depComponent.SetDiscoveryContext(
 				parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery),
 			)
 
-			if isExternal(parentCtx.WorkingDir, depPath) {
+			if isExternal(v.FS, parentCtx.WorkingDir, depPath) {
 				if ext, ok := depComponent.(*component.Unit); ok {
 					ext.SetExternal()
 				}
 			}
 		}
 
-		addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
+		addedComponent, _ := threadSafeComponents.EnsureComponent(v.FS, depComponent)
 
 		c.AddDependency(addedComponent)
 	}
@@ -680,24 +681,24 @@ func removeCycles(components component.Components) (component.Components, error)
 }
 
 // filterGraphTarget prunes components to the target path and its dependents.
-func (d *Discovery) filterGraphTarget(components component.Components) component.Components {
+func (d *Discovery) filterGraphTarget(fsys vfs.FS, components component.Components) component.Components {
 	if d.graphTarget == "" {
 		return components
 	}
 
-	targetPath := canonicalizeGraphTarget(d.workingDir, d.graphTarget)
+	targetPath := canonicalizeGraphTarget(fsys, d.workingDir, d.graphTarget)
 
-	dependentUnits := buildDependentsIndex(components)
+	dependentUnits := buildDependentsIndex(fsys, components)
 	propagateTransitiveDependents(dependentUnits)
 
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
-	return filterByAllowSet(components, allowed)
+	return filterByAllowSet(fsys, components, allowed)
 }
 
 // canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path with symlinks resolved.
 // Returns an error if the path cannot be made absolute.
-func canonicalizeGraphTarget(baseDir, target string) string {
+func canonicalizeGraphTarget(fsys vfs.FS, baseDir, target string) string {
 	var abs string
 
 	// If already absolute, just clean it
@@ -715,25 +716,20 @@ func canonicalizeGraphTarget(baseDir, target string) string {
 	// EvalSymlinks can fail for: non-existent paths (expected during discovery),
 	// broken symlinks, or permission issues. In all cases, falling back to the
 	// absolute path is acceptable - the path will be validated later when used.
-	resolved, evalErr := filepath.EvalSymlinks(abs)
-	if evalErr != nil {
-		return abs
-	}
-
-	return resolved
+	return vfs.ResolveForCompare(fsys, abs)
 }
 
 // buildDependentsIndex builds an index mapping each unit path to the list of units
 // that directly depend on it. Duplicate entries are removed.
 // Paths are resolved to handle symlinks consistently across platforms.
-func buildDependentsIndex(components component.Components) map[string][]string {
+func buildDependentsIndex(fsys vfs.FS, components component.Components) map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, c := range components {
-		cPath := util.ResolvePath(c.Path())
+		cPath := vfs.ResolveForCompare(fsys, c.Path())
 
 		for _, dep := range c.Dependencies() {
-			depPath := util.ResolvePath(dep.Path())
+			depPath := vfs.ResolveForCompare(fsys, dep.Path())
 			dependentUnits[depPath] = util.RemoveDuplicates(append(dependentUnits[depPath], cPath))
 		}
 	}
@@ -793,13 +789,14 @@ func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[st
 // Paths are resolved to handle symlinks consistently across platforms.
 // The output order matches the input order (no sorting is performed here).
 func filterByAllowSet(
+	fsys vfs.FS,
 	components component.Components,
 	allowed map[string]struct{},
 ) component.Components {
 	filtered := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		resolvedPath := util.ResolvePath(c.Path())
+		resolvedPath := vfs.ResolveForCompare(fsys, c.Path())
 		if _, ok := allowed[resolvedPath]; ok {
 			filtered = append(filtered, c)
 		}
@@ -825,7 +822,11 @@ func (d *Discovery) applyQueueFilters(
 // do run can be ordered against them and can fetch their outputs. Components the
 // filesystem walk found are left alone, boundary or not: the boundary says how
 // far a run may follow the graph, not where discovery starts.
-func (d *Discovery) dropOutsideBoundary(l log.Logger, components component.Components) component.Components {
+func (d *Discovery) dropOutsideBoundary(
+	l log.Logger,
+	fsys vfs.FS,
+	components component.Components,
+) component.Components {
 	if d.discoveryBoundary == "" {
 		return components
 	}
@@ -840,7 +841,7 @@ func (d *Discovery) dropOutsideBoundary(l log.Logger, components component.Compo
 	kept := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		if reachedByTraversal(c) && isExternal(d.discoveryBoundary, c.Path()) {
+		if reachedByTraversal(c) && isExternal(fsys, d.discoveryBoundary, c.Path()) {
 			l.Debugf(
 				"Discovery: %s was reached across discovery boundary %s; not returning it",
 				c.Path(),

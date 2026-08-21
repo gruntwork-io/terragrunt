@@ -295,7 +295,7 @@ func TestHCLFmtStdin(t *testing.T) {
 	tgOptions.HclFromStdin = true
 
 	v := venvtest.New().
-		WithReader(strings.NewReader(unformatted)).
+		WithStdin(strings.NewReader(unformatted)).
 		WithWriter(&formatted)
 
 	err = format.Run(t.Context(), logger.CreateLogger(), v, tgOptions)

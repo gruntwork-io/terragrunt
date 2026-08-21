@@ -34,7 +34,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -369,7 +368,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -378,9 +377,9 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := filepath.Join(downloadDir, "main.tf")
-	if assert.True(
+	if assert.FileExists(
 		t,
-		util.FileExists(expectedFilePath),
+		expectedFilePath,
 		"For terraform source %v",
 		terraformSource,
 	) {
@@ -437,7 +436,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -527,42 +526,42 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 			name:      "test-stale-file-exists",
 			sourceURL: "../../../test/fixtures/manifest/version-1",
 			comp: func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+				return vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "stale.tf"))
 			},
 		},
 		{
 			name:      "test-stale-file-doesnt-exist-after-source-update",
 			sourceURL: "../../../test/fixtures/manifest/version-2",
 			comp: func() bool {
-				return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+				return !vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "stale.tf"))
 			},
 		},
 		{
 			name:      "test-tffile-exists-in-subfolder",
 			sourceURL: "../../../test/fixtures/manifest/version-3-subfolder",
 			comp: func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+				return vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "sub", "main.tf"))
 			},
 		},
 		{
 			name:      "test-tffile-doesnt-exist-in-subfolder",
 			sourceURL: "../../../test/fixtures/manifest/version-4-subfolder-empty",
 			comp: func() bool {
-				return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+				return !vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "sub", "main.tf"))
 			},
 		},
 		{
 			name:      "test-empty-folder-gets-copied",
 			sourceURL: testDir,
 			comp: func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub2"))
+				return vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "sub2"))
 			},
 		},
 		{
 			name:      "test-empty-folder-gets-populated",
 			sourceURL: "../../../test/fixtures/manifest/version-5-not-empty-subfolder",
 			comp: func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
+				return vfs.Exists(vfs.NewOSFS(), filepath.Join(downloadDir, "sub2", "main.tf"))
 			},
 		},
 	}
@@ -600,7 +599,7 @@ func testDownloadTerraformSourceIfNecessary(
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -609,9 +608,9 @@ func testDownloadTerraformSourceIfNecessary(
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := filepath.Join(downloadDir, "main.tf")
-	if assert.True(
+	if assert.FileExists(
 		t,
-		util.FileExists(expectedFilePath),
+		expectedFilePath,
 		"For terraform source %v",
 		terraformSource,
 	) {
@@ -626,10 +625,10 @@ func testDownloadTerraformSourceIfNecessary(
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(
+		require.FileExists(
+			t,
 			filepath.Join(terraformSource.WorkingDir, run.ModuleInitRequiredFile),
 		)
-		require.True(t, existsInitFile)
 	}
 }
 
@@ -670,9 +669,9 @@ func createConfig(
 	// other than the version probe is a regression: fail loudly rather
 	// than silently absorb it.
 	versionExec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		// DefaultWrappedPath resolves to either tofu or terraform depending
-		// on what's on the host PATH; accept both so the assertion stays
-		// host-independent.
+		// IdentifyDefaultWrappedExecutable resolves to either tofu or terraform
+		// depending on what's on the host PATH; accept both so the assertion
+		// stays host-independent.
 		if (inv.Name != "tofu" && inv.Name != "terraform") ||
 			!slices.Contains(inv.Args, "-version") {
 			assert.Fail(t, "unexpected invocation during PopulateTFVersion",
@@ -684,7 +683,7 @@ func createConfig(
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 	})
 
-	versionV := venvtest.New().WithExec(versionExec).WithEnv(venv.OSVenv().Env)
+	versionV := venvtest.New().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
 	_, ver, impl, err := run.PopulateTFVersion(
 		t.Context(),
 		l,
@@ -726,7 +725,7 @@ func testAlreadyHaveLatestCode(
 
 	actual, err := run.AlreadyHaveLatestCode(
 		l,
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 	)
@@ -764,7 +763,7 @@ func parseURL(t *testing.T, str string) *url.URL {
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 
-	contents, err := util.ReadFileAsString(path)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -826,7 +825,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 
 			client, err := run.BuildDownloadClient(
 				logger.CreateLogger(),
-				venv.OSVenv(),
+				venvtest.NewOSWithEmptyEnv(),
 				configbridge.NewRunOptions(terragruntOptions),
 				tc.cfg,
 			)
@@ -855,7 +854,7 @@ func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
@@ -883,7 +882,7 @@ func TestBuildDownloadClientCoversDefaultSchemes(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
@@ -949,7 +948,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	updatedOpts, err := run.DownloadTerraformSource(
 		t.Context(),
 		l,
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		".",
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -1010,7 +1009,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		l,
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		src,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -1058,7 +1057,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		l,
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		src,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -1126,7 +1125,7 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 			// Hermetic env and home so a developer's local Docker or tofu
 			// credentials cannot change how the source authenticates.
 			hermeticHome := t.TempDir()
-			v := venv.OSVenv().
+			v := venvtest.NewOSWithEmptyEnv().
 				WithEnv(map[string]string{"HOME": hermeticHome}).
 				WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
 
@@ -1147,13 +1146,23 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 
 			if tc.enableOCI {
 				require.ErrorAs(t, err, &resolutionErr, "the oci getter must run when the experiment is on")
-				assert.Contains(t, logBuf.String(), casAttempt, "the oci source must enter the CAS path when the experiment is on")
+				assert.Contains(
+					t,
+					logBuf.String(),
+					casAttempt,
+					"the oci source must enter the CAS path when the experiment is on",
+				)
 
 				return
 			}
 
 			assert.NotErrorAs(t, err, &resolutionErr, "no oci getter must run when the experiment is off")
-			assert.NotContains(t, logBuf.String(), casAttempt, "the CAS attempt must be skipped when the experiment is off")
+			assert.NotContains(
+				t,
+				logBuf.String(),
+				casAttempt,
+				"the CAS attempt must be skipped when the experiment is off",
+			)
 		})
 	}
 }
@@ -1192,7 +1201,7 @@ func TestDownloadSourceOCIAgainstLocalRegistry(t *testing.T) {
 
 	// Hermetic home so a developer's own credentials cannot authenticate the pull.
 	hermeticHome := t.TempDir()
-	v := venv.OSVenv().
+	v := venvtest.NewOSWithEmptyEnv().
 		WithEnv(map[string]string{"HOME": hermeticHome}).
 		WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
 	v.HTTP = registry.Client()
@@ -1246,7 +1255,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		l,
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		src,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -1292,7 +1301,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		l,
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		src,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -1336,7 +1345,7 @@ func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 	l.SetOptions(log.WithOutput(io.Discard))
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(), l, venv.OSVenv(), src,
+		t.Context(), l, venvtest.NewOSWithEmptyEnv(), src,
 		configbridge.NewRunOptions(opts),
 		cfg, report.NewReport(),
 	)
@@ -1402,7 +1411,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 			_, err = run.DownloadTerraformSourceIfNecessary(
 				t.Context(),
 				l,
-				venv.OSVenv(),
+				venvtest.NewOSWithEmptyEnv(),
 				src,
 				configbridge.NewRunOptions(opts),
 				cfg,
@@ -1462,7 +1471,7 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		configbridge.NewRunOptions(opts),
 		cfg,
 	)
@@ -1524,7 +1533,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 		},
 		{
 			name:            "oci source stays on the venv filesystem",
-			source:          "oci://registry.invalid/foo/bar:1.0.0",
+			source:          "oci://registry.invalid/foo/bar?tag=1.0.0",
 			rejected:        false,
 			reachesDownload: true,
 		},
@@ -1537,7 +1546,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("./test")
 			require.NoError(t, err)
 
-			v := venv.OSVenv()
+			v := venvtest.NewOSWithEmptyEnv()
 			v.FS = vfs.NewMemMapFS()
 			v.HTTP = vhttp.NewNoNetworkClient()
 
@@ -1578,7 +1587,7 @@ func TestDownloadTerraformSourceIfNecessaryPanicsOnNilSource(t *testing.T) {
 		run.DownloadTerraformSourceIfNecessary(
 			t.Context(),
 			logger.CreateLogger(),
-			venv.OSVenv(),
+			venvtest.NewOSWithEmptyEnv(),
 			nil,
 			configbridge.NewRunOptions(opts),
 			&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
@@ -1595,7 +1604,7 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	opts, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	v.FS = vfs.NewMemMapFS()
 
 	src, err := tf.NewSource(
@@ -1657,7 +1666,7 @@ func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 
 			client, err := run.BuildDownloadClient(
 				logger.CreateLogger(),
-				venv.OSVenv(),
+				venvtest.NewOSWithEmptyEnv(),
 				configbridge.NewRunOptions(terragruntOptions),
 				&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 			)
@@ -1702,7 +1711,7 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 		0o600,
 	))
 
-	v := venv.OSVenv().
+	v := venvtest.NewOSWithEmptyEnv().
 		WithEnv(map[string]string{"HOME": home}).
 		WithUserHomeDir(func() (string, error) { return home, nil })
 
