@@ -3,7 +3,6 @@ package config_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -496,12 +495,16 @@ func TestIncludeMergeKeepsEveryExpandedInstance(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			dir := t.TempDir()
+			dir := filepath.Join("/virtual", "include-merge")
+			configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
 
-			require.NoError(t, os.MkdirAll(filepath.Join(dir, "network"), 0o755))
-			require.NoError(t, os.MkdirAll(filepath.Join(dir, "logging"), 0o755))
+			ctx, pctx := newExpansionParsingContext(t, configPath)
+			fsys := pctx.Venv.FS
 
-			require.NoError(t, os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(`
+			require.NoError(t, vfs.EnsureDirectory(fsys, filepath.Join(dir, "network")))
+			require.NoError(t, vfs.EnsureDirectory(fsys, filepath.Join(dir, "logging")))
+
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(dir, "root.hcl"), []byte(`
 dependencies {
   paths = ["./network"]
 }
@@ -512,8 +515,7 @@ dependency "vpc" {
 }
 `), 0o644))
 
-			configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-			require.NoError(t, os.WriteFile(configPath, []byte(`
+			require.NoError(t, vfs.WriteFile(fsys, configPath, []byte(`
 include "root" {
   path = "root.hcl"
   `+tc.mergeStrategy+`
@@ -532,8 +534,6 @@ dependency "shard" {
   config_path = "../shard-${count.index}"
 }
 `), 0o644))
-
-			ctx, pctx := newExpansionParsingContext(t, configPath)
 
 			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
 			require.NoError(t, err)
@@ -1340,7 +1340,7 @@ func newExpansionParsingContext(
 ) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
-	ctx, pctx := newTestParsingContext(tb, venvtest.NewWithOSFS(), configPath)
+	ctx, pctx := newTestParsingContext(tb, venvtest.New(), configPath)
 	require.NoError(tb, pctx.Experiments.EnableExperiment(experiment.BlockIteration))
 
 	return ctx, pctx
