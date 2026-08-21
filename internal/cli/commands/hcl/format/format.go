@@ -50,7 +50,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 			return errors.New("both stdin and path flags are specified")
 		}
 
-		return formatFromStdin(l, v)
+		return formatFromStdin(l, v, opts)
 	}
 
 	if targetFile != "" {
@@ -195,7 +195,9 @@ func RunForFiles(
 	return errors.Join(errs...)
 }
 
-func formatFromStdin(l log.Logger, v *venv.Venv) error {
+func formatFromStdin(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+	const stdinPath = "stdin"
+
 	contents, err := io.ReadAll(v.Stdin)
 	if err != nil {
 		l.Errorf("Error reading from stdin: %s", err)
@@ -203,13 +205,31 @@ func formatFromStdin(l log.Logger, v *venv.Venv) error {
 		return fmt.Errorf("error reading from stdin: %w", err)
 	}
 
-	if err = checkErrors(l, v, contents, "stdin"); err != nil {
+	if err = checkErrors(l, v, contents, stdinPath); err != nil {
 		l.Errorf("Error parsing hcl from stdin")
 
 		return fmt.Errorf("error parsing hcl from stdin: %w", err)
 	}
 
 	newContents := hclwrite.Format(contents)
+
+	needsFormatting := !bytes.Equal(newContents, contents)
+
+	if opts.Diff && needsFormatting {
+		if _, err := v.Writers.Writer.Write(bytesDiff(contents, newContents, stdinPath)); err != nil {
+			l.Errorf("Failed to print diff for stdin")
+
+			return err
+		}
+	}
+
+	if opts.Check && needsFormatting {
+		return &FileNeedsFormattingError{Path: stdinPath}
+	}
+
+	if opts.Diff || opts.Check {
+		return nil
+	}
 
 	buf := bufio.NewWriter(v.Writers.Writer)
 

@@ -286,22 +286,90 @@ func TestHCLFmtStdin(t *testing.T) {
 	unformatted := onDisk(t, "../../../../../test/fixtures/hclfmt-stdin/terragrunt.hcl")
 	expected := onDisk(t, "../../../../../test/fixtures/hclfmt-stdin/expected.hcl")
 
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	tests := map[string]struct {
+		input               string
+		wantStdout          string
+		wantDiffLines       []string
+		check               bool
+		diff                bool
+		wantNeedsFormatting bool
+	}{
+		"formatted content goes to stdout": {
+			input:      unformatted,
+			wantStdout: expected,
+		},
+		"check reports unformatted input": {
+			input:               unformatted,
+			check:               true,
+			wantNeedsFormatting: true,
+		},
+		"check accepts formatted input": {
+			input: expected,
+			check: true,
+		},
+		"diff shows what would change": {
+			input:         unformatted,
+			diff:          true,
+			wantDiffLines: []string{"--- old/stdin", "+++ new/stdin", "+  foo = \"bar\""},
+		},
+		"diff is empty for formatted input": {
+			input: expected,
+			diff:  true,
+		},
+		"check and diff both apply": {
+			input:               unformatted,
+			check:               true,
+			diff:                true,
+			wantDiffLines:       []string{"--- old/stdin", "+++ new/stdin"},
+			wantNeedsFormatting: true,
+		},
+	}
 
-	var formatted bytes.Buffer
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	// format hcl from stdin
-	tgOptions.HclFromStdin = true
+			tgOptions, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
 
-	v := venvtest.New().
-		WithStdin(strings.NewReader(unformatted)).
-		WithWriter(&formatted)
+			tgOptions.HclFromStdin = true
+			tgOptions.Check = tc.check
+			tgOptions.Diff = tc.diff
 
-	err = format.Run(t.Context(), logger.CreateLogger(), v, tgOptions)
-	require.NoError(t, err)
+			var out bytes.Buffer
 
-	assert.Equal(t, expected, formatted.String())
+			v := venvtest.New().
+				WithStdin(strings.NewReader(tc.input)).
+				WithWriter(&out)
+
+			err = format.Run(t.Context(), logger.CreateLogger(), v, tgOptions)
+
+			stdout := out.String()
+
+			for _, want := range tc.wantDiffLines {
+				assert.Contains(t, stdout, want)
+			}
+
+			if len(tc.wantDiffLines) > 0 {
+				assert.NotContains(t, stdout, expected, "--diff prints the diff instead of the formatted content")
+			}
+
+			if len(tc.wantDiffLines) == 0 {
+				assert.Equal(t, tc.wantStdout, stdout)
+			}
+
+			if !tc.wantNeedsFormatting {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var needsFormatting *format.FileNeedsFormattingError
+
+			require.ErrorAs(t, err, &needsFormatting)
+			assert.Equal(t, "stdin", needsFormatting.Path)
+		})
+	}
 }
 
 func TestHCLFmtHeredoc(t *testing.T) {
