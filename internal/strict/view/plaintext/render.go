@@ -51,7 +51,7 @@ func NewRender() *Render {
 	return &Render{}
 }
 
-// List implements view.Render interface.
+// List implements [view.Render].
 func (render *Render) List(controls strict.Controls) (string, error) {
 	result, err := render.executeTemplate(listTemplate, map[string]any{
 		"controls": controls,
@@ -63,9 +63,9 @@ func (render *Render) List(controls strict.Controls) (string, error) {
 	return result, nil
 }
 
-// DetailControl implements view.Render interface.
-func (render *Render) DetailControl(control strict.Control) (string, error) {
-	return render.executeTemplate(detailControlTemplate, map[string]any{"control": control}, nil)
+// DetailSubcontrols implements [view.Render].
+func (render *Render) DetailSubcontrols(subcontrols strict.Controls) (string, error) {
+	return render.executeTemplate(detailSubcontrolsTemplate, map[string]any{"subcontrols": subcontrols}, nil)
 }
 
 func (render *Render) buildTemplate(templ string, customFuncs map[string]any) *template.Template {

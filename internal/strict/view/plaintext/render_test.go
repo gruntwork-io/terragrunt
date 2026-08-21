@@ -68,46 +68,37 @@ func TestRenderList(t *testing.T) {
 	}
 }
 
-func TestRenderDetailControl(t *testing.T) {
+func TestRenderDetailSubcontrols(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		control  strict.Control
-		contains []string
+		name        string
+		subcontrols strict.Controls
+		contains    []string
 	}{
 		{
-			name:    "no subcontrols",
-			control: &controls.Control{Name: "parent"},
+			name:        "no subcontrols",
+			subcontrols: strict.Controls{},
 		},
 		{
 			name: "with subcontrol",
-			control: &controls.Control{
-				Name: "parent",
-				Subcontrols: strict.Controls{
-					&controls.Control{Name: "sub-a", Description: "desc a"},
-				},
+			subcontrols: strict.Controls{
+				&controls.Control{Name: "sub-a", Description: "desc a"},
 			},
 			contains: []string{"sub-a", "desc a"},
 		},
 		{
 			name: "duplicate subcontrols deduplicated",
-			control: &controls.Control{
-				Name: "parent",
-				Subcontrols: strict.Controls{
-					&controls.Control{Name: "dup", Description: "first"},
-					&controls.Control{Name: "dup", Description: "second"},
-				},
+			subcontrols: strict.Controls{
+				&controls.Control{Name: "dup", Description: "first"},
+				&controls.Control{Name: "dup", Description: "second"},
 			},
 			contains: []string{"dup", "first"},
 		},
 		{
 			name: "subcontrol falls back to warning",
-			control: &controls.Control{
-				Name: "parent",
-				Subcontrols: strict.Controls{
-					&controls.Control{Name: "sub-x", Warning: "warn x"},
-				},
+			subcontrols: strict.Controls{
+				&controls.Control{Name: "sub-x", Warning: "warn x"},
 			},
 			contains: []string{"sub-x", "warn x"},
 		},
@@ -119,7 +110,7 @@ func TestRenderDetailControl(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := render.DetailControl(tc.control)
+			got, err := render.DetailSubcontrols(tc.subcontrols)
 			require.NoError(t, err)
 
 			for _, fragment := range tc.contains {
