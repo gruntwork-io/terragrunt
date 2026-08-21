@@ -1636,3 +1636,36 @@ inputs = {
 	require.Error(t, err, "without autoinclude the values.vpc_path error must not be swallowed")
 	assert.Contains(t, err.Error(), "values", "error must reference the unresolvable values variable")
 }
+
+// When a unit config fails to convert (e.g. invalid generate if_disabled) and a sibling autoinclude is present, ParseConfigFile must return the error without panicking on a nil config.
+func TestParseTerragruntConfigMalformedWithSiblingAutoIncludeDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+generate "example" {
+  path        = "example.tf"
+  if_exists   = "overwrite"
+  if_disabled = "invalid"
+  contents    = ""
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+inputs = {
+  region = "us-east-1"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	l := logger.CreateLogger()
+
+	require.NotPanics(t, func() {
+		_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid is not a valid value for generate if_disabled")
+	})
+}

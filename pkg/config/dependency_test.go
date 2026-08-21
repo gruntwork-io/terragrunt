@@ -360,3 +360,87 @@ func TestDependencyDeepMergeExpansion(t *testing.T) {
 		})
 	}
 }
+
+func TestIsValidConfigPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		input    cty.Value
+		name     string
+		expected bool
+	}{
+		{
+			name:     "nil value",
+			input:    cty.NilVal,
+			expected: false,
+		},
+		{
+			name:     "null string",
+			input:    cty.NullVal(cty.String),
+			expected: false,
+		},
+		{
+			name:     "unknown string",
+			input:    cty.UnknownVal(cty.String),
+			expected: false,
+		},
+		{
+			name:     "non-string number",
+			input:    cty.NumberIntVal(42),
+			expected: false,
+		},
+		{
+			name:     "non-string bool",
+			input:    cty.BoolVal(true),
+			expected: false,
+		},
+		{
+			name:     "empty string",
+			input:    cty.StringVal(""),
+			expected: false,
+		},
+		{
+			name:     "valid string path",
+			input:    cty.StringVal("../vpc"),
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := config.IsValidConfigPath(tc.input)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestDependencyDeepMerge_InvalidConfigPathDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	testValues := []cty.Value{
+		cty.NilVal,
+		cty.NullVal(cty.String),
+		cty.UnknownVal(cty.String),
+		cty.NumberIntVal(123),
+		cty.StringVal(""),
+	}
+
+	for _, val := range testValues {
+		dep := config.Dependency{
+			Name:       "vpc",
+			ConfigPath: cty.StringVal("../initial"),
+		}
+		source := config.Dependency{
+			Name:       "vpc",
+			ConfigPath: val,
+		}
+
+		require.NotPanics(t, func() {
+			err := dep.DeepMerge(&source)
+			require.NoError(t, err)
+		})
+		assert.Equal(t, cty.StringVal("../initial"), dep.ConfigPath)
+	}
+}

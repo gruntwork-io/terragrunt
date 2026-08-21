@@ -1175,14 +1175,17 @@ func TestGenerateConfigDisabledFromString(t *testing.T) {
 			t.Parallel()
 
 			got, err := codegen.GenerateConfigDisabledFromString(tc.input)
-			assert.Equal(t, tc.expected, got)
-
 			if tc.wantErr {
 				var target codegen.UnknownGenerateIfDisabledVal
 				require.ErrorAs(t, err, &target)
-			} else {
-				require.NoError(t, err)
+				assert.Equal(t, tc.expected, got)
+				assert.Equal(t, tc.input, target.Value)
+
+				return
 			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
 		})
 	}
 }

@@ -691,6 +691,27 @@ dependency "vpc" {
 	require.Error(t, err, "non-matching skip label must not suppress the error")
 }
 
+// ExpandBlocks with count/for_each and nil EvalContext must not panic.
+func TestExpandBlockNilContextDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+dependency "vpc" {
+  expansion {
+    count = 2
+  }
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	require.NotPanics(t, func() {
+		instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+		require.NoError(t, err)
+		assert.Len(t, instances, 2)
+	})
+}
+
 func expand(
 	tb testing.TB,
 	cfg string,

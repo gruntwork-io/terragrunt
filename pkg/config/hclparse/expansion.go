@@ -306,6 +306,10 @@ func expandCount(
 
 	instances := make([]Instance, 0, total)
 
+	if ctx == nil {
+		ctx = &hcl.EvalContext{}
+	}
+
 	for index := range total {
 		child := ctx.NewChild()
 		child.Variables = map[string]cty.Value{
@@ -366,6 +370,10 @@ func expandForEach(
 	}
 
 	instances := make([]Instance, 0, size)
+
+	if ctx == nil {
+		ctx = &hcl.EvalContext{}
+	}
 
 	for it := collection.ElementIterator(); it.Next(); {
 		elementKey, elementValue := it.Element()

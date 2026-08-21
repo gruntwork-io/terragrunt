@@ -5,24 +5,24 @@ import "fmt"
 // Custom error types
 
 type UnknownGenerateIfExistsVal struct {
-	val string
+	Value string
 }
 
 func (err UnknownGenerateIfExistsVal) Error() string {
-	if err.val != "" {
-		return err.val + " is not a valid value for generate if_exists"
+	if err.Value != "" {
+		return err.Value + " is not a valid value for generate if_exists"
 	}
 
 	return "Received unknown value for if_exists"
 }
 
 type UnknownGenerateIfDisabledVal struct {
-	val string
+	Value string
 }
 
 func (err UnknownGenerateIfDisabledVal) Error() string {
-	if err.val != "" {
-		return err.val + " is not a valid value for generate if_disabled"
+	if err.Value != "" {
+		return err.Value + " is not a valid value for generate if_disabled"
 	}
 
 	return "Received unknown value for if_disabled"

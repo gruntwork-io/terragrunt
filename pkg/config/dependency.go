@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -29,7 +28,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
+
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -106,7 +105,7 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 		dep.Expansion = sourceDepConfig.Expansion
 	}
 
-	if sourceDepConfig.ConfigPath.AsString() != "" {
+	if IsValidConfigPath(sourceDepConfig.ConfigPath) {
 		dep.ConfigPath = sourceDepConfig.ConfigPath
 	}
 
@@ -314,7 +313,7 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeRetry(file, evalParsingContext, pctx)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeRetry(ctx, file, evalParsingContext, pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -2183,7 +2182,7 @@ func parseAutoIncludeFileCached(
 	pctx *ParsingContext,
 	autoIncludePath string,
 ) (*hclparse.File, error) {
-	fileInfo, err := os.Stat(autoIncludePath)
+	fileInfo, err := pctx.Venv.FS.Stat(autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
@@ -2207,15 +2206,16 @@ func parseAutoIncludeFileCached(
 	return file, nil
 }
 
-// decodeDependencyBlocksWithAutoIncludeRetry decodes dependency blocks, retrying with label-skip when a sibling autoinclude overrides some of them and the first decode fails on unresolvable attributes. Used by both decodeAndRetrieveOutputs and decodeAsTerragruntConfigFile.
+// decodeDependencyBlocksWithAutoIncludeRetry decodes dependency blocks, retrying with label-skip when a sibling autoinclude overrides some of them and the first decode fails on unresolvable attributes.
 func decodeDependencyBlocksWithAutoIncludeRetry(
+	ctx context.Context,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 	pctx *ParsingContext,
 ) (Dependencies, error) {
 	deps, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
 	if err != nil && hasSiblingAutoInclude(pctx) {
-		overrides := siblingAutoIncludeDepNames(pctx)
+		overrides := siblingAutoIncludeDepNames(ctx, pctx)
 		if len(overrides) > 0 {
 			deps, err = decodeDependencyBlocks(
 				file, evalContext, pctx.Experiments,
@@ -2227,33 +2227,30 @@ func decodeDependencyBlocksWithAutoIncludeRetry(
 	return deps, err
 }
 
-// siblingAutoIncludeDepNames extracts dependency block labels from the sibling autoinclude file via a lightweight HCL parse. Returns nil when no autoinclude is registered, the file is absent, or it cannot be parsed.
-func siblingAutoIncludeDepNames(pctx *ParsingContext) map[string]bool {
+// siblingAutoIncludeDepNames extracts dependency block labels from the cached autoinclude AST. Returns nil when no autoinclude is registered, the file is absent, or it cannot be parsed.
+func siblingAutoIncludeDepNames(ctx context.Context, pctx *ParsingContext) map[string]bool {
 	if !hasSiblingAutoInclude(pctx) {
 		return nil
 	}
 
 	autoPath := pctx.TrackInclude.AutoIncludeOverride.Path
 
-	data, err := vfs.ReadFile(pctx.Venv.FS, autoPath)
+	parsed, err := parseAutoIncludeFileCached(ctx, pctx, autoPath)
 	if err != nil {
 		return nil
 	}
 
-	file, diags := hclsyntax.ParseConfig(data, autoPath, hcl.Pos{Line: 1, Column: 1})
+	content, _, diags := parsed.Body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: MetadataDependency, LabelNames: []string{"name"}}},
+	})
 	if diags.HasErrors() {
-		return nil
-	}
-
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
 		return nil
 	}
 
 	names := make(map[string]bool)
 
-	for _, block := range body.Blocks {
-		if block.Type == MetadataDependency && len(block.Labels) > 0 {
+	for _, block := range content.Blocks {
+		if len(block.Labels) > 0 {
 			names[block.Labels[0]] = true
 		}
 	}
@@ -2267,14 +2264,9 @@ func siblingAutoIncludeDepNames(pctx *ParsingContext) map[string]bool {
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.
 func IsValidConfigPath(v cty.Value) bool {
-	if v.IsNull() || !v.IsWhollyKnown() || !v.Type().Equals(cty.String) {
+	if v == cty.NilVal || !v.IsKnown() || v.IsNull() || !v.Type().Equals(cty.String) {
 		return false
 	}
 
-	// Empty string is not a valid config path
-	if v.AsString() == "" {
-		return false
-	}
-
-	return true
+	return v.AsString() != ""
 }
