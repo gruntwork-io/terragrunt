@@ -320,6 +320,7 @@ generate "example" {
 
 	var target codegen.UnknownGenerateIfDisabledVal
 	require.ErrorAs(t, err, &target)
+	assert.Contains(t, err.Error(), `generate block "example"`)
 	assert.Contains(t, err.Error(), "invalid is not a valid value for generate if_disabled")
 }
 
@@ -345,6 +346,7 @@ generate = {
 
 	var target codegen.UnknownGenerateIfDisabledVal
 	require.ErrorAs(t, err, &target)
+	assert.Contains(t, err.Error(), `generate block "example"`)
 	assert.Contains(t, err.Error(), "true is not a valid value for generate if_disabled")
 }
 
