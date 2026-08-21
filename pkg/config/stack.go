@@ -103,6 +103,17 @@ func (u *Unit) IsEnabled() bool {
 	return u.Enabled == nil || *u.Enabled
 }
 
+// InstanceKey returns the key of the expansion element this unit came from, and whether
+// the unit was expanded at all. A declared expansion is not proof of one: a block decoded
+// outside the expanding decoder carries the declaration with no key.
+func (u *Unit) InstanceKey() (string, bool) {
+	if u.Expansion == nil {
+		return "", false
+	}
+
+	return u.Expansion.Key(), u.Expansion.Expanded()
+}
+
 // GeneratedPath returns the on-disk path this unit generates to under stackDir.
 func (u *Unit) GeneratedPath(stackDir string) string {
 	return inthclparse.GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
@@ -129,6 +140,16 @@ type Stack struct {
 // stack, so only an explicit false drops it.
 func (s *Stack) IsEnabled() bool {
 	return s.Enabled == nil || *s.Enabled
+}
+
+// InstanceKey returns the key of the expansion element this stack came from, and whether
+// the stack was expanded at all.
+func (s *Stack) InstanceKey() (string, bool) {
+	if s.Expansion == nil {
+		return "", false
+	}
+
+	return s.Expansion.Key(), s.Expansion.Expanded()
 }
 
 // GeneratedPath returns the on-disk path this stack generates to under stackDir.
