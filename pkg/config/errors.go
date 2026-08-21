@@ -91,6 +91,20 @@ func (err DuplicatedGenerateBlocksError) Error() string {
 	)
 }
 
+// InvalidGenerateBlockError wraps a validation error with the generate block name.
+type InvalidGenerateBlockError struct {
+	Err       error
+	BlockName string
+}
+
+func (err InvalidGenerateBlockError) Error() string {
+	return fmt.Sprintf("generate block %q: %s", err.BlockName, err.Err)
+}
+
+func (err InvalidGenerateBlockError) Unwrap() error {
+	return err.Err
+}
+
 type TFVarFileNotFoundError struct {
 	File  string
 	Cause string

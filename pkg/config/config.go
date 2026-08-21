@@ -2110,7 +2110,7 @@ func convertToTerragruntConfig(
 
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("generate block %q: %w", block.Name, err))
+			errs = append(errs, InvalidGenerateBlockError{BlockName: block.Name, Err: err})
 			continue
 		}
 
@@ -2120,7 +2120,7 @@ func convertToTerragruntConfig(
 
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("generate block %q: %w", block.Name, err))
+			errs = append(errs, InvalidGenerateBlockError{BlockName: block.Name, Err: err})
 			continue
 		}
 
