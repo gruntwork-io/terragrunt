@@ -263,6 +263,93 @@ generate = {
 	require.Error(t, err)
 }
 
+func TestParseTerragruntConfigGenerateBlockInvalidIfDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+generate "example" {
+  path        = "example.tf"
+  if_exists   = "overwrite"
+  if_disabled = "invalid"
+  contents    = ""
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+
+	var target codegen.UnknownGenerateIfDisabledVal
+	require.ErrorAs(t, err, &target)
+	assert.Contains(t, err.Error(), `generate block "example"`)
+	assert.Contains(t, err.Error(), "invalid is not a valid value for generate if_disabled")
+}
+
+func TestParseTerragruntConfigGenerateBlockInvalidIfDisabledWithInclude(t *testing.T) {
+	t.Parallel()
+
+	// Regression test for https://github.com/gruntwork-io/terragrunt/issues/6717
+	// An invalid if_disabled value combined with an include block caused a nil pointer panic
+	// in TerragruntConfig.Merge instead of returning a descriptive error.
+	tmpDir := t.TempDir()
+
+	rootCfg := ``
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "root.hcl"), []byte(rootCfg), 0644))
+
+	childCfg := `
+include "root" {
+  path   = "` + filepath.Join(tmpDir, "root.hcl") + `"
+  expose = true
+}
+
+generate "example" {
+  path        = "example.tf"
+  if_exists   = "overwrite"
+  if_disabled = "invalid"
+  contents    = ""
+}
+`
+	childPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(childPath, []byte(childCfg), 0644))
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+	_, err := config.ParseConfigString(ctx, pctx, l, childPath, childCfg, nil)
+	require.Error(t, err)
+
+	var target codegen.UnknownGenerateIfDisabledVal
+	require.ErrorAs(t, err, &target)
+	assert.Contains(t, err.Error(), "invalid is not a valid value for generate if_disabled")
+}
+
+func TestParseTerragruntConfigGenerateAttrInvalidIfDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+generate = {
+  example = {
+    path        = "example.tf"
+    if_exists   = "overwrite"
+    if_disabled = "true"
+    contents    = ""
+  }
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+
+	var target codegen.UnknownGenerateIfDisabledVal
+	require.ErrorAs(t, err, &target)
+	assert.Contains(t, err.Error(), "true is not a valid value for generate if_disabled")
+}
+
 func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
 

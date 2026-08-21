@@ -1604,8 +1604,9 @@ func ParseConfig(
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
-	// If there have been errors during this parse, don't attempt to parse the included config.
-	if pctx.TrackInclude != nil {
+	// If the config is nil (e.g. convertToTerragruntConfig returned nil on error), skip the
+	// include merge to avoid a nil pointer dereference in Merge/DeepMerge.
+	if pctx.TrackInclude != nil && config != nil {
 		mergedConfig, err := handleInclude(ctx, pctx, l, config, false)
 		if err != nil {
 			errs = append(errs, err)
@@ -2108,7 +2109,8 @@ func convertToTerragruntConfig(
 
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
 		if err != nil {
-			return nil, err
+			errs = append(errs, fmt.Errorf("generate block %q: %w", block.Name, err))
+			continue
 		}
 
 		if block.Mutable != nil && !pctx.Experiments.Evaluate(experiment.MutableGenerate) {

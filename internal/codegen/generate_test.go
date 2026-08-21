@@ -1152,3 +1152,37 @@ func writeFileWithPerms(t *testing.T, path, contents string, perms os.FileMode) 
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
 	require.NoError(t, os.Chmod(path, perms))
 }
+
+func TestGenerateConfigDisabledFromString(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected codegen.GenerateConfigDisabled
+		wantErr  bool
+	}{
+		{name: "skip", input: "skip", expected: codegen.DisabledSkip},
+		{name: "remove", input: "remove", expected: codegen.DisabledRemove},
+		{name: "remove_terragrunt", input: "remove_terragrunt", expected: codegen.DisabledRemoveTerragrunt},
+		{name: "invalid", input: "invalid", expected: codegen.DisabledUnknown, wantErr: true},
+		{name: "true", input: "true", expected: codegen.DisabledUnknown, wantErr: true},
+		{name: "empty", input: "", expected: codegen.DisabledUnknown, wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := codegen.GenerateConfigDisabledFromString(tc.input)
+			assert.Equal(t, tc.expected, got)
+
+			if tc.wantErr {
+				var target codegen.UnknownGenerateIfDisabledVal
+				require.ErrorAs(t, err, &target)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
