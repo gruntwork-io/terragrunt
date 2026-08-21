@@ -3,6 +3,8 @@
 package format
 
 import (
+	"github.com/bmatcuk/doublestar"
+
 	"bufio"
 	"bytes"
 	"context"
@@ -85,7 +87,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 			return fs.SkipDir
 		}
 
-		if slices.Contains(opts.HclExclude, basename) {
+		if hclExcludeMatches(opts.HclExclude, workingDir, path) {
 			l.Debugf("%s directory ignored due to the %s flag", path, ExcludeDirFlagName)
 			return fs.SkipDir
 		}
@@ -302,4 +304,37 @@ func checkErrors(l log.Logger, v *venv.Venv, contents []byte, tgHclFile string) 
 // bytesDiff returns a unified diff between the original and formatted HCL contents.
 func bytesDiff(b1, b2 []byte, path string) []byte {
 	return diff.Diff(filepath.Join("old", path), b1, filepath.Join("new", path), b2)
+}
+
+// hclExcludeMatches reports whether the walked directory path matches any
+// --exclude-dir entry. Entries may be a directory name ("module"), a
+// slash-separated path relative to the working directory ("terraform/module",
+// "./terraform/module/"), or a doublestar pattern ("**/terraform/module").
+// Matching only the directory basename, as before, made every path-shaped
+// entry a silent no-op.
+func hclExcludeMatches(entries []string, workingDir, path string) bool {
+	rel, err := filepath.Rel(workingDir, path)
+	if err != nil {
+		rel = path
+	}
+	rel = filepath.ToSlash(rel)
+	basename := filepath.Base(path)
+
+	for _, entry := range entries {
+		entry = filepath.ToSlash(entry)
+		entry = strings.TrimPrefix(entry, "./")
+		entry = strings.TrimSuffix(entry, "/")
+
+		if entry == basename || entry == rel {
+			return true
+		}
+
+		if strings.ContainsAny(entry, "*?[") {
+			if matched, err := doublestar.Match(entry, rel); err == nil && matched {
+				return true
+			}
+		}
+	}
+
+	return false
 }

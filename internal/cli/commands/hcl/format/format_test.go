@@ -557,3 +557,68 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 		}
 	})
 }
+
+func TestHCLFmtExcludeDirPath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		excludes []string
+		untouched []string
+		formatted []string
+	}{
+		{
+			name:      "relative path",
+			excludes:  []string{"a/b/c"},
+			untouched: []string{"a/b/c/terragrunt.hcl", "a/b/c/d/services.hcl", "a/b/c/d/e/terragrunt.hcl"},
+			formatted: []string{"terragrunt.hcl", "a/terragrunt.hcl"},
+		},
+		{
+			name:      "normalized path",
+			excludes:  []string{"./a/b/c/"},
+			untouched: []string{"a/b/c/terragrunt.hcl"},
+			formatted: []string{"a/terragrunt.hcl"},
+		},
+		{
+			name:      "doublestar pattern",
+			excludes:  []string{"**/c"},
+			untouched: []string{"a/b/c/terragrunt.hcl", "a/b/c/d/services.hcl"},
+			formatted: []string{"a/terragrunt.hcl"},
+		},
+		{
+			name:      "basename still works",
+			excludes:  []string{"c"},
+			untouched: []string{"a/b/c/terragrunt.hcl"},
+			formatted: []string{"a/terragrunt.hcl"},
+		},
+	}
+
+	unformatted := onDisk(t, "./testdata/fixtures/terragrunt.hcl")
+	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys, tmpPath := loadFixture(t, "./testdata/fixtures")
+
+			tgOptions, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
+
+			tgOptions.WorkingDir = tmpPath
+			tgOptions.HclExclude = c.excludes
+
+			err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+			require.NoError(t, err)
+
+			for _, path := range c.untouched {
+				assert.Equal(t, unformatted, readFixture(t, fsys, tmpPath, filepath.FromSlash(path)),
+					"%s must stay untouched", path)
+			}
+			for _, path := range c.formatted {
+				assert.Equal(t, expected, readFixture(t, fsys, tmpPath, filepath.FromSlash(path)),
+					"%s must be formatted", path)
+			}
+		})
+	}
+}
