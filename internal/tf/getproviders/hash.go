@@ -7,9 +7,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"golang.org/x/mod/sumdb/dirhash"
 )
 
@@ -34,24 +35,16 @@ func (scheme HashScheme) New(value string) Hash {
 }
 
 // PackageHashLegacyZipSHA implements the old provider package hashing scheme of taking a SHA256 hash of the containing .zip archive itself, rather than of the contents of the archive.
-func PackageHashLegacyZipSHA(path string) (Hash, error) {
-	archivePath, err := filepath.EvalSymlinks(path)
+func PackageHashLegacyZipSHA(fsys vfs.FS, path string) (Hash, error) {
+	archivePath, err := vfs.EvalSymlinks(fsys, path)
 	if err != nil {
 		return "", err
 	}
 
-	file, err := os.Open(archivePath)
+	gotHash, err := vfs.FileSHA256(fsys, archivePath)
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
-
-	hash := sha256.New()
-	if _, err = io.Copy(hash, file); err != nil {
-		return "", err
-	}
-
-	gotHash := hash.Sum(nil)
 
 	return HashSchemeZip.New(hex.EncodeToString(gotHash)), nil
 }
@@ -62,22 +55,61 @@ func HashLegacyZipSHAFromSHA(sum [sha256.Size]byte) Hash {
 }
 
 // PackageHashV1 computes a hash of the contents of the package at the given location using hash algorithm 1. The resulting Hash is guaranteed to have the scheme HashScheme1.
-func PackageHashV1(path string) (Hash, error) {
+func PackageHashV1(fsys vfs.FS, path string) (Hash, error) {
 	// We'll first dereference a possible symlink at our PackageDir location, as would be created if this package were linked in from another cache.
-	packageDir, err := filepath.EvalSymlinks(path)
+	packageDir, err := vfs.EvalSymlinks(fsys, path)
 	if err != nil {
 		return "", err
 	}
 
-	if fileInfo, err := os.Stat(packageDir); err != nil {
+	if fileInfo, err := fsys.Stat(packageDir); err != nil {
 		return "", err
 	} else if !fileInfo.IsDir() {
 		return "", fmt.Errorf("packageDir is not a directory %q", packageDir)
 	}
 
-	s, err := dirhash.HashDir(packageDir, "", dirhash.Hash1)
+	s, err := hashDir(fsys, packageDir)
 
 	return Hash(s), err
+}
+
+// hashDir reproduces [dirhash.HashDir] over fsys. The hash itself still comes
+// from [dirhash.Hash1], which is pure once it is handed the file list and a way
+// to open each entry, so only the directory walk and the opens change.
+func hashDir(fsys vfs.FS, dir string) (string, error) {
+	dir = filepath.Clean(dir)
+
+	var files []string
+
+	err := vfs.WalkDir(fsys, dir, func(entry string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if entry == dir {
+			return fmt.Errorf("%s is not a directory", dir)
+		}
+
+		rel := entry
+		if dir != "." {
+			rel = entry[len(dir)+1:]
+		}
+
+		files = append(files, filepath.ToSlash(rel))
+
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return dirhash.Hash1(files, func(name string) (io.ReadCloser, error) {
+		return fsys.Open(filepath.Join(dir, name))
+	})
 }
 
 func DocumentHashes(doc []byte) []Hash {

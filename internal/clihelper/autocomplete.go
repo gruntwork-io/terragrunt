@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -72,10 +71,10 @@ func defaultComplete(cliCtx *Context) error {
 
 	if strings.HasPrefix(arg, "-") {
 		if cmd := cliCtx.Command; cmd != nil {
-			return printFlagSuggestions(arg, cmd.Flags, cliCtx.Writer)
+			return printFlagSuggestions(arg, cmd.Flags, cliCtx.Args(), cliCtx.Writer)
 		}
 
-		return printFlagSuggestions(arg, cliCtx.Flags, cliCtx.Writer)
+		return printFlagSuggestions(arg, cliCtx.Flags, cliCtx.Args(), cliCtx.Writer)
 	}
 
 	if cmd := cliCtx.Command; cmd != nil {
@@ -108,7 +107,7 @@ func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) 
 	return nil
 }
 
-func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
+func printFlagSuggestions(arg string, flags []Flag, args Args, writer io.Writer) error {
 	cur := strings.TrimLeft(arg, "-")
 
 	errs := []error{}
@@ -124,7 +123,7 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 				continue
 			}
 			// match if last argument matches this flag and it is not repeated
-			if strings.HasPrefix(name, cur) && cur != name && !cliArgContains(name) {
+			if strings.HasPrefix(name, cur) && cur != name && !argsContainFlag(args, name) {
 				flagCompletion := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
 
 				_, err := fmt.Fprintln(writer, flagCompletion)
@@ -140,14 +139,16 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 	return nil
 }
 
-func cliArgContains(flagName string) bool {
+// argsContainFlag reports whether any spelling of flagName is already present
+// in args, so a flag the user has typed is not suggested again.
+func argsContainFlag(args Args, flagName string) bool {
 	for name := range strings.SplitSeq(flagName, ",") {
 		name = strings.TrimSpace(name)
 
 		count := min(utf8.RuneCountInString(name), maxDashesInFlag)
 
 		flag := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
-		if slices.Contains(os.Args, flag) {
+		if slices.Contains(args, flag) {
 			return true
 		}
 	}

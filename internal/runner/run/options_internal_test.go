@@ -22,7 +22,7 @@ func TestRemoteStateOptsPropagatesExperiments(t *testing.T) {
 		DisableBucketUpdate:          true,
 	}
 
-	got := o.remoteStateOpts()
+	got := o.remoteStateOpts(map[string]string{})
 
 	assert.True(t, got.Experiments.Evaluate(experiment.AzureBackend), "enabled experiments must reach backend options")
 	assert.True(t, got.NonInteractive)

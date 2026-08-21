@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -176,7 +177,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath, "Report file should exist")
 
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+			runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 			require.NoError(t, err, "Should be able to parse report file")
 
 			assert.ElementsMatch(t, tc.expectedUnits, runs.Names())
@@ -334,7 +335,7 @@ func TestSOPSUnitsReadingWithFilter(t *testing.T) {
 			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath, "Report file should exist")
 
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+			runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 			require.NoError(t, err, "Should be able to parse report file")
 
 			assert.ElementsMatch(t, tc.expectedUnits, runs.Names())
@@ -366,7 +367,7 @@ func TestSOPSQueueStrictIncludeWithUnitsReading(t *testing.T) {
 	reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 	assert.FileExists(t, reportFilePath, "Report file should exist")
 
-	runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 	require.NoError(t, err, "Should be able to parse report file")
 
 	// Units that read shared.hcl should be included

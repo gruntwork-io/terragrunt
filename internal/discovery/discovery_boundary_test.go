@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -79,7 +80,7 @@ dependency "external" {
 func (f *boundaryFixture) discover(t *testing.T, v *venv.Venv, query, boundary string) (component.Components, error) {
 	t.Helper()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -330,7 +331,7 @@ func TestDiscoveryBoundary_SurvivesFilterEvaluationWithRelationships(t *testing.
 				paths[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -395,7 +396,7 @@ func TestDiscoveryBoundary_WithholdingAcrossFilterShapes(t *testing.T) {
 				paths[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -470,7 +471,7 @@ func TestDiscoveryBoundary_UnfilteredRunWithholdsOnlyWhatTraversalReached(t *tes
 
 	f, v := newBoundaryFixture(t)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -547,7 +548,7 @@ func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 				expected[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 

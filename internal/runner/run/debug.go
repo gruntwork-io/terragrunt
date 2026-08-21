@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -23,8 +24,7 @@ const defaultPermissions = int(0600)
 // that terragrunt invokes the module, so that users can debug issues with the terragrunt config.
 func WriteTerragruntDebugFile(
 	l log.Logger,
-	fsys vfs.FS,
-	env map[string]string,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) error {
@@ -34,7 +34,7 @@ func WriteTerragruntDebugFile(
 		opts.CacheDir,
 	)
 
-	declared, err := tf.ModuleVariables(fsys, opts.CacheDir)
+	declared, err := tf.ModuleVariables(v.FS, opts.CacheDir)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func WriteTerragruntDebugFile(
 	l.Debugf("The following variables were detected in the %s module:", tofuImpl)
 	l.Debugf("%v", variables)
 
-	fileContents, err := terragruntDebugFileContents(l, env, cfg, variables)
+	fileContents, err := terragruntDebugFileContents(l, v.Env, cfg, variables)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func WriteTerragruntDebugFile(
 	configFolder := filepath.Dir(opts.TerragruntConfigPath)
 
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
-	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
+	if err := vfs.WriteFile(v.FS, fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
 		return err
 	}
 

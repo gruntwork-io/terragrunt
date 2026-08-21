@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +57,7 @@ func TestTFDiscoveryBoundaryBoundsWhatRunAllApplies(t *testing.T) {
 
 			require.FileExists(t, reportFile)
 
-			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
+			runs, parseErr := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 			require.NoError(t, parseErr)
 
 			assert.ElementsMatch(t, tc.expected, relativeRunNames(t, runs.Names(), fixtureDir))
@@ -92,7 +93,7 @@ func TestTFDiscoveryBoundaryRunAllConsumesWithheldDependency(t *testing.T) {
 
 	require.FileExists(t, reportFile)
 
-	runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
+	runs, parseErr := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, parseErr)
 
 	require.ElementsMatch(t, []string{"app", "db"}, relativeRunNames(t, runs.Names(), fixtureDir))

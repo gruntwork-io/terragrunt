@@ -1373,7 +1373,7 @@ func walkSymlinkedPaths(t *testing.T, root string) []string {
 	return paths
 }
 
-func TestReadDirEntries(t *testing.T) {
+func TestReadDir(t *testing.T) {
 	t.Parallel()
 
 	t.Run("returns sorted entries from MemMapFS", func(t *testing.T) {
@@ -1385,7 +1385,7 @@ func TestReadDirEntries(t *testing.T) {
 		require.NoError(t, vfs.WriteFile(fsys, "/dir/bravo.txt", []byte("b"), 0644))
 		require.NoError(t, vfs.WriteFile(fsys, "/dir/sub/nested.txt", []byte("n"), 0644))
 
-		entries, err := vfs.ReadDirEntries(fsys, "/dir")
+		entries, err := vfs.ReadDir(fsys, "/dir")
 		require.NoError(t, err)
 
 		names := make([]string, len(entries))
@@ -1416,7 +1416,7 @@ func TestReadDirEntries(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0644))
 		require.NoError(t, os.Mkdir(filepath.Join(dir, "m"), 0755))
 
-		entries, err := vfs.ReadDirEntries(vfs.NewOSFS(), dir)
+		entries, err := vfs.ReadDir(vfs.NewOSFS(), dir)
 		require.NoError(t, err)
 
 		names := make([]string, len(entries))
@@ -1433,7 +1433,7 @@ func TestReadDirEntries(t *testing.T) {
 		fsys := vfs.NewMemMapFS()
 		require.NoError(t, fsys.Mkdir("/empty", 0755))
 
-		entries, err := vfs.ReadDirEntries(fsys, "/empty")
+		entries, err := vfs.ReadDir(fsys, "/empty")
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 	})
@@ -1443,8 +1443,101 @@ func TestReadDirEntries(t *testing.T) {
 
 		fsys := vfs.NewMemMapFS()
 
-		_, err := vfs.ReadDirEntries(fsys, "/does-not-exist")
+		_, err := vfs.ReadDir(fsys, "/does-not-exist")
 		require.Error(t, err)
+	})
+
+	t.Run("reports a failed close", func(t *testing.T) {
+		t.Parallel()
+
+		mem := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(mem, "/dir/alpha.txt", []byte("a"), 0644))
+
+		_, err := vfs.ReadDir(&closeFailFS{FS: mem}, "/dir")
+		require.ErrorIs(t, err, errCloseFailed)
+	})
+}
+
+var errCloseFailed = errors.New("close failed")
+
+// closeFailFS hands out files whose Close fails, so a caller that drops the
+// error reads a directory it never finished with as a success.
+type closeFailFS struct {
+	vfs.FS
+}
+
+func (fsys *closeFailFS) Open(name string) (vfs.File, error) {
+	f, err := fsys.FS.Open(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return closeFailFile{File: f}, nil
+}
+
+type closeFailFile struct {
+	vfs.File
+}
+
+func (f closeFailFile) Close() error {
+	return errors.Join(f.File.Close(), errCloseFailed)
+}
+
+func TestListFilesWithSuffixes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns matching files joined to the directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/main.tf", []byte("t"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/vars.tofu", []byte("t"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/README.md", []byte("r"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/sub.tf/nested.tf", []byte("n"), 0644))
+
+		files, err := vfs.ListFilesWithSuffixes(fsys, "/dir", ".tf", ".tofu")
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{
+			filepath.Join("/dir", "main.tf"),
+			filepath.Join("/dir", "vars.tofu"),
+		}, files)
+	})
+
+	// A ".auto.tfvars.json" file does not end in ".auto.tfvars", so overlapping
+	// suffixes of this shape cannot collect the same file twice.
+	t.Run("returns each match once for overlapping suffixes", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/a.auto.tfvars", []byte("a"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/b.auto.tfvars.json", []byte("b"), 0644))
+
+		files, err := vfs.ListFilesWithSuffixes(fsys, "/dir", ".auto.tfvars", ".auto.tfvars.json")
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{
+			filepath.Join("/dir", "a.auto.tfvars"),
+			filepath.Join("/dir", "b.auto.tfvars.json"),
+		}, files)
+	})
+
+	t.Run("returns no files when no suffixes are given", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/main.tf", []byte("t"), 0644))
+
+		files, err := vfs.ListFilesWithSuffixes(fsys, "/dir")
+		require.NoError(t, err)
+		assert.Empty(t, files)
+	})
+
+	t.Run("returns error for missing directory", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := vfs.ListFilesWithSuffixes(vfs.NewMemMapFS(), "/does-not-exist", ".tf")
+		require.ErrorIs(t, err, fs.ErrNotExist)
 	})
 }
 

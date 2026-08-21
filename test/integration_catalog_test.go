@@ -741,7 +741,7 @@ func ignoreFileAction(
 ) clihelper.FlagActionFunc[string] {
 	t.Helper()
 
-	flagList := catalog.NewFlags(catalog.NewOptions(opts), nil)
+	flagList := catalog.NewFlags(vfs.NewOSFS(), catalog.NewOptions(opts), nil)
 
 	flag := flagList.Get(catalog.IgnoreFileFlagName)
 	require.NotNil(t, flag, "--%s flag not registered", catalog.IgnoreFileFlagName)

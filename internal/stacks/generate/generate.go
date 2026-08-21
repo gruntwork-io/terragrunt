@@ -674,7 +674,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters, err := pair.Expand()
+		fromFilters, toFilters, err := pair.Expand(v.FS)
 		if err != nil {
 			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
 		}

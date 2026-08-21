@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,12 +15,12 @@ import (
 
 // verifyFile verifies the checksums file and the signature file of the passed file
 func verifyFile(fsys vfs.FS, checkedFile, checksumsFile, signatureFile string) error {
-	checksums, err := os.ReadFile(checksumsFile)
+	checksums, err := vfs.ReadFile(fsys, checksumsFile)
 	if err != nil {
 		return err
 	}
 
-	checksumsSignature, err := os.ReadFile(signatureFile)
+	checksumsSignature, err := vfs.ReadFile(fsys, signatureFile)
 	if err != nil {
 		return err
 	}

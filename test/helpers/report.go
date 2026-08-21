@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -12,7 +13,7 @@ import (
 func ReadReport(t *testing.T, rootPath string, reportFile string) report.JSONRuns {
 	t.Helper()
 
-	runs, err := report.ParseJSONRunsFromFile(filepath.Join(rootPath, reportFile))
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), filepath.Join(rootPath, reportFile))
 	require.NoError(t, err)
 
 	return runs

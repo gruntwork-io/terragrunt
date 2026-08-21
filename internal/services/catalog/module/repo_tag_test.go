@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestResolveLatestTag_FindsHighestSemver(t *testing.T) {
 
 	repo := &module.Repo{RemoteURL: "https://example.com/org/repo.git"}
 
-	repo.ResolveLatestTag(t.Context(), l, exec)
+	repo.ResolveLatestTag(t.Context(), l, venvtest.New().WithExec(exec))
 
 	assert.Equal(t, "v1.10.2", repo.LatestTag)
 }
@@ -36,7 +37,7 @@ func TestResolveLatestTag_NoTags(t *testing.T) {
 
 	repo := &module.Repo{RemoteURL: "https://example.com/org/repo.git"}
 
-	repo.ResolveLatestTag(t.Context(), l, exec)
+	repo.ResolveLatestTag(t.Context(), l, venvtest.New().WithExec(exec))
 
 	assert.Empty(t, repo.LatestTag)
 }
@@ -54,7 +55,7 @@ func TestResolveLatestTag_EmptyRemoteURL(t *testing.T) {
 
 	repo := &module.Repo{}
 
-	repo.ResolveLatestTag(t.Context(), l, exec)
+	repo.ResolveLatestTag(t.Context(), l, venvtest.New().WithExec(exec))
 
 	assert.Empty(t, repo.LatestTag)
 }
@@ -71,7 +72,7 @@ func TestResolveLatestTag_SkipsPrereleases(t *testing.T) {
 
 	repo := &module.Repo{RemoteURL: "https://example.com/org/repo.git"}
 
-	repo.ResolveLatestTag(t.Context(), l, exec)
+	repo.ResolveLatestTag(t.Context(), l, venvtest.New().WithExec(exec))
 
 	assert.Equal(t, "v1.5.0", repo.LatestTag, "v2.0.0-rc1 is a prerelease and must be skipped")
 }
@@ -92,7 +93,7 @@ func TestResolveLatestTag_GitFailureLeavesTagEmpty(t *testing.T) {
 	repo := &module.Repo{RemoteURL: "https://unreachable.example/repo.git"}
 
 	require.NotPanics(t, func() {
-		repo.ResolveLatestTag(t.Context(), l, exec)
+		repo.ResolveLatestTag(t.Context(), l, venvtest.New().WithExec(exec))
 	})
 
 	assert.Empty(

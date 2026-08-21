@@ -2,7 +2,7 @@ package hclparse
 
 import (
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
@@ -313,7 +313,7 @@ func AutoIncludeDependencyPaths(fsys vfs.FS, unitDir string) ([]string, error) {
 // readAutoIncludeBody reads and parses an autoinclude file, returning (nil, nil) when the file does not exist.
 func readAutoIncludeBody(fsys vfs.FS, path string) (*hclsyntax.Body, error) {
 	data, err := vfs.ReadFile(fsys, path)
-	if errors.Is(err, iofs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 

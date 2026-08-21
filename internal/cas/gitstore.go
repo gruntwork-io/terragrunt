@@ -255,7 +255,7 @@ func (s *GitStore) ProbeCachedCommit(
 		return "", false
 	}
 
-	runner, err := git.NewGitRunner(v.Exec)
+	runner, err := git.NewGitRunner(v)
 	if err != nil {
 		return "", false
 	}
@@ -346,7 +346,7 @@ func (s *GitStore) acquire(
 		return nil, ErrGitStoreFSNotOS
 	}
 
-	runner, err := git.NewGitRunner(v.Exec)
+	runner, err := git.NewGitRunner(v)
 	if err != nil {
 		return nil, err
 	}

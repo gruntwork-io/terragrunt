@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ func TestNewGitRunner(t *testing.T) {
 			}),
 		)
 
-		runner, err := git.NewGitRunner(e)
+		runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
 		require.NoError(t, err)
 		assert.Equal(t, "/usr/bin/git", runner.GitPath)
 	})
@@ -41,7 +42,7 @@ func TestNewGitRunner(t *testing.T) {
 			}),
 		)
 
-		runner, err := git.NewGitRunner(e)
+		runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
 		require.ErrorIs(t, err, git.ErrCommandSpawn)
 		assert.Nil(t, runner)
 	})

@@ -210,7 +210,7 @@ func (cache *ProviderCache) AuthenticatePackage(
 		)
 	}
 
-	return getproviders.PackageAuthenticationAll(checks...).Authenticate(cache.archivePath)
+	return getproviders.PackageAuthenticationAll(checks...).Authenticate(cache.ProviderService.FS(), cache.archivePath)
 }
 
 func (cache *ProviderCache) ArchivePath() string {
@@ -405,7 +405,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 					return err
 				}
 
-				return helpers.FetchToFile(ctx, cache.HTTPClient(), req, cache.archivePath)
+				return helpers.FetchToFile(ctx, cache.HTTPClient(), cache.ProviderService.FS(), req, cache.archivePath)
 			},
 		); err != nil {
 			return err
@@ -858,7 +858,12 @@ func (service *ProviderService) startProviderCaching(
 		service.logger.Errorf("Failed to acquire lock file for %s: %v", cache.Provider, err)
 		return err
 	}
-	defer lockfile.Unlock() //nolint:errcheck
+
+	defer func() {
+		if unlockErr := lockfile.Unlock(service.FS()); unlockErr != nil {
+			service.logger.Errorf("Failed to release lock file for %s: %v", cache.Provider, unlockErr)
+		}
+	}()
 
 	service.logger.Debugf("Acquired lock file for %s, starting warm up", cache.Provider)
 

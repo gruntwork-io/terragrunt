@@ -265,7 +265,7 @@ func checkUnitVersionConstraints(
 	}
 
 	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(unitOpts),
+		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, unitOpts),
 		WorkingDir:   unitOpts.WorkingDir,
 		VersionFiles: unitOpts.VersionManagerFileName,
 	})

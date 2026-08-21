@@ -30,7 +30,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -1974,7 +1973,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	// fill in branch so we can test against updates to the test case file
 	mainContents, err := vfs.ReadFileAsString(vfs.NewOSFS(), mainTFFile)
 	require.NoError(t, err)
-	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
+	gitRunner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	branchName := gitRunner.WithWorkDir(modulePath).GetCurrentBranch(t.Context())
 	// https://www.terraform.io/docs/language/modules/sources.html#modules-in-package-sub-directories
@@ -3055,6 +3054,13 @@ func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	sopsPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "sops")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+
+	credsConfig := filepath.Join(sopsPath, "creds.config")
+	helpers.CopyAndFillMapPlaceholders(t, credsConfig, credsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     os.Getenv("AWS_ACCESS_KEY_ID"),
+		"__FILL_AWS_SECRET_ACCESS_KEY__": os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		"__FILL_AWS_SESSION_TOKEN__":     os.Getenv("AWS_SESSION_TOKEN"),
+	})
 
 	helpers.ValidateAuthProviderScript(t, sopsPath, mockAuthCmd)
 

@@ -192,7 +192,7 @@ func Run(
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedOpts.Debug {
-		if err := WriteTerragruntDebugFile(l, v.FS, v.Env, updatedOpts, cfg); err != nil {
+		if err := WriteTerragruntDebugFile(l, v, updatedOpts, cfg); err != nil {
 			return err
 		}
 	}
@@ -324,14 +324,14 @@ func runTerragruntWithConfig(
 	}
 
 	// Write null-valued inputs to a tfvars.json file that OpenTofu/Terraform will auto-load.
-	nullVarsFile, err := setTerragruntNullValuesRunCfg(opts, cfg)
+	nullVarsFile, err := setTerragruntNullValuesRunCfg(v, opts, cfg)
 	if err != nil {
 		return err
 	}
 
 	defer func() {
 		if nullVarsFile != "" {
-			if removeErr := os.Remove(
+			if removeErr := v.FS.Remove(
 				nullVarsFile,
 			); removeErr != nil &&
 				!errors.Is(removeErr, os.ErrNotExist) {
@@ -362,7 +362,7 @@ func runTerragruntWithConfig(
 			// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
 			out, runTerraformError := tf.RunCommandWithOutput(
 				childCtx, l, v,
-				opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...,
+				opts.tfRunOptions(v.Env), opts.TerraformCliArgs.Slice()...,
 			)
 
 			var lockFileError error
@@ -667,7 +667,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts()); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts(v.Env)); err != nil || !ok {
 		return false, err
 	}
 
@@ -827,7 +827,7 @@ func prepareInitCommandRunCfg(
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts()); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts(v.Env)); err != nil {
 		return err
 	}
 
@@ -970,7 +970,7 @@ func checkProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
 // that OpenTofu/Terraform will auto-load. This is necessary because OpenTofu/Terraform
 // cannot accept null values via environment variables (TF_VAR_*), but it can read them
 // from .auto.tfvars.json files.
-func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string, error) {
+func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) (string, error) {
 	jsonEmptyVars := make(map[string]any)
 
 	for varName, varValue := range cfg.Inputs {
@@ -992,7 +992,8 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 
 	const ownerReadWritePermissions = 0600
 
-	if err := os.WriteFile(
+	if err := vfs.WriteFile(
+		v.FS,
 		varFile,
 		jsonContents,
 		os.FileMode(ownerReadWritePermissions),

@@ -64,7 +64,7 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 	assert.Contains(t, content, "Terragrunt version: 1.7.9")
 	assert.Contains(t, content, "Build commit: deadbeef")
 	assert.Contains(t, content, "Build modified: true")
-	assert.Contains(t, content, "GOOS/GOARCH: "+runtime.GOOS+"/"+runtime.GOARCH)
+	assert.Contains(t, content, "GOOS/GOARCH: "+stubGOOS+"/"+stubGOARCH)
 	assert.Contains(t, content, "NumCPU: ")
 	assert.Contains(t, content, "GOMAXPROCS: ")
 	assert.Contains(t, content, "NumGoroutine: ")
@@ -442,6 +442,11 @@ func newPanicLogger() (log.Logger, *bytes.Buffer) {
 	), buf
 }
 
+const (
+	stubGOOS   = "stub-goos"
+	stubGOARCH = "stub-goarch"
+)
+
 func newStubReporter(fsys vfs.FS, workDir string, now time.Time, pid int) *panicreport.Reporter {
 	return &panicreport.Reporter{
 		FS:        fsys,
@@ -450,5 +455,7 @@ func newStubReporter(fsys vfs.FS, workDir string, now time.Time, pid int) *panic
 		GetPID:    func() int { return pid },
 		TempDir:   func() string { return "/tmp" },
 		BuildInfo: func() (string, bool) { return "deadbeef", true },
+		GOOS:      stubGOOS,
+		GOARCH:    stubGOARCH,
 	}
 }

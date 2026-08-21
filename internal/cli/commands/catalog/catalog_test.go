@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -236,7 +237,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 func newOptions(t *testing.T, workDir, outputFormat string) *catalog.Options {
 	t.Helper()
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = workDir
 	tgOpts.RootWorkingDir = workDir
 	tgOpts.TerragruntConfigPath = filepath.Join(workDir, "terragrunt.hcl")

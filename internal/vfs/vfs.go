@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	iofs "io/fs"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -102,7 +102,7 @@ func FileExists(fsys FS, path string) (bool, error) {
 		return true, nil
 	}
 
-	if errors.Is(err, iofs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
 
@@ -218,7 +218,7 @@ func WriteFileWithSamePermissions(fsys FS, source, destination string, contents 
 	}
 
 	// CAS may place read-only files at the destination, which would block a plain open.
-	if err := fsys.Remove(destination); err != nil && !errors.Is(err, iofs.ErrNotExist) {
+	if err := fsys.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
@@ -354,7 +354,7 @@ func ParentPathHasSymlink(fsys FS, rootDir, rel string) (bool, error) {
 		current = filepath.Join(current, part)
 
 		info, err := Lstat(fsys, current)
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return false, nil
 		}
 
@@ -470,7 +470,7 @@ type walkDirParallelConfig struct {
 // guarded by fastwalk's ancestor-cycle detection.
 //
 // Without this option, symlinked directories are visited as single
-// entries with `d.IsDir() == false`, matching stdlib [iofs.WalkDir].
+// entries with `d.IsDir() == false`, matching stdlib [fs.WalkDir].
 func WithFollowSymlinks() WalkDirParallelOption {
 	return func(c *walkDirParallelConfig) {
 		c.followSymlinks = true
@@ -486,7 +486,7 @@ func WithFollowSymlinks() WalkDirParallelOption {
 // gives no ordering guarantee across directories. Callers that depend
 // on deterministic order, or that write to shared state from fn, must
 // use [WalkDir] or serialize access themselves.
-func WalkDirParallel(fsys FS, root string, fn iofs.WalkDirFunc, opts ...WalkDirParallelOption) error {
+func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirParallelOption) error {
 	if _, ok := fsys.(*osFS); !ok {
 		return WalkDir(fsys, root, fn)
 	}
@@ -511,19 +511,19 @@ func WalkDirParallel(fsys FS, root string, fn iofs.WalkDirFunc, opts ...WalkDirP
 }
 
 // WalkDir walks the file tree rooted at root, calling fn for each file or
-// directory in the tree, including root. The fn callback receives an iofs.DirEntry
-// instead of os.FileInfo, which can be more efficient since it does not require
+// directory in the tree, including root. The fn callback receives an [fs.DirEntry]
+// instead of [os.FileInfo], which can be more efficient since it does not require
 // a stat call for every visited file.
 //
 // All errors that arise visiting files and directories are filtered by fn:
-// see the iofs.WalkDirFunc documentation for details.
+// see the [fs.WalkDirFunc] documentation for details.
 //
 // The files are walked in lexical order, which makes the output deterministic
 // but means that for very large directories WalkDir can be inefficient.
 // WalkDir does not follow symbolic links.
 //
 // Adapted from spf13/afero#571; replace with afero.WalkDir once merged.
-func WalkDir(fsys FS, root string, fn iofs.WalkDirFunc) error {
+func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 	info, err := lstatIfPossible(fsys, root)
 	if err != nil {
 		err = fn(root, nil, err)
@@ -547,7 +547,7 @@ func WalkDir(fsys FS, root string, fn iofs.WalkDirFunc) error {
 // Each logical path is reported once, so a directory reachable through several
 // links is visited once, and a link pointing back at an ancestor terminates
 // instead of looping.
-func WalkDirWithSymlinks(fsys FS, root string, fn iofs.WalkDirFunc) error {
+func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
 	w := &symlinkWalker{
 		fsys:           fsys,
 		fn:             fn,
@@ -567,14 +567,14 @@ func WalkDirWithSymlinks(fsys FS, root string, fn iofs.WalkDirFunc) error {
 // nested walks it starts for each followed link.
 type symlinkWalker struct {
 	fsys           FS
-	fn             iofs.WalkDirFunc
+	fn             fs.WalkDirFunc
 	visited        map[string]bool
 	visitedLogical map[string]bool
 }
 
 // walk traverses the tree at physical, reporting entries under logical.
 func (w *symlinkWalker) walk(physical, logical string) error {
-	return WalkDir(w.fsys, physical, func(current string, d iofs.DirEntry, err error) error {
+	return WalkDir(w.fsys, physical, func(current string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return w.fn(current, d, err)
 		}
@@ -599,7 +599,7 @@ func (w *symlinkWalker) walk(physical, logical string) error {
 			}
 		}
 
-		if d.Type()&iofs.ModeSymlink == 0 {
+		if d.Type()&fs.ModeSymlink == 0 {
 			return nil
 		}
 
@@ -1075,16 +1075,16 @@ func (z *ZipDecompressor) extractRegularFile(
 	return nil
 }
 
-// FileInfoDirEntry wraps os.FileInfo to implement iofs.DirEntry.
+// FileInfoDirEntry wraps [os.FileInfo] to implement [fs.DirEntry].
 // Adapted from spf13/afero#571; replace with afero equivalent once merged.
 type FileInfoDirEntry struct {
 	FileInfo os.FileInfo
 }
 
-func (d FileInfoDirEntry) Name() string                 { return d.FileInfo.Name() }
-func (d FileInfoDirEntry) IsDir() bool                  { return d.FileInfo.IsDir() }
-func (d FileInfoDirEntry) Type() iofs.FileMode          { return d.FileInfo.Mode().Type() }
-func (d FileInfoDirEntry) Info() (iofs.FileInfo, error) { return d.FileInfo, nil }
+func (d FileInfoDirEntry) Name() string               { return d.FileInfo.Name() }
+func (d FileInfoDirEntry) IsDir() bool                { return d.FileInfo.IsDir() }
+func (d FileInfoDirEntry) Type() fs.FileMode          { return d.FileInfo.Mode().Type() }
+func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
 
 // limitedReader wraps a reader and enforces a size limit.
 type limitedReader struct {
@@ -1221,7 +1221,7 @@ func (state *symlinkWalkState) processComponent(fsys FS, part string, end int) (
 		return false, err
 	}
 
-	if info.Mode()&iofs.ModeSymlink == 0 {
+	if info.Mode()&fs.ModeSymlink == 0 {
 		return state.processRegularComponent(info, end)
 	}
 
@@ -1335,7 +1335,7 @@ func walkSymlinksLinkParent(dest string, vol string, volLen int) string {
 
 // walkDir recursively descends path, calling walkDirFn.
 // Adapted from https://go.dev/src/path/filepath/path.go
-func walkDir(fsys FS, path string, d iofs.DirEntry, walkDirFn iofs.WalkDirFunc) error {
+func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) error {
 	if err := walkDirFn(path, d, nil); err != nil || !d.IsDir() {
 		if errors.Is(err, filepath.SkipDir) && d.IsDir() {
 			err = nil
@@ -1344,7 +1344,7 @@ func walkDir(fsys FS, path string, d iofs.DirEntry, walkDirFn iofs.WalkDirFunc) 
 		return err
 	}
 
-	entries, err := ReadDirEntries(fsys, path)
+	entries, err := ReadDir(fsys, path)
 	if err != nil {
 		err = walkDirFn(path, d, err)
 		if err != nil {
@@ -1370,22 +1370,24 @@ func walkDir(fsys FS, path string, d iofs.DirEntry, walkDirFn iofs.WalkDirFunc) 
 	return nil
 }
 
-// ReadDirEntries reads the directory named by dirname and returns a sorted
-// list of directory entries. It prefers the iofs.ReadDirFile fast path when the
-// backing file supports it, and otherwise falls back to Readdir wrapped in
-// FileInfoDirEntry so backings that only expose the legacy os.File API still
-// work.
-func ReadDirEntries(fsys FS, dirname string) ([]iofs.DirEntry, error) {
+// ReadDir reads the directory named by dirname and returns a sorted list of
+// directory entries, as [fs.ReadDir] does. It prefers the [fs.ReadDirFile] fast
+// path when the backing file supports it, and otherwise falls back to Readdir
+// wrapped in [FileInfoDirEntry] so backings that only expose the legacy [os.File]
+// API still work.
+func ReadDir(fsys FS, dirname string) (_ []fs.DirEntry, retErr error) {
 	f, err := fsys.Open(dirname)
 	if err != nil {
 		return nil, err
 	}
 
 	defer func() {
-		_ = f.Close()
+		if err := f.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
 	}()
 
-	if rdf, ok := f.(iofs.ReadDirFile); ok {
+	if rdf, ok := f.(fs.ReadDirFile); ok {
 		entries, err := rdf.ReadDir(-1)
 		if err != nil {
 			return nil, err
@@ -1393,7 +1395,7 @@ func ReadDirEntries(fsys FS, dirname string) ([]iofs.DirEntry, error) {
 
 		slices.SortFunc(
 			entries,
-			func(a, b iofs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) },
+			func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) },
 		)
 
 		return entries, nil
@@ -1404,7 +1406,7 @@ func ReadDirEntries(fsys FS, dirname string) ([]iofs.DirEntry, error) {
 		return nil, err
 	}
 
-	entries := make([]iofs.DirEntry, len(infos))
+	entries := make([]fs.DirEntry, len(infos))
 
 	for i, info := range infos {
 		entries[i] = FileInfoDirEntry{FileInfo: info}
@@ -1412,10 +1414,40 @@ func ReadDirEntries(fsys FS, dirname string) ([]iofs.DirEntry, error) {
 
 	slices.SortFunc(
 		entries,
-		func(a, b iofs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) },
+		func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) },
 	)
 
 	return entries, nil
+}
+
+// ListFilesWithSuffixes returns the paths of the files directly under dir whose
+// names end in any of the given suffixes, in the order [ReadDir] yields
+// them. Subdirectories are skipped, and each match is joined to dir.
+func ListFilesWithSuffixes(fsys FS, dir string, suffixes ...string) ([]string, error) {
+	entries, err := ReadDir(fsys, dir)
+	if err != nil {
+		return nil, err
+	}
+
+	files := make([]string, 0, len(entries))
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+
+		if !slices.ContainsFunc(suffixes, func(suffix string) bool {
+			return strings.HasSuffix(name, suffix)
+		}) {
+			continue
+		}
+
+		files = append(files, filepath.Join(dir, name))
+	}
+
+	return files, nil
 }
 
 // containsDotDot checks if a path contains ".." as a path component.

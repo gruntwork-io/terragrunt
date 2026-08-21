@@ -65,8 +65,8 @@ func ParseJSONRuns(data []byte) (JSONRuns, error) {
 // ParseJSONRunsFromFile reads and parses a JSON report from a file.
 // Returns a slice of JSONRun entries or an error if reading, validation, or parsing fails.
 // The report is validated against the JSON schema before parsing.
-func ParseJSONRunsFromFile(path string) (JSONRuns, error) {
-	data, err := os.ReadFile(path)
+func ParseJSONRunsFromFile(fsys vfs.FS, path string) (JSONRuns, error) {
+	data, err := vfs.ReadFile(fsys, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report file %s: %w", path, err)
 	}
@@ -160,8 +160,8 @@ func ParseCSVRuns(data []byte) (CSVRuns, error) {
 
 // ParseCSVRunsFromFile reads and parses a CSV report from a file.
 // Returns a slice of CSVRun entries or an error if reading or parsing fails.
-func ParseCSVRunsFromFile(path string) (CSVRuns, error) {
-	data, err := os.ReadFile(path)
+func ParseCSVRunsFromFile(fsys vfs.FS, path string) (CSVRuns, error) {
+	data, err := vfs.ReadFile(fsys, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report file %s: %w", path, err)
 	}

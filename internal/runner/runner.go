@@ -114,7 +114,7 @@ func findMatchingUnitsInPath(
 	// Construct the full path to terragrunt.hcl in the directory
 	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
 
-	cfgOpts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
+	cfgOpts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, configPath)
 	if err != nil {
 		l.Debugf("Failed to build terragrunt options from %s %v", configPath, err)
 		return matchedUnitsMap

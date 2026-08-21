@@ -21,7 +21,6 @@ import (
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -125,7 +124,7 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 	var modules Modules
 
 	// check if root repo path is a module dir
-	if module, err := NewModule(l, repo, ""); err != nil {
+	if module, err := NewModule(l, fsys, repo, ""); err != nil {
 		return nil, err
 	} else if module != nil {
 		modules = append(modules, module)
@@ -170,7 +169,7 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 
 				moduleDir = filepath.ToSlash(moduleDir)
 
-				if module, err := NewModule(l, repo, moduleDir); err != nil {
+				if module, err := NewModule(l, fsys, repo, moduleDir); err != nil {
 					return err
 				} else if module != nil {
 					modules = append(modules, module)
@@ -284,7 +283,7 @@ func (repo *Repo) CloneURL() string {
 // semver tags, LatestTag is left empty. Local catalog sources skip the
 // lookup entirely so a stale or unreachable origin URL in a local working
 // copy can't stall discovery.
-func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, exec vexec.Exec) {
+func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, v *venv.Venv) {
 	if repo.isLocal {
 		return
 	}
@@ -294,7 +293,7 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, exec vexec
 		return
 	}
 
-	runner, err := gitpkg.NewGitRunner(exec)
+	runner, err := gitpkg.NewGitRunner(v)
 	if err != nil {
 		l.Debugf("catalog: skip tag lookup: %v", err)
 
@@ -504,7 +503,7 @@ func (repo *Repo) performClone(
 			return err
 		}
 
-		if _, err := gitpkg.NewGitRunner(v.Exec); err != nil {
+		if _, err := gitpkg.NewGitRunner(v); err != nil {
 			return err
 		}
 

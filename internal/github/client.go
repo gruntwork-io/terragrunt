@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -65,27 +63,24 @@ func WithGithubToken(token string) GitHubAPIClientOption {
 // WithGithubComDefaultAuth sets the authentication header based on the assumption
 // we're talking to github.com, and using the same logic as the gh cli:
 // https://cli.github.com/manual/gh_help_environment
-func WithGithubComDefaultAuth() GitHubAPIClientOption {
+func WithGithubComDefaultAuth(env map[string]string) GitHubAPIClientOption {
 	return func(c *GitHubAPIClient) {
-		if tok := getGithubTokenFromEnv(); tok != "" {
+		if tok := githubToken(env); tok != "" {
 			c.defaultHeaders.Set("Authorization", "Bearer "+tok)
 		}
 	}
 }
 
-// getGithubTokenFromEnv retrieves the GitHub token from environment
-// variables using the same logic as the gh cli:
-// https://cli.github.com/manual/gh_help_environment
-func getGithubTokenFromEnv() string {
-	if tok := os.Getenv("GH_TOKEN"); tok != "" {
+// githubToken retrieves the GitHub token, using the same order of preference
+// as the gh cli: https://cli.github.com/manual/gh_help_environment
+func githubToken(env map[string]string) string {
+	venv.RequireEnvMap(env)
+
+	if tok := env["GH_TOKEN"]; tok != "" {
 		return tok
 	}
 
-	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
-		return tok
-	}
-
-	return ""
+	return env["GITHUB_TOKEN"]
 }
 
 // NewGitHubAPIClient creates a new GitHub API client with optional configuration.
@@ -238,6 +233,8 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 	v *venv.Venv,
 	assets *ReleaseAssets,
 ) (*DownloadResult, error) {
+	v.RequireHTTP()
+
 	if assets.Repository == "" {
 		return nil, errors.New("repository cannot be empty")
 	}
@@ -297,24 +294,16 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 			}
 
 			opts := []getter.Option{
+				getter.WithHTTP(v.HTTP),
 				// Disable archive decompression: GitHub release assets are
 				// fetched verbatim, not unpacked.
 				getter.WithDecompressors(map[string]getter.Decompressor{}),
 			}
 
-			if tok := getGithubTokenFromEnv(); tok != "" {
-				header := http.Header{"Authorization": {"Bearer " + tok}}
-
-				if strings.HasPrefix(url, "https://") {
-					opts = append(opts, getter.WithHTTPSAuth(header))
-				}
-
-				// httptest.Server serves over plain HTTP, so tests need the
-				// header on the http getter too. In production we never send
-				// bearer tokens over plain HTTP.
-				if testing.Testing() {
-					opts = append(opts, getter.WithHTTPAuth(header))
-				}
+			// The token rides https only, so it cannot leak over an
+			// unencrypted redirect.
+			if tok := githubToken(v.Env); tok != "" && strings.HasPrefix(url, "https://") {
+				opts = append(opts, getter.WithHTTPSAuth(http.Header{"Authorization": {"Bearer " + tok}}))
 			}
 
 			if _, err := getter.GetFile(downloadCtx, v, localPath, url, opts...); err != nil {

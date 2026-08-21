@@ -30,8 +30,11 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestGithubAuthPickupOrder(t *testing.T) {
+	t.Parallel()
 
 	t.Run("prefer GH_TOKEN", func(t *testing.T) {
+		t.Parallel()
+
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
 
@@ -46,12 +49,12 @@ func TestGithubAuthPickupOrder(t *testing.T) {
 		}))
 		defer server.Close()
 
-		t.Setenv("GH_TOKEN", "goodtoken")
-		t.Setenv("GITHUB_TOKEN", "badtoken")
-
 		client := github.NewGitHubAPIClient(
 			github.WithBaseURL(server.URL),
-			github.WithGithubComDefaultAuth(),
+			github.WithGithubComDefaultAuth(map[string]string{
+				"GH_TOKEN":     "goodtoken",
+				"GITHUB_TOKEN": "badtoken",
+			}),
 		)
 
 		_, err := client.GetLatestRelease(t.Context(), "owner/repo")
@@ -59,6 +62,8 @@ func TestGithubAuthPickupOrder(t *testing.T) {
 	})
 
 	t.Run("use GITHUB_TOKEN", func(t *testing.T) {
+		t.Parallel()
+
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
 
@@ -73,11 +78,12 @@ func TestGithubAuthPickupOrder(t *testing.T) {
 		}))
 		defer server.Close()
 
-		t.Setenv("GH_TOKEN", "")
-		t.Setenv("GITHUB_TOKEN", "goodtoken")
 		client := github.NewGitHubAPIClient(
 			github.WithBaseURL(server.URL),
-			github.WithGithubComDefaultAuth(),
+			github.WithGithubComDefaultAuth(map[string]string{
+				"GH_TOKEN":     "",
+				"GITHUB_TOKEN": "goodtoken",
+			}),
 		)
 
 		_, err := client.GetLatestRelease(t.Context(), "owner/repo")
@@ -343,7 +349,9 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := client.DownloadReleaseAssets(ctx, venvtest.NewWithOSFS(), assets)
+	v := venvtest.NewWithOSFS().WithHTTP(server.Client())
+
+	result, err := client.DownloadReleaseAssets(ctx, v, assets)
 	require.NoError(t, err)
 
 	// Verify result
@@ -356,7 +364,7 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 }
 
 func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
-	tempDir := helpers.TmpDirWOSymlinks(t)
+	t.Parallel()
 
 	// shared logic for handlers
 	doResp := func(w http.ResponseWriter, r *http.Request) {
@@ -389,49 +397,56 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 	client := github.NewGitHubReleasesDownloadClient()
 
 	t.Run("prefer GH_TOKEN", func(t *testing.T) {
-		t.Setenv("GH_TOKEN", "goodtoken")
-		t.Setenv("GITHUB_TOKEN", "badtoken")
+		t.Parallel()
 
-		// Create mock server for GitHub releases
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The token only rides https, so the server has to speak TLS.
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
 
 			doResp(w, r)
 		}))
 		defer server.Close()
 
+		v := venvtest.NewWithOSFS().WithHTTP(server.Client()).WithEnv(map[string]string{
+			"GH_TOKEN":     "goodtoken",
+			"GITHUB_TOKEN": "badtoken",
+		})
+
 		ctx := t.Context()
 
 		assets := &github.ReleaseAssets{
 			Repository:  server.URL + "/package.zip", // Direct URL
-			PackageFile: filepath.Join(tempDir, "package.zip"),
+			PackageFile: filepath.Join(helpers.TmpDirWOSymlinks(t), "package.zip"),
 			// Direct URLs don't use checksum files
 		}
 
-		_, err := client.DownloadReleaseAssets(ctx, venvtest.NewWithOSFS(), assets)
+		_, err := client.DownloadReleaseAssets(ctx, v, assets)
 		require.NoError(t, err)
 	})
 
 	t.Run("use GITHUB_TOKEN", func(t *testing.T) {
-		t.Setenv("GH_TOKEN", "")
-		t.Setenv("GITHUB_TOKEN", "goodtoken")
+		t.Parallel()
 
-		// Create mock server for GitHub releases
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
 
 			doResp(w, r)
 		}))
 		defer server.Close()
 
+		v := venvtest.NewWithOSFS().WithHTTP(server.Client()).WithEnv(map[string]string{
+			"GH_TOKEN":     "",
+			"GITHUB_TOKEN": "goodtoken",
+		})
+
 		ctx := t.Context()
 
 		assets := &github.ReleaseAssets{
 			Repository:  server.URL + "/package.zip", // Direct URL
-			PackageFile: filepath.Join(tempDir, "package.zip"),
+			PackageFile: filepath.Join(helpers.TmpDirWOSymlinks(t), "package.zip"),
 			// Direct URLs don't use checksum files
 		}
-		_, err := client.DownloadReleaseAssets(ctx, venvtest.NewWithOSFS(), assets)
+		_, err := client.DownloadReleaseAssets(ctx, v, assets)
 		require.NoError(t, err)
 	})
 }
@@ -456,7 +471,9 @@ func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 		// Note: No Version, ChecksumFile, or ChecksumSigFile for direct URLs
 	}
 
-	result, err := client.DownloadReleaseAssets(t.Context(), venvtest.NewWithOSFS(), assets)
+	v := venvtest.NewWithOSFS().WithHTTP(server.Client())
+
+	result, err := client.DownloadReleaseAssets(t.Context(), v, assets)
 	require.NoError(t, err)
 
 	// Verify result

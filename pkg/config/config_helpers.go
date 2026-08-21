@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -35,7 +33,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
-	"github.com/gruntwork-io/terragrunt/internal/locks"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -434,7 +431,9 @@ func createTerragruntEvalContext(
 
 // Return the OS platform
 func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return runtime.GOOS, nil
+	pctx.Venv.RequireGOOS()
+
+	return pctx.Venv.Platform.GOOS, nil
 }
 
 // Return the repository root as an absolute path
@@ -793,7 +792,7 @@ func findInParentFoldersImpl(
 			}
 		}
 
-		fileToFind := parentFileCandidate(currentDir, fileToFindParam)
+		fileToFind := parentFileCandidate(pctx.Venv.FS, currentDir, fileToFindParam)
 
 		if parentFileExists(ctx, pctx.Venv.FS, probes, fileToFind) {
 			return fileToFind, nil
@@ -813,9 +812,9 @@ func findInParentFoldersImpl(
 // the caller passed no argument and wants whichever default config name is
 // present, which costs a probe per known name, so [GetDefaultConfigPath] is
 // only consulted in that case.
-func parentFileCandidate(dir, fileName string) string {
+func parentFileCandidate(fsys vfs.FS, dir, fileName string) string {
 	if fileName == "" {
-		return GetDefaultConfigPath(dir)
+		return GetDefaultConfigPath(fsys, dir)
 	}
 
 	return filepath.Join(dir, fileName)
@@ -965,7 +964,7 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 	// source resolves to a different cache directory.
 	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
-	source, err := tf.NewSource(l, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
+	source, err := tf.NewSource(l, pctx.Venv.FS, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
 	if err != nil {
 		return "", err
 	}
@@ -1212,7 +1211,7 @@ func getCleanedTargetConfigPath(fsys vfs.FS, configPath string, workingPath stri
 	}
 
 	if vfs.IsDir(fsys, targetConfig) {
-		targetConfig = GetDefaultConfigPath(targetConfig)
+		targetConfig = GetDefaultConfigPath(fsys, targetConfig)
 	}
 
 	return filepath.Clean(targetConfig)
@@ -1333,58 +1332,30 @@ func sopsDecryptFileImpl(
 	format string,
 	d vsops.Decrypter,
 ) (string, error) {
+	pctx.Venv.RequireEnv()
+
 	sopsCache := cache.ContextCache[string](ctx, SopsCacheContextKey)
 
-	// Fast path: check cache before acquiring lock.
-	// Cache has its own sync.RWMutex, safe for concurrent reads.
 	if val, ok := sopsCache.Get(ctx, path); ok {
 		l.Debugf("sops decrypt: cache hit for %s (len=%d)", path, len(val))
 
 		return val, nil
 	}
 
-	// Cache miss: acquire lock for env mutation + decrypt.
-	// The lock serializes os.Setenv/os.Unsetenv to prevent race conditions
-	// when multiple units decrypt concurrently with different auth credentials.
-	// See https://github.com/gruntwork-io/terragrunt/issues/5515
-	l.Debugf("sops decrypt: cache miss, acquiring lock for %s (format=%s)", path, format)
+	sopsLocks := sopsLocksFromContext(ctx)
 
-	locks.EnvLock.Lock()
-	defer locks.EnvLock.Unlock()
+	sopsLocks.Lock(path)
+	defer sopsLocks.Unlock(path)
 
-	// Double-check: another goroutine may have populated cache while we waited for the lock.
+	// Whoever held the lock may have been decrypting this very path, so the
+	// cache is consulted again before paying for a decrypt of our own.
 	if val, ok := sopsCache.Get(ctx, path); ok {
 		l.Debugf("sops decrypt: cache hit after lock for %s (len=%d)", path, len(val))
 
 		return val, nil
 	}
 
-	// Set env vars from the venv environment that are missing from process env.
-	// Auth-provider credentials (e.g., AWS_SESSION_TOKEN) may not exist
-	// in process env yet — SOPS needs them for KMS auth.
-	// Existing process env vars are preserved to avoid overriding real
-	// credentials with empty auth-provider values.
-	env := pctx.Venv.Env
-
-	setKeys := make([]string, 0, len(env))
-
-	for k, v := range env {
-		if _, exists := os.LookupEnv(k); exists {
-			continue
-		}
-
-		os.Setenv(k, v) //nolint:errcheck
-
-		setKeys = append(setKeys, k)
-	}
-
-	defer func() {
-		for _, k := range setKeys {
-			os.Unsetenv(k) //nolint:errcheck
-		}
-	}()
-
-	l.Debugf("sops decrypt: decrypting %s", path)
+	l.Debugf("sops decrypt: decrypting %s (format=%s)", path, format)
 
 	var rawData []byte
 
@@ -1395,7 +1366,7 @@ func sopsDecryptFileImpl(
 		}, func(ctx context.Context, l log.Logger) error {
 			var decryptErr error
 
-			rawData, decryptErr = d.DecryptFile(path, format)
+			rawData, decryptErr = d.DecryptFile(pctx.Venv.Env, path, format)
 
 			return decryptErr
 		})
@@ -1411,6 +1382,18 @@ func sopsDecryptFileImpl(
 	}
 
 	return "", InvalidSopsFormatError{SourceFilePath: path}
+}
+
+// sopsLocksFromContext returns the per-path decrypt locks, so units sharing an
+// encrypted file wait for the first decrypt rather than each paying for one. A
+// decrypt can be a KMS round-trip, which is why the duplicate work is worth
+// waiting out.
+func sopsLocksFromContext(ctx context.Context) *util.KeyLocks {
+	if val, ok := ctx.Value(SopsLocksContextKey).(*util.KeyLocks); ok && val != nil {
+		return val
+	}
+
+	return util.NewKeyLocks()
 }
 
 // Return the location of the Terraform files provided via --source
@@ -1575,7 +1558,7 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 	// Track that this file was read during parsing
 	pctx.FilesRead.Add(varFile)
 
-	fileContents, err := os.ReadFile(varFile)
+	fileContents, err := vfs.ReadFile(pctx.Venv.FS, varFile)
 	if err != nil {
 		return "", fmt.Errorf("could not read file %q: %w", varFile, err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 
@@ -55,21 +54,21 @@ func (cfg *CatalogConfig) String() string {
 	)
 }
 
-func (cfg *CatalogConfig) normalize(configPath string) {
+func (cfg *CatalogConfig) normalize(fsys vfs.FS, configPath string) {
 	configDir := filepath.Dir(configPath)
 
 	// transform relative paths to absolute ones
 	for i, url := range cfg.URLs {
 		url := filepath.Join(configDir, url)
 
-		if _, err := os.Stat(url); err == nil {
+		if _, err := fsys.Stat(url); err == nil {
 			cfg.URLs[i] = url
 		}
 	}
 
 	if cfg.DefaultTemplate != "" {
 		path := filepath.Join(configDir, cfg.DefaultTemplate)
-		if _, err := os.Stat(path); err == nil {
+		if _, err := fsys.Stat(path); err == nil {
 			cfg.DefaultTemplate = path
 		}
 	}
@@ -196,7 +195,7 @@ func convertToTerragruntCatalogConfig(
 
 	if terragruntConfigFromFile.Catalog != nil {
 		terragruntConfig.Catalog = terragruntConfigFromFile.Catalog
-		terragruntConfig.Catalog.normalize(configPath)
+		terragruntConfig.Catalog.normalize(pctx.Venv.FS, configPath)
 		terragruntConfig.SetFieldMetadata(MetadataCatalog, defaultMetadata)
 	}
 

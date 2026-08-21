@@ -14,6 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -479,11 +481,11 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 				require.NoError(t, cleanupErr)
 			})
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = tmpDir
 			opts.RootWorkingDir = tmpDir
 
@@ -765,12 +767,12 @@ unit "unit_to_be_untouched" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
 	// Generate stacks in worktrees
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
@@ -920,11 +922,11 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
@@ -1223,11 +1225,11 @@ locals {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 				require.NoError(t, cleanupErr)
 			})
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = tmpDir
 			opts.RootWorkingDir = tmpDir
 
@@ -1321,11 +1323,11 @@ locals {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = basicDir
 	opts.RootWorkingDir = basicDir
 
@@ -1598,11 +1600,11 @@ locals {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 				require.NoError(t, cleanupErr)
 			})
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = tmpDir
 			opts.RootWorkingDir = tmpDir
 
@@ -1706,11 +1708,11 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 				require.NoError(t, cleanupErr)
 			})
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = basicDir
 			opts.RootWorkingDir = basicDir
 
@@ -1895,12 +1897,12 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
 	// Generate stacks in worktrees
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2089,11 +2091,11 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2273,11 +2275,11 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2441,11 +2443,11 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2582,11 +2584,11 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2708,11 +2710,11 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2762,11 +2764,11 @@ func runWorktreeDiscovery(
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2878,11 +2880,11 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3032,10 +3034,10 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS()))
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3157,10 +3159,10 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS()))
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3257,11 +3259,11 @@ locals {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3340,11 +3342,11 @@ locals {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3446,11 +3448,11 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3551,11 +3553,11 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 

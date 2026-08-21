@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders/mocks"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -293,7 +294,7 @@ provider "registry.terraform.io/hashicorp/template" {
 				require.NoError(t, err)
 			}
 
-			err := getproviders.UpdateLockfile(t.Context(), workingDir, tc.providers)
+			err := getproviders.UpdateLockfile(t.Context(), vfs.NewOSFS(), workingDir, tc.providers)
 			require.NoError(t, err)
 
 			actualLockfile, err := os.ReadFile(lockfilePath)
@@ -354,13 +355,13 @@ func TestMockUpdateLockfileWithRegistryHashes(t *testing.T) {
 		},
 	)
 
-	localH1, err := getproviders.PackageHashV1(packageDir)
+	localH1, err := getproviders.PackageHashV1(vfs.NewOSFS(), packageDir)
 	require.NoError(t, err)
 
 	workingDir := helpers.TmpDirWOSymlinks(t)
 	lockfilePath := filepath.Join(workingDir, ".terraform.lock.hcl")
 
-	err = getproviders.UpdateLockfile(t.Context(), workingDir, []getproviders.Provider{provider})
+	err = getproviders.UpdateLockfile(t.Context(), vfs.NewOSFS(), workingDir, []getproviders.Provider{provider})
 	require.NoError(t, err)
 
 	actual, err := os.ReadFile(lockfilePath)
@@ -427,7 +428,7 @@ provider "registry.terraform.io/hashicorp/aws" {
 	err := os.WriteFile(lockfilePath, []byte(initialLockfile), 0644)
 	require.NoError(t, err)
 
-	err = getproviders.UpdateLockfile(t.Context(), workingDir, []getproviders.Provider{provider})
+	err = getproviders.UpdateLockfile(t.Context(), vfs.NewOSFS(), workingDir, []getproviders.Provider{provider})
 	require.NoError(t, err)
 
 	actualLockfile, err := os.ReadFile(lockfilePath)

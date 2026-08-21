@@ -239,7 +239,7 @@ func detectRepoHashAlgorithm(
 	v *venv.Venv,
 	repoDir string,
 ) (HashAlgorithm, error) {
-	runner, err := git.NewGitRunner(v.Exec)
+	runner, err := git.NewGitRunner(v)
 	if err != nil {
 		return "", err
 	}
