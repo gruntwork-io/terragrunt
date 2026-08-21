@@ -296,7 +296,7 @@ func shouldContinueWithFileExists(
 		return true, nil
 	default:
 		// This shouldn't happen, but we add this case anyway for defensive coding.
-		return false, UnknownGenerateIfExistsVal{Value: ""}
+		return false, UnknownGenerateIfExistsVal{""}
 	}
 }
 
@@ -347,7 +347,7 @@ func shouldRemoveWithFileExists(
 		return true, nil
 	default:
 		// This shouldn't happen, but we add this case anyway for defensive coding.
-		return false, UnknownGenerateIfDisabledVal{Value: ""}
+		return false, UnknownGenerateIfDisabledVal{""}
 	}
 }
 
@@ -739,7 +739,7 @@ func GenerateConfigExistsFromString(val string) (GenerateConfigExists, error) {
 		return ExistsOverwriteTerragrunt, nil
 	}
 
-	return ExistsUnknown, UnknownGenerateIfExistsVal{Value: val}
+	return ExistsUnknown, UnknownGenerateIfExistsVal{val: val}
 }
 
 // GenerateConfigDisabledFromString converts a string representation of
@@ -755,5 +755,5 @@ func GenerateConfigDisabledFromString(val string) (GenerateConfigDisabled, error
 		return DisabledRemoveTerragrunt, nil
 	}
 
-	return DisabledUnknown, UnknownGenerateIfDisabledVal{Value: val}
+	return DisabledUnknown, UnknownGenerateIfDisabledVal{val: val}
 }

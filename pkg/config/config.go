@@ -129,9 +129,9 @@ var (
 
 		return parseOpts
 	}
-)
 
-const defaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
+	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
+)
 
 // DecodedBaseBlocks decoded base blocks struct
 type DecodedBaseBlocks struct {
@@ -1578,7 +1578,7 @@ func ParseConfig(
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx, pctx, l, file, evalContext)
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(pctx, l, file, evalContext)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1594,20 +1594,17 @@ func ParseConfig(
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
 	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
-	if config != nil {
-		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
-		if autoMergeErr != nil {
-			errs = append(errs, autoMergeErr)
-		}
+	merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
+	if autoMergeErr != nil {
+		errs = append(errs, autoMergeErr)
+	}
 
-		if autoMergeErr == nil {
-			config = merged
-		}
+	if autoMergeErr == nil {
+		config = merged
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
-	// If the config is nil (e.g. convertToTerragruntConfig returned nil on error), skip the
-	// include merge to avoid a nil pointer dereference in Merge/DeepMerge.
+	// Skip include merge when config is nil to avoid a nil pointer dereference in Merge/DeepMerge.
 	if pctx.TrackInclude != nil && config != nil {
 		mergedConfig, err := handleInclude(ctx, pctx, l, config, false)
 		if err != nil {
@@ -1817,7 +1814,6 @@ func setIAMRole(
 }
 
 func decodeAsTerragruntConfigFile(
-	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
 	file *hclparse.File,
@@ -1841,7 +1837,7 @@ func decodeAsTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeRetry(ctx, file, evalContext, pctx)
+	dependencies, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
 	if err != nil {
 		return &terragruntConfig, err
 	}
@@ -2107,8 +2103,7 @@ func convertToTerragruntConfig(
 		}
 
 		if block.IfDisabled == nil {
-			defaultVal := defaultGenerateBlockIfDisabledValueStr
-			block.IfDisabled = &defaultVal
+			block.IfDisabled = &DefaultGenerateBlockIfDisabledValueStr
 		}
 
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
@@ -2127,27 +2122,30 @@ func convertToTerragruntConfig(
 		}
 
 		genConfig := codegen.GenerateConfig{
-			HclFmt:           block.HclFmt,
-			Mutable:          block.Mutable,
-			Path:             block.Path,
-			IfExists:         ifExists,
-			IfExistsStr:      block.IfExists,
-			IfDisabled:       ifDisabled,
-			IfDisabledStr:    *block.IfDisabled,
-			Contents:         block.Contents,
-			CommentPrefix:    codegen.DefaultCommentPrefix,
-			DisableSignature: false,
-			Disable:          false,
+			HclFmt:        block.HclFmt,
+			Mutable:       block.Mutable,
+			Path:          block.Path,
+			IfExists:      ifExists,
+			IfExistsStr:   block.IfExists,
+			IfDisabled:    ifDisabled,
+			IfDisabledStr: *block.IfDisabled,
+			Contents:      block.Contents,
 		}
-		if block.CommentPrefix != nil {
+		if block.CommentPrefix == nil {
+			genConfig.CommentPrefix = codegen.DefaultCommentPrefix
+		} else {
 			genConfig.CommentPrefix = *block.CommentPrefix
 		}
 
-		if block.DisableSignature != nil {
+		if block.DisableSignature == nil {
+			genConfig.DisableSignature = false
+		} else {
 			genConfig.DisableSignature = *block.DisableSignature
 		}
 
-		if block.Disable != nil {
+		if block.Disable == nil {
+			genConfig.Disable = false
+		} else {
 			genConfig.Disable = *block.Disable
 		}
 
@@ -2615,7 +2613,7 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 
 // hasSiblingAutoInclude reports whether a sibling autoinclude is registered for this parse.
 func hasSiblingAutoInclude(pctx *ParsingContext) bool {
-	return pctx != nil && pctx.TrackInclude != nil && pctx.TrackInclude.AutoIncludeOverride != nil
+	return pctx.TrackInclude != nil && pctx.TrackInclude.AutoIncludeOverride != nil
 }
 
 // mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.
@@ -2625,7 +2623,7 @@ func mergeAutoIncludeIfPresent(
 	l log.Logger,
 	cfg *TerragruntConfig,
 ) (*TerragruntConfig, error) {
-	if cfg == nil || pctx == nil || pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
 		return cfg, nil
 	}
 

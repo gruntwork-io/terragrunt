@@ -138,11 +138,7 @@ func handleInclude(
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
 	includeList := pctx.TrackInclude.CurrentList
-
 	baseConfig := config
-	if baseConfig == nil {
-		return nil, nil
-	}
 
 	for i := len(includeList) - 1; i >= 0; i-- {
 		includeConfig := includeList[i]
@@ -319,10 +315,6 @@ func handleIncludeForDependency(
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
 func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig) error {
-	if cfg == nil || sourceConfig == nil {
-		return nil
-	}
-
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
 		cfg.DownloadDir = sourceConfig.DownloadDir
@@ -452,10 +444,6 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 //     the parsing step, not after the full config is decoded]
 //   - locals [These blocks are not merged by design]
 func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntConfig) error {
-	if cfg == nil || sourceConfig == nil {
-		return nil
-	}
-
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
 		cfg.DownloadDir = sourceConfig.DownloadDir

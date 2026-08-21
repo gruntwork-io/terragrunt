@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -734,11 +735,10 @@ func PartialParseConfig(
 			}
 
 		case DependencyBlock:
-			decodedDeps, err := decodeDependencyBlocksWithAutoIncludeRetry(
-				ctx,
+			decodedDeps, err := decodeDependencyBlocks(
 				file,
 				evalParsingContext,
-				pctx,
+				pctx.Experiments,
 			)
 			if err != nil {
 				return nil, err
@@ -1148,7 +1148,7 @@ func autoIncludeCacheKeySuffix(
 
 	// Fingerprint the sibling cheaply so a cache hit reuses the content based suffix without re-reading the file.
 	fingerprint := autoIncludePath
-	if info, statErr := pctx.Venv.FS.Stat(autoIncludePath); statErr == nil {
+	if info, statErr := os.Stat(autoIncludePath); statErr == nil {
 		fingerprint = fmt.Sprintf(
 			"%s-%d-%d",
 			autoIncludePath,

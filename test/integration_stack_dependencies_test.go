@@ -72,7 +72,6 @@ const (
 	testFixtureStackDepsHCLValidateAutoInc       = "fixtures/stacks/stack-deps-hclvalidate-autoinclude"
 	testFixtureStackDepsAutoIncTemplateLiteral   = "fixtures/stacks/stack-deps-autoinclude-template-literal"
 	testFixtureStackDepsAutoIncObjectKey         = "fixtures/stacks/stack-deps-autoinclude-object-key"
-	testFixtureStackDepsAutoIncConfigPathValues  = "fixtures/stacks/stack-deps-autoinclude-config-path-values"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,

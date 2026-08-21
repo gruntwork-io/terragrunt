@@ -291,8 +291,6 @@ func TestParseTerragruntConfigGenerateBlockInvalidIfDisabledWithInclude(t *testi
 	t.Parallel()
 
 	// Regression test for https://github.com/gruntwork-io/terragrunt/issues/6717
-	// An invalid if_disabled value combined with an include block caused a nil pointer panic
-	// in TerragruntConfig.Merge instead of returning a descriptive error.
 	tmpDir := t.TempDir()
 
 	rootCfg := ``
