@@ -3,6 +3,7 @@ package flags
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io"
 	"strconv"
@@ -164,16 +165,20 @@ func (newFlag *Flag) Parse(args clihelper.Args, env map[string]string) error {
 		return err
 	}
 
-	const maxFlagsParse = 1000 // Maximum flags parse
+	const maxFlagsParse = 1000
 
 	for range maxFlagsParse {
 		err := flagSet.Parse(args)
 		if err == nil {
-			break
+			return nil
 		}
 
-		if errStr := err.Error(); !strings.HasPrefix(errStr, clihelper.ErrMsgFlagUndefined) {
-			break
+		// The set holds only this flag, so the loop skips flags owned by other
+		// parsers instead of failing on them. That includes -h and --help, which
+		// arrive as [flag.ErrHelp] rather than as an undefined-flag error.
+		if !errors.Is(err, flag.ErrHelp) &&
+			!strings.HasPrefix(err.Error(), clihelper.ErrMsgFlagUndefined) {
+			return err
 		}
 
 		args = flagSet.Args()
