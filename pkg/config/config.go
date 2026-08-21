@@ -1595,18 +1595,20 @@ func ParseConfig(
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
 	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
-	merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
-	if autoMergeErr != nil {
-		errs = append(errs, autoMergeErr)
-	}
+	if config != nil {
+		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
+		if autoMergeErr != nil {
+			errs = append(errs, autoMergeErr)
+		}
 
-	if autoMergeErr == nil {
-		config = merged
+		if autoMergeErr == nil {
+			config = merged
+		}
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
-	// If there have been errors during this parse, don't attempt to parse the included config.
-	if pctx.TrackInclude != nil {
+	// Skip include merge when config is nil to avoid a nil pointer dereference in Merge/DeepMerge.
+	if pctx.TrackInclude != nil && config != nil {
 		mergedConfig, err := handleInclude(ctx, pctx, l, config, false)
 		if err != nil {
 			errs = append(errs, err)
@@ -2108,7 +2110,7 @@ func convertToTerragruntConfig(
 
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("generate block %q: %w", block.Name, err))
+			errs = append(errs, InvalidGenerateBlockError{BlockName: block.Name, Err: err})
 			continue
 		}
 
@@ -2118,7 +2120,8 @@ func convertToTerragruntConfig(
 
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
 		if err != nil {
-			return nil, err
+			errs = append(errs, InvalidGenerateBlockError{BlockName: block.Name, Err: err})
+			continue
 		}
 
 		if block.Mutable != nil && !pctx.Experiments.Evaluate(experiment.MutableGenerate) {
