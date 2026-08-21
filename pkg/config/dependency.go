@@ -1992,6 +1992,10 @@ func getTerragruntOutputJSONFromInitFolder(
 		),
 	)
 
+	if err := setDependencyInputsAsEnvVars(ctx, pctx, l, terraformWorkingDir); err != nil {
+		return nil, err
+	}
+
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
@@ -2023,6 +2027,44 @@ func getTerragruntOutputJSONFromInitFolder(
 	)
 
 	return jsonBytes, nil
+}
+
+// setDependencyInputsAsEnvVars exports a dependency's own `inputs` as TF_VAR_* entries, the way a
+// full run of that unit does. OpenTofu resolves the `encryption` block before it reads state, so a
+// key provider argument written as `var.something` has no other source for its value under a bare
+// `tofu output`.
+func setDependencyInputsAsEnvVars(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	modulePath string,
+) error {
+	inputsTGConfig, err := PartialParseConfigFile(
+		ctx,
+		pctx.WithDecodeList(InputsBlock).WithDiagnosticsSuppressed(l),
+		l,
+		pctx.TerragruntConfigPath,
+		nil,
+	)
+	if err != nil {
+		// Exporting inputs is best effort. An `inputs` attribute that reads another unit's outputs
+		// would need a second round of dependency output resolution, the cost this fast path avoids.
+		l.Debugf(
+			"Could not parse inputs from target config %s: %v",
+			pctx.TerragruntConfigPath,
+			err,
+		)
+
+		return nil
+	}
+
+	return run.SetTerragruntInputsAsEnvVars(
+		l,
+		pctx.Venv.FS,
+		pctx.Venv.Env,
+		modulePath,
+		inputsTGConfig.ToRunConfig(l, pctx.Venv.FS),
+	)
 }
 
 // getTerragruntOutputJSONFromRemoteState will retrieve the outputs directly by using just the remote state block. This

@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1489,4 +1490,48 @@ exclude {
 			assert.Equal(t, tc.expected, terragruntConfig.Exclude.If)
 		})
 	}
+}
+
+// TestPartialParseInputsBlock pins that a partial parse limited to [config.InputsBlock] resolves
+// locals inside the `inputs` attribute and decodes nothing else.
+func TestPartialParseInputsBlock(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+  passphrase = "not-a-real-passphrase"
+}
+
+remote_state {
+  backend = "local"
+  config  = {}
+}
+
+inputs = {
+  passphrase = local.passphrase
+  replicas   = 3
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.InputsBlock)
+
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(
+		t,
+		map[string]any{"passphrase": "not-a-real-passphrase", "replicas": json.Number("3")},
+		terragruntConfig.Inputs,
+	)
+	assert.Nil(t, terragruntConfig.RemoteState)
 }
