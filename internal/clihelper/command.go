@@ -277,6 +277,16 @@ func (cmd *Command) flagSetParse(
 		var notFoundMatch bool
 
 		for i, arg := range args {
+			// Only a flag can be the undefined flag. Without this check a *value* that
+			// happens to read like the undefined flag name matches first, and the args are
+			// cut short of the flag they were meant to be cut at, which leaves that value
+			// behind as a positional argument. `--working-dir queue-include-dir
+			// --queue-include-dir foo` used to resolve the command name to
+			// `queue-include-dir`.
+			if !strings.HasPrefix(arg, "-") {
+				continue
+			}
+
 			// `--var=input=from_env` trims to `var`
 			trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0] //nolint:mnd
 			if trimmed == undefArg {
