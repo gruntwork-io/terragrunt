@@ -1011,6 +1011,10 @@ func collectStackUnitOutputs(
 	unitOutputs := make(map[string]cty.Value)
 
 	for _, unit := range units {
+		if !unit.IsEnabled() {
+			continue
+		}
+
 		unitDir := unit.GeneratedPath(stackDir)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 

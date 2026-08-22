@@ -63,6 +63,8 @@ var azureProcessEnvPassthroughKeys = []string{
 	"HTTPS_PROXY",
 	"HTTP_PROXY",
 	"NO_PROXY",
+	"SSL_CERT_DIR",
+	"SSL_CERT_FILE",
 	"all_proxy",
 	"http_proxy",
 	"https_proxy",

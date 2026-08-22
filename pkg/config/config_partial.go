@@ -618,7 +618,7 @@ func PartialParseConfig(
 		return nil, err
 	}
 
-	if err := ValidateExpansionExperiment(pctx.Experiments, file); err != nil {
+	if err := ValidateBlockIterationExperiment(pctx.Experiments, file); err != nil {
 		return nil, err
 	}
 
