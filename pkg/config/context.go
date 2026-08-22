@@ -3,6 +3,8 @@ package config
 import (
 	"context"
 
+	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -45,6 +47,7 @@ func WithConfigValues(ctx context.Context) context.Context {
 		RunCmdCacheContextKey,
 		cache.NewCache[*RunCmdCacheEntry](runCmdCacheName),
 	)
+	ctx = azurermbackend.WithStateClientCache(ctx)
 	ctx = context.WithValue(
 		ctx,
 		DependencyOutputCacheContextKey,

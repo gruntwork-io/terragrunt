@@ -1,0 +1,12 @@
+---
+version: "v1.1.4"
+category: "experiments-updated"
+---
+
+#### Read dependency outputs directly from GCS and Azure state
+
+The `dependency-fetch-output-from-state` experiment can now read dependency outputs directly from GCS and Azure Storage (`azurerm`) state, in addition to S3. This avoids initializing the dependency and running `tofu output` or `terraform output`.
+
+Azure direct reads require the `azure-backend` experiment as well. Unsupported backends and configurations requiring native-only authentication, endpoint, timeout, or Azure customer-provided-key behavior continue to use the native output path.
+
+When a dependency has no state yet, Terragrunt uses that dependency block's `mock_outputs`, as it already does for S3. A misconfiguration is not treated that way: if `resource_group_name`, `storage_account_name`, or `subscription_id` in the `remote_state` block names a resource that does not exist, Terragrunt fails with an error naming those keys rather than substituting mock outputs.
