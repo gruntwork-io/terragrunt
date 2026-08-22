@@ -49,7 +49,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 				Name:        ExcludeDirFlagName,
 				EnvVars:     tgPrefix.EnvVars(ExcludeDirFlagName),
 				Destination: &opts.HclExclude,
-				Usage:       "Skip HCL formatting in given directories.",
+				Usage:       "Skip HCL formatting in given directories. Supported for legacy reasons; prefer the --filter flag, which accepts Terragrunt filter expressions (e.g. --filter='!./terraform/module').",
 			},
 			flags.WithDeprecatedEnvVars(
 				tgPrefix.EnvVars("hclfmt-exclude-dir"),
