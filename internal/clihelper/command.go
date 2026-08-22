@@ -274,8 +274,8 @@ func (cmd *Command) flagSetParse(
 		}
 
 		// cut off the args
-		flagArg, rest, notFoundMatch := cutAtUndefinedFlag(args, undefArg)
-		if notFoundMatch {
+		flagArg, rest, found := cutAtUndefinedFlag(args, undefArg)
+		if found {
 			undefArgs = append(undefArgs, flagArg)
 			args = rest
 		}
@@ -286,7 +286,7 @@ func (cmd *Command) flagSetParse(
 
 		// This should be an impossible to reach code path, but in case the arg
 		// splitting failed to happen, this will prevent infinite loops
-		if !notFoundMatch {
+		if !found {
 			return nil, err
 		}
 	}
