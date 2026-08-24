@@ -50,6 +50,7 @@ func sharedKeyCacheKey(cfg *azurehelper.AzureConfig) string {
 		cfg.AccountName,
 		cfg.TenantID,
 		cfg.ClientID,
+		cfg.CredentialFingerprint,
 		string(cfg.Method),
 	}, "|")
 }

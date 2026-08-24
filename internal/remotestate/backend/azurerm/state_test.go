@@ -336,6 +336,20 @@ func TestStateClientCacheReusesSharedKey(t *testing.T) {
 		}))
 	})
 
+	t.Run("a different credential does not reuse the key", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := azurerm.WithStateClientCache(t.Context())
+		secrets := 0
+
+		// Same principal, different secret: the second caller must prove its own
+		// credential rather than inherit the first one's success.
+		assert.Equal(t, 3, listKeyCalls(t, ctx, func(cfg *azurehelper.AzureConfig) {
+			secrets++
+			cfg.CredentialFingerprint = fmt.Sprintf("fingerprint-%d", secrets)
+		}))
+	})
+
 	t.Run("a different identity does not reuse the key", func(t *testing.T) {
 		t.Parallel()
 
@@ -360,10 +374,12 @@ func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
 	var (
 		released    = make(chan struct{})
 		arrived     sync.WaitGroup
+		waiting     sync.WaitGroup
 		releaseOnce sync.Once
 	)
 
 	arrived.Add(1)
+	waiting.Add(callers)
 
 	transport := &stateTransport{beforeARM: func() {
 		releaseOnce.Do(arrived.Done)
@@ -383,6 +399,9 @@ func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
 		go func() {
 			defer group.Done()
 
+			// Signal that this caller is about to consult the cache.
+			waiting.Done()
+
 			_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), stateAzureConfig(transport))
 			results[i] = err
 		}()
@@ -390,7 +409,10 @@ func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
 
 	// Let the first caller reach ARM, then start everyone else before releasing it.
 	arrived.Wait()
-	time.Sleep(100 * time.Millisecond)
+	waiting.Wait()
+	require.Eventually(t, func() bool {
+		return len(transport.Requests()) > 0
+	}, time.Second, time.Millisecond, "the first caller must reach ARM")
 	close(released)
 	group.Wait()
 

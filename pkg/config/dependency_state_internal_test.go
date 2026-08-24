@@ -123,6 +123,19 @@ func TestStateStreamClosesEveryCloser(t *testing.T) {
 	assert.True(t, second.closed)
 }
 
+// TestStateStreamSkipsNilClosers pins that a nil closer cannot panic the run.
+func TestStateStreamSkipsNilClosers(t *testing.T) {
+	t.Parallel()
+
+	tracked := &trackedCloser{Reader: strings.NewReader("")}
+
+	require.NotPanics(t, func() {
+		require.NoError(t, stateStream{Reader: tracked, closers: []io.Closer{nil, tracked, nil}}.Close())
+	})
+
+	assert.True(t, tracked.closed, "a nil entry must not stop the closers after it")
+}
+
 // TestCloserFuncRunsCleanup pins the adapter used to release the Azure timeout.
 func TestCloserFuncRunsCleanup(t *testing.T) {
 	t.Parallel()

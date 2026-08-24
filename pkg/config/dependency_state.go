@@ -68,7 +68,12 @@ type stateStream struct {
 // Close releases the stream and its client, reporting every failure.
 func (s stateStream) Close() error {
 	errs := make([]error, 0, len(s.closers))
+
 	for _, closer := range s.closers {
+		if closer == nil {
+			continue
+		}
+
 		errs = append(errs, closer.Close())
 	}
 

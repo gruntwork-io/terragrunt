@@ -13,4 +13,3 @@ dependency "producer" {
 inputs = {
   producer_value = dependency.producer.outputs.producer_value
 }
-

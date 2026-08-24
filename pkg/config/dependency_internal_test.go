@@ -340,6 +340,8 @@ func TestShouldFetchDependencyOutputFromState(t *testing.T) {
 		"GOOGLE_CLOUD_UNIVERSE_DOMAIN",
 		"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES",
 		"GOOGLE_STORAGE_CUSTOM_ENDPOINT",
+		"SSL_CERT_DIR",
+		"SSL_CERT_FILE",
 		"AZURE_KUBERNETES_CA_DATA",
 		"AZURE_KUBERNETES_CA_FILE",
 		"AZURE_KUBERNETES_SNI_NAME",
@@ -650,12 +652,24 @@ func TestShouldFetchDependencyOutputFromState(t *testing.T) {
 		{
 			name:        "Azure dependency-scoped CA file falls back",
 			backendName: azurermbackend.BackendName,
+			backendConfig: map[string]any{
+				"access_key":           "key",
+				"container_name":       "state",
+				"key":                  "state.tfstate",
+				"storage_account_name": "stateaccount",
+			},
 			env:         map[string]string{"SSL_CERT_FILE": "/etc/company/ca.pem"},
 			experiments: azureExperiments,
 		},
 		{
 			name:        "Azure dependency-scoped CA dir falls back",
 			backendName: azurermbackend.BackendName,
+			backendConfig: map[string]any{
+				"access_key":           "key",
+				"container_name":       "state",
+				"key":                  "state.tfstate",
+				"storage_account_name": "stateaccount",
+			},
 			env:         map[string]string{"SSL_CERT_DIR": "/etc/company/certs"},
 			experiments: azureExperiments,
 		},

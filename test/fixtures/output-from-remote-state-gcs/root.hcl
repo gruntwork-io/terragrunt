@@ -8,4 +8,3 @@ remote_state {
     prefix   = "${path_relative_to_include()}"
   }
 }
-

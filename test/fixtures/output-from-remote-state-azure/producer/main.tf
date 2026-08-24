@@ -5,4 +5,3 @@ terraform {
 output "producer_value" {
   value = "from-azure-state"
 }
-

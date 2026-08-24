@@ -9,4 +9,3 @@ variable "producer_value" {
 output "consumer_value" {
   value = var.producer_value
 }
-
