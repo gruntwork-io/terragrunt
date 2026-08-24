@@ -215,16 +215,34 @@ func credentialsFileOption(v *venv.Venv, filename string) (option.ClientOption, 
 
 // credentialsJSONOption authenticates with a credentials JSON payload.
 //
-// The credentials are detected here rather than by the SDK, which detects with
-// a client of its own making (google.golang.org/api/internal.creds) and would
-// put the token exchange on a transport the venv never sees. Detection also
-// covers every credential type the JSON can name, so the type does not have to
-// be recognized up front.
+// The credential type is selected explicitly because the SDK's generic JSON
+// detection is deprecated: accepting an unexpected credential type can make a
+// caller use attacker-controlled authentication endpoints. Terragrunt retains
+// support for every credential type the SDK supports, but rejects unknown
+// values before constructing credentials.
 func credentialsJSONOption(v *venv.Venv, data []byte) (option.ClientOption, error) {
-	creds, err := credentials.DetectDefault(&credentials.DetectOptions{
-		CredentialsJSON: data,
-		Scopes:          gcsScopes(),
-		Client:          v.HTTP,
+	var metadata struct {
+		Type credentials.CredType `json:"type"`
+	}
+
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return nil, fmt.Errorf("error parsing GCP credentials: %w", err)
+	}
+
+	switch metadata.Type {
+	case credentials.ServiceAccount,
+		credentials.AuthorizedUser,
+		credentials.ExternalAccount,
+		credentials.ExternalAccountAuthorizedUser,
+		credentials.ImpersonatedServiceAccount,
+		credentials.GDCHServiceAccount:
+	default:
+		return nil, fmt.Errorf("unsupported GCP credentials type %q", metadata.Type)
+	}
+
+	creds, err := credentials.NewCredentialsFromJSON(metadata.Type, data, &credentials.DetectOptions{
+		Scopes: gcsScopes(),
+		Client: v.HTTP,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error detecting GCP credentials: %w", err)

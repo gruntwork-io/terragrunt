@@ -138,12 +138,12 @@ func (pc *ProviderCache) Init(
 	}
 
 	// Pass filesystem to LoadUserConfig
-	cliCfg, err := cliconfig.LoadUserConfig(v.FS)
+	cliCfg, err := cliconfig.LoadUserConfig(v)
 	if err != nil {
 		return err
 	}
 
-	userProviderDir, err := cliconfig.UserProviderDir()
+	userProviderDir, err := cliconfig.UserProviderDir(v)
 	if err != nil {
 		return err
 	}

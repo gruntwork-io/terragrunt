@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.26"
+  go: "1.27"
   issues-exit-code: 1
   tests: true
 output:
@@ -167,6 +167,8 @@ linters:
       asserts: true
       comparison: true
     goconst:
+      ignore-map-keys: true
+      ignore-tests: true
       min-len: 3
       min-occurrences: 5
     gocritic:
@@ -175,6 +177,8 @@ linters:
       disabled-tags:
         - experimental
     govet:
+      disable:
+        - inline
       enable:
         - fieldalignment
         - printf

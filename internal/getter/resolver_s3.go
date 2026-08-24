@@ -335,7 +335,7 @@ func canonicalAWSS3HTTPSURL(u *url.URL) (string, bool) {
 	}
 
 	scheme := strings.ToLower(u.Scheme)
-	if scheme != "http" && scheme != "https" {
+	if scheme != SchemeHTTP && scheme != SchemeHTTPS {
 		return "", false
 	}
 
@@ -349,7 +349,7 @@ func canonicalAWSS3HTTPSURL(u *url.URL) (string, bool) {
 	}
 
 	canonical := *u
-	canonical.Scheme = "https"
+	canonical.Scheme = SchemeHTTPS
 	canonical.Host = S3HostLabelForRegion(target.Region) + ".amazonaws.com"
 	canonical.Path = "/" + target.Bucket + "/" + target.Key
 

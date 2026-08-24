@@ -181,7 +181,7 @@ func parseGCSURL(u *url.URL) (bucket, object string, err error) {
 		}
 
 		return bucket, object, nil
-	case "http", "https":
+	case SchemeHTTP, SchemeHTTPS:
 		// Canonical: /storage/<version>/<bucket>/<object...>
 		parts := strings.SplitN(strings.TrimPrefix(u.Path, "/"), "/", gcsCanonicalPathSegments)
 		if len(parts) < gcsCanonicalPathSegments || parts[0] != "storage" {

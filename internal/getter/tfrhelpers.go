@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -113,7 +114,7 @@ func GetModuleRegistryURLBasePath(
 	domain string,
 ) (string, error) {
 	sdURL := url.URL{
-		Scheme: "https",
+		Scheme: SchemeHTTPS,
 		Host:   domain,
 		Path:   serviceDiscoveryPath,
 	}
@@ -210,7 +211,7 @@ func BuildRequestURL(
 		return moduleURL, nil
 	}
 
-	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleFullPath}, nil
+	return &url.URL{Scheme: SchemeHTTPS, Host: registryDomain, Path: moduleFullPath}, nil
 }
 
 // GetLatestModuleVersion queries the OpenTofu or Terraform module registry to
@@ -496,7 +497,7 @@ func listModuleVersions(
 	// If the base path is relative (no scheme), construct the full URL using the registry domain.
 	if versionsURL.Scheme == "" {
 		versionsURL = &url.URL{
-			Scheme: "https",
+			Scheme: SchemeHTTPS,
 			Host:   registryDomain,
 			Path:   versionsPath,
 		}
@@ -564,11 +565,15 @@ type RegistryAuth struct {
 // applyHostToken adds an Authorization header to req based on the user's
 // OpenTofu/Terraform CLI config or the TG_TF_REGISTRY_TOKEN env var.
 func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error) {
-	// LoadUserConfig's vendored loader reads the invoking user's home directory
-	// directly, ignoring the filesystem it is handed, so it is only consulted
-	// when that filesystem is the real one.
+	// RegistryAuth does not carry platform handles, so the production platform
+	// is valid only alongside the real filesystem.
 	if vfs.IsOSFS(auth.FS) {
-		cliCfg, err := cliconfig.LoadUserConfig(auth.FS)
+		configVenv := venv.OSVenv().WithFS(auth.FS)
+		if auth.Env != nil {
+			configVenv = configVenv.WithEnv(auth.Env)
+		}
+
+		cliCfg, err := cliconfig.LoadUserConfig(configVenv)
 		if err != nil {
 			return nil, err
 		}
