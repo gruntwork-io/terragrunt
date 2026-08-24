@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -122,13 +124,23 @@ func (stateCredential) GetToken(
 }
 
 type stateTransport struct {
+	// beforeARM runs before a listKeys response, letting a test hold every caller
+	// at the same point to prove concurrent misses coalesce.
+	beforeARM  func()
 	requests   []*http.Request
 	armStatus  int
 	blobStatus int
+	mu         sync.Mutex
 }
 
 func (transport *stateTransport) Do(req *http.Request) (*http.Response, error) {
+	transport.mu.Lock()
 	transport.requests = append(transport.requests, req.Clone(req.Context()))
+	transport.mu.Unlock()
+
+	if transport.beforeARM != nil && strings.Contains(req.URL.Path, "listKeys") {
+		transport.beforeARM()
+	}
 
 	if strings.Contains(req.URL.Path, "listKeys") {
 		status := transport.armStatus
@@ -173,6 +185,9 @@ func (transport *stateTransport) Do(req *http.Request) (*http.Response, error) {
 }
 
 func (transport *stateTransport) Requests() []*http.Request {
+	transport.mu.Lock()
+	defer transport.mu.Unlock()
+
 	return append([]*http.Request(nil), transport.requests...)
 }
 
@@ -231,6 +246,8 @@ func TestNewStateBlobClientSeparatesTransientFromCoordinateFailures(t *testing.T
 		{name: "throttled", armStatus: http.StatusTooManyRequests},
 		{name: "service unavailable", armStatus: http.StatusServiceUnavailable},
 		{name: "internal server error", armStatus: http.StatusInternalServerError},
+		{name: "request timeout", armStatus: http.StatusRequestTimeout},
+		{name: "unauthorized", armStatus: http.StatusUnauthorized, wantGuidance: true},
 	}
 
 	for _, testCase := range testCases {
@@ -330,4 +347,86 @@ func TestStateClientCacheReusesSharedKey(t *testing.T) {
 			cfg.ClientID = fmt.Sprintf("client-%d", identities)
 		}))
 	})
+}
+
+// TestStateClientCacheCoalescesConcurrentMisses pins that dependencies resolving
+// in parallel against one account issue a single ARM ListKeys call. Every caller
+// is held inside the first response so they all miss the cache together.
+func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
+	t.Parallel()
+
+	const callers = 8
+
+	var (
+		released    = make(chan struct{})
+		arrived     sync.WaitGroup
+		releaseOnce sync.Once
+	)
+
+	arrived.Add(1)
+
+	transport := &stateTransport{beforeARM: func() {
+		releaseOnce.Do(arrived.Done)
+		<-released
+	}}
+
+	ctx := azurerm.WithStateClientCache(t.Context())
+
+	var (
+		group   sync.WaitGroup
+		results = make([]error, callers)
+	)
+
+	for i := range callers {
+		group.Add(1)
+
+		go func() {
+			defer group.Done()
+
+			_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), stateAzureConfig(transport))
+			results[i] = err
+		}()
+	}
+
+	// Let the first caller reach ARM, then start everyone else before releasing it.
+	arrived.Wait()
+	time.Sleep(100 * time.Millisecond)
+	close(released)
+	group.Wait()
+
+	for i, err := range results {
+		require.NoErrorf(t, err, "caller %d", i)
+	}
+
+	listKeys := 0
+
+	for _, req := range transport.Requests() {
+		if strings.Contains(req.URL.Path, "listKeys") {
+			listKeys++
+		}
+	}
+
+	assert.Equal(t, 1, listKeys, "concurrent misses on one account must resolve with a single ListKeys call")
+}
+
+// TestNewStateBlobClientTransportFailureOmitsGuidance pins that a DNS, TLS, or
+// proxy failure is not reported as a misconfiguration: no response ever arrived,
+// so nothing implicates the coordinates.
+func TestNewStateBlobClientTransportFailureOmitsGuidance(t *testing.T) {
+	t.Parallel()
+
+	cfg := stateAzureConfig(transportErrorTransport{})
+
+	_, err := azurerm.NewStateBlobClient(t.Context(), logger.CreateLogger(), cfg)
+	require.Error(t, err)
+	require.ErrorIs(t, err, azurerm.ErrStateClientSetup)
+	assert.NotErrorIs(t, err, azurerm.ErrStateClientCoordinates,
+		"a transport failure must not be reported as a configuration problem")
+}
+
+// transportErrorTransport fails the way a proxy or DNS problem does, with no response.
+type transportErrorTransport struct{}
+
+func (transportErrorTransport) Do(req *http.Request) (*http.Response, error) {
+	return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
 }

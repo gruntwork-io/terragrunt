@@ -6,7 +6,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
+
+// stateClientCache pairs the resolved keys with per-account locks, so concurrent
+// dependencies on one account resolve it once instead of each issuing ListKeys.
+type stateClientCache struct {
+	configs *cache.Cache[*azurehelper.AzureConfig]
+	locks   *util.KeyLocks
+}
 
 // stateClientCacheKey identifies the per-run shared-key cache in a context.
 type stateClientCacheKey struct{}
@@ -19,16 +27,15 @@ const stateClientCacheName = "azurermStateClientCache"
 // a round trip per dependency and invites throttling. Without this the readers
 // still work, they just resolve a key each time.
 func WithStateClientCache(ctx context.Context) context.Context {
-	return context.WithValue(
-		ctx,
-		stateClientCacheKey{},
-		cache.NewCache[*azurehelper.AzureConfig](stateClientCacheName),
-	)
+	return context.WithValue(ctx, stateClientCacheKey{}, &stateClientCache{
+		configs: cache.NewCache[*azurehelper.AzureConfig](stateClientCacheName),
+		locks:   util.NewKeyLocks(),
+	})
 }
 
 // stateClientCacheFromContext returns the run's cache, or nil when unscoped.
-func stateClientCacheFromContext(ctx context.Context) *cache.Cache[*azurehelper.AzureConfig] {
-	instance, _ := ctx.Value(stateClientCacheKey{}).(*cache.Cache[*azurehelper.AzureConfig])
+func stateClientCacheFromContext(ctx context.Context) *stateClientCache {
+	instance, _ := ctx.Value(stateClientCacheKey{}).(*stateClientCache)
 
 	return instance
 }

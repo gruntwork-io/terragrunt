@@ -13,7 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -164,12 +167,12 @@ func NewStateBlobClient(
 
 	keyed, err := cachedSharedKeyConfig(ctx, cfg)
 	if err != nil {
-		// Throttling, a 5xx, or a cancelled context says nothing about the configuration.
-		if transientStateClientFailure(err) {
-			return nil, fmt.Errorf("%w: %w", ErrStateClientSetup, err)
+		// Only a response that implicates the config or permissions earns the guidance.
+		if coordinateStateClientFailure(err) {
+			return nil, fmt.Errorf("%w: %w: %w", ErrStateClientSetup, ErrStateClientCoordinates, err)
 		}
 
-		return nil, fmt.Errorf("%w: %w: %w", ErrStateClientSetup, ErrStateClientCoordinates, err)
+		return nil, fmt.Errorf("%w: %w", ErrStateClientSetup, err)
 	}
 
 	l.Debugf("%s: using shared-key authorization for direct state access", BackendName)
@@ -189,7 +192,16 @@ func cachedSharedKeyConfig(
 	}
 
 	cacheKey := sharedKeyCacheKey(cfg)
-	if cached, found := keyCache.Get(ctx, cacheKey); found {
+	if cached, found := keyCache.configs.Get(ctx, cacheKey); found {
+		return cached, nil
+	}
+
+	// Hold the account's lock across the lookup so simultaneous first misses
+	// resolve once rather than each calling ARM.
+	keyCache.locks.Lock(cacheKey)
+	defer keyCache.locks.Unlock(cacheKey)
+
+	if cached, found := keyCache.configs.Get(ctx, cacheKey); found {
 		return cached, nil
 	}
 
@@ -198,17 +210,34 @@ func cachedSharedKeyConfig(
 		return nil, err
 	}
 
-	keyCache.Put(ctx, cacheKey, keyed)
+	keyCache.configs.Put(ctx, cacheKey, keyed)
 
 	return keyed, nil
 }
 
-// transientStateClientFailure reports whether a client-setup failure is a passing
-// service condition rather than a configuration or permissions problem.
-func transientStateClientFailure(err error) bool {
-	return azurehelper.IsRetryable(err) ||
-		errors.Is(err, context.Canceled) ||
-		errors.Is(err, context.DeadlineExceeded)
+// coordinateStateClientFailure reports whether a client-setup failure points at
+// the configured coordinates or the identity's permissions. Only responses that
+// support that conclusion qualify: an unrecognized cause, a transport failure, or
+// a transient service condition must not send users to edit a valid config.
+func coordinateStateClientFailure(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+
+	switch respErr.StatusCode {
+	case http.StatusBadRequest,
+		http.StatusUnauthorized,
+		http.StatusForbidden,
+		http.StatusNotFound:
+		return true
+	}
+
+	return false
 }
 
 // OpenStateBlob opens the configured state blob using the native azurerm

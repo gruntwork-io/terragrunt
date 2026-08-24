@@ -509,6 +509,20 @@ func TestShouldFetchDependencyOutputFromState(t *testing.T) {
 			experiments:   dependencyExperiments,
 		},
 		{
+			name:          "GCS dependency-scoped CA file falls back",
+			backendName:   gcsbackend.BackendName,
+			backendConfig: map[string]any{"bucket": "b"},
+			env:           map[string]string{"SSL_CERT_FILE": "/etc/company/ca.pem"},
+			experiments:   dependencyExperiments,
+		},
+		{
+			name:          "GCS dependency-scoped CA dir falls back",
+			backendName:   gcsbackend.BackendName,
+			backendConfig: map[string]any{"bucket": "b"},
+			env:           map[string]string{"SSL_CERT_DIR": "/etc/company/certs"},
+			experiments:   dependencyExperiments,
+		},
+		{
 			name:          "GCS empty encryption key suppressing environment falls back",
 			backendName:   gcsbackend.BackendName,
 			backendConfig: map[string]any{"encryption_key": ""},
@@ -631,6 +645,18 @@ func TestShouldFetchDependencyOutputFromState(t *testing.T) {
 		{
 			name:        "Azure default credential chain falls back",
 			backendName: azurermbackend.BackendName,
+			experiments: azureExperiments,
+		},
+		{
+			name:        "Azure dependency-scoped CA file falls back",
+			backendName: azurermbackend.BackendName,
+			env:         map[string]string{"SSL_CERT_FILE": "/etc/company/ca.pem"},
+			experiments: azureExperiments,
+		},
+		{
+			name:        "Azure dependency-scoped CA dir falls back",
+			backendName: azurermbackend.BackendName,
+			env:         map[string]string{"SSL_CERT_DIR": "/etc/company/certs"},
 			experiments: azureExperiments,
 		},
 		{
