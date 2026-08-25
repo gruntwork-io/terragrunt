@@ -241,12 +241,12 @@ func credentialsJSONOption(v *venv.Venv, data []byte) (option.ClientOption, erro
 	}
 
 	if err := json.Unmarshal(data, &metadata); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrParsingCredentials, err)
+		return nil, ParsingCredentialsError{Err: err}
 	}
 
 	// The SDK reports a missing type as an unsupported filetype, which does not say what is wrong.
 	if metadata.Type == "" {
-		return nil, fmt.Errorf("%w: the payload has no \"type\" field", ErrParsingCredentials)
+		return nil, ParsingCredentialsError{Err: ErrMissingCredentialsType}
 	}
 
 	// Every credential type the SDK accepts is passed through; it rejects the rest itself.
@@ -255,7 +255,7 @@ func credentialsJSONOption(v *venv.Venv, data []byte) (option.ClientOption, erro
 		Client: v.HTTP,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w of type %q: %w", ErrBuildingCredentials, metadata.Type, err)
+		return nil, BuildingCredentialsError{CredType: metadata.Type, Err: err}
 	}
 
 	return option.WithAuthCredentials(creds), nil
@@ -283,7 +283,7 @@ func createGCPCredentialsFromGoogleCredentialsEnv(
 	}
 
 	if err := json.Unmarshal([]byte(contents), &account); err != nil {
-		return nil, fmt.Errorf("%w from GOOGLE_CREDENTIALS: %w", ErrParsingCredentials, err)
+		return nil, ParsingCredentialsError{Err: err}
 	}
 
 	conf := jwt.Config{
