@@ -144,7 +144,7 @@ func TestRenderWriteWithoutOutputPath(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts, configPath := setupTest(t)
+			opts, configPath := setupTest(t, testTerragruntConfigFixture)
 			opts.Format = tc.format
 			opts.Write = true
 
