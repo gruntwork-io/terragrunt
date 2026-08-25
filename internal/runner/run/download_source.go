@@ -724,7 +724,6 @@ func BuildDownloadClient(
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
-			WithEnv(v.Env).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
 

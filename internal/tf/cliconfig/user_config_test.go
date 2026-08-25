@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ func TestLoadUserConfig(t *testing.T) {
 
 	const home = "/virtual/home"
 
-	v := venvtest.New().WithUserHomeDir(func() (string, error) { return home, nil })
+	v := userConfigVenv(home, nil)
 	configPath := filepath.Join(home, ".tofurc")
 
 	require.NoError(t, v.FS.MkdirAll(home, 0o755))
@@ -99,9 +100,7 @@ func TestLoadUserConfig_JSON(t *testing.T) {
 	const home = "/virtual/home"
 
 	configPath := filepath.Join(home, "config.tfrc.json")
-	v := venvtest.New().
-		WithUserHomeDir(func() (string, error) { return home, nil }).
-		WithEnv(map[string]string{cliconfig.EnvNameTFCLIConfigFile: configPath})
+	v := userConfigVenv(home, map[string]string{cliconfig.EnvNameTFCLIConfigFile: configPath})
 
 	require.NoError(t, v.FS.MkdirAll(home, 0o755))
 	require.NoError(t, vfs.WriteFile(v.FS, configPath, []byte(`{
@@ -129,7 +128,7 @@ func TestLoadUserConfig_Fragments(t *testing.T) {
 	const home = "/virtual/home"
 
 	configDir := filepath.Join(home, ".terraform.d")
-	v := venvtest.New().WithUserHomeDir(func() (string, error) { return home, nil })
+	v := userConfigVenv(home, nil)
 
 	require.NoError(t, v.FS.MkdirAll(configDir, 0o755))
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(configDir, "10-base.tfrc"), []byte(`
@@ -152,7 +151,8 @@ credentials "registry.example.com" {
 	cfg, err := cliconfig.LoadUserConfig(v)
 	require.NoError(t, err)
 
-	assert.Equal(t, "/virtual/second-cache", cfg.PluginCacheDir)
+	// plugin_cache_dir is first-wins upstream; credentials are last-wins.
+	assert.Equal(t, "/virtual/first-cache", cfg.PluginCacheDir)
 	assert.True(t, cfg.DisableCheckpoint)
 	assert.True(t, cfg.DisableCheckpointSignature)
 	assert.Equal(t, []cliconfig.ConfigCredentials{{
@@ -166,9 +166,7 @@ func TestLoadUserConfig_PluginCacheEnvOverride(t *testing.T) {
 
 	const home = "/virtual/home"
 
-	v := venvtest.New().
-		WithUserHomeDir(func() (string, error) { return home, nil }).
-		WithEnv(map[string]string{"TF_PLUGIN_CACHE_DIR": "/virtual/env-cache"})
+	v := userConfigVenv(home, map[string]string{"TF_PLUGIN_CACHE_DIR": "/virtual/env-cache"})
 	configPath := filepath.Join(home, ".tofurc")
 
 	require.NoError(t, v.FS.MkdirAll(home, 0o755))
@@ -180,4 +178,174 @@ plugin_cache_dir = "/virtual/file-cache"
 	require.NoError(t, err)
 
 	assert.Equal(t, "/virtual/env-cache", cfg.PluginCacheDir)
+}
+
+func TestLoadUserConfig_MainFileBeatsFragments(t *testing.T) {
+	t.Parallel()
+
+	const home = "/virtual/home"
+
+	configDir := filepath.Join(home, ".terraform.d")
+	v := userConfigVenv(home, nil)
+
+	require.NoError(t, v.FS.MkdirAll(configDir, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte(`
+plugin_cache_dir = "/virtual/main-cache"
+
+credentials "registry.example.com" {
+  token = "main-token"
+}
+`), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(configDir, "10-base.tfrc"), []byte(`
+plugin_cache_dir = "/virtual/fragment-cache"
+
+credentials "registry.example.com" {
+  token = "fragment-token"
+}
+`), 0o600))
+
+	cfg, err := cliconfig.LoadUserConfig(v)
+	require.NoError(t, err)
+
+	assert.Equal(t, "/virtual/main-cache", cfg.PluginCacheDir)
+	assert.Equal(t, []cliconfig.ConfigCredentials{{
+		Name:  "registry.example.com",
+		Token: "fragment-token",
+	}}, cfg.Credentials)
+}
+
+func TestLoadUserConfig_DevOverrides(t *testing.T) {
+	t.Parallel()
+
+	const home = "/virtual/home"
+
+	v := userConfigVenv(home, nil)
+
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte(`
+provider_installation {
+  dev_overrides {
+    "hashicorp/null" = "/virtual/null-provider"
+  }
+
+  direct {}
+}
+`), 0o600))
+
+	cfg, err := cliconfig.LoadUserConfig(v)
+	require.NoError(t, err)
+
+	// dev_overrides has no equivalent in the generated config, so only direct survives.
+	require.Len(t, cfg.ProviderInstallation.Methods, 1)
+	assert.IsType(t, &cliconfig.ProviderInstallationDirect{}, cfg.ProviderInstallation.Methods[0])
+}
+
+func TestLoadUserConfig_EnvExpansion(t *testing.T) {
+	t.Parallel()
+
+	const home = "/virtual/home"
+
+	testCases := []struct {
+		name     string
+		source   string
+		expected string
+	}{
+		{name: "braced", source: `plugin_cache_dir = "${CACHE_ROOT}/plugins"`, expected: "/virtual/root/plugins"},
+		{name: "bare", source: `plugin_cache_dir = "$CACHE_ROOT/plugins"`, expected: "/virtual/root/plugins"},
+		{name: "unset", source: `plugin_cache_dir = "${NOT_SET}/plugins"`, expected: "/plugins"},
+		{name: "literal", source: `plugin_cache_dir = "/virtual/plain"`, expected: "/virtual/plain"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := userConfigVenv(home, map[string]string{"CACHE_ROOT": "/virtual/root"})
+
+			require.NoError(t, v.FS.MkdirAll(home, 0o755))
+			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte(tc.source), 0o600))
+
+			cfg, err := cliconfig.LoadUserConfig(v)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, cfg.PluginCacheDir)
+		})
+	}
+}
+
+func TestLoadUserConfig_Errors(t *testing.T) {
+	t.Parallel()
+
+	const home = "/virtual/home"
+
+	testCases := []struct {
+		expected error
+		name     string
+		source   string
+	}{
+		{
+			name:     "unparsable",
+			source:   "credentials \"registry.example.com\" {\n  token = \"x\"\n",
+			expected: cliconfig.ErrUserConfig,
+		},
+		{
+			name:     "invalid credentials hostname",
+			source:   "credentials \"not a host\" {\n  token = \"x\"\n}\n",
+			expected: cliconfig.ErrInvalidUserConfig,
+		},
+		{
+			name:     "unsupported installation method",
+			source:   "provider_installation {\n  bogus_mirror {}\n}\n",
+			expected: cliconfig.ErrInvalidUserConfig,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := userConfigVenv(home, nil)
+
+			require.NoError(t, v.FS.MkdirAll(home, 0o755))
+			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte(tc.source), 0o600))
+
+			_, err := cliconfig.LoadUserConfig(v)
+			require.ErrorIs(t, err, tc.expected)
+		})
+	}
+}
+
+func TestUserProviderDir(t *testing.T) {
+	t.Parallel()
+
+	t.Run("resolved home", func(t *testing.T) {
+		t.Parallel()
+
+		dir, err := cliconfig.UserProviderDir(userConfigVenv("/virtual/home", nil))
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join("/virtual/home", ".terraform.d", "plugins"), dir)
+		assert.True(t, filepath.IsAbs(dir))
+	})
+
+	// An unresolvable home must not yield a relative path, which the provider cache
+	// would resolve against the unit's working directory.
+	t.Run("unresolvable home", func(t *testing.T) {
+		t.Parallel()
+
+		dir, err := cliconfig.UserProviderDir(userConfigVenv("", nil))
+		require.NoError(t, err)
+		assert.Empty(t, dir)
+	})
+}
+
+// userConfigVenv builds an in-memory venv pinned to a non-Windows platform, so the
+// candidate list does not depend on the host the tests happen to run on.
+func userConfigVenv(home string, env map[string]string) *venv.Venv {
+	if env == nil {
+		env = map[string]string{}
+	}
+
+	return venvtest.New().
+		WithGOOS("linux").
+		WithUserHomeDir(func() (string, error) { return home, nil }).
+		WithEnv(env)
 }

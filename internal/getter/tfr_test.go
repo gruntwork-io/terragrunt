@@ -294,15 +294,14 @@ credentials %q {
 	require.NoError(t, err)
 }
 
-func TestRegistryGetterNilEnvDoesNotPanic(t *testing.T) {
+func TestRegistryGetterEmptyEnvSendsNoAuth(t *testing.T) {
 	t.Parallel()
 
 	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"))
 	})
 
-	v := venvtest.NewWithOSFS().WithHTTP(server.Client())
-	v.Env = nil
+	v := venvtest.NewWithOSFS().WithHTTP(server.Client()).WithEnv(map[string]string{})
 
 	client := newRegistryTestClientWithVenv(t, v, tfimpl.Terraform)
 

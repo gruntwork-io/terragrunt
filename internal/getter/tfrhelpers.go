@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	goversion "github.com/hashicorp/go-version"
@@ -337,7 +336,7 @@ func PinModuleVersion(
 
 	registryDomain := sourceURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(auth.env(), tofuImpl)
+		registryDomain = tfimpl.DefaultRegistryDomain(auth.registryEnv(), tofuImpl)
 	}
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, c, auth, registryDomain)
@@ -555,15 +554,26 @@ type moduleVersion struct {
 	Version string `json:"version"`
 }
 
-// RegistryAuth carries everything the registry protocol needs to authenticate
-// a request, so nothing on the path reaches for process state of its own.
+// RegistryAuth carries the virtualized environment the registry protocol authenticates
+// through, so nothing on the path reaches for process state of its own. Build one with
+// [NewRegistryAuth]; the zero value carries no venv and cannot authenticate.
 type RegistryAuth struct {
 	Venv *venv.Venv
 
 	cache *registryAuthCache
 }
 
-// registryAuthCache memoizes the user's CLI config so a run parses it once instead of once per registry request.
+// NewRegistryAuth returns the credentials the registry protocol authenticates with, memoizing
+// the user's CLI config so a run parses it once rather than once per registry request.
+func NewRegistryAuth(v *venv.Venv) RegistryAuth {
+	if v == nil {
+		panic(ErrNilVenv)
+	}
+
+	return RegistryAuth{Venv: v, cache: &registryAuthCache{}}
+}
+
+// registryAuthCache memoizes the user's CLI config for the lifetime of the [RegistryAuth] holding it.
 type registryAuthCache struct {
 	credentialsSource *cliconfig.CredentialsSource
 	err               error
@@ -586,7 +596,7 @@ func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error)
 		}
 	}
 
-	if authToken := auth.env()[authTokenEnvName]; authToken != "" {
+	if authToken := auth.registryEnv()[authTokenEnvName]; authToken != "" {
 		req.Header.Add("Authorization", "Bearer "+authToken)
 	}
 
@@ -620,8 +630,10 @@ func (auth RegistryAuth) readCredentialsSource() (*cliconfig.CredentialsSource, 
 	return cliCfg.CredentialsSource(auth.Venv.Env), nil
 }
 
-// env returns the environment the registry token is read from, or nil when no venv is carried.
-func (auth RegistryAuth) env() map[string]string {
+// registryEnv returns the environment the registry token is read from. The zero-value
+// RegistryAuth carries no venv, which is how [NewTFRResolver] spells an anonymous probe
+// before a caller supplies credentials, so it reads as an empty environment.
+func (auth RegistryAuth) registryEnv() map[string]string {
 	if auth.Venv == nil {
 		return nil
 	}
@@ -629,13 +641,15 @@ func (auth RegistryAuth) env() map[string]string {
 	return auth.Venv.Env
 }
 
-// canLoadUserConfig reports whether the carried venv can reach the user's real CLI config.
+// canLoadUserConfig reports whether the carried venv supplies every handle
+// [cliconfig.LoadUserConfig] asserts, so a venv missing one reads as "no user config"
+// rather than panicking deep inside a module download.
 func (auth RegistryAuth) canLoadUserConfig() bool {
 	return auth.Venv != nil &&
 		auth.Venv.Env != nil &&
+		auth.Venv.FS != nil &&
 		auth.Venv.Platform != nil &&
-		auth.Venv.Platform.UserHomeDir != nil &&
-		vfs.IsOSFS(auth.Venv.FS)
+		auth.Venv.Platform.UserHomeDir != nil
 }
 
 // httpGETAndGetResponse performs a GET against getURL and returns its body and headers.

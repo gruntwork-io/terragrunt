@@ -1,6 +1,7 @@
 package getter
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 
@@ -11,6 +12,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
 )
+
+// ErrNilVenv reports a nil venv handed to a constructor that authenticates through one.
+var ErrNilVenv = errors.New("getter: venv must not be nil")
 
 // Registry keys for the non-git fetcher and resolver maps. They match
 // the lowercased scheme strings CASGetter.Detect produces. Exported so
@@ -95,16 +99,14 @@ func WithDispatchFS(fsys vfs.FS) GenericFetcherOption {
 // authenticate through, so the fetcher and the resolver read the registry
 // token and the user's CLI config from the same handles.
 func WithDispatchVenv(v *venv.Venv) GenericFetcherOption {
-	return func(c *genericFetcherConfig) {
-		if v == nil {
-			panic("getter: WithDispatchVenv requires a non-nil venv")
-		}
-
-		c.venv = v
+	if v == nil {
+		panic(ErrNilVenv)
 	}
+
+	return func(c *genericFetcherConfig) { c.venv = v }
 }
 
-// dispatchVenv returns the environment the tfr dispatch entries ride: the one
+// dispatchVenv returns the venv the tfr dispatch entries ride: the one
 // [WithDispatchVenv] persisted, or v when the caller left it unset.
 func dispatchVenv(v *venv.Venv, c *genericFetcherConfig) *venv.Venv {
 	if c.venv != nil {

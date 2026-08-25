@@ -71,7 +71,7 @@ func TestGetTerraformGetHeaderFallsBackToBodyLocation(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
-		getter.RegistryAuth{},
+		testRegistryAuth(),
 		parseURL(t, server.URL),
 	)
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestGetTerraformGetHeaderMissing(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
-		getter.RegistryAuth{},
+		testRegistryAuth(),
 		parseURL(t, server.URL),
 	)
 	require.Error(t, err)
@@ -120,7 +120,7 @@ func TestGetModuleRegistryURLBasePathMissingModulesV1(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
-		getter.RegistryAuth{},
+		testRegistryAuth(),
 		addrFromURL(t, server.URL),
 	)
 	require.Error(t, err)
@@ -144,7 +144,7 @@ func TestHTTPGETAndGetResponseNonOK(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
-		getter.RegistryAuth{},
+		testRegistryAuth(),
 		addrFromURL(t, server.URL),
 	)
 	require.Error(t, err)
@@ -179,7 +179,7 @@ func TestApplyHostTokenViaEnv(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
-		getter.RegistryAuth{Venv: venvtest.New().WithEnv(map[string]string{"TG_TF_REGISTRY_TOKEN": "my-test-token"})},
+		getter.NewRegistryAuth(venvtest.New().WithEnv(map[string]string{"TG_TF_REGISTRY_TOKEN": "my-test-token"})),
 		addrFromURL(t, server.URL),
 	)
 	require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestHTTPGETAndGetResponseRespectsContextCancellation(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		server.Client(),
-		getter.RegistryAuth{},
+		testRegistryAuth(),
 		addrFromURL(t, server.URL),
 	)
 	require.Error(t, err)

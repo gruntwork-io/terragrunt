@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	s3AccessDeniedExplanation = "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions."
-	missingAWSCredentials     = "Missing AWS credentials. Provide credentials to proceed."
+	s3AccessDeniedExplanation        = "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions."
+	missingAWSCredentialsExplanation = "Missing AWS credentials. Provide credentials to proceed."
 )
 
 // terraformErrorsMatcher List of errors that we know how to explain to the user. The key is a regex that matches the error message, and the value is the explanation.
@@ -25,11 +25,11 @@ var terraformErrorsMatcher = map[string]string{
 	"(?s).*Unable to list objects in S3 bucket(?s).*":                                     s3AccessDeniedExplanation,
 	"(?s).*Error: Initialization required(?s).*":                                          "You need to run terragrunt (run --all) init to initialize working directory.",
 	"(?s).*Unit source has changed(?s).*":                                                 "You need to run terragrunt (run --all) init install all required modules.",
-	"(?s).*Error finding AWS credentials(?s).*":                                           missingAWSCredentials,
-	"(?s).*Error: No valid credential sources found(?s).*":                                missingAWSCredentials,
-	"(?s).*Error: validating provider credentials(?s).*":                                  missingAWSCredentials,
-	"(?s).*NoCredentialProviders(?s).*":                                                   missingAWSCredentials,
-	"(?s).*client: no valid credential sources(?s).*":                                     missingAWSCredentials,
+	"(?s).*Error finding AWS credentials(?s).*":                                           missingAWSCredentialsExplanation,
+	"(?s).*Error: No valid credential sources found(?s).*":                                missingAWSCredentialsExplanation,
+	"(?s).*Error: validating provider credentials(?s).*":                                  missingAWSCredentialsExplanation,
+	"(?s).*NoCredentialProviders(?s).*":                                                   missingAWSCredentialsExplanation,
+	"(?s).*client: no valid credential sources(?s).*":                                     missingAWSCredentialsExplanation,
 	"(?s).*exec: \"(tofu|terraform)\": executable file not found(?s).*":                   "The executables 'terraform' and 'tofu' are missing from your $PATH. Please add at least one of these to your $PATH.",
 	"(?s).*bucket must have been previously created.*":                                    "Remote state bucket not found, create it manually or rerun with --backend-bootstrap to provision automatically.",
 	"(?s).*specified bucket does not exist.*":                                             "Remote state bucket not found, create it manually or rerun with --backend-bootstrap to provision automatically.",

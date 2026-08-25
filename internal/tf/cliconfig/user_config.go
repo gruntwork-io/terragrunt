@@ -1,73 +1,57 @@
 package cliconfig
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
-	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl"
+	hclast "github.com/hashicorp/hcl/hcl/ast"
+	svchost "github.com/hashicorp/terraform-svchost"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
-const envNamePluginCacheDir = "TF_PLUGIN_CACHE_DIR"
+const (
+	// envNamePluginCacheDir names the env var that overrides plugin_cache_dir from every config file.
+	envNamePluginCacheDir = "TF_PLUGIN_CACHE_DIR"
+	// userProviderDirName is the directory under the CLI config dir holding user-installed plugins.
+	userProviderDirName = "plugins"
+	// providerInstallationBlockName is the top-level block whose method blocks the AST walk collects.
+	providerInstallationBlockName = "provider_installation"
+	// devOverridesBlockName is the provider_installation method Terragrunt parses but does not model.
+	devOverridesBlockName = "dev_overrides"
+)
 
-var userConfigBlocks = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
-	{Type: "credentials", LabelNames: []string{"hostname"}},
-	{Type: "credentials_helper", LabelNames: []string{"name"}},
-	{Type: "host", LabelNames: []string{"hostname"}},
-	{Type: "provider_installation"},
-}}
-
-var providerInstallationBlocks = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
-	{Type: "direct"},
-	{Type: "filesystem_mirror"},
-	{Type: "network_mirror"},
-}}
-
-type userConfigAttributes struct {
-	Remain                     hcl.Body `hcl:",remain"`
-	PluginCacheDir             string   `hcl:"plugin_cache_dir,optional"`
-	DisableCheckpoint          bool     `hcl:"disable_checkpoint,optional"`
-	DisableCheckpointSignature bool     `hcl:"disable_checkpoint_signature,optional"`
+// userConfigFile mirrors the shape OpenTofu and Terraform decode the CLI config into.
+type userConfigFile struct {
+	Hosts                      map[string]*userConfigHost              `hcl:"host"`
+	Credentials                map[string]map[string]any               `hcl:"credentials"`
+	CredentialsHelpers         map[string]*userConfigCredentialsHelper `hcl:"credentials_helper"`
+	PluginCacheDir             string                                  `hcl:"plugin_cache_dir"`
+	DisableCheckpoint          bool                                    `hcl:"disable_checkpoint"`
+	DisableCheckpointSignature bool                                    `hcl:"disable_checkpoint_signature"`
 }
 
-type credentialsAttributes struct {
-	Remain hcl.Body `hcl:",remain"`
-	Token  string   `hcl:"token,optional"`
+// userConfigHost is the "host" block, which overrides service discovery for one hostname.
+type userConfigHost struct {
+	Services map[string]any `hcl:"services"`
 }
 
-type credentialsHelperAttributes struct {
-	Remain hcl.Body `hcl:",remain"`
-	Args   []string `hcl:"args,optional"`
+// userConfigCredentialsHelper is the "credentials_helper" block naming an external token provider.
+type userConfigCredentialsHelper struct {
+	Args []string `hcl:"args"`
 }
 
-type hostAttributes struct {
-	Remain   hcl.Body          `hcl:",remain"`
-	Services map[string]string `hcl:"services,optional"`
-}
-
-type directAttributes struct {
-	Include []string `hcl:"include,optional"`
-	Exclude []string `hcl:"exclude,optional"`
-}
-
-type filesystemMirrorAttributes struct {
-	Path    string   `hcl:"path,attr"`
-	Include []string `hcl:"include,optional"`
-	Exclude []string `hcl:"exclude,optional"`
-}
-
-type networkMirrorAttributes struct {
-	URL     string   `hcl:"url,attr"`
-	Include []string `hcl:"include,optional"`
-	Exclude []string `hcl:"exclude,optional"`
+// providerInstallationMethodAttributes are the attributes every provider_installation method may carry.
+type providerInstallationMethodAttributes struct {
+	Path    string   `hcl:"path"`
+	URL     string   `hcl:"url"`
+	Include []string `hcl:"include"`
+	Exclude []string `hcl:"exclude"`
 }
 
 // LoadUserConfig loads the OpenTofu/Terraform CLI configuration from the
@@ -93,30 +77,42 @@ func LoadUserConfig(v *venv.Venv, opts ...ConfigOption) (*Config, error) {
 		mergeUserConfig(config, fileConfig)
 	}
 
+	// The env var overrides every file, and is deliberately not expanded.
 	if pluginCacheDir := v.Env[envNamePluginCacheDir]; pluginCacheDir != "" {
 		config.PluginCacheDir = pluginCacheDir
+	}
+
+	if err := validateUserConfig(config); err != nil {
+		return nil, err
 	}
 
 	return config.WithOptions(opts...), nil
 }
 
-// UserProviderDir returns the directory where OpenTofu/Terraform discovers
-// user-installed provider plugins.
+// UserProviderDir returns the absolute directory where OpenTofu/Terraform discovers
+// user-installed provider plugins, or "" when no CLI config directory resolves. It never
+// returns a relative path, which a caller would otherwise resolve against its own
+// working directory.
 func UserProviderDir(v *venv.Venv) (string, error) {
 	configDir, err := UserConfigDir(v)
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(configDir, "plugins"), nil
+	if configDir == "" {
+		return "", nil
+	}
+
+	return filepath.Join(configDir, userProviderDirName), nil
 }
 
 // userConfigPaths lists the CLI config files to load, most general first, honoring the env-var override.
 func userConfigPaths(v *venv.Venv) ([]string, error) {
-	if override, _ := UserConfigOverride(v); override != "" {
+	// An override names the file outright, so an unreadable one is the user's error and the config dir is skipped.
+	if override, envName := UserConfigOverride(v); override != "" {
 		exists, err := vfs.FileExists(v.FS, override)
 		if err != nil {
-			return nil, fmt.Errorf("checking CLI config override %s: %w", override, err)
+			return nil, fmt.Errorf("%w: checking %s from %s: %w", ErrUserConfig, override, envName, err)
 		}
 
 		if exists {
@@ -128,13 +124,9 @@ func userConfigPaths(v *venv.Venv) ([]string, error) {
 
 	var paths []string
 
+	// A default candidate that cannot be stat'd reads as absent, the way OpenTofu treats one.
 	for _, candidate := range UserConfigCandidates(v) {
-		exists, err := vfs.FileExists(v.FS, candidate)
-		if err != nil {
-			return nil, fmt.Errorf("checking CLI config %s: %w", candidate, err)
-		}
-
-		if !exists {
+		if !vfs.Exists(v.FS, candidate) {
 			continue
 		}
 
@@ -156,28 +148,15 @@ func userConfigPaths(v *venv.Venv) ([]string, error) {
 	return append(paths, fragments...), nil
 }
 
-// userConfigFragments lists the *.tfrc fragments configDir contributes, in directory order.
+// userConfigFragments lists the *.tfrc fragments configDir contributes, in name order.
 func userConfigFragments(v *venv.Venv, configDir string) ([]string, error) {
-	if configDir == "" {
-		return nil, nil
-	}
-
-	info, err := v.FS.Stat(configDir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("reading CLI config directory %s: %w", configDir, err)
-	}
-
-	if !info.IsDir() {
+	if configDir == "" || !vfs.IsDir(v.FS, configDir) {
 		return nil, nil
 	}
 
 	entries, err := vfs.ReadDir(v.FS, configDir)
 	if err != nil {
-		return nil, fmt.Errorf("reading CLI config directory %s: %w", configDir, err)
+		return nil, fmt.Errorf("%w: reading directory %s: %w", ErrUserConfig, configDir, err)
 	}
 
 	fragments := make([]string, 0, len(entries))
@@ -198,150 +177,163 @@ func isUserConfigFragment(name string) bool {
 	return strings.HasSuffix(name, ".tfrc") || strings.HasSuffix(name, ".tfrc.json")
 }
 
-// loadUserConfigFile parses one CLI config file, in native HCL or its JSON variant.
+// loadUserConfigFile parses one CLI config file, which is HCL1 in both its native and its JSON spelling.
 func loadUserConfigFile(v *venv.Venv, path string) (*Config, error) {
 	data, err := vfs.ReadFile(v.FS, path)
 	if err != nil {
-		return nil, fmt.Errorf("reading CLI config %s: %w", path, err)
+		return nil, fmt.Errorf("%w: reading %s: %w", ErrUserConfig, path, err)
 	}
 
-	parser := hclparse.NewParser()
-
-	var (
-		file  *hcl.File
-		diags hcl.Diagnostics
-	)
-
-	if strings.HasSuffix(path, ".json") {
-		file, diags = parser.ParseJSON(data, path)
+	// hcl.Parse detects the JSON spelling from the content, so the file name never has to.
+	node, err := hcl.Parse(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("%w: parsing %s: %w", ErrUserConfig, path, err)
 	}
 
-	if file == nil {
-		file, diags = parser.ParseHCL(data, path)
+	var file userConfigFile
+	if err := hcl.DecodeObject(&file, node); err != nil {
+		return nil, fmt.Errorf("%w: decoding %s: %w", ErrUserConfig, path, err)
 	}
 
-	if diags.HasErrors() {
-		return nil, fmt.Errorf("parsing CLI config %s: %w", path, errors.New(diags.Error()))
-	}
-
-	var attrs userConfigAttributes
-	if diags := gohcl.DecodeBody(file.Body, nil, &attrs); diags.HasErrors() {
-		return nil, fmt.Errorf("decoding CLI config %s: %w", path, errors.New(diags.Error()))
+	methods, err := decodeProviderInstallation(path, node)
+	if err != nil {
+		return nil, err
 	}
 
 	config := NewConfig(v.FS).
-		WithPluginCacheDir(expandUserConfigEnv(attrs.PluginCacheDir, v.Env)).
-		WithProviderInstallation(&ProviderInstallation{})
+		WithPluginCacheDir(expandUserConfigEnv(file.PluginCacheDir, v.Env)).
+		WithCredentials(userCredentials(file)).
+		WithCredentialsHelpers(userCredentialsHelper(file)).
+		WithHosts(userHosts(file)).
+		WithProviderInstallation(&ProviderInstallation{Methods: methods})
 
-	if attrs.DisableCheckpoint {
+	if file.DisableCheckpoint {
 		config.WithDisableCheckpoint()
 	}
 
-	if attrs.DisableCheckpointSignature {
+	if file.DisableCheckpointSignature {
 		config.WithDisableCheckpointSignature()
-	}
-
-	content, _, diags := attrs.Remain.PartialContent(userConfigBlocks)
-	if diags.HasErrors() {
-		return nil, fmt.Errorf("decoding CLI config blocks in %s: %w", path, errors.New(diags.Error()))
-	}
-
-	for _, block := range content.Blocks {
-		if err := decodeUserConfigBlock(config, block); err != nil {
-			return nil, fmt.Errorf("decoding CLI config %s: %w", path, err)
-		}
 	}
 
 	return config, nil
 }
 
-// expandUserConfigEnv expands $VAR references in value against the injected environment.
-func expandUserConfigEnv(value string, env map[string]string) string {
-	return os.Expand(value, func(name string) string { return env[name] })
-}
-
-// decodeUserConfigBlock decodes one top-level CLI config block into config.
-func decodeUserConfigBlock(config *Config, block *hcl.Block) error {
-	switch block.Type {
-	case "credentials":
-		var attrs credentialsAttributes
-		if diags := gohcl.DecodeBody(block.Body, nil, &attrs); diags.HasErrors() {
-			return errors.New(diags.Error())
-		}
-
-		setCredentials(config, ConfigCredentials{Name: block.Labels[0], Token: attrs.Token})
-	case "credentials_helper":
-		var attrs credentialsHelperAttributes
-		if diags := gohcl.DecodeBody(block.Body, nil, &attrs); diags.HasErrors() {
-			return errors.New(diags.Error())
-		}
-
-		config.CredentialsHelpers = &ConfigCredentialsHelper{Name: block.Labels[0], Args: attrs.Args}
-	case "host":
-		var attrs hostAttributes
-		if diags := gohcl.DecodeBody(block.Body, nil, &attrs); diags.HasErrors() {
-			return errors.New(diags.Error())
-		}
-
-		setHost(config, ConfigHost{Name: block.Labels[0], Services: attrs.Services})
-	case "provider_installation":
-		return decodeProviderInstallation(config, block.Body)
+// decodeProviderInstallation walks the AST for provider_installation methods, whose ordered,
+// repeated block structure the struct decoder cannot represent.
+func decodeProviderInstallation(path string, node hclast.Node) (ProviderInstallationMethods, error) {
+	file, ok := node.(*hclast.File)
+	if !ok {
+		return nil, nil
 	}
 
-	return nil
-}
-
-// decodeProviderInstallation appends the installation methods a provider_installation block declares.
-func decodeProviderInstallation(config *Config, body hcl.Body) error {
-	content, _, diags := body.PartialContent(providerInstallationBlocks)
-	if diags.HasErrors() {
-		return errors.New(diags.Error())
+	root, ok := file.Node.(*hclast.ObjectList)
+	if !ok {
+		return nil, nil
 	}
 
-	for _, block := range content.Blocks {
-		method, err := decodeProviderInstallationMethod(block)
-		if err != nil {
-			return err
+	var methods ProviderInstallationMethods
+
+	for _, block := range root.Items {
+		if len(block.Keys) == 0 || block.Keys[0].Token.Value() != providerInstallationBlockName {
+			continue
 		}
 
-		config.ProviderInstallation.Methods = append(config.ProviderInstallation.Methods, method)
+		body, ok := block.Val.(*hclast.ObjectType)
+		if !ok {
+			return nil, fmt.Errorf(
+				"%w: the provider_installation block at %s in %s must be a block, not an attribute",
+				ErrInvalidUserConfig, block.Pos(), path,
+			)
+		}
+
+		for _, methodBlock := range body.List.Items {
+			method, err := decodeProviderInstallationMethod(path, methodBlock)
+			if err != nil {
+				return nil, err
+			}
+
+			if method != nil {
+				methods = append(methods, method)
+			}
+		}
 	}
 
-	return nil
+	return methods, nil
 }
 
 // decodeProviderInstallationMethod decodes one direct, filesystem_mirror, or network_mirror block.
-func decodeProviderInstallationMethod(block *hcl.Block) (ProviderInstallationMethod, error) {
-	switch block.Type {
-	case "direct":
-		var attrs directAttributes
-		if diags := gohcl.DecodeBody(block.Body, nil, &attrs); diags.HasErrors() {
-			return nil, errors.New(diags.Error())
-		}
+func decodeProviderInstallationMethod(path string, block *hclast.ObjectItem) (ProviderInstallationMethod, error) {
+	if len(block.Keys) == 0 {
+		return nil, nil
+	}
 
+	methodType, _ := block.Keys[0].Token.Value().(string)
+
+	// dev_overrides bypasses version selection entirely, so it has no place in the generated config.
+	if methodType == devOverridesBlockName {
+		return nil, nil
+	}
+
+	var attrs providerInstallationMethodAttributes
+	if err := hcl.DecodeObject(&attrs, block.Val); err != nil {
+		return nil, fmt.Errorf(
+			"%w: decoding the %s block at %s in %s: %w",
+			ErrUserConfig, methodType, block.Pos(), path, err,
+		)
+	}
+
+	switch methodType {
+	case "direct":
 		return NewProviderInstallationDirect(attrs.Include, attrs.Exclude), nil
 	case "filesystem_mirror":
-		var attrs filesystemMirrorAttributes
-		if diags := gohcl.DecodeBody(block.Body, nil, &attrs); diags.HasErrors() {
-			return nil, errors.New(diags.Error())
-		}
-
 		return NewProviderInstallationFilesystemMirror(attrs.Path, attrs.Include, attrs.Exclude), nil
 	case "network_mirror":
-		var attrs networkMirrorAttributes
-		if diags := gohcl.DecodeBody(block.Body, nil, &attrs); diags.HasErrors() {
-			return nil, errors.New(diags.Error())
-		}
-
 		return NewProviderInstallationNetworkMirror(attrs.URL, attrs.Include, attrs.Exclude), nil
 	default:
-		return nil, fmt.Errorf("unsupported provider installation method %q", block.Type)
+		return nil, fmt.Errorf(
+			"%w: unsupported provider installation method %q at %s in %s",
+			ErrInvalidUserConfig, methodType, block.Pos(), path,
+		)
 	}
 }
 
-// mergeUserConfig folds with into config, letting the later file win the way OpenTofu's Config.Merge does.
+// expandUserConfigEnv expands $VAR and ${VAR} references in value against the injected environment.
+func expandUserConfigEnv(value string, env map[string]string) string {
+	if value == "" {
+		return ""
+	}
+
+	return os.Expand(value, func(name string) string { return env[name] })
+}
+
+// validateUserConfig rejects the malformed blocks OpenTofu rejects, so a bad hostname surfaces
+// here rather than as an unauthenticated registry request later.
+func validateUserConfig(config *Config) error {
+	for _, creds := range config.Credentials {
+		if _, err := svchost.ForComparison(creds.Name); err != nil {
+			return fmt.Errorf(
+				"%w: the credentials %q block has an invalid hostname: %w",
+				ErrInvalidUserConfig, creds.Name, err,
+			)
+		}
+	}
+
+	for _, host := range config.Hosts {
+		if _, err := svchost.ForComparison(host.Name); err != nil {
+			return fmt.Errorf(
+				"%w: the host %q block has an invalid hostname: %w",
+				ErrInvalidUserConfig, host.Name, err,
+			)
+		}
+	}
+
+	return nil
+}
+
+// mergeUserConfig folds with into config, matching how OpenTofu's Config.Merge resolves each field.
 func mergeUserConfig(config, with *Config) {
-	if with.PluginCacheDir != "" {
+	// plugin_cache_dir is first-wins upstream, unlike every other field here.
+	if config.PluginCacheDir == "" {
 		config.PluginCacheDir = with.PluginCacheDir
 	}
 
@@ -364,6 +356,58 @@ func mergeUserConfig(config, with *Config) {
 		config.ProviderInstallation.Methods,
 		with.ProviderInstallation.Methods...,
 	)
+}
+
+// userCredentials flattens the decoded credentials blocks, keeping only the token each one carries.
+func userCredentials(file userConfigFile) []ConfigCredentials {
+	credentials := make([]ConfigCredentials, 0, len(file.Credentials))
+
+	for name, credential := range file.Credentials {
+		token, _ := credential["token"].(string)
+		credentials = append(credentials, ConfigCredentials{Name: name, Token: token})
+	}
+
+	// Map iteration is random, so order by hostname to keep a merged config reproducible.
+	slices.SortFunc(credentials, func(a, b ConfigCredentials) int { return strings.Compare(a.Name, b.Name) })
+
+	return credentials
+}
+
+// userCredentialsHelper returns the single credentials_helper block, or nil when the file declares none.
+func userCredentialsHelper(file userConfigFile) *ConfigCredentialsHelper {
+	for name, helper := range file.CredentialsHelpers {
+		var args []string
+		if helper != nil {
+			args = helper.Args
+		}
+
+		return &ConfigCredentialsHelper{Name: name, Args: args}
+	}
+
+	return nil
+}
+
+// userHosts flattens the decoded host blocks into their service-discovery overrides.
+func userHosts(file userConfigFile) []ConfigHost {
+	hosts := make([]ConfigHost, 0, len(file.Hosts))
+
+	for name, host := range file.Hosts {
+		services := make(map[string]string)
+
+		if host != nil {
+			for key, val := range host.Services {
+				if val, ok := val.(string); ok {
+					services[key] = val
+				}
+			}
+		}
+
+		hosts = append(hosts, ConfigHost{Name: name, Services: services})
+	}
+
+	slices.SortFunc(hosts, func(a, b ConfigHost) int { return strings.Compare(a.Name, b.Name) })
+
+	return hosts
 }
 
 // setCredentials replaces the credentials already recorded for the same host, or appends them.

@@ -2,9 +2,9 @@
 package gcphelper
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"net/http"
@@ -143,7 +143,9 @@ func (b *GCPConfigBuilder) Build(
 			return nil, err
 		}
 
-		clientOpts = append(clientOpts, credOpt)
+		if credOpt != nil {
+			clientOpts = append(clientOpts, credOpt)
+		}
 	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
 		// Use access token from config
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
@@ -213,37 +215,39 @@ func credentialsFileOption(v *venv.Venv, filename string) (option.ClientOption, 
 	return credentialsJSONOption(v, data)
 }
 
-// credentialsJSONOption authenticates with a credentials JSON payload.
+// credentialsJSONOption authenticates with a credentials JSON payload, or returns a nil
+// option when the payload is empty so the caller falls through to the ADC chain the way
+// the SDK's own detection does.
 //
-// The credential type is selected explicitly because the SDK's generic JSON
-// detection is deprecated. Terragrunt retains support for every credential type
-// the SDK supports, but rejects unknown values before constructing credentials.
+// The payload's type is read here rather than by the SDK's generic JSON detection, whose
+// CredentialsJSON option is deprecated. The credentials are still built on v.HTTP, because
+// the SDK would otherwise put the token exchange on a client of its own making
+// (google.golang.org/api/internal.creds) that the venv never sees.
 func credentialsJSONOption(v *venv.Venv, data []byte) (option.ClientOption, error) {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return nil, nil
+	}
+
 	var metadata struct {
 		Type credentials.CredType `json:"type"`
 	}
 
 	if err := json.Unmarshal(data, &metadata); err != nil {
-		return nil, fmt.Errorf("error parsing GCP credentials: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrParsingCredentials, err)
 	}
 
-	switch metadata.Type {
-	case credentials.ServiceAccount,
-		credentials.AuthorizedUser,
-		credentials.ExternalAccount,
-		credentials.ExternalAccountAuthorizedUser,
-		credentials.ImpersonatedServiceAccount,
-		credentials.GDCHServiceAccount:
-	default:
-		return nil, fmt.Errorf("unsupported GCP credentials type %q", metadata.Type)
+	// The SDK reports a missing type as an unsupported filetype, which does not say what is wrong.
+	if metadata.Type == "" {
+		return nil, fmt.Errorf("%w: the payload has no \"type\" field", ErrParsingCredentials)
 	}
 
+	// Every credential type the SDK accepts is passed through; it rejects the rest itself.
 	creds, err := credentials.NewCredentialsFromJSON(metadata.Type, data, &credentials.DetectOptions{
 		Scopes: gcsScopes(),
 		Client: v.HTTP,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error detecting GCP credentials: %w", err)
+		return nil, fmt.Errorf("%w of type %q: %w", ErrBuildingCredentials, metadata.Type, err)
 	}
 
 	return option.WithAuthCredentials(creds), nil
@@ -271,7 +275,7 @@ func createGCPCredentialsFromGoogleCredentialsEnv(
 	}
 
 	if err := json.Unmarshal([]byte(contents), &account); err != nil {
-		return nil, errors.New("error parsing GCP credentials")
+		return nil, fmt.Errorf("%w from GOOGLE_CREDENTIALS: %w", ErrParsingCredentials, err)
 	}
 
 	conf := jwt.Config{

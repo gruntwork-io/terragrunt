@@ -1,0 +1,27 @@
+---
+version: "v1.1.4"
+category: "enhancements"
+---
+
+#### CLI config parsing no longer depends on the Terraform module
+
+Terragrunt reads your OpenTofu/Terraform CLI config (`.tofurc`, `.terraformrc`, and the
+`*.tfrc` fragments under the CLI config directory) to pick up registry credentials, host
+overrides, and `provider_installation` settings.
+
+That reading used to go through a loader vendored from the `hashicorp/terraform` module,
+which reached the invoking user's home directory directly and pulled a deprecated OpenPGP
+code path into the build. Terragrunt now parses these files itself, through the same
+filesystem and environment handles as the rest of a run.
+
+The file format is unchanged, and so is precedence:
+
+- `TF_CLI_CONFIG_FILE` or `TERRAFORM_CONFIG` names the config file outright, and suppresses the CLI config directory.
+- Otherwise the first existing default candidate is read, then every `*.tfrc` and `*.tfrc.json` fragment in the CLI config directory, in name order.
+- Fragments override the main file for `credentials`, `host`, and `credentials_helper`; `provider_installation` methods are appended; `plugin_cache_dir` keeps the first value set.
+- `TF_PLUGIN_CACHE_DIR` overrides `plugin_cache_dir` from every file, and is not expanded.
+
+Two things that used to pass silently are now reported:
+
+- A `credentials` or `host` block whose label is not a valid hostname is rejected, instead of being dropped and sending an unauthenticated request to the registry.
+- An unsupported `provider_installation` method is rejected by name.

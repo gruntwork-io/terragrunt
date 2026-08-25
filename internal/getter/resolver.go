@@ -41,7 +41,7 @@ func DefaultSourceResolvers(
 
 	tfr := NewTFRResolver().
 		WithHTTPClient(vhttp.WithTimeout(v.HTTP, tfrResolverTimeout)).
-		WithAuth(RegistryAuth{Venv: dispatchVenv(v, &cfg)})
+		WithAuth(NewRegistryAuth(dispatchVenv(v, &cfg)))
 
 	if cfg.tfrEnabled {
 		requireLoggerFS(&cfg, SchemeTFR)

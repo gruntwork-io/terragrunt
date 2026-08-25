@@ -47,5 +47,5 @@ func ModuleVersionResolverFromContext(ctx context.Context, v *venv.Venv) *getter
 
 func newModuleVersionResolver(v *venv.Venv) *getter.VersionResolver {
 	return getter.NewVersionResolver(v.HTTP).
-		WithAuth(getter.RegistryAuth{Venv: v})
+		WithAuth(getter.NewRegistryAuth(v))
 }

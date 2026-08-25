@@ -11,27 +11,26 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const (
-	platformArchAMD64 = "amd64"
-	schemeHTTPS       = "https"
-)
+// schemeHTTPS is the scheme every upstream registry URL this package builds is fetched over.
+const schemeHTTPS = "https"
 
+//nolint:goconst // GOARCH values in a platform table are data, not constants.
 var availablePlatforms []*models.Platform = []*models.Platform{
-	{OS: "solaris", Arch: platformArchAMD64},
+	{OS: "solaris", Arch: "amd64"},
 	{OS: "openbsd", Arch: "386"},
 	{OS: "openbsd", Arch: "arm"},
-	{OS: "openbsd", Arch: platformArchAMD64},
+	{OS: "openbsd", Arch: "amd64"},
 	{OS: "freebsd", Arch: "386"},
 	{OS: "freebsd", Arch: "arm"},
-	{OS: "freebsd", Arch: platformArchAMD64},
+	{OS: "freebsd", Arch: "amd64"},
 	{OS: "linux", Arch: "386"},
 	{OS: "linux", Arch: "arm"},
 	{OS: "linux", Arch: "arm64"},
-	{OS: "linux", Arch: platformArchAMD64},
-	{OS: "darwin", Arch: platformArchAMD64},
+	{OS: "linux", Arch: "amd64"},
+	{OS: "darwin", Arch: "amd64"},
 	{OS: "darwin", Arch: "arm64"},
 	{OS: "windows", Arch: "386"},
-	{OS: "windows", Arch: platformArchAMD64},
+	{OS: "windows", Arch: "amd64"},
 }
 
 // ProviderHandlers is a slice of ProviderHandler.

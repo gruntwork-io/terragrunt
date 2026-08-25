@@ -248,3 +248,47 @@ func TestGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
+
+func TestGcpConfigCredentialsPayloads(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expected error
+		name     string
+		payload  string
+	}{
+		{name: "unsupported type", payload: `{"type":"gce_metadata"}`, expected: gcphelper.ErrBuildingCredentials},
+		{name: "missing type", payload: `{"client_email":"a@b.com"}`, expected: gcphelper.ErrParsingCredentials},
+		{name: "not json", payload: `not-json`, expected: gcphelper.ErrParsingCredentials},
+		{name: "json array", payload: `["a"]`, expected: gcphelper.ErrParsingCredentials},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			credsFile := filepath.Join(t.TempDir(), "credentials.json")
+			require.NoError(t, os.WriteFile(credsFile, []byte(tc.payload), 0o600))
+
+			_, err := gcphelper.NewGCPConfigBuilder().
+				WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: credsFile}).
+				Build(context.Background(), venvtest.NewWithOSFS().WithEnv(map[string]string{}))
+			require.ErrorIs(t, err, tc.expected)
+		})
+	}
+}
+
+// TestGcpConfigEmptyCredentialsFileFallsBackToADC pins the behaviour an unpopulated secret
+// volume depends on: an empty file contributes no option rather than failing the run.
+func TestGcpConfigEmptyCredentialsFileFallsBackToADC(t *testing.T) {
+	t.Parallel()
+
+	credsFile := filepath.Join(t.TempDir(), "credentials.json")
+	require.NoError(t, os.WriteFile(credsFile, nil, 0o600))
+
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+		WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: credsFile}).
+		Build(context.Background(), venvtest.NewWithOSFS().WithEnv(map[string]string{}))
+	require.NoError(t, err)
+	assert.Empty(t, clientOpts)
+}
