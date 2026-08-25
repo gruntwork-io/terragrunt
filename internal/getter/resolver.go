@@ -21,7 +21,7 @@ type SourceResolver = cas.SourceResolver
 // resolver entry is harmless. Pass [WithDispatchLogger], [WithDispatchFS], and
 // [WithTFRConfig] to align its logger and tofu implementation with the fetcher
 // so the probe and the fetch resolve against the same registry host, and
-// [WithDispatchEnv] so the probe carries the same registry credentials.
+// [WithDispatchVenv] so the probe carries the same registry credentials.
 //
 // Every resolver rides v: the http, https, and tfr probes go over its client
 // and the hg resolver spawns `hg` through its executor. A caller overriding the
@@ -41,7 +41,7 @@ func DefaultSourceResolvers(
 
 	tfr := NewTFRResolver().
 		WithHTTPClient(vhttp.WithTimeout(v.HTTP, tfrResolverTimeout)).
-		WithAuth(dispatchRegistryAuth(v, &cfg))
+		WithAuth(RegistryAuth{Venv: dispatchVenv(v, &cfg)})
 
 	if cfg.tfrEnabled {
 		requireLoggerFS(&cfg, SchemeTFR)
@@ -75,16 +75,4 @@ func DefaultSourceResolvers(
 	}
 
 	return resolvers
-}
-
-func dispatchRegistryAuth(v *venv.Venv, cfg *genericFetcherConfig) RegistryAuth {
-	if cfg.env == nil && cfg.fsys == nil {
-		return RegistryAuth{}
-	}
-
-	authVenv := *v
-	authVenv.Env = cfg.env
-	authVenv.FS = cfg.fsys
-
-	return RegistryAuth{Venv: &authVenv}
 }

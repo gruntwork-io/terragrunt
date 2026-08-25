@@ -34,7 +34,7 @@ type GenericFetcherOption func(*genericFetcherConfig)
 type genericFetcherConfig struct {
 	logger     log.Logger
 	fsys       vfs.FS
-	env        map[string]string
+	venv       *venv.Venv
 	ociHolder  *ociStoreHolder
 	httpExtra  http.Header
 	httpsExtra http.Header
@@ -91,10 +91,27 @@ func WithDispatchFS(fsys vfs.FS) GenericFetcherOption {
 	}
 }
 
-// WithDispatchEnv sets the environment the tfr dispatch entries read their
-// registry auth token from.
-func WithDispatchEnv(env map[string]string) GenericFetcherOption {
-	return func(c *genericFetcherConfig) { c.env = env }
+// WithDispatchVenv sets the virtualized environment the tfr dispatch entries
+// authenticate through, so the fetcher and the resolver read the registry
+// token and the user's CLI config from the same handles.
+func WithDispatchVenv(v *venv.Venv) GenericFetcherOption {
+	return func(c *genericFetcherConfig) {
+		if v == nil {
+			panic("getter: WithDispatchVenv requires a non-nil venv")
+		}
+
+		c.venv = v
+	}
+}
+
+// dispatchVenv returns the environment the tfr dispatch entries ride: the one
+// [WithDispatchVenv] persisted, or v when the caller left it unset.
+func dispatchVenv(v *venv.Venv, c *genericFetcherConfig) *venv.Venv {
+	if c.venv != nil {
+		return c.venv
+	}
+
+	return v
 }
 
 // WithOCIConfig enables oci:// registration; callers must also pass [WithDispatchLogger] and [WithDispatchFS].
@@ -165,8 +182,7 @@ func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[stri
 			)
 		}
 
-		m[SchemeTFR] = NewRegistryGetter(cfg.logger, v).
-			WithEnv(cfg.env).
+		m[SchemeTFR] = NewRegistryGetter(cfg.logger, dispatchVenv(v, &cfg)).
 			WithTofuImplementation(cfg.tfrImpl)
 	}
 
@@ -256,7 +272,7 @@ func buildGetters(b *builder) []Getter {
 				resolverOpts,
 				WithDispatchLogger(b.logger),
 				WithDispatchFS(b.tfRegistry.Venv.FS),
-				WithDispatchEnv(b.tfRegistry.Venv.Env),
+				WithDispatchVenv(b.tfRegistry.Venv),
 				WithTFRConfig(b.tfRegistry.TofuImplementation),
 			)
 		}

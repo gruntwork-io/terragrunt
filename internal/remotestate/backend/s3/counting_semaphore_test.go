@@ -1,4 +1,3 @@
-//nolint:govet
 package s3_test
 
 import (
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAwsCountingSemaphoreHappyPath(t *testing.T) {
@@ -73,14 +73,14 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	}
 
 	waitForAllGoRoutinesToFinish.Wait()
+	close(limitExceeded)
 
-	select {
-	case total := <-limitExceeded:
-		t.Fatalf(
-			"The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d",
-			permits,
-			total,
-		)
-	default:
-	}
+	total, exceeded := <-limitExceeded
+	require.Falsef(
+		t,
+		exceeded,
+		"The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d",
+		permits,
+		total,
+	)
 }

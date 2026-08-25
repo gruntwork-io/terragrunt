@@ -111,6 +111,7 @@ func UserProviderDir(v *venv.Venv) (string, error) {
 	return filepath.Join(configDir, "plugins"), nil
 }
 
+// userConfigPaths lists the CLI config files to load, most general first, honoring the env-var override.
 func userConfigPaths(v *venv.Venv) ([]string, error) {
 	if override, _ := UserConfigOverride(v); override != "" {
 		exists, err := vfs.FileExists(v.FS, override)
@@ -155,6 +156,7 @@ func userConfigPaths(v *venv.Venv) ([]string, error) {
 	return append(paths, fragments...), nil
 }
 
+// userConfigFragments lists the *.tfrc fragments configDir contributes, in directory order.
 func userConfigFragments(v *venv.Venv, configDir string) ([]string, error) {
 	if configDir == "" {
 		return nil, nil
@@ -191,10 +193,12 @@ func userConfigFragments(v *venv.Venv, configDir string) ([]string, error) {
 	return fragments, nil
 }
 
+// isUserConfigFragment reports whether name is a CLI config fragment OpenTofu would read.
 func isUserConfigFragment(name string) bool {
 	return strings.HasSuffix(name, ".tfrc") || strings.HasSuffix(name, ".tfrc.json")
 }
 
+// loadUserConfigFile parses one CLI config file, in native HCL or its JSON variant.
 func loadUserConfigFile(v *venv.Venv, path string) (*Config, error) {
 	data, err := vfs.ReadFile(v.FS, path)
 	if err != nil {
@@ -251,10 +255,12 @@ func loadUserConfigFile(v *venv.Venv, path string) (*Config, error) {
 	return config, nil
 }
 
+// expandUserConfigEnv expands $VAR references in value against the injected environment.
 func expandUserConfigEnv(value string, env map[string]string) string {
 	return os.Expand(value, func(name string) string { return env[name] })
 }
 
+// decodeUserConfigBlock decodes one top-level CLI config block into config.
 func decodeUserConfigBlock(config *Config, block *hcl.Block) error {
 	switch block.Type {
 	case "credentials":
@@ -285,6 +291,7 @@ func decodeUserConfigBlock(config *Config, block *hcl.Block) error {
 	return nil
 }
 
+// decodeProviderInstallation appends the installation methods a provider_installation block declares.
 func decodeProviderInstallation(config *Config, body hcl.Body) error {
 	content, _, diags := body.PartialContent(providerInstallationBlocks)
 	if diags.HasErrors() {
@@ -303,6 +310,7 @@ func decodeProviderInstallation(config *Config, body hcl.Body) error {
 	return nil
 }
 
+// decodeProviderInstallationMethod decodes one direct, filesystem_mirror, or network_mirror block.
 func decodeProviderInstallationMethod(block *hcl.Block) (ProviderInstallationMethod, error) {
 	switch block.Type {
 	case "direct":
@@ -331,8 +339,9 @@ func decodeProviderInstallationMethod(block *hcl.Block) (ProviderInstallationMet
 	}
 }
 
+// mergeUserConfig folds with into config, letting the later file win the way OpenTofu's Config.Merge does.
 func mergeUserConfig(config, with *Config) {
-	if config.PluginCacheDir == "" {
+	if with.PluginCacheDir != "" {
 		config.PluginCacheDir = with.PluginCacheDir
 	}
 
@@ -357,6 +366,7 @@ func mergeUserConfig(config, with *Config) {
 	)
 }
 
+// setCredentials replaces the credentials already recorded for the same host, or appends them.
 func setCredentials(config *Config, credentials ConfigCredentials) {
 	for i := range config.Credentials {
 		if config.Credentials[i].Name != credentials.Name {
@@ -371,6 +381,7 @@ func setCredentials(config *Config, credentials ConfigCredentials) {
 	config.Credentials = append(config.Credentials, credentials)
 }
 
+// setHost replaces the host already recorded under the same name, or appends it.
 func setHost(config *Config, host ConfigHost) {
 	for i := range config.Hosts {
 		if config.Hosts[i].Name != host.Name {

@@ -563,6 +563,7 @@ type RegistryAuth struct {
 	cache *registryAuthCache
 }
 
+// registryAuthCache memoizes the user's CLI config so a run parses it once instead of once per registry request.
 type registryAuthCache struct {
 	credentialsSource *cliconfig.CredentialsSource
 	err               error
@@ -592,6 +593,7 @@ func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error)
 	return req, nil
 }
 
+// loadCredentialsSource returns the memoized credentials source, or nil when no user CLI config is reachable.
 func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, error) {
 	if !auth.canLoadUserConfig() {
 		return nil, nil
@@ -608,6 +610,7 @@ func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, 
 	return auth.cache.credentialsSource, auth.cache.err
 }
 
+// readCredentialsSource parses the user's CLI config through the injected venv.
 func (auth RegistryAuth) readCredentialsSource() (*cliconfig.CredentialsSource, error) {
 	cliCfg, err := cliconfig.LoadUserConfig(auth.Venv)
 	if err != nil {
@@ -617,6 +620,7 @@ func (auth RegistryAuth) readCredentialsSource() (*cliconfig.CredentialsSource, 
 	return cliCfg.CredentialsSource(auth.Venv.Env), nil
 }
 
+// env returns the environment the registry token is read from, or nil when no venv is carried.
 func (auth RegistryAuth) env() map[string]string {
 	if auth.Venv == nil {
 		return nil
@@ -625,6 +629,7 @@ func (auth RegistryAuth) env() map[string]string {
 	return auth.Venv.Env
 }
 
+// canLoadUserConfig reports whether the carried venv can reach the user's real CLI config.
 func (auth RegistryAuth) canLoadUserConfig() bool {
 	return auth.Venv != nil &&
 		auth.Venv.Env != nil &&

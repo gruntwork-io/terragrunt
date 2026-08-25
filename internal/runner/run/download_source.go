@@ -645,7 +645,7 @@ func tryCASDownload(
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithDispatchLogger(l),
 		getter.WithDispatchFS(v.FS),
-		getter.WithDispatchEnv(v.Env),
+		getter.WithDispatchVenv(v),
 		getter.WithTFRConfig(opts.TofuImplementation),
 	}
 

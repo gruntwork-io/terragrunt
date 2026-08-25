@@ -152,7 +152,7 @@ credentials "registry.example.com" {
 	cfg, err := cliconfig.LoadUserConfig(v)
 	require.NoError(t, err)
 
-	assert.Equal(t, "/virtual/first-cache", cfg.PluginCacheDir)
+	assert.Equal(t, "/virtual/second-cache", cfg.PluginCacheDir)
 	assert.True(t, cfg.DisableCheckpoint)
 	assert.True(t, cfg.DisableCheckpointSignature)
 	assert.Equal(t, []cliconfig.ConfigCredentials{{
