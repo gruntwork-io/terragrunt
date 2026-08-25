@@ -453,39 +453,23 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 	}
 
 	// Handle dependency blocks
-	for _, dep := range cfg.TerragruntDependencies {
-		depBlock := hclwrite.NewBlock("dependency", []string{dep.Name})
-		depBody := depBlock.Body()
-		depAsCty := cfgAsCty.GetAttr("dependency").GetAttr(dep.Name)
-		depBody.SetAttributeValue("config_path", depAsCty.GetAttr("config_path"))
+	for _, group := range groupExpandedDependencies(cfg.TerragruntDependencies) {
+		if group.source == nil {
+			for _, dep := range group.deps {
+				depBlock, err := dependencyBlock(dep)
+				if err != nil {
+					return 0, err
+				}
 
-		if dep.Enabled != nil {
-			depBody.SetAttributeValue("enabled", goboolToCty(*dep.Enabled))
+				rootBody.AppendBlock(depBlock)
+			}
+
+			continue
 		}
 
-		if dep.SkipOutputs != nil {
-			depBody.SetAttributeValue("skip_outputs", goboolToCty(*dep.SkipOutputs))
+		if err := appendExpansionPreview(rootBody, group); err != nil {
+			return 0, err
 		}
-
-		if dep.MockOutputs != nil {
-			depBody.SetAttributeValue("mock_outputs", depAsCty.GetAttr("mock_outputs"))
-		}
-
-		if dep.MockOutputsAllowedTerraformCommands != nil {
-			depBody.SetAttributeValue(
-				"mock_outputs_allowed_terraform_commands",
-				depAsCty.GetAttr("mock_outputs_allowed_terraform_commands"),
-			)
-		}
-
-		if dep.MockOutputsMergeStrategyWithState != nil {
-			depBody.SetAttributeValue(
-				"mock_outputs_merge_strategy_with_state",
-				depAsCty.GetAttr("mock_outputs_merge_strategy_with_state"),
-			)
-		}
-
-		rootBody.AppendBlock(depBlock)
 	}
 
 	// Handle generate blocks
@@ -732,6 +716,165 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 	}
 
 	return f.WriteTo(w)
+}
+
+// dependencyGroup is the decoded dependencies one written block produced. source is nil
+// for a block that declared no expansion, and for one whose text could not be recovered,
+// which leaves deps holding the elements alone.
+type dependencyGroup struct {
+	source *hclparse.SourceBlock
+	deps   []*Dependency
+}
+
+// groupExpandedDependencies gathers the elements of each expanded block back under the
+// block that produced them, in the order the elements were decoded. Dependencies that
+// share no source block each get a group of their own.
+func groupExpandedDependencies(deps Dependencies) []dependencyGroup {
+	groups := make([]dependencyGroup, 0, len(deps))
+	byRange := map[hcl.Range]int{}
+
+	for i := range deps {
+		dep := &deps[i]
+
+		if dep.Expansion == nil || dep.Expansion.Source == nil {
+			groups = append(groups, dependencyGroup{deps: []*Dependency{dep}})
+			continue
+		}
+
+		source := dep.Expansion.Source
+
+		if at, ok := byRange[source.Range]; ok {
+			groups[at].deps = append(groups[at].deps, dep)
+			continue
+		}
+
+		byRange[source.Range] = len(groups)
+		groups = append(groups, dependencyGroup{source: source, deps: []*Dependency{dep}})
+	}
+
+	return groups
+}
+
+// appendExpansionPreview writes an expanded block as it was written, followed by the
+// elements it expanded into, commented out and with every reference resolved.
+//
+// The elements stay comments because they all repeat the block's label. Terragrunt reads
+// repeated labels without complaint, but every reference to one resolves to the last
+// block carrying it, so uncommented elements would render a config that quietly drops all
+// but one of them.
+func appendExpansionPreview(body *hclwrite.Body, group dependencyGroup) error {
+	source, diags := hclwrite.ParseConfig(
+		[]byte(group.source.Text),
+		group.source.Range.Filename,
+		group.source.Range.Start,
+	)
+	if diags.HasErrors() {
+		return diags
+	}
+
+	for _, block := range source.Body().Blocks() {
+		body.AppendBlock(block)
+	}
+
+	lines, err := expansionPreviewLines(group.deps)
+	if err != nil {
+		return err
+	}
+
+	// The quoted source ends at its closing brace, so the first newline ends that line
+	// and the second sets the preview off from the block it describes.
+	body.AppendNewline()
+	body.AppendNewline()
+	body.AppendUnstructuredTokens(commentTokens(lines))
+	body.AppendNewline()
+
+	return nil
+}
+
+// expansionPreviewLines renders the elements of one expanded block, blank line separated,
+// as the lines of the preview comment.
+func expansionPreviewLines(deps []*Dependency) ([]string, error) {
+	lines := []string{"Expands to:", ""}
+
+	for i, dep := range deps {
+		if i > 0 {
+			lines = append(lines, "")
+		}
+
+		block, err := dependencyBlock(dep)
+		if err != nil {
+			return nil, err
+		}
+
+		rendered := hclwrite.NewEmptyFile()
+		rendered.Body().AppendBlock(block)
+
+		lines = append(lines, strings.Split(strings.TrimRight(string(rendered.Bytes()), "\n"), "\n")...)
+	}
+
+	return lines, nil
+}
+
+// commentTokens renders lines as consecutive comment lines, blank ones included so a
+// comment can be paragraphed.
+func commentTokens(lines []string) hclwrite.Tokens {
+	tokens := make(hclwrite.Tokens, 0, len(lines))
+
+	for _, line := range lines {
+		text := "#\n"
+		if line != "" {
+			text = "# " + line + "\n"
+		}
+
+		tokens = append(tokens, &hclwrite.Token{
+			Type:  hclsyntax.TokenComment,
+			Bytes: []byte(text),
+		})
+	}
+
+	return tokens
+}
+
+// dependencyBlock renders one decoded dependency, with the references in its body already
+// resolved to the values this instance decoded against.
+func dependencyBlock(dep *Dependency) (*hclwrite.Block, error) {
+	depAsCty, err := GoTypeToCty(*dep)
+	if err != nil {
+		return nil, err
+	}
+
+	depBlock := hclwrite.NewBlock("dependency", []string{dep.Name})
+	depBody := depBlock.Body()
+
+	depBody.SetAttributeValue("config_path", depAsCty.GetAttr("config_path"))
+
+	if dep.Enabled != nil {
+		depBody.SetAttributeValue("enabled", goboolToCty(*dep.Enabled))
+	}
+
+	if dep.SkipOutputs != nil {
+		depBody.SetAttributeValue("skip_outputs", goboolToCty(*dep.SkipOutputs))
+	}
+
+	if dep.MockOutputs != nil {
+		depBody.SetAttributeValue("mock_outputs", depAsCty.GetAttr("mock_outputs"))
+	}
+
+	if dep.MockOutputsAllowedTerraformCommands != nil {
+		depBody.SetAttributeValue(
+			"mock_outputs_allowed_terraform_commands",
+			depAsCty.GetAttr("mock_outputs_allowed_terraform_commands"),
+		)
+	}
+
+	if dep.MockOutputsMergeStrategyWithState != nil {
+		depBody.SetAttributeValue(
+			"mock_outputs_merge_strategy_with_state",
+			depAsCty.GetAttr("mock_outputs_merge_strategy_with_state"),
+		)
+	}
+
+	return depBlock, nil
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.

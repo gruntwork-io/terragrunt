@@ -297,6 +297,7 @@ func decodeDependencyBlocks(
 			}
 
 			dep.Expansion.InstanceKey = instance.InstanceKey
+			dep.Expansion.Source = instance.Source
 		}
 
 		dependencies = append(dependencies, *dep)
