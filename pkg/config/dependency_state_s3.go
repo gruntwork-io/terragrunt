@@ -22,7 +22,14 @@ import (
 // s3DirectStateReadSupported preserves the native backend's validation for the
 // configurable workspace prefix. An explicit empty prefix is valid; leading or
 // trailing slashes are not.
-func s3DirectStateReadSupported(config backend.Config) bool {
+func s3DirectStateReadSupported(pctx *ParsingContext, config backend.Config) bool {
+	// SSE-C state needs the customer key on every GetObject. The direct reader does
+	// not send those headers, so AWS would answer 400 for state the native backend
+	// reads fine.
+	if backendConfigValueSet(config, "sse_customer_key") || pctx.Venv.Env["AWS_SSE_CUSTOMER_KEY"] != "" {
+		return false
+	}
+
 	value, configured := config["workspace_key_prefix"]
 	if !configured {
 		return true

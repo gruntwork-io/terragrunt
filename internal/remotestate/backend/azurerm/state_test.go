@@ -364,55 +364,67 @@ func TestStateClientCacheReusesSharedKey(t *testing.T) {
 }
 
 // TestStateClientCacheCoalescesConcurrentMisses pins that dependencies resolving
-// in parallel against one account issue a single ARM ListKeys call. Every caller
-// is held inside the first response so they all miss the cache together.
+// in parallel against one account issue a single ARM ListKeys call. The first
+// caller is held inside ARM before the others start, so none of them can observe
+// a populated cache and every one must cross the miss.
 func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
 	t.Parallel()
 
-	const callers = 8
+	const followers = 7
 
 	var (
 		released    = make(chan struct{})
-		arrived     sync.WaitGroup
-		waiting     sync.WaitGroup
+		reachedARM  sync.WaitGroup
+		started     sync.WaitGroup
+		group       sync.WaitGroup
 		releaseOnce sync.Once
 	)
 
-	arrived.Add(1)
-	waiting.Add(callers)
+	reachedARM.Add(1)
+	started.Add(followers)
 
 	transport := &stateTransport{beforeARM: func() {
-		releaseOnce.Do(arrived.Done)
+		releaseOnce.Do(reachedARM.Done)
 		<-released
 	}}
 
 	ctx := azurerm.WithStateClientCache(t.Context())
+	results := make([]error, followers+1)
 
-	var (
-		group   sync.WaitGroup
-		results = make([]error, callers)
-	)
+	resolve := func(slot int) {
+		defer group.Done()
 
-	for i := range callers {
+		_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), stateAzureConfig(transport))
+		results[slot] = err
+	}
+
+	// The first caller reaches ARM and blocks there, so the cache stays empty.
+	group.Add(1)
+
+	go resolve(0)
+
+	reachedARM.Wait()
+
+	// Every follower therefore starts against an empty cache and must cross the
+	// miss: without coalescing each one issues its own ListKeys call.
+	for i := 1; i <= followers; i++ {
 		group.Add(1)
 
 		go func() {
-			defer group.Done()
-
-			// Signal that this caller is about to consult the cache.
-			waiting.Done()
-
-			_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), stateAzureConfig(transport))
-			results[i] = err
+			started.Done()
+			resolve(i)
 		}()
 	}
 
-	// Let the first caller reach ARM, then start everyone else before releasing it.
-	arrived.Wait()
-	waiting.Wait()
-	require.Eventually(t, func() bool {
-		return len(transport.Requests()) > 0
-	}, time.Second, time.Millisecond, "the first caller must reach ARM")
+	started.Wait()
+
+	// The first caller still holds ARM, so the cache cannot be populated. A build
+	// without coalescing lets a follower issue its own ListKeys, which shows up
+	// here as a second request; coalescing keeps the count at one.
+	require.Never(t, func() bool {
+		return armRequests(transport) > 1
+	}, time.Second, 5*time.Millisecond, "followers must wait for the first lookup instead of issuing their own")
+
 	close(released)
 	group.Wait()
 
@@ -420,15 +432,21 @@ func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
 		require.NoErrorf(t, err, "caller %d", i)
 	}
 
-	listKeys := 0
+	assert.Equal(t, 1, armRequests(transport),
+		"concurrent misses on one account must resolve with a single ListKeys call")
+}
+
+// armRequests counts the ARM account-key lookups the transport has seen.
+func armRequests(transport *stateTransport) int {
+	count := 0
 
 	for _, req := range transport.Requests() {
 		if strings.Contains(req.URL.Path, "listKeys") {
-			listKeys++
+			count++
 		}
 	}
 
-	assert.Equal(t, 1, listKeys, "concurrent misses on one account must resolve with a single ListKeys call")
+	return count
 }
 
 // TestNewStateBlobClientTransportFailureOmitsGuidance pins that a DNS, TLS, or

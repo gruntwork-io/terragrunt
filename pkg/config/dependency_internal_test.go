@@ -340,6 +340,7 @@ func TestShouldFetchDependencyOutputFromState(t *testing.T) {
 		"GOOGLE_CLOUD_UNIVERSE_DOMAIN",
 		"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES",
 		"GOOGLE_STORAGE_CUSTOM_ENDPOINT",
+		"AWS_SSE_CUSTOMER_KEY",
 		"SSL_CERT_DIR",
 		"SSL_CERT_FILE",
 		"AZURE_KUBERNETES_CA_DATA",
@@ -508,6 +509,23 @@ func TestShouldFetchDependencyOutputFromState(t *testing.T) {
 			backendName:   gcsbackend.BackendName,
 			backendConfig: map[string]any{"access_token": ""},
 			env:           map[string]string{"GOOGLE_OAUTH_ACCESS_TOKEN": "token"},
+			experiments:   dependencyExperiments,
+		},
+		{
+			name:        "S3 SSE-C config falls back",
+			backendName: s3backend.BackendName,
+			backendConfig: map[string]any{
+				"bucket":           "b",
+				"key":              "state.tfstate",
+				"sse_customer_key": "c2VjcmV0",
+			},
+			experiments: dependencyExperiments,
+		},
+		{
+			name:          "S3 SSE-C environment falls back",
+			backendName:   s3backend.BackendName,
+			backendConfig: map[string]any{"bucket": "b", "key": "state.tfstate"},
+			env:           map[string]string{"AWS_SSE_CUSTOMER_KEY": "c2VjcmV0"},
 			experiments:   dependencyExperiments,
 		},
 		{
@@ -1247,30 +1265,54 @@ func TestIsRemoteStateMissing(t *testing.T) {
 	}
 }
 
-// TestGCSEncryptionKeyContentsTrimsFileNewline pins that a key file written by an
-// editor decodes: a trailing newline is not valid base64.
-func TestGCSEncryptionKeyContentsTrimsFileNewline(t *testing.T) {
+// TestGCSEncryptionKeyContentsMatchesNativeDecoding pins byte-for-byte parity with
+// the native backend: a trailing newline decodes because base64 ignores CR and LF,
+// and a stray space fails exactly as native OpenTofu fails.
+func TestGCSEncryptionKeyContentsMatchesNativeDecoding(t *testing.T) {
 	t.Parallel()
 
-	key := make([]byte, gcsEncryptionKeyBytes)
-	encoded := base64.StdEncoding.EncodeToString(key)
+	encoded := base64.StdEncoding.EncodeToString(make([]byte, gcsEncryptionKeyBytes))
 
-	v := venvtest.New()
-	keyPath := filepath.Join("/config", "gcs.key")
-	require.NoError(t, vfs.WriteFile(v.FS, keyPath, []byte(encoded+"\n"), 0o600))
-
-	pctx := &ParsingContext{
-		TerragruntConfigPath: filepath.Join("/config", DefaultTerragruntConfigPath),
-		Venv:                 v,
+	testCases := []struct {
+		name       string
+		contents   string
+		wantDecode bool
+	}{
+		{name: "exact key decodes", contents: encoded, wantDecode: true},
+		{name: "trailing LF decodes", contents: encoded + "\n", wantDecode: true},
+		{name: "trailing CRLF decodes", contents: encoded + "\r\n", wantDecode: true},
+		{name: "leading space fails as native does", contents: " " + encoded},
+		{name: "trailing space fails as native does", contents: encoded + " "},
 	}
 
-	got, err := gcsEncryptionKeyContents(pctx, keyPath)
-	require.NoError(t, err)
-	assert.Equal(t, encoded, got, "a trailing newline must not reach the base64 decoder")
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-	decoded, err := base64.StdEncoding.DecodeString(got)
-	require.NoError(t, err, "the trimmed contents must decode")
-	assert.Len(t, decoded, gcsEncryptionKeyBytes)
+			v := venvtest.New()
+			keyPath := filepath.Join("/config", "gcs.key")
+			require.NoError(t, vfs.WriteFile(v.FS, keyPath, []byte(testCase.contents), 0o600))
+
+			pctx := &ParsingContext{
+				TerragruntConfigPath: filepath.Join("/config", DefaultTerragruntConfigPath),
+				Venv:                 v,
+			}
+
+			got, err := gcsEncryptionKeyContents(pctx, keyPath)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.contents, got, "contents must reach the decoder unchanged")
+
+			decoded, decodeErr := base64.StdEncoding.DecodeString(got)
+			if !testCase.wantDecode {
+				require.Error(t, decodeErr, "native OpenTofu rejects this file, so the direct reader must too")
+
+				return
+			}
+
+			require.NoError(t, decodeErr)
+			assert.Len(t, decoded, gcsEncryptionKeyBytes)
+		})
+	}
 }
 
 func TestGCSStateObjectKey(t *testing.T) {

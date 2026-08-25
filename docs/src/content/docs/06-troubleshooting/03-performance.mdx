@@ -141,7 +141,7 @@ The `dependency-fetch-output-from-state` experiment only works for S3 backends. 
 </Before>
 
 <Since version="1.1.4">
-The experiment supports S3 and GCS backends. Azure Storage (`azurerm`) is supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled. Unsupported backends fall back to the normal OpenTofu/Terraform output command.
+The experiment supports S3 and GCS backends. Azure Storage (`azurerm`) is supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled. Unsupported backends, and supported backends whose configuration the direct reader cannot reproduce, fall back to the normal OpenTofu/Terraform output command.
 </Since>
 
 </Card>

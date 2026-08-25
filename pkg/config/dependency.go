@@ -1607,7 +1607,7 @@ func shouldFetchDependencyOutputFromState(pctx *ParsingContext, remoteState *rem
 
 	switch remoteState.BackendName {
 	case s3backend.BackendName:
-		return s3DirectStateReadSupported(remoteState.BackendConfig)
+		return s3DirectStateReadSupported(pctx, remoteState.BackendConfig)
 	case gcsbackend.BackendName:
 		return gcsDirectStateReadSupported(pctx, remoteState)
 	case azurermbackend.BackendName:

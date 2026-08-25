@@ -301,8 +301,9 @@ func gcsEncryptionKeyContents(pctx *ParsingContext, value string) (string, error
 		return "", fmt.Errorf("reading encryption_key file %s: %w", filename, err)
 	}
 
-	// Editors append a trailing newline, which is not valid base64.
-	return strings.TrimSpace(string(contents)), nil
+	// Returned verbatim: the native backend decodes the raw file, and the base64
+	// decoder already ignores CR and LF.
+	return string(contents), nil
 }
 
 // gcsBackendConfigKeysSupported rejects backend settings a direct read cannot reproduce, whatever their value.
