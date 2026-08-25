@@ -68,10 +68,16 @@ func LoadUserConfig(v *venv.Venv, opts ...ConfigOption) (*Config, error) {
 
 	config := NewConfig(v.FS).WithProviderInstallation(&ProviderInstallation{})
 
+	var helperSources []string
+
 	for _, path := range paths {
 		fileConfig, err := loadUserConfigFile(v, path)
 		if err != nil {
 			return nil, err
+		}
+
+		if fileConfig.CredentialsHelpers != nil {
+			helperSources = append(helperSources, path)
 		}
 
 		mergeUserConfig(config, fileConfig)
@@ -82,7 +88,7 @@ func LoadUserConfig(v *venv.Venv, opts ...ConfigOption) (*Config, error) {
 		config.PluginCacheDir = pluginCacheDir
 	}
 
-	if err := validateUserConfig(config); err != nil {
+	if err := validateUserConfig(config, helperSources); err != nil {
 		return nil, err
 	}
 
@@ -193,6 +199,15 @@ func loadUserConfigFile(v *venv.Venv, path string) (*Config, error) {
 	var file userConfigFile
 	if err := hcl.DecodeObject(&file, node); err != nil {
 		return nil, fmt.Errorf("%w: decoding %s: %w", ErrUserConfig, path, err)
+	}
+
+	// Ranging a map to pick "the" helper would decide by iteration order, so reject the
+	// ambiguity the way OpenTofu's Config.Validate does.
+	if len(file.CredentialsHelpers) > 1 {
+		return nil, fmt.Errorf(
+			"%w: no more than one credentials_helper block may be specified, %s declares %d",
+			ErrInvalidUserConfig, path, len(file.CredentialsHelpers),
+		)
 	}
 
 	methods, err := decodeProviderInstallation(path, node)
@@ -307,8 +322,16 @@ func expandUserConfigEnv(value string, env map[string]string) string {
 }
 
 // validateUserConfig rejects the malformed blocks OpenTofu rejects, so a bad hostname surfaces
-// here rather than as an unauthenticated registry request later.
-func validateUserConfig(config *Config) error {
+// here rather than as an unauthenticated registry request later. helperSources names every
+// file that declared a credentials_helper, which upstream allows only once across them all.
+func validateUserConfig(config *Config, helperSources []string) error {
+	if len(helperSources) > 1 {
+		return fmt.Errorf(
+			"%w: no more than one credentials_helper block may be specified, found one in each of %s",
+			ErrInvalidUserConfig, strings.Join(helperSources, ", "),
+		)
+	}
+
 	for _, creds := range config.Credentials {
 		if _, err := svchost.ForComparison(creds.Name); err != nil {
 			return fmt.Errorf(
@@ -373,7 +396,8 @@ func userCredentials(file userConfigFile) []ConfigCredentials {
 	return credentials
 }
 
-// userCredentialsHelper returns the single credentials_helper block, or nil when the file declares none.
+// userCredentialsHelper returns the single credentials_helper block, or nil when the file
+// declares none. More than one is rejected by the caller, so the map holds at most one entry.
 func userCredentialsHelper(file userConfigFile) *ConfigCredentialsHelper {
 	for name, helper := range file.CredentialsHelpers {
 		var args []string

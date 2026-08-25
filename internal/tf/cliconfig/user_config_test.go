@@ -297,6 +297,11 @@ func TestLoadUserConfig_Errors(t *testing.T) {
 			source:   "provider_installation {\n  bogus_mirror {}\n}\n",
 			expected: cliconfig.ErrInvalidUserConfig,
 		},
+		{
+			name:     "two credentials helpers in one file",
+			source:   "credentials_helper \"vault\" {\n  args = [\"token\"]\n}\n\ncredentials_helper \"oskeychain\" {\n}\n",
+			expected: cliconfig.ErrInvalidUserConfig,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -348,4 +353,29 @@ func userConfigVenv(home string, env map[string]string) *venv.Venv {
 		WithGOOS("linux").
 		WithUserHomeDir(func() (string, error) { return home, nil }).
 		WithEnv(env)
+}
+
+// TestLoadUserConfig_CredentialsHelperAcrossFiles pins that a second helper in a fragment is
+// rejected too, rather than silently overriding the one in the main file.
+func TestLoadUserConfig_CredentialsHelperAcrossFiles(t *testing.T) {
+	t.Parallel()
+
+	const home = "/virtual/home"
+
+	configDir := filepath.Join(home, ".terraform.d")
+	v := userConfigVenv(home, nil)
+
+	require.NoError(t, v.FS.MkdirAll(configDir, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte(`
+credentials_helper "vault" {
+  args = ["token"]
+}
+`), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(configDir, "10-extra.tfrc"), []byte(`
+credentials_helper "oskeychain" {
+}
+`), 0o600))
+
+	_, err := cliconfig.LoadUserConfig(v)
+	require.ErrorIs(t, err, cliconfig.ErrInvalidUserConfig)
 }

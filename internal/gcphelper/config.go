@@ -22,6 +22,9 @@ import (
 )
 
 const (
+	// envNameGoogleApplicationCredentials names the file holding Application Default Credentials.
+	envNameGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
+
 	tokenURL = "https://oauth2.googleapis.com/token"
 
 	cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
@@ -134,9 +137,14 @@ func (b *GCPConfigBuilder) Build(
 		return nil, err
 	}
 
-	if envCreds != nil {
+	switch {
+	case envCreds != nil:
 		clientOpts = append(clientOpts, envCreds)
-	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
+	// GOOGLE_APPLICATION_CREDENTIALS named a file that read as empty. Fall through to the
+	// ADC chain rather than to the remaining sources, which would authenticate as a
+	// different identity than the one the user pointed at.
+	case env[envNameGoogleApplicationCredentials] != "":
+	case gcpCfg != nil && gcpCfg.Credentials != "":
 		// Use credentials file from config
 		credOpt, err := credentialsFileOption(v, gcpCfg.Credentials)
 		if err != nil {
@@ -146,19 +154,19 @@ func (b *GCPConfigBuilder) Build(
 		if credOpt != nil {
 			clientOpts = append(clientOpts, credOpt)
 		}
-	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
+	case gcpCfg != nil && gcpCfg.AccessToken != "":
 		// Use access token from config
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcpCfg.AccessToken,
 		})
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
-	} else if oauthAccessToken := env["GOOGLE_OAUTH_ACCESS_TOKEN"]; oauthAccessToken != "" {
+	case env["GOOGLE_OAUTH_ACCESS_TOKEN"] != "":
 		// Use OAuth access token from environment
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: oauthAccessToken,
+			AccessToken: env["GOOGLE_OAUTH_ACCESS_TOKEN"],
 		})
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
-	} else if env["GOOGLE_CREDENTIALS"] != "" {
+	case env["GOOGLE_CREDENTIALS"] != "":
 		// Use GOOGLE_CREDENTIALS from environment (can be file path or JSON content)
 		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, v)
 		if err != nil {
@@ -194,7 +202,7 @@ func (b *GCPConfigBuilder) Build(
 // GOOGLE_APPLICATION_CREDENTIALS variable in v's environment. Returns nil when
 // the variable is not set.
 func createGCPCredentialsFromEnv(v *venv.Venv) (option.ClientOption, error) {
-	credentialsFile := v.Env["GOOGLE_APPLICATION_CREDENTIALS"]
+	credentialsFile := v.Env[envNameGoogleApplicationCredentials]
 	if credentialsFile == "" {
 		return nil, nil
 	}

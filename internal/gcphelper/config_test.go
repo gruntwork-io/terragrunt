@@ -292,3 +292,23 @@ func TestGcpConfigEmptyCredentialsFileFallsBackToADC(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, clientOpts)
 }
+
+// TestGcpConfigEmptyGACDoesNotFallBackToGoogleCredentials pins that an unpopulated
+// GOOGLE_APPLICATION_CREDENTIALS file falls through to ADC, not to a leftover
+// GOOGLE_CREDENTIALS naming a different service account.
+func TestGcpConfigEmptyGACDoesNotFallBackToGoogleCredentials(t *testing.T) {
+	t.Parallel()
+
+	gacFile := filepath.Join(t.TempDir(), "gac.json")
+	require.NoError(t, os.WriteFile(gacFile, nil, 0o600))
+
+	env := map[string]string{
+		"GOOGLE_APPLICATION_CREDENTIALS": gacFile,
+		"GOOGLE_CREDENTIALS":             string(serviceAccountJSON(t)),
+	}
+
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+		Build(context.Background(), venvtest.NewWithOSFS().WithEnv(env))
+	require.NoError(t, err)
+	assert.Empty(t, clientOpts, "leftover GOOGLE_CREDENTIALS must not win over an empty GAC file")
+}
