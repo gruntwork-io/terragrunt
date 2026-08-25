@@ -1,0 +1,38 @@
+---
+name: allow-command
+description: |
+  Allow MCP tools to run a program a configuration names, such as one a run_cmd or a hook calls. Repeatable. Requires --allow=exec.
+type: list(string)
+env:
+  - TG_ALLOW_COMMAND
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`mcp-command`](/reference/experiments/active#mcp-command) experiment. Enable it with `--experiment=mcp-command` or `TG_EXPERIMENT=mcp-command`.
+</Aside>
+
+[`--allow=exec`](/reference/cli/commands/mcp#allow) runs `tofu`, `terraform`, and `git`, and refuses every other program. This flag names one more, and repeats:
+
+```bash
+terragrunt mcp --allow=exec --allow-command jq --allow-command aws
+```
+
+Name the program, not a path. An invocation matches on its base name, with any `.exe` suffix removed, so `jq` covers `/usr/local/bin/jq` too. Arguments are not part of the match: allowing `sh` allows every `sh` invocation any configuration under the server root makes.
+
+## Finding out what to allow
+
+You do not have to guess. Call a tool once and read the `degraded` list, which names every program that was refused:
+
+```json
+"degraded": [
+  "stubbed \"jq -r .version\": --allow=exec runs Terragrunt's own commands, not programs a configuration names"
+]
+```
+
+If your MCP client supports elicitation (the protocol's way for a server to ask the client's user a question), the server offers those programs for approval instead, and you can decide per session rather than up front. This flag is the answer once you know which programs a tree needs and are tired of approving them.
+
+<Aside type="caution" title="Allowing is not scoping">
+An allowed program runs with the credentials and filesystem access this server process has, and Terragrunt does not inspect its arguments. Allowing `sh` therefore allows whatever a configuration puts in an `sh` invocation, which is any code it likes. Prefer naming the specific helper a configuration calls.
+</Aside>

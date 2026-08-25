@@ -1,0 +1,82 @@
+---
+name: dangerously-allow-apply
+description: |
+  Serve apply and destroy tools, which change and tear down real infrastructure. Each run is gated on a person accepting it in your MCP client. Requires --allow=exec.
+type: bool
+env:
+  - TG_DANGEROUSLY_ALLOW_APPLY
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`mcp-command`](/reference/experiments/active#mcp-command) experiment. Enable it with `--experiment=mcp-command` or `TG_EXPERIMENT=mcp-command`.
+</Aside>
+
+<Aside type="danger" title="Read this before granting it">
+This puts the ability to change and delete real infrastructure within an agent's reach. Every run is gated on a person accepting it first (see [Approval](#approval) below), but that gate is rendered by your MCP client, and Terragrunt cannot tell an accept a person made from one the client returned on its own.
+
+Grant it against infrastructure you are willing to lose, such as a throwaway or ephemeral environment, and treat granting it against production as a decision about your client and your credentials rather than about this flag.
+</Aside>
+
+Without this flag the server has no `apply` or `destroy` tool at all. The tools are not registered, so a client is never told they exist.
+
+The flag requires [`--allow=exec`](/reference/cli/commands/mcp#allow), since applying is running OpenTofu/Terraform. Passing it alone is refused at startup.
+
+## What the tools do
+
+Both take the same arguments as [`plan`](/reference/cli/commands/mcp#tools), a `working_dir` and a `filter`, and return the same per-unit summary.
+
+- `apply` runs `terragrunt run --all apply` across the units under the working directory.
+- `destroy` runs `terragrunt run --all destroy`, in dependency order.
+
+Runs are serialized with the other real-run tools, so concurrent calls queue rather than racing on the shared cache directories.
+
+## Approval
+
+Neither tool acts when the agent calls it. The first call answers with an elicitation (the protocol's way for a server to ask the client's user a question) describing what the run would do, and the run starts only when the person operating the client accepts it. A decline or a dismissal ends the call, and calling again asks again.
+
+The description names the units the run would touch, worked out the way `terragrunt find --as=apply` and `terragrunt find --as=destroy` work them out, so the `exclude` blocks belonging to the action being approved are honored.
+
+```text
+Approve running `terragrunt run --all apply`?
+
+This APPLIES the following units (3):
+  - app
+  - db
+  - vpc
+
+This names the units, not the changes: nothing was planned to build this list. Call the plan tool first to see what would change.
+
+The apply runs with -auto-approve, so accepting here is the only confirmation.
+```
+
+Call the `plan` tool first when you want the changes in front of you before accepting.
+
+A client with no way to put the question in front of a person is refused, and the run does not happen.
+
+<Aside type="caution" title="What the approval is, and is not">
+Your MCP client draws the prompt, and the acceptance comes back over the same connection the agent is on. Terragrunt can ask, but it cannot verify that a person answered. A client that auto-accepts elicitations turns the gate back off, and nothing on the Terragrunt side detects it. Treat the approval as a step that stops an agent acting unobserved, not as an authorization boundary.
+</Aside>
+
+## Narrowing what a call can touch
+
+The server root already bounds every tool: a `working_dir` resolving outside the directory the server was launched in is refused. That is a coarse bound, and for these tools it is worth making it tight. Launch the server in the environment directory you are willing to have changed, not at the repository root:
+
+```json
+// .mcp.json
+
+{
+  "mcpServers": {
+    "terragrunt-throwaway": {
+      "command": "terragrunt",
+      "args": ["mcp", "--working-dir", "/path/to/estate/throwaway", "--allow=exec", "--dangerously-allow-apply"],
+      "env": {
+        "TG_EXPERIMENT": "mcp-command"
+      }
+    }
+  }
+}
+```
+
+Beyond that, scope the credentials the server process is given to what those units need. Terragrunt cannot bound what a spawned `tofu` does with the credentials it inherits, so the credentials are the real limit on blast radius.

@@ -5,13 +5,15 @@ approved = [
   "isc",
   "mpl-2.0",
   "mit",
+  "mit-0",
   "ofl-1.1",
 ]
 
 ignored = [
   "github.com/terraform-linters/tflint-plugin-sdk",
   "github.com/owenrumney/go-sarif",
-  "github.com/davecgh/go-spew"
+  "github.com/davecgh/go-spew",
+  "github.com/modelcontextprotocol/go-sdk"
 ]
 
 

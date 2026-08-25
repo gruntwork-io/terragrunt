@@ -1,0 +1,105 @@
+---
+version: "v1.1.5"
+category: "experiments-added"
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+#### `mcp-command` — Serve Terragrunt operations to AI agents
+
+The new `mcp-command` experiment adds the [`mcp`](/reference/cli/commands/mcp) command, which serves Terragrunt operations to AI agents over the [Model Context Protocol](https://modelcontextprotocol.io).
+
+An agent can ask which units exist, how they depend on each other, whether configurations pass validation, what order the units run in, what a unit's applied outputs are, and more.
+
+Point an MCP client at the Terragrunt binary and make sure that it enables the experiment:
+
+```json
+// .mcp.json
+
+{
+  "mcpServers": {
+    "terragrunt": {
+      "command": "terragrunt",
+      "args": ["mcp"],
+      "env": {
+        "TG_EXPERIMENT": "mcp-command"
+      }
+    }
+  }
+}
+```
+
+By default, the server starts no subprocesses, so nothing an agent asks for can run `tofu`, `terraform`, `git`, or a `run_cmd` program. Wherever Terragrunt would have started one, the result substitutes something for its output and lists the substitution in a `degraded` field, such as `mock_outputs` standing in for a dependency output that `tofu output -json` would have fetched. Agents read that field to identify how and when a subprocess execution was degraded to substituted mock values.
+
+Pass `--allow=exec` to let the server run `tofu`, `terraform`, and `git`, the programs Terragrunt starts on its own during a run. A program a configuration names, through `run_cmd()`, a `before_hook`, or `--auth-provider-cmd`, is still refused. Name the ones you want to allow with `--allow-command` (e.g. `--allow-command=jq`), or let the read-only tools ask: when `discover`, `render_config`, `validate`, or `run_order` meets a refused program, it sends the client an elicitation naming it, which the client usually shows the person operating the agent, and runs again with whatever they accept. `plan`, `apply`, and `destroy` never ask, since answering would mean running them a second time.
+
+The remaining capabilities are denied the same way, each granted on its own:
+
+- `--allow=http` lets Terragrunt make HTTP requests on its own.
+
+  This includes downloading a unit's remote `terraform { source }`, fetching a stack's sources, reaching a cloud API to assume a role or read a bucket, and reading remote state directly from blob stores.
+
+- `--allow=sops` lets it decrypt SOPS-encrypted files.
+
+  Unless it is granted, `sops_decrypt_file` fails rather than handing an agent the cleartext of your secrets.
+
+Granting a capability only changes the capabilities of Terragrunt. A process started under `--allow=exec` can still reach out on the network on its own, so `tofu init` will download providers whether or not `--allow=http` was passed to allow Terragrunt to make network requests. The directory the server is launched in is its root. A tool call targeting a directory outside it is refused, and graph traversal is bounded there too, so a filter following dependencies or dependents cannot bring back a unit from a tree the server was never pointed at. That bounds what the server acts on, not what a configuration can read: an HCL function such as `file()` reads the real disk wherever it points.
+
+You can grant multiple capabilities at once:
+
+```json
+// .mcp.json
+
+{
+  "mcpServers": {
+    "terragrunt": {
+      "command": "terragrunt",
+      "args": ["mcp", "--allow=exec", "--allow=http"],
+      "env": {
+        "TG_EXPERIMENT": "mcp-command"
+      }
+    }
+  }
+}
+```
+
+A separate flag, `--dangerously-allow-apply`, adds `apply` and `destroy` tools on top of `--allow=exec`. Without it neither tool is registered, so a client is never told they exist, and the server won't ever run `apply` or `destroy` on behalf of a client.
+
+With it, the tool calls return an elicitation (the protocol's way for a server to ask the client's user a question) naming the units that would be run, and the run starts only once the person operating the client accepts it. A decline ends the tool call, and a client with no way to ask anyone is refused. The approval names the units, not the changes: nothing is planned to build that list, since a plan costs a full run that the acceptance then repeats. Call the plan tool first if you want the changes in front of you before accepting.
+
+Your client forwards that prompt to you, over the connection the agent is already on. Only grant this capability on infrastructure you are willing to lose.
+
+Passing it without `--allow=exec` is refused at startup, since applying means running OpenTofu/Terraform. Launch the server in the environment directory you are willing to have changed rather than at the repository root, because that directory is as far as any tool call can reach:
+
+```json
+// .mcp.json
+
+{
+  "mcpServers": {
+    "terragrunt-throwaway": {
+      "command": "terragrunt",
+      "args": [
+        "mcp",
+        "--working-dir", "/path/to/dev",
+        "--allow=exec",
+        "--dangerously-allow-apply"
+      ],
+      "env": {
+        "TG_EXPERIMENT": "mcp-command"
+      }
+    }
+  }
+}
+```
+
+<Aside type="caution" title="Agents managing infrastructure">
+An agent reading your estate is still an agent acting on it. A model can be confidently wrong about what a tool does, and it can be steered by things you don't expect, including the comments in configurations, module READMEs, and command output it was pointed at. Read what an agent responds with as a proposal. Keep a person between it and anything that changes real resources, and give it credentials scoped to what you are willing to have it reach.
+
+The restrictions this server places on itself are not a sandbox. They bound what the tools on this server do, and nothing else. An agent that can run shell commands can run `terragrunt run --all apply` itself, with your ambient credentials, whether or not the server was started with `--allow=exec`.
+
+You remain responsible for how your agents manage infrastructure, and for what they do with the access you give them. An agent with these tools and your credentials can change or destroy real resources, and accepting that risk is your decision.
+</Aside>
+
+The tools the server offers, the arguments they take, and what each capability grants are documented with the [`mcp` command](/reference/cli/commands/mcp).
+
+This will not stabilize before v1.3, so treat the tool set, the flag names, and the shape of every result as subject to change until then. The [experiment documentation](/reference/experiments/active#mcp-command) carries the criteria that have to be met first.

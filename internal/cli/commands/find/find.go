@@ -154,14 +154,9 @@ func discoveredToFound(
 			}
 		}
 
-		base := opts.WorkingDir
-		if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
-			base = c.DiscoveryContext().WorkingDir
-		}
-
 		foundComponent := &FoundComponent{
 			Type: c.Kind(),
-			Path: discovery.RelPathOrAbs(l, base, c.Path(), "component"),
+			Path: discovery.RelPathForComponent(l, c, opts.WorkingDir, c.Path(), "component"),
 		}
 
 		if opts.Exclude {
@@ -192,14 +187,15 @@ func discoveredToFound(
 		if opts.Reading && len(c.Reading()) > 0 {
 			foundComponent.Reading = make([]string, len(c.Reading()))
 
-			readingBase := opts.WorkingDir
-			if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
-				readingBase = c.DiscoveryContext().WorkingDir
-			}
-
 			desc := fmt.Sprintf("read path of unit %q", c.Path())
 			for i, reading := range c.Reading() {
-				foundComponent.Reading[i] = discovery.RelPathOrAbs(l, readingBase, reading, desc)
+				foundComponent.Reading[i] = discovery.RelPathForComponent(
+					l,
+					c,
+					opts.WorkingDir,
+					reading,
+					desc,
+				)
 			}
 		}
 
@@ -208,14 +204,10 @@ func discoveredToFound(
 
 			desc := fmt.Sprintf("dependency of unit %q", c.Path())
 			for i, dep := range c.Dependencies() {
-				depBase := opts.WorkingDir
-				if dep.DiscoveryContext() != nil && dep.DiscoveryContext().WorkingDir != "" {
-					depBase = dep.DiscoveryContext().WorkingDir
-				}
-
-				foundComponent.Dependencies[i] = discovery.RelPathOrAbs(
+				foundComponent.Dependencies[i] = discovery.RelPathForComponent(
 					l,
-					depBase,
+					dep,
+					opts.WorkingDir,
 					dep.Path(),
 					desc,
 				)

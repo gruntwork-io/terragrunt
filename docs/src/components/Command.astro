@@ -50,7 +50,7 @@ const visibleFlagSlugs = data?.flags
     {data?.examples.map((example) => (
       example && (
         <p>{example?.description}</p>
-        <Code code={example?.code} lang="bash" />
+        <Code code={example?.code} lang={example?.lang ?? "bash"} />
       )
     ))}
   </div>

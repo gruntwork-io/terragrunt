@@ -1,0 +1,22 @@
+---
+name: allow
+description: |
+  Grant a capability the server otherwise denies. Repeatable.
+type: list(string)
+env:
+  - TG_ALLOW
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`mcp-command`](/reference/experiments/active#mcp-command) experiment. Enable it with `--experiment=mcp-command` or `TG_EXPERIMENT=mcp-command`.
+</Aside>
+
+Turns on one capability the server otherwise denies. Repeat it for each one you want:
+
+```bash
+terragrunt mcp --allow exec --allow http
+```
+
+The capabilities, and what granting each one costs you, are documented with the [`mcp` command](/reference/cli/commands/mcp#capabilities).
