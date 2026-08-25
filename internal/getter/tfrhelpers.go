@@ -337,7 +337,7 @@ func PinModuleVersion(
 
 	registryDomain := sourceURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(auth.Env, tofuImpl)
+		registryDomain = tfimpl.DefaultRegistryDomain(auth.env(), tofuImpl)
 	}
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, c, auth, registryDomain)
@@ -558,8 +558,7 @@ type moduleVersion struct {
 // RegistryAuth carries everything the registry protocol needs to authenticate
 // a request, so nothing on the path reaches for process state of its own.
 type RegistryAuth struct {
-	Env map[string]string
-	FS  vfs.FS
+	Venv *venv.Venv
 
 	cache *registryAuthCache
 }
@@ -586,7 +585,7 @@ func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error)
 		}
 	}
 
-	if authToken := auth.Env[authTokenEnvName]; authToken != "" {
+	if authToken := auth.env()[authTokenEnvName]; authToken != "" {
 		req.Header.Add("Authorization", "Bearer "+authToken)
 	}
 
@@ -594,9 +593,7 @@ func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error)
 }
 
 func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, error) {
-	// RegistryAuth does not carry platform handles, so the production platform
-	// is valid only alongside the real filesystem.
-	if !vfs.IsOSFS(auth.FS) {
+	if !auth.canLoadUserConfig() {
 		return nil, nil
 	}
 
@@ -612,17 +609,28 @@ func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, 
 }
 
 func (auth RegistryAuth) readCredentialsSource() (*cliconfig.CredentialsSource, error) {
-	configVenv := venv.OSVenv().WithFS(auth.FS)
-	if auth.Env != nil {
-		configVenv = configVenv.WithEnv(auth.Env)
-	}
-
-	cliCfg, err := cliconfig.LoadUserConfig(configVenv)
+	cliCfg, err := cliconfig.LoadUserConfig(auth.Venv)
 	if err != nil {
 		return nil, err
 	}
 
-	return cliCfg.CredentialsSource(auth.Env), nil
+	return cliCfg.CredentialsSource(auth.Venv.Env), nil
+}
+
+func (auth RegistryAuth) env() map[string]string {
+	if auth.Venv == nil {
+		return nil
+	}
+
+	return auth.Venv.Env
+}
+
+func (auth RegistryAuth) canLoadUserConfig() bool {
+	return auth.Venv != nil &&
+		auth.Venv.Env != nil &&
+		auth.Venv.Platform != nil &&
+		auth.Venv.Platform.UserHomeDir != nil &&
+		vfs.IsOSFS(auth.Venv.FS)
 }
 
 // httpGETAndGetResponse performs a GET against getURL and returns its body and headers.

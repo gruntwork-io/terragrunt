@@ -41,7 +41,7 @@ func DefaultSourceResolvers(
 
 	tfr := NewTFRResolver().
 		WithHTTPClient(vhttp.WithTimeout(v.HTTP, tfrResolverTimeout)).
-		WithAuth(RegistryAuth{Env: cfg.env, FS: cfg.fsys})
+		WithAuth(dispatchRegistryAuth(v, &cfg))
 
 	if cfg.tfrEnabled {
 		requireLoggerFS(&cfg, SchemeTFR)
@@ -75,4 +75,16 @@ func DefaultSourceResolvers(
 	}
 
 	return resolvers
+}
+
+func dispatchRegistryAuth(v *venv.Venv, cfg *genericFetcherConfig) RegistryAuth {
+	if cfg.env == nil && cfg.fsys == nil {
+		return RegistryAuth{}
+	}
+
+	authVenv := *v
+	authVenv.Env = cfg.env
+	authVenv.FS = cfg.fsys
+
+	return RegistryAuth{Venv: &authVenv}
 }

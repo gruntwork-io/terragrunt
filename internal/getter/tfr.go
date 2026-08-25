@@ -37,7 +37,7 @@ const versionQueryKey = "version"
 // the parent's protocol set, headers, and decompressors without keeping a
 // stale *Client field around.
 //
-// Authentication reads TG_TF_REGISTRY_TOKEN from Env for a bearer token. See
+// Authentication reads TG_TF_REGISTRY_TOKEN from Venv.Env for a bearer token. See
 // [tfimpl.DefaultRegistryDomain] and
 // [github.com/gruntwork-io/terragrunt/internal/tf/cliconfig] for the rest.
 type RegistryGetter struct {
@@ -47,11 +47,9 @@ type RegistryGetter struct {
 	TofuImplementation tfimpl.Type
 }
 
-// auth assembles the credentials the registry protocol authenticates with.
-// The user's CLI config lives on the real disk, so it is only consulted when
-// the getter is running against the OS filesystem.
+// auth assembles the environment the registry protocol authenticates with.
 func (r *RegistryGetter) auth() RegistryAuth {
-	return RegistryAuth{Env: r.Venv.Env, FS: r.Venv.FS, cache: r.authCache}
+	return RegistryAuth{Venv: r.Venv, cache: r.authCache}
 }
 
 // NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol

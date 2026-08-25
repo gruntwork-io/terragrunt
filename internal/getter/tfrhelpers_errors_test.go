@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -178,7 +179,7 @@ func TestApplyHostTokenViaEnv(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
-		getter.RegistryAuth{Env: map[string]string{"TG_TF_REGISTRY_TOKEN": "my-test-token"}},
+		getter.RegistryAuth{Venv: venvtest.New().WithEnv(map[string]string{"TG_TF_REGISTRY_TOKEN": "my-test-token"})},
 		addrFromURL(t, server.URL),
 	)
 	require.NoError(t, err)
