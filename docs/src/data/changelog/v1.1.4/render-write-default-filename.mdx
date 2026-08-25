@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### `render --write` picks a default filename without a format flag
+
+`terragrunt render --write` failed with `is a directory` unless it was paired with `--format` or `--json`. Only those flags set the default filename, so a bare `--write` had no output path and Terragrunt tried to write to the unit directory itself.
+
+The default now follows the format in use. `terragrunt render --write` writes `terragrunt.rendered.hcl` next to the unit configuration, and `--json` or `--format=json` writes `terragrunt.rendered.json`. An explicit `--out` still takes precedence.
