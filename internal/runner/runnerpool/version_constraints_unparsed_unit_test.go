@@ -1,4 +1,4 @@
-package runnerpool
+package runnerpool_test
 
 import (
 	"os"
@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -55,6 +56,6 @@ func TestCheckVersionConstraints_UnparsedUnit_ResolvesConfigPathAgainstUnitDir(t
 	formatter.SetDisabledColors(true)
 	l := log.New(log.WithFormatter(formatter))
 
-	err = checkVersionConstraints(t.Context(), l, venv.OSVenv(), opts, []*component.Unit{unit})
+	err = runnerpool.CheckVersionConstraints(t.Context(), l, venv.OSVenv(), opts, []*component.Unit{unit})
 	require.NoError(t, err, "checkVersionConstraints must resolve the unit's real config path (unit.Path() joined with unit.ConfigFile()), not a bare basename resolved against the process's cwd")
 }
