@@ -137,7 +137,6 @@ func (pc *ProviderCache) Init(
 		pcOpts.Token = fmt.Sprintf("%s:%s", APIKeyAuth, pcOpts.Token)
 	}
 
-	// Pass filesystem to LoadUserConfig
 	cliCfg, err := cliconfig.LoadUserConfig(v)
 	if err != nil {
 		return err

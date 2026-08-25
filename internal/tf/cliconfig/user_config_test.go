@@ -92,3 +92,92 @@ provider_installation {
 	require.True(t, ok)
 	assert.Equal(t, []string{"registry.example.com/*/*"}, *direct.Exclude)
 }
+
+func TestLoadUserConfig_JSON(t *testing.T) {
+	t.Parallel()
+
+	const home = "/virtual/home"
+
+	configPath := filepath.Join(home, "config.tfrc.json")
+	v := venvtest.New().
+		WithUserHomeDir(func() (string, error) { return home, nil }).
+		WithEnv(map[string]string{cliconfig.EnvNameTFCLIConfigFile: configPath})
+
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, configPath, []byte(`{
+  "plugin_cache_dir": "/virtual/json-cache",
+  "credentials": {
+    "registry.example.com": {
+      "token": "json-token"
+    }
+  }
+}`), 0o600))
+
+	cfg, err := cliconfig.LoadUserConfig(v)
+	require.NoError(t, err)
+
+	assert.Equal(t, "/virtual/json-cache", cfg.PluginCacheDir)
+	assert.Equal(t, []cliconfig.ConfigCredentials{{
+		Name:  "registry.example.com",
+		Token: "json-token",
+	}}, cfg.Credentials)
+}
+
+func TestLoadUserConfig_Fragments(t *testing.T) {
+	t.Parallel()
+
+	const home = "/virtual/home"
+
+	configDir := filepath.Join(home, ".terraform.d")
+	v := venvtest.New().WithUserHomeDir(func() (string, error) { return home, nil })
+
+	require.NoError(t, v.FS.MkdirAll(configDir, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(configDir, "10-base.tfrc"), []byte(`
+plugin_cache_dir   = "/virtual/first-cache"
+disable_checkpoint = true
+
+credentials "registry.example.com" {
+  token = "first-token"
+}
+`), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(configDir, "20-override.tfrc"), []byte(`
+plugin_cache_dir             = "/virtual/second-cache"
+disable_checkpoint_signature = true
+
+credentials "registry.example.com" {
+  token = "second-token"
+}
+`), 0o600))
+
+	cfg, err := cliconfig.LoadUserConfig(v)
+	require.NoError(t, err)
+
+	assert.Equal(t, "/virtual/first-cache", cfg.PluginCacheDir)
+	assert.True(t, cfg.DisableCheckpoint)
+	assert.True(t, cfg.DisableCheckpointSignature)
+	assert.Equal(t, []cliconfig.ConfigCredentials{{
+		Name:  "registry.example.com",
+		Token: "second-token",
+	}}, cfg.Credentials)
+}
+
+func TestLoadUserConfig_PluginCacheEnvOverride(t *testing.T) {
+	t.Parallel()
+
+	const home = "/virtual/home"
+
+	v := venvtest.New().
+		WithUserHomeDir(func() (string, error) { return home, nil }).
+		WithEnv(map[string]string{"TF_PLUGIN_CACHE_DIR": "/virtual/env-cache"})
+	configPath := filepath.Join(home, ".tofurc")
+
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, configPath, []byte(`
+plugin_cache_dir = "/virtual/file-cache"
+`), 0o600))
+
+	cfg, err := cliconfig.LoadUserConfig(v)
+	require.NoError(t, err)
+
+	assert.Equal(t, "/virtual/env-cache", cfg.PluginCacheDir)
+}

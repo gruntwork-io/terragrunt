@@ -147,13 +147,22 @@ func userConfigPaths(v *venv.Venv) ([]string, error) {
 		return nil, err
 	}
 
+	fragments, err := userConfigFragments(v, configDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(paths, fragments...), nil
+}
+
+func userConfigFragments(v *venv.Venv, configDir string) ([]string, error) {
 	if configDir == "" {
-		return paths, nil
+		return nil, nil
 	}
 
 	info, err := v.FS.Stat(configDir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return paths, nil
+		return nil, nil
 	}
 
 	if err != nil {
@@ -161,7 +170,7 @@ func userConfigPaths(v *venv.Venv) ([]string, error) {
 	}
 
 	if !info.IsDir() {
-		return paths, nil
+		return nil, nil
 	}
 
 	entries, err := vfs.ReadDir(v.FS, configDir)
@@ -169,15 +178,17 @@ func userConfigPaths(v *venv.Venv) ([]string, error) {
 		return nil, fmt.Errorf("reading CLI config directory %s: %w", configDir, err)
 	}
 
+	fragments := make([]string, 0, len(entries))
+
 	for _, entry := range entries {
 		if entry.IsDir() || !isUserConfigFragment(entry.Name()) {
 			continue
 		}
 
-		paths = append(paths, filepath.Join(configDir, entry.Name()))
+		fragments = append(fragments, filepath.Join(configDir, entry.Name()))
 	}
 
-	return paths, nil
+	return fragments, nil
 }
 
 func isUserConfigFragment(name string) bool {

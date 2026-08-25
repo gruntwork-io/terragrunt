@@ -3,13 +3,17 @@ package getter_test
 import (
 	"archive/zip"
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -213,6 +217,51 @@ func TestRegistryGetterEmptyVersion(t *testing.T) {
 
 	var typed getter.MalformedRegistryURLErr
 	require.ErrorAs(t, err, &typed)
+}
+
+func TestRegistryGetterCachesCLIConfig(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "terraform.rc")
+
+	var requestCount atomic.Int32
+
+	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
+		assert.Equal(t, "Bearer configured-token", r.Header.Get("Authorization"))
+
+		if requestCount.Add(1) != 1 {
+			return
+		}
+
+		assert.NoError(t, os.WriteFile(configPath, []byte("invalid CLI config"), 0o600))
+	})
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(configPath, []byte(fmt.Sprintf(`
+credentials %q {
+  token = "configured-token"
+}
+`, serverURL.Hostname())), 0o600))
+
+	v := venvtest.NewWithOSFS().
+		WithHTTP(server.Client()).
+		WithEnv(map[string]string{cliconfig.EnvNameTFCLIConfigFile: configPath})
+	tfr := getter.NewRegistryGetter(logger.CreateLogger(), v).WithTofuImplementation(tfimpl.Terraform)
+	client := getter.NewClient(venvtest.NewWithOSFS(),
+		getter.WithCustomGettersPrepended(
+			tfr,
+			&gogetter.HttpGetter{Client: server.Client(), Netrc: true},
+		),
+	)
+
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=3.3.0",
+		Dst:     filepath.Join(t.TempDir(), "terraform-aws-vpc"),
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), requestCount.Load())
 }
 
 // newRegistryTestClient builds a Client wired to the supplied http.Client so

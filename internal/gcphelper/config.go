@@ -216,10 +216,8 @@ func credentialsFileOption(v *venv.Venv, filename string) (option.ClientOption, 
 // credentialsJSONOption authenticates with a credentials JSON payload.
 //
 // The credential type is selected explicitly because the SDK's generic JSON
-// detection is deprecated: accepting an unexpected credential type can make a
-// caller use attacker-controlled authentication endpoints. Terragrunt retains
-// support for every credential type the SDK supports, but rejects unknown
-// values before constructing credentials.
+// detection is deprecated. Terragrunt retains support for every credential type
+// the SDK supports, but rejects unknown values before constructing credentials.
 func credentialsJSONOption(v *venv.Venv, data []byte) (option.ClientOption, error) {
 	var metadata struct {
 		Type credentials.CredType `json:"type"`

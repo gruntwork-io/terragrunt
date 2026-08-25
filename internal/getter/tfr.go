@@ -43,6 +43,7 @@ const versionQueryKey = "version"
 type RegistryGetter struct {
 	Logger             log.Logger
 	Venv               *venv.Venv
+	authCache          *registryAuthCache
 	TofuImplementation tfimpl.Type
 }
 
@@ -50,7 +51,7 @@ type RegistryGetter struct {
 // The user's CLI config lives on the real disk, so it is only consulted when
 // the getter is running against the OS filesystem.
 func (r *RegistryGetter) auth() RegistryAuth {
-	return RegistryAuth{Env: r.Venv.Env, FS: r.Venv.FS}
+	return RegistryAuth{Env: r.Venv.Env, FS: r.Venv.FS, cache: r.authCache}
 }
 
 // NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol
@@ -67,6 +68,7 @@ func NewRegistryGetter(l log.Logger, v *venv.Venv) *RegistryGetter {
 		Logger:             l,
 		Venv:               v,
 		TofuImplementation: tfimpl.OpenTofu,
+		authCache:          &registryAuthCache{},
 	}
 }
 
@@ -80,6 +82,8 @@ func (r *RegistryGetter) WithTofuImplementation(impl tfimpl.Type) *RegistryGette
 // WithEnv sets the environment the registry auth token is read from.
 func (r *RegistryGetter) WithEnv(env map[string]string) *RegistryGetter {
 	r.Venv = r.Venv.WithEnv(env)
+	r.authCache = &registryAuthCache{}
+
 	return r
 }
 

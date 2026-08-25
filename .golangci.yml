@@ -167,8 +167,12 @@ linters:
       asserts: true
       comparison: true
     goconst:
-      ignore-map-keys: true
+      # v2.12+ counts package-wide test fixtures; keep repeated test data local.
+      # Tracked upstream: https://github.com/golangci/golangci-lint/issues/6563
       ignore-tests: true
+      # v2.13+ reports repeated schema/config map keys, which are data rather than constants.
+      # Tracked upstream: https://github.com/golangci/golangci-lint/issues/6707
+      ignore-map-keys: true
       min-len: 3
       min-occurrences: 5
     gocritic:
@@ -177,8 +181,6 @@ linters:
       disabled-tags:
         - experimental
     govet:
-      disable:
-        - inline
       enable:
         - fieldalignment
         - printf

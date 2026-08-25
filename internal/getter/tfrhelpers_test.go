@@ -591,11 +591,21 @@ func TestGetMatchingModuleVersionUnparsableConstraint(t *testing.T) {
 func newRegistryTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
+	return newRegistryTestServerWithRequestHook(t, func(*http.Request) {})
+}
+
+func newRegistryTestServerWithRequestHook(
+	t *testing.T,
+	requestHook func(*http.Request),
+) *httptest.Server {
+	t.Helper()
+
 	zipBody := buildModuleZip(t)
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
+		requestHook(r)
 		w.Header().Set("Content-Type", "application/json")
 		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
 		assert.NoError(t, err)
@@ -607,7 +617,8 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	// (TestPinModuleVersion).
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/versions",
-		func(w http.ResponseWriter, _ *http.Request) {
+		func(w http.ResponseWriter, r *http.Request) {
+			requestHook(r)
 			w.Header().Set("Content-Type", "application/json")
 			_, err := w.Write(
 				[]byte(
@@ -623,6 +634,7 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/{version}/download",
 		func(w http.ResponseWriter, r *http.Request) {
+			requestHook(r)
 			// Resolve against the request host so the downloader hits the same
 			// test server we are about to shut down at end-of-test.
 			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")

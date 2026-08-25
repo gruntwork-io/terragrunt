@@ -560,25 +560,26 @@ type moduleVersion struct {
 type RegistryAuth struct {
 	Env map[string]string
 	FS  vfs.FS
+
+	cache *registryAuthCache
+}
+
+type registryAuthCache struct {
+	credentialsSource *cliconfig.CredentialsSource
+	err               error
+	once              sync.Once
 }
 
 // applyHostToken adds an Authorization header to req based on the user's
 // OpenTofu/Terraform CLI config or the TG_TF_REGISTRY_TOKEN env var.
 func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error) {
-	// RegistryAuth does not carry platform handles, so the production platform
-	// is valid only alongside the real filesystem.
-	if vfs.IsOSFS(auth.FS) {
-		configVenv := venv.OSVenv().WithFS(auth.FS)
-		if auth.Env != nil {
-			configVenv = configVenv.WithEnv(auth.Env)
-		}
+	credentialsSource, err := auth.loadCredentialsSource()
+	if err != nil {
+		return nil, err
+	}
 
-		cliCfg, err := cliconfig.LoadUserConfig(configVenv)
-		if err != nil {
-			return nil, err
-		}
-
-		if creds := cliCfg.CredentialsSource(auth.Env).
+	if credentialsSource != nil {
+		if creds := credentialsSource.
 			ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
 			creds.PrepareRequest(req)
 			return req, nil
@@ -590,6 +591,38 @@ func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error)
 	}
 
 	return req, nil
+}
+
+func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, error) {
+	// RegistryAuth does not carry platform handles, so the production platform
+	// is valid only alongside the real filesystem.
+	if !vfs.IsOSFS(auth.FS) {
+		return nil, nil
+	}
+
+	if auth.cache == nil {
+		return auth.readCredentialsSource()
+	}
+
+	auth.cache.once.Do(func() {
+		auth.cache.credentialsSource, auth.cache.err = auth.readCredentialsSource()
+	})
+
+	return auth.cache.credentialsSource, auth.cache.err
+}
+
+func (auth RegistryAuth) readCredentialsSource() (*cliconfig.CredentialsSource, error) {
+	configVenv := venv.OSVenv().WithFS(auth.FS)
+	if auth.Env != nil {
+		configVenv = configVenv.WithEnv(auth.Env)
+	}
+
+	cliCfg, err := cliconfig.LoadUserConfig(configVenv)
+	if err != nil {
+		return nil, err
+	}
+
+	return cliCfg.CredentialsSource(auth.Env), nil
 }
 
 // httpGETAndGetResponse performs a GET against getURL and returns its body and headers.
