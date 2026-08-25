@@ -138,6 +138,6 @@ dependency "shard" {
 # }
 ```
 
-The expanded blocks are in comments because expanded blocks are not valid HCL configurations (Terragrunt disallows having multiple `dependency` blocks with the same label). They are present as comments to help you predict how Terragrunt will expand the block with an `expansion` block.
+The expanded blocks are in comments because they are not a valid Terragrunt configuration: they all carry one label, and only the last block with a given label can be referenced. Terragrunt warns about that, and rejects it outright under the `duplicate-dependency-labels` [strict control](/reference/strict-controls/active#duplicate-dependency-labels). They are present as comments to help you predict how Terragrunt will expand the block with an `expansion` block.
 
 A `dependency` block with no `expansion` block renders as it always has.

@@ -767,10 +767,9 @@ func groupExpandedDependencies(deps Dependencies) []dependencyGroup {
 // appendExpansionPreview writes an expanded block as it was written, followed by the
 // elements it expanded into, commented out and with every reference resolved.
 //
-// The elements stay comments because they all repeat the block's label. Terragrunt reads
-// repeated labels without complaint, but every reference to one resolves to the last
-// block carrying it, so uncommented elements would render a config that quietly drops all
-// but one of them.
+// The elements stay comments because they all repeat the block's label, which
+// [validateUniqueDependencies] warns about and, under its strict control, rejects.
+// Rendering them as configuration would produce a file that reads back as one dependency.
 func appendExpansionPreview(body *hclwrite.Body, group dependencyGroup) error {
 	source, diags := hclwrite.ParseConfig(
 		[]byte(group.source.Text),
@@ -1731,7 +1730,7 @@ func ParseConfig(
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(pctx, l, file, evalContext)
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx, pctx, l, file, evalContext)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1978,6 +1977,7 @@ func setIAMRole(
 }
 
 func decodeAsTerragruntConfigFile(
+	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
 	file *hclparse.File,
@@ -2001,7 +2001,7 @@ func decodeAsTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
+	dependencies, err := decodeDependencyBlocks(ctx, pctx, l, file, evalContext)
 	if err != nil {
 		return &terragruntConfig, err
 	}

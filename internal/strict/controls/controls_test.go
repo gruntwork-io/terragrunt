@@ -248,3 +248,16 @@ func TestControlEvaluate(t *testing.T) {
 		require.ErrorIs(t, err, bootErr)
 	})
 }
+
+// TestDuplicateDependencyLabelsControlIsRegistered pins that the control the dependency
+// decoder looks up by name is one the registry hands back.
+func TestDuplicateDependencyLabelsControlIsRegistered(t *testing.T) {
+	t.Parallel()
+
+	ctrl := controls.New().Find(controls.DuplicateDependencyLabels)
+
+	if assert.NotNil(t, ctrl, "duplicate-dependency-labels must be registered") {
+		assert.Equal(t, strict.ActiveStatus, ctrl.GetStatus())
+		assert.Error(t, ctrl.(*controls.Control).Error)
+	}
+}

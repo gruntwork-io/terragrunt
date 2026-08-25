@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -270,10 +271,14 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 // decodeDependencyBlocks decodes a config's dependency blocks, returning one Dependency
 // per iteration element. A block that declares no expansion yields a single Dependency.
 func decodeDependencyBlocks(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
-	experiments experiment.Experiments,
 ) (Dependencies, error) {
+	experiments := pctx.Experiments
+
 	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext)
 	if err != nil {
 		return nil, err
@@ -303,7 +308,61 @@ func decodeDependencyBlocks(
 		dependencies = append(dependencies, *dep)
 	}
 
+	if err := validateUniqueDependencies(ctx, pctx, l, file.ConfigPath, dependencies); err != nil {
+		return nil, err
+	}
+
 	return dependencies, nil
+}
+
+// validateUniqueDependencies reports two dependency blocks in one config that address the
+// same dependency. HCL allows the repeated label, and nothing downstream reports it: the
+// dependency map is keyed by address, so the last block silently wins and the ones before
+// it become unreachable.
+//
+// Whether that is an error or a warning is left to the duplicate-dependency-labels strict
+// control, since configs carrying a shadowed block have always run.
+func validateUniqueDependencies(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	configPath string,
+	deps Dependencies,
+) error {
+	address, found := duplicateDependencyAddress(deps)
+	if !found {
+		return nil
+	}
+
+	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
+	if control == nil {
+		return errors.New("failed to find control " + controls.DuplicateDependencyLabels)
+	}
+
+	if control.GetEnabled() {
+		return DuplicateDependencyError{ConfigPath: configPath, Address: address}
+	}
+
+	return control.Evaluate(log.ContextWithLogger(ctx, l))
+}
+
+// duplicateDependencyAddress returns the first address that two dependency blocks both
+// claim. Blocks are compared by address rather than by label, so the elements of an
+// expanded block, which all carry the label the block was written with, stay distinct.
+func duplicateDependencyAddress(deps Dependencies) (string, bool) {
+	seen := make(map[string]struct{}, len(deps))
+
+	for i := range deps {
+		address := deps[i].mergeKey()
+
+		if _, duplicate := seen[address]; duplicate {
+			return address, true
+		}
+
+		seen[address] = struct{}{}
+	}
+
+	return "", false
 }
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
@@ -323,7 +382,7 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocks(file, evalParsingContext, pctx.Experiments)
+	dependencies, err := decodeDependencyBlocks(ctx, pctx, l, file, evalParsingContext)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,35 @@
+---
+name: duplicate-dependency-labels
+status: active
+---
+
+Throw an error when two `dependency` blocks in one configuration claim the same address.
+
+### `duplicate-dependency-labels` - Reason
+
+Two `dependency` blocks written with the same label both parse, and Terragrunt then resolves every reference to that label to whichever block came last. The blocks before it are unreachable, with nothing to say so:
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc-us-east-1"
+}
+
+dependency "vpc" {
+  config_path = "../vpc-us-west-2"
+}
+
+inputs = {
+  # Reads ../vpc-us-west-2. The first block may as well not be there.
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+Terragrunt warns about this by default. Enabling the control turns it into an error naming the address the blocks share:
+
+```text
+/path/to/terragrunt.hcl: dependency vpc is declared more than once; every dependency needs an address of its own
+```
+
+Give each block a label of its own. A configuration that was relying on the shadowing to pick the last block should keep only that block.
+
+Blocks are compared by the address they resolve to rather than by label alone, so the elements of a block expanded with the [`block-iteration`](/reference/experiments/active#block-iteration) experiment, which all carry the label the block was written with, remain valid.
