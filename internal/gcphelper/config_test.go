@@ -13,7 +13,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"cloud.google.com/go/auth/credentials"
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -253,29 +256,44 @@ func TestGcpConfigCredentialsPayloads(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		expected error
-		name     string
-		payload  string
+		name    string
+		payload string
 	}{
-		{name: "unsupported type", payload: `{"type":"gce_metadata"}`, expected: gcphelper.ErrBuildingCredentials},
-		{name: "missing type", payload: `{"client_email":"a@b.com"}`, expected: gcphelper.ErrParsingCredentials},
-		{name: "not json", payload: `not-json`, expected: gcphelper.ErrParsingCredentials},
-		{name: "json array", payload: `["a"]`, expected: gcphelper.ErrParsingCredentials},
+		{name: "missing type", payload: `{"client_email":"a@b.com"}`},
+		{name: "not json", payload: `not-json`},
+		{name: "json array", payload: `["a"]`},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			credsFile := filepath.Join(t.TempDir(), "credentials.json")
-			require.NoError(t, os.WriteFile(credsFile, []byte(tc.payload), 0o600))
+			v := gcpCredentialsVenv(t, []byte(tc.payload))
 
 			_, err := gcphelper.NewGCPConfigBuilder().
-				WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: credsFile}).
-				Build(context.Background(), venvtest.NewWithOSFS().WithEnv(map[string]string{}))
-			require.ErrorIs(t, err, tc.expected)
+				WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: virtualCredentialsPath}).
+				Build(t.Context(), v)
+
+			var parseErr gcphelper.ParsingCredentialsError
+			require.ErrorAs(t, err, &parseErr)
 		})
 	}
+}
+
+// TestGcpConfigUnsupportedCredentialsType pins that a type the SDK does not accept is
+// reported as a build failure naming the type, not as a parse failure.
+func TestGcpConfigUnsupportedCredentialsType(t *testing.T) {
+	t.Parallel()
+
+	v := gcpCredentialsVenv(t, []byte(`{"type":"gce_metadata"}`))
+
+	_, err := gcphelper.NewGCPConfigBuilder().
+		WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: virtualCredentialsPath}).
+		Build(t.Context(), v)
+
+	var buildErr gcphelper.BuildingCredentialsError
+	require.ErrorAs(t, err, &buildErr)
+	assert.Equal(t, credentials.CredType("gce_metadata"), buildErr.CredType)
 }
 
 // TestGcpConfigEmptyCredentialsFileFallsBackToADC pins the behaviour an unpopulated secret
@@ -283,12 +301,11 @@ func TestGcpConfigCredentialsPayloads(t *testing.T) {
 func TestGcpConfigEmptyCredentialsFileFallsBackToADC(t *testing.T) {
 	t.Parallel()
 
-	credsFile := filepath.Join(t.TempDir(), "credentials.json")
-	require.NoError(t, os.WriteFile(credsFile, nil, 0o600))
+	v := gcpCredentialsVenv(t, nil)
 
 	clientOpts, err := gcphelper.NewGCPConfigBuilder().
-		WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: credsFile}).
-		Build(context.Background(), venvtest.NewWithOSFS().WithEnv(map[string]string{}))
+		WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: virtualCredentialsPath}).
+		Build(t.Context(), v)
 	require.NoError(t, err)
 	assert.Empty(t, clientOpts)
 }
@@ -299,16 +316,27 @@ func TestGcpConfigEmptyCredentialsFileFallsBackToADC(t *testing.T) {
 func TestGcpConfigEmptyGACDoesNotFallBackToGoogleCredentials(t *testing.T) {
 	t.Parallel()
 
-	gacFile := filepath.Join(t.TempDir(), "gac.json")
-	require.NoError(t, os.WriteFile(gacFile, nil, 0o600))
-
-	env := map[string]string{
-		"GOOGLE_APPLICATION_CREDENTIALS": gacFile,
+	v := gcpCredentialsVenv(t, nil).WithEnv(map[string]string{
+		"GOOGLE_APPLICATION_CREDENTIALS": virtualCredentialsPath,
 		"GOOGLE_CREDENTIALS":             string(serviceAccountJSON(t)),
-	}
+	})
 
-	clientOpts, err := gcphelper.NewGCPConfigBuilder().
-		Build(context.Background(), venvtest.NewWithOSFS().WithEnv(env))
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().Build(t.Context(), v)
 	require.NoError(t, err)
 	assert.Empty(t, clientOpts, "leftover GOOGLE_CREDENTIALS must not win over an empty GAC file")
+}
+
+// virtualCredentialsPath is where gcpCredentialsVenv writes the payload under test.
+const virtualCredentialsPath = "/virtual/gcp/credentials.json"
+
+// gcpCredentialsVenv returns an in-memory venv holding payload at [virtualCredentialsPath].
+func gcpCredentialsVenv(t *testing.T, payload []byte) *venv.Venv {
+	t.Helper()
+
+	v := venvtest.New().WithEnv(map[string]string{})
+
+	require.NoError(t, v.FS.MkdirAll(filepath.Dir(virtualCredentialsPath), 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, virtualCredentialsPath, payload, 0o600))
+
+	return v
 }
