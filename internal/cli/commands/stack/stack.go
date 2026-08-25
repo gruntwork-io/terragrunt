@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -156,8 +158,10 @@ func RunOutput(
 		return err
 	}
 
-	// Filter outputs based on index key
-	filteredOutputs := FilterOutputs(outputs, index)
+	filteredOutputs, err := FilterOutputs(outputs, index)
+	if err != nil {
+		return err
+	}
 
 	// render outputs
 
@@ -181,41 +185,90 @@ func RunOutput(
 	return nil
 }
 
-// FilterOutputs filters the outputs based on the provided index key.
-func FilterOutputs(outputs cty.Value, index string) cty.Value {
+// FilterOutputs narrows outputs to the value at index, an address such as `vpc.id`,
+// `shard["web"].id`, or `shard[0].id`, still wrapped in the objects it was nested in.
+// An address that names nothing yields [cty.NilVal], which prints as no output.
+func FilterOutputs(outputs cty.Value, index string) (cty.Value, error) {
 	if !outputs.IsKnown() || outputs.IsNull() || len(index) == 0 {
-		return outputs
+		return outputs, nil
 	}
 
-	// Split the index into parts
-	indexParts := strings.Split(index, ".")
-	// Traverse the map using the index parts
-	currentValue := outputs
-	for _, part := range indexParts {
-		// Check if the current value is a map or object
-		if currentValue.Type().IsObjectType() || currentValue.Type().IsMapType() {
-			valueMap := currentValue.AsValueMap()
-			if nextValue, exists := valueMap[part]; exists {
-				currentValue = nextValue
-			} else {
-				// If any part of the index path is not found, return NilVal
-				return cty.NilVal
+	segments, err := parseOutputAddress(index)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	current := outputs
+
+	for _, segment := range segments {
+		if !current.Type().IsObjectType() && !current.Type().IsMapType() {
+			return cty.NilVal, nil
+		}
+
+		next, exists := current.AsValueMap()[segment]
+		if !exists {
+			return cty.NilVal, nil
+		}
+
+		current = next
+	}
+
+	for i := len(segments) - 1; i >= 0; i-- {
+		current = cty.ObjectVal(map[string]cty.Value{segments[i]: current})
+	}
+
+	return current, nil
+}
+
+// parseOutputAddress splits an output address into the segments it names. It reads the
+// address as an HCL traversal rather than splitting on dots, so that one element of an
+// expanded unit can be addressed as `shard["web"]` and an iteration key containing a dot
+// stays in one piece.
+func parseOutputAddress(index string) ([]string, error) {
+	traversal, diags := hclsyntax.ParseTraversalAbs([]byte(index), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, InvalidOutputAddressError{Address: index, Err: diags}
+	}
+
+	segments := make([]string, 0, len(traversal))
+
+	for _, step := range traversal {
+		switch step := step.(type) {
+		case hcl.TraverseRoot:
+			segments = append(segments, step.Name)
+		case hcl.TraverseAttr:
+			segments = append(segments, step.Name)
+		case hcl.TraverseIndex:
+			key, err := convert.Convert(step.Key, cty.String)
+			if err != nil {
+				return nil, InvalidOutputAddressError{Address: index, Err: err}
 			}
-		} else {
-			// If the current value is not a map or object, return NilVal
-			return cty.NilVal
+
+			segments = append(segments, key.AsString())
+		default:
+			return nil, InvalidOutputAddressError{
+				Address: index,
+				Err:     fmt.Errorf("unsupported address step %T", step),
+			}
 		}
 	}
 
-	// Reconstruct the nested map structure
-	nested := currentValue
-	for i := len(indexParts) - 1; i >= 0; i-- {
-		nested = cty.ObjectVal(map[string]cty.Value{
-			indexParts[i]: nested,
-		})
-	}
+	return segments, nil
+}
 
-	return nested
+// InvalidOutputAddressError reports an output address that cannot be parsed. An address
+// that parses but names no unit is not an error; it yields no output.
+type InvalidOutputAddressError struct {
+	Err     error
+	Address string
+}
+
+func (err InvalidOutputAddressError) Error() string {
+	return fmt.Sprintf("invalid output address %q: %v", err.Address, err.Err)
+}
+
+func (err InvalidOutputAddressError) Unwrap() error {
+	return err.Err
 }
 
 // RunClean recursively removes all stack directories under the specified WorkingDir.

@@ -198,6 +198,10 @@ func writeRendered(l log.Logger, fsys vfs.FS, opts *Options, data []byte) error 
 // just the "value".
 // NOTE: We have to do two marshalling passes so that we can extract just the value.
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
+	if err := ctyhelper.ValidateNumberRanges(ctyVal); err != nil {
+		return nil, err
+	}
+
 	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
 	if err != nil {
 		return nil, err
