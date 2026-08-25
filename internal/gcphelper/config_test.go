@@ -248,3 +248,67 @@ func TestGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
+
+func TestGcpConfigCredentialsPayloads(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expected error
+		name     string
+		payload  string
+	}{
+		{name: "unsupported type", payload: `{"type":"gce_metadata"}`, expected: gcphelper.ErrBuildingCredentials},
+		{name: "missing type", payload: `{"client_email":"a@b.com"}`, expected: gcphelper.ErrParsingCredentials},
+		{name: "not json", payload: `not-json`, expected: gcphelper.ErrParsingCredentials},
+		{name: "json array", payload: `["a"]`, expected: gcphelper.ErrParsingCredentials},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			credsFile := filepath.Join(t.TempDir(), "credentials.json")
+			require.NoError(t, os.WriteFile(credsFile, []byte(tc.payload), 0o600))
+
+			_, err := gcphelper.NewGCPConfigBuilder().
+				WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: credsFile}).
+				Build(context.Background(), venvtest.NewWithOSFS().WithEnv(map[string]string{}))
+			require.ErrorIs(t, err, tc.expected)
+		})
+	}
+}
+
+// TestGcpConfigEmptyCredentialsFileFallsBackToADC pins the behaviour an unpopulated secret
+// volume depends on: an empty file contributes no option rather than failing the run.
+func TestGcpConfigEmptyCredentialsFileFallsBackToADC(t *testing.T) {
+	t.Parallel()
+
+	credsFile := filepath.Join(t.TempDir(), "credentials.json")
+	require.NoError(t, os.WriteFile(credsFile, nil, 0o600))
+
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+		WithSessionConfig(&gcphelper.GCPSessionConfig{Credentials: credsFile}).
+		Build(context.Background(), venvtest.NewWithOSFS().WithEnv(map[string]string{}))
+	require.NoError(t, err)
+	assert.Empty(t, clientOpts)
+}
+
+// TestGcpConfigEmptyGACDoesNotFallBackToGoogleCredentials pins that an unpopulated
+// GOOGLE_APPLICATION_CREDENTIALS file falls through to ADC, not to a leftover
+// GOOGLE_CREDENTIALS naming a different service account.
+func TestGcpConfigEmptyGACDoesNotFallBackToGoogleCredentials(t *testing.T) {
+	t.Parallel()
+
+	gacFile := filepath.Join(t.TempDir(), "gac.json")
+	require.NoError(t, os.WriteFile(gacFile, nil, 0o600))
+
+	env := map[string]string{
+		"GOOGLE_APPLICATION_CREDENTIALS": gacFile,
+		"GOOGLE_CREDENTIALS":             string(serviceAccountJSON(t)),
+	}
+
+	clientOpts, err := gcphelper.NewGCPConfigBuilder().
+		Build(context.Background(), venvtest.NewWithOSFS().WithEnv(env))
+	require.NoError(t, err)
+	assert.Empty(t, clientOpts, "leftover GOOGLE_CREDENTIALS must not win over an empty GAC file")
+}

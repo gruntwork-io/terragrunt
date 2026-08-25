@@ -2,9 +2,9 @@
 package gcphelper
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"net/http"
@@ -22,6 +22,9 @@ import (
 )
 
 const (
+	// envNameGoogleApplicationCredentials names the file holding Application Default Credentials.
+	envNameGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
+
 	tokenURL = "https://oauth2.googleapis.com/token"
 
 	cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
@@ -134,29 +137,36 @@ func (b *GCPConfigBuilder) Build(
 		return nil, err
 	}
 
-	if envCreds != nil {
+	switch {
+	case envCreds != nil:
 		clientOpts = append(clientOpts, envCreds)
-	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
+	// GOOGLE_APPLICATION_CREDENTIALS named a file that read as empty. Fall through to the
+	// ADC chain rather than to the remaining sources, which would authenticate as a
+	// different identity than the one the user pointed at.
+	case env[envNameGoogleApplicationCredentials] != "":
+	case gcpCfg != nil && gcpCfg.Credentials != "":
 		// Use credentials file from config
 		credOpt, err := credentialsFileOption(v, gcpCfg.Credentials)
 		if err != nil {
 			return nil, err
 		}
 
-		clientOpts = append(clientOpts, credOpt)
-	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
+		if credOpt != nil {
+			clientOpts = append(clientOpts, credOpt)
+		}
+	case gcpCfg != nil && gcpCfg.AccessToken != "":
 		// Use access token from config
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcpCfg.AccessToken,
 		})
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
-	} else if oauthAccessToken := env["GOOGLE_OAUTH_ACCESS_TOKEN"]; oauthAccessToken != "" {
+	case env["GOOGLE_OAUTH_ACCESS_TOKEN"] != "":
 		// Use OAuth access token from environment
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: oauthAccessToken,
+			AccessToken: env["GOOGLE_OAUTH_ACCESS_TOKEN"],
 		})
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
-	} else if env["GOOGLE_CREDENTIALS"] != "" {
+	case env["GOOGLE_CREDENTIALS"] != "":
 		// Use GOOGLE_CREDENTIALS from environment (can be file path or JSON content)
 		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, v)
 		if err != nil {
@@ -192,7 +202,7 @@ func (b *GCPConfigBuilder) Build(
 // GOOGLE_APPLICATION_CREDENTIALS variable in v's environment. Returns nil when
 // the variable is not set.
 func createGCPCredentialsFromEnv(v *venv.Venv) (option.ClientOption, error) {
-	credentialsFile := v.Env["GOOGLE_APPLICATION_CREDENTIALS"]
+	credentialsFile := v.Env[envNameGoogleApplicationCredentials]
 	if credentialsFile == "" {
 		return nil, nil
 	}
@@ -213,21 +223,39 @@ func credentialsFileOption(v *venv.Venv, filename string) (option.ClientOption, 
 	return credentialsJSONOption(v, data)
 }
 
-// credentialsJSONOption authenticates with a credentials JSON payload.
+// credentialsJSONOption authenticates with a credentials JSON payload, or returns a nil
+// option when the payload is empty so the caller falls through to the ADC chain the way
+// the SDK's own detection does.
 //
-// The credentials are detected here rather than by the SDK, which detects with
-// a client of its own making (google.golang.org/api/internal.creds) and would
-// put the token exchange on a transport the venv never sees. Detection also
-// covers every credential type the JSON can name, so the type does not have to
-// be recognized up front.
+// The payload's type is read here rather than by the SDK's generic JSON detection, whose
+// CredentialsJSON option is deprecated. The credentials are still built on v.HTTP, because
+// the SDK would otherwise put the token exchange on a client of its own making
+// (google.golang.org/api/internal.creds) that the venv never sees.
 func credentialsJSONOption(v *venv.Venv, data []byte) (option.ClientOption, error) {
-	creds, err := credentials.DetectDefault(&credentials.DetectOptions{
-		CredentialsJSON: data,
-		Scopes:          gcsScopes(),
-		Client:          v.HTTP,
+	if len(bytes.TrimSpace(data)) == 0 {
+		return nil, nil
+	}
+
+	var metadata struct {
+		Type credentials.CredType `json:"type"`
+	}
+
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrParsingCredentials, err)
+	}
+
+	// The SDK reports a missing type as an unsupported filetype, which does not say what is wrong.
+	if metadata.Type == "" {
+		return nil, fmt.Errorf("%w: the payload has no \"type\" field", ErrParsingCredentials)
+	}
+
+	// Every credential type the SDK accepts is passed through; it rejects the rest itself.
+	creds, err := credentials.NewCredentialsFromJSON(metadata.Type, data, &credentials.DetectOptions{
+		Scopes: gcsScopes(),
+		Client: v.HTTP,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error detecting GCP credentials: %w", err)
+		return nil, fmt.Errorf("%w of type %q: %w", ErrBuildingCredentials, metadata.Type, err)
 	}
 
 	return option.WithAuthCredentials(creds), nil
@@ -255,7 +283,7 @@ func createGCPCredentialsFromGoogleCredentialsEnv(
 	}
 
 	if err := json.Unmarshal([]byte(contents), &account); err != nil {
-		return nil, errors.New("error parsing GCP credentials")
+		return nil, fmt.Errorf("%w from GOOGLE_CREDENTIALS: %w", ErrParsingCredentials, err)
 	}
 
 	conf := jwt.Config{

@@ -74,7 +74,7 @@ func (handler *ProxyProviderHandler) GetVersions(
 	}
 
 	reqURL := &url.URL{
-		Scheme: "https",
+		Scheme: schemeHTTPS,
 		Host:   provider.RegistryName,
 		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, "versions"),
 	}
@@ -94,7 +94,7 @@ func (handler *ProxyProviderHandler) GetPlatform(
 	}
 
 	platformURL := &url.URL{
-		Scheme: "https",
+		Scheme: schemeHTTPS,
 		Host:   provider.RegistryName,
 		Path: path.Join(
 			apiURLs.ProvidersV1,
@@ -124,7 +124,7 @@ func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models
 		}
 
 		downloadURL := &url.URL{
-			Scheme: "https",
+			Scheme: schemeHTTPS,
 			Host:   provider.RegistryName,
 			Path: filepath.Join(
 				apiURLs.ProvidersV1,

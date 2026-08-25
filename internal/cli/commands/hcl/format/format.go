@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/rogpeppe/go-internal/diff"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"errors"
