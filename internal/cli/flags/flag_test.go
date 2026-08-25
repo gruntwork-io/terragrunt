@@ -2,6 +2,7 @@ package flags_test
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -164,6 +165,87 @@ func TestFlag_Evaluate(t *testing.T) {
 
 			outputLines := strings.Split(strings.TrimSpace(output.String()), "\n")
 			assert.Equal(t, tc.expectedOutput, outputLines)
+		})
+	}
+}
+
+func TestFlag_Parse(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		expected    string
+		args        clihelper.Args
+		expectedErr bool
+	}{
+		{
+			name:     "accepted value",
+			args:     clihelper.Args{"--level", "debug"},
+			expected: "debug",
+		},
+		{
+			name:        "value rejected by the flag setter",
+			args:        clihelper.Args{"--level", "bogus"},
+			expectedErr: true,
+		},
+		{
+			name:        "value missing",
+			args:        clihelper.Args{"--level"},
+			expectedErr: true,
+		},
+		{
+			name: "flag belonging to another parser",
+			args: clihelper.Args{"--some-other-flag"},
+		},
+		{
+			name:     "value after a flag belonging to another parser",
+			args:     clihelper.Args{"--some-other-flag", "--level", "debug"},
+			expected: "debug",
+		},
+		{
+			name:        "rejected value after a flag belonging to another parser",
+			args:        clihelper.Args{"--some-other-flag", "--level", "bogus"},
+			expectedErr: true,
+		},
+		{
+			name:     "value after --help",
+			args:     clihelper.Args{"--help", "--level", "debug"},
+			expected: "debug",
+		},
+		{
+			name: "-h alone",
+			args: clihelper.Args{"-h"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got string
+
+			testFlag := flags.NewFlag(&clihelper.GenericFlag[string]{
+				Name: "level",
+				Setter: func(val string) error {
+					if val == "bogus" {
+						return errors.New("unsupported level")
+					}
+
+					got = val
+
+					return nil
+				},
+			})
+
+			err := testFlag.Parse(tc.args, map[string]string{})
+
+			if tc.expectedErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
 		})
 	}
 }

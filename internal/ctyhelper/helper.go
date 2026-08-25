@@ -6,6 +6,11 @@ package ctyhelper
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"math"
+	"math/big"
+	"strconv"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -37,6 +42,10 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 
 	// Unmark the value (including nested values) before JSON serialization as JSON doesn't support marks.
 	unmarkedValue, _ := value.UnmarkDeep()
+
+	if err := ValidateNumberRanges(unmarkedValue); err != nil {
+		return nil, err
+	}
 
 	jsonBytes, err := ctyjson.Marshal(unmarkedValue, cty.DynamicPseudoType)
 	if err != nil {
@@ -116,4 +125,85 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	}
 
 	return value, nil
+}
+
+// MaxNumberDecimalExponent is the largest power of ten a number's magnitude may reach, in
+// either direction, before Terragrunt refuses to serialize it.
+const MaxNumberDecimalExponent = 4096
+
+// NumberOutOfRangeError reports a number that is too far from zero, or too close to it, for
+// Terragrunt to serialize.
+type NumberOutOfRangeError struct {
+	Path cty.Path
+}
+
+func (err NumberOutOfRangeError) Error() string {
+	msg := fmt.Sprintf(
+		"number is outside the supported range of 1e-%d to 1e%d",
+		MaxNumberDecimalExponent, MaxNumberDecimalExponent,
+	)
+
+	if attrPath := strings.TrimPrefix(ctyPathString(err.Path), "."); attrPath != "" {
+		return attrPath + ": " + msg
+	}
+
+	return msg
+}
+
+// ValidateNumberRanges returns a [NumberOutOfRangeError] for the first number nested anywhere in
+// value whose magnitude runs past [MaxNumberDecimalExponent] powers of ten in either direction.
+//
+// Numbers reach Terragrunt as arbitrary-precision floats, and writing one out in decimal costs far
+// more time and memory than its digit count suggests. The literal 9E9999999 parses in microseconds
+// and then takes minutes to render as a ten megabyte string, so callers check the range before
+// serializing a value that came from a user.
+func ValidateNumberRanges(value cty.Value) error {
+	return cty.Walk(value, func(path cty.Path, val cty.Value) (bool, error) {
+		if !val.Type().Equals(cty.Number) || val.IsNull() || !val.IsKnown() {
+			return true, nil
+		}
+
+		unmarked, _ := val.Unmark()
+
+		exp := unmarked.AsBigFloat().MantExp(nil)
+		if (math.Abs(float64(exp))-1)*(math.Ln2/math.Ln10) > MaxNumberDecimalExponent {
+			return false, NumberOutOfRangeError{Path: path.Copy()}
+		}
+
+		return true, nil
+	})
+}
+
+func ctyPathString(path cty.Path) string {
+	var b strings.Builder
+
+	for _, step := range path {
+		switch s := step.(type) {
+		case cty.GetAttrStep:
+			b.WriteString("." + s.Name)
+		case cty.IndexStep:
+			b.WriteString("[" + ctyIndexKeyString(s.Key) + "]")
+		}
+	}
+
+	return b.String()
+}
+
+func ctyIndexKeyString(key cty.Value) string {
+	const unrenderableKey = "*"
+
+	if key.IsNull() || !key.IsKnown() {
+		return unrenderableKey
+	}
+
+	switch {
+	case key.Type().Equals(cty.String):
+		return strconv.Quote(key.AsString())
+	case key.Type().Equals(cty.Number):
+		if idx, acc := key.AsBigFloat().Int64(); acc == big.Exact {
+			return strconv.FormatInt(idx, 10)
+		}
+	}
+
+	return unrenderableKey
 }

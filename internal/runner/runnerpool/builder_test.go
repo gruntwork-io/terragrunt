@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -262,6 +263,33 @@ func TestBuild_VersionConstraints(t *testing.T) {
 			assert.Len(t, rnr.GetStack().Units, 1, "a unit meeting its constraints is kept")
 		})
 	}
+}
+
+// TestCheckUnitVersionConstraints_UnitLeftUnparsed pins that a unit discovery left unparsed
+// still gets the constraints its config declares. The check parses that config by its full
+// path, not by the bare filename discovery recorded.
+func TestCheckUnitVersionConstraints_UnitLeftUnparsed(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	unitDir := writeUnit(t, v, memRoot, "vpc", `terragrunt_version_constraint = ">= v99.0.0"`)
+
+	unit := component.NewUnit(unitDir)
+	require.Nil(t, unit.Config(), "the unit has no parsed config for the check to reuse")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.TerragruntVersion = goversion.Must(goversion.NewVersion("0.1.0"))
+
+	l := thlogger.CreateLogger()
+
+	unitOpts, unitLogger, err := runnerpool.BuildUnitOpts(l, opts, unit)
+	require.NoError(t, err)
+
+	err = runnerpool.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+
+	var target run.InvalidTerragruntVersion
+
+	require.ErrorAs(t, err, &target)
 }
 
 // TestBuild_TerraformBinaryOverridesVersionProbe pins that the version probe runs a unit's terraform_binary.

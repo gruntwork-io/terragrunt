@@ -202,11 +202,15 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 }
 
 func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, error) {
-	if diag.Range == nil || diag.Snippet == nil {
-		// This should generally not happen, as long as sources are always
-		// loaded through the main loader. We may load things in other
-		// ways in weird cases, so we'll tolerate it at the expense of
-		// a not-so-helpful error message.
+	// [diagnostic.NewDiagnostic] leaves Range nil for an HCL diagnostic that has no
+	// Subject, meaning it points at no position in the configuration.
+	if diag.Range == nil {
+		return "", nil
+	}
+
+	// [diagnostic.NewDiagnostic] fills Range and Snippet together, so only a
+	// diagnostic built elsewhere reaches here with a position and no snippet.
+	if diag.Snippet == nil {
 		return fmt.Sprintf(
 			"  on %s line %d:\n  (source code not available)\n",
 			diag.Range.Filename,
