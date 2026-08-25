@@ -1128,6 +1128,8 @@ func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) 
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) vexec.Cmd {
+	ctx = vexec.WithTrustedCommand(ctx)
+
 	cmd := g.exec.Command(ctx, g.GitPath, append([]string{name}, args...)...)
 	cmd.SetEnv(venv.Environ(g.env))
 	cmd.SetCancel(func() error {
