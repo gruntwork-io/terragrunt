@@ -208,7 +208,7 @@ func checkVersionConstraints(
 				return err
 			}
 
-			return checkUnitVersionConstraints(
+			return CheckUnitVersionConstraints(
 				checkCtx,
 				l,
 				v,
@@ -222,9 +222,10 @@ func checkVersionConstraints(
 	return g.Wait()
 }
 
-// checkUnitVersionConstraints checks version constraints for a single unit.
-// It handles config parsing if needed and performs version constraint validation.
-func checkUnitVersionConstraints(
+// CheckUnitVersionConstraints checks a single unit against the tofu and Terragrunt version
+// constraints its config declares. When discovery left the unit unparsed, it parses the
+// unit's config file first.
+func CheckUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -234,7 +235,6 @@ func checkUnitVersionConstraints(
 ) error {
 	unitConfig := unit.Config()
 
-	// This is almost definitely already parsed, but we'll check just in case.
 	if unitConfig == nil {
 		configCtx, pctx := configbridge.NewParsingContext(ctx, l, v, unitOpts)
 		pctx = pctx.WithDecodeList(
@@ -248,7 +248,7 @@ func checkUnitVersionConstraints(
 			configCtx,
 			pctx,
 			l,
-			unit.ConfigFile(),
+			unitOpts.TerragruntConfigPath,
 			nil,
 		)
 		if err != nil {
