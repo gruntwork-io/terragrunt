@@ -33,10 +33,10 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/mattn/go-shellwords"
 
 	"errors"
 
@@ -1201,13 +1201,7 @@ func RunTerragruntCommandWithVenv(
 ) error {
 	t.Helper()
 
-	parser := shellwords.NewParser()
-
-	// Convert backslashes to forward slashes before parsing.
-	// shellwords treats backslashes as escape characters, corrupting Windows paths
-	// like C:\foo\bar into C:foobar. Forward slashes work fine since Terragrunt CLI
-	// normalizes paths internally (see cli/commands/commands.go).
-	args, err := parser.Parse(filepath.ToSlash(command))
+	args, err := split.Command(command)
 	require.NoError(t, err)
 
 	if !strings.Contains(command, "-log-format") &&

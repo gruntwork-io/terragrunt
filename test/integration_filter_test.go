@@ -199,7 +199,7 @@ func TestFilterFlagWithFindJSON(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --json --filter " + tc.filterQuery
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --json --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
@@ -264,8 +264,7 @@ func TestFilterFlagWithList(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			// Quoted so that shellwords keeps the pipe in the filter rather than cutting the
-			// command short at it.
+			// Quoted, since the test helper refuses an unquoted pipe as a shell operator.
 			name:            "filter with intersection - name and type",
 			filterQuery:     "'a-unit | type=unit'",
 			expectedResults: []string{"a-unit"},
@@ -396,7 +395,7 @@ func TestFilterFlagWithListLong(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, tc.workingDir)
 
-			cmd := "terragrunt list --no-color --working-dir " + tc.workingDir + " --long --filter " + tc.filterQuery
+			cmd := "terragrunt list --no-color --working-dir " + tc.workingDir + " --long --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
@@ -463,7 +462,7 @@ func TestFilterFlagWithListTree(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, tc.workingDir)
 
-			cmd := "terragrunt list --no-color --working-dir " + tc.workingDir + " --tree --filter " + tc.filterQuery
+			cmd := "terragrunt list --no-color --working-dir " + tc.workingDir + " --tree --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
@@ -540,7 +539,7 @@ func TestFilterFlagWithDAG(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, workingDir)
 
-			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 			if tc.expectError {
