@@ -594,6 +594,7 @@ type WalkDirParallelOption func(*walkDirParallelConfig)
 
 type walkDirParallelConfig struct {
 	followSymlinks bool
+	workers        int
 }
 
 // WithFollowSymlinks makes [WalkDirParallel] descend into directories
@@ -607,6 +608,16 @@ type walkDirParallelConfig struct {
 func WithFollowSymlinks() WalkDirParallelOption {
 	return func(c *walkDirParallelConfig) {
 		c.followSymlinks = true
+	}
+}
+
+// WithWorkers sets how many directories [WalkDirParallel] reads at once,
+// for a caller whose walk was measured to want a different count than
+// [walkWorkers] picks for the filesystem. A value of zero or less keeps
+// that measured count.
+func WithWorkers(n int) WalkDirParallelOption {
+	return func(c *walkDirParallelConfig) {
+		c.workers = n
 	}
 }
 
@@ -630,9 +641,14 @@ func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirPar
 		opt(&cfg)
 	}
 
+	workers := walkWorkers(fsys, root)
+	if cfg.workers > 0 {
+		workers = cfg.workers
+	}
+
 	fwCfg := &fastwalk.Config{
 		Follow:     cfg.followSymlinks,
-		NumWorkers: walkWorkers(fsys, root),
+		NumWorkers: workers,
 	}
 
 	err := fastwalk.Walk(fwCfg, root, fn)
