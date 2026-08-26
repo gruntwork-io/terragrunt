@@ -845,7 +845,7 @@ func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 
 	var readErr hclparse.FileReadError
 	require.ErrorAs(t, err, &readErr)
-	// On macOS, t.TempDir() returns paths under /var/folders/... where /var is a symlink to /private/var; util.ResolvePath follows it, so resolve our side too before comparing.
+	// On macOS, t.TempDir() returns paths under /var/folders/... where /var is a symlink to /private/var; vfs.ResolveForCompare follows it, so resolve our side too before comparing.
 	resolvedFilePath, evalErr := filepath.EvalSymlinks(filePath)
 	require.NoError(t, evalErr)
 	assert.Equal(t, filepath.Join(resolvedFilePath, "terragrunt.stack.hcl"), readErr.FilePath)
@@ -878,7 +878,7 @@ unit "app" {
 	assert.Equal(t, "app", result.Units[0].Name)
 }
 
-// Uses OSFS because MemMapFS does not faithfully reproduce os.Symlink semantics that util.ResolvePath relies on.
+// Uses OSFS because MemMapFS does not faithfully reproduce os.Symlink semantics that vfs.ResolveForCompare relies on.
 func TestUnitPathsFromStackDir_Symlink(t *testing.T) {
 	t.Parallel()
 

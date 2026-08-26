@@ -2,14 +2,17 @@ package getproviders
 
 import (
 	"fmt"
+	"io/fs"
 	"maps"
-	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -20,39 +23,59 @@ import (
 type ProviderConstraints map[string]string
 
 // ParseProviderConstraints parses all .tf and .tofu files in the given directory and extracts required_providers constraints
-func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderConstraints, error) {
+func ParseProviderConstraints(
+	fsys vfs.FS,
+	env map[string]string,
+	impl tfimpl.Type,
+	workingDir string,
+) (ProviderConstraints, error) {
+	// Whether env is consulted at all depends on what the directory holds, so
+	// asserting at the first read would let a nil pass unnoticed until some
+	// unrelated unit happened to declare a provider.
+	venv.RequireEnvMap(env)
+
 	constraints := make(ProviderConstraints)
 
-	var allFiles []string
-
-	tfFiles, err := filepath.Glob(filepath.Join(workingDir, "*.tf"))
+	entries, err := vfs.ReadDir(fsys, workingDir)
 	if err != nil {
+		// A unit whose directory has not been materialized yet constrains
+		// nothing, which is the same answer an empty directory gives.
+		if errors.Is(err, fs.ErrNotExist) {
+			return constraints, nil
+		}
+
 		return nil, err
 	}
 
-	allFiles = append(allFiles, tfFiles...)
+	// A module directory holds mostly `.tf` files and rarely a `.tofu` file, so
+	// `tfFiles` is the only slice worth sizing up front.
+	tfFiles := make([]string, 0, len(entries))
 
-	tofuFiles, err := filepath.Glob(filepath.Join(workingDir, "*.tofu"))
-	if err != nil {
-		return nil, err
-	}
+	var tofuFiles []string
 
-	allFiles = append(allFiles, tofuFiles...)
-
-	// If no terraform files found, return empty constraints (not an error)
-	if len(allFiles) == 0 {
-		return constraints, nil
-	}
-
-	for _, file := range allFiles {
-		fileConstraints, err := parseProviderConstraintsFromFile(impl, file)
-		if err != nil {
-			// Log parsing errors but continue processing other files
-			// This allows partial success when some files have syntax errors
+	for _, entry := range entries {
+		if entry.IsDir() {
 			continue
 		}
 
-		// Merge constraints from this file
+		switch filepath.Ext(entry.Name()) {
+		case ".tf":
+			tfFiles = append(tfFiles, filepath.Join(workingDir, entry.Name()))
+		case ".tofu":
+			tofuFiles = append(tofuFiles, filepath.Join(workingDir, entry.Name()))
+		}
+	}
+
+	// A provider declared in both a .tf and a .tofu file takes the .tofu
+	// constraint, so the .tofu files are merged last.
+	for _, file := range slices.Concat(tfFiles, tofuFiles) {
+		fileConstraints, err := parseProviderConstraintsFromFile(fsys, env, impl, file)
+		if err != nil {
+			// One file that does not parse must not cost the constraints the
+			// rest of the directory declares.
+			continue
+		}
+
 		maps.Copy(constraints, fileConstraints)
 	}
 
@@ -61,12 +84,14 @@ func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderCons
 
 // parseProviderConstraintsFromFile parses a single .tf file and extracts required_providers constraints
 func parseProviderConstraintsFromFile(
+	fsys vfs.FS,
+	env map[string]string,
 	impl tfimpl.Type,
 	filename string,
 ) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
-	content, err := os.ReadFile(filename)
+	content, err := vfs.ReadFile(fsys, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +120,7 @@ func parseProviderConstraintsFromFile(
 			}
 
 			// Parse each provider in the required_providers block
-			providerConstraints := parseProvidersFromRequiredProvidersBlock(impl, nestedBlock)
+			providerConstraints := parseProvidersFromRequiredProvidersBlock(env, impl, nestedBlock)
 
 			// Merge constraints from this required_providers block
 			maps.Copy(constraints, providerConstraints)
@@ -107,6 +132,7 @@ func parseProviderConstraintsFromFile(
 
 // parseProvidersFromRequiredProvidersBlock extracts provider constraints from a required_providers block
 func parseProvidersFromRequiredProvidersBlock(
+	env map[string]string,
 	impl tfimpl.Type,
 	block *hclsyntax.Block,
 ) ProviderConstraints {
@@ -181,11 +207,11 @@ func parseProvidersFromRequiredProvidersBlock(
 		// If we have both source and version, create the constraint mapping
 		if source != "" && version != "" {
 			// Normalize the source address to full registry format
-			providerAddr := normalizeProviderAddress(impl, source)
+			providerAddr := normalizeProviderAddress(env, impl, source)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		} else if source == "" && version != "" {
 			// If only version is specified, assume it's a hashicorp provider
-			registryDomain := tfimpl.DefaultRegistryDomain(impl)
+			registryDomain := tfimpl.DefaultRegistryDomain(env, impl)
 			providerAddr := fmt.Sprintf("%s/hashicorp/%s", registryDomain, name)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		}
@@ -195,9 +221,9 @@ func parseProvidersFromRequiredProvidersBlock(
 }
 
 // normalizeProviderAddress converts provider source to full registry format
-func normalizeProviderAddress(impl tfimpl.Type, source string) string {
+func normalizeProviderAddress(env map[string]string, impl tfimpl.Type, source string) string {
 	parts := strings.Split(source, "/")
-	registryDomain := tfimpl.DefaultRegistryDomain(impl)
+	registryDomain := tfimpl.DefaultRegistryDomain(env, impl)
 
 	const (
 		singlePart    = 1

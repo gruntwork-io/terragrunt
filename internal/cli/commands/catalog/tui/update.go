@@ -69,7 +69,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 			switch {
 			case key.Matches(msg, m.delegateKeys.Choose):
-				tagsStyle := ResolveTagsDetailStyle()
+				tagsStyle := ResolveTagsDetailStyle(m.venv.Env)
 				tags := selectedComponent.Tags()
 
 				var (
@@ -162,7 +162,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			if m.selectedComponent != nil {
 				updated, content, err := m.renderComponentContent(
 					m.selectedComponent,
-					ResolveTagsDetailStyle(),
+					ResolveTagsDetailStyle(m.venv.Env),
 					m.selectedComponent.Tags(),
 				)
 				if err != nil {
@@ -784,7 +784,7 @@ func (m Model) handleFormSubmit(values map[string]string) (tea.Model, tea.Cmd) {
 // the temp dir Prepare allocated.
 func (m *Model) abandonForm() {
 	if m.scaffoldPlan != nil {
-		m.scaffoldPlan.Cleanup()
+		m.scaffoldPlan.Cleanup(m.venv.FS)
 		m.scaffoldPlan = nil
 	}
 

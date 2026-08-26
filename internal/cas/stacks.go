@@ -101,13 +101,9 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("failed to parse source URL %q: %w", detectedURL, err)
 	}
 
-	ref := parsedURL.Query().Get("ref")
+	strippedURL, ref := StripGitURLParams(parsedURL)
 
-	q := parsedURL.Query()
-	q.Del("ref")
-	parsedURL.RawQuery = q.Encode()
-
-	cleanURL := strings.TrimPrefix(parsedURL.String(), "git::")
+	cleanURL := strings.TrimPrefix(strippedURL.String(), "git::")
 
 	// Stack processing derives deterministic CAS keys from refHash, so
 	// abbreviated SHAs would produce keys that depend on the input
@@ -243,7 +239,7 @@ func detectRepoHashAlgorithm(
 	v *venv.Venv,
 	repoDir string,
 ) (HashAlgorithm, error) {
-	runner, err := git.NewGitRunner(v.Exec)
+	runner, err := git.NewGitRunner(v)
 	if err != nil {
 		return "", err
 	}
@@ -556,7 +552,7 @@ func gitTreeMode(mode os.FileMode) string {
 // Remote URLs, go-getter forcers (git::), SSH shorthand (git@host:…), and
 // non-directory paths all return false and fall through to the remote
 // processing flow.
-func isLocalPath(fs vfs.FS, source string) bool {
+func isLocalPath(fsys vfs.FS, source string) bool {
 	if source == "" {
 		return false
 	}
@@ -581,7 +577,7 @@ func isLocalPath(fs vfs.FS, source string) bool {
 		return false
 	}
 
-	info, err := fs.Stat(source)
+	info, err := fsys.Stat(source)
 	if err != nil {
 		return false
 	}

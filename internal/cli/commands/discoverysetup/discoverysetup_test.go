@@ -8,10 +8,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,10 +21,10 @@ func TestWorktreesNoGitFilters(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
@@ -43,7 +44,7 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	// A plain directory with no git repository makes worktree creation fail.
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -51,7 +52,7 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"[main...HEAD]"})
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.Filters = filters
 
@@ -73,7 +74,7 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	runner := helpers.InitTestGitRunner(t, tmpDir)
 
@@ -95,7 +96,7 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.Filters = filters
 

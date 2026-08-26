@@ -14,7 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,7 +55,7 @@ func TestTFTerragruntDestroyOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the report file to verify dependency order
-	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
 
 	// Verify all modules are in the report
@@ -110,7 +111,7 @@ func TestTFTerragruntApplyDestroyOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the report file to verify dependency order
-	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
 
 	runA := runs.FindByName("module-a")
@@ -171,7 +172,7 @@ func TestTFTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the report file to verify dependency order
-	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
 
 	// Verify all modules are in the report
@@ -267,7 +268,7 @@ func TestTFDestroyDependentModule(t *testing.T) {
 	)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyDependentModule)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -513,7 +514,7 @@ func TestTFTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)

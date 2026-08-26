@@ -68,7 +68,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				Name:  cleanCommandName,
 				Usage: "Clean the stack generated from the current directory",
 				Action: func(ctx context.Context, _ *clihelper.Context) error {
-					return RunClean(ctx, l, opts.OptionsFromContext(ctx))
+					return RunClean(ctx, l, v, opts.OptionsFromContext(ctx))
 				},
 			},
 		},

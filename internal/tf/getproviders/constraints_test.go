@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,14 +39,14 @@ terraform {
 	require.NoError(t, err)
 
 	// Test parsing with Terraform implementation
-	constraints, err := getproviders.ParseProviderConstraints(tfimpl.Terraform, testDir)
+	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, "~> 5.0.0", constraints["registry.terraform.io/hashicorp/aws"])
 	assert.Equal(t, "~> 4.0.0", constraints["registry.terraform.io/cloudflare/cloudflare"])
 
 	// Test parsing with OpenTofu implementation
-	constraints, err = getproviders.ParseProviderConstraints(tfimpl.OpenTofu, testDir)
+	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.OpenTofu, testDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, "~> 5.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
@@ -73,14 +74,14 @@ terraform {
 	require.NoError(t, err)
 
 	// Test parsing with Terraform implementation
-	constraints, err := getproviders.ParseProviderConstraints(tfimpl.Terraform, testDir)
+	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints default to terraform registry and are normalized
 	assert.Equal(t, "~> 5.0.0", constraints["registry.terraform.io/hashicorp/aws"])
 
 	// Test parsing with OpenTofu implementation
-	constraints, err = getproviders.ParseProviderConstraints(tfimpl.OpenTofu, testDir)
+	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.OpenTofu, testDir)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints default to OpenTofu registry and are normalized
@@ -88,6 +89,8 @@ terraform {
 }
 
 func TestParseProviderConstraintsWithEnvironmentOverride(t *testing.T) {
+	t.Parallel()
+
 	// Create a temporary directory for testing
 	testDir := helpers.TmpDirWOSymlinks(t)
 
@@ -109,12 +112,11 @@ terraform {
 	err := os.WriteFile(filepath.Join(testDir, "main.tf"), []byte(terraformContent), 0644)
 	require.NoError(t, err)
 
-	// Set the environment variable to override the default registry
 	customRegistry := "custom.registry.example.com"
-	t.Setenv("TG_TF_DEFAULT_REGISTRY_HOST", customRegistry)
+	env := map[string]string{"TG_TF_DEFAULT_REGISTRY_HOST": customRegistry}
 
 	// Test parsing with Terraform implementation - should use custom registry
-	constraints, err := getproviders.ParseProviderConstraints(tfimpl.Terraform, testDir)
+	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), env, tfimpl.Terraform, testDir)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints use custom registry for implicit providers and are normalized
@@ -123,7 +125,7 @@ terraform {
 	assert.Equal(t, "~> 1.0.0", constraints[customRegistry+"/example/custom"])
 
 	// Test parsing with OpenTofu implementation - should also use custom registry (environment override takes precedence)
-	constraints, err = getproviders.ParseProviderConstraints(tfimpl.OpenTofu, testDir)
+	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), env, tfimpl.OpenTofu, testDir)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints use custom registry even with OpenTofu and are normalized
@@ -166,7 +168,7 @@ terraform {
 	require.NoError(t, err)
 
 	// Test parsing with OpenTofu implementation
-	constraints, err := getproviders.ParseProviderConstraints(tfimpl.OpenTofu, testDir)
+	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.OpenTofu, testDir)
 	require.NoError(t, err)
 
 	// Verify constraints from both .tf and .tofu files are parsed and normalized
@@ -174,12 +176,46 @@ terraform {
 	assert.Equal(t, "~> 3.0.0", constraints["registry.opentofu.org/hashicorp/azurerm"])
 
 	// Test parsing with Terraform implementation
-	constraints, err = getproviders.ParseProviderConstraints(tfimpl.Terraform, testDir)
+	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
 	require.NoError(t, err)
 
 	// Verify constraints from both .tf and .tofu files are parsed with Terraform registry and normalized
 	assert.Equal(t, "~> 5.0.0", constraints["registry.terraform.io/hashicorp/aws"])
 	assert.Equal(t, "~> 3.0.0", constraints["registry.terraform.io/hashicorp/azurerm"])
+}
+
+// TestParseProviderConstraintsTofuWins pins which constraint survives when the
+// same provider is declared in both a .tf and a .tofu file.
+func TestParseProviderConstraintsTofuWins(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	declare := func(filename, version string) {
+		content := `
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "` + version + `"
+    }
+  }
+}
+`
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, filename), []byte(content), 0644))
+	}
+
+	declare("main.tf", "~> 5.0")
+	declare("main.tofu", "~> 6.0")
+
+	constraints, err := getproviders.ParseProviderConstraints(
+		vfs.NewOSFS(),
+		map[string]string{},
+		tfimpl.OpenTofu,
+		testDir,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "~> 6.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
 }
 
 func TestParseProviderConstraintsWithEqualsPrefix(t *testing.T) {
@@ -212,7 +248,7 @@ terraform {
 	require.NoError(t, err)
 
 	// Test parsing with Terraform implementation
-	constraints, err := getproviders.ParseProviderConstraints(tfimpl.Terraform, testDir)
+	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints are normalized (no "=" prefix)
@@ -221,7 +257,7 @@ terraform {
 	assert.Equal(t, ">= 0.10.0", constraints["registry.terraform.io/hashicorp/time"])
 
 	// Test parsing with OpenTofu implementation
-	constraints, err = getproviders.ParseProviderConstraints(tfimpl.OpenTofu, testDir)
+	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.OpenTofu, testDir)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints are normalized with OpenTofu registry
@@ -324,7 +360,7 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 			err := os.WriteFile(filepath.Join(testDir, "main.tf"), []byte(terraformContent), 0644)
 			require.NoError(t, err)
 
-			constraints, err := getproviders.ParseProviderConstraints(tfimpl.Terraform, testDir)
+			constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
 			require.NoError(t, err)
 
 			result := constraints["registry.terraform.io/example/test"]

@@ -56,7 +56,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -120,7 +120,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -200,7 +200,7 @@ include "base" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -251,7 +251,7 @@ include "common" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -332,7 +332,7 @@ dependency "leak" {
 `), 0644),
 	)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -385,7 +385,7 @@ exclude {
 
 	l := logger.CreateLogger()
 
-	ctxFull, pctxFull := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctxFull, pctxFull := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
@@ -399,7 +399,7 @@ exclude {
 		"autoinclude exclude must win in full parse",
 	)
 
-	ctxPartial, pctxPartial := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctxPartial, pctxPartial := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
 
@@ -432,7 +432,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 
 	l := logger.CreateLogger()
 
@@ -471,7 +471,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 
 	l := logger.CreateLogger()
 
@@ -512,7 +512,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 
 	l := logger.CreateLogger()
 
@@ -560,7 +560,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
 		WithSkipOutputsResolution()
@@ -618,7 +618,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -662,7 +662,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), autoIncludePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -698,7 +698,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -758,7 +758,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	ctxFull, pctxFull := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctxFull, pctxFull := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
@@ -779,7 +779,7 @@ inputs = {
 		"autoinclude terraform source must win in full parse",
 	)
 
-	ctxPartial, pctxPartial := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctxPartial, pctxPartial := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
 
@@ -836,7 +836,7 @@ errors {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(
 		config.DependencyBlock,
@@ -903,7 +903,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock).WithSkipOutputsResolution()
 
@@ -968,7 +968,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), autoIncludePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
@@ -1007,7 +1007,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
 	ctx = context.WithValue(
 		ctx,
@@ -1098,7 +1098,7 @@ remote_state {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
 	ctx = context.WithValue(
 		ctx,
@@ -1182,7 +1182,7 @@ dependency "bar" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock).
 		WithSkipOutputsResolution()
@@ -1227,7 +1227,7 @@ stack "networking" {
 `), 0644))
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -1295,7 +1295,7 @@ inputs = {
 `), 0644))
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -1341,7 +1341,7 @@ unit "app" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
@@ -1392,7 +1392,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()

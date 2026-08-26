@@ -25,7 +25,15 @@ func TestInitDeliversDiscoveryResultWithRacing(t *testing.T) {
 	warnCh := make(chan viewtui.Warning)
 	close(warnCh)
 
-	m := tui.NewModel(logger.CreateLogger(), vfs.NewMemMapFS(), tui.NewRoot("/repo"), tui.ColorDisabled, resultCh, warnCh)
+	m := tui.NewModel(
+		logger.CreateLogger(),
+		vfs.NewMemMapFS(),
+		stubHomeDir,
+		tui.NewRoot("/repo"),
+		tui.ColorDisabled,
+		resultCh,
+		warnCh,
+	)
 
 	want := tui.DiscoveryResult{Components: component.Components{component.NewUnit("/repo/vpc")}}
 

@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -224,7 +223,7 @@ func newTestGitStore(t *testing.T) (*cas.GitStore, *venv.Venv, string) {
 
 	root := filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore")
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	store := cas.NewGitStore(root)
 
@@ -234,7 +233,7 @@ func newTestGitStore(t *testing.T) (*cas.GitStore, *venv.Venv, string) {
 func resolveHead(t *testing.T, url string) string {
 	t.Helper()
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	results, err := runner.LsRemote(t.Context(), url, "HEAD")

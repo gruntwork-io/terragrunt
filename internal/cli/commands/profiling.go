@@ -69,7 +69,7 @@ type profilePaths struct {
 }
 
 // startProfiling starts the profiles configured via opts and returns a stop function that finalizes them.
-func startProfiling(l log.Logger, fs vfs.FS, opts *options.TerragruntOptions) (func(), error) {
+func startProfiling(l log.Logger, fsys vfs.FS, opts *options.TerragruntOptions) (func(), error) {
 	if opts.ProfileCPU == "" && opts.ProfileMem == "" && opts.ProfileGoroutine == "" && opts.ProfileDir == "" {
 		return noopStop, nil
 	}
@@ -78,7 +78,7 @@ func startProfiling(l log.Logger, fs vfs.FS, opts *options.TerragruntOptions) (f
 		return nil, ErrProfilingRequiresExperiment
 	}
 
-	paths, err := resolveProfilePaths(fs, opts)
+	paths, err := resolveProfilePaths(fsys, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -86,15 +86,15 @@ func startProfiling(l log.Logger, fs vfs.FS, opts *options.TerragruntOptions) (f
 	var memFile, goroutineFile, cpuFile vfs.File
 
 	if paths.mem != "" {
-		if memFile, err = createNamedProfileFile(l, fs, paths.mem, "memory"); err != nil {
+		if memFile, err = createNamedProfileFile(l, fsys, paths.mem, "memory"); err != nil {
 			return nil, err
 		}
 	}
 
 	if paths.goroutine != "" {
-		if goroutineFile, err = createNamedProfileFile(l, fs, paths.goroutine, "goroutine"); err != nil {
+		if goroutineFile, err = createNamedProfileFile(l, fsys, paths.goroutine, "goroutine"); err != nil {
 			if memFile != nil {
-				discardProfileFile(l, fs, paths.mem, memFile)
+				discardProfileFile(l, fsys, paths.mem, memFile)
 			}
 
 			return nil, err
@@ -102,13 +102,13 @@ func startProfiling(l log.Logger, fs vfs.FS, opts *options.TerragruntOptions) (f
 	}
 
 	if paths.cpu != "" {
-		if cpuFile, err = startCPUProfile(l, fs, paths.cpu); err != nil {
+		if cpuFile, err = startCPUProfile(l, fsys, paths.cpu); err != nil {
 			if memFile != nil {
-				discardProfileFile(l, fs, paths.mem, memFile)
+				discardProfileFile(l, fsys, paths.mem, memFile)
 			}
 
 			if goroutineFile != nil {
-				discardProfileFile(l, fs, paths.goroutine, goroutineFile)
+				discardProfileFile(l, fsys, paths.goroutine, goroutineFile)
 			}
 
 			return nil, err
@@ -138,7 +138,7 @@ func noopStop() {
 }
 
 // resolveProfilePaths resolves the output path for each profile type, filling in defaults under opts.ProfileDir.
-func resolveProfilePaths(fs vfs.FS, opts *options.TerragruntOptions) (profilePaths, error) {
+func resolveProfilePaths(fsys vfs.FS, opts *options.TerragruntOptions) (profilePaths, error) {
 	paths := profilePaths{
 		cpu:       opts.ProfileCPU,
 		mem:       opts.ProfileMem,
@@ -154,7 +154,7 @@ func resolveProfilePaths(fs vfs.FS, opts *options.TerragruntOptions) (profilePat
 		dir = filepath.Join(opts.WorkingDir, dir)
 	}
 
-	if err := fs.MkdirAll(dir, profileDirMode); err != nil {
+	if err := fsys.MkdirAll(dir, profileDirMode); err != nil {
 		return profilePaths{}, fmt.Errorf("could not create profile directory: %w", err)
 	}
 
@@ -177,14 +177,14 @@ func resolveProfilePaths(fs vfs.FS, opts *options.TerragruntOptions) (profilePat
 }
 
 // startCPUProfile creates the CPU profile file at the given non-empty path and starts CPU profiling.
-func startCPUProfile(l log.Logger, fs vfs.FS, path string) (vfs.File, error) {
-	f, err := createNamedProfileFile(l, fs, path, "CPU")
+func startCPUProfile(l log.Logger, fsys vfs.FS, path string) (vfs.File, error) {
+	f, err := createNamedProfileFile(l, fsys, path, "CPU")
 	if err != nil {
 		return nil, err
 	}
 
 	if err := pprof.StartCPUProfile(f); err != nil {
-		discardProfileFile(l, fs, path, f)
+		discardProfileFile(l, fsys, path, f)
 
 		return nil, fmt.Errorf("could not start CPU profile: %w", err)
 	}
@@ -223,8 +223,8 @@ func writeGoroutineProfile(l log.Logger, f vfs.File) {
 }
 
 // createNamedProfileFile creates the output file for the named profile at the given non-empty path.
-func createNamedProfileFile(l log.Logger, fs vfs.FS, path, name string) (vfs.File, error) {
-	f, err := createProfileFile(l, fs, path)
+func createNamedProfileFile(l log.Logger, fsys vfs.FS, path, name string) (vfs.File, error) {
+	f, err := createProfileFile(l, fsys, path)
 	if err != nil {
 		return nil, fmt.Errorf("could not create %s profile: %w", name, err)
 	}
@@ -233,13 +233,13 @@ func createNamedProfileFile(l log.Logger, fs vfs.FS, path, name string) (vfs.Fil
 }
 
 // createProfileFile creates a profile output file readable only by the owner, tightening permissions on pre-existing files.
-func createProfileFile(l log.Logger, fs vfs.FS, path string) (vfs.File, error) {
-	f, err := fs.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, profileFileMode)
+func createProfileFile(l log.Logger, fsys vfs.FS, path string) (vfs.File, error) {
+	f, err := fsys.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, profileFileMode)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := fs.Chmod(path, profileFileMode); err != nil {
+	if err := fsys.Chmod(path, profileFileMode); err != nil {
 		if closeErr := f.Close(); closeErr != nil {
 			l.Debugf("Could not close profile %s: %v", path, closeErr)
 		}
@@ -258,12 +258,12 @@ func closeProfileFile(l log.Logger, name string, f vfs.File) {
 }
 
 // discardProfileFile closes and removes a partially created profile file after a startup failure.
-func discardProfileFile(l log.Logger, fs vfs.FS, path string, f vfs.File) {
+func discardProfileFile(l log.Logger, fsys vfs.FS, path string, f vfs.File) {
 	if err := f.Close(); err != nil {
 		l.Debugf("Could not close discarded profile %s: %v", path, err)
 	}
 
-	if err := fs.Remove(path); err != nil {
+	if err := fsys.Remove(path); err != nil {
 		l.Debugf("Could not remove discarded profile %s: %v", path, err)
 	}
 }

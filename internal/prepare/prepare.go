@@ -50,7 +50,7 @@ func PrepareConfig(
 	provider := externalcmd.NewProvider(
 		l,
 		opts.AuthProviderCmd,
-		configbridge.ShellRunOptsFromOpts(opts),
+		configbridge.ShellRunOptsFromOpts(v.Env, opts),
 	)
 
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
@@ -107,7 +107,7 @@ func PrepareSource(
 
 	optsClone.TerraformCommand = run.CommandNameTerragruntReadConfig
 
-	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = optsClone.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return run.ProcessHooks(ctx, l, v, run.ProcessHooksParams{
 			Hooks:    runCfg.Terraform.AfterHooks,
 			Opts:     configbridge.NewRunOptions(optsClone),
@@ -127,7 +127,7 @@ func PrepareSource(
 
 	credsGetter := creds.NewGetter()
 
-	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		provider := amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env)
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider)
 	}); err != nil {

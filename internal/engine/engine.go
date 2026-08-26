@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -332,7 +331,7 @@ func downloadEngine(
 			if !isDirectURL(e.Source) {
 				v.RequireHTTP()
 
-				tag, err := lastReleaseVersion(ctx, v.HTTP, execOptions)
+				tag, err := lastReleaseVersion(ctx, v, execOptions)
 				if err != nil {
 					return err
 				}
@@ -350,7 +349,7 @@ func downloadEngine(
 			return ensureErr
 		}
 
-		localEngineFile := filepath.Join(path, engineFileName(v.FS, e))
+		localEngineFile := filepath.Join(path, engineFileName(v, e))
 
 		// lock downloading process for only one instance
 		locks, err := downloadLocksFromContext(ctx)
@@ -366,7 +365,7 @@ func downloadEngine(
 			return nil
 		}
 
-		downloadFile := filepath.Join(path, enginePackageName(v.FS, e))
+		downloadFile := filepath.Join(path, enginePackageName(v, e))
 
 		// Prepare download assets
 		assets := &github.ReleaseAssets{
@@ -409,7 +408,7 @@ func downloadEngine(
 			l.Warnf("Skipping verification for %s", downloadFile)
 		}
 
-		if err := extractArchive(l, downloadFile, localEngineFile); err != nil {
+		if err := extractArchive(l, v.FS, downloadFile, localEngineFile); err != nil {
 			return err
 		}
 
@@ -421,7 +420,7 @@ func downloadEngine(
 
 func lastReleaseVersion(
 	ctx context.Context,
-	c vhttp.Client,
+	v *venv.Venv,
 	opts *ExecutionOptions,
 ) (string, error) {
 	repository := strings.TrimPrefix(opts.EngineConfig.Source, defaultEngineRepoRoot)
@@ -437,8 +436,8 @@ func lastReleaseVersion(
 	}
 
 	githubClient := github.NewGitHubAPIClient(
-		github.WithHTTPClient(vhttp.WithTimeout(c, engineReleaseLookupTimeout)),
-		github.WithGithubComDefaultAuth(),
+		github.WithHTTPClient(vhttp.WithTimeout(v.HTTP, engineReleaseLookupTimeout)),
+		github.WithGithubComDefaultAuth(v.Env),
 	)
 
 	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
@@ -451,9 +450,10 @@ func lastReleaseVersion(
 	return tag, nil
 }
 
-func extractArchive(l log.Logger, downloadFile string, engineFile string) error {
+func extractArchive(l log.Logger, fsys vfs.FS, downloadFile string, engineFile string) error {
 	return extractArchiveWithLimits(
 		l,
+		fsys,
 		downloadFile,
 		engineFile,
 		engineArchiveDecompressedSizeLimit,
@@ -463,15 +463,16 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 
 func extractArchiveWithLimits(
 	l log.Logger,
+	fsys vfs.FS,
 	downloadFile string,
 	engineFile string,
 	decompressedSizeLimit int64,
 	filesLimit int,
 ) error {
-	if !isArchiveByHeader(l, downloadFile) {
+	if !isArchiveByHeader(l, fsys, downloadFile) {
 		l.Info("Downloaded file is not an archive, no extraction needed")
 		// move file directly if it is not an archive
-		if err := os.Rename(downloadFile, engineFile); err != nil {
+		if err := fsys.Rename(downloadFile, engineFile); err != nil {
 			return err
 		}
 
@@ -480,13 +481,13 @@ func extractArchiveWithLimits(
 	// extract package and process files
 	path := filepath.Dir(engineFile)
 
-	tempDir, err := os.MkdirTemp(path, "temp-")
+	tempDir, err := vfs.MkdirTemp(fsys, path, "temp-")
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		if err = os.RemoveAll(tempDir); err != nil {
+		if err = fsys.RemoveAll(tempDir); err != nil {
 			l.Warnf("Failed to clean temp dir %s: %v", tempDir, err)
 		}
 	}()
@@ -494,12 +495,12 @@ func extractArchiveWithLimits(
 	if err = vfs.NewZipDecompressor(
 		vfs.WithFileSizeLimit(decompressedSizeLimit),
 		vfs.WithFilesLimit(filesLimit),
-	).Unzip(l, vfs.NewOSFS(), tempDir, downloadFile, 0); err != nil {
+	).Unzip(l, fsys, tempDir, downloadFile, 0); err != nil {
 		return newArchiveExtractionError(downloadFile, err)
 	}
 
 	// process files
-	files, err := os.ReadDir(tempDir)
+	files, err := vfs.ReadDir(fsys, tempDir)
 	if err != nil {
 		return err
 	}
@@ -509,7 +510,7 @@ func extractArchiveWithLimits(
 	if len(files) == 1 && !files[0].IsDir() {
 		// handle case where archive contains a single file, most of the cases
 		singleFile := filepath.Join(tempDir, files[0].Name())
-		if err := os.Rename(singleFile, engineFile); err != nil {
+		if err := fsys.Rename(singleFile, engineFile); err != nil {
 			return err
 		}
 
@@ -521,7 +522,7 @@ func extractArchiveWithLimits(
 		srcPath := filepath.Join(tempDir, file.Name())
 
 		dstPath := filepath.Join(path, file.Name())
-		if err := os.Rename(srcPath, dstPath); err != nil {
+		if err := fsys.Rename(srcPath, dstPath); err != nil {
 			return err
 		}
 	}
@@ -531,13 +532,16 @@ func extractArchiveWithLimits(
 
 // engineDir returns the directory path where engine files are stored.
 func engineDir(v *venv.Venv, opts *ExecutionOptions) (string, error) {
+	v.RequireGOOS()
+	v.RequireGOARCH()
+
 	engine := opts.EngineConfig
 	if vfs.Exists(v.FS, engine.Source) {
 		return filepath.Dir(engine.Source), nil
 	}
 
-	platform := runtime.GOOS
-	arch := runtime.GOARCH
+	platform := v.Platform.GOOS
+	arch := v.Platform.GOARCH
 
 	if cacheDir := opts.EngineOptions.CachePath; len(cacheDir) != 0 {
 		return filepath.Join(
@@ -569,15 +573,18 @@ func engineDir(v *venv.Venv, opts *ExecutionOptions) (string, error) {
 }
 
 // engineFileName returns the file name for the engine.
-func engineFileName(fsys vfs.FS, e *EngineConfig) string {
+func engineFileName(v *venv.Venv, e *EngineConfig) string {
+	v.RequireGOOS()
+	v.RequireGOARCH()
+
 	engineName := filepath.Base(e.Source)
-	if vfs.Exists(fsys, e.Source) {
+	if vfs.Exists(v.FS, e.Source) {
 		// return file name if source is absolute path
 		return engineName
 	}
 
-	platform := runtime.GOOS
-	arch := runtime.GOARCH
+	platform := v.Platform.GOOS
+	arch := v.Platform.GOARCH
 	engineName = strings.TrimPrefix(engineName, prefixTrim)
 
 	return fmt.Sprintf(fileNameFormat, engineName, e.Type, e.Version, platform, arch)
@@ -598,8 +605,8 @@ func engineChecksumSigName(e *EngineConfig) string {
 }
 
 // enginePackageName returns the package name for the engine.
-func enginePackageName(fsys vfs.FS, e *EngineConfig) string {
-	return engineFileName(fsys, e) + ".zip"
+func enginePackageName(v *venv.Venv, e *EngineConfig) string {
+	return engineFileName(v, e) + ".zip"
 }
 
 func isDirectURL(source string) bool {
@@ -607,8 +614,8 @@ func isDirectURL(source string) bool {
 }
 
 // isArchiveByHeader checks if a file is an archive by examining its header.
-func isArchiveByHeader(l log.Logger, filePath string) bool {
-	archiveType, err := detectFileType(l, filePath)
+func isArchiveByHeader(l log.Logger, fsys vfs.FS, filePath string) bool {
+	archiveType, err := detectFileType(l, fsys, filePath)
 
 	return err == nil && archiveType != ""
 }
@@ -824,7 +831,7 @@ func createEngine(
 			return err
 		}
 
-		localEnginePath := filepath.Join(path, engineFileName(v.FS, execOptions.EngineConfig))
+		localEnginePath := filepath.Join(path, engineFileName(v, execOptions.EngineConfig))
 		localChecksumFile := filepath.Join(path, engineChecksumName(execOptions.EngineConfig))
 		localChecksumSigFile := filepath.Join(path, engineChecksumSigName(execOptions.EngineConfig))
 
@@ -1351,8 +1358,8 @@ func ConvertMetaToProtobuf(meta map[string]any) (map[string]*anypb.Any, error) {
 }
 
 // detectFileType determines the type of file based on its magic bytes.
-func detectFileType(l log.Logger, filePath string) (string, error) {
-	file, err := os.Open(filePath)
+func detectFileType(l log.Logger, fsys vfs.FS, filePath string) (string, error) {
+	file, err := fsys.Open(filePath)
 	if err != nil {
 		return "", err
 	}

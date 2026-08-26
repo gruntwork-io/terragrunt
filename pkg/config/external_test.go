@@ -393,7 +393,7 @@ func TestExternalGetDefaultConfigPath(t *testing.T) {
 
 	// When given a non-existent directory, GetDefaultConfigPath returns a path
 	// ending with the default config file name.
-	result := config.GetDefaultConfigPath("/some/nonexistent/path")
+	result := config.GetDefaultConfigPath(venvtest.New().FS, "/some/nonexistent/path")
 	assert.Contains(t, result, "terragrunt.hcl")
 }
 

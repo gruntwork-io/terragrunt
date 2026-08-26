@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -58,12 +57,14 @@ type ShellOptions struct {
 // NewShellOptions creates ShellOptions with sensible defaults. Telemetry is
 // always non-nil; TRACEPARENT is read from the environment when set. Use the
 // With* methods to override any field.
-func NewShellOptions() *ShellOptions {
+func NewShellOptions(env map[string]string) *ShellOptions {
+	venv.RequireEnvMap(env)
+
 	opts := &ShellOptions{
 		Telemetry: &telemetry.Options{},
 	}
 
-	if tp := os.Getenv(telemetry.TraceParentEnv); tp != "" {
+	if tp := env[telemetry.TraceParentEnv]; tp != "" {
 		opts.Telemetry.TraceParent = tp
 	}
 
@@ -335,7 +336,7 @@ func runCommand(
 		forwardSignalDelay = SignalForwardingDelay
 	}
 
-	cmd := exec.Command(ctx, v.Exec, cmdOpts.Command, cmdOpts.Args...)
+	cmd := exec.Command(ctx, v, cmdOpts.Command, cmdOpts.Args...)
 	cmd.SetDir(cmdOpts.CommandDir)
 	cmd.SetStdout(cmdStdout)
 	cmd.SetStderr(cmdStderr)

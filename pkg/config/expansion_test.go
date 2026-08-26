@@ -3,7 +3,6 @@ package config_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -38,7 +37,7 @@ unit "app" {
   }
 
   source = "./modules/app"
-  path   = "app"
+  path   = "app/${each.key}"
 }
 `
 
@@ -55,13 +54,25 @@ stack "team" {
   }
 
   source = "./stacks/team"
-  path   = "team"
+  path   = "team/${count.index}"
 }
 `
 
-// TestValidateExpansionExperiment pins which blocks the gate rejects while the
-// block-iteration experiment is off, and that it names the offending block.
-func TestValidateExpansionExperiment(t *testing.T) {
+// unitWithExpansionJSON is the JSON encoding of unitWithExpansionHCL. Stack files are only
+// ever HCL, but an include block may point at a JSON file, so the gate has to read one.
+const unitWithExpansionJSON = `{
+  "unit": {
+    "app": {
+      "expansion": {"for_each": ["web"]},
+      "source": "./modules/app",
+      "path": "app/${each.value}"
+    }
+  }
+}`
+
+// TestValidateBlockIterationExperimentGatesExpansion pins which block types reject an
+// expansion block while the experiment is off, and that the error names the offending block.
+func TestValidateBlockIterationExperimentGatesExpansion(t *testing.T) {
 	t.Parallel()
 
 	skipInExperimentMode(t)
@@ -96,6 +107,14 @@ func TestValidateExpansionExperiment(t *testing.T) {
 			cfg:           stackWithExpansionHCL,
 			wantBlockType: "stack",
 			wantLabel:     "team",
+			wantErr:       true,
+		},
+		{
+			name:          "unit with expansion in a json body",
+			configPath:    "extra.json",
+			cfg:           unitWithExpansionJSON,
+			wantBlockType: "unit",
+			wantLabel:     "app",
 			wantErr:       true,
 		},
 		{
@@ -140,7 +159,7 @@ generate "backend" {
 
 			file := parseHCLString(t, tc.cfg, tc.configPath)
 
-			err := config.ValidateExpansionExperiment(experiment.NewExperiments(), file)
+			err := config.ValidateBlockIterationExperiment(experiment.NewExperiments(), file)
 
 			if !tc.wantErr {
 				require.NoError(t, err)
@@ -156,9 +175,9 @@ generate "backend" {
 	}
 }
 
-// TestValidateExpansionExperimentEnabled pins that enabling the experiment clears the
-// gate for every block type it covers.
-func TestValidateExpansionExperimentEnabled(t *testing.T) {
+// TestValidateBlockIterationExperimentGateClearsWhenOn pins that turning the experiment on
+// clears the gate for both expansion blocks and bare enabled attributes.
+func TestValidateBlockIterationExperimentGateClearsWhenOn(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -181,6 +200,16 @@ func TestValidateExpansionExperimentEnabled(t *testing.T) {
 			configPath: config.DefaultStackFile,
 			cfg:        stackWithExpansionHCL,
 		},
+		{
+			name:       "unit with enabled",
+			configPath: config.DefaultStackFile,
+			cfg:        unitWithEnabledHCL,
+		},
+		{
+			name:       "stack with enabled",
+			configPath: config.DefaultStackFile,
+			cfg:        stackWithEnabledHCL,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -192,7 +221,7 @@ func TestValidateExpansionExperimentEnabled(t *testing.T) {
 
 			require.NoError(
 				t,
-				config.ValidateExpansionExperiment(
+				config.ValidateBlockIterationExperiment(
 					experiments,
 					parseHCLString(t, tc.cfg, tc.configPath),
 				),
@@ -209,7 +238,7 @@ func TestParseConfigStringExpansionRequiresExperiment(t *testing.T) {
 	skipInExperimentMode(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -255,7 +284,7 @@ func TestReadStackConfigStringExpansionRequiresExperiment(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultStackFile)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultStackFile)
 
 			_, err := config.ReadStackConfigString(
 				ctx,
@@ -299,7 +328,7 @@ include "extra" {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackPath)
 	pctx.Venv.FS = fsys
 
 	_, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
@@ -466,12 +495,16 @@ func TestIncludeMergeKeepsEveryExpandedInstance(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			dir := t.TempDir()
+			dir := filepath.Join("/virtual", "include-merge")
+			configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
 
-			require.NoError(t, os.MkdirAll(filepath.Join(dir, "network"), 0o755))
-			require.NoError(t, os.MkdirAll(filepath.Join(dir, "logging"), 0o755))
+			ctx, pctx := newExpansionParsingContext(t, configPath)
+			fsys := pctx.Venv.FS
 
-			require.NoError(t, os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(`
+			require.NoError(t, vfs.EnsureDirectory(fsys, filepath.Join(dir, "network")))
+			require.NoError(t, vfs.EnsureDirectory(fsys, filepath.Join(dir, "logging")))
+
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(dir, "root.hcl"), []byte(`
 dependencies {
   paths = ["./network"]
 }
@@ -482,8 +515,7 @@ dependency "vpc" {
 }
 `), 0o644))
 
-			configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-			require.NoError(t, os.WriteFile(configPath, []byte(`
+			require.NoError(t, vfs.WriteFile(fsys, configPath, []byte(`
 include "root" {
   path = "root.hcl"
   `+tc.mergeStrategy+`
@@ -502,8 +534,6 @@ dependency "shard" {
   config_path = "../shard-${count.index}"
 }
 `), 0o644))
-
-			ctx, pctx := newExpansionParsingContext(t, configPath)
 
 			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
 			require.NoError(t, err)
@@ -633,29 +663,31 @@ bogus "x" {
 	require.Error(t, err)
 }
 
-func TestUnitAndStackDecodeExpansionBlock(t *testing.T) {
+func TestUnitAndStackExpandPerIterationElement(t *testing.T) {
 	t.Parallel()
 
 	stackCfg, err := parseStackString(t, unitWithExpansionHCL+stackWithExpansionHCL)
 	require.NoError(t, err)
-	require.Len(t, stackCfg.Units, 1)
-	require.Len(t, stackCfg.Stacks, 1)
+	require.Len(t, stackCfg.Units, 2)
+	require.Len(t, stackCfg.Stacks, 2)
 
-	unitExpansion := stackCfg.Units[0].Expansion
-	require.NotNil(t, unitExpansion)
-	require.NotNil(t, unitExpansion.ForEach)
-	assert.Equal(
-		t,
-		cty.SetVal([]cty.Value{cty.StringVal("web"), cty.StringVal("api")}),
-		*unitExpansion.ForEach,
-	)
+	unitPaths := map[string]string{}
 
-	stackExpansion := stackCfg.Stacks[0].Expansion
-	require.NotNil(t, stackExpansion)
-	require.NotNil(t, stackExpansion.Count)
-	// Decoding and the literal build the number at different big.Float precisions,
-	// which assert.Equal reads as a diff.
-	assert.True(t, stackExpansion.Count.RawEquals(cty.NumberIntVal(2)))
+	for _, unit := range stackCfg.Units {
+		require.NotNil(t, unit.Expansion)
+		unitPaths[unit.Expansion.Key()] = unit.Path
+	}
+
+	assert.Equal(t, map[string]string{"web": "app/web", "api": "app/api"}, unitPaths)
+
+	stackPaths := map[string]string{}
+
+	for _, stack := range stackCfg.Stacks {
+		require.NotNil(t, stack.Expansion)
+		stackPaths[stack.Expansion.Key()] = stack.Path
+	}
+
+	assert.Equal(t, map[string]string{"0": "team/0", "1": "team/1"}, stackPaths)
 }
 
 func TestBlocksWithoutExpansionDecodeUnchanged(t *testing.T) {
@@ -1308,7 +1340,7 @@ func newExpansionParsingContext(
 ) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
-	ctx, pctx := newTestParsingContext(tb, venvtest.NewOSWithEmptyEnv(), configPath)
+	ctx, pctx := newTestParsingContext(tb, venvtest.New(), configPath)
 	require.NoError(tb, pctx.Experiments.EnableExperiment(experiment.BlockIteration))
 
 	return ctx, pctx

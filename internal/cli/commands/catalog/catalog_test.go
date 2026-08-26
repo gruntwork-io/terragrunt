@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -149,7 +150,12 @@ func TestRunWritesComponentsFromTheCatalogBlock(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.NewWithOSFS().WithWriter(&buf)
+	// The clone lands under the venv's temp dir, which has to be a real one
+	// here because the repo is cloned on the real filesystem.
+	tempDir := t.TempDir()
+	v := venvtest.NewWithOSFS().
+		WithWriter(&buf).
+		WithTempDir(func() string { return tempDir })
 
 	writeLocalRepo(t, v, repoDir)
 	require.NoError(t, vfs.WriteFile(
@@ -231,7 +237,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 func newOptions(t *testing.T, workDir, outputFormat string) *catalog.Options {
 	t.Helper()
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = workDir
 	tgOpts.RootWorkingDir = workDir
 	tgOpts.TerragruntConfigPath = filepath.Join(workDir, "terragrunt.hcl")

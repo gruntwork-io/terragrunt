@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,10 +68,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 
 		tmpDir := t.TempDir()
 
-		hash1, err := discovery.GenerateDirSHA256(tmpDir)
+		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir)
 		require.NoError(t, err)
 
-		hash2, err := discovery.GenerateDirSHA256(tmpDir)
+		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2, "Same empty directory should produce same hash")
@@ -86,10 +87,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "file.txt"), content, 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "file.txt"), content, 0644))
 
-		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2, "Directories with same files should produce same hash")
@@ -105,7 +106,7 @@ func TestGenerateDirSHA256(t *testing.T) {
 			os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content1"), 0644),
 		)
 
-		hash1, err := discovery.GenerateDirSHA256(tmpDir)
+		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir)
 		require.NoError(t, err)
 
 		require.NoError(
@@ -113,7 +114,7 @@ func TestGenerateDirSHA256(t *testing.T) {
 			os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content2"), 0644),
 		)
 
-		hash2, err := discovery.GenerateDirSHA256(tmpDir)
+		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, hash1, hash2, "Modified file should produce different hash")
@@ -129,10 +130,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "original.txt"), content, 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "renamed.txt"), content, 0644))
 
-		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
 		require.NoError(t, err)
 
 		assert.NotEqual(
@@ -156,10 +157,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.MkdirAll(subDir, 0755))
 		require.NoError(t, os.WriteFile(filepath.Join(subDir, "file.txt"), content, 0644))
 
-		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, hash1, hash2, "File move to subdirectory should produce different hash")
@@ -186,10 +187,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 			),
 		)
 
-		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
 		require.NoError(t, err)
 
 		assert.Equal(
@@ -213,10 +214,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "b.txt"), []byte("b"), 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "a.txt"), []byte("a"), 0644))
 
-		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2, "File creation order should not affect hash")
@@ -225,7 +226,7 @@ func TestGenerateDirSHA256(t *testing.T) {
 	t.Run("nonexistent_directory_returns_error", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := discovery.GenerateDirSHA256("/nonexistent/path/to/directory")
+		_, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), "/nonexistent/path/to/directory")
 		require.Error(t, err)
 	})
 
@@ -246,10 +247,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(subDir1, "file.txt"), content, 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(subDir2, "file.txt"), content, 0644))
 
-		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
 		require.NoError(t, err)
 
 		assert.Equal(

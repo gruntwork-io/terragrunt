@@ -180,7 +180,7 @@ func (m *Model) loadDir(n *Node) {
 
 	n.othersLoaded = true
 
-	entries, err := vfs.ReadDirEntries(m.fs, n.absPath)
+	entries, err := vfs.ReadDir(m.fsys, n.absPath)
 	if err != nil {
 		return
 	}
@@ -262,7 +262,7 @@ func inIgnorableDir(parent *Node, name string) bool {
 // containsFile reports whether dir holds a file named name. A stat error means
 // the file can't be confirmed, so it counts as absent.
 func (m *Model) containsFile(dir, name string) bool {
-	exists, err := vfs.FileExists(m.fs, filepath.Join(dir, name))
+	exists, err := vfs.FileExists(m.fsys, filepath.Join(dir, name))
 
 	return err == nil && exists
 }

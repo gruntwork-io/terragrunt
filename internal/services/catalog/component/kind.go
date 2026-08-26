@@ -93,7 +93,7 @@ type Markers struct {
 
 // Inspect reads dir and reports the component markers it carries.
 func Inspect(fsys vfs.FS, dir string) (Markers, error) {
-	entries, err := vfs.ReadDirEntries(fsys, dir)
+	entries, err := vfs.ReadDir(fsys, dir)
 	if err != nil {
 		return Markers{}, err
 	}

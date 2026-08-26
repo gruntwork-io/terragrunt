@@ -1234,12 +1234,12 @@ func credentialFor(t *testing.T, store getter.OCIRepositoryStore, registry strin
 }
 
 // writeAuthFile writes a config.json-format credential file granting user/pass for registry.
-func writeAuthFile(t *testing.T, fs vfs.FS, path, registry, user, pass string) {
+func writeAuthFile(t *testing.T, fsys vfs.FS, path, registry, user, pass string) {
 	t.Helper()
 
 	writeRawAuthFile(
 		t,
-		fs,
+		fsys,
 		path,
 		registry,
 		base64.StdEncoding.EncodeToString([]byte(user+":"+pass)),
@@ -1248,7 +1248,7 @@ func writeAuthFile(t *testing.T, fs vfs.FS, path, registry, user, pass string) {
 
 // writeAuthFileKeys writes a credential file declaring every key in users, each
 // granting its own username, so key selection can be observed.
-func writeAuthFileKeys(t *testing.T, fs vfs.FS, path string, users map[string]string) {
+func writeAuthFileKeys(t *testing.T, fsys vfs.FS, path string, users map[string]string) {
 	t.Helper()
 
 	auths := map[string]any{}
@@ -1261,11 +1261,11 @@ func writeAuthFileKeys(t *testing.T, fs vfs.FS, path string, users map[string]st
 
 	data, err := json.Marshal(map[string]any{"auths": auths})
 	require.NoError(t, err)
-	require.NoError(t, vfs.WriteFile(fs, path, data, 0o600))
+	require.NoError(t, vfs.WriteFile(fsys, path, data, 0o600))
 }
 
 // writeRawAuthFile writes a config.json credential file with a raw base64 auth value.
-func writeRawAuthFile(t *testing.T, fs vfs.FS, path, registry, encodedAuth string) {
+func writeRawAuthFile(t *testing.T, fsys vfs.FS, path, registry, encodedAuth string) {
 	t.Helper()
 
 	content := map[string]any{
@@ -1276,7 +1276,7 @@ func writeRawAuthFile(t *testing.T, fs vfs.FS, path, registry, encodedAuth strin
 
 	data, err := json.Marshal(content)
 	require.NoError(t, err)
-	require.NoError(t, vfs.WriteFile(fs, path, data, 0o600))
+	require.NoError(t, vfs.WriteFile(fsys, path, data, 0o600))
 }
 
 // stubHelperExec builds a MemExec that dispatches docker-credential-<name> get
@@ -1312,17 +1312,17 @@ func stubHelperExec(t *testing.T, name string, reply func(stdin string) vexec.Re
 }
 
 // writeHelperConfig writes a docker config.json with only credHelpers/credsStore.
-func writeHelperConfig(t *testing.T, fs vfs.FS, path string, credHelpers map[string]string, credsStore string) {
+func writeHelperConfig(t *testing.T, fsys vfs.FS, path string, credHelpers map[string]string, credsStore string) {
 	t.Helper()
 
-	writeDockerConfig(t, fs, path, nil, credHelpers, credsStore)
+	writeDockerConfig(t, fsys, path, nil, credHelpers, credsStore)
 }
 
 // writeDockerConfig writes a docker config.json with inline auths (registry ->
 // "user:pass"), credHelpers, and credsStore, omitting empty sections.
 func writeDockerConfig(
 	t *testing.T,
-	fs vfs.FS,
+	fsys vfs.FS,
 	path string,
 	inlineAuths, credHelpers map[string]string,
 	credsStore string,
@@ -1350,7 +1350,7 @@ func writeDockerConfig(
 
 	data, err := json.Marshal(config)
 	require.NoError(t, err)
-	require.NoError(t, vfs.WriteFile(fs, path, data, 0o600))
+	require.NoError(t, vfs.WriteFile(fsys, path, data, 0o600))
 }
 
 // credentialForErr resolves the credential the store would send, returning any error.

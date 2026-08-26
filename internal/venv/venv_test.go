@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
 
 func TestParseEnviron(t *testing.T) {
@@ -134,6 +135,7 @@ func TestOSVenvProvidesPlatformHandles(t *testing.T) {
 
 	require.NotNil(t, v.Platform)
 	assert.Equal(t, runtime.GOOS, v.Platform.GOOS)
+	assert.Equal(t, runtime.GOARCH, v.Platform.GOARCH)
 	assert.NotNil(t, v.Platform.UserHomeDir)
 }
 
@@ -144,13 +146,15 @@ func TestVenvPlatformBuilders(t *testing.T) {
 	homeDir := func() (string, error) { return "", wantHomeErr }
 	original := venv.OSVenv()
 
-	got := original.WithGOOS("plan9").WithUserHomeDir(homeDir)
+	got := original.WithGOOS("plan9").WithGOARCH("mips").WithUserHomeDir(homeDir)
 
 	require.NotNil(t, got.Platform)
 	assert.Equal(t, "plan9", got.Platform.GOOS)
+	assert.Equal(t, "mips", got.Platform.GOARCH)
 	_, err := got.Platform.UserHomeDir()
 	require.ErrorIs(t, err, wantHomeErr)
 	assert.Equal(t, runtime.GOOS, original.Platform.GOOS)
+	assert.Equal(t, runtime.GOARCH, original.Platform.GOARCH)
 }
 
 func TestVenvWriterBuildersIsolateCopies(t *testing.T) {
@@ -175,11 +179,58 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
 		(&venv.Venv{}).RequireFS()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvEnvUnset, func() {
+		venv.RequireEnvMap(nil)
+	})
+	assert.NotPanics(t, func() {
+		venv.RequireEnvMap(map[string]string{})
+	})
 	assert.PanicsWithValue(t, venv.ErrVenvGOOSUnset, func() {
 		(&venv.Venv{}).RequireGOOS()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvGOARCHUnset, func() {
+		(&venv.Venv{}).RequireGOARCH()
+	})
 	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
 		(&venv.Venv{}).RequireUserHomeDir()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).RequirePlatform()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvWritersUnset, func() {
+		(&venv.Venv{}).RequireWriters()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvListenUnset, func() {
+		(&venv.Venv{}).RequireListen()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvStdinUnset, func() {
+		(&venv.Venv{}).RequireStdin()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvWritersUnset, func() {
+		// A non-nil Writers whose fields are nil is the case a bare nil check
+		// would wave through, and the one that fails furthest from its cause.
+		(&venv.Venv{Writers: &writer.Writers{}}).RequireWriters()
+	})
+}
+
+// TestVenvPlatformBuildersRequireAPlatform pins that refining one platform
+// handle on a Venv carrying no platform fails at the builder. Filling in a
+// blank platform instead would hand back a Venv whose other handles are nil,
+// and the nil would surface somewhere else entirely.
+func TestVenvPlatformBuildersRequireAPlatform(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithGOOS("plan9")
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithGOARCH("mips")
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithUserHomeDir(func() (string, error) { return "", nil })
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithTempDir(func() string { return "" })
 	})
 }
 
@@ -225,14 +276,14 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 		{
 			name: "WithSops",
 			build: func(v *venv.Venv) *venv.Venv {
-				return v.WithSops(vsops.NewMemDecrypter(func(string, string) ([]byte, error) {
+				return v.WithSops(vsops.NewMemDecrypter(func(map[string]string, string, string) ([]byte, error) {
 					return nil, wantSopsErr
 				}))
 			},
 			verify: func(t *testing.T, got *venv.Venv) {
 				t.Helper()
 
-				_, err := got.Sops.DecryptFile("/secrets.yaml", "yaml")
+				_, err := got.Sops.DecryptFile(map[string]string{}, "/secrets.yaml", "yaml")
 				require.ErrorIs(t, err, wantSopsErr)
 			},
 		},
@@ -254,49 +305,39 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 	}
 }
 
-// TestVenvWithReaderBuffersOneStream pins the reader contract: the copy reads
-// from r through a buffer every derived venv shares, so a second prompt resumes
-// where the first stopped, and a later replacement leaves that buffer intact.
-func TestVenvWithReaderBuffersOneStream(t *testing.T) {
+// TestVenvWithStdinSharesOneStream pins the stdin contract: every derived venv
+// reads the one stream, unwrapped, so a second consumer resumes exactly where
+// the first stopped, and a later replacement swaps the stream for that copy
+// alone.
+func TestVenvWithStdinSharesOneStream(t *testing.T) {
 	t.Parallel()
 
 	original := &venv.Venv{}
-	got := original.WithReader(strings.NewReader("first\nsecond\n"))
+	stdin := strings.NewReader("first\nsecond\n")
+	got := original.WithStdin(stdin)
 
-	assert.Nil(t, original.Reader)
-	require.NotNil(t, got.Reader)
-
-	line, err := got.Reader.ReadString('\n')
-	require.NoError(t, err)
-	assert.Equal(t, "first\n", line)
-	assert.Positive(t, got.Reader.Buffered())
+	assert.Nil(t, original.Stdin)
+	require.Same(t, stdin, got.Stdin)
 
 	derived := got.WithFS(vfs.NewMemMapFS())
-	require.Same(t, got.Reader, derived.Reader)
+	require.Same(t, got.Stdin, derived.Stdin)
 
-	line, err = derived.Reader.ReadString('\n')
-	require.NoError(t, err)
-	assert.Equal(t, "second\n", line)
-
-	replaced := got.WithReader(strings.NewReader("third\n"))
-	require.NotSame(t, got.Reader, replaced.Reader)
-
-	line, err = replaced.Reader.ReadString('\n')
-	require.NoError(t, err)
-	assert.Equal(t, "third\n", line)
+	replaced := got.WithStdin(strings.NewReader("third\n"))
+	require.NotSame(t, got.Stdin, replaced.Stdin)
+	require.Same(t, stdin, got.Stdin)
 }
 
-// TestVenvRequireReaderAndHTTP pins the Reader and HTTP contracts: the zero
+// TestVenvRequireStdinAndHTTP pins the Stdin and HTTP contracts: the zero
 // Venv panics with the sentinel, a populated Venv passes.
-func TestVenvRequireReaderAndHTTP(t *testing.T) {
+func TestVenvRequireStdinAndHTTP(t *testing.T) {
 	t.Parallel()
 
-	assert.PanicsWithValue(t, venv.ErrVenvReaderUnset, func() {
-		(&venv.Venv{FS: vfs.NewMemMapFS()}).RequireReader()
+	assert.PanicsWithValue(t, venv.ErrVenvStdinUnset, func() {
+		(&venv.Venv{FS: vfs.NewMemMapFS()}).RequireStdin()
 	})
 
 	assert.NotPanics(t, func() {
-		(&venv.Venv{}).WithReader(strings.NewReader("")).RequireReader()
+		(&venv.Venv{}).WithStdin(strings.NewReader("")).RequireStdin()
 	})
 
 	assert.PanicsWithValue(t, venv.ErrVenvHTTPUnset, func() {

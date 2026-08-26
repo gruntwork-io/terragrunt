@@ -12,7 +12,7 @@ import (
 )
 
 // Run launches the Miller-columns browser over the given tree, blocking until
-// the user quits. fs backs the on-demand reads of surrounding entries and file
+// the user quits. fsys backs the on-demand reads of surrounding entries and file
 // previews. resultCh delivers the background discovery result, which annotates
 // the tree once it arrives, and warnCh the warnings logged while it runs, shown
 // as toasts; both are required (see [NewModel]). A cancelled context is treated
@@ -20,13 +20,17 @@ import (
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
+	userHomeDir func() (string, error),
 	root *Node,
 	color ColorMode,
 	resultCh <-chan DiscoveryResult,
 	warnCh <-chan viewtui.Warning,
 ) error {
-	_, err := tea.NewProgram(NewModel(l, fs, root, color, resultCh, warnCh), tea.WithContext(ctx)).Run()
+	_, err := tea.NewProgram(
+		NewModel(l, fsys, userHomeDir, root, color, resultCh, warnCh),
+		tea.WithContext(ctx),
+	).Run()
 	if err == nil {
 		return nil
 	}

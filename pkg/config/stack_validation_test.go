@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -43,11 +44,11 @@ func TestValidateStackConfig(t *testing.T) {
 			wantErr: "",
 		},
 		{
-			name: "empty config",
+			name: "config that resolved to no components",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{},
 			},
-			wantErr: "stack config must contain at least one unit",
+			wantErr: "",
 		},
 		{
 			name: "empty unit name",
@@ -312,6 +313,70 @@ func TestValidateStackConfig(t *testing.T) {
 	}
 }
 
+// TestParseStackConfigRejectsFileDeclaringNoComponents pins that the emptiness rule reads
+// the blocks a user wrote, so a file with nothing to generate is still an error.
+func TestParseStackConfigRejectsFileDeclaringNoComponents(t *testing.T) {
+	t.Parallel()
+
+	err := parseStackErr(t, `
+locals {
+  env = "dev"
+}
+`)
+
+	require.ErrorIs(t, err, config.ErrStackHasNoComponents)
+}
+
+// TestParseStackConfigAcceptsComponentsThatResolveToNothing pins the other side of that
+// rule: a file that declares blocks parses even when none of them survives, so a
+// conditional stack does not break in the case where its condition excludes everything.
+func TestParseStackConfigAcceptsComponentsThatResolveToNothing(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		cfg       string
+		wantUnits int
+	}{
+		{
+			name: "every unit disabled",
+			cfg: `
+unit "app" {
+  enabled = false
+
+  source = "./units/app"
+  path   = "app"
+}
+`,
+			wantUnits: 1,
+		},
+		{
+			name: "expansion over an empty collection",
+			cfg: `
+unit "app" {
+  expansion {
+    for_each = toset([])
+  }
+
+  source = "./units/app"
+  path   = "app/${each.value}"
+}
+`,
+			wantUnits: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stackCfg, err := parseStackString(t, tc.cfg)
+			require.NoError(t, err)
+			assert.Len(t, stackCfg.Units, tc.wantUnits)
+		})
+	}
+}
+
 // TestValidateStackConfigCrossKindPathCollision rejects a unit and a stack that resolve to the same generated path.
 func TestValidateStackConfigCrossKindPathCollision(t *testing.T) {
 	t.Parallel()
@@ -420,7 +485,7 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
@@ -494,7 +559,7 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
@@ -550,7 +615,7 @@ unit "added" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
@@ -643,7 +708,7 @@ stack "added" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
@@ -725,7 +790,7 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
@@ -766,7 +831,7 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
@@ -779,6 +844,37 @@ unit "vpc" {
 	var typed inthclparse.DuplicateUnitNameError
 	require.ErrorAs(t, err, &typed)
 	assert.Equal(t, "vpc", typed.Name)
+}
+
+// TestStackIncludeSatisfiesComponentDeclaration pins that the blocks an include contributes
+// count toward the emptiness rule, so a stack file that delegates every component to an
+// include still parses.
+func TestStackIncludeSatisfiesComponentDeclaration(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+
+	stackDir := filepath.Join("/virtual", "stack")
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+
+	require.NoError(t, vfs.WriteFile(v.FS, stackFilePath, []byte(`
+include "shared" {
+  path = "./shared.hcl"
+}
+`), 0o644))
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(stackDir, "shared.hcl"), []byte(`
+unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+`), 0o644))
+
+	ctx, pctx := newTestParsingContext(t, v, stackFilePath)
+
+	stackCfg, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.NoError(t, err)
+	assert.Len(t, stackCfg.Units, 1)
 }
 
 // TestStackAutoIncludeOverrideUpdatesComponentPathRef pins that when the autoinclude override changes a
@@ -814,7 +910,7 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
@@ -879,7 +975,7 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackFilePath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(

@@ -201,3 +201,22 @@ func (e DiscoveryBoundaryScopeError) Error() string {
 func NewDiscoveryBoundaryScopeError(boundary, workingDir string) error {
 	return DiscoveryBoundaryScopeError{Boundary: boundary, WorkingDir: workingDir}
 }
+
+// EmptyQueueConstructAsError represents an error that occurs when the value
+// given for the --queue-construct-as flag contains no command.
+type EmptyQueueConstructAsError struct {
+	Value string
+}
+
+func (e EmptyQueueConstructAsError) Error() string {
+	return fmt.Sprintf(
+		"The --queue-construct-as value %q contains no command. "+
+			"Pass the command to construct the queue as, like 'plan' or 'apply -destroy'.",
+		e.Value,
+	)
+}
+
+// NewEmptyQueueConstructAsError creates a new [EmptyQueueConstructAsError] for the given flag value.
+func NewEmptyQueueConstructAsError(value string) error {
+	return EmptyQueueConstructAsError{Value: value}
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -118,7 +119,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 		t.Context(),
 		l,
 		pctx,
-		config.DefaultParserOptions(l, opts.StrictControls),
+		config.DefaultParserOptions(l, pctx.Venv, opts.StrictControls),
 	)
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
@@ -225,7 +226,7 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 		t.Context(),
 		l,
 		pctx,
-		config.DefaultParserOptions(l, opts.StrictControls),
+		config.DefaultParserOptions(l, pctx.Venv, opts.StrictControls),
 	)
 	require.NoError(t, err)
 
@@ -434,7 +435,7 @@ catalog {
 			err = os.WriteFile(terragruntConfigPath, []byte(tc.terragruntConfig), 0644)
 			require.NoError(t, err)
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			// Set CLI flags if specified in test case
 			if tc.cliNoShell != nil {
 				opts.NoShell = *tc.cliNoShell
@@ -541,7 +542,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"
@@ -580,7 +581,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"

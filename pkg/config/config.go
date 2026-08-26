@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"maps"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -20,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
@@ -99,7 +99,7 @@ var (
 		DefaultTerragruntConfigPath,
 	}
 
-	DefaultParserOptions = func(l log.Logger, strictControls strict.Controls) []hclparse.Option {
+	DefaultParserOptions = func(l log.Logger, v *venv.Venv, strictControls strict.Controls) []hclparse.Option {
 		writer := writer.New(
 			writer.WithLogger(l),
 			writer.WithDefaultLevel(log.ErrorLevel),
@@ -108,7 +108,7 @@ var (
 
 		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
 		parseOpts = append(parseOpts,
-			hclparse.WithDiagnosticsWriter(writer, l.Formatter().DisabledColors()),
+			hclparse.WithDiagnosticsWriter(v, writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
 		)
 
@@ -205,6 +205,7 @@ func (cfg *TerragruntConfig) GetRemoteState(
 
 		tfSource, err := tf.NewSource(
 			l,
+			pctx.Venv.FS,
 			canonicalSourceURL,
 			pctx.DownloadDir,
 			pctx.WorkingDir,
@@ -1221,9 +1222,9 @@ func adjustSourceWithMap(
 
 // GetDefaultConfigPath returns the default path to use for the Terragrunt configuration
 // that exists within the path giving preference to `terragrunt.hcl`
-func GetDefaultConfigPath(workingDir string) string {
+func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
-	if info, err := os.Stat(workingDir); err == nil && !info.IsDir() {
+	if info, err := fsys.Stat(workingDir); err == nil && !info.IsDir() {
 		return workingDir
 	}
 
@@ -1234,7 +1235,7 @@ func GetDefaultConfigPath(workingDir string) string {
 			configPath = filepath.Join(workingDir, configPath)
 		}
 
-		if _, err := os.Stat(configPath); err == nil {
+		if _, err := fsys.Stat(configPath); err == nil {
 			break
 		}
 	}
@@ -1503,7 +1504,7 @@ func ParseConfig(
 		return nil, err
 	}
 
-	if err := ValidateExpansionExperiment(pctx.Experiments, file); err != nil {
+	if err := ValidateBlockIterationExperiment(pctx.Experiments, file); err != nil {
 		return nil, err
 	}
 
@@ -1594,18 +1595,20 @@ func ParseConfig(
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
 	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
-	merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
-	if autoMergeErr != nil {
-		errs = append(errs, autoMergeErr)
-	}
+	if config != nil {
+		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
+		if autoMergeErr != nil {
+			errs = append(errs, autoMergeErr)
+		}
 
-	if autoMergeErr == nil {
-		config = merged
+		if autoMergeErr == nil {
+			config = merged
+		}
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
-	// If there have been errors during this parse, don't attempt to parse the included config.
-	if pctx.TrackInclude != nil {
+	// Skip include merge when config is nil to avoid a nil pointer dereference in Merge/DeepMerge.
+	if pctx.TrackInclude != nil && config != nil {
 		mergedConfig, err := handleInclude(ctx, pctx, l, config, false)
 		if err != nil {
 			errs = append(errs, err)
@@ -2107,7 +2110,7 @@ func convertToTerragruntConfig(
 
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("generate block %q: %w", block.Name, err))
+			errs = append(errs, InvalidGenerateBlockError{BlockName: block.Name, Err: err})
 			continue
 		}
 
@@ -2117,7 +2120,8 @@ func convertToTerragruntConfig(
 
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
 		if err != nil {
-			return nil, err
+			errs = append(errs, InvalidGenerateBlockError{BlockName: block.Name, Err: err})
+			continue
 		}
 
 		if block.Mutable != nil && !pctx.Experiments.Evaluate(experiment.MutableGenerate) {
@@ -2336,8 +2340,8 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
-func configFileHasDependencyBlock(configPath string) (bool, error) {
-	configBytes, err := os.ReadFile(configPath)
+func configFileHasDependencyBlock(fsys vfs.FS, configPath string) (bool, error) {
+	configBytes, err := vfs.ReadFile(fsys, configPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return false, DependencyFileNotFoundError{Path: configPath}

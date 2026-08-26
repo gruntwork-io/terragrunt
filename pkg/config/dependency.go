@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -1003,6 +1002,10 @@ func collectStackUnitOutputs(
 	unitOutputs := make(map[string]cty.Value)
 
 	for _, unit := range units {
+		if !unit.IsEnabled() {
+			continue
+		}
+
 		unitDir := unit.GeneratedPath(stackDir)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
@@ -1454,7 +1457,7 @@ func resolveOutputJSON(
 	// we need to suspend logging diagnostic errors on this attempt
 	parseOptions := slices.Concat(
 		pctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(io.Discard, true)},
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(pctx.Venv, io.Discard, true)},
 	)
 
 	remoteStateTGConfig, err := PartialParseConfigFile(
@@ -1615,6 +1618,7 @@ func terragruntAlreadyInit(
 
 	terraformSource, err := tf.NewSource(
 		l,
+		pctx.Venv.FS,
 		sourceURL,
 		pctx.DownloadDir,
 		pctx.WorkingDir,
@@ -2039,7 +2043,7 @@ func runTerragruntOutputJSON(
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
-	s := shell.NewShellOptions().
+	s := shell.NewShellOptions(pctx.Venv.Env).
 		WithWorkingDir(pctx.WorkingDir).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
@@ -2218,7 +2222,7 @@ func parseAutoIncludeFileCached(
 	pctx *ParsingContext,
 	autoIncludePath string,
 ) (*hclparse.File, error) {
-	fileInfo, err := os.Stat(autoIncludePath)
+	fileInfo, err := pctx.Venv.FS.Stat(autoIncludePath)
 	if err != nil {
 		return nil, err
 	}

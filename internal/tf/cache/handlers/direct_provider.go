@@ -120,7 +120,7 @@ func ResolveProviderURL(providersV1, registryName string, pathParts ...string) (
 
 	// Relative path — build URL with registry host
 	return &url.URL{
-		Scheme: "https",
+		Scheme: schemeHTTPS,
 		Host:   registryName,
 		Path:   path.Join(providersV1, subPath),
 	}, nil

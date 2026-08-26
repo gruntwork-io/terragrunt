@@ -142,7 +142,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 	for _, tc := range testCases {
 		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
-		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), tc.configPath)
+		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeToInclude(ctx, pctx, l, tc.params)
 		require.NoError(
@@ -276,7 +276,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	for _, tc := range testCases {
 		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
-		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), tc.configPath)
+		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
 		require.NoError(
@@ -529,7 +529,7 @@ func TestFindInParentFolders(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), tc.configPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 
 			if tc.maxFoldersToCheck != 0 {
 				pctx.MaxFoldersToCheck = tc.maxFoldersToCheck
@@ -579,7 +579,7 @@ unit "test" {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	_, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), stackHclPath)
+	_, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackHclPath)
 	pctx.WorkingDir = tempDir
 
 	stackConfig, err := config.ReadStackConfigFile(t.Context(), l, pctx, stackHclPath, nil)
@@ -606,7 +606,7 @@ func TestFindInParentFoldersSharedRunContext(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	baseCtx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), first)
+	baseCtx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), first)
 	ctx := config.WithConfigValues(baseCtx)
 
 	firstPath, err := config.FindInParentFolders(ctx, pctx, l, []string{"root.hcl"})
@@ -655,7 +655,7 @@ func TestFindInParentFoldersSharedRunContextWithRacing(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	baseCtx, basePctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPaths[0])
+	baseCtx, basePctx := newTestParsingContext(t, venvtest.NewWithOSFS(), configPaths[0])
 	ctx := config.WithConfigValues(baseCtx)
 
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -770,7 +770,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), tc.configPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 
 			if tc.maxFoldersToCheck != 0 {
 				pctx.MaxFoldersToCheck = tc.maxFoldersToCheck
@@ -867,7 +867,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), tc.configPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 
 			if tc.env != nil {
 				pctx.Venv.Env = tc.env
@@ -925,7 +925,7 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), tc.configPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 			actualOut, actualErr := config.ParseConfigString(
 				ctx,
 				pctx,
@@ -983,7 +983,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 			pctx.TerraformCliArgs = iacargs.New(cliArgs...)
 
 			actualOut, actualErr := config.ParseConfigString(
@@ -1054,7 +1054,7 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 	t.Helper()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), configPath)
 	actualPath, err := config.GetTerragruntDir(ctx, pctx, l)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
@@ -1215,7 +1215,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 	for _, tc := range testCases {
 		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
-		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), tc.configPath)
+		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.GetParentTerragruntDir(ctx, pctx, l, tc.params)
 		require.NoError(
@@ -1295,7 +1295,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			)
 			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 			actual, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 			require.NoError(t, err, "For hcl '%s', unexpected error: %v", tc.input, err)
 
@@ -1428,7 +1428,7 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 			cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
 			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
 			actual, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 			require.NoError(t, err)
@@ -1448,7 +1448,7 @@ func TestTerragruntDeepMergeFunctionRequiresExperiment(t *testing.T) {
 	cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
 	configString := `inputs = { test = deep_merge({ a = 1 }, { b = 2 }) }`
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 
 	require.Error(t, err)
@@ -1461,7 +1461,7 @@ func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 	cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
 	configString := `inputs = { test = deep_merge({ a = 1 }, "invalid") }`
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
 	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 
@@ -1482,7 +1482,7 @@ func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), cfgPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
 
 	cfg, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
@@ -1591,7 +1591,7 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -1646,7 +1646,7 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -1688,7 +1688,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -1738,7 +1738,7 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -1775,7 +1775,7 @@ func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.
 	require.NoError(t, err)
 
 	// correct original path: get_original_terragrunt_dir() resolves to the unit dir
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), unitFilename)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), unitFilename)
 	pctx.OriginalTerragruntConfigPath = unitFilename
 	pctx.SkipOutput = true
 
@@ -1790,7 +1790,7 @@ func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.
 		config.DefaultTerragruntConfigPath,
 	)
 
-	ctxWrong, pctxWrong := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), unitFilename)
+	ctxWrong, pctxWrong := newTestParsingContext(t, venvtest.NewWithOSFS(), unitFilename)
 	pctxWrong.OriginalTerragruntConfigPath = parentFilename
 	pctxWrong.SkipOutput = true
 
@@ -1891,7 +1891,7 @@ func TestStartsWith(t *testing.T) {
 		t.Run(fmt.Sprintf("%v %v", id, tc.args), func(t *testing.T) {
 			t.Parallel()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 			actual, err := config.StartsWith(ctx, pctx, tc.args)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
@@ -1921,7 +1921,7 @@ func TestEndsWith(t *testing.T) {
 		t.Run(fmt.Sprintf("%v %v", id, tc.args), func(t *testing.T) {
 			t.Parallel()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 			actual, err := config.EndsWith(ctx, pctx, tc.args)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
@@ -1974,7 +1974,7 @@ func TestTimeCmp(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 			actual, err := config.TimeCmp(ctx, pctx, l, tc.args)
 			if tc.err != "" {
@@ -2017,7 +2017,7 @@ func TestStrContains(t *testing.T) {
 		t.Run(fmt.Sprintf("StrContains %v", tc.args), func(t *testing.T) {
 			t.Parallel()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 			actual, err := config.StrContains(ctx, pctx, tc.args)
 			if tc.err != "" {
@@ -2035,7 +2035,7 @@ func TestReadTFVarsFiles(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -2150,7 +2150,7 @@ func TestConstraintCheck(t *testing.T) {
 			func(t *testing.T) {
 				t.Parallel()
 
-				ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+				ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 				actual, err := config.ConstraintCheck(ctx, pctx, tc.args)
 				if tc.err != "" {
@@ -2182,7 +2182,7 @@ func TestStartsWithArityRegression(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 			require.NotPanics(t, func() {
 				_, err := config.StartsWith(ctx, pctx, tc.args)
@@ -2210,7 +2210,7 @@ func TestEndsWithArityRegression(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 			require.NotPanics(t, func() {
 				_, err := config.EndsWith(ctx, pctx, tc.args)
@@ -2238,7 +2238,7 @@ func TestStrContainsArityRegression(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 			require.NotPanics(t, func() {
 				_, err := config.StrContains(ctx, pctx, tc.args)
@@ -2276,7 +2276,7 @@ func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "")
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
 
 			require.NotPanics(t, func() {
 				_, err := config.RunCommand(ctx, pctx, l, tc.params)

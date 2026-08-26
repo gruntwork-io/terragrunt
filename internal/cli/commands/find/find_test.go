@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -502,7 +502,7 @@ locals {
 			// Setup test directory
 			tmpDir := tt.setup(t)
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = tmpDir
 
 			l := logger.CreateLogger()
@@ -520,7 +520,7 @@ locals {
 			r, w, err := os.Pipe()
 			require.NoError(t, err)
 
-			err = find.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
+			err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
@@ -566,7 +566,7 @@ dependency "target" {
 		require.NoError(t, err)
 	}
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = tmpDir
 	tgOpts.RootWorkingDir = tmpDir
 
@@ -582,7 +582,7 @@ dependency "target" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = find.Run(t.Context(), l, venv.OSVenv().WithWriter(w), opts)
+	err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())
@@ -685,7 +685,7 @@ exclude {
 `,
 	})
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -728,7 +728,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			root := "/find-writer"
 			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -768,7 +768,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 			root := "/find-invalid"
 			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 

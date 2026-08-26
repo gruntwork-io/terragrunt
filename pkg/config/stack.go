@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -48,10 +49,21 @@ const (
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
 type StackConfigFile struct {
-	Locals   *terragruntLocal    `hcl:"locals,block"`
-	Includes []*StackIncludeFile `hcl:"include,block"`
-	Stacks   []*Stack            `hcl:"stack,block"`
-	Units    []*Unit             `hcl:"unit,block"`
+	Locals      *terragruntLocal    `hcl:"locals,block"`
+	Includes    []*StackIncludeFile `hcl:"include,block"`
+	StackBlocks []componentHeader   `hcl:"stack,block"`
+	UnitBlocks  []componentHeader   `hcl:"unit,block"`
+	Stacks      []*Stack
+	Units       []*Unit
+}
+
+// componentHeader keeps `unit` and `stack` in the stack file's schema without evaluating the
+// block body. Source, path and values are attributes, so a whole-file decode resolves them
+// before expansion can bind each.*/count.index, and a block referencing either fails on an
+// undefined variable.
+type componentHeader struct {
+	Remain hcl.Body `hcl:",remain"`
+	Name   string   `hcl:",label"`
 }
 
 // StackIncludeFile represents an include block in a stack file.
@@ -73,6 +85,7 @@ type Unit struct {
 
 	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
 
+	Enabled             *bool      `hcl:"enabled,attr"`
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
@@ -81,6 +94,24 @@ type Unit struct {
 	Name                string     `hcl:",label"`
 	Source              string     `hcl:"source,attr"`
 	Path                string     `hcl:"path,attr"`
+}
+
+// IsEnabled reports whether this unit is present at all. Omitting enabled keeps the unit,
+// so only an explicit false drops it. Unlike expansion, this never changes the unit's
+// address, so toggling it leaves references and generated paths intact.
+func (u *Unit) IsEnabled() bool {
+	return u.Enabled == nil || *u.Enabled
+}
+
+// InstanceKey returns the key of the expansion element this unit came from, and whether
+// the unit was expanded at all. A declared expansion is not proof of one: a block decoded
+// outside the expanding decoder carries the declaration with no key.
+func (u *Unit) InstanceKey() (string, bool) {
+	if u.Expansion == nil {
+		return "", false
+	}
+
+	return u.Expansion.Key(), u.Expansion.Expanded()
 }
 
 // GeneratedPath returns the on-disk path this unit generates to under stackDir.
@@ -94,6 +125,7 @@ type Stack struct {
 
 	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
 
+	Enabled             *bool      `hcl:"enabled,attr"`
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
@@ -102,6 +134,22 @@ type Stack struct {
 	Name                string     `hcl:",label"`
 	Source              string     `hcl:"source,attr"`
 	Path                string     `hcl:"path,attr"`
+}
+
+// IsEnabled reports whether this stack is present at all. Omitting enabled keeps the
+// stack, so only an explicit false drops it.
+func (s *Stack) IsEnabled() bool {
+	return s.Enabled == nil || *s.Enabled
+}
+
+// InstanceKey returns the key of the expansion element this stack came from, and whether
+// the stack was expanded at all.
+func (s *Stack) InstanceKey() (string, bool) {
+	if s.Expansion == nil {
+		return "", false
+	}
+
+	return s.Expansion.Key(), s.Expansion.Expanded()
 }
 
 // GeneratedPath returns the on-disk path this stack generates to under stackDir.
@@ -158,6 +206,17 @@ func GenerateStackFile(
 		return err
 	}
 
+	// Without this the run is silent: every per-component log line belongs to a component
+	// that is generating, so a file where none of them do says nothing at all.
+	if !hasEnabledComponents(stackFile) {
+		l.Infof(
+			"Nothing to generate from %s: every unit and stack it declares is disabled or expanded to no elements",
+			util.RelPathForLog(pctx.RootWorkingDir, stackFilePath, pctx.LogShowAbsPaths),
+		)
+
+		return nil
+	}
+
 	cs, err := setupCAS(l, pctx.Venv, casEnabled, pctx.CASCloneDepth)
 	if err != nil {
 		return err
@@ -194,6 +253,12 @@ func GenerateStackFile(
 	}
 
 	return nil
+}
+
+// hasEnabledComponents reports whether any unit or stack in the file generates anything.
+func hasEnabledComponents(stackFile *StackConfig) bool {
+	return slices.ContainsFunc(stackFile.Units, (*Unit).IsEnabled) ||
+		slices.ContainsFunc(stackFile.Stacks, (*Stack).IsEnabled)
 }
 
 // ValidateStackAutoIncludes runs the strict autoinclude parse over the stack file at
@@ -247,7 +312,7 @@ func resolveStackAutoIncludes(
 	}
 
 	// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
-	stackSrcBytes, err := os.ReadFile(stackFilePath)
+	stackSrcBytes, err := vfs.ReadFile(pctx.Venv.FS, stackFilePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 	}
@@ -365,10 +430,10 @@ func validateUpdateSourceWithCAS(
 // own terragrunt.hcl, which is only available once the source is materialized. Without this check
 // the relative source would be copied verbatim and silently fail to resolve from the generated
 // location, since the cas:: rewrite that gives it meaning never runs.
-func rejectTerraformUpdateSourceWithoutCAS(fs vfs.FS, dest string) error {
+func rejectTerraformUpdateSourceWithoutCAS(fsys vfs.FS, dest string) error {
 	unitFile := filepath.Join(dest, DefaultTerragruntConfigPath)
 
-	content, err := vfs.ReadFile(fs, unitFile)
+	content, err := vfs.ReadFile(fsys, unitFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
@@ -422,7 +487,7 @@ func setupCAS(l log.Logger, v *venv.Venv, enabled bool, cloneDepth int) (casSetu
 		return casSetup{}, nil
 	}
 
-	if _, err := git.NewGitRunner(v.Exec); err != nil {
+	if _, err := git.NewGitRunner(v); err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. CAS features disabled.", err)
 		return casSetup{}, nil
 	}
@@ -461,11 +526,18 @@ func generateUnits(
 	units []*Unit,
 ) error {
 	for _, unit := range units {
+		if !unit.IsEnabled() {
+			l.Debugf("Skipping disabled unit %s", componentAddress(unit.Name, unit.Expansion))
+
+			continue
+		}
+
 		pool.Submit(func() error {
 			item := componentToGenerate{
 				sourceDir:    opts.sourceDir,
 				targetDir:    opts.targetDir,
 				name:         unit.Name,
+				displayName:  componentAddress(unit.Name, unit.Expansion),
 				path:         unit.Path,
 				source:       unit.Source,
 				values:       unit.Values,
@@ -477,7 +549,7 @@ func generateUnits(
 
 			l.Infof(
 				"Generating unit %s from %s",
-				unit.Name,
+				componentAddress(unit.Name, unit.Expansion),
 				util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths),
 			)
 
@@ -507,11 +579,18 @@ func generateStacks(
 	stacks []*Stack,
 ) error {
 	for _, stack := range stacks {
+		if !stack.IsEnabled() {
+			l.Debugf("Skipping disabled stack %s", componentAddress(stack.Name, stack.Expansion))
+
+			continue
+		}
+
 		pool.Submit(func() error {
 			item := componentToGenerate{
 				sourceDir:    opts.sourceDir,
 				targetDir:    opts.targetDir,
 				name:         stack.Name,
+				displayName:  componentAddress(stack.Name, stack.Expansion),
 				path:         stack.Path,
 				source:       stack.Source,
 				noStack:      stack.NoStack != nil && *stack.NoStack,
@@ -523,7 +602,7 @@ func generateStacks(
 
 			l.Infof(
 				"Generating stack %s from %s",
-				stack.Name,
+				componentAddress(stack.Name, stack.Expansion),
 				util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths),
 			)
 
@@ -557,6 +636,7 @@ type componentToGenerate struct {
 	sourceDir    string
 	targetDir    string
 	name         string
+	displayName  string
 	path         string
 	source       string
 	noStack      bool
@@ -598,6 +678,7 @@ func resolveDestPath(cmp *componentToGenerate, opts *generateOpts) (string, erro
 // validateGeneratedComponent validates the generated component directory contains the expected config file.
 func validateGeneratedComponent(
 	l log.Logger,
+	fsys vfs.FS,
 	cmp *componentToGenerate,
 	opts *generateOpts,
 	dest string,
@@ -625,7 +706,7 @@ func validateGeneratedComponent(
 		expectedFile = DefaultStackFile
 	}
 
-	if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
+	if err := validateTargetDir(fsys, kindStr, cmp.name, dest, expectedFile); err != nil {
 		if opts.noStackValidate {
 			l.Warnf(
 				"Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.",
@@ -723,7 +804,7 @@ func generateComponent(
 		kindStr = "stack"
 	}
 
-	l.Debugf("Generating: %s (%s) to %s", cmp.name, source, dest)
+	l.Debugf("Generating: %s (%s) to %s", cmp.displayName, source, dest)
 
 	if err := fetchComponentSource(ctx, l, v, opts, cmp, kindStr, source, dest); err != nil {
 		return err
@@ -735,7 +816,7 @@ func generateComponent(
 		}
 	}
 
-	if err := validateGeneratedComponent(l, cmp, opts, dest); err != nil {
+	if err := validateGeneratedComponent(l, v.FS, cmp, opts, dest); err != nil {
 		return err
 	}
 
@@ -785,7 +866,7 @@ func fetchComponentSource(
 			)
 		}
 
-		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
+		if err := v.FS.MkdirAll(dest, os.ModePerm); err != nil {
 			return fmt.Errorf("failed to create directory %s for %s %w", dest, cmp.name, err)
 		}
 
@@ -1131,7 +1212,7 @@ func ParseStackConfig(
 		parser = parser.WithValues(values)
 	}
 
-	if err := ValidateExpansionExperiment(parser.Experiments, file); err != nil {
+	if err := ValidateBlockIterationExperiment(parser.Experiments, file); err != nil {
 		return nil, err
 	}
 
@@ -1160,6 +1241,11 @@ func ParseStackConfig(
 	config := &StackConfigFile{}
 	if decodeErr := file.Decode(config, evalParsingContext); decodeErr != nil {
 		return nil, decodeErr
+	}
+
+	config.Units, config.Stacks, err = decodeComponents(file, evalParsingContext)
+	if err != nil {
+		return nil, err
 	}
 
 	// Process include blocks and merge any generated stack-level autoinclude file.
@@ -1206,20 +1292,18 @@ func ParseStackConfig(
 		Units:  config.Units,
 	}
 
+	// Counted from the declared blocks rather than the resolved components, so a file whose
+	// every component is disabled or expanded over an empty collection generates nothing
+	// instead of failing.
+	if len(config.UnitBlocks) == 0 && len(config.StackBlocks) == 0 {
+		return nil, ErrStackHasNoComponents
+	}
+
 	if err := ValidateStackConfig(config, filepath.Dir(file.ConfigPath)); err != nil {
 		return nil, err
 	}
 
 	return stackConfig, nil
-}
-
-// stackComponentHeaders captures only the label and path of each unit/stack block
-// so component paths can be resolved before the full decode evaluates values.
-// source, values, and every other attribute are left in the block body, unevaluated.
-type stackComponentHeaders struct {
-	Remain hcl.Body                `hcl:",remain"`
-	Stacks []*stackComponentHeader `hcl:"stack,block"`
-	Units  []*stackComponentHeader `hcl:"unit,block"`
 }
 
 // stackComponentHeader is the path-only shape of a unit or stack block.
@@ -1249,14 +1333,14 @@ func injectStackComponentRefs(
 	stackDir string,
 	parserOpts []hclparse.Option,
 ) error {
-	headers := &stackComponentHeaders{}
-	if err := file.Decode(headers, evalCtx); err != nil {
+	baseUnits, baseStacks, err := decodeComponentHeaders(file, evalCtx)
+	if err != nil {
 		return err
 	}
 
 	// Publish the base refs first so a sibling autoinclude block whose path references unit.<name>.path /
 	// stack.<name>.path can resolve against the base components, matching how the full decode resolves them.
-	setStackComponentRefVars(evalCtx, stackDir, headers.Units, headers.Stacks)
+	setStackComponentRefVars(evalCtx, stackDir, baseUnits, baseStacks)
 
 	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(
 		fsys,
@@ -1269,8 +1353,8 @@ func injectStackComponentRefs(
 	}
 
 	// Republish so an overridden component's path reflects the override, not the base path it replaced.
-	units := util.MergeNamed(headers.Units, autoUnits, componentHeaderName)
-	stacks := util.MergeNamed(headers.Stacks, autoStacks, componentHeaderName)
+	units := util.MergeNamed(baseUnits, autoUnits, componentHeaderName)
+	stacks := util.MergeNamed(baseStacks, autoStacks, componentHeaderName)
 	setStackComponentRefVars(evalCtx, stackDir, units, stacks)
 
 	return nil
@@ -1336,8 +1420,8 @@ func stackAutoIncludeComponentHeaders(
 		return nil, nil, fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
 	}
 
-	headers := &stackComponentHeaders{}
-	if decodeErr := incFile.Decode(headers, evalCtx); decodeErr != nil {
+	autoUnits, autoStacks, decodeErr := decodeComponentHeaders(incFile, evalCtx)
+	if decodeErr != nil {
 		return nil, nil, fmt.Errorf(
 			"failed to decode stack autoinclude headers %q: %w",
 			autoIncludePath,
@@ -1345,7 +1429,60 @@ func stackAutoIncludeComponentHeaders(
 		)
 	}
 
-	return headers.Units, headers.Stacks, nil
+	return autoUnits, autoStacks, nil
+}
+
+// decodeComponentHeaders reads the label and path of each unit and stack block. Blocks are
+// expanded so that a path referencing each.*/count.index still decodes, and only unexpanded
+// components come back: a component reference names a whole block, which an expanded one has
+// no single path to answer for.
+func decodeComponentHeaders(
+	file *hclparse.File,
+	evalCtx *hcl.EvalContext,
+) ([]*stackComponentHeader, []*stackComponentHeader, error) {
+	units, err := expandComponentHeaders(file, MetadataUnit, evalCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stacks, err := expandComponentHeaders(file, MetadataStack, evalCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return units, stacks, nil
+}
+
+func expandComponentHeaders(
+	file *hclparse.File,
+	blockType string,
+	evalCtx *hcl.EvalContext,
+) ([]*stackComponentHeader, error) {
+	instances, err := file.ExpandBlocks(blockType, &stackComponentHeader{}, evalCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	headers := make([]*stackComponentHeader, 0, len(instances))
+
+	for _, instance := range instances {
+		if instance.Expanded() {
+			continue
+		}
+
+		header, ok := instance.Value.(*stackComponentHeader)
+		if !ok {
+			panic(fmt.Sprintf(
+				"ExpandBlocks returned %T for a %s block, but it decodes into the type it is given",
+				instance.Value,
+				blockType,
+			))
+		}
+
+		headers = append(headers, header)
+	}
+
+	return headers, nil
 }
 
 // componentHeaderName returns a header's block name, or an empty string for a nil entry so MergeNamed leaves it untouched.
@@ -1462,6 +1599,93 @@ func pruneOverriddenStackAutoIncludes(
 	return nil
 }
 
+// componentAddress identifies one instance of a unit or stack block. Every instance of an
+// expanded block carries its label, so the label alone would fold a whole set into one entry.
+func componentAddress(name string, expansion *hclparse.ExpansionBlock) string {
+	if expansion == nil || !expansion.Expanded() {
+		return name
+	}
+
+	return name + "[" + expansion.Key() + "]"
+}
+
+// decodeComponents decodes a stack file's unit and stack blocks, returning one value per
+// iteration element. A block that declares no expansion yields a single value.
+func decodeComponents(
+	file *hclparse.File,
+	evalCtx *hcl.EvalContext,
+) ([]*Unit, []*Stack, error) {
+	units, err := decodeUnitBlocks(file, evalCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stacks, err := decodeStackBlocks(file, evalCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return units, stacks, nil
+}
+
+// decodeUnitBlocks decodes a stack file's unit blocks, returning one Unit per iteration
+// element. A block that declares no expansion yields a single Unit.
+func decodeUnitBlocks(file *hclparse.File, evalContext *hcl.EvalContext) ([]*Unit, error) {
+	instances, err := file.ExpandBlocks(MetadataUnit, &Unit{}, evalContext)
+	if err != nil {
+		return nil, err
+	}
+
+	units := make([]*Unit, 0, len(instances))
+
+	for _, instance := range instances {
+		unit, ok := instance.Value.(*Unit)
+		if !ok {
+			panic(fmt.Sprintf(
+				"ExpandBlocks returned %T for a unit block, but it decodes into the type it is given",
+				instance.Value,
+			))
+		}
+
+		if unit.Expansion != nil {
+			unit.Expansion.InstanceKey = instance.InstanceKey
+		}
+
+		units = append(units, unit)
+	}
+
+	return units, nil
+}
+
+// decodeStackBlocks decodes a stack file's stack blocks, returning one Stack per iteration
+// element. A block that declares no expansion yields a single Stack.
+func decodeStackBlocks(file *hclparse.File, evalContext *hcl.EvalContext) ([]*Stack, error) {
+	instances, err := file.ExpandBlocks(MetadataStack, &Stack{}, evalContext)
+	if err != nil {
+		return nil, err
+	}
+
+	stacks := make([]*Stack, 0, len(instances))
+
+	for _, instance := range instances {
+		stack, ok := instance.Value.(*Stack)
+		if !ok {
+			panic(fmt.Sprintf(
+				"ExpandBlocks returned %T for a stack block, but it decodes into the type it is given",
+				instance.Value,
+			))
+		}
+
+		if stack.Expansion != nil {
+			stack.Expansion.InstanceKey = instance.InstanceKey
+		}
+
+		stacks = append(stacks, stack)
+	}
+
+	return stacks, nil
+}
+
 // processStackConfigIncludes resolves include blocks during stack file parsing.
 // It reads each included file, parses it with the same eval context, and merges
 // its units and stacks into the main config so generation sees all components,
@@ -1485,13 +1709,18 @@ func processStackConfigIncludes(
 			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
 
-		if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+		if err := ValidateBlockIterationExperiment(experiments, incFile); err != nil {
 			return err
 		}
 
 		included := &StackConfigFile{}
 		if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
 			return fmt.Errorf("failed to decode include %q: %w", inc.Name, decodeErr)
+		}
+
+		included.Units, included.Stacks, err = decodeComponents(incFile, evalCtx)
+		if err != nil {
+			return fmt.Errorf("failed to decode include %q: %w", inc.Name, err)
 		}
 
 		if included.Locals != nil {
@@ -1504,28 +1733,32 @@ func processStackConfigIncludes(
 
 		config.Units = append(config.Units, included.Units...)
 		config.Stacks = append(config.Stacks, included.Stacks...)
+		config.UnitBlocks = append(config.UnitBlocks, included.UnitBlocks...)
+		config.StackBlocks = append(config.StackBlocks, included.StackBlocks...)
 	}
 
 	// Validate no duplicate unit names after merge.
 	seen := make(map[string]struct{}, len(config.Units))
 
 	for _, u := range config.Units {
-		if _, exists := seen[u.Name]; exists {
+		address := componentAddress(u.Name, u.Expansion)
+		if _, exists := seen[address]; exists {
 			return inthclparse.DuplicateUnitNameError{Name: u.Name}
 		}
 
-		seen[u.Name] = struct{}{}
+		seen[address] = struct{}{}
 	}
 
 	// Validate no duplicate stack names after merge.
 	seen = make(map[string]struct{}, len(config.Stacks))
 
 	for _, s := range config.Stacks {
-		if _, exists := seen[s.Name]; exists {
+		address := componentAddress(s.Name, s.Expansion)
+		if _, exists := seen[address]; exists {
 			return inthclparse.DuplicateStackNameError{Name: s.Name}
 		}
 
-		seen[s.Name] = struct{}{}
+		seen[address] = struct{}{}
 	}
 
 	return nil
@@ -1579,13 +1812,18 @@ func mergeStackAutoIncludeFile(
 		return *typed
 	}
 
-	if err := ValidateExpansionExperiment(experiments, incFile); err != nil {
+	if err := ValidateBlockIterationExperiment(experiments, incFile); err != nil {
 		return err
 	}
 
 	included := &StackConfigFile{}
 	if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
 		return fmt.Errorf("failed to decode stack autoinclude %q: %w", autoIncludePath, decodeErr)
+	}
+
+	included.Units, included.Stacks, err = decodeComponents(incFile, evalCtx)
+	if err != nil {
+		return fmt.Errorf("failed to decode stack autoinclude %q: %w", autoIncludePath, err)
 	}
 
 	if included.Locals != nil {
@@ -1607,6 +1845,8 @@ func mergeStackAutoIncludeFile(
 	// A same-name injected unit/stack overrides the base block wholesale, matching unit autoinclude override semantics.
 	config.Units = util.MergeNamed(config.Units, included.Units, unitName)
 	config.Stacks = util.MergeNamed(config.Stacks, included.Stacks, stackName)
+	config.UnitBlocks = append(config.UnitBlocks, included.UnitBlocks...)
+	config.StackBlocks = append(config.StackBlocks, included.StackBlocks...)
 
 	return nil
 }
@@ -1621,11 +1861,12 @@ func validateUniqueComponentNames(units []*Unit, stacks []*Stack) error {
 			continue
 		}
 
-		if _, dup := seenUnits[u.Name]; dup {
+		address := componentAddress(u.Name, u.Expansion)
+		if _, dup := seenUnits[address]; dup {
 			return inthclparse.DuplicateUnitNameError{Name: u.Name}
 		}
 
-		seenUnits[u.Name] = struct{}{}
+		seenUnits[address] = struct{}{}
 	}
 
 	seenStacks := make(map[string]struct{}, len(stacks))
@@ -1635,11 +1876,12 @@ func validateUniqueComponentNames(units []*Unit, stacks []*Stack) error {
 			continue
 		}
 
-		if _, dup := seenStacks[s.Name]; dup {
+		address := componentAddress(s.Name, s.Expansion)
+		if _, dup := seenStacks[address]; dup {
 			return inthclparse.DuplicateStackNameError{Name: s.Name}
 		}
 
-		seenStacks[s.Name] = struct{}{}
+		seenStacks[address] = struct{}{}
 	}
 
 	return nil
@@ -1852,10 +2094,10 @@ func processLocals(
 }
 
 // validateTargetDir target destination directory.
-func validateTargetDir(kind, name, destDir, expectedFile string) error {
+func validateTargetDir(fsys vfs.FS, kind, name, destDir, expectedFile string) error {
 	expectedPath := filepath.Join(destDir, expectedFile)
 
-	info, err := os.Stat(expectedPath)
+	info, err := fsys.Stat(expectedPath)
 	if err != nil {
 		return fmt.Errorf(
 			"%s '%s': expected file '%s' not found in target directory '%s': %w",

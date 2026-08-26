@@ -1,0 +1,8 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Fixed panic on invalid `if_disabled` value with `include` block
+
+A `generate` block with an invalid `if_disabled` value combined with an `include` block caused a nil pointer panic instead of a descriptive error. Terragrunt now returns an error naming the generate block and the invalid value, consistent with `if_exists` validation.

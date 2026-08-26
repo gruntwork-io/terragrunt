@@ -9,8 +9,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +29,7 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv().WithHTTP(server.Client())
+	v := venvtest.NewOSWithEmptyEnv().WithHTTP(server.Client())
 	ctx := run.WithModuleVersionResolver(t.Context(), v)
 
 	var wg sync.WaitGroup
@@ -82,7 +82,7 @@ func TestModuleVersionResolverFromContextFallback(t *testing.T) {
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv().WithHTTP(server.Client())
+	v := venvtest.NewOSWithEmptyEnv().WithHTTP(server.Client())
 
 	first := run.ModuleVersionResolverFromContext(t.Context(), v)
 

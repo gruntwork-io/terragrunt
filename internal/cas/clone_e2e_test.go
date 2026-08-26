@@ -10,7 +10,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -27,7 +26,7 @@ func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -68,7 +67,7 @@ func TestCASClone_E2E_CommitFormRefRoundTrip(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -97,7 +96,7 @@ func TestCASClone_E2E_ThroughCASGetter(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -144,7 +143,7 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -182,7 +181,7 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -198,6 +197,126 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, os.FileMode(0o444), stat.Mode().Perm(),
 		"mutable clone should not strip write bits; default path does")
+}
+
+// TestCASClone_E2E_DepthQueryParamWithTag covers a terraform.source that
+// combines the go-getter depth query parameter with ref=<tag>. The tagged
+// commit is deliberately behind HEAD so a shallow clone of the default branch
+// would not contain it, exercising the --branch <tag> --depth path.
+func TestCASClone_E2E_DepthQueryParamWithTag(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "add readme"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# tagged"), "tagged content"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.0.0"))
+	// Advance the default branch past the tag.
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# newer"), "post-tag commit"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+	l := logger.CreateLogger()
+
+	// Ambient depth left at the CAS default of 1, which is what makes this
+	// clone shallow.
+	g := getter.NewCASGetter(l, c, v, &cas.CloneOptions{})
+	client := &getter.Client{Getters: []getter.Getter{g}}
+
+	dst := filepath.Join(tempDir, "dst")
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "git::" + repoURL + "?depth=1&ref=v1.0.0",
+		Dst:     dst,
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+
+	// The checked-out content must be the tagged commit, not HEAD.
+	content, err := os.ReadFile(filepath.Join(dst, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, "# tagged", string(content))
+}
+
+// TestCASClone_E2E_AmbientDepthBeatsURLDepth pins which of the two depth inputs
+// applies: the ambient --cas-clone-depth always does, and a source URL's
+// ?depth= is stripped and discarded rather than honored. Its sibling
+// TestCASClone_E2E_DepthQueryParamWithTag leaves the ambient at the CAS default
+// of 1, where ?depth=1 is indistinguishable from no depth at all; here the
+// ambient is full history against ?depth=1, so the two inputs disagree and the
+// winner is observable.
+func TestCASClone_E2E_AmbientDepthBeatsURLDepth(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "add readme"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# tagged"), "tagged content"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.0.0"))
+	// Advance the default branch past the tag; without this HEAD would equal
+	// the tag and a wrong-ref checkout could not be detected.
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# newer"), "post-tag commit"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+
+	// Stands in for --cas-clone-depth=-1.
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+	l := logger.CreateLogger()
+
+	g := getter.NewCASGetter(l, c, v, &cas.CloneOptions{})
+	client := &getter.Client{Getters: []getter.Getter{g}}
+
+	dst := filepath.Join(tempDir, "dst")
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "git::" + repoURL + "?depth=1&ref=v1.0.0",
+		Dst:     dst,
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dst, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, "# tagged", string(content))
+
+	// A --depth fetch writes a `shallow` marker into the central store's bare
+	// repo, so honoring the URL's depth=1 would have left one here.
+	bareRepo := singleGitStoreRepo(t, filepath.Join(storePath, "git"))
+	assert.NoFileExists(t, filepath.Join(bareRepo, "shallow"),
+		"the ambient clone depth must win over a URL depth=1, leaving the fetch unshallowed")
+}
+
+// singleGitStoreRepo returns the bare-repo path of the one per-URL entry in
+// the CAS git store rooted at gitStoreRoot. The test clones a single
+// submodule-free URL, so exactly one entry is expected.
+func singleGitStoreRepo(t *testing.T, gitStoreRoot string) string {
+	t.Helper()
+
+	entries, err := os.ReadDir(gitStoreRoot)
+	require.NoError(t, err)
+
+	var dirs []string
+
+	for _, e := range entries {
+		if e.IsDir() {
+			dirs = append(dirs, e.Name())
+		}
+	}
+
+	require.Len(t, dirs, 1, "expected exactly one per-URL bare repo in the git store")
+
+	return filepath.Join(gitStoreRoot, dirs[0], "repo")
 }
 
 // resolveHeadE2E is a convenience wrapper used by several tests in

@@ -27,7 +27,7 @@ terraform {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 	terragruntConfig, err := config.ParseConfigString(
@@ -145,7 +145,7 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 			terragruntConfig, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)

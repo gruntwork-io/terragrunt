@@ -14,11 +14,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -475,15 +477,15 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 				WorkingDir:     tmpDir,
 				GitExpressions: gitExpressions,
 			}
-			w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+			w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 				require.NoError(t, cleanupErr)
 			})
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = tmpDir
 			opts.RootWorkingDir = tmpDir
 
@@ -506,7 +508,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 
 			discovery = discovery.WithFilters(filters)
 
-			components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
+			components, err := discovery.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for: %s", tt.description)
@@ -761,16 +763,16 @@ unit "unit_to_be_untouched" {
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	}
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
 	// Generate stacks in worktrees
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
@@ -781,7 +783,7 @@ unit "unit_to_be_untouched" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -803,7 +805,7 @@ unit "unit_to_be_untouched" {
 
 	discovery = discovery.WithFilters(filters)
 
-	components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := discovery.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Verify that components were discovered
@@ -916,15 +918,15 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	}
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
@@ -936,7 +938,7 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 	// The from-ref stack references catalog/units/app, which was removed from the checked-out
 	// tree; before the fix, get_repo_root() resolved to the original checkout and generation
 	// failed to fetch the source.
-	err = generate.WorktreeStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
@@ -1219,15 +1221,15 @@ locals {
 				WorkingDir:     tmpDir,
 				GitExpressions: filters.UniqueGitFilters(),
 			}
-			w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+			w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 				require.NoError(t, cleanupErr)
 			})
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = tmpDir
 			opts.RootWorkingDir = tmpDir
 
@@ -1240,7 +1242,7 @@ locals {
 				WithWorktrees(w).
 				WithFilters(filters)
 
-			components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
+			components, err := discovery.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			// Filter results by type
@@ -1317,15 +1319,15 @@ locals {
 		WorkingDir:     basicDir,
 		GitExpressions: filters.UniqueGitFilters(),
 	}
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = basicDir
 	opts.RootWorkingDir = basicDir
 
@@ -1338,7 +1340,7 @@ locals {
 		WithWorktrees(w).
 		WithFilters(filters)
 
-	components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := discovery.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Filter results by type
@@ -1594,15 +1596,15 @@ locals {
 				WorkingDir:     tmpDir,
 				GitExpressions: filters.UniqueGitFilters(),
 			}
-			w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+			w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 				require.NoError(t, cleanupErr)
 			})
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = tmpDir
 			opts.RootWorkingDir = tmpDir
 
@@ -1615,7 +1617,7 @@ locals {
 				WithWorktrees(w).
 				WithFilters(filters)
 
-			components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
+			components, err := discovery.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			// Filter results by type
@@ -1702,15 +1704,15 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 				WorkingDir:     basicDir,
 				GitExpressions: filters.UniqueGitFilters(),
 			}
-			w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+			w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 				require.NoError(t, cleanupErr)
 			})
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = basicDir
 			opts.RootWorkingDir = basicDir
 
@@ -1723,7 +1725,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 				WithWorktrees(w).
 				WithFilters(filters)
 
-			components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
+			components, err := discovery.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			// Filter results by type
@@ -1891,16 +1893,16 @@ unit "app" {
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	}
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
 	// Generate stacks in worktrees
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -1912,7 +1914,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1934,7 +1936,7 @@ unit "app" {
 
 	disc = disc.WithFilters(filters)
 
-	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := disc.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Get worktree paths
@@ -2085,15 +2087,15 @@ unit "app" {
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	}
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2105,7 +2107,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -2127,7 +2129,7 @@ unit "app" {
 
 	disc = disc.WithFilters(filters)
 
-	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := disc.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Get worktree pair path
@@ -2269,15 +2271,15 @@ unit "app" {
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	}
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2289,7 +2291,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -2311,7 +2313,7 @@ unit "app" {
 
 	disc = disc.WithFilters(filters)
 
-	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := disc.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Get worktree paths
@@ -2434,18 +2436,18 @@ unit "myapp" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2459,7 +2461,7 @@ unit "myapp" {
 
 	// Generate stacks — using tmpDir as working directory so that only
 	// worktreeStacksToGenerate can cause generation inside worktrees.
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	// Verify: no .terragrunt-stack directories should exist in the worktrees,
@@ -2575,18 +2577,18 @@ unit "myapp" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2603,7 +2605,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	// Generate stacks
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — the land-mine stack should not have been parsed.
@@ -2701,18 +2703,18 @@ unit "myapp" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2732,7 +2734,7 @@ unit "myapp" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — negation should prevent parsing
@@ -2758,15 +2760,15 @@ func runWorktreeDiscovery(
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	}
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), wtOpts)
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2788,7 +2790,7 @@ func runWorktreeDiscovery(
 		WithWorktrees(w).
 		WithFilters(filters)
 
-	components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := discovery.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	return components, w
@@ -2871,18 +2873,18 @@ unit "myapp" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -2899,13 +2901,13 @@ unit "myapp" {
 		fromOpts := opts.Clone()
 		fromOpts.WorkingDir = pair.FromWorktree.Path
 		fromOpts.RootWorkingDir = pair.FromWorktree.Path
-		err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), fromOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), fromOpts, w)
 		require.NoError(t, err)
 
 		toOpts := opts.Clone()
 		toOpts.WorkingDir = pair.ToWorktree.Path
 		toOpts.RootWorkingDir = pair.ToWorktree.Path
-		err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), toOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), toOpts, w)
 		require.NoError(t, err)
 	}
 
@@ -2927,7 +2929,7 @@ unit "myapp" {
 
 	d = d.WithFilters(filters)
 
-	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Collect component paths and kinds for debugging
@@ -3025,17 +3027,17 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS()))
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3048,7 +3050,7 @@ unit "app" {
 
 	require.NoError(
 		t,
-		generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w),
+		generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w),
 	)
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
@@ -3150,17 +3152,17 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS()))
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3173,7 +3175,7 @@ unit "app" {
 
 	require.NoError(
 		t,
-		generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w),
+		generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w),
 	)
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
@@ -3250,18 +3252,18 @@ locals {
 	filters, parseErr := filter.ParseFilterQueries(l, filterQueries)
 	require.NoError(t, parseErr)
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: filters.UniqueGitFilters(),
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3274,7 +3276,7 @@ locals {
 		WithRelationships().
 		WithFilters(filters)
 
-	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	unitPaths := components.Filter(component.UnitKind).Paths()
@@ -3333,18 +3335,18 @@ locals {
 	filters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]", "!./land-mine"})
 	require.NoError(t, parseErr)
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: filters.UniqueGitFilters(),
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3355,7 +3357,7 @@ locals {
 		WithFilters(filters)
 
 	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
-	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	unitPaths := components.Filter(component.UnitKind).Paths()
@@ -3439,18 +3441,18 @@ unit "myapp" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3464,7 +3466,7 @@ unit "myapp" {
 
 	// GenerateStacks internally calls discoverStacks with reading filters.
 	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 }
 
@@ -3544,18 +3546,18 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, venv.OSVenv(), worktrees.WorktreeOpts{
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
 		WorkingDir:     tmpDir,
 		GitExpressions: gitExpressions,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
 		require.NoError(t, cleanupErr)
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -3566,7 +3568,7 @@ unit "app" {
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
-	require.NoError(t, generate.WorktreeStacks(t.Context(), l, venv.OSVenv(), opts, w))
+	require.NoError(t, generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w))
 
 	// The working tree must stay untouched: no stack was generated under it.
 	_, statErr := os.Stat(filepath.Join(stackDir, ".terragrunt-stack"))
@@ -3588,7 +3590,7 @@ unit "app" {
 		WithWorktrees(w).
 		WithFilters(filters)
 
-	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
+	components, err := disc.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	require.Contains(t, w.WorktreePairs, "[HEAD~1...HEAD]")

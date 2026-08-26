@@ -13,10 +13,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // Test that the runner-level fallback (WithGraphTarget) limits the stack to target + dependents,
@@ -62,7 +63,7 @@ dependency "db" {
 	expected := []string{vpcDir, dbDir, appDir}
 
 	// Path 1: experiment ON, use discovery filter
-	optsOn := options.NewTerragruntOptions()
+	optsOn := options.NewTerragruntOptions(vexec.NewOSExec())
 	optsOn.WorkingDir = vpcDir
 	optsOn.RootWorkingDir = tmpDir
 	// Enable the filter-flag experiment
@@ -73,7 +74,7 @@ dependency "db" {
 
 	optsOn.Filters = parsedFilters
 	// Build runner
-	runnerOn, err := runnerpool.Build(ctx, l, venv.OSVenv(), optsOn)
+	runnerOn, err := runnerpool.Build(ctx, l, venvtest.NewOSWithEmptyEnv(), optsOn)
 	require.NoError(t, err)
 	// Collect unit paths
 	onPaths := make([]string, 0, len(runnerOn.GetStack().Units))
@@ -82,14 +83,14 @@ dependency "db" {
 	}
 
 	// Path 2: experiment OFF, use fallback option
-	optsOff := options.NewTerragruntOptions()
+	optsOff := options.NewTerragruntOptions(vexec.NewOSExec())
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option
 	runnerOff, err := runnerpool.Build(
 		ctx,
 		l,
-		venv.OSVenv(),
+		venvtest.NewOSWithEmptyEnv(),
 		optsOff,
 		discovery.WithGraphTarget(vpcDir),
 	)

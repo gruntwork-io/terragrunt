@@ -4,9 +4,7 @@ package commands
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
-	"runtime"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -230,7 +228,7 @@ func WrapWithTelemetry(
 // on a sufficiently new version of OpenTofu.
 func GiveWindowsSymlinksTip(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	goos string,
 	allTips tips.Tips,
 	envs map[string]string,
@@ -246,14 +244,14 @@ func GiveWindowsSymlinksTip(
 		return
 	}
 
-	tmp, err := vfs.MkdirTemp(fs, "", "terragrunt-test-symlink")
+	tmp, err := vfs.MkdirTemp(fsys, "", "terragrunt-test-symlink")
 	if err != nil {
 		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
 		return
 	}
 
 	defer func() {
-		if err := fs.RemoveAll(tmp); err != nil {
+		if err := fsys.RemoveAll(tmp); err != nil {
 			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
 		}
 	}()
@@ -261,12 +259,12 @@ func GiveWindowsSymlinksTip(
 	source := filepath.Join(tmp, "source")
 	target := filepath.Join(tmp, "target")
 
-	if err := fs.Mkdir(source, 0755); err != nil { //nolint:mnd
+	if err := fsys.Mkdir(source, 0755); err != nil { //nolint:mnd
 		l.Debugf("Failed to create source directory for testing symlink: %v", err)
 		return
 	}
 
-	err = vfs.Symlink(fs, source, target)
+	err = vfs.Symlink(fsys, source, target)
 	if err == nil {
 		return
 	}
@@ -308,10 +306,12 @@ func RunAction(
 		}
 	}
 
+	v.RequireGOOS()
+
 	GiveWindowsSymlinksTip(
 		l,
 		v.FS,
-		runtime.GOOS,
+		v.Platform.GOOS,
 		opts.Tips,
 		v.Env,
 		opts.ProviderCacheOptions.Enabled,
@@ -342,7 +342,7 @@ func RunAction(
 			return err
 		}
 
-		ln, err := server.Listen(actionCtx)
+		ln, err := server.Listen(actionCtx, v)
 		if err != nil {
 			return err
 		}
@@ -403,7 +403,7 @@ func setupAutoProviderCacheDir(
 
 	if opts.TerraformVersion == nil {
 		_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
 			WorkingDir:   opts.WorkingDir,
 			VersionFiles: opts.VersionManagerFileName,
 		})
@@ -464,7 +464,7 @@ func setupAutoProviderCacheDir(
 	const cacheDirMode = 0755
 
 	// Create the cache directory if it doesn't exist
-	if err := os.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
+	if err := v.FS.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
 		return fmt.Errorf("failed to create provider cache directory: %w", err)
 	}
 
@@ -516,7 +516,7 @@ func initialSetup(
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {
-		currentDir, err := os.Getwd()
+		currentDir, err := v.Platform.Getwd()
 		if err != nil {
 			return err
 		}
@@ -556,7 +556,7 @@ func initialSetup(
 
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
-		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
+		opts.TerragruntConfigPath = config.GetDefaultConfigPath(v.FS, opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runcmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
 		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, opts.TerragruntConfigPath)

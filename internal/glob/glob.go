@@ -42,7 +42,7 @@ package glob
 import (
 	"errors"
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"strings"
@@ -95,16 +95,16 @@ func WithBoundary(boundary string) ExpandOption {
 	}
 }
 
-// Expand returns the absolute paths that match pattern on fs. The pattern
+// Expand returns the absolute paths that match pattern on fsys. The pattern
 // uses '/' as the separator on all platforms and '\' as the escape character.
 // A pattern that matches nothing returns an empty slice and a nil error.
 //
 // Pass [WithBoundary] to constrain the walk to a directory; a pattern whose
 // walk root falls outside it returns [ErrOutsideBoundary].
 //
-// Most callers pass [vfs.NewOSFS] for fs; tests can pass an in-memory
+// Most callers pass [vfs.NewOSFS] for fsys; tests can pass an in-memory
 // filesystem from [vfs.NewMemMapFS].
-func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
+func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 	var o expandOptions
 	for _, opt := range opts {
 		opt(&o)
@@ -114,14 +114,14 @@ func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 
 	root, hasMeta := splitRoot(pattern)
 
-	if err := o.checkBoundary(fs, root); err != nil {
+	if err := o.checkBoundary(fsys, root); err != nil {
 		return nil, err
 	}
 
 	if !hasMeta {
-		info, err := fs.Stat(root)
+		info, err := fsys.Stat(root)
 		if err != nil {
-			if errors.Is(err, iofs.ErrNotExist) {
+			if errors.Is(err, fs.ErrNotExist) {
 				return nil, nil
 			}
 
@@ -142,10 +142,10 @@ func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 
 	var matches []string
 
-	walkErr := vfs.WalkDir(fs, root, func(entry string, d iofs.DirEntry, walkErr error) error {
+	walkErr := vfs.WalkDir(fsys, root, func(entry string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if d != nil && d.IsDir() {
-				return iofs.SkipDir
+				return fs.SkipDir
 			}
 
 			return nil
@@ -163,19 +163,106 @@ func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 
 		return nil
 	})
-	if walkErr != nil && !errors.Is(walkErr, iofs.ErrNotExist) {
+	if walkErr != nil && !errors.Is(walkErr, fs.ErrNotExist) {
 		return nil, walkErr
 	}
 
 	return matches, nil
 }
 
-// LegacyExpand returns the paths that match pattern using zglob semantics.
-// Prefer [Expand] for new code. LegacyExpand exists only for call sites that
-// interpret patterns written by users in configuration surface where a
-// behavior change between zglob and gobwas would be a breaking change.
-func LegacyExpand(pattern string) ([]string, error) {
-	return zglob.Glob(pattern)
+// LegacyExpand returns the paths on fsys that match pattern using zglob
+// semantics. Prefer [Expand] for new code. LegacyExpand exists only for call
+// sites that interpret patterns written by users in configuration surface
+// where a behavior change between zglob and gobwas would be a breaking change.
+//
+// zglob offers no way to walk anything but the real filesystem, so the walk is
+// reproduced here over fsys. Deciding whether a path matches is still zglob's
+// own matcher, built from the pattern by [zglob.New], which keeps the grammar
+// identical; fsys supplies nothing but the directory entries.
+// TestLegacyExpandMatchesZglob pins the two against each other over a corpus
+// of patterns.
+func LegacyExpand(fsys vfs.FS, pattern string) ([]string, error) {
+	root, hasMeta := legacyRoot(pattern)
+
+	// A pattern with no metacharacters names one path, and zglob reports a
+	// missing one as fs.ErrNotExist rather than as an empty result. Callers
+	// distinguish the two, so the distinction is preserved.
+	if !hasMeta {
+		if _, err := fsys.Stat(pattern); err != nil {
+			return nil, fs.ErrNotExist
+		}
+
+		return []string{pattern}, nil
+	}
+
+	matcher, err := zglob.New(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	matches := []string{}
+
+	// zglob surfaces a walk failure rather than treating it as an empty match,
+	// including the common case of a pattern rooted at a directory that does
+	// not exist, so the error is passed straight back here too.
+	walkErr := vfs.WalkDir(fsys, root, func(entry string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if matcher.Match(filepath.ToSlash(entry)) {
+			matches = append(matches, entry)
+		}
+
+		return nil
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+
+	return matches, nil
+}
+
+// legacyRoot returns the deepest directory of pattern that zglob would start
+// its walk from, and reports whether pattern has anything to expand. It
+// reproduces zglob's rule, which treats only "*" and "{" as the markers that
+// end the literal prefix.
+//
+// zglob also expands a leading "~" and any whole segment of the form "$NAME"
+// from the process environment before choosing its root. That is not
+// reproduced here, so such a pattern roots its walk at a literal "$NAME"
+// directory and reports it missing, which the caller in internal/util already
+// reads as no matches. The matcher zglob builds still reads the environment,
+// so the walk root, not the grammar, is what keeps the expansion out.
+func legacyRoot(pattern string) (string, bool) {
+	var (
+		globmask string
+		root     string
+		found    bool
+	)
+
+	for segment := range strings.SplitSeq(filepath.ToSlash(pattern), "/") {
+		if !found && strings.ContainsAny(segment, "*{") {
+			found = true
+
+			root = globmask
+			if root == "" {
+				root = "."
+			}
+		}
+
+		globmask = path.Join(globmask, segment)
+
+		if globmask == "" {
+			globmask = "/"
+		}
+	}
+
+	if !found {
+		return "", false
+	}
+
+	return filepath.Clean(root), true
 }
 
 // splitRoot returns the longest leading directory of pattern that contains no
@@ -204,45 +291,14 @@ func splitRoot(pattern string) (string, bool) {
 
 // checkBoundary reports whether walking from root is permitted. An empty
 // boundary imposes no constraint; otherwise root must fall inside it.
-func (o expandOptions) checkBoundary(fs vfs.FS, root string) error {
+func (o expandOptions) checkBoundary(fsys vfs.FS, root string) error {
 	if o.boundary == "" {
 		return nil
 	}
 
-	// Compare symlink-resolved paths so a boundary and a walk root that differ
-	// only by a symlinked parent are recognized as the same location.
-	if !withinBoundary(resolvePath(fs, o.boundary), resolvePath(fs, root)) {
+	if !vfs.Within(fsys, o.boundary, root) {
 		return fmt.Errorf("%w: %q is outside %q", ErrOutsideBoundary, root, o.boundary)
 	}
 
 	return nil
-}
-
-// resolvePath returns the symlink-resolved form of p. EvalSymlinks resolves
-// only paths that exist, so resolving the longest existing ancestor and
-// rejoining the remaining components keeps an absent path comparable with a
-// resolved one instead of leaving it merely cleaned.
-func resolvePath(fs vfs.FS, p string) string {
-	p = filepath.Clean(p)
-
-	if resolved, err := vfs.EvalSymlinks(fs, p); err == nil {
-		return resolved
-	}
-
-	if parent := filepath.Dir(p); parent != p {
-		return filepath.Join(resolvePath(fs, parent), filepath.Base(p))
-	}
-
-	return p
-}
-
-// withinBoundary reports whether p is boundary or a descendant of it. Both
-// paths must already be cleaned.
-func withinBoundary(boundary, p string) bool {
-	rel, err := filepath.Rel(boundary, p)
-	if err != nil {
-		return false
-	}
-
-	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }

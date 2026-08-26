@@ -137,8 +137,8 @@ func (g *FileCopyGetter) Detect(req *getter.Request) (bool, error) {
 
 // NewFileCopyGetter returns a FileCopyGetter backed by the supplied
 // filesystem. Use the With* methods to customize other behavior.
-func NewFileCopyGetter(fs vfs.FS) *FileCopyGetter {
-	return &FileCopyGetter{FS: fs}
+func NewFileCopyGetter(fsys vfs.FS) *FileCopyGetter {
+	return &FileCopyGetter{FS: fsys}
 }
 
 // WithLogger sets the logger used by [util.CopyFolderContents] during a copy.
@@ -148,8 +148,8 @@ func (g *FileCopyGetter) WithLogger(l log.Logger) *FileCopyGetter {
 }
 
 // WithFS sets the filesystem every read and write of the copy runs through.
-func (g *FileCopyGetter) WithFS(fs vfs.FS) *FileCopyGetter {
-	g.FS = fs
+func (g *FileCopyGetter) WithFS(fsys vfs.FS) *FileCopyGetter {
+	g.FS = fsys
 	return g
 }
 
