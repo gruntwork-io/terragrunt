@@ -22,7 +22,9 @@ import (
 // s3DirectStateReadSupported preserves the native backend's validation for the
 // configurable workspace prefix. An explicit empty prefix is valid; leading or
 // trailing slashes are not.
-func s3DirectStateReadSupported(pctx *ParsingContext, config backend.Config) bool {
+func s3DirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+	config := remoteState.BackendConfig
+
 	// SSE-C state needs the customer key on every GetObject. The direct reader does
 	// not send those headers, so AWS would answer 400 for state the native backend
 	// reads fine.

@@ -59,8 +59,26 @@ func (e *CrossCloudMigrationError) Error() string {
 // always supplies.
 var ErrBackendOptionsRequired = errors.New("backend options are required")
 
-// ErrStateClientSetup marks a client-construction failure, never an absent state blob. Match with errors.Is.
-var ErrStateClientSetup = errors.New("building azurerm state client")
+// StateClientSetupError marks a client-construction failure, never an absent state blob.
+type StateClientSetupError struct {
+	// Err is the underlying setup failure.
+	Err error
+}
+
+func (err *StateClientSetupError) Error() string {
+	return "building azurerm state client: " + err.Err.Error()
+}
+
+func (err *StateClientSetupError) Unwrap() error {
+	return err.Err
+}
+
+// StateClientCacheRequiredError reports a direct state read outside a run-scoped cache.
+type StateClientCacheRequiredError struct{}
+
+func (StateClientCacheRequiredError) Error() string {
+	return "azurerm state client cache is required"
+}
 
 // ErrStateClientCoordinates is added when the cause points at the configured
 // resource coordinates or the identity's permissions, rather than a transient

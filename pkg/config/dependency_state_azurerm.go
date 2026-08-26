@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -188,12 +188,16 @@ func azureDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestat
 		return false
 	}
 
-	env := azureDependencyEnv(pctx)
-	if !azureEnvSupported(env) {
+	if pctx.Venv == nil {
 		return false
 	}
 
-	toggles, ok := azureResolveAuthToggles(config, env)
+	env := pctx.Venv.Env
+	if !azureEnvSupported(pctx.Venv) {
+		return false
+	}
+
+	toggles, ok := azureResolveAuthToggles(config, pctx.Venv)
 	if !ok {
 		return false
 	}
@@ -248,20 +252,12 @@ func azureBackendConfigSupported(config backend.Config) bool {
 	return true
 }
 
-// azureDependencyEnv reads the dependency's environment, which is absent when no venv is attached to the parsing context.
-func azureDependencyEnv(pctx *ParsingContext) map[string]string {
-	if pctx.Venv == nil {
-		return map[string]string{}
-	}
-
-	return pctx.Venv.Env
-}
-
 // azureEnvSupported rejects dependency environments that diverge from the Terragrunt process or that azurehelper cannot mirror.
-func azureEnvSupported(env map[string]string) bool {
+func azureEnvSupported(v *venv.Venv) bool {
+	env := v.Env
+
 	for _, key := range azureProcessEnvPassthroughKeys {
-		//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
-		if value, configured := env[key]; configured && value != os.Getenv(key) {
+		if value, configured := env[key]; configured && value != v.ProcessEnv(key) {
 			return false
 		}
 	}
@@ -284,56 +280,62 @@ func azureEnvSupported(env map[string]string) bool {
 }
 
 // azureResolveAuthToggles rejects the auth switches azurehelper cannot honor and returns the ones later checks still need.
-func azureResolveAuthToggles(config backend.Config, env map[string]string) (azureAuthToggles, bool) {
+func azureResolveAuthToggles(config backend.Config, v *venv.Venv) (azureAuthToggles, bool) {
+	env := v.Env
+
 	if !azureCLIIdentitySupported(config, env) {
 		return azureAuthToggles{}, false
 	}
 
-	useAzureAD, valid := backendConfigBoolWithEnv(config, "use_azuread_auth", env["ARM_USE_AZUREAD"])
-	if !valid {
+	useAzureAD := backendConfigBoolWithEnv(config, "use_azuread_auth", env["ARM_USE_AZUREAD"])
+	if !useAzureAD.valid {
 		return azureAuthToggles{}, false
 	}
 
-	useMSI, valid := backendConfigBoolWithEnv(config, "use_msi", env["ARM_USE_MSI"])
-	if !valid {
+	useMSI := backendConfigBoolWithEnv(config, "use_msi", env["ARM_USE_MSI"])
+	if !useMSI.valid {
 		return azureAuthToggles{}, false
 	}
 
-	if useMSI && !azureEnvKeysUnset(env, azureManagedIdentityEnvKeys) {
+	if useMSI.value && !azureEnvKeysUnset(env, azureManagedIdentityEnvKeys) {
 		return azureAuthToggles{}, false
 	}
 
-	useOIDC, valid := backendConfigBoolWithEnv(config, "use_oidc", env["ARM_USE_OIDC"])
-	if !valid || (useMSI && useOIDC) {
+	useOIDC := backendConfigBoolWithEnv(config, "use_oidc", env["ARM_USE_OIDC"])
+	if !useOIDC.valid || (useMSI.value && useOIDC.value) {
 		return azureAuthToggles{}, false
 	}
 
-	if useOIDC && !azureEnvKeysUnsetInVenvAndProcess(env, azureWorkloadIdentityEnvKeys) {
+	if useOIDC.value && !azureEnvKeysUnsetInVenvAndProcess(v, azureWorkloadIdentityEnvKeys) {
 		return azureAuthToggles{}, false
 	}
 
-	if _, valid := backendConfigBoolWithEnv(config, "snapshot", env["ARM_SNAPSHOT"]); !valid {
+	if snapshot := backendConfigBoolWithEnv(config, "snapshot", env["ARM_SNAPSHOT"]); !snapshot.valid {
 		return azureAuthToggles{}, false
 	}
 
-	return azureAuthToggles{useAzureAD: useAzureAD, useMSI: useMSI, useOIDC: useOIDC}, true
+	return azureAuthToggles{
+		useAzureAD: useAzureAD.value,
+		useMSI:     useMSI.value,
+		useOIDC:    useOIDC.value,
+	}, true
 }
 
 // azureCLIIdentitySupported rejects AKS workload identity and any configuration that disables the Azure CLI credential.
 func azureCLIIdentitySupported(config backend.Config, env map[string]string) bool {
-	useAKS, valid := backendConfigStrictBoolWithEnv(
+	useAKS := backendConfigStrictBoolWithEnv(
 		config,
 		"use_aks_workload_identity",
 		env["ARM_USE_AKS_WORKLOAD_IDENTITY"],
 		false,
 	)
-	if !valid || useAKS {
+	if !useAKS.valid || useAKS.value {
 		return false
 	}
 
-	useCLI, valid := backendConfigStrictBoolWithEnv(config, "use_cli", env["ARM_USE_CLI"], true)
+	useCLI := backendConfigStrictBoolWithEnv(config, "use_cli", env["ARM_USE_CLI"], true)
 
-	return valid && useCLI
+	return useCLI.valid && useCLI.value
 }
 
 // azureEnvKeysUnset reports whether every key is unset, since even an empty value suppresses a native fallback.
@@ -348,10 +350,9 @@ func azureEnvKeysUnset(env map[string]string, keys []string) bool {
 }
 
 // azureEnvKeysUnsetInVenvAndProcess also rejects keys the in-process SDK would read from the Terragrunt process.
-func azureEnvKeysUnsetInVenvAndProcess(env map[string]string, keys []string) bool {
+func azureEnvKeysUnsetInVenvAndProcess(v *venv.Venv, keys []string) bool {
 	for _, key := range keys {
-		//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
-		if _, configured := env[key]; configured || os.Getenv(key) != "" {
+		if _, configured := v.Env[key]; configured || v.ProcessEnv(key) != "" {
 			return false
 		}
 	}

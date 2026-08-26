@@ -169,10 +169,10 @@ func NewStateBlobClient(
 	if err != nil {
 		// Only a response that implicates the config or permissions earns the guidance.
 		if coordinateStateClientFailure(err) {
-			return nil, fmt.Errorf("%w: %w: %w", ErrStateClientSetup, ErrStateClientCoordinates, err)
+			err = fmt.Errorf("%w: %w", ErrStateClientCoordinates, err)
 		}
 
-		return nil, fmt.Errorf("%w: %w", ErrStateClientSetup, err)
+		return nil, &StateClientSetupError{Err: err}
 	}
 
 	l.Debugf("%s: using shared-key authorization for direct state access", BackendName)
@@ -180,15 +180,14 @@ func NewStateBlobClient(
 	return azurehelper.NewBlobClient(keyed)
 }
 
-// cachedSharedKeyConfig resolves the account key once per run when the context
-// carries a cache, so N dependencies on one account cost one ARM ListKeys call.
+// cachedSharedKeyConfig resolves the account key once per run.
 func cachedSharedKeyConfig(
 	ctx context.Context,
 	cfg *azurehelper.AzureConfig,
 ) (*azurehelper.AzureConfig, error) {
-	keyCache := stateClientCacheFromContext(ctx)
-	if keyCache == nil {
-		return sharedKeyConfig(ctx, cfg)
+	keyCache, err := stateClientCacheFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	cacheKey := sharedKeyCacheKey(cfg)
@@ -196,23 +195,25 @@ func cachedSharedKeyConfig(
 		return cached, nil
 	}
 
-	// Hold the account's lock across the lookup so simultaneous first misses
-	// resolve once rather than each calling ARM.
-	keyCache.locks.Lock(cacheKey)
-	defer keyCache.locks.Unlock(cacheKey)
+	value, err, _ := keyCache.flight.Do(cacheKey, func() (any, error) {
+		if cached, found := keyCache.configs.Get(ctx, cacheKey); found {
+			return cached, nil
+		}
 
-	if cached, found := keyCache.configs.Get(ctx, cacheKey); found {
-		return cached, nil
-	}
+		keyed, err := sharedKeyConfig(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
 
-	keyed, err := sharedKeyConfig(ctx, cfg)
+		keyCache.configs.Put(ctx, cacheKey, keyed)
+
+		return keyed, nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	keyCache.configs.Put(ctx, cacheKey, keyed)
-
-	return keyed, nil
+	return value.(*azurehelper.AzureConfig), nil
 }
 
 // coordinateStateClientFailure reports whether a client-setup failure points at

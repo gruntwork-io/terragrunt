@@ -317,6 +317,15 @@ func (err TerragruntOutputEncodingError) Error() string {
 	)
 }
 
+// InvalidTFWorkspaceError is returned when TF_WORKSPACE cannot name a state object.
+type InvalidTFWorkspaceError struct {
+	Workspace string
+}
+
+func (err InvalidTFWorkspaceError) Error() string {
+	return fmt.Sprintf("determining dependency workspace: invalid TF_WORKSPACE value %q", err.Workspace)
+}
+
 // StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs
 // and has no mock to stand in for them.
 type StackUnitOutputFetchError struct {

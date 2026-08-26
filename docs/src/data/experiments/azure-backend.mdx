@@ -62,7 +62,7 @@ When both this experiment and
 are enabled, Terragrunt can read dependency outputs directly from the Azure state
 blob without initializing the dependency or running `tofu output`/`terraform output`.
 State protected with `customer_provided_key`, and configurations that rely on
-native-only authentication, metadata-host, or timeout settings, continue through
+native-only authentication, `metadata_host`, or `timeout_seconds`, continue through
 the native backend path. This preserves the backend's identity, endpoint, and
 decryption behavior.
 

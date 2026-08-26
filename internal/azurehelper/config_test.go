@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -138,6 +139,66 @@ func TestBuild_EnvFallbacks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, azurehelper.AuthMethodSasToken, cfg.Method)
 	assert.Equal(t, "sv=test", cfg.SasToken)
+}
+
+func TestBuild_CarriesMSIResourceID(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		configured string
+		env        map[string]string
+		want       string
+	}{
+		{
+			name:       "configured resource ID",
+			configured: "/subscriptions/configured/resourceGroups/identity/providers/Microsoft.ManagedIdentity/userAssignedIdentities/state",
+			want:       "/subscriptions/configured/resourceGroups/identity/providers/Microsoft.ManagedIdentity/userAssignedIdentities/state",
+		},
+		{
+			name: "environment resource ID",
+			env: map[string]string{
+				"ARM_MSI_RESOURCE_ID": "/subscriptions/environment/resourceGroups/identity/providers/Microsoft.ManagedIdentity/userAssignedIdentities/state",
+			},
+			want: "/subscriptions/environment/resourceGroups/identity/providers/Microsoft.ManagedIdentity/userAssignedIdentities/state",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := testCase.env
+			if env == nil {
+				env = map[string]string{}
+			}
+
+			cfg, err := azurehelper.NewAzureConfigBuilder().
+				WithSessionConfig(&azurehelper.AzureSessionConfig{
+					SubscriptionID: testSub,
+					MSIResourceID:  testCase.configured,
+					UseMSI:         new(true),
+				}).
+				Build(log.New(), (&venv.Venv{}).WithEnv(env))
+			require.NoError(t, err)
+			assert.Equal(t, testCase.want, cfg.MSIResourceID)
+		})
+	}
+}
+
+func TestBuild_CarriesHTTPTransport(t *testing.T) {
+	t.Parallel()
+
+	httpClient := vhttp.NewNoNetworkClient()
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			SasToken:           testSASToken,
+		}).
+		Build(log.New(), isolatedEnv().WithHTTP(httpClient))
+	require.NoError(t, err)
+	require.NotNil(t, cfg.ClientOptions.Transport)
+	assert.Equal(t, httpClient, cfg.ClientOptions.Transport)
 }
 
 func TestBuild_TrimsWhitespaceFromEnvValues(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -52,9 +53,12 @@ func TestNewStateBlobClientPreservesAzurermAuthorizationPolicy(t *testing.T) {
 			transport := &stateTransport{armStatus: testCase.armStatus}
 			cfg := stateAzureConfig(transport)
 
-			client, err := azurerm.NewStateBlobClient(t.Context(), logger.CreateLogger(), cfg)
+			ctx := azurerm.WithStateClientCache(t.Context())
+			client, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), cfg)
+
 			if testCase.wantErr {
-				require.ErrorIs(t, err, azurerm.ErrStateClientSetup)
+				var setupErr *azurerm.StateClientSetupError
+				require.ErrorAs(t, err, &setupErr)
 				assert.Contains(t, err.Error(), "AuthorizationFailed")
 				require.Len(t, transport.Requests(), 1)
 
@@ -107,6 +111,22 @@ func TestNewStateBlobClientRequiresConfig(t *testing.T) {
 	assert.PanicsWithValue(t, azurehelper.ErrAzureConfigRequired, func() {
 		_, _ = azurerm.NewStateBlobClient(t.Context(), logger.CreateLogger(), nil)
 	})
+}
+
+func TestNewStateBlobClientRequiresStateClientCache(t *testing.T) {
+	t.Parallel()
+
+	transport := &stateTransport{}
+
+	_, err := azurerm.NewStateBlobClient(t.Context(), logger.CreateLogger(), stateAzureConfig(transport))
+	require.Error(t, err)
+
+	var setupErr *azurerm.StateClientSetupError
+	require.ErrorAs(t, err, &setupErr)
+
+	var cacheErr azurerm.StateClientCacheRequiredError
+	require.ErrorAs(t, err, &cacheErr)
+	assert.Empty(t, transport.Requests(), "an unscoped state client must not make an ARM request")
 }
 
 const azureStateBody = `{"version":4,"outputs":{"value":{"sensitive":false,"type":"string","value":"azure"}}}`
@@ -256,11 +276,12 @@ func TestNewStateBlobClientSeparatesTransientFromCoordinateFailures(t *testing.T
 
 			cfg := stateAzureConfig(&stateTransport{armStatus: testCase.armStatus})
 
-			_, err := azurerm.NewStateBlobClient(t.Context(), logger.CreateLogger(), cfg)
+			ctx := azurerm.WithStateClientCache(t.Context())
+			_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), cfg)
 			require.Error(t, err)
 
-			// The phase marker is always present so callers can tell setup from an absent blob.
-			require.ErrorIs(t, err, azurerm.ErrStateClientSetup)
+			var setupErr *azurerm.StateClientSetupError
+			require.ErrorAs(t, err, &setupErr)
 			assert.Equal(t, testCase.wantGuidance, errors.Is(err, azurerm.ErrStateClientCoordinates),
 				"coordinate guidance must appear only for configuration or permission causes")
 		})
@@ -275,9 +296,12 @@ func TestNewStateBlobClientCancelledContextOmitsGuidance(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
+	ctx = azurerm.WithStateClientCache(ctx)
 	_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), stateAzureConfig(&stateTransport{}))
 	require.Error(t, err)
-	require.ErrorIs(t, err, azurerm.ErrStateClientSetup)
+
+	var setupErr *azurerm.StateClientSetupError
+	require.ErrorAs(t, err, &setupErr)
 	assert.NotErrorIs(t, err, azurerm.ErrStateClientCoordinates,
 		"a cancelled context must not be reported as a configuration problem")
 }
@@ -313,11 +337,6 @@ func TestStateClientCacheReusesSharedKey(t *testing.T) {
 
 		return calls
 	}
-
-	t.Run("uncached context resolves every time", func(t *testing.T) {
-		t.Parallel()
-		assert.Equal(t, 3, listKeyCalls(t, t.Context(), nil))
-	})
 
 	t.Run("cached context resolves once", func(t *testing.T) {
 		t.Parallel()
@@ -361,30 +380,62 @@ func TestStateClientCacheReusesSharedKey(t *testing.T) {
 			cfg.ClientID = fmt.Sprintf("client-%d", identities)
 		}))
 	})
+
+	t.Run("a different managed identity resource ID does not reuse the key", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := azurerm.WithStateClientCache(t.Context())
+		identities := 0
+
+		assert.Equal(t, 3, listKeyCalls(t, ctx, func(cfg *azurehelper.AzureConfig) {
+			identities++
+			cfg.Method = azurehelper.AuthMethodMSI
+			cfg.ClientID = ""
+			cfg.MSIResourceID = fmt.Sprintf("/subscriptions/test/identities/%d", identities)
+		}))
+	})
 }
 
-// TestStateClientCacheCoalescesConcurrentMisses pins that dependencies resolving
+func TestStateClientCacheDoesNotRetainLookupErrors(t *testing.T) {
+	t.Parallel()
+
+	transport := &stateTransport{armStatus: http.StatusServiceUnavailable}
+	ctx := azurerm.WithStateClientCache(t.Context())
+
+	_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), stateAzureConfig(transport))
+	require.Error(t, err)
+
+	transport.armStatus = http.StatusOK
+	_, err = azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), stateAzureConfig(transport))
+	require.NoError(t, err)
+	assert.Equal(t, 2, armRequests(transport), "a later read must retry a failed lookup")
+}
+
+// TestStateClientCacheCoalescesConcurrentMissesWithRacing pins that dependencies resolving
 // in parallel against one account issue a single ARM ListKeys call. The first
 // caller is held inside ARM before the others start, so none of them can observe
 // a populated cache and every one must cross the miss.
-func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
+func TestStateClientCacheCoalescesConcurrentMissesWithRacing(t *testing.T) {
 	t.Parallel()
 
+	synctest.Test(t, testStateClientCacheCoalescesConcurrentMisses)
+}
+
+func testStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
 	const followers = 7
 
 	var (
 		released    = make(chan struct{})
-		reachedARM  sync.WaitGroup
+		reachedARM  = make(chan struct{})
 		started     sync.WaitGroup
 		group       sync.WaitGroup
 		releaseOnce sync.Once
 	)
 
-	reachedARM.Add(1)
 	started.Add(followers)
 
 	transport := &stateTransport{beforeARM: func() {
-		releaseOnce.Do(reachedARM.Done)
+		releaseOnce.Do(func() { close(reachedARM) })
 		<-released
 	}}
 
@@ -403,7 +454,7 @@ func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
 
 	go resolve(0)
 
-	reachedARM.Wait()
+	<-reachedARM
 
 	// Every follower therefore starts against an empty cache and must cross the
 	// miss: without coalescing each one issues its own ListKeys call.
@@ -417,13 +468,10 @@ func TestStateClientCacheCoalescesConcurrentMisses(t *testing.T) {
 	}
 
 	started.Wait()
+	synctest.Wait()
 
-	// The first caller still holds ARM, so the cache cannot be populated. A build
-	// without coalescing lets a follower issue its own ListKeys, which shows up
-	// here as a second request; coalescing keeps the count at one.
-	require.Never(t, func() bool {
-		return armRequests(transport) > 1
-	}, time.Second, 5*time.Millisecond, "followers must wait for the first lookup instead of issuing their own")
+	assert.Equal(t, 1, armRequests(transport),
+		"followers must wait for the first lookup instead of issuing their own")
 
 	close(released)
 	group.Wait()
@@ -457,9 +505,12 @@ func TestNewStateBlobClientTransportFailureOmitsGuidance(t *testing.T) {
 
 	cfg := stateAzureConfig(transportErrorTransport{})
 
-	_, err := azurerm.NewStateBlobClient(t.Context(), logger.CreateLogger(), cfg)
+	ctx := azurerm.WithStateClientCache(t.Context())
+	_, err := azurerm.NewStateBlobClient(ctx, logger.CreateLogger(), cfg)
 	require.Error(t, err)
-	require.ErrorIs(t, err, azurerm.ErrStateClientSetup)
+
+	var setupErr *azurerm.StateClientSetupError
+	require.ErrorAs(t, err, &setupErr)
 	assert.NotErrorIs(t, err, azurerm.ErrStateClientCoordinates,
 		"a transport failure must not be reported as a configuration problem")
 }

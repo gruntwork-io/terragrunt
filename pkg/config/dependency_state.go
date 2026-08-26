@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -42,12 +43,7 @@ func readDependencyStateOutputs(
 				}
 			}()
 
-			stateBody, err := io.ReadAll(reader)
-			if err != nil {
-				return fmt.Errorf("reading dependency state body from %s: %w", location, err)
-			}
-
-			jsonOutputs, err = terraformStateOutputsJSON(stateBody, location)
+			jsonOutputs, err = stateOutputsJSON(reader, location)
 
 			return err
 		})
@@ -56,6 +52,90 @@ func readDependencyStateOutputs(
 	}
 
 	return jsonOutputs, nil
+}
+
+// stateOutputsJSON returns the state's top-level outputs object, reading only as far
+// as it must. OpenTofu and Terraform write outputs ahead of resources, so a large
+// state normally costs one buffered read instead of a full download.
+func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
+	body := &stateBodyReader{r: r}
+	d := json.NewDecoder(body)
+
+	tok, err := d.Token()
+	if err != nil {
+		return nil, stateReadError(body, location, err)
+	}
+
+	if delim, ok := tok.(json.Delim); !ok || delim != '{' {
+		return nil, fmt.Errorf("parsing dependency state JSON from %s: state is not a JSON object", location)
+	}
+
+	for d.More() {
+		key, err := d.Token()
+		if err != nil {
+			return nil, stateReadError(body, location, err)
+		}
+
+		if name, _ := key.(string); name != "outputs" {
+			if err := skipValue(d); err != nil {
+				return nil, stateReadError(body, location, err)
+			}
+
+			continue
+		}
+
+		var outputs json.RawMessage
+		if err := d.Decode(&outputs); err != nil {
+			return nil, stateReadError(body, location, err)
+		}
+
+		if len(outputs) == 0 {
+			return []byte("null"), nil
+		}
+
+		return outputs, nil
+	}
+
+	if _, err := d.Token(); err != nil {
+		return nil, stateReadError(body, location, err)
+	}
+
+	return []byte("null"), nil
+}
+
+// skipValue advances past the next value. Decoding into a RawMessage materializes
+// what it skips, which a token walk would avoid, but the token walk costs four times
+// as much when it has to step over a large resources array. State files put outputs
+// ahead of resources, so this normally skips only scalars.
+func skipValue(d *json.Decoder) error {
+	var skip json.RawMessage
+
+	return d.Decode(&skip)
+}
+
+// stateBodyReader records the last transport failure so a dropped connection is not
+// reported as malformed state. The docs point users at a JSON parse error to tell
+// them client-side state encryption is on, so that message has to stay specific.
+type stateBodyReader struct {
+	r   io.Reader
+	err error
+}
+
+func (r *stateBodyReader) Read(p []byte) (int, error) {
+	n, err := r.r.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		r.err = err
+	}
+
+	return n, err
+}
+
+func stateReadError(body *stateBodyReader, location string, err error) error {
+	if body.err != nil {
+		return fmt.Errorf("reading dependency state body from %s: %w", location, body.err)
+	}
+
+	return fmt.Errorf("parsing dependency state JSON from %s: %w", location, err)
 }
 
 // stateStream pairs a state reader with the client that produced it, so closing

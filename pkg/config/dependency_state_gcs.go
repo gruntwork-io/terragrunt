@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -118,7 +118,7 @@ func gcsDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.
 		return false
 	}
 
-	if !gcsDirectStateReadEnvSupported(pctx.Venv.Env, settings) {
+	if !gcsDirectStateReadEnvSupported(pctx.Venv, settings) {
 		return false
 	}
 
@@ -369,18 +369,20 @@ func gcsConfiguredCredentialsSupported(settings gcsDirectStateReadSettings) bool
 }
 
 // gcsDirectStateReadEnvSupported rejects environments whose credential or encryption inputs the in-process client resolves differently.
-func gcsDirectStateReadEnvSupported(env map[string]string, settings gcsDirectStateReadSettings) bool {
+func gcsDirectStateReadEnvSupported(v *venv.Venv, settings gcsDirectStateReadSettings) bool {
+	env := v.Env
+
 	// The same CSEK and CMEK conflict is the native backend's to reject once its environment fallbacks are folded in.
 	if (settings.encryptionKey != "" || env["GOOGLE_ENCRYPTION_KEY"] != "") &&
 		(settings.kmsEncryptionKey != "" || env["GOOGLE_KMS_ENCRYPTION_KEY"] != "") {
 		return false
 	}
 
-	if !gcsUnsupportedEnvUnset(env) {
+	if !gcsUnsupportedEnvUnset(v) {
 		return false
 	}
 
-	if !gcsProcessEnvDivergenceSupported(env) {
+	if !gcsProcessEnvDivergenceSupported(v) {
 		return false
 	}
 
@@ -392,7 +394,9 @@ func gcsDirectStateReadEnvSupported(env map[string]string, settings gcsDirectSta
 }
 
 // gcsUnsupportedEnvUnset rejects variables selecting an identity or host that gcphelper ignores or reads past the venv.
-func gcsUnsupportedEnvUnset(env map[string]string) bool {
+func gcsUnsupportedEnvUnset(v *venv.Venv) bool {
+	env := v.Env
+
 	for _, key := range gcsUnsupportedEnvKeys {
 		if env[key] != "" {
 			return false
@@ -400,8 +404,7 @@ func gcsUnsupportedEnvUnset(env map[string]string) bool {
 	}
 
 	for _, key := range gcsUnsupportedProcessEnvKeys {
-		//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
-		if env[key] != "" || os.Getenv(key) != "" {
+		if env[key] != "" || v.ProcessEnv(key) != "" {
 			return false
 		}
 	}
@@ -410,16 +413,16 @@ func gcsUnsupportedEnvUnset(env map[string]string) bool {
 }
 
 // gcsProcessEnvDivergenceSupported rejects venv values the in-process client would not see, since it reads the real process.
-func gcsProcessEnvDivergenceSupported(env map[string]string) bool {
+func gcsProcessEnvDivergenceSupported(v *venv.Venv) bool {
+	env := v.Env
+
 	value, configured := env["GOOGLE_APPLICATION_CREDENTIALS"]
-	//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
-	if configured && value == "" && os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") != "" {
+	if configured && value == "" && v.ProcessEnv("GOOGLE_APPLICATION_CREDENTIALS") != "" {
 		return false
 	}
 
 	for _, key := range gcsProcessSharedEnvKeys {
-		//nolint:forbidigo // The in-process cloud SDK reads the real process environment, so divergence from the venv must be detected here.
-		if value, configured := env[key]; configured && value != os.Getenv(key) {
+		if value, configured := env[key]; configured && value != v.ProcessEnv(key) {
 			return false
 		}
 	}

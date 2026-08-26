@@ -132,6 +132,8 @@ type AzureConfig struct {
 	TenantID string
 	// ClientID is the resolved service principal or workload identity client id.
 	ClientID string
+	// MSIResourceID is the resolved user-assigned managed identity resource ID.
+	MSIResourceID string
 	// CredentialFingerprint identifies the secret material that proves this
 	// identity, so a cache keyed on it never reuses one principal's successful
 	// authentication for a caller presenting different credentials. It is a hash,
@@ -181,13 +183,14 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 		return nil, err
 	}
 
-	clientOpts := azcore.ClientOptions{Cloud: cloudCfg}
+	clientOpts := azcore.ClientOptions{Cloud: cloudCfg, Transport: v.HTTP}
 
 	out := &AzureConfig{
 		UseAzureADAuth:        util.Deref(resolved.UseAzureADAuth),
 		SubscriptionID:        resolved.SubscriptionID,
 		TenantID:              resolved.TenantID,
 		ClientID:              resolved.ClientID,
+		MSIResourceID:         resolved.MSIResourceID,
 		CredentialFingerprint: credentialFingerprint(&resolved),
 		AccountName:           resolved.StorageAccountName,
 		ResourceGroup:         resolved.ResourceGroupName,
