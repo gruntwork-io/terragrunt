@@ -335,7 +335,7 @@ The convention we use for race tests is to prefix them with `WithRacing`. The Te
 
 #### Sandboxed tests
 
-Terragrunt routes its side effects through a virtualized environment, so tests can drive filesystem, subprocess and HTTP behavior without touching the real thing. A test that still reaches the network is either exercising a code path that bypasses that environment, or is an integration test sitting in the untagged suite. Either way, it makes the unit suite slower and flakier. Every run pays for the round trip, and a slow registry or a rate-limited git host turns into a red build that has nothing to do with the change under review.
+Terragrunt routes its side effects through a virtualized environment, so tests can drive filesystem, subprocess and HTTP behavior without touching the real thing. A test that still reaches the network either exercises a code path that bypasses that environment or is an integration test sitting in the untagged suite. Either way, it makes the unit suite slower and flakier. Every run pays for the round trip, and a slow registry or a rate-limited git host turns into a red build that has nothing to do with the change under review.
 
 To check for that, run the suite with every socket except loopback closed:
 
@@ -349,7 +349,7 @@ Before reading anything into a passing run, confirm the sandbox took effect:
 ./.github/scripts/ci/no-network-exec.sh --check
 ```
 
-Loopback stays reachable, so tests that stand up an `httptest` server keep working, and compilation happens outside the sandbox, so module downloads are unaffected. How the sandbox itself is built differs by platform:
+Loopback stays reachable, so tests that stand up an `httptest` server keep working. Compilation happens outside the sandbox, so module downloads are unaffected. How the sandbox is built differs by platform:
 
 <Tabs syncKey="operating-systems">
   <TabItem label="Linux">

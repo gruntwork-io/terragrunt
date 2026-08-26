@@ -40,6 +40,7 @@ import (
 
 const (
 	testFixtureCatalogLocalTemplate = "fixtures/catalog/local-template"
+	testFixtureLocalCatalog         = "fixtures/catalog/local-catalog"
 
 	// catalogPipeWorkDirEnv carries the working directory the catalog pipe
 	// child process renders, and marks the process as that child.
@@ -61,13 +62,14 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 	ctx := t.Context()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
 
 	_, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
 		venv.OSVenv(),
 		&module.RepoOpts{
-			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			CloneURL: cloneURL,
 			Path:     tempDir,
 		},
 	)
@@ -78,7 +80,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 		logger.CreateLogger(),
 		venv.OSVenv(),
 		&module.RepoOpts{
-			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			CloneURL: cloneURL,
 			Path:     tempDir,
 		},
 	)
@@ -91,13 +93,14 @@ func TestScaffoldGitRepo(t *testing.T) {
 	ctx := t.Context()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
 
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
 		venv.OSVenv(),
 		&module.RepoOpts{
-			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			CloneURL: cloneURL,
 			Path:     tempDir,
 		},
 	)
@@ -114,13 +117,14 @@ func TestScaffoldGitModule(t *testing.T) {
 	ctx := t.Context()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
 
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
 		venv.OSVenv(),
 		&module.RepoOpts{
-			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git",
+			CloneURL: cloneURL,
 			Path:     tempDir,
 		},
 	)
@@ -129,15 +133,15 @@ func TestScaffoldGitModule(t *testing.T) {
 	modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
 	require.NoError(t, err)
 
-	var auroraModule *module.Module
+	var moduleWithVariables *module.Module
 
 	for _, m := range modules {
-		if m.Title() == "Terraform Fake AWS Aurora Module" {
-			auroraModule = m
+		if m.Title() == "Module With Variables" {
+			moduleWithVariables = m
 		}
 	}
 
-	assert.NotNil(t, auroraModule)
+	assert.NotNil(t, moduleWithVariables)
 
 	testPath := helpers.TmpDirWOSymlinks(t)
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
@@ -150,7 +154,7 @@ func TestScaffoldGitModule(t *testing.T) {
 		createLogger(),
 		venv.OSVenv(),
 		opts,
-		auroraModule.TerraformSourcePath(),
+		moduleWithVariables.TerraformSourcePath(),
 		"",
 	)
 	require.NoError(t, err)
@@ -158,13 +162,9 @@ func TestScaffoldGitModule(t *testing.T) {
 	cfg := readConfig(t, opts)
 	assert.NotEmpty(t, cfg.Inputs)
 	assert.Len(t, cfg.Inputs, 1)
-	_, found := cfg.Inputs["vpc_id"]
+	_, found := cfg.Inputs["required_input"]
 	assert.True(t, found)
-	assert.Contains(
-		t,
-		*cfg.Terraform.Source,
-		"git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora",
-	)
+	assert.Contains(t, *cfg.Terraform.Source, cloneURL+"//modules/with-variables")
 }
 
 func TestCatalogWithLocalDefaultTemplate(t *testing.T) {

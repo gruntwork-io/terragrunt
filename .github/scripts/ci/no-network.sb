@@ -1,10 +1,10 @@
-;; macOS seatbelt profile that denies a process (and everything it spawns) any
+;; macOS seatbelt profile that denies a process, and everything it spawns, any
 ;; network reach beyond loopback. Loopback stays open so tests can stand up
-;; httptest servers and talk to them; every other socket operation is refused.
+;; httptest servers. Every other socket operation is refused.
 ;;
 ;; Unix domain sockets stay open because the platform reaches system daemons
-;; (mDNSResponder, notifyd) through them. Name resolution therefore still
-;; succeeds; connecting to what it resolves does not.
+;; (mDNSResponder, notifyd) through them. Name resolution still succeeds as a
+;; result. Connecting to what it resolves does not.
 (version 1)
 (allow default)
 (deny network*)

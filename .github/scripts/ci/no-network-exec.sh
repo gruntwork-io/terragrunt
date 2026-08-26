@@ -13,6 +13,7 @@ set -euo pipefail
 # into a test failure.
 #
 # With --check, confirm the sandbox is actually in force.
+
 PROFILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/no-network.sb"
 
 run_sandboxed() {

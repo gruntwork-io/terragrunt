@@ -4,8 +4,8 @@ on:
   workflow_call:
 
 # Run the suite with every socket except loopback closed. Terragrunt virtualizes
-# its side effects through the venv bundle, so a test that reaches the network is
-# either exercising an unvirtualized code path or is an integration test hiding in
+# its side effects through the venv bundle, so a test that reaches the network
+# either exercises an unvirtualized code path or is an integration test hiding in
 # the untagged suite. Both are worth catching here rather than as a flake on a day
 # the registry is slow.
 jobs:
