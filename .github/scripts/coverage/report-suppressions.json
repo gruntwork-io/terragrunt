@@ -1,0 +1,9 @@
+{
+  "packages": [],
+  "tests": [
+    "TestCAS_CloneRepoWithNestedSubmodules",
+    "TestExitCodeUnix",
+    "TestFileManifestCleanRejectsTooManyReferencedManifests",
+    "TestNewSignalsForwarderWaitUnix"
+  ]
+}
