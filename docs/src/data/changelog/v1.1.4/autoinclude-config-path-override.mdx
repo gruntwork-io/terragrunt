@@ -32,3 +32,5 @@ unit "app" {
   }
 }
 ```
+
+Terragrunt no longer evaluates a replaced block, so nothing written inside it is reported. Blocks using `expansion` are an exception. The autoinclude's block sits alongside their instances instead of replacing them, so Terragrunt still evaluates them.

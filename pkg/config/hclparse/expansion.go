@@ -38,8 +38,8 @@ const (
 const DefaultMaxInstances = 1_000_000
 
 type expandConfig struct {
-	skipLabelsOnError map[string]bool
-	maxInstances      int
+	skipLabels   map[string]struct{}
+	maxInstances int
 }
 
 // ExpandOption adjusts how [ExpandBlock] expands a block.
@@ -53,10 +53,12 @@ func WithMaxInstances(maxInstances int) ExpandOption {
 	}
 }
 
-// WithSkipLabelsOnError silently drops a block whose first label is in the set when its decode fails, instead of propagating the error. This lets callers skip blocks whose attributes are unresolvable because an autoinclude will replace them.
-func WithSkipLabelsOnError(labels map[string]bool) ExpandOption {
+// WithSkipLabels leaves blocks whose first label is in the set undecoded, so nothing inside
+// them is evaluated. A block declaring an expansion sub-block is decoded anyway. Expansion
+// splits one block into separately keyed instances, and a bare label does not name those.
+func WithSkipLabels(labels map[string]struct{}) ExpandOption {
 	return func(cfg *expandConfig) {
-		cfg.skipLabelsOnError = labels
+		cfg.skipLabels = labels
 	}
 }
 
@@ -124,31 +126,21 @@ func (file *File) ExpandBlocks(
 		opt(&cfg)
 	}
 
-	labels := labelFields(reflect.TypeOf(out).Elem())
-	labelNames := make([]string, 0, len(labels))
-
-	for _, label := range labels {
-		labelNames = append(labelNames, label.name)
-	}
-
-	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labelNames}},
-	})
-	if err := file.HandleDiagnostics(diags); err != nil {
+	content, err := file.blockContent(blockType, out)
+	if err != nil {
 		return nil, err
 	}
 
 	instances := make([]Instance, 0, len(content.Blocks))
 
 	for _, block := range content.Blocks {
-		expanded, err := ExpandBlock(block, out, ctx, opts...)
-		if err == nil {
-			instances = append(instances, expanded...)
+		if skipBlock(block, cfg.skipLabels) {
 			continue
 		}
 
-		// Drop blocks whose label matches the skip set on decode failure.
-		if cfg.skipLabelsOnError != nil && len(block.Labels) > 0 && cfg.skipLabelsOnError[block.Labels[0]] {
+		expanded, err := ExpandBlock(block, out, ctx, opts...)
+		if err == nil {
+			instances = append(instances, expanded...)
 			continue
 		}
 
@@ -163,6 +155,75 @@ func (file *File) ExpandBlocks(
 	}
 
 	return instances, nil
+}
+
+// UnexpandedLabels returns the first label of every blockType block in the file that declares
+// no expansion sub-block. Labels come off the block header, so a block whose body cannot be
+// evaluated still reports its label.
+//
+// [WithSkipLabels] also spares expanded blocks, so pairing the two never drops an expanded
+// block.
+func (file *File) UnexpandedLabels(blockType string, out any) (map[string]struct{}, error) {
+	content, err := file.blockContent(blockType, out)
+	if err != nil {
+		return nil, err
+	}
+
+	labels := make(map[string]struct{}, len(content.Blocks))
+
+	for _, block := range content.Blocks {
+		if len(block.Labels) == 0 {
+			continue
+		}
+
+		expansion, err := expansionBlock(block)
+		if err != nil {
+			return nil, err
+		}
+
+		if expansion == nil {
+			labels[block.Labels[0]] = struct{}{}
+		}
+	}
+
+	return labels, nil
+}
+
+// blockContent returns the file's blockType blocks.
+func (file *File) blockContent(blockType string, out any) (*hcl.BodyContent, error) {
+	labels := labelFields(reflect.TypeOf(out).Elem())
+	labelNames := make([]string, 0, len(labels))
+
+	for _, label := range labels {
+		labelNames = append(labelNames, label.name)
+	}
+
+	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labelNames}},
+	})
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+// skipBlock reports whether the caller named this block in [WithSkipLabels] and it can be left
+// undecoded without losing instances.
+func skipBlock(block *hcl.Block, skipLabels map[string]struct{}) bool {
+	if len(block.Labels) == 0 {
+		return false
+	}
+
+	if _, named := skipLabels[block.Labels[0]]; !named {
+		return false
+	}
+
+	expansion, err := expansionBlock(block)
+
+	// A sub-block that will not parse is a structural error. Keep the block so the decode
+	// below reports it.
+	return err == nil && expansion == nil
 }
 
 // ExpandBlock decodes block once per iteration element, returning one Instance per

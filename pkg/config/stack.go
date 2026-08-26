@@ -247,7 +247,7 @@ func resolveStackAutoIncludes(
 	}
 
 	// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
-	stackSrcBytes, err := os.ReadFile(stackFilePath)
+	stackSrcBytes, err := vfs.ReadFile(pctx.Venv.FS, stackFilePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 	}
@@ -598,6 +598,7 @@ func resolveDestPath(cmp *componentToGenerate, opts *generateOpts) (string, erro
 // validateGeneratedComponent validates the generated component directory contains the expected config file.
 func validateGeneratedComponent(
 	l log.Logger,
+	fsys vfs.FS,
 	cmp *componentToGenerate,
 	opts *generateOpts,
 	dest string,
@@ -625,7 +626,7 @@ func validateGeneratedComponent(
 		expectedFile = DefaultStackFile
 	}
 
-	if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
+	if err := validateTargetDir(fsys, kindStr, cmp.name, dest, expectedFile); err != nil {
 		if opts.noStackValidate {
 			l.Warnf(
 				"Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.",
@@ -735,7 +736,7 @@ func generateComponent(
 		}
 	}
 
-	if err := validateGeneratedComponent(l, cmp, opts, dest); err != nil {
+	if err := validateGeneratedComponent(l, v.FS, cmp, opts, dest); err != nil {
 		return err
 	}
 
@@ -785,7 +786,7 @@ func fetchComponentSource(
 			)
 		}
 
-		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
+		if err := v.FS.MkdirAll(dest, os.ModePerm); err != nil {
 			return fmt.Errorf("failed to create directory %s for %s %w", dest, cmp.name, err)
 		}
 
@@ -1851,11 +1852,11 @@ func processLocals(
 	return nil
 }
 
-// validateTargetDir target destination directory.
-func validateTargetDir(kind, name, destDir, expectedFile string) error {
+// validateTargetDir errors unless destDir holds expectedFile as a regular file.
+func validateTargetDir(fsys vfs.FS, kind, name, destDir, expectedFile string) error {
 	expectedPath := filepath.Join(destDir, expectedFile)
 
-	info, err := os.Stat(expectedPath)
+	info, err := fsys.Stat(expectedPath)
 	if err != nil {
 		return fmt.Errorf(
 			"%s '%s': expected file '%s' not found in target directory '%s': %w",

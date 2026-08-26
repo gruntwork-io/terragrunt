@@ -556,7 +556,7 @@ func initialSetup(
 
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
-		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
+		opts.TerragruntConfigPath = config.GetDefaultConfigPath(v.FS, opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runcmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
 		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, opts.TerragruntConfigPath)

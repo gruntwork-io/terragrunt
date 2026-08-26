@@ -793,7 +793,7 @@ func findInParentFoldersImpl(
 			}
 		}
 
-		fileToFind := parentFileCandidate(currentDir, fileToFindParam)
+		fileToFind := parentFileCandidate(pctx.Venv.FS, currentDir, fileToFindParam)
 
 		if parentFileExists(ctx, pctx.Venv.FS, probes, fileToFind) {
 			return fileToFind, nil
@@ -813,9 +813,9 @@ func findInParentFoldersImpl(
 // the caller passed no argument and wants whichever default config name is
 // present, which costs a probe per known name, so [GetDefaultConfigPath] is
 // only consulted in that case.
-func parentFileCandidate(dir, fileName string) string {
+func parentFileCandidate(fsys vfs.FS, dir, fileName string) string {
 	if fileName == "" {
-		return GetDefaultConfigPath(dir)
+		return GetDefaultConfigPath(fsys, dir)
 	}
 
 	return filepath.Join(dir, fileName)
@@ -1212,7 +1212,7 @@ func getCleanedTargetConfigPath(fsys vfs.FS, configPath string, workingPath stri
 	}
 
 	if vfs.IsDir(fsys, targetConfig) {
-		targetConfig = GetDefaultConfigPath(targetConfig)
+		targetConfig = GetDefaultConfigPath(fsys, targetConfig)
 	}
 
 	return filepath.Clean(targetConfig)
@@ -1575,7 +1575,7 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 	// Track that this file was read during parsing
 	pctx.FilesRead.Add(varFile)
 
-	fileContents, err := os.ReadFile(varFile)
+	fileContents, err := vfs.ReadFile(pctx.Venv.FS, varFile)
 	if err != nil {
 		return "", fmt.Errorf("could not read file %q: %w", varFile, err)
 	}

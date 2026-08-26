@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"maps"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -1221,9 +1220,9 @@ func adjustSourceWithMap(
 
 // GetDefaultConfigPath returns the default path to use for the Terragrunt configuration
 // that exists within the path giving preference to `terragrunt.hcl`
-func GetDefaultConfigPath(workingDir string) string {
+func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
-	if info, err := os.Stat(workingDir); err == nil && !info.IsDir() {
+	if vfs.IsFile(fsys, workingDir) {
 		return workingDir
 	}
 
@@ -1234,7 +1233,7 @@ func GetDefaultConfigPath(workingDir string) string {
 			configPath = filepath.Join(workingDir, configPath)
 		}
 
-		if _, err := os.Stat(configPath); err == nil {
+		if vfs.Exists(fsys, configPath) {
 			break
 		}
 	}
@@ -1578,7 +1577,7 @@ func ParseConfig(
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(pctx, l, file, evalContext)
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx, pctx, l, file, evalContext)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1814,6 +1813,7 @@ func setIAMRole(
 }
 
 func decodeAsTerragruntConfigFile(
+	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
 	file *hclparse.File,
@@ -1837,7 +1837,7 @@ func decodeAsTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeRetry(file, evalContext, pctx)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, file, evalContext)
 	if err != nil {
 		return &terragruntConfig, err
 	}
@@ -2303,7 +2303,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 // Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
 func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 	var (
-		blockNames                   = map[string]bool{}
+		blockNames                   = map[string]struct{}{}
 		duplicatedGenerateBlockNames []string
 	)
 
@@ -2314,7 +2314,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 			continue
 		}
 
-		blockNames[block.Name] = true
+		blockNames[block.Name] = struct{}{}
 	}
 
 	if len(duplicatedGenerateBlockNames) != 0 {
@@ -2327,8 +2327,8 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
-func configFileHasDependencyBlock(configPath string) (bool, error) {
-	configBytes, err := os.ReadFile(configPath)
+func configFileHasDependencyBlock(fsys vfs.FS, configPath string) (bool, error) {
+	configBytes, err := vfs.ReadFile(fsys, configPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return false, DependencyFileNotFoundError{Path: configPath}

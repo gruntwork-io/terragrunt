@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -29,7 +28,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -314,7 +312,7 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeRetry(file, evalParsingContext, pctx)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, file, evalParsingContext)
 	if err != nil {
 		return nil, err
 	}
@@ -2183,7 +2181,7 @@ func parseAutoIncludeFileCached(
 	pctx *ParsingContext,
 	autoIncludePath string,
 ) (*hclparse.File, error) {
-	fileInfo, err := os.Stat(autoIncludePath)
+	fileInfo, err := pctx.Venv.FS.Stat(autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
@@ -2207,62 +2205,52 @@ func parseAutoIncludeFileCached(
 	return file, nil
 }
 
-// decodeDependencyBlocksWithAutoIncludeRetry decodes dependency blocks, retrying with label-skip when a sibling autoinclude overrides some of them and the first decode fails on unresolvable attributes. Used by both decodeAndRetrieveOutputs and decodeAsTerragruntConfigFile.
-func decodeDependencyBlocksWithAutoIncludeRetry(
+// decodeDependencyBlocksWithAutoIncludeOverrides decodes the file's dependency blocks, leaving
+// out the ones a sibling autoinclude replaces wholesale.
+//
+// A replaced block contributes nothing to the final config, so evaluating it can only raise
+// errors about a body that is about to be thrown away. A unit source whose config_path reads a
+// values attribute the stack stopped setting hits exactly that.
+func decodeDependencyBlocksWithAutoIncludeOverrides(
+	ctx context.Context,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
-	pctx *ParsingContext,
 ) (Dependencies, error) {
-	deps, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
-	if err != nil && hasSiblingAutoInclude(pctx) {
-		overrides := siblingAutoIncludeDepNames(pctx)
-		if len(overrides) > 0 {
-			deps, err = decodeDependencyBlocks(
-				file, evalContext, pctx.Experiments,
-				hclparse.WithSkipLabelsOnError(overrides),
-			)
-		}
+	overrides, err := siblingAutoIncludeDepOverrides(ctx, pctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return deps, err
+	return decodeDependencyBlocks(
+		file,
+		evalContext,
+		pctx.Experiments,
+		hclparse.WithSkipLabels(overrides),
+	)
 }
 
-// siblingAutoIncludeDepNames extracts dependency block labels from the sibling autoinclude file via a lightweight HCL parse. Returns nil when no autoinclude is registered, the file is absent, or it cannot be parsed.
-func siblingAutoIncludeDepNames(pctx *ParsingContext) map[string]bool {
+// siblingAutoIncludeDepOverrides returns the names of the dependency blocks the sibling
+// autoinclude replaces wholesale, or nil when no autoinclude is registered.
+//
+// [mergeDependencyBlocks] keys the merge on a dependency's name, so an unexpanded autoinclude
+// block named vpc displaces the unit's unexpanded vpc outright. Expansion keys the merge per
+// instance instead, leaving both sides in the result. [hclparse.File.UnexpandedLabels]
+// reports only the unexpanded names for that reason.
+func siblingAutoIncludeDepOverrides(
+	ctx context.Context,
+	pctx *ParsingContext,
+) (map[string]struct{}, error) {
 	if !hasSiblingAutoInclude(pctx) {
-		return nil
+		return nil, nil
 	}
 
-	autoPath := pctx.TrackInclude.AutoIncludeOverride.Path
-
-	data, err := vfs.ReadFile(pctx.Venv.FS, autoPath)
+	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, pctx.TrackInclude.AutoIncludeOverride.Path)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	file, diags := hclsyntax.ParseConfig(data, autoPath, hcl.Pos{Line: 1, Column: 1})
-	if diags.HasErrors() {
-		return nil
-	}
-
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil
-	}
-
-	names := make(map[string]bool)
-
-	for _, block := range body.Blocks {
-		if block.Type == MetadataDependency && len(block.Labels) > 0 {
-			names[block.Labels[0]] = true
-		}
-	}
-
-	if len(names) == 0 {
-		return nil
-	}
-
-	return names
+	return autoFile.UnexpandedLabels(MetadataDependency, &Dependency{})
 }
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.
