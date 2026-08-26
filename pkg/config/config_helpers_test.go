@@ -1097,6 +1097,7 @@ func newTestParsingContext(
 	pctx.DownloadDir = downloadDir
 	pctx.TFPath = "tofu"
 	pctx.AutoInit = true
+	pctx.AutoRetry = true
 	pctx.SourceMap = map[string]string{}
 	pctx.TerraformCliArgs = iacargs.New()
 	pctx.MaxFoldersToCheck = 100
