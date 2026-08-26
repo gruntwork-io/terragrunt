@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### `terraform_binary` respected when reading dependency outputs
+
+Reading a [`dependency`](/reference/hcl/blocks#dependency) block's outputs ignored the [`terraform_binary`](/reference/hcl/attributes#terraform_binary) of the unit being read and fell back to the auto-detected binary, which is OpenTofu whenever `tofu` is on your `PATH`. With `terraform_binary = "terraform"`, a unit ran through Terraform while the dependency it consumed was read through OpenTofu. A `run --all` over units that each worked on their own then failed with a backend initialization error, followed by a misleading `There is no variable named "dependency"`.
+
+Dependency outputs are now read through the binary the dependency itself configures, so a unit's `terraform_binary` applies wherever its state is read. [`--tf-path`](/reference/cli/commands/run#tf-path) and `TG_TF_PATH` still take precedence over the config value.
