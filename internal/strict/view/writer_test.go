@@ -15,11 +15,11 @@ import (
 
 type fakeRender struct {
 	listFn   func(strict.Controls) (string, error)
-	detailFn func(strict.Control) (string, error)
+	detailFn func(strict.Controls) (string, error)
 }
 
-func (f *fakeRender) List(c strict.Controls) (string, error)         { return f.listFn(c) }
-func (f *fakeRender) DetailControl(c strict.Control) (string, error) { return f.detailFn(c) }
+func (f *fakeRender) List(c strict.Controls) (string, error)              { return f.listFn(c) }
+func (f *fakeRender) DetailSubcontrols(c strict.Controls) (string, error) { return f.detailFn(c) }
 
 type failingWriter struct{ err error }
 
@@ -65,7 +65,7 @@ func TestWriterList(t *testing.T) {
 	})
 }
 
-func TestWriterDetailControl(t *testing.T) {
+func TestWriterDetailSubcontrols(t *testing.T) {
 	t.Parallel()
 
 	t.Run("happy path writes rendered output", func(t *testing.T) {
@@ -73,11 +73,11 @@ func TestWriterDetailControl(t *testing.T) {
 
 		buf := new(bytes.Buffer)
 		r := &fakeRender{
-			detailFn: func(strict.Control) (string, error) { return "detailed", nil },
+			detailFn: func(strict.Controls) (string, error) { return "detailed", nil },
 		}
 
 		w := view.NewWriter(buf, r)
-		require.NoError(t, w.DetailControl(&controls.Control{Name: "any"}))
+		require.NoError(t, w.DetailSubcontrols(strict.Controls{&controls.Control{Name: "any"}}))
 		assert.Equal(t, "detailed", buf.String())
 	})
 
@@ -86,11 +86,11 @@ func TestWriterDetailControl(t *testing.T) {
 
 		boomErr := errors.New("render boom")
 		r := &fakeRender{
-			detailFn: func(strict.Control) (string, error) { return "", boomErr },
+			detailFn: func(strict.Controls) (string, error) { return "", boomErr },
 		}
 
 		w := view.NewWriter(new(bytes.Buffer), r)
-		err := w.DetailControl(&controls.Control{Name: "any"})
+		err := w.DetailSubcontrols(strict.Controls{&controls.Control{Name: "any"}})
 		require.ErrorIs(t, err, boomErr)
 	})
 }
@@ -112,15 +112,15 @@ func TestWriterOutputError(t *testing.T) {
 		require.ErrorIs(t, err, sentinel)
 	})
 
-	t.Run("DetailControl output error wrapped", func(t *testing.T) {
+	t.Run("DetailSubcontrols output error wrapped", func(t *testing.T) {
 		t.Parallel()
 
 		r := &fakeRender{
-			detailFn: func(strict.Control) (string, error) { return "data", nil },
+			detailFn: func(strict.Controls) (string, error) { return "data", nil },
 		}
 		w := view.NewWriter(&failingWriter{err: sentinel}, r)
 
-		err := w.DetailControl(&controls.Control{Name: "any"})
+		err := w.DetailSubcontrols(strict.Controls{&controls.Control{Name: "any"}})
 		require.ErrorIs(t, err, sentinel)
 	})
 }

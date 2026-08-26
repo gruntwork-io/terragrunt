@@ -142,14 +142,10 @@ export default defineConfig({
             "http://localhost:16686/",
             "http://localhost:9090/",
 
-            // Unfortunately, these have to be ignored, as they're referencing content
-            // that is generated outside the contents of the markdown file.
-            "/reference/cli/commands/run#*",
-            "/reference/cli/commands/run/#*",
-            "/reference/cli/commands/list#*",
-            "/reference/cli/commands/list/#*",
-            "/reference/cli/commands/find#*",
-            "/reference/cli/commands/find/#*",
+            // Command pages are assembled by `src/pages/reference/cli/commands/[...slug].astro`
+            // from the `commands` and `flags` collections, so the validator never sees the
+            // headings these anchors point at. Page paths themselves are still validated.
+            "/reference/cli/commands/**/*#*",
 
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",

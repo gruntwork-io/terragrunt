@@ -13,3 +13,5 @@ Example:
 ```bash
 echo 'locals { foo="bar" }' | terragrunt hcl fmt --stdin
 ```
+
+With [`--check`](/reference/cli/commands/hcl/fmt#check) or [`--diff`](/reference/cli/commands/hcl/fmt#diff), Terragrunt does not print the formatted content. `--check` exits with status code 1 when the input needs formatting, and `--diff` prints a unified diff labeled `old/stdin` and `new/stdin`.
