@@ -8,6 +8,9 @@ on:
 # either exercises an unvirtualized code path or is an integration test hiding in
 # the untagged suite. Both are worth catching here rather than as a flake on a day
 # the registry is slow.
+#
+# Only the network half applies here. The wrapper confines writes through a
+# seatbelt profile, which runs only on macOS, so this job does not check them.
 jobs:
   test:
     name: Sandboxed Test
@@ -64,10 +67,10 @@ jobs:
         run: go build ./... && go mod download
         shell: bash
 
-      - name: Verify the sandbox blocks egress
-        run: ./.github/scripts/ci/no-network-exec.sh --check
+      - name: Verify the sandbox is in force
+        run: ./.github/scripts/ci/sandbox-exec.sh --check
         shell: bash
 
       - name: Run Tests
-        run: go test -exec "$PWD/.github/scripts/ci/no-network-exec.sh" -timeout 45m ./...
+        run: go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" -timeout 45m ./...
         shell: bash
