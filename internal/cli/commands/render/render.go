@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 
 	"errors"
@@ -185,8 +186,13 @@ func writeRendered(l log.Logger, fsys vfs.FS, opts *Options, data []byte) error 
 
 	l.Debugf("Rendering config %s to %s", opts.TerragruntConfigPath, outPath)
 
-	const ownerWriteGlobalReadPerms = 0644
-	if err := vfs.WriteFile(fsys, outPath, data, ownerWriteGlobalReadPerms); err != nil {
+	if err := fsys.Remove(outPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	const ownerReadWritePerms = 0o600
+
+	if err := vfs.WriteFile(fsys, outPath, data, ownerReadWritePerms); err != nil {
 		return err
 	}
 
