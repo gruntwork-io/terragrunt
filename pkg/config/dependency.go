@@ -1471,10 +1471,11 @@ func resolveOutputJSON(
 		pctx.IAMRoleOptions = iam.RoleOptions{}
 	}
 
-	// Decode dependency blocks plus terraform source and extra_arguments, skipping hooks that may reference the dependency namespace.
+	// Decode dependency blocks, terraform source and extra_arguments, and terraform_binary, skipping hooks that may
+	// reference the dependency namespace.
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs).WithDiagnosticsSuppressed(l),
+		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).WithDiagnosticsSuppressed(l),
 		l,
 		targetConfig,
 		nil,
@@ -2029,6 +2030,13 @@ func runTerragruntOutputJSON(
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// [resolveOutputJSON] falls back here when its lightweight parse could not read the target's config, so the parse
+	// above is the first look at the binary the target configures. Without this the run would read the target's state
+	// through whichever binary the calling unit resolved.
+	if !pctx.TFPathExplicitlySet && cfg.TerraformBinary != "" {
+		pctx.TFPath = cfg.TerraformBinary
 	}
 
 	// A `--source` override carries the module subdir of whichever unit the run started from, not the dependency being
