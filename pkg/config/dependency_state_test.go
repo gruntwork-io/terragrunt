@@ -297,7 +297,7 @@ func TestDependencyStateMalformedDirectStateSurfacesLocation(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	require.ErrorIs(t, err, io.EOF)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	assert.Contains(t, err.Error(), "parsing dependency state JSON")
 	assert.Contains(t, err.Error(), "gs://state-bucket/environment/service/default.tfstate")
 	assert.Empty(t, recorder.invocations(), "malformed direct state must not be retried through OpenTofu")
