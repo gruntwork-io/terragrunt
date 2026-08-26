@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/detect"
 	getter "github.com/hashicorp/go-getter/v2"
 	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
 )
@@ -162,7 +163,7 @@ func defaultDetectors() []Detector {
 	return []Detector{
 		new(GitHubDetector),
 		new(GitDetector),
-		new(BitBucketDetector),
+		new(detect.BitBucket),
 		new(GitLabDetector),
 		prefixedDetector{Detector: new(GCSDetector), prefix: "gcs"},
 		prefixedDetector{Detector: new(S3Detector), prefix: "s3"},

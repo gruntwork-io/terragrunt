@@ -11,6 +11,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// schemeHTTPS is the scheme every upstream registry URL this package builds is fetched over.
+const schemeHTTPS = "https"
+
+//nolint:goconst // GOARCH values in a platform table are data, not constants.
 var availablePlatforms []*models.Platform = []*models.Platform{
 	{OS: "solaris", Arch: "amd64"},
 	{OS: "openbsd", Arch: "386"},

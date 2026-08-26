@@ -13,6 +13,7 @@ import (
 	getter "github.com/hashicorp/go-getter/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/detect"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -140,7 +141,7 @@ func NewCASGetter(
 		Detectors: []Detector{
 			new(GitHubDetector),
 			new(GitDetector),
-			new(BitBucketDetector),
+			new(detect.BitBucket),
 			new(GitLabDetector),
 			new(FileDetector),
 		},

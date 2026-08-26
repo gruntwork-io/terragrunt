@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -358,4 +359,106 @@ func TestDependencyDeepMergeExpansion(t *testing.T) {
 			assert.Equal(t, tc.expected, dep.Expansion)
 		})
 	}
+}
+
+// parseDependencyStringStrict parses cfg with the duplicate-dependency-labels strict
+// control enabled.
+func parseDependencyStringStrict(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
+	tb.Helper()
+
+	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), config.DefaultTerragruntConfigPath)
+
+	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
+	require.NotNil(tb, control)
+	control.Enable()
+
+	return config.PartialParseConfigString(
+		ctx,
+		pctx.WithDecodeList(config.DependencyBlock),
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+}
+
+const duplicateDependencyLabels = `
+dependency "foo" {
+  config_path = "../a"
+}
+
+dependency "foo" {
+  config_path = "../b"
+}
+`
+
+// TestDuplicateDependencyLabelsWarnByDefault pins that a config whose blocks shadow each
+// other still parses, since such configs have always run.
+func TestDuplicateDependencyLabelsWarnByDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyString(t, duplicateDependencyLabels)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 2)
+}
+
+// TestDuplicateDependencyLabelsRejectedWhenStrict pins that the strict control turns the
+// shadowing into a parse failure naming the address two blocks claim.
+func TestDuplicateDependencyLabelsRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, duplicateDependencyLabels)
+
+	var typed config.DuplicateDependencyError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "foo", typed.Address)
+}
+
+// TestExpandedDependencyLabelsAccepted pins that the elements of one expanded block, which
+// all carry the label the block was written with, are not read as duplicates even under
+// the strict control.
+func TestExpandedDependencyLabelsAccepted(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyStringStrict(t, `
+dependency "foo" {
+  expansion {
+    for_each = toset(["a", "b"])
+  }
+
+  config_path = "../${each.key}"
+}
+`)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 2)
+}
+
+// TestExpandedDependencyLabelCollisionRejectedWhenStrict pins that two expanded blocks
+// sharing a label collide on the elements whose keys they both produce.
+func TestExpandedDependencyLabelCollisionRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, `
+dependency "foo" {
+  expansion {
+    for_each = toset(["a"])
+  }
+
+  config_path = "../first-${each.key}"
+}
+
+dependency "foo" {
+  expansion {
+    for_each = toset(["a"])
+  }
+
+  config_path = "../second-${each.key}"
+}
+`)
+
+	var typed config.DuplicateDependencyError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "foo[a]", typed.Address)
 }

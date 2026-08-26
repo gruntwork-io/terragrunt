@@ -371,6 +371,21 @@ func (err DependencyLabelCollisionError) Error() string {
 	)
 }
 
+// DuplicateDependencyError is returned when two dependency blocks in one config claim the
+// same address, which leaves no way to reference either but the last.
+type DuplicateDependencyError struct {
+	ConfigPath string
+	Address    string
+}
+
+func (err DuplicateDependencyError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependency %s is declared more than once; every dependency needs an address of its own",
+		err.ConfigPath,
+		err.Address,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string

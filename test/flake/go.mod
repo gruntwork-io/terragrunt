@@ -1,6 +1,6 @@
 module github.com/gruntwork-io/terragrunt/test/flake
 
-go 1.26
+go 1.27
 
 require (
 	github.com/google/go-github/v53 v53.2.0

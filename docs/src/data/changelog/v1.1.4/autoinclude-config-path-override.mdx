@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Autoinclude dependency overrides no longer evaluate replaced paths
+
+Terragrunt used to evaluate a dependency's original `config_path` before applying a sibling autoinclude override. This could prevent a unit from being parsed when the original path referenced a value that the unit no longer supplied, even though the autoinclude replaced that path. Terragrunt now leaves replaced dependency blocks undecoded, then applies the autoinclude override. Dependency blocks without an autoinclude override are still validated.
+
+Blocks that use `expansion` are still decoded, because a bare autoinclude label does not name their instances. If the autoinclude also declares the same label without expansion, Terragrunt reports a dependency label collision.
