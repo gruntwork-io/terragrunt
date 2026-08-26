@@ -3,6 +3,7 @@ package exec
 import (
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
@@ -27,6 +28,14 @@ func WithEnv(env map[string]string) Option {
 func WithForwardSignalDelay(delay time.Duration) Option {
 	return func(cmd *Cmd) {
 		cmd.forwardSignalDelay = delay
+	}
+}
+
+// WithSignalNotifier sets the source [Cmd.ForwardSignal] watches for a repeat of the
+// signal it is holding. The default watches the OS.
+func WithSignalNotifier(notifier signal.NotifierFunc) Option {
+	return func(cmd *Cmd) {
+		cmd.notifier = notifier
 	}
 }
 
