@@ -1,0 +1,73 @@
+name: Sandboxed Tests
+
+on:
+  workflow_call:
+
+# Run the suite with every socket except loopback closed. Terragrunt virtualizes
+# its side effects through the venv bundle, so a test that reaches the network
+# either exercises an unvirtualized code path or is an integration test hiding in
+# the untagged suite. Both are worth catching here rather than as a flake on a day
+# the registry is slow.
+jobs:
+  test:
+    name: Sandboxed Test
+    runs-on: ubuntu-latest
+    env:
+      GOGC: "400"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          fetch-depth: 1
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.5.12
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Go Build Cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-ubuntu-amd64
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
+      - name: Go Mod Cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-ubuntu-amd64
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      # Ubuntu 24.04 confines unprivileged user namespaces with AppArmor, which is
+      # what `unshare --map-root-user --net` needs. The check below is what
+      # actually gates the run, so a runner image that never restricted them is
+      # free to ignore this.
+      - name: Permit unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+        shell: bash
+
+      # `go test` compiles outside the sandbox, so warm the module cache first and
+      # keep the sandbox scoped to what the test binaries do.
+      - name: Warm build cache
+        run: go build ./... && go mod download
+        shell: bash
+
+      - name: Verify the sandbox blocks egress
+        run: ./.github/scripts/ci/no-network-exec.sh --check
+        shell: bash
+
+      - name: Run Tests
+        run: go test -exec "$PWD/.github/scripts/ci/no-network-exec.sh" -timeout 45m ./...
+        shell: bash

@@ -28,14 +28,15 @@ const (
 
 // Detector type aliases for the concrete detectors used by callers that
 // build their own detector chain (e.g. internal/tf for normalizeSourceURL).
+// BitBucketDetector is deliberately absent. Chains use [detect.BitBucket],
+// which documents why.
 type (
-	GitHubDetector    = getter.GitHubDetector
-	GitDetector       = getter.GitDetector
-	BitBucketDetector = getter.BitBucketDetector
-	GitLabDetector    = getter.GitLabDetector
-	FileDetector      = getter.FileDetector
-	S3Detector        = s3.Detector
-	GCSDetector       = gcs.Detector
+	GitHubDetector = getter.GitHubDetector
+	GitDetector    = getter.GitDetector
+	GitLabDetector = getter.GitLabDetector
+	FileDetector   = getter.FileDetector
+	S3Detector     = s3.Detector
+	GCSDetector    = gcs.Detector
 )
 
 // Concrete getter type aliases for callers that need to assert on the

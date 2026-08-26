@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 
+	"github.com/gruntwork-io/terragrunt/internal/detect"
 	getter "github.com/hashicorp/go-getter/v2"
 )
 
@@ -12,7 +13,7 @@ func defaultGitDetectors() []Detector {
 	return []Detector{
 		new(GitHubDetector),
 		new(GitDetector),
-		new(BitBucketDetector),
+		new(detect.BitBucket),
 		new(GitLabDetector),
 	}
 }

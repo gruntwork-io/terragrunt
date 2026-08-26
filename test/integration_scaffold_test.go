@@ -16,7 +16,6 @@ import (
 const (
 	testScaffoldLocalModulePath     = "fixtures/scaffold/scaffold-module"
 	testScaffoldWithRootHCL         = "fixtures/scaffold/root-hcl"
-	testScaffold3rdPartyModulePath  = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
 	testScaffoldNoDependencyPrompt  = "fixtures/scaffold/dependency-prompt-template"
 	testScaffoldLocalTofuModulePath = "fixtures/scaffold/scaffold-module-tofu"
 	testScaffoldCopyableUnitPath    = "fixtures/scaffold/copyable/units/app"
@@ -29,6 +28,15 @@ func scaffoldModuleURL(m *helpers.GitServer) string {
 	m.AddFixtures("test/fixtures/scaffold/scaffold-module")
 
 	return m.SourceURL("/test/fixtures/scaffold/scaffold-module", "")
+}
+
+// scaffoldModulePinnedURL is scaffoldModuleURL carrying a "?ref=" query. The
+// server creates every tag in [helpers.TerragruntMirrorTags] at HEAD, so which
+// one it names does not matter.
+func scaffoldModulePinnedURL(m *helpers.GitServer) string {
+	m.AddFixtures("test/fixtures/scaffold/scaffold-module")
+
+	return m.SourceURL("/test/fixtures/scaffold/scaffold-module", "v0.99.1")
 }
 
 // scaffoldInputsURL returns the inputs fixture source on the local
@@ -309,8 +317,12 @@ func localScaffoldSource(t *testing.T, fixturePath string) string {
 	return fmt.Sprintf("%s//%s", workingDir, fixturePath)
 }
 
-func TestScaffold3rdPartyModule(t *testing.T) {
+// TestScaffoldRemoteGitModuleAtRef scaffolds from a git source pinned with a
+// "?ref=" query, the shape that surfaced #3269.
+func TestScaffoldRemoteGitModuleAtRef(t *testing.T) {
 	t.Parallel()
+
+	mirror := helpers.NewGitServer(t)
 
 	tmpRoot := helpers.TmpDirWOSymlinks(t)
 
@@ -327,7 +339,7 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt scaffold --non-interactive --working-dir %s %s",
 			tmpEnvPath,
-			testScaffold3rdPartyModulePath,
+			scaffoldModulePinnedURL(mirror),
 		),
 	)
 	require.NoError(t, err)
@@ -339,6 +351,13 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 		"terragrunt hcl validate --non-interactive --working-dir "+tmpEnvPath,
 	)
 	require.NoError(t, err)
+
+	// Both halves of the heredoc description have to survive. Emitting them
+	// unescaped is what produced unparseable HCL.
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, content, "Port to be opened in the security group")
+	assert.Contains(t, content, "Can be a single port or a range")
 }
 
 func TestScaffoldOutputFolderFlag(t *testing.T) {

@@ -67,6 +67,13 @@ jobs:
       checks: write
     secrets: inherit
 
+  sandboxed_tests:
+    needs: [lint, precommit, go_mod_tidy_check]
+    uses: ./.github/workflows/sandboxed-test.yml
+    permissions:
+      contents: read
+    secrets: inherit
+
   build:
     needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build.yml

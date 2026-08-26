@@ -737,6 +737,7 @@ func PartialParseConfig(
 			decodedDeps, err := decodeDependencyBlocksWithAutoIncludeOverrides(
 				ctx,
 				pctx,
+				l,
 				file,
 				evalParsingContext,
 			)

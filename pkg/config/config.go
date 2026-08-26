@@ -256,482 +256,633 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 	f := hclwrite.NewFile()
 	rootBody := f.Body()
 
-	// Handle blocks first
 	if len(cfg.Locals) > 0 {
-		localsBlock := hclwrite.NewBlock("locals", nil)
-		localsBody := localsBlock.Body()
-
-		localsAsCty := cfgAsCty.GetAttr("locals")
-
-		for k := range cfg.Locals {
-			localsBody.SetAttributeValue(k, localsAsCty.GetAttr(k))
-		}
-
-		rootBody.AppendBlock(localsBlock)
+		rootBody.AppendBlock(localsBlock(cfg.Locals, cfgAsCty.GetAttr("locals")))
 	}
 
 	if cfg.Terraform != nil {
-		terraformBlock := hclwrite.NewBlock("terraform", nil)
-		terraformBody := terraformBlock.Body()
-		terraformAsCty := cfgAsCty.GetAttr("terraform")
-
-		// Handle source
-		if cfg.Terraform.Source != nil {
-			terraformBody.SetAttributeValue("source", terraformAsCty.GetAttr("source"))
-		}
-
-		if cfg.Terraform.UpdateSourceWithCAS != nil {
-			terraformBody.SetAttributeValue(
-				"update_source_with_cas",
-				terraformAsCty.GetAttr("update_source_with_cas"),
-			)
-		}
-
-		if cfg.Terraform.Mutable != nil {
-			terraformBody.SetAttributeValue("mutable", terraformAsCty.GetAttr("mutable"))
-		}
-
-		// Handle extra_arguments blocks
-		if len(cfg.Terraform.ExtraArgs) > 0 {
-			extraArgsAsCty := terraformAsCty.GetAttr("extra_arguments").AsValueMap()
-
-			for _, arg := range cfg.Terraform.ExtraArgs {
-				extraArgBlock := hclwrite.NewBlock("extra_arguments", []string{arg.Name})
-				extraArgBody := extraArgBlock.Body()
-				argCty := extraArgsAsCty[arg.Name]
-
-				if arg.Commands != nil {
-					extraArgBody.SetAttributeValue("commands", argCty.GetAttr("commands"))
-				}
-
-				if arg.Arguments != nil {
-					extraArgBody.SetAttributeValue("arguments", argCty.GetAttr("arguments"))
-				}
-
-				if arg.RequiredVarFiles != nil {
-					extraArgBody.SetAttributeValue(
-						"required_var_files",
-						argCty.GetAttr("required_var_files"),
-					)
-				}
-
-				if arg.OptionalVarFiles != nil {
-					extraArgBody.SetAttributeValue(
-						"optional_var_files",
-						argCty.GetAttr("optional_var_files"),
-					)
-				}
-
-				if arg.EnvVars != nil {
-					extraArgBody.SetAttributeValue("env_vars", argCty.GetAttr("env_vars"))
-				}
-
-				terraformBody.AppendBlock(extraArgBlock)
-			}
-		}
-
-		// Handle hooks
-		for _, beforeHook := range cfg.Terraform.BeforeHooks { //nolint:dupl
-			beforeHookBlock := hclwrite.NewBlock("before_hook", []string{beforeHook.Name})
-			beforeHookBody := beforeHookBlock.Body()
-
-			beforeHookAsCty := terraformAsCty.GetAttr("before_hook").AsValueMap()[beforeHook.Name]
-
-			if beforeHook.If != nil {
-				beforeHookBody.SetAttributeValue("if", beforeHookAsCty.GetAttr("if"))
-			}
-
-			if beforeHook.RunOnError != nil {
-				beforeHookBody.SetAttributeValue(
-					"run_on_error",
-					beforeHookAsCty.GetAttr("run_on_error"),
-				)
-			}
-
-			beforeHookBody.SetAttributeValue("commands", beforeHookAsCty.GetAttr("commands"))
-			beforeHookBody.SetAttributeValue("execute", beforeHookAsCty.GetAttr("execute"))
-
-			if beforeHook.WorkingDir != nil {
-				beforeHookBody.SetAttributeValue(
-					"working_dir",
-					beforeHookAsCty.GetAttr("working_dir"),
-				)
-			}
-
-			terraformBody.AppendBlock(beforeHookBlock)
-		}
-
-		for _, afterHook := range cfg.Terraform.AfterHooks { //nolint:dupl
-			afterHookBlock := hclwrite.NewBlock("after_hook", []string{afterHook.Name})
-			afterHookBody := afterHookBlock.Body()
-
-			afterHookAsCty := terraformAsCty.GetAttr("after_hook").AsValueMap()[afterHook.Name]
-
-			if afterHook.If != nil {
-				afterHookBody.SetAttributeValue("if", afterHookAsCty.GetAttr("if"))
-			}
-
-			if afterHook.RunOnError != nil {
-				afterHookBody.SetAttributeValue(
-					"run_on_error",
-					afterHookAsCty.GetAttr("run_on_error"),
-				)
-			}
-
-			afterHookBody.SetAttributeValue("commands", afterHookAsCty.GetAttr("commands"))
-			afterHookBody.SetAttributeValue("execute", afterHookAsCty.GetAttr("execute"))
-
-			if afterHook.WorkingDir != nil {
-				afterHookBody.SetAttributeValue(
-					"working_dir",
-					afterHookAsCty.GetAttr("working_dir"),
-				)
-			}
-
-			terraformBody.AppendBlock(afterHookBlock)
-		}
-
-		for _, errorHook := range cfg.Terraform.ErrorHooks {
-			errorHookBlock := hclwrite.NewBlock("error_hook", []string{errorHook.Name})
-			errorHookBody := errorHookBlock.Body()
-
-			errorHookAsCty := terraformAsCty.GetAttr("error_hook").AsValueMap()[errorHook.Name]
-
-			errorHookBody.SetAttributeValue("commands", errorHookAsCty.GetAttr("commands"))
-			errorHookBody.SetAttributeValue("execute", errorHookAsCty.GetAttr("execute"))
-			errorHookBody.SetAttributeValue("on_errors", errorHookAsCty.GetAttr("on_errors"))
-
-			if errorHook.WorkingDir != nil {
-				errorHookBody.SetAttributeValue(
-					"working_dir",
-					errorHookAsCty.GetAttr("working_dir"),
-				)
-			}
-
-			terraformBody.AppendBlock(errorHookBlock)
-		}
-
-		rootBody.AppendBlock(terraformBlock)
+		rootBody.AppendBlock(terraformBlock(cfg.Terraform, cfgAsCty.GetAttr("terraform")))
 	}
 
 	if cfg.RemoteState != nil {
-		remoteStateBlock := hclwrite.NewBlock("remote_state", nil)
-		remoteStateBody := remoteStateBlock.Body()
-		remoteStateAsCty := cfgAsCty.GetAttr("remote_state")
-
-		remoteStateBody.SetAttributeValue("backend", remoteStateAsCty.GetAttr("backend"))
-
-		if cfg.RemoteState.DisableInit {
-			remoteStateBody.SetAttributeValue(
-				"disable_init",
-				remoteStateAsCty.GetAttr("disable_init"),
-			)
-		}
-
-		if cfg.RemoteState.DisableDependencyOptimization {
-			remoteStateBody.SetAttributeValue(
-				"disable_dependency_optimization",
-				remoteStateAsCty.GetAttr("disable_dependency_optimization"),
-			)
-		}
-
-		if cfg.RemoteState.BackendConfig != nil {
-			remoteStateBody.SetAttributeValue("config", remoteStateAsCty.GetAttr("config"))
-		}
-
-		rootBody.AppendBlock(remoteStateBlock)
+		rootBody.AppendBlock(remoteStateBlock(cfg.RemoteState, cfgAsCty.GetAttr("remote_state")))
 	}
 
 	if cfg.Dependencies != nil && len(cfg.Dependencies.Paths) > 0 {
-		dependenciesBlock := hclwrite.NewBlock("dependencies", nil)
-		dependenciesBody := dependenciesBlock.Body()
-
-		dependenciesAsCty := cfgAsCty.GetAttr("dependencies")
-
-		dependenciesBody.SetAttributeValue("paths", dependenciesAsCty.GetAttr("paths"))
-		rootBody.AppendBlock(dependenciesBlock)
+		rootBody.AppendBlock(dependenciesBlock(cfgAsCty.GetAttr("dependencies")))
 	}
 
-	// Handle dependency blocks
-	for _, dep := range cfg.TerragruntDependencies {
-		depBlock := hclwrite.NewBlock("dependency", []string{dep.Name})
-		depBody := depBlock.Body()
-		depAsCty := cfgAsCty.GetAttr("dependency").GetAttr(dep.Name)
-		depBody.SetAttributeValue("config_path", depAsCty.GetAttr("config_path"))
-
-		if dep.Enabled != nil {
-			depBody.SetAttributeValue("enabled", goboolToCty(*dep.Enabled))
-		}
-
-		if dep.SkipOutputs != nil {
-			depBody.SetAttributeValue("skip_outputs", goboolToCty(*dep.SkipOutputs))
-		}
-
-		if dep.MockOutputs != nil {
-			depBody.SetAttributeValue("mock_outputs", depAsCty.GetAttr("mock_outputs"))
-		}
-
-		if dep.MockOutputsAllowedTerraformCommands != nil {
-			depBody.SetAttributeValue(
-				"mock_outputs_allowed_terraform_commands",
-				depAsCty.GetAttr("mock_outputs_allowed_terraform_commands"),
-			)
-		}
-
-		if dep.MockOutputsMergeStrategyWithState != nil {
-			depBody.SetAttributeValue(
-				"mock_outputs_merge_strategy_with_state",
-				depAsCty.GetAttr("mock_outputs_merge_strategy_with_state"),
-			)
-		}
-
-		rootBody.AppendBlock(depBlock)
+	if err := appendDependencyBlocks(rootBody, cfg.TerragruntDependencies); err != nil {
+		return 0, err
 	}
 
-	// Handle generate blocks
 	for name, gen := range cfg.GenerateConfigs {
-		genBlock := hclwrite.NewBlock("generate", []string{name})
-		genBody := genBlock.Body()
-		genBody.SetAttributeValue("path", gostringToCty(gen.Path))
-		genBody.SetAttributeValue("if_exists", gostringToCty(gen.IfExistsStr))
-		genBody.SetAttributeValue("if_disabled", gostringToCty(gen.IfDisabledStr))
-		genBody.SetAttributeValue("contents", gostringToCty(gen.Contents))
-
-		if gen.CommentPrefix != codegen.DefaultCommentPrefix {
-			genBody.SetAttributeValue("comment_prefix", gostringToCty(gen.CommentPrefix))
-		}
-
-		if gen.DisableSignature {
-			genBody.SetAttributeValue("disable_signature", goboolToCty(gen.DisableSignature))
-		}
-
-		if gen.Disable {
-			genBody.SetAttributeValue("disable", goboolToCty(gen.Disable))
-		}
-
-		if gen.HclFmt != nil {
-			genBody.SetAttributeValue("hcl_fmt", goboolToCty(*gen.HclFmt))
-		}
-
-		if gen.Mutable != nil {
-			genBody.SetAttributeValue("mutable", goboolToCty(*gen.Mutable))
-		}
-
-		rootBody.AppendBlock(genBlock)
+		rootBody.AppendBlock(generateBlock(name, &gen))
 	}
 
-	// Handle feature flags
 	for _, flag := range cfg.FeatureFlags {
-		flagBlock := hclwrite.NewBlock("feature", []string{flag.Name})
-		flagBody := flagBlock.Body()
-		flagAsCty := cfgAsCty.GetAttr("feature").GetAttr(flag.Name)
-
-		if flag.Default != nil {
-			flagBody.SetAttributeValue("default", flagAsCty.GetAttr("default"))
-		}
-
-		rootBody.AppendBlock(flagBlock)
+		rootBody.AppendBlock(featureBlock(flag, cfgAsCty.GetAttr("feature").GetAttr(flag.Name)))
 	}
 
-	// Handle engine block
 	if cfg.Engine != nil {
-		engineBlock := hclwrite.NewBlock("engine", nil)
-		engineBody := engineBlock.Body()
-		engineAsCty := cfgAsCty.GetAttr("engine")
-
-		if cfg.Engine.Source != "" {
-			engineBody.SetAttributeValue("source", engineAsCty.GetAttr("source"))
-		}
-
-		if cfg.Engine.Version != nil {
-			engineBody.SetAttributeValue("version", engineAsCty.GetAttr("version"))
-		}
-
-		if cfg.Engine.Type != nil {
-			engineBody.SetAttributeValue("type", engineAsCty.GetAttr("type"))
-		}
-
-		if cfg.Engine.Meta != nil {
-			engineBody.SetAttributeValue("meta", engineAsCty.GetAttr("meta"))
-		}
-
-		rootBody.AppendBlock(engineBlock)
+		rootBody.AppendBlock(engineBlock(cfg.Engine, cfgAsCty.GetAttr("engine")))
 	}
 
-	// Handle exclude block
 	if cfg.Exclude != nil {
-		excludeBlock := hclwrite.NewBlock("exclude", nil)
-		excludeBody := excludeBlock.Body()
-		excludeAsCty := cfgAsCty.GetAttr("exclude")
-
-		if cfg.Exclude.ExcludeDependencies != nil {
-			excludeBody.SetAttributeValue(
-				"exclude_dependencies",
-				excludeAsCty.GetAttr("exclude_dependencies"),
-			)
-		}
-
-		if len(cfg.Exclude.Actions) > 0 {
-			excludeBody.SetAttributeValue("actions", excludeAsCty.GetAttr("actions"))
-		}
-
-		if cfg.Exclude.NoRun != nil {
-			excludeBody.SetAttributeValue("no_run", excludeAsCty.GetAttr("no_run"))
-		}
-
-		excludeBody.SetAttributeValue("if", excludeAsCty.GetAttr("if"))
-
-		rootBody.AppendBlock(excludeBlock)
+		rootBody.AppendBlock(excludeBlock(cfg.Exclude, cfgAsCty.GetAttr("exclude")))
 	}
 
-	// Handle errors block
 	if cfg.Errors != nil {
-		errorsBlock := hclwrite.NewBlock("errors", nil)
-		errorsBody := errorsBlock.Body()
-
-		// Handle retry blocks
-		if len(cfg.Errors.Retry) > 0 {
-			for _, retryConfig := range cfg.Errors.Retry {
-				retryBlock := hclwrite.NewBlock("retry", []string{retryConfig.Label})
-				retryBody := retryBlock.Body()
-
-				if retryConfig.MaxAttempts > 0 {
-					retryBody.SetAttributeValue(
-						"max_attempts",
-						cty.NumberIntVal(int64(retryConfig.MaxAttempts)),
-					)
-				}
-
-				if retryConfig.SleepIntervalSec > 0 {
-					retryBody.SetAttributeValue(
-						"sleep_interval_sec",
-						cty.NumberIntVal(int64(retryConfig.SleepIntervalSec)),
-					)
-				}
-
-				if len(retryConfig.RetryableErrors) > 0 {
-					retryableErrors := make([]cty.Value, len(retryConfig.RetryableErrors))
-
-					for i, err := range retryConfig.RetryableErrors {
-						retryableErrors[i] = cty.StringVal(err)
-					}
-
-					retryBody.SetAttributeValue("retryable_errors", cty.ListVal(retryableErrors))
-				}
-
-				errorsBody.AppendBlock(retryBlock)
-			}
-		}
-
-		// Handle ignore blocks
-		if len(cfg.Errors.Ignore) > 0 {
-			for _, ignoreConfig := range cfg.Errors.Ignore {
-				ignoreBlock := hclwrite.NewBlock("ignore", []string{ignoreConfig.Label})
-				ignoreBody := ignoreBlock.Body()
-
-				if len(ignoreConfig.IgnorableErrors) > 0 {
-					ignorableErrors := make([]cty.Value, len(ignoreConfig.IgnorableErrors))
-
-					for i, err := range ignoreConfig.IgnorableErrors {
-						ignorableErrors[i] = cty.StringVal(err)
-					}
-
-					ignoreBody.SetAttributeValue("ignorable_errors", cty.ListVal(ignorableErrors))
-				}
-
-				if ignoreConfig.Message != "" {
-					ignoreBody.SetAttributeValue("message", cty.StringVal(ignoreConfig.Message))
-				}
-
-				if ignoreConfig.Signals != nil {
-					ignoreBody.SetAttributeValue("signals", cty.MapVal(ignoreConfig.Signals))
-				}
-
-				errorsBody.AppendBlock(ignoreBlock)
-			}
-		}
-
-		rootBody.AppendBlock(errorsBlock)
+		rootBody.AppendBlock(errorsBlock(cfg.Errors))
 	}
 
-	// Handle catalog block
 	if cfg.Catalog != nil {
-		catalogBlock := hclwrite.NewBlock("catalog", nil)
-		catalogBody := catalogBlock.Body()
-		catalogAsCty := cfgAsCty.GetAttr("catalog")
-
-		if cfg.Catalog.DefaultTemplate != "" {
-			catalogBody.SetAttributeValue(
-				"default_template",
-				catalogAsCty.GetAttr("default_template"),
-			)
-		}
-
-		if len(cfg.Catalog.URLs) > 0 {
-			catalogBody.SetAttributeValue("urls", catalogAsCty.GetAttr("urls"))
-		}
-
-		if cfg.Catalog.NoShell != nil {
-			catalogBody.SetAttributeValue("no_shell", catalogAsCty.GetAttr("no_shell"))
-		}
-
-		if cfg.Catalog.NoHooks != nil {
-			catalogBody.SetAttributeValue("no_hooks", catalogAsCty.GetAttr("no_hooks"))
-		}
-
-		rootBody.AppendBlock(catalogBlock)
+		rootBody.AppendBlock(catalogBlock(cfg.Catalog, cfgAsCty.GetAttr("catalog")))
 	}
 
-	// Handle attributes
+	appendRootAttributes(rootBody, cfg, cfgAsCty)
+
+	return f.WriteTo(w)
+}
+
+// localsBlock renders the evaluated locals.
+func localsBlock(locals map[string]any, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("locals", nil)
+	body := block.Body()
+
+	for name := range locals {
+		body.SetAttributeValue(name, asCty.GetAttr(name))
+	}
+
+	return block
+}
+
+// terraformBlock renders the terraform block along with the extra arguments and hooks
+// nested in it.
+func terraformBlock(terraform *TerraformConfig, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("terraform", nil)
+	body := block.Body()
+
+	if terraform.Source != nil {
+		body.SetAttributeValue("source", asCty.GetAttr("source"))
+	}
+
+	if terraform.UpdateSourceWithCAS != nil {
+		body.SetAttributeValue("update_source_with_cas", asCty.GetAttr("update_source_with_cas"))
+	}
+
+	if terraform.Mutable != nil {
+		body.SetAttributeValue("mutable", asCty.GetAttr("mutable"))
+	}
+
+	if len(terraform.ExtraArgs) > 0 {
+		extraArgsAsCty := asCty.GetAttr("extra_arguments").AsValueMap()
+
+		for i := range terraform.ExtraArgs {
+			arg := &terraform.ExtraArgs[i]
+			body.AppendBlock(extraArgumentsBlock(arg, extraArgsAsCty[arg.Name]))
+		}
+	}
+
+	for i := range terraform.BeforeHooks {
+		hook := &terraform.BeforeHooks[i]
+		body.AppendBlock(
+			hookBlock("before_hook", hook, asCty.GetAttr("before_hook").AsValueMap()[hook.Name]),
+		)
+	}
+
+	for i := range terraform.AfterHooks {
+		hook := &terraform.AfterHooks[i]
+		body.AppendBlock(
+			hookBlock("after_hook", hook, asCty.GetAttr("after_hook").AsValueMap()[hook.Name]),
+		)
+	}
+
+	for i := range terraform.ErrorHooks {
+		hook := &terraform.ErrorHooks[i]
+		body.AppendBlock(errorHookBlock(hook, asCty.GetAttr("error_hook").AsValueMap()[hook.Name]))
+	}
+
+	return block
+}
+
+// extraArgumentsBlock renders one extra_arguments block of a terraform block.
+func extraArgumentsBlock(arg *TerraformExtraArguments, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("extra_arguments", []string{arg.Name})
+	body := block.Body()
+
+	if arg.Commands != nil {
+		body.SetAttributeValue("commands", asCty.GetAttr("commands"))
+	}
+
+	if arg.Arguments != nil {
+		body.SetAttributeValue("arguments", asCty.GetAttr("arguments"))
+	}
+
+	if arg.RequiredVarFiles != nil {
+		body.SetAttributeValue("required_var_files", asCty.GetAttr("required_var_files"))
+	}
+
+	if arg.OptionalVarFiles != nil {
+		body.SetAttributeValue("optional_var_files", asCty.GetAttr("optional_var_files"))
+	}
+
+	if arg.EnvVars != nil {
+		body.SetAttributeValue("env_vars", asCty.GetAttr("env_vars"))
+	}
+
+	return block
+}
+
+// hookBlock renders one before_hook or after_hook block, which share a shape.
+func hookBlock(blockType string, hook *Hook, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock(blockType, []string{hook.Name})
+	body := block.Body()
+
+	if hook.If != nil {
+		body.SetAttributeValue("if", asCty.GetAttr("if"))
+	}
+
+	if hook.RunOnError != nil {
+		body.SetAttributeValue("run_on_error", asCty.GetAttr("run_on_error"))
+	}
+
+	body.SetAttributeValue("commands", asCty.GetAttr("commands"))
+	body.SetAttributeValue("execute", asCty.GetAttr("execute"))
+
+	if hook.WorkingDir != nil {
+		body.SetAttributeValue("working_dir", asCty.GetAttr("working_dir"))
+	}
+
+	return block
+}
+
+// errorHookBlock renders one error_hook block. It runs on the errors it names rather than
+// on a command, so it carries neither the if nor the run_on_error the other hooks do.
+func errorHookBlock(hook *ErrorHook, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("error_hook", []string{hook.Name})
+	body := block.Body()
+
+	body.SetAttributeValue("commands", asCty.GetAttr("commands"))
+	body.SetAttributeValue("execute", asCty.GetAttr("execute"))
+	body.SetAttributeValue("on_errors", asCty.GetAttr("on_errors"))
+
+	if hook.WorkingDir != nil {
+		body.SetAttributeValue("working_dir", asCty.GetAttr("working_dir"))
+	}
+
+	return block
+}
+
+// remoteStateBlock renders the remote_state block.
+func remoteStateBlock(state *remotestate.RemoteState, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("remote_state", nil)
+	body := block.Body()
+
+	body.SetAttributeValue("backend", asCty.GetAttr("backend"))
+
+	if state.DisableInit {
+		body.SetAttributeValue("disable_init", asCty.GetAttr("disable_init"))
+	}
+
+	if state.DisableDependencyOptimization {
+		body.SetAttributeValue(
+			"disable_dependency_optimization",
+			asCty.GetAttr("disable_dependency_optimization"),
+		)
+	}
+
+	if state.BackendConfig != nil {
+		body.SetAttributeValue("config", asCty.GetAttr("config"))
+	}
+
+	return block
+}
+
+// dependenciesBlock renders the dependencies block listing bare paths.
+func dependenciesBlock(asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("dependencies", nil)
+	block.Body().SetAttributeValue("paths", asCty.GetAttr("paths"))
+
+	return block
+}
+
+// appendDependencyBlocks renders the dependency blocks, previewing the ones that expanded.
+func appendDependencyBlocks(body *hclwrite.Body, deps Dependencies) error {
+	for _, group := range groupExpandedDependencies(deps) {
+		if group.source == nil {
+			for _, dep := range group.deps {
+				depBlock, err := dependencyBlock(dep)
+				if err != nil {
+					return err
+				}
+
+				body.AppendBlock(depBlock)
+			}
+
+			continue
+		}
+
+		if err := appendExpansionPreview(body, group); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// generateBlock renders one generate block.
+func generateBlock(name string, gen *codegen.GenerateConfig) *hclwrite.Block {
+	block := hclwrite.NewBlock("generate", []string{name})
+	body := block.Body()
+
+	body.SetAttributeValue("path", gostringToCty(gen.Path))
+	body.SetAttributeValue("if_exists", gostringToCty(gen.IfExistsStr))
+	body.SetAttributeValue("if_disabled", gostringToCty(gen.IfDisabledStr))
+	body.SetAttributeValue("contents", gostringToCty(gen.Contents))
+
+	if gen.CommentPrefix != codegen.DefaultCommentPrefix {
+		body.SetAttributeValue("comment_prefix", gostringToCty(gen.CommentPrefix))
+	}
+
+	if gen.DisableSignature {
+		body.SetAttributeValue("disable_signature", goboolToCty(gen.DisableSignature))
+	}
+
+	if gen.Disable {
+		body.SetAttributeValue("disable", goboolToCty(gen.Disable))
+	}
+
+	if gen.HclFmt != nil {
+		body.SetAttributeValue("hcl_fmt", goboolToCty(*gen.HclFmt))
+	}
+
+	if gen.Mutable != nil {
+		body.SetAttributeValue("mutable", goboolToCty(*gen.Mutable))
+	}
+
+	return block
+}
+
+// featureBlock renders one feature block.
+func featureBlock(flag *FeatureFlag, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("feature", []string{flag.Name})
+
+	if flag.Default != nil {
+		block.Body().SetAttributeValue("default", asCty.GetAttr("default"))
+	}
+
+	return block
+}
+
+// engineBlock renders the engine block.
+func engineBlock(engine *EngineConfig, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("engine", nil)
+	body := block.Body()
+
+	if engine.Source != "" {
+		body.SetAttributeValue("source", asCty.GetAttr("source"))
+	}
+
+	if engine.Version != nil {
+		body.SetAttributeValue("version", asCty.GetAttr("version"))
+	}
+
+	if engine.Type != nil {
+		body.SetAttributeValue("type", asCty.GetAttr("type"))
+	}
+
+	if engine.Meta != nil {
+		body.SetAttributeValue("meta", asCty.GetAttr("meta"))
+	}
+
+	return block
+}
+
+// excludeBlock renders the exclude block.
+func excludeBlock(exclude *ExcludeConfig, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("exclude", nil)
+	body := block.Body()
+
+	if exclude.ExcludeDependencies != nil {
+		body.SetAttributeValue("exclude_dependencies", asCty.GetAttr("exclude_dependencies"))
+	}
+
+	if len(exclude.Actions) > 0 {
+		body.SetAttributeValue("actions", asCty.GetAttr("actions"))
+	}
+
+	if exclude.NoRun != nil {
+		body.SetAttributeValue("no_run", asCty.GetAttr("no_run"))
+	}
+
+	body.SetAttributeValue("if", asCty.GetAttr("if"))
+
+	return block
+}
+
+// errorsBlock renders the errors block along with the retry and ignore blocks nested in
+// it. It reads the config directly, which is where the retry and ignore values live.
+func errorsBlock(errs *ErrorsConfig) *hclwrite.Block {
+	block := hclwrite.NewBlock("errors", nil)
+	body := block.Body()
+
+	for _, retry := range errs.Retry {
+		body.AppendBlock(retryBlock(retry))
+	}
+
+	for _, ignore := range errs.Ignore {
+		body.AppendBlock(ignoreBlock(ignore))
+	}
+
+	return block
+}
+
+// errorPatterns renders the error patterns a retry or ignore block matches on.
+func errorPatterns(patterns []string) cty.Value {
+	rendered := make([]cty.Value, len(patterns))
+	for i, pattern := range patterns {
+		rendered[i] = cty.StringVal(pattern)
+	}
+
+	return cty.ListVal(rendered)
+}
+
+// retryBlock renders one retry block of an errors block.
+func retryBlock(retry *RetryBlock) *hclwrite.Block {
+	block := hclwrite.NewBlock("retry", []string{retry.Label})
+	body := block.Body()
+
+	if retry.MaxAttempts > 0 {
+		body.SetAttributeValue("max_attempts", cty.NumberIntVal(int64(retry.MaxAttempts)))
+	}
+
+	if retry.SleepIntervalSec > 0 {
+		body.SetAttributeValue(
+			"sleep_interval_sec",
+			cty.NumberIntVal(int64(retry.SleepIntervalSec)),
+		)
+	}
+
+	if len(retry.RetryableErrors) > 0 {
+		body.SetAttributeValue("retryable_errors", errorPatterns(retry.RetryableErrors))
+	}
+
+	return block
+}
+
+// ignoreBlock renders one ignore block of an errors block.
+func ignoreBlock(ignore *IgnoreBlock) *hclwrite.Block {
+	block := hclwrite.NewBlock("ignore", []string{ignore.Label})
+	body := block.Body()
+
+	if len(ignore.IgnorableErrors) > 0 {
+		body.SetAttributeValue("ignorable_errors", errorPatterns(ignore.IgnorableErrors))
+	}
+
+	if ignore.Message != "" {
+		body.SetAttributeValue("message", cty.StringVal(ignore.Message))
+	}
+
+	if ignore.Signals != nil {
+		body.SetAttributeValue("signals", cty.MapVal(ignore.Signals))
+	}
+
+	return block
+}
+
+// catalogBlock renders the catalog block.
+func catalogBlock(catalog *CatalogConfig, asCty cty.Value) *hclwrite.Block {
+	block := hclwrite.NewBlock("catalog", nil)
+	body := block.Body()
+
+	if catalog.DefaultTemplate != "" {
+		body.SetAttributeValue("default_template", asCty.GetAttr("default_template"))
+	}
+
+	if len(catalog.URLs) > 0 {
+		body.SetAttributeValue("urls", asCty.GetAttr("urls"))
+	}
+
+	if catalog.NoShell != nil {
+		body.SetAttributeValue("no_shell", asCty.GetAttr("no_shell"))
+	}
+
+	if catalog.NoHooks != nil {
+		body.SetAttributeValue("no_hooks", asCty.GetAttr("no_hooks"))
+	}
+
+	return block
+}
+
+// appendRootAttributes renders the attributes set at the top level of the config, which
+// follow its blocks in the rendered output.
+func appendRootAttributes(body *hclwrite.Body, cfg *TerragruntConfig, asCty cty.Value) {
 	if cfg.TerraformBinary != "" {
-		rootBody.SetAttributeValue("terraform_binary", cfgAsCty.GetAttr("terraform_binary"))
+		body.SetAttributeValue("terraform_binary", asCty.GetAttr("terraform_binary"))
 	}
 
 	if cfg.TerraformVersionConstraint != "" {
-		rootBody.SetAttributeValue(
+		body.SetAttributeValue(
 			"terraform_version_constraint",
-			cfgAsCty.GetAttr("terraform_version_constraint"),
+			asCty.GetAttr("terraform_version_constraint"),
 		)
 	}
 
 	if cfg.TerragruntVersionConstraint != "" {
-		rootBody.SetAttributeValue(
+		body.SetAttributeValue(
 			"terragrunt_version_constraint",
-			cfgAsCty.GetAttr("terragrunt_version_constraint"),
+			asCty.GetAttr("terragrunt_version_constraint"),
 		)
 	}
 
 	if cfg.DownloadDir != "" {
-		rootBody.SetAttributeValue("download_dir", cfgAsCty.GetAttr("download_dir"))
+		body.SetAttributeValue("download_dir", asCty.GetAttr("download_dir"))
 	}
 
 	if cfg.PreventDestroy != nil {
-		rootBody.SetAttributeValue("prevent_destroy", cfgAsCty.GetAttr("prevent_destroy"))
+		body.SetAttributeValue("prevent_destroy", asCty.GetAttr("prevent_destroy"))
 	}
 
 	if cfg.IamRole != "" {
-		rootBody.SetAttributeValue("iam_role", cfgAsCty.GetAttr("iam_role"))
+		body.SetAttributeValue("iam_role", asCty.GetAttr("iam_role"))
 	}
 
 	if cfg.IamAssumeRoleDuration != nil {
-		rootBody.SetAttributeValue(
+		body.SetAttributeValue(
 			"iam_assume_role_duration",
-			cfgAsCty.GetAttr("iam_assume_role_duration"),
+			asCty.GetAttr("iam_assume_role_duration"),
 		)
 	}
 
 	if cfg.IamAssumeRoleSessionName != "" {
-		rootBody.SetAttributeValue(
+		body.SetAttributeValue(
 			"iam_assume_role_session_name",
-			cfgAsCty.GetAttr("iam_assume_role_session_name"),
+			asCty.GetAttr("iam_assume_role_session_name"),
 		)
 	}
 
 	if len(cfg.Inputs) > 0 {
-		rootBody.SetAttributeValue("inputs", cfgAsCty.GetAttr("inputs"))
+		body.SetAttributeValue("inputs", asCty.GetAttr("inputs"))
+	}
+}
+
+// dependencyGroup is the decoded dependencies one written block produced. source is nil
+// for a block that declared no expansion, and for one whose text could not be recovered,
+// which leaves deps holding the elements alone.
+type dependencyGroup struct {
+	source *hclparse.SourceBlock
+	deps   []*Dependency
+}
+
+// groupExpandedDependencies gathers the elements of each expanded block back under the
+// block that produced them, in the order the elements were decoded. Dependencies that
+// share no source block each get a group of their own.
+func groupExpandedDependencies(deps Dependencies) []dependencyGroup {
+	groups := make([]dependencyGroup, 0, len(deps))
+	byRange := map[hcl.Range]int{}
+
+	for i := range deps {
+		dep := &deps[i]
+
+		if dep.Expansion == nil || dep.Expansion.Source == nil {
+			groups = append(groups, dependencyGroup{deps: []*Dependency{dep}})
+			continue
+		}
+
+		source := dep.Expansion.Source
+
+		if at, ok := byRange[source.Range]; ok {
+			groups[at].deps = append(groups[at].deps, dep)
+			continue
+		}
+
+		byRange[source.Range] = len(groups)
+		groups = append(groups, dependencyGroup{source: source, deps: []*Dependency{dep}})
 	}
 
-	return f.WriteTo(w)
+	return groups
+}
+
+// appendExpansionPreview writes an expanded block as it was written, followed by the
+// elements it expanded into, commented out and with every reference resolved.
+//
+// The elements stay comments because they all repeat the block's label, which
+// [validateUniqueDependencies] warns about and, under its strict control, rejects.
+// Rendering them as configuration would produce a file that reads back as one dependency.
+func appendExpansionPreview(body *hclwrite.Body, group dependencyGroup) error {
+	source, diags := hclwrite.ParseConfig(
+		[]byte(group.source.Text),
+		group.source.Range.Filename,
+		group.source.Range.Start,
+	)
+	if diags.HasErrors() {
+		return diags
+	}
+
+	for _, block := range source.Body().Blocks() {
+		body.AppendBlock(block)
+	}
+
+	lines, err := expansionPreviewLines(group.deps)
+	if err != nil {
+		return err
+	}
+
+	// The quoted source ends at its closing brace, so the first newline ends that line
+	// and the second sets the preview off from the block it describes.
+	body.AppendNewline()
+	body.AppendNewline()
+	body.AppendUnstructuredTokens(commentTokens(lines))
+	body.AppendNewline()
+
+	return nil
+}
+
+// expansionPreviewLines renders the elements of one expanded block, blank line separated,
+// as the lines of the preview comment.
+func expansionPreviewLines(deps []*Dependency) ([]string, error) {
+	lines := []string{"Expands to:", ""}
+
+	for i, dep := range deps {
+		if i > 0 {
+			lines = append(lines, "")
+		}
+
+		block, err := dependencyBlock(dep)
+		if err != nil {
+			return nil, err
+		}
+
+		rendered := hclwrite.NewEmptyFile()
+		rendered.Body().AppendBlock(block)
+
+		lines = append(lines, strings.Split(strings.TrimRight(string(rendered.Bytes()), "\n"), "\n")...)
+	}
+
+	return lines, nil
+}
+
+// commentTokens renders lines as consecutive comment lines, blank ones included so a
+// comment can be paragraphed.
+func commentTokens(lines []string) hclwrite.Tokens {
+	tokens := make(hclwrite.Tokens, 0, len(lines))
+
+	for _, line := range lines {
+		text := "#\n"
+		if line != "" {
+			text = "# " + line + "\n"
+		}
+
+		tokens = append(tokens, &hclwrite.Token{
+			Type:  hclsyntax.TokenComment,
+			Bytes: []byte(text),
+		})
+	}
+
+	return tokens
+}
+
+// dependencyBlock renders one decoded dependency, with the references in its body already
+// resolved to the values this instance decoded against.
+func dependencyBlock(dep *Dependency) (*hclwrite.Block, error) {
+	depAsCty, err := GoTypeToCty(*dep)
+	if err != nil {
+		return nil, err
+	}
+
+	depBlock := hclwrite.NewBlock("dependency", []string{dep.Name})
+	depBody := depBlock.Body()
+
+	depBody.SetAttributeValue("config_path", depAsCty.GetAttr("config_path"))
+
+	if dep.Enabled != nil {
+		depBody.SetAttributeValue("enabled", goboolToCty(*dep.Enabled))
+	}
+
+	if dep.SkipOutputs != nil {
+		depBody.SetAttributeValue("skip_outputs", goboolToCty(*dep.SkipOutputs))
+	}
+
+	if dep.MockOutputs != nil {
+		depBody.SetAttributeValue("mock_outputs", depAsCty.GetAttr("mock_outputs"))
+	}
+
+	if dep.MockOutputsAllowedTerraformCommands != nil {
+		depBody.SetAttributeValue(
+			"mock_outputs_allowed_terraform_commands",
+			depAsCty.GetAttr("mock_outputs_allowed_terraform_commands"),
+		)
+	}
+
+	if dep.MockOutputsMergeStrategyWithState != nil {
+		depBody.SetAttributeValue(
+			"mock_outputs_merge_strategy_with_state",
+			depAsCty.GetAttr("mock_outputs_merge_strategy_with_state"),
+		)
+	}
+
+	return depBlock, nil
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
@@ -1850,7 +2001,7 @@ func decodeAsTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, file, evalContext)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, l, file, evalContext)
 	if err != nil {
 		return &terragruntConfig, err
 	}

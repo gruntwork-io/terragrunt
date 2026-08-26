@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 )
@@ -68,7 +69,21 @@ type ExpansionBlock struct {
 	ForEach *cty.Value `hcl:"for_each,attr"`
 	Count   *cty.Value `hcl:"count,attr"`
 
+	Source *SourceBlock
+
 	InstanceKey
+}
+
+// SourceBlock is a block as it was written, before expansion decoded it once per
+// element. Every instance of one block points at the same SourceBlock, so a caller can
+// group instances back together by [SourceBlock.Range].
+//
+// Only [ExpandBlocks] fills it in, and only for native HCL syntax: a block handed to
+// [ExpandBlock] on its own carries no file to slice, and a JSON config has no HCL text
+// to quote back.
+type SourceBlock struct {
+	Text  string
+	Range hcl.Range
 }
 
 // InstanceKey identifies which expansion element produced a decoded block. It carries
@@ -105,7 +120,8 @@ func (key InstanceKey) Expanded() bool {
 // Instance is one decoded product of expanding a block. A block with no expansion
 // block yields a single Instance with both keys nil.
 type Instance struct {
-	Value any
+	Value  any
+	Source *SourceBlock
 	InstanceKey
 }
 
@@ -146,7 +162,13 @@ func (file *File) ExpandBlocks(
 
 		expanded, err := ExpandBlock(block, out, ctx, opts...)
 		if err == nil {
+			source := blockSource(file.Bytes, block)
+			for i := range expanded {
+				expanded[i].Source = source
+			}
+
 			instances = append(instances, expanded...)
+
 			continue
 		}
 
@@ -230,6 +252,27 @@ func skipBlock(block *hcl.Block, skipLabels map[string]struct{}) bool {
 	// A sub-block that will not parse is a structural error. Keep the block so the decode
 	// below reports it.
 	return err == nil && expansion == nil
+}
+
+// blockSource slices block back out of the file it was parsed from, so a caller can quote
+// the block as written rather than as decoded. A body that is not native HCL syntax has
+// no such text and yields nil.
+func blockSource(src []byte, block *hcl.Block) *SourceBlock {
+	body, ok := block.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	rng := hcl.Range{
+		Filename: block.TypeRange.Filename,
+		Start:    block.TypeRange.Start,
+		End:      body.SrcRange.End,
+	}
+
+	return &SourceBlock{
+		Text:  string(src[rng.Start.Byte:rng.End.Byte]),
+		Range: rng,
+	}
 }
 
 // ExpandBlock decodes block once per iteration element, returning one Instance per

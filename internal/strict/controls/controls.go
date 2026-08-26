@@ -94,6 +94,10 @@ const (
 	LegacyGCSPublicPrefix = "legacy-gcs-public-prefix"
 
 	OptionalHooks = "optional-hooks"
+
+	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
+	// configuration from claiming the same address.
+	DuplicateDependencyLabels = "duplicate-dependency-labels"
 )
 
 // LegacyGCSDeprecationWarning is the warning text emitted when a plain
@@ -232,6 +236,15 @@ func New() strict.Controls {
 				"Using an `include` block without a label is deprecated. Please use the `include` block with a label instead.",
 			),
 			Warning: "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://docs.terragrunt.com/migrate/bare-include/",
+		},
+
+		&Control{
+			Name:        DuplicateDependencyLabels,
+			Description: "Prevents two `dependency` blocks in one configuration from claiming the same address.",
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+				"Two `dependency` blocks address the same dependency. Give each block a label of its own.",
+			),
+			Warning: "Two `dependency` blocks address the same dependency, so only the last of them can be referenced and the rest are unreachable. Give each block a label of its own. In a future version of Terragrunt, this will result in an error.",
 		},
 
 		&Control{
