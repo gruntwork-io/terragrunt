@@ -76,7 +76,7 @@ func ListAction(
 				return strict.NewInvalidControlNameError(controls.Names())
 			}
 
-			return writer.DetailControl(control)
+			return writer.DetailSubcontrols(control.GetSubcontrols().FilterByStatus(allowedStatuses...))
 		}
 
 		return writer.List(controls)
