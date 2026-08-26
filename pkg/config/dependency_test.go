@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -86,6 +87,7 @@ dependency "hitchhiker" {
   }
   mock_outputs_allowed_terraform_commands = ["validate", "apply"]
 }
+
 `
 	filename := config.DefaultTerragruntConfigPath
 	file, err := hclparse.NewParser().ParseFromString(cfg, filename)
@@ -111,6 +113,94 @@ dependency "hitchhiker" {
 	defaultAllowedCommands := dependency.MockOutputsAllowedTerraformCommands
 	assert.NotNil(t, defaultAllowedCommands)
 	assert.Equal(t, []string{"validate", "apply"}, *defaultAllowedCommands)
+}
+
+func TestDependencyDefaultsApplyToDependencyBlocks(t *testing.T) {
+	t.Parallel()
+
+	const cfg = `
+dependency_defaults {
+  mock_outputs_allowed_terraform_commands = ["plan", "validate"]
+}
+
+dependency "inherited" {
+  config_path = "../inherited"
+}
+
+dependency "overridden" {
+  config_path = "../overridden"
+  mock_outputs_allowed_terraform_commands = ["apply"]
+}
+`
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyDefaults))
+	pctx = pctx.WithDecodeList(config.DependencyBlock)
+
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, terragruntConfig.TerragruntDependencies, 2)
+	assert.Equal(t, []string{"plan", "validate"}, *terragruntConfig.TerragruntDependencies[0].MockOutputsAllowedTerraformCommands)
+	assert.Equal(t, []string{"apply"}, *terragruntConfig.TerragruntDependencies[1].MockOutputsAllowedTerraformCommands)
+}
+
+func TestDependencyDefaultsRequireExperiment(t *testing.T) {
+	t.Parallel()
+
+	const cfg = `
+dependency_defaults {
+  mock_outputs_allowed_terraform_commands = ["plan"]
+}
+`
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.DependencyBlock)
+
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.ErrorContains(t, err, "dependency_defaults requires the \"dependency-defaults\" experiment")
+}
+
+func TestDependencyDefaultsAreInheritedThroughInclude(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	rootPath := filepath.Join(dir, "root.hcl")
+	childDir := filepath.Join(dir, "child")
+	childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.MkdirAll(childDir, 0o755))
+	require.NoError(t, os.WriteFile(rootPath, []byte(`
+dependency_defaults {
+  mock_outputs_allowed_terraform_commands = ["plan", "validate"]
+}
+`), 0o600))
+	require.NoError(t, os.WriteFile(childPath, []byte(`
+include "root" {
+  path = "../root.hcl"
+}
+
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`), 0o600))
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyDefaults))
+	pctx = pctx.WithDecodeList(config.DependencyBlock)
+
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+	require.NoError(t, err)
+	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
+	assert.Equal(t, []string{"plan", "validate"}, *terragruntConfig.TerragruntDependencies[0].MockOutputsAllowedTerraformCommands)
 }
 func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()

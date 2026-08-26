@@ -103,6 +103,15 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataDependency] = dependencyCty
 	}
 
+	dependencyDefaultsCty, err := GoTypeToCty(config.DependencyDefaults)
+	if err != nil {
+		return cty.NilVal, fieldError(MetadataDependencyDefaults, err)
+	}
+
+	if dependencyDefaultsCty != cty.NilVal {
+		output[MetadataDependencyDefaults] = dependencyDefaultsCty
+	}
+
 	generateCty, err := GoTypeToCty(config.GenerateConfigs)
 	if err != nil {
 		return cty.NilVal, err
@@ -327,6 +336,22 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 			}
 
 			output[MetadataDependency] = dependenciesCty
+		}
+	}
+
+	if config.DependencyDefaults != nil {
+		dependencyDefaultsCty, err := GoTypeToCty(config.DependencyDefaults)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		if err := wrapWithMetadata(
+			config,
+			dependencyDefaultsCty,
+			MetadataDependencyDefaults,
+			&output,
+		); err != nil {
+			return cty.NilVal, err
 		}
 	}
 

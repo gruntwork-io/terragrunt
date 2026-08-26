@@ -111,6 +111,9 @@ const (
 	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
 	// all dependency output resolution during a run.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
+
+	// DependencyDefaults gates project-level defaults for dependency blocks.
+	DependencyDefaults = "dependency-defaults"
 )
 
 const (
@@ -198,6 +201,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalHooks,
+		},
+		{
+			Name: DependencyDefaults,
 		},
 		{
 			Name: Profiling,

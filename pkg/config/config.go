@@ -69,6 +69,7 @@ const (
 	MetadataRemoteState                 = "remote_state"
 	MetadataDependencies                = "dependencies"
 	MetadataDependency                  = "dependency"
+	MetadataDependencyDefaults          = "dependency_defaults"
 	MetadataDownloadDir                 = "download_dir"
 	MetadataPreventDestroy              = "prevent_destroy"
 	MetadataIamRole                     = "iam_role"
@@ -135,9 +136,10 @@ var (
 
 // DecodedBaseBlocks decoded base blocks struct
 type DecodedBaseBlocks struct {
-	TrackInclude *TrackInclude
-	Locals       *cty.Value
-	FeatureFlags *cty.Value
+	TrackInclude       *TrackInclude
+	Locals             *cty.Value
+	FeatureFlags       *cty.Value
+	DependencyDefaults *DependencyDefaults
 }
 
 // TerragruntConfig represents a parsed and expanded configuration
@@ -166,6 +168,7 @@ type TerragruntConfig struct {
 	TerraformBinary             string
 	TerragruntDependencies      Dependencies
 	FeatureFlags                FeatureFlags
+	DependencyDefaults          *DependencyDefaults
 	IsPartial                   bool
 }
 
@@ -769,6 +772,7 @@ type terragruntConfigFile struct {
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	DependencyBlocks         []dependencyHeader  `hcl:"dependency,block"`
+	DependencyDefaults       *DependencyDefaults `hcl:"dependency_defaults,block"`
 	TerragruntDependencies   []Dependency
 	FeatureFlags             []*FeatureFlag `hcl:"feature,block"`
 	Exclude                  *ExcludeConfig `hcl:"exclude,block"`
@@ -1549,6 +1553,7 @@ func ParseConfig(
 		pctx = pctx.WithTrackInclude(baseBlocks.TrackInclude)
 		pctx = pctx.WithFeatures(baseBlocks.FeatureFlags)
 		pctx = pctx.WithLocals(baseBlocks.Locals)
+		pctx = pctx.WithDependencyDefaults(baseBlocks.DependencyDefaults)
 	}
 
 	if pctx.DecodedDependencies == nil {
@@ -1591,6 +1596,10 @@ func ParseConfig(
 	config, err := convertToTerragruntConfig(ctx, pctx, file.ConfigPath, terragruntConfigFile)
 	if err != nil {
 		errs = append(errs, err)
+	}
+
+	if config != nil {
+		config.DependencyDefaults = pctx.DependencyDefaults.clone()
 	}
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
@@ -1849,7 +1858,7 @@ func decodeAsTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocks(file, evalContext, pctx.Experiments)
+	dependencies, err := decodeDependencyBlocks(file, evalContext, pctx)
 	if err != nil {
 		return &terragruntConfig, err
 	}
@@ -2058,6 +2067,11 @@ func convertToTerragruntConfig(
 				defaultMetadata,
 			)
 		}
+	}
+
+	if terragruntConfigFromFile.DependencyDefaults != nil {
+		terragruntConfig.DependencyDefaults = terragruntConfigFromFile.DependencyDefaults.clone()
+		terragruntConfig.SetFieldMetadata(MetadataDependencyDefaults, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.Exclude != nil {

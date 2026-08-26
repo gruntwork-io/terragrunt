@@ -62,6 +62,7 @@ type ParsingContext struct {
 	Values              *cty.Value
 	Features            *cty.Value
 	Locals              *cty.Value
+	DependencyDefaults  *DependencyDefaults
 
 	SourceMap           map[string]string
 	PredefinedFunctions map[string]function.Function
@@ -207,6 +208,14 @@ func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
 func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 	c := ctx.Clone()
 	c.Features = features
+
+	return c
+}
+
+// WithDependencyDefaults sets the defaults applied to dependency blocks while parsing this config.
+func (ctx *ParsingContext) WithDependencyDefaults(defaults *DependencyDefaults) *ParsingContext {
+	c := ctx.Clone()
+	c.DependencyDefaults = defaults
 
 	return c
 }
