@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -404,7 +405,8 @@ func gcsUnsupportedEnvUnset(v *venv.Venv) bool {
 	}
 
 	for _, key := range gcsUnsupportedProcessEnvKeys {
-		if env[key] != "" || v.ProcessEnv(key) != "" {
+		processValue := os.Getenv(key) //nolint:forbidigo // Read under EnvLock.
+		if env[key] != "" || processValue != "" {
 			return false
 		}
 	}
@@ -417,12 +419,15 @@ func gcsProcessEnvDivergenceSupported(v *venv.Venv) bool {
 	env := v.Env
 
 	value, configured := env["GOOGLE_APPLICATION_CREDENTIALS"]
-	if configured && value == "" && v.ProcessEnv("GOOGLE_APPLICATION_CREDENTIALS") != "" {
+
+	processCredentials := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") //nolint:forbidigo // Read under EnvLock.
+	if configured && value == "" && processCredentials != "" {
 		return false
 	}
 
 	for _, key := range gcsProcessSharedEnvKeys {
-		if value, configured := env[key]; configured && value != v.ProcessEnv(key) {
+		processValue := os.Getenv(key) //nolint:forbidigo // Read under EnvLock.
+		if value, configured := env[key]; configured && value != processValue {
 			return false
 		}
 	}

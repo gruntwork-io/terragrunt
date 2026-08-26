@@ -128,22 +128,6 @@ func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	assert.NotContains(t, clone.Env, "BAZ")
 }
 
-func TestWithProcessEnvKeepsAnIndependentSnapshot(t *testing.T) {
-	t.Parallel()
-
-	processEnv := map[string]string{"SDK_VISIBLE": "original"}
-	v := (&venv.Venv{Env: map[string]string{"SDK_VISIBLE": "effective"}}).WithProcessEnv(processEnv)
-
-	processEnv["SDK_VISIBLE"] = "changed"
-	v.Env["SDK_VISIBLE"] = "mutated"
-
-	assert.Equal(t, "original", v.ProcessEnv("SDK_VISIBLE"))
-	assert.Equal(t, "original", v.WithEnv(map[string]string{}).ProcessEnv("SDK_VISIBLE"))
-	assert.PanicsWithValue(t, venv.ErrVenvProcessEnvNil, func() {
-		v.WithProcessEnv(nil)
-	})
-}
-
 func TestOSVenvProvidesPlatformHandles(t *testing.T) {
 	t.Parallel()
 
@@ -153,19 +137,6 @@ func TestOSVenvProvidesPlatformHandles(t *testing.T) {
 	assert.Equal(t, runtime.GOOS, v.Platform.GOOS)
 	assert.Equal(t, runtime.GOARCH, v.Platform.GOARCH)
 	assert.NotNil(t, v.Platform.UserHomeDir)
-}
-
-func TestOSVenvKeepsProcessEnvironmentIndependent(t *testing.T) {
-	t.Parallel()
-
-	const key = "TG_VENV_PROCESS_ENV_ALIAS_TEST"
-
-	v := venv.OSVenv()
-	want := v.ProcessEnv(key)
-
-	v.Env[key] = want + "-effective"
-
-	assert.Equal(t, want, v.ProcessEnv(key))
 }
 
 func TestVenvPlatformBuilders(t *testing.T) {

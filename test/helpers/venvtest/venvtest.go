@@ -56,7 +56,7 @@ const (
 // reporting success with empty output, which a caller reading the command's
 // stdout would take as a real answer.
 func New() *venv.Venv {
-	return (&venv.Venv{
+	return &venv.Venv{
 		Exec: vexec.NewNoSpawnExec(),
 		FS:   vfs.NewMemMapFS(),
 		HTTP: vhttp.NewNoNetworkClient(),
@@ -92,7 +92,7 @@ func New() *venv.Venv {
 			Width:       func() int { return 0 },
 		},
 		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
-	}).WithProcessEnv(map[string]string{})
+	}
 }
 
 // NewWithOSFS returns [New] with the real filesystem swapped in, for tests

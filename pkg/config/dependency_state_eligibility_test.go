@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -25,7 +27,6 @@ type dependencyStateEligibilityTestCase struct {
 	backend                     string
 	backendConfig               map[string]string
 	env                         map[string]string
-	processEnv                  map[string]string
 	files                       map[string]string
 	wantRequest                 string
 	enableAzure                 bool
@@ -352,13 +353,13 @@ func parseDependencyStateEligibilityFixture(
 		env = map[string]string{}
 	}
 
+	effectiveEnv := venv.ParseEnviron(os.Environ())
+	maps.Copy(effectiveEnv, env)
+
 	v := venvtest.New().
-		WithEnv(env).
+		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())
-	if testCase.processEnv != nil {
-		v = v.WithProcessEnv(testCase.processEnv)
-	}
 
 	for _, dir := range []string{filepath.Dir(consumerPath), filepath.Dir(producerPath)} {
 		require.NoError(t, v.FS.MkdirAll(dir, 0o700))

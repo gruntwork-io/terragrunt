@@ -44,11 +44,6 @@ var ErrVenvEnvUnset = errors.New("venv.Venv.Env is required but unset")
 // at a caller bug rather than a runtime condition.
 var ErrVenvEnvNil = errors.New("venv.Venv.WithEnv: env must not be nil")
 
-// ErrVenvProcessEnvNil is the panic value [Venv.WithProcessEnv] raises when
-// its env argument is nil. The process snapshot must always be explicit so
-// tests cannot accidentally inherit the machine running them.
-var ErrVenvProcessEnvNil = errors.New("venv.Venv.WithProcessEnv: env must not be nil")
-
 // ErrVenvFSUnset is the panic value [Venv.RequireFS] raises when FS is nil.
 // Production callers build the Venv through [OSVenv], so it points at a test
 // that forgot to set FS rather than a runtime condition.
@@ -147,17 +142,16 @@ type Terminal struct {
 // EOF whether the child reads or not, which is enough for one incidental
 // `tofu -version` to swallow the whole input.
 type Venv struct {
-	FS         vfs.FS
-	Exec       vexec.Exec
-	HTTP       vhttp.Client
-	Sops       vsops.Decrypter
-	Listen     Listener
-	Stdin      io.Reader
-	Env        map[string]string
-	Platform   *Platform
-	Terminal   *Terminal
-	Writers    *writer.Writers
-	processEnv map[string]string
+	FS       vfs.FS
+	Exec     vexec.Exec
+	HTTP     vhttp.Client
+	Sops     vsops.Decrypter
+	Listen   Listener
+	Stdin    io.Reader
+	Env      map[string]string
+	Platform *Platform
+	Terminal *Terminal
+	Writers  *writer.Writers
 }
 
 // Listener opens a socket to serve on. Terragrunt listens for one thing, the
@@ -299,25 +293,6 @@ func (v *Venv) WithEnv(env map[string]string) *Venv {
 	c.Env = env
 
 	return &c
-}
-
-// WithProcessEnv returns a copy of v with an immutable snapshot of the
-// environment visible to libraries that read the real process directly.
-func (v *Venv) WithProcessEnv(env map[string]string) *Venv {
-	if env == nil {
-		panic(ErrVenvProcessEnvNil)
-	}
-
-	c := *v
-	c.processEnv = maps.Clone(env)
-
-	return &c
-}
-
-// ProcessEnv returns the startup value visible to libraries that read the
-// real process directly instead of using Env.
-func (v *Venv) ProcessEnv(key string) string {
-	return v.processEnv[key]
 }
 
 // WithEnvCloned returns a copy of v whose Env is an independent clone. Fan-out
@@ -478,8 +453,6 @@ func (v *Venv) RequireTempDir() {
 // environment variables; writer swaps stay independent because
 // [writer.Writers.WithWriter] returns a fresh copy.
 func OSVenv() *Venv {
-	processEnv := ParseEnviron(os.Environ())
-
 	return &Venv{
 		FS:     vfs.NewOSFS(),
 		Exec:   vexec.NewOSExec(),
@@ -487,7 +460,7 @@ func OSVenv() *Venv {
 		Sops:   vsops.NewOSDecrypter(),
 		Listen: (&net.ListenConfig{}).Listen,
 		Stdin:  os.Stdin,
-		Env:    maps.Clone(processEnv),
+		Env:    ParseEnviron(os.Environ()),
 		Platform: &Platform{
 			UserHomeDir:  os.UserHomeDir,
 			UserCacheDir: os.UserCacheDir,
@@ -503,8 +476,7 @@ func OSVenv() *Venv {
 			StderrIsTTY: func() bool { return term.IsTerminal(int(os.Stderr.Fd())) },
 			Width:       osTerminalWidth,
 		},
-		Writers:    &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
-		processEnv: processEnv,
+		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}
 }
 

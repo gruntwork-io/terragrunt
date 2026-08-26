@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,7 +15,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/locks"
 	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -128,7 +132,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 				testCase.backend,
 				testCase.backendConfig,
 				env,
-				nil,
 				testCase.enableAzure,
 				"",
 			)
@@ -144,13 +147,93 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 	}
 }
 
+func TestDependencyStateDirectReadSharesEnvironmentLockWithRacing(t *testing.T) { //nolint:paralleltest // exercises global EnvLock
+	accessKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	testCases := []struct {
+		name          string
+		backend       string
+		backendConfig string
+		enableAzure   bool
+	}{
+		{
+			name:    "GCS",
+			backend: "gcs",
+			backendConfig: `
+        access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+		},
+		{
+			name:    "Azure",
+			backend: "azurerm",
+			backendConfig: fmt.Sprintf(`
+        access_key           = %q
+        container_name       = "state"
+        key                  = "service.tfstate"
+        storage_account_name = "stateaccount"`, accessKey),
+			enableAzure: true,
+		},
+	}
+
+	for _, testCase := range testCases { //nolint:paralleltest // exercises global EnvLock
+		t.Run(testCase.name, func(t *testing.T) { //nolint:paralleltest // exercises global EnvLock
+			requestStarted := make(chan struct{})
+			releaseRequest := make(chan struct{})
+			recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-direct"))
+			recorder.respond = func(*http.Request) *http.Response {
+				close(requestStarted)
+				<-releaseRequest
+
+				return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
+			}
+
+			type result struct {
+				cfg *config.TerragruntConfig
+				err error
+			}
+
+			ctx, pctx, configPath := prepareDependencyStateFixture(
+				t,
+				recorder,
+				testCase.backend,
+				testCase.backendConfig,
+				map[string]string{},
+				testCase.enableAzure,
+				"",
+			)
+			resultCh := make(chan result, 1)
+
+			go func() {
+				cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+				resultCh <- result{cfg: cfg, err: err}
+			}()
+
+			<-requestStarted
+
+			writerAcquired := locks.EnvLock.TryLock()
+			if writerAcquired {
+				locks.EnvLock.Unlock()
+			}
+
+			assert.False(t, writerAcquired, "a process environment writer must wait for the direct state read")
+			close(releaseRequest)
+
+			got := <-resultCh
+			require.NoError(t, got.err)
+			assert.Equal(t, "from-direct", got.cfg.Inputs["result"])
+
+			require.True(t, locks.EnvLock.TryLock(), "the direct state read must release the environment lock")
+			locks.EnvLock.Unlock()
+		})
+	}
+}
+
 func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
 
 	accessKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
 	testCases := []struct {
 		env           map[string]string
-		processEnv    map[string]string
 		name          string
 		backend       string
 		backendConfig string
@@ -175,16 +258,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         storage_custom_endpoint = "https://storage.example.com"`,
 		},
 		{
-			name:    "GCS executable environment differs from process",
-			backend: "gcs",
-			backendConfig: `
-        access_token = "test-token"
-        bucket       = "state-bucket"
-        prefix       = "environment/service"`,
-			env:        map[string]string{"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES": ""},
-			processEnv: map[string]string{"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES": "1"},
-		},
-		{
 			name:    "GCS invalid workspace",
 			backend: "gcs",
 			backendConfig: `
@@ -202,18 +275,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         key                  = "service.tfstate"
         metadata_host        = "https://metadata.example.com"
         storage_account_name = "stateaccount"`, accessKey),
-			enableAzure: true,
-		},
-		{
-			name:    "Azure proxy environment differs from process",
-			backend: "azurerm",
-			backendConfig: fmt.Sprintf(`
-        access_key           = %q
-        container_name       = "state"
-        key                  = "service.tfstate"
-        storage_account_name = "stateaccount"`, accessKey),
-			env:         map[string]string{"HTTPS_PROXY": ""},
-			processEnv:  map[string]string{"HTTPS_PROXY": "http://process-proxy.example.com"},
 			enableAzure: true,
 		},
 	}
@@ -235,7 +296,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				testCase.backend,
 				testCase.backendConfig,
 				env,
-				testCase.processEnv,
 				testCase.enableAzure,
 				"",
 			)
@@ -248,6 +308,62 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 			assert.True(t, slices.ContainsFunc(invocations, func(inv vexec.Invocation) bool {
 				return slices.Contains(inv.Args, "output") && slices.Contains(inv.Args, "-json")
 			}))
+		})
+	}
+}
+
+func TestDependencyStateProcessEnvironmentDivergenceFallsBackToNativeOutput(t *testing.T) { //nolint:paralleltest // t.Setenv
+	accessKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	testCases := []struct {
+		name          string
+		backend       string
+		backendConfig string
+		processKey    string
+		processValue  string
+		enableAzure   bool
+	}{
+		{
+			name:    "GCS executable environment differs from process",
+			backend: "gcs",
+			backendConfig: `
+        access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+			processKey:   "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES",
+			processValue: "1",
+		},
+		{
+			name:    "Azure proxy environment differs from process",
+			backend: "azurerm",
+			backendConfig: fmt.Sprintf(`
+        access_key           = %q
+        container_name       = "state"
+        key                  = "service.tfstate"
+        storage_account_name = "stateaccount"`, accessKey),
+			processKey:   "HTTPS_PROXY",
+			processValue: "http://process-proxy.example.com",
+			enableAzure:  true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) { //nolint:paralleltest // t.Setenv
+			t.Setenv(testCase.processKey, testCase.processValue)
+
+			recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("unexpected-direct"))
+			cfg, err := parseDependencyStateFixture(
+				t,
+				recorder,
+				testCase.backend,
+				testCase.backendConfig,
+				map[string]string{testCase.processKey: ""},
+				testCase.enableAzure,
+				"",
+			)
+			require.NoError(t, err)
+			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+			assert.Empty(t, recorder.requestPaths(), "a divergent process environment must not use the direct state client")
+			assertEligibilityOutputInvocation(t, recorder.invocations())
 		})
 	}
 }
@@ -265,7 +381,6 @@ func TestDependencyStateGCSCustomerEncryptionKey(t *testing.T) {
         bucket        = "state-bucket"
         encryption_key = %q`, encryptionKey),
 		map[string]string{},
-		nil,
 		false,
 		"",
 	)
@@ -291,7 +406,6 @@ func TestDependencyStateMalformedDirectStateSurfacesLocation(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{},
-		nil,
 		false,
 		"",
 	)
@@ -334,7 +448,6 @@ func TestDependencyStateStopsReadingAfterOutputs(t *testing.T) {
 			"AWS_ACCESS_KEY_ID":     "test-access-key",
 			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
 		},
-		nil,
 		false,
 		"",
 	)
@@ -359,7 +472,6 @@ func TestDependencyStateReadsOutputsAfterResources(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{},
-		nil,
 		false,
 		"",
 	)
@@ -416,7 +528,6 @@ func TestDependencyStateTransportFailureIsNotReportedAsMalformedState(t *testing
 					"AWS_ACCESS_KEY_ID":     "test-access-key",
 					"AWS_SECRET_ACCESS_KEY": "test-secret-key",
 				},
-				nil,
 				false,
 				"",
 			)
@@ -442,7 +553,6 @@ func TestDependencyStateMissingDirectStateUsesMockOutputs(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{},
-		nil,
 		false,
 		`mock_outputs = { producer_value = "from-mock" }`,
 	)
@@ -495,7 +605,6 @@ func TestDependencyStateAzureClientSetupFailureDoesNotUseMocks(t *testing.T) {
         subscription_id      = "subscription"
         tenant_id            = "tenant"`,
 		map[string]string{},
-		nil,
 		true,
 		`mock_outputs = { producer_value = "from-mock" }`,
 	)
@@ -632,10 +741,33 @@ func parseDependencyStateFixture(
 	backend string,
 	backendConfig string,
 	env map[string]string,
-	processEnv map[string]string,
 	enableAzure bool,
 	dependencyExtra string,
 ) (*config.TerragruntConfig, error) {
+	t.Helper()
+
+	ctx, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		backend,
+		backendConfig,
+		env,
+		enableAzure,
+		dependencyExtra,
+	)
+
+	return config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+}
+
+func prepareDependencyStateFixture(
+	t *testing.T,
+	recorder *dependencyStateRecorder,
+	backend string,
+	backendConfig string,
+	env map[string]string,
+	enableAzure bool,
+	dependencyExtra string,
+) (context.Context, *config.ParsingContext, string) {
 	t.Helper()
 
 	const (
@@ -643,13 +775,13 @@ func parseDependencyStateFixture(
 		producerPath = "/repo/producer/terragrunt.hcl"
 	)
 
+	effectiveEnv := venv.ParseEnviron(os.Environ())
+	maps.Copy(effectiveEnv, env)
+
 	v := venvtest.New().
-		WithEnv(env).
+		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())
-	if processEnv != nil {
-		v = v.WithProcessEnv(processEnv)
-	}
 
 	for _, dir := range []string{filepath.Dir(consumerPath), filepath.Dir(producerPath)} {
 		require.NoError(t, v.FS.MkdirAll(dir, 0o700))
@@ -684,7 +816,7 @@ inputs = {
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.AzureBackend))
 	}
 
-	return config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), consumerPath, nil)
+	return ctx, pctx, consumerPath
 }
 
 func terraformState(value string) []byte {
