@@ -78,7 +78,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
 					}
 
 					// Check for uncommitted changes
-					gitRunner, err := git.NewGitRunner(v.Exec)
+					gitRunner, err := git.NewGitRunner(v)
 					if err != nil {
 						return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 					}

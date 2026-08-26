@@ -195,8 +195,8 @@ func (o *Options) DataDir(env map[string]string) string {
 }
 
 // shellRunOptions builds a *shell.ShellOptions from this Options.
-func (o *Options) shellRunOptions() *shell.ShellOptions {
-	s := shell.NewShellOptions().
+func (o *Options) shellRunOptions(env map[string]string) *shell.ShellOptions {
+	s := shell.NewShellOptions(env).
 		WithWorkingDir(o.CacheDir).
 		WithUnitDir(o.UnitDir).
 		WithTelemetry(o.Telemetry).
@@ -213,19 +213,19 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 }
 
 // tfRunOptions builds a *tf.TFOptions from this Options.
-func (o *Options) tfRunOptions() *tf.TFOptions {
+func (o *Options) tfRunOptions(env map[string]string) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                o.JSONLogFormat,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         o.TerragruntConfigPath,
 		TofuImplementation:           o.TofuImplementation,
 		TerraformCliArgs:             o.TerraformCliArgs,
-		ShellOptions:                 o.shellRunOptions(),
+		ShellOptions:                 o.shellRunOptions(env),
 	}
 }
 
 // remoteStateOpts builds a *remotestate.Options from this Options.
-func (o *Options) remoteStateOpts() *remotestate.Options {
+func (o *Options) remoteStateOpts(env map[string]string) *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
 			Experiments:                  o.Experiments,
@@ -233,15 +233,15 @@ func (o *Options) remoteStateOpts() *remotestate.Options {
 			NonInteractive:               o.NonInteractive,
 			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		},
-		TFRunOpts:           o.tfRunOptions(),
+		TFRunOpts:           o.tfRunOptions(env),
 		DisableBucketUpdate: o.DisableBucketUpdate,
 	}
 }
 
 // tflintRunOptions builds a *tflint.TFLintOptions from this Options.
-func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
+func (o *Options) tflintRunOptions(env map[string]string) *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
-		ShellOptions:         o.shellRunOptions(),
+		ShellOptions:         o.shellRunOptions(env),
 		LogShowAbsPaths:      o.LogShowAbsPaths,
 		WorkingDir:           o.CacheDir,
 		RootWorkingDir:       o.RootWorkingDir,

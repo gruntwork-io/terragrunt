@@ -423,7 +423,7 @@ func newModelWithItems(
 	delegateKeys := NewDelegateKeyMap()
 	pagerKeys := NewPagerKeyMap()
 
-	delegate := newCatalogDelegate(delegateKeys)
+	delegate := newCatalogDelegate(v.Env, delegateKeys)
 
 	titleStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(viewtui.TitleForeground)).

@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// panickyControl satisfies the strict.Control interface but panics when its
-// subcontrols are asked for. The text/template engine recovers the panic and
-// surfaces it as an Execute error, which lets us drive the error-wrapping
-// branches in List and DetailControl.
+// panickyControl satisfies [strict.Control] but panics from GetName and
+// GetSubcontrols. text/template recovers the panic and returns it as an
+// Execute error, which is how these tests reach the error paths in
+// [Render.List] and [Render.DetailSubcontrols].
 type panickyControl struct{}
 
 func (panickyControl) GetName() string                  { panic("boom") }
@@ -34,11 +34,11 @@ func TestRenderListExecuteError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRenderDetailControlExecuteError(t *testing.T) {
+func TestRenderDetailSubcontrolsExecuteError(t *testing.T) {
 	t.Parallel()
 
 	r := NewRender()
-	_, err := r.DetailControl(panickyControl{})
+	_, err := r.DetailSubcontrols(strict.Controls{panickyControl{}})
 	require.Error(t, err)
 }
 

@@ -12,6 +12,9 @@ const (
 
 	// FormatJSON outputs the config in JSON format.
 	FormatJSON = "json"
+
+	hclOutputName  = "terragrunt.rendered.hcl"
+	jsonOutputName = "terragrunt.rendered.json"
 )
 
 type Options struct {
@@ -50,21 +53,33 @@ func (o *Options) Clone() *Options {
 	}
 }
 
+// Validate rejects an unrecognized format. It also fills in [Options.OutputPath] with a
+// name derived from the format when a write is requested without one.
 func (o *Options) Validate() error {
-	if err := o.validateFormat(); err != nil {
+	if err := validateFormat(o.Format); err != nil {
 		return err
+	}
+
+	if o.Write && o.OutputPath == "" {
+		o.OutputPath = defaultOutputName(o.Format)
 	}
 
 	return nil
 }
 
-func (o *Options) validateFormat() error {
-	switch o.Format {
-	case FormatHCL:
-		return nil
-	case FormatJSON:
+func validateFormat(format string) error {
+	switch format {
+	case FormatHCL, FormatJSON:
 		return nil
 	default:
-		return errors.New("invalid format: " + o.Format)
+		return errors.New("invalid format: " + format)
 	}
+}
+
+func defaultOutputName(format string) string {
+	if format == FormatJSON {
+		return jsonOutputName
+	}
+
+	return hclOutputName
 }

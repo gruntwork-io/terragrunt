@@ -47,7 +47,7 @@ dependency "db" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -97,7 +97,7 @@ dependency "db" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -150,7 +150,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 		appDir: ``,
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -192,7 +192,7 @@ dependency "vpc" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 

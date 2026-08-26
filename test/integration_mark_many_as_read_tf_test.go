@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func TestTFMarkManyAsReadRelpathSourceTriggersDiscovery(t *testing.T) {
 	assert.NotContains(t, stdout+stderr, "No units discovered",
 		"unit should be discovered via the local module source walk")
 
-	runs, err := report.ParseJSONRunsFromFile(filepath.Join(rootPath, helpers.ReportFile))
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), filepath.Join(rootPath, helpers.ReportFile))
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"live/unit"}, runs.Names())
 }
@@ -64,7 +65,7 @@ func TestTFMarkManyAsReadDefaultDiscoversModuleChanges(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
 
-	runs, err := report.ParseJSONRunsFromFile(filepath.Join(rootPath, helpers.ReportFile))
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), filepath.Join(rootPath, helpers.ReportFile))
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"live/unit"}, runs.Names(),
 		"module source changes should cascade to the unit by default")

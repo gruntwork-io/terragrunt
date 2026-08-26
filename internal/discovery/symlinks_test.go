@@ -7,11 +7,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,7 @@ func TestDiscoverySymlinksExperiment(t *testing.T) {
 	}
 
 	root := helpers.TmpDirWOSymlinks(t)
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	unitDir := filepath.Join(root, "a")
 	require.NoError(t, v.FS.MkdirAll(unitDir, 0755))
@@ -47,7 +48,7 @@ func TestDiscoverySymlinksExperiment(t *testing.T) {
 	discover := func(t *testing.T, experiments ...string) []string {
 		t.Helper()
 
-		opts := options.NewTerragruntOptions()
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.WorkingDir = root
 		opts.RootWorkingDir = root
 

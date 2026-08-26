@@ -23,7 +23,7 @@ func BenchmarkFindInParentFolders(b *testing.B) {
 
 			b.Run("depth="+strconv.Itoa(depth)+"/units="+strconv.Itoa(units), func(b *testing.B) {
 				l := logger.CreateLogger()
-				baseCtx, pctx := newTestParsingContext(b, venvtest.NewOSWithEmptyEnv(), configPaths[0])
+				baseCtx, pctx := newTestParsingContext(b, venvtest.NewWithOSFS(), configPaths[0])
 				params := []string{benchRootFileName}
 
 				for b.Loop() {

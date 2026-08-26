@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -137,7 +136,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("create hard link on real filesystem", func(t *testing.T) {
 		t.Parallel()
 
-		v := venv.OSVenv()
+		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -166,7 +165,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("force copy creates independent inode on real filesystem", func(t *testing.T) {
 		t.Parallel()
 
-		v := venv.OSVenv()
+		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -212,7 +211,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("default path strips write bit from non-executable", func(t *testing.T) {
 		t.Parallel()
 
-		v := venv.OSVenv()
+		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -238,7 +237,7 @@ func TestContent_Link(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			v := venv.OSVenv()
+			v := venvtest.NewOSWithEmptyEnv()
 
 			storeDir := t.TempDir()
 			targetDir := t.TempDir()
@@ -274,7 +273,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("default path falls back to copy on perm collision", func(t *testing.T) {
 		t.Parallel()
 
-		v := venv.OSVenv()
+		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -307,7 +306,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("force copy preserves executable bits", func(t *testing.T) {
 		t.Parallel()
 
-		v := venv.OSVenv()
+		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -367,7 +366,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("copy path recovers from a stale read-only temp file", func(t *testing.T) {
 		t.Parallel()
 
-		v := venv.OSVenv()
+		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()

@@ -223,7 +223,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	tfOpts := func(binary string) *tf.TFOptions {
 		return &tf.TFOptions{
 			TerraformCliArgs: iacargs.New(),
-			ShellOptions: shell.NewShellOptions().
+			ShellOptions: shell.NewShellOptions(map[string]string{}).
 				WithTFPath(binary).
 				WithWorkingDir(t.TempDir()),
 		}

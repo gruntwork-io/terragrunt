@@ -142,14 +142,10 @@ export default defineConfig({
             "http://localhost:16686/",
             "http://localhost:9090/",
 
-            // Unfortunately, these have to be ignored, as they're referencing content
-            // that is generated outside the contents of the markdown file.
-            "/reference/cli/commands/run#*",
-            "/reference/cli/commands/run/#*",
-            "/reference/cli/commands/list#*",
-            "/reference/cli/commands/list/#*",
-            "/reference/cli/commands/find#*",
-            "/reference/cli/commands/find/#*",
+            // Command pages are assembled by `src/pages/reference/cli/commands/[...slug].astro`
+            // from the `commands` and `flags` collections, so the validator never sees the
+            // headings these anchors point at. Page paths themselves are still validated.
+            "/reference/cli/commands/**/*#*",
 
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",
@@ -185,6 +181,41 @@ export default defineConfig({
         logScriptExecution: false,
         logStackTraces: false,
         forward: ['dataLayer.push'],
+        // Partytown runs the GTM container in a web worker, and a worker can
+        // only pull a script in with `fetch()`. That makes every cross-origin
+        // tag GTM injects subject to CORS, and vendors that serve their
+        // loaders off a plain CDN don't send `Access-Control-Allow-Origin`.
+        // The fetch fails, the tag never runs, and the console fills with
+        // "has been blocked by CORS policy".
+        //
+        // Route those hosts through same-origin rewrites (see vercel.json) so
+        // the request never crosses an origin boundary and CORS never applies.
+        // Only `script`/`fetch`/`xhr` are affected; `image` requests are
+        // issued `no-cors`, and `iframe` isn't a fetch at all.
+        //
+        // NOTE: this function is serialized to a string and re-evaluated
+        // inside the worker, so it must not close over anything outside its
+        // own body.
+        resolveUrl(url, location, type) {
+          const proxiedHosts = {
+            // Vector (cdn.vector.co sends no ACAO header)
+            'cdn.vector.co': '/vtag',
+            // HubSpot analytics, injected by the js.hs-scripts.com loader
+            // (which does send ACAO; js.hs-analytics.net does not)
+            'js.hs-analytics.net': '/htag',
+          };
+
+          const prefix = proxiedHosts[url.hostname];
+          if (!prefix || (type !== 'script' && type !== 'fetch' && type !== 'xhr')) {
+            return url;
+          }
+
+          const proxied = new URL(String(location));
+          proxied.pathname = prefix + url.pathname;
+          proxied.search = url.search;
+          proxied.hash = '';
+          return proxied;
+        },
       },
     }),
     sitemap({

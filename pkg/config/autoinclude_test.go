@@ -1680,10 +1680,10 @@ dependency "vpc" {
 	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"])
 }
 
-// An expanded unit dependency is decoded even when the autoinclude declares the same name. The
-// merge keys expanded blocks per instance, so the autoinclude sits alongside them instead of
-// replacing them.
-func TestFoldSiblingAutoIncludeDeps_ExpandedUnitDepSurvivesUnexpandedOverride(t *testing.T) {
+// An expanded unit dependency is decoded even when the autoinclude declares the same name.
+// Expansion keys instances separately from the bare label, so WithSkipLabels leaves the unit
+// block alone. Encoding then rejects the bare autoinclude label sitting beside those instances.
+func TestFoldSiblingAutoIncludeDeps_ExpandedUnitDepConflictsWithUnexpandedOverride(t *testing.T) {
 	t.Parallel()
 
 	v, tmpDir := newMemTestDir(t)
@@ -1732,22 +1732,11 @@ dependency "vpc" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
+	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
 
-	got := make([]string, 0, len(parsed.TerragruntDependencies))
-
-	for _, dep := range parsed.TerragruntDependencies {
-		if dep.Expansion == nil {
-			got = append(got, dep.Name)
-			continue
-		}
-
-		got = append(got, dep.Name+"["+dep.Expansion.Key()+"]")
-	}
-
-	assert.ElementsMatch(t, []string{"vpc[api]", "vpc[web]", "vpc"}, got)
+	var collision config.DependencyLabelCollisionError
+	require.ErrorAs(t, err, &collision)
+	assert.Equal(t, "vpc", collision.Name)
 }
 
 // An expanded unit dependency the autoinclude does not replace must still report an

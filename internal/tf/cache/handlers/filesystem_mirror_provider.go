@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -19,16 +20,19 @@ var _ ProviderHandler = new(FilesystemMirrorProviderHandler)
 type FilesystemMirrorProviderHandler struct {
 	*CommonProviderHandler
 
+	fsys                 vfs.FS
 	filesystemMirrorPath string
 }
 
 func NewFilesystemMirrorProviderHandler(
 	l log.Logger,
 	c vhttp.Client,
+	fsys vfs.FS,
 	method *cliconfig.ProviderInstallationFilesystemMirror,
 ) *FilesystemMirrorProviderHandler {
 	return &FilesystemMirrorProviderHandler{
 		CommonProviderHandler: NewCommonProviderHandler(l, c, method.Include, method.Exclude),
+		fsys:                  fsys,
 		filesystemMirrorPath:  method.Path,
 	}
 }
@@ -105,7 +109,7 @@ func (handler *FilesystemMirrorProviderHandler) GetPlatform(
 		}
 
 		resp = &models.ResponseBody{
-			Filename:    filepath.Base(archive.URL),
+			Filename:    models.FilenameFromURL(archive.URL),
 			DownloadURL: archive.URL,
 		}
 	}
@@ -116,7 +120,7 @@ func (handler *FilesystemMirrorProviderHandler) GetPlatform(
 func (handler *FilesystemMirrorProviderHandler) readMirrorData(filename string, value any) error {
 	filename = filepath.Join(handler.filesystemMirrorPath, filename)
 
-	data, err := os.ReadFile(filename)
+	data, err := vfs.ReadFile(handler.fsys, filename)
 	if err != nil {
 		// A mirror that carries no data for this provider is not an error; the
 		// caller reports an empty result and moves on to the next handler.

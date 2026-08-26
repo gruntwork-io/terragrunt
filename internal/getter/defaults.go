@@ -1,6 +1,7 @@
 package getter
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 
@@ -11,6 +12,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
 )
+
+// ErrNilVenv reports a nil venv handed to a constructor that authenticates through one.
+var ErrNilVenv = errors.New("getter: venv must not be nil")
 
 // Registry keys for the non-git fetcher and resolver maps. They match
 // the lowercased scheme strings CASGetter.Detect produces. Exported so
@@ -33,8 +37,8 @@ type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
 	logger     log.Logger
-	fs         vfs.FS
-	env        map[string]string
+	fsys       vfs.FS
+	venv       *venv.Venv
 	ociHolder  *ociStoreHolder
 	httpExtra  http.Header
 	httpsExtra http.Header
@@ -58,13 +62,13 @@ func (h *ociStoreHolder) store(l log.Logger) OCINewStoreFunc {
 	return h.fn
 }
 
-// requireLoggerFS panics when logger or fs is unset for a scheme that needs them.
+// requireLoggerFS panics when logger or fsys is unset for a scheme that needs them.
 func requireLoggerFS(c *genericFetcherConfig, scheme string) {
 	if c.logger == nil {
 		panic("getter: " + scheme + " requires WithDispatchLogger")
 	}
 
-	if c.fs == nil {
+	if c.fsys == nil {
 		panic("getter: " + scheme + " requires WithDispatchFS")
 	}
 }
@@ -81,20 +85,35 @@ func WithDispatchLogger(l log.Logger) GenericFetcherOption {
 }
 
 // WithDispatchFS sets the shared filesystem for tfr and oci dispatch entries.
-func WithDispatchFS(fs vfs.FS) GenericFetcherOption {
+func WithDispatchFS(fsys vfs.FS) GenericFetcherOption {
 	return func(c *genericFetcherConfig) {
-		if fs == nil {
+		if fsys == nil {
 			panic("getter: WithDispatchFS requires a non-nil filesystem")
 		}
 
-		c.fs = fs
+		c.fsys = fsys
 	}
 }
 
-// WithDispatchEnv sets the environment the tfr dispatch entries read their
-// registry auth token from.
-func WithDispatchEnv(env map[string]string) GenericFetcherOption {
-	return func(c *genericFetcherConfig) { c.env = env }
+// WithDispatchVenv sets the virtualized environment the tfr dispatch entries
+// authenticate through, so the fetcher and the resolver read the registry
+// token and the user's CLI config from the same handles.
+func WithDispatchVenv(v *venv.Venv) GenericFetcherOption {
+	if v == nil {
+		panic(ErrNilVenv)
+	}
+
+	return func(c *genericFetcherConfig) { c.venv = v }
+}
+
+// dispatchVenv returns the venv the tfr dispatch entries ride: the one
+// [WithDispatchVenv] persisted, or v when the caller left it unset.
+func dispatchVenv(v *venv.Venv, c *genericFetcherConfig) *venv.Venv {
+	if c.venv != nil {
+		return c.venv
+	}
+
+	return v
 }
 
 // WithOCIConfig enables oci:// registration; callers must also pass [WithDispatchLogger] and [WithDispatchFS].
@@ -165,8 +184,7 @@ func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[stri
 			)
 		}
 
-		m[SchemeTFR] = NewRegistryGetter(cfg.logger, v).
-			WithEnv(cfg.env).
+		m[SchemeTFR] = NewRegistryGetter(cfg.logger, dispatchVenv(v, &cfg)).
 			WithTofuImplementation(cfg.tfrImpl)
 	}
 
@@ -175,7 +193,7 @@ func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[stri
 		m[SchemeOCI] = &OCIGetter{
 			NewStore: cfg.ociHolder.store(cfg.logger),
 			Logger:   cfg.logger,
-			FS:       cfg.fs,
+			FS:       cfg.fsys,
 		}
 	}
 
@@ -256,7 +274,7 @@ func buildGetters(b *builder) []Getter {
 				resolverOpts,
 				WithDispatchLogger(b.logger),
 				WithDispatchFS(b.tfRegistry.Venv.FS),
-				WithDispatchEnv(b.tfRegistry.Venv.Env),
+				WithDispatchVenv(b.tfRegistry.Venv),
 				WithTFRConfig(b.tfRegistry.TofuImplementation),
 			)
 		}

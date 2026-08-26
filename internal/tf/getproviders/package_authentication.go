@@ -6,10 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"errors"
@@ -61,7 +61,7 @@ func (result PackageAuthenticationResult) ThirdPartySigned() bool {
 // PackageAuthentication implementation is responsible for authenticating that a package is what its distributor intended to distribute and that it has not been tampered with.
 type PackageAuthentication interface {
 	// Authenticate takes the path  of a package and returns a PackageAuthenticationResult, or an error if the authentication checks fail.
-	Authenticate(path string) (*PackageAuthenticationResult, error)
+	Authenticate(fsys vfs.FS, path string) (*PackageAuthenticationResult, error)
 }
 
 // PackageAuthenticationHashes is an optional interface implemented by PackageAuthentication implementations that are able to return a set of hashes they would consider valid
@@ -81,6 +81,7 @@ func PackageAuthenticationAll(checks ...PackageAuthentication) PackageAuthentica
 }
 
 func (checks packageAuthenticationAll) Authenticate(
+	fsys vfs.FS,
 	path string,
 ) (*PackageAuthenticationResult, error) {
 	var authResult *PackageAuthenticationResult
@@ -88,7 +89,7 @@ func (checks packageAuthenticationAll) Authenticate(
 	for _, check := range checks {
 		var err error
 
-		authResult, err = check.Authenticate(path)
+		authResult, err = check.Authenticate(fsys, path)
 		if err != nil {
 			return authResult, err
 		}
@@ -123,15 +124,16 @@ func NewArchiveChecksumAuthentication(wantSHA256Sum [sha256.Size]byte) PackageAu
 }
 
 func (auth archiveHashAuthentication) Authenticate(
+	fsys vfs.FS,
 	path string,
 ) (*PackageAuthenticationResult, error) {
-	if fileInfo, err := os.Stat(path); err != nil {
+	if fileInfo, err := fsys.Stat(path); err != nil {
 		return nil, err
 	} else if fileInfo.IsDir() {
 		return nil, fmt.Errorf("cannot check archive hash for non-archive location %s", path)
 	}
 
-	gotHash, err := PackageHashLegacyZipSHA(path)
+	gotHash, err := PackageHashLegacyZipSHA(fsys, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute checksum for %s: %w", path, err)
 	}
@@ -169,6 +171,7 @@ func NewMatchingChecksumAuthentication(
 }
 
 func (auth matchingChecksumAuthentication) Authenticate(
+	_ vfs.FS,
 	location string,
 ) (*PackageAuthenticationResult, error) {
 	// Find the checksum in the list with matching filename. The document is in the form "0123456789abcdef filename.zip".
@@ -220,6 +223,7 @@ func NewSignatureAuthentication(
 }
 
 func (auth signatureAuthentication) Authenticate(
+	_ vfs.FS,
 	location string,
 ) (*PackageAuthenticationResult, error) {
 	// Find the key that signed the checksum file. This can fail if there is no valid signature for any of the provided keys.

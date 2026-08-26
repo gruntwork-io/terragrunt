@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -654,7 +655,7 @@ func TestTFTerragruntReportWithGitFilter(t *testing.T) {
 
 			switch tc.reportFormat {
 			case "json":
-				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse JSON report")
 
 				runNames := runs.Names()
@@ -702,7 +703,7 @@ func TestTFTerragruntReportWithGitFilter(t *testing.T) {
 				}
 
 			case "csv":
-				runs, err := report.ParseCSVRunsFromFile(reportFilePath)
+				runs, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse CSV report")
 
 				runNames := runs.Names()
@@ -812,7 +813,7 @@ func TestTFTerragruntReportSingleUnit(t *testing.T) {
 
 			switch tc.reportFormat {
 			case "json":
-				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse JSON report")
 
 				require.Len(t, runs, 1, "Single unit run should have exactly one entry in report")
@@ -825,7 +826,7 @@ func TestTFTerragruntReportSingleUnit(t *testing.T) {
 				assert.False(t, run.Ended.IsZero(), "Ended timestamp should not be zero")
 
 			case "csv":
-				runs, err := report.ParseCSVRunsFromFile(reportFilePath)
+				runs, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse CSV report")
 
 				require.Len(t, runs, 1, "Single unit run should have exactly one entry in report")

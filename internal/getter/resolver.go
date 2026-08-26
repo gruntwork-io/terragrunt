@@ -3,7 +3,6 @@ package getter
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
@@ -22,7 +21,7 @@ type SourceResolver = cas.SourceResolver
 // resolver entry is harmless. Pass [WithDispatchLogger], [WithDispatchFS], and
 // [WithTFRConfig] to align its logger and tofu implementation with the fetcher
 // so the probe and the fetch resolve against the same registry host, and
-// [WithDispatchEnv] so the probe carries the same registry credentials.
+// [WithDispatchVenv] so the probe carries the same registry credentials.
 //
 // Every resolver rides v: the http, https, and tfr probes go over its client
 // and the hg resolver spawns `hg` through its executor. A caller overriding the
@@ -42,7 +41,7 @@ func DefaultSourceResolvers(
 
 	tfr := NewTFRResolver().
 		WithHTTPClient(vhttp.WithTimeout(v.HTTP, tfrResolverTimeout)).
-		WithAuth(RegistryAuth{Env: cfg.env, ReadUserConfig: vfs.IsOSFS(cfg.fs)})
+		WithAuth(NewRegistryAuth(dispatchVenv(v, &cfg)))
 
 	if cfg.tfrEnabled {
 		requireLoggerFS(&cfg, SchemeTFR)

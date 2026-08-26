@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +93,7 @@ func TestPinModuleVersion(t *testing.T) {
 			source := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
 
 			pinned, err := getter.PinModuleVersion(
-				t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{}, tfimpl.OpenTofu, source, tc.constraint,
+				t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(), tfimpl.OpenTofu, source, tc.constraint,
 			)
 			require.NoError(t, err)
 			assert.Equal(t, source+"?version="+tc.want, pinned)
@@ -112,7 +113,7 @@ func TestPinModuleVersionBuildMetadata(t *testing.T) {
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 
 	pinned, err := getter.PinModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{}, tfimpl.OpenTofu, source, "~> 1.8.24",
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(), tfimpl.OpenTofu, source, "~> 1.8.24",
 	)
 	require.NoError(t, err)
 	assert.Equal(t, source+"?version=1.8.26%2Bcss9.10.001", pinned)
@@ -182,7 +183,7 @@ func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	server := newRegistryTestServer(t)
 
 	basePath, err := getter.GetModuleRegistryURLBasePath(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{}, server.Listener.Addr().String(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(), server.Listener.Addr().String(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/modules/", basePath)
@@ -203,7 +204,7 @@ func TestGetTerraformGetHeader(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
-		getter.RegistryAuth{},
+		testRegistryAuth(),
 		&moduleURL,
 	)
 	require.NoError(t, err)
@@ -334,7 +335,7 @@ func TestGetLatestModuleVersion(t *testing.T) {
 	server := newRegistryTestServer(t)
 
 	latestVersion, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "terraform-aws-modules/vpc/aws",
 	)
 	require.NoError(t, err)
@@ -354,7 +355,7 @@ func TestGetLatestModuleVersionSkipsPrereleases(t *testing.T) {
 	)
 
 	latest, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
 	)
 	require.NoError(t, err)
@@ -374,7 +375,7 @@ func TestGetLatestModuleVersionAllPrereleases(t *testing.T) {
 	)
 
 	_, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
 	)
 	require.Error(t, err)
@@ -392,7 +393,7 @@ func TestGetLatestModuleVersionSkipsUnparsable(t *testing.T) {
 	)
 
 	latest, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
 	)
 	require.NoError(t, err)
@@ -417,7 +418,7 @@ func TestGetLatestModuleVersionBuildMetadata(t *testing.T) {
 	server := newVersionsTestServer(t, buildMetadataVersionsBody)
 
 	latest, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
 	)
 	require.NoError(t, err)
@@ -453,7 +454,7 @@ func TestGetMatchingModuleVersionBuildMetadata(t *testing.T) {
 			server := newVersionsTestServer(t, buildMetadataVersionsBody)
 
 			got, err := getter.GetMatchingModuleVersion(
-				t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+				t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 				server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", tc.constraint,
 			)
 			require.NoError(t, err)
@@ -478,7 +479,7 @@ func TestGetMatchingModuleVersionPrereleaseBuildMetadata(t *testing.T) {
 	)
 
 	got, err := getter.GetMatchingModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", "1.0.0-alpha.3",
 	)
 	require.NoError(t, err)
@@ -515,7 +516,7 @@ func TestGetMatchingModuleVersion(t *testing.T) {
 			server := newVersionsTestServer(t, matchVersionsBody)
 
 			got, err := getter.GetMatchingModuleVersion(
-				t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+				t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 				server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", tc.constraint,
 			)
 			require.NoError(t, err)
@@ -537,7 +538,7 @@ func TestGetMatchingModuleVersionPrereleaseOptIn(t *testing.T) {
 	)
 
 	got, err := getter.GetMatchingModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", ">= 4.0.0-rc1",
 	)
 	require.NoError(t, err)
@@ -555,7 +556,7 @@ func TestGetMatchingModuleVersionNoMatch(t *testing.T) {
 	)
 
 	_, err := getter.GetMatchingModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", ">= 9.0.0",
 	)
 	require.Error(t, err)
@@ -573,7 +574,7 @@ func TestGetMatchingModuleVersionUnparsableConstraint(t *testing.T) {
 	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"1.0.0"}]}]}`)
 
 	_, err := getter.GetMatchingModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(), getter.RegistryAuth{},
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", "not a constraint",
 	)
 	require.Error(t, err)
@@ -591,11 +592,21 @@ func TestGetMatchingModuleVersionUnparsableConstraint(t *testing.T) {
 func newRegistryTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
+	return newRegistryTestServerWithRequestHook(t, func(*http.Request) {})
+}
+
+func newRegistryTestServerWithRequestHook(
+	t *testing.T,
+	requestHook func(*http.Request),
+) *httptest.Server {
+	t.Helper()
+
 	zipBody := buildModuleZip(t)
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
+		requestHook(r)
 		w.Header().Set("Content-Type", "application/json")
 		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
 		assert.NoError(t, err)
@@ -607,7 +618,8 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	// (TestPinModuleVersion).
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/versions",
-		func(w http.ResponseWriter, _ *http.Request) {
+		func(w http.ResponseWriter, r *http.Request) {
+			requestHook(r)
 			w.Header().Set("Content-Type", "application/json")
 			_, err := w.Write(
 				[]byte(
@@ -623,6 +635,7 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/{version}/download",
 		func(w http.ResponseWriter, r *http.Request) {
+			requestHook(r)
 			// Resolve against the request host so the downloader hits the same
 			// test server we are about to shut down at end-of-test.
 			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
@@ -670,4 +683,10 @@ func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+// testRegistryAuth returns credentials with no user CLI config and no registry token
+// reachable, which is the unauthenticated path these tests exercise.
+func testRegistryAuth() getter.RegistryAuth {
+	return getter.NewRegistryAuth(venvtest.New())
 }

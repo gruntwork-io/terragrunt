@@ -151,7 +151,7 @@ func TestStackDepsAutoIncludeTemplateLiteralInterpolation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncTemplateLiteral)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncTemplateLiteral)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -184,7 +184,7 @@ func TestStackDepsAutoIncludeResolvesValuesReference(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncValuesResolved)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncValuesResolved)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -362,7 +362,7 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions())
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -405,7 +405,7 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions())
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -431,7 +431,7 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions())
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -1493,7 +1493,7 @@ func TestStackDepsStackLevelAutoInclude(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoInclude)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoInclude)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -1561,7 +1561,7 @@ func TestStackDepsStackLevelAutoIncludeMergedIntoNestedStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoInclude)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoInclude)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -1613,7 +1613,7 @@ func TestStackDepsStackLevelAutoIncludeOverridesSameNameUnit(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncOverride)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncOverride)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -1705,7 +1705,7 @@ func TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncLocalPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncLocalPath)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -1733,7 +1733,7 @@ func TestStackDepsStackLevelAutoIncludeInjectsNestedStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncludeNested)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncludeNested)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -1769,7 +1769,7 @@ func TestStackDepsStackAutoIncludeDepValuesIsClearError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncDepValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncDepValues)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -1814,7 +1814,7 @@ func TestStackDepsLocalsReadConfigWithDep(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsLocalsReadConfigDep)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsLocalsReadConfigDep)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -1917,7 +1917,7 @@ func newStackDepsParsingContext(
 ) (context.Context, *config.ParsingContext) {
 	t.Helper()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
 	opts.TerragruntConfigPath = configPath
 

@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"crypto/rand"
-	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
@@ -54,21 +54,24 @@ func (controller *DownloaderController) Segment() string {
 func (controller *DownloaderController) Register(router *router.Router) {
 	controller.Router = router.Group(path.Join(downloadPath, controller.segment))
 
-	// Download provider
-	controller.GET("/:remote_host/:remote_path", controller.downloadProviderAction)
+	// Wildcard route so multi-segment S3/GCS bucket paths match correctly.
+	controller.GET("/:remote_host/*", controller.downloadProviderAction)
 }
 
 func (controller *DownloaderController) downloadProviderAction(ctx echo.Context) error {
 	var (
 		remoteHost = ctx.Param("remote_host")
-		remotePath = ctx.Param("remote_path")
+		remotePath = strings.TrimLeft(ctx.Param("*"), "/")
 	)
 
+	// Forward query string from the inbound request so signed URLs (e.g. S3 pre-signed) keep their auth parameters.
 	downloadURL := url.URL{
-		Scheme: "https",
-		Host:   remoteHost,
-		Path:   "/" + remotePath,
+		Scheme:   "https",
+		Host:     remoteHost,
+		Path:     "/" + remotePath,
+		RawQuery: ctx.QueryString(),
 	}
+
 	provider := &models.Provider{
 		ResponseBody: &models.ResponseBody{
 			DownloadURL: downloadURL.String(),
@@ -84,9 +87,5 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 		}
 	}
 
-	if err := controller.ProxyProviderHandler.Download(ctx, provider); err != nil {
-		return err
-	}
-
-	return ctx.NoContent(http.StatusNotFound)
+	return controller.ProxyProviderHandler.Download(ctx, provider)
 }

@@ -3,34 +3,8 @@ version: "v1.1.4"
 category: "bug-fixes"
 ---
 
-#### Autoinclude can replace a dependency whose `config_path` uses `values.*`
+#### Autoinclude dependency overrides no longer evaluate replaced paths
 
-A unit dependency block with `config_path = values.vpc_path` no longer fails with "Unsupported attribute" when a sibling autoinclude, including one generated from a stack `autoinclude` block, supplies a different `config_path` and the values file does not define `vpc_path`.
+Terragrunt used to evaluate a dependency's original `config_path` before applying a sibling autoinclude override. This could prevent a unit from being parsed when the original path referenced a value that the unit no longer supplied, even though the autoinclude replaced that path. Terragrunt now leaves replaced dependency blocks undecoded, then applies the autoinclude override. Dependency blocks without an autoinclude override are still validated.
 
-```hcl
-# unit source: units/app/terragrunt.hcl
-dependency "vpc" {
-  config_path = values.vpc_path
-}
-```
-
-```hcl
-# stack: stacks/prod/terragrunt.stack.hcl
-unit "vpc" {
-  source = "../../units/vpc"
-  path   = "vpc"
-}
-
-unit "app" {
-  source = "../../units/app"
-  path   = "app"
-  values = { region = "us-east-1" }   # vpc_path intentionally absent
-  autoinclude {
-    dependency "vpc" {
-      config_path = unit.vpc.path
-    }
-  }
-}
-```
-
-Terragrunt no longer evaluates a replaced block, so nothing written inside it is reported. Blocks using `expansion` are an exception. The autoinclude's block sits alongside their instances instead of replacing them, so Terragrunt still evaluates them.
+Blocks that use `expansion` are still decoded, because a bare autoinclude label does not name their instances. If the autoinclude also declares the same label without expansion, Terragrunt reports a dependency label collision.

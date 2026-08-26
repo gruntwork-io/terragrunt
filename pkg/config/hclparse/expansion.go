@@ -96,6 +96,12 @@ func (key InstanceKey) Key() string {
 	}
 }
 
+// Expanded reports whether this key names one element of an expanded block. An each.key
+// can itself be the empty string, so [InstanceKey.Key] cannot stand in for this test.
+func (key InstanceKey) Expanded() bool {
+	return key.EachKey != nil || key.CountIndex != nil
+}
+
 // Instance is one decoded product of expanding a block. A block with no expansion
 // block yields a single Instance with both keys nil.
 type Instance struct {

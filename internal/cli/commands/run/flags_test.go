@@ -7,6 +7,7 @@ import (
 	runcommand "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -17,7 +18,7 @@ import (
 func TestNoHooksFlagRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
@@ -31,7 +32,7 @@ func TestNoHooksFlagRequiresExperiment(t *testing.T) {
 func TestNoHooksFlagAllowedWithExperiment(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OptionalHooks))
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
@@ -43,7 +44,7 @@ func TestNoHooksFlagAllowedWithExperiment(t *testing.T) {
 func TestNoDependencyOutputsFlagRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))
@@ -57,7 +58,7 @@ func TestNoDependencyOutputsFlagRequiresExperiment(t *testing.T) {
 func TestNoDependencyOutputsFlagAllowedWithExperiment(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OptionalDependencyOutputs))
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -175,9 +174,9 @@ func (p *Plan) FormFields() []form.Field {
 
 // Cleanup removes the temporary directories allocated during Prepare.
 // Safe to call more than once; subsequent calls are no-ops.
-func (p *Plan) Cleanup() {
+func (p *Plan) Cleanup(fsys vfs.FS) {
 	for _, dir := range p.tempDirs {
-		if err := os.RemoveAll(dir); err != nil {
+		if err := fsys.RemoveAll(dir); err != nil {
 			p.logger.Warnf("Failed to clean up dir %s: %v", dir, err)
 		}
 	}
@@ -186,11 +185,10 @@ func (p *Plan) Cleanup() {
 }
 
 // Prepare downloads the source module and template, parses the module's
-// variable blocks, and returns a Plan ready for rendering. The caller is
-// responsible for invoking Plan.Cleanup() (typically via defer) once it has
-// either rendered the result via Generate or decided to abandon the work.
-// v is the virtualized environment threaded through the module download and
-// boilerplate preparation.
+// variable blocks, and returns a [Plan] ready for rendering. The caller is
+// responsible for invoking [Plan.Cleanup] (typically via defer) once it has
+// either rendered the result via [Plan.Generate] or decided to abandon the
+// work.
 func Prepare(
 	ctx context.Context,
 	l log.Logger,
@@ -223,7 +221,7 @@ func Prepare(
 	templateURL = tf.RewriteLegacyGCSPublicSource(ctx, l, templateURL, opts.StrictControls)
 
 	// create temporary directory where to download module
-	tempDir, err := os.MkdirTemp("", "scaffold")
+	tempDir, err := vfs.MkdirTemp(v.FS, v.Platform.TempDir(), "scaffold")
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +238,7 @@ func Prepare(
 
 	defer func() {
 		if !success {
-			plan.Cleanup()
+			plan.Cleanup(v.FS)
 		}
 	}()
 
@@ -304,7 +302,7 @@ func Prepare(
 	}
 
 	// extract variables from downloaded module
-	requiredVariables, optionalVariables, err := parseVariables(l, v.FS, opts, tempDir)
+	requiredVariables, optionalVariables, err := parseVariables(l, v, opts, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -518,7 +516,7 @@ func Run(
 		return err
 	}
 
-	defer plan.Cleanup()
+	defer plan.Cleanup(v.FS)
 
 	return plan.Generate(ctx, l, v, opts, nil)
 }
@@ -616,9 +614,10 @@ func applyCatalogConfigToScaffold(
 }
 
 // generateDefaultTemplate - write default template to provided dir
-func generateDefaultTemplate(boilerplateDir string) (string, error) {
+func generateDefaultTemplate(fsys vfs.FS, boilerplateDir string) (string, error) {
 	const ownerWriteGlobalReadPerms = 0o644
-	if err := os.WriteFile(
+	if err := vfs.WriteFile(
+		fsys,
 		filepath.Join(
 			boilerplateDir,
 			config.DefaultTerragruntConfigPath,
@@ -629,7 +628,8 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 		return "", err
 	}
 
-	if err := os.WriteFile(
+	if err := vfs.WriteFile(
+		fsys,
 		filepath.Join(
 			boilerplateDir,
 			"boilerplate.yml",
@@ -658,7 +658,7 @@ func downloadTemplate(
 	}
 
 	// Split the processed URL to get the base URL and subfolder
-	baseURL, subFolder, err := tf.SplitSourceURL(l, parsedTemplateURL)
+	baseURL, subFolder, err := tf.SplitSourceURL(l, v.FS, parsedTemplateURL)
 	if err != nil {
 		return "", err
 	}
@@ -673,7 +673,7 @@ func downloadTemplate(
 		return "", err
 	}
 
-	templateDir, err := os.MkdirTemp(tempDir, "template")
+	templateDir, err := vfs.MkdirTemp(v.FS, tempDir, "template")
 	if err != nil {
 		return "", err
 	}
@@ -703,7 +703,7 @@ func downloadTemplate(
 		subFolder = strings.TrimPrefix(subFolder, "/")
 		templateDir = filepath.Join(templateDir, subFolder)
 		// Verify that subfolder exists
-		if _, err := os.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
+		if _, err := v.FS.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
 			return "", fmt.Errorf(
 				"subfolder \"//%s\" not found in downloaded template from %s",
 				subFolder,
@@ -763,14 +763,14 @@ func prepareBoilerplateFiles(
 
 			boilerplateDir = tempTemplateDir
 		} else {
-			defaultTempDir, err := os.MkdirTemp(tempDir, "boilerplate")
+			defaultTempDir, err := vfs.MkdirTemp(v.FS, tempDir, "boilerplate")
 			if err != nil {
 				return "", err
 			}
 
 			boilerplateDir = defaultTempDir
 
-			boilerplateDir, err = generateDefaultTemplate(boilerplateDir)
+			boilerplateDir, err = generateDefaultTemplate(v.FS, boilerplateDir)
 			if err != nil {
 				return "", err
 			}
@@ -783,11 +783,11 @@ func prepareBoilerplateFiles(
 // parseVariables - parse variables from tf files.
 func parseVariables(
 	l log.Logger,
-	fsys vfs.FS,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, fsys, opts.StrictControls, moduleDir)
+	inputs, err := config.ParseVariables(l, v, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -908,7 +908,7 @@ func rewriteTemplateURL(
 
 	ref := templateParams.Get(refParam)
 	if ref == "" {
-		rootSourceURL, _, err := tf.SplitSourceURL(l, updatedTemplateURL)
+		rootSourceURL, _, err := tf.SplitSourceURL(l, v.FS, updatedTemplateURL)
 		if err != nil {
 			return nil, err
 		}
@@ -957,7 +957,7 @@ func addRefToModuleURL(
 		// if ref is not passed, find last release tag
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
-		rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
+		rootSourceURL, _, err := tf.SplitSourceURL(l, v.FS, moduleURL)
 		if err != nil {
 			return nil, err
 		}

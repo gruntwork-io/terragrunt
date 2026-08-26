@@ -47,12 +47,12 @@ func emptyStackFuncFactory() inthclparse.StackFuncFactory {
 	}
 }
 
-func writeFile(t *testing.T, fs vfs.FS, path, content string) {
+func writeFile(t *testing.T, fsys vfs.FS, path, content string) {
 	t.Helper()
 
-	require.NoError(t, fs.MkdirAll(filepath.Dir(path), 0o755)) //nolint:mnd
+	require.NoError(t, fsys.MkdirAll(filepath.Dir(path), 0o755)) //nolint:mnd
 
-	f, err := fs.Create(path)
+	f, err := fsys.Create(path)
 	require.NoError(t, err)
 	_, err = f.Write([]byte(content))
 	require.NoError(t, err)

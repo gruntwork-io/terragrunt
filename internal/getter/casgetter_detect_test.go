@@ -352,7 +352,7 @@ func TestCASGetterDetect_SchemeNotInRegistryFallsThrough(t *testing.T) {
 	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	// No generic dispatch wired: only the git+file paths are active.
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
@@ -413,7 +413,7 @@ func TestNewCASGetter_PanicsOnNilVenvHTTPWithDispatch(t *testing.T) {
 	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	v.HTTP = nil
 
 	require.PanicsWithValue(t, venv.ErrVenvHTTPUnset, func() {
@@ -496,7 +496,7 @@ func newCASGetterForDetect(t *testing.T) *getter.CASGetter {
 	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	return getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewNoNetworkClient())))

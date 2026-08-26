@@ -203,16 +203,27 @@ func (dep *Dependency) isDisabled() bool {
 	return !dep.isEnabled()
 }
 
+// instanceKey returns the key of the expansion element this dependency came from. A declared
+// expansion is not proof of one: blocks decoded outside the expanding decoder (the autoinclude
+// decode) carry the declaration with no key, and callers must read those as whole blocks.
+func (dep *Dependency) instanceKey() (string, bool) {
+	if dep.Expansion == nil {
+		return "", false
+	}
+
+	return dep.Expansion.Key(), dep.Expansion.Expanded()
+}
+
 // mergeKey identifies a dependency when include merging matches blocks up. Every instance
 // of an expanded block carries the same label, so matching on the label alone would fold a
-// whole set into whichever instance came last. A block that declares an expansion but has
-// not been expanded yet still merges by label, since merging runs on declarations too.
+// whole set into whichever instance came last.
 func (dep *Dependency) mergeKey() string {
-	if dep.Expansion == nil || dep.Expansion.Key() == "" {
+	key, expanded := dep.instanceKey()
+	if !expanded {
 		return dep.Name
 	}
 
-	return dep.Name + "[" + dep.Expansion.Key() + "]"
+	return dep.Name + "[" + key + "]"
 }
 
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
@@ -698,6 +709,9 @@ func getDependencyBlockConfigPathsByFilepath(
 //   - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
 //     dependency.
 //
+// An expanded block instead maps its name to one such mapping per instance, keyed by the instance key, so that
+// `dependency.foo["bar"].outputs` addresses a single element of the set.
+//
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 // The traceCtx parameter is the trace context from the parent span (parse_dependencies) to establish parent-child
 // relationship for individual dependency traces.
@@ -712,6 +726,7 @@ func dependencyBlocksToCtyValue(
 	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
 	// various attributes for accessing information about the target config (including the module outputs).
 	dependencyMap := map[string]cty.Value{}
+	instanceMaps := map[string]map[string]cty.Value{}
 	lock := sync.Mutex{}
 	dependencyErrGroup, _ := errgroup.WithContext(traceCtx)
 
@@ -774,12 +789,21 @@ func dependencyBlocksToCtyValue(
 				return err
 			}
 
-			// Lock the map as only one goroutine should be writing to the map at a time
 			lock.Lock()
 			defer lock.Unlock()
 
-			// Finally, feed the encoded dependency into the higher order map under the block name
-			dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
+			instanceKey, expanded := dependencyConfig.instanceKey()
+			if !expanded {
+				dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
+
+				return nil
+			}
+
+			if instanceMaps[dependencyConfig.Name] == nil {
+				instanceMaps[dependencyConfig.Name] = map[string]cty.Value{}
+			}
+
+			instanceMaps[dependencyConfig.Name][instanceKey] = dependencyEncodingMapEncoded
 
 			return nil
 		})
@@ -787,6 +811,19 @@ func dependencyBlocksToCtyValue(
 
 	if err := dependencyErrGroup.Wait(); err != nil {
 		return nil, err
+	}
+
+	for name, instances := range instanceMaps {
+		if _, taken := dependencyMap[name]; taken {
+			return nil, DependencyLabelCollisionError{Name: name}
+		}
+
+		encodedInstances, err := gocty.ToCtyValue(instances, generateTypeFromValuesMap(instances))
+		if err != nil {
+			return nil, TerragruntOutputListEncodingError{Paths: paths, Err: err}
+		}
+
+		dependencyMap[name] = encodedInstances
 	}
 
 	// We need to convert the value map to a single cty.Value at the end so that it can be used in the execution ctx
@@ -966,6 +1003,10 @@ func collectStackUnitOutputs(
 	unitOutputs := make(map[string]cty.Value)
 
 	for _, unit := range units {
+		if !unit.IsEnabled() {
+			continue
+		}
+
 		unitDir := unit.GeneratedPath(stackDir)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
@@ -1417,7 +1458,7 @@ func resolveOutputJSON(
 	// we need to suspend logging diagnostic errors on this attempt
 	parseOptions := slices.Concat(
 		pctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(io.Discard, true)},
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(pctx.Venv, io.Discard, true)},
 	)
 
 	remoteStateTGConfig, err := PartialParseConfigFile(
@@ -1578,6 +1619,7 @@ func terragruntAlreadyInit(
 
 	terraformSource, err := tf.NewSource(
 		l,
+		pctx.Venv.FS,
 		sourceURL,
 		pctx.DownloadDir,
 		pctx.WorkingDir,
@@ -2002,7 +2044,7 @@ func runTerragruntOutputJSON(
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
-	s := shell.NewShellOptions().
+	s := shell.NewShellOptions(pctx.Venv.Env).
 		WithWorkingDir(pctx.WorkingDir).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
@@ -2235,7 +2277,8 @@ func decodeDependencyBlocksWithAutoIncludeOverrides(
 //
 // [mergeDependencyBlocks] keys the merge on a dependency's name, so an unexpanded autoinclude
 // block named vpc displaces the unit's unexpanded vpc outright. Expansion keys the merge per
-// instance instead, leaving both sides in the result. [hclparse.File.UnexpandedLabels]
+// instance instead, so WithSkipLabels leaves expanded unit blocks alone. Encoding then rejects a
+// bare autoinclude label that would sit beside those instances. [hclparse.File.UnexpandedLabels]
 // reports only the unexpanded names for that reason.
 func siblingAutoIncludeDepOverrides(
 	ctx context.Context,
