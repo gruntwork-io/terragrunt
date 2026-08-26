@@ -276,10 +276,11 @@ func decodeDependencyBlocks(
 	l log.Logger,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
+	opts ...hclparse.ExpandOption,
 ) (Dependencies, error) {
 	experiments := pctx.Experiments
 
-	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext)
+	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +383,7 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocks(ctx, pctx, l, file, evalParsingContext)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, l, file, evalParsingContext)
 	if err != nil {
 		return nil, err
 	}
@@ -2304,6 +2305,58 @@ func parseAutoIncludeFileCached(
 	hclCache.Put(ctx, cacheKey, file)
 
 	return file, nil
+}
+
+// decodeDependencyBlocksWithAutoIncludeOverrides decodes the file's dependency blocks, leaving
+// out the ones a sibling autoinclude replaces wholesale.
+//
+// A replaced block contributes nothing to the final config, so evaluating it can only raise
+// errors about a body that is about to be thrown away. A unit source whose config_path reads a
+// values attribute the stack stopped setting hits exactly that.
+func decodeDependencyBlocksWithAutoIncludeOverrides(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+) (Dependencies, error) {
+	overrides, err := siblingAutoIncludeDepOverrides(ctx, pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return decodeDependencyBlocks(
+		ctx,
+		pctx,
+		l,
+		file,
+		evalContext,
+		hclparse.WithSkipLabels(overrides),
+	)
+}
+
+// siblingAutoIncludeDepOverrides returns the names of the dependency blocks the sibling
+// autoinclude replaces wholesale, or nil when no autoinclude is registered.
+//
+// [mergeDependencyBlocks] keys the merge on a dependency's name, so an unexpanded autoinclude
+// block named vpc displaces the unit's unexpanded vpc outright. Expansion keys the merge per
+// instance instead, so WithSkipLabels leaves expanded unit blocks alone. Encoding then rejects a
+// bare autoinclude label that would sit beside those instances. [hclparse.File.UnexpandedLabels]
+// reports only the unexpanded names for that reason.
+func siblingAutoIncludeDepOverrides(
+	ctx context.Context,
+	pctx *ParsingContext,
+) (map[string]struct{}, error) {
+	if !hasSiblingAutoInclude(pctx) {
+		return nil, nil
+	}
+
+	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, pctx.TrackInclude.AutoIncludeOverride.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	return autoFile.UnexpandedLabels(MetadataDependency, &Dependency{})
 }
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.

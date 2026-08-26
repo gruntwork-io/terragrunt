@@ -1375,7 +1375,7 @@ func adjustSourceWithMap(
 // that exists within the path giving preference to `terragrunt.hcl`
 func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
-	if info, err := fsys.Stat(workingDir); err == nil && !info.IsDir() {
+	if vfs.IsFile(fsys, workingDir) {
 		return workingDir
 	}
 
@@ -1386,7 +1386,7 @@ func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 			configPath = filepath.Join(workingDir, configPath)
 		}
 
-		if _, err := fsys.Stat(configPath); err == nil {
+		if vfs.Exists(fsys, configPath) {
 			break
 		}
 	}
@@ -2001,7 +2001,7 @@ func decodeAsTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocks(ctx, pctx, l, file, evalContext)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, l, file, evalContext)
 	if err != nil {
 		return &terragruntConfig, err
 	}
@@ -2468,7 +2468,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 // Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
 func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 	var (
-		blockNames                   = map[string]bool{}
+		blockNames                   = map[string]struct{}{}
 		duplicatedGenerateBlockNames []string
 	)
 
@@ -2479,7 +2479,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 			continue
 		}
 
-		blockNames[block.Name] = true
+		blockNames[block.Name] = struct{}{}
 	}
 
 	if len(duplicatedGenerateBlockNames) != 0 {

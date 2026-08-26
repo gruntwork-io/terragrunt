@@ -39,6 +39,7 @@ const (
 const DefaultMaxInstances = 1_000_000
 
 type expandConfig struct {
+	skipLabels   map[string]struct{}
 	maxInstances int
 }
 
@@ -50,6 +51,15 @@ type ExpandOption func(*expandConfig)
 func WithMaxInstances(maxInstances int) ExpandOption {
 	return func(cfg *expandConfig) {
 		cfg.maxInstances = maxInstances
+	}
+}
+
+// WithSkipLabels leaves blocks whose first label is in the set undecoded, so nothing inside
+// them is evaluated. A block declaring an expansion sub-block is decoded anyway. Expansion
+// splits one block into separately keyed instances, and a bare label does not name those.
+func WithSkipLabels(labels map[string]struct{}) ExpandOption {
+	return func(cfg *expandConfig) {
+		cfg.skipLabels = labels
 	}
 }
 
@@ -133,23 +143,23 @@ func (file *File) ExpandBlocks(
 		}
 	}
 
-	labels := labelFields(reflect.TypeOf(out).Elem())
-	labelNames := make([]string, 0, len(labels))
-
-	for _, label := range labels {
-		labelNames = append(labelNames, label.name)
+	cfg := expandConfig{maxInstances: DefaultMaxInstances}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
-	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labelNames}},
-	})
-	if err := file.HandleDiagnostics(diags); err != nil {
+	content, err := file.blockContent(blockType, out)
+	if err != nil {
 		return nil, err
 	}
 
 	instances := make([]Instance, 0, len(content.Blocks))
 
 	for _, block := range content.Blocks {
+		if skipBlock(block, cfg.skipLabels) {
+			continue
+		}
+
 		expanded, err := ExpandBlock(block, out, ctx, opts...)
 		if err == nil {
 			source := blockSource(file.Bytes, block)
@@ -173,6 +183,75 @@ func (file *File) ExpandBlocks(
 	}
 
 	return instances, nil
+}
+
+// UnexpandedLabels returns the first label of every blockType block in the file that declares
+// no expansion sub-block. Labels come off the block header, so a block whose body cannot be
+// evaluated still reports its label.
+//
+// [WithSkipLabels] also spares expanded blocks, so pairing the two never drops an expanded
+// block.
+func (file *File) UnexpandedLabels(blockType string, out any) (map[string]struct{}, error) {
+	content, err := file.blockContent(blockType, out)
+	if err != nil {
+		return nil, err
+	}
+
+	labels := make(map[string]struct{}, len(content.Blocks))
+
+	for _, block := range content.Blocks {
+		if len(block.Labels) == 0 {
+			continue
+		}
+
+		expansion, err := expansionBlock(block)
+		if err != nil {
+			return nil, err
+		}
+
+		if expansion == nil {
+			labels[block.Labels[0]] = struct{}{}
+		}
+	}
+
+	return labels, nil
+}
+
+// blockContent returns the file's blockType blocks.
+func (file *File) blockContent(blockType string, out any) (*hcl.BodyContent, error) {
+	labels := labelFields(reflect.TypeOf(out).Elem())
+	labelNames := make([]string, 0, len(labels))
+
+	for _, label := range labels {
+		labelNames = append(labelNames, label.name)
+	}
+
+	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labelNames}},
+	})
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+// skipBlock reports whether the caller named this block in [WithSkipLabels] and it can be left
+// undecoded without losing instances.
+func skipBlock(block *hcl.Block, skipLabels map[string]struct{}) bool {
+	if len(block.Labels) == 0 {
+		return false
+	}
+
+	if _, named := skipLabels[block.Labels[0]]; !named {
+		return false
+	}
+
+	expansion, err := expansionBlock(block)
+
+	// A sub-block that will not parse is a structural error. Keep the block so the decode
+	// below reports it.
+	return err == nil && expansion == nil
 }
 
 // blockSource slices block back out of the file it was parsed from, so a caller can quote

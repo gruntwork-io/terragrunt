@@ -366,7 +366,7 @@ func TestDependencyDeepMergeExpansion(t *testing.T) {
 func parseDependencyStringStrict(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
 	require.NotNil(tb, control)

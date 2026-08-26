@@ -734,7 +734,7 @@ func PartialParseConfig(
 			}
 
 		case DependencyBlock:
-			decodedDeps, err := decodeDependencyBlocks(
+			decodedDeps, err := decodeDependencyBlocksWithAutoIncludeOverrides(
 				ctx,
 				pctx,
 				l,

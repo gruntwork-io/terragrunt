@@ -2093,7 +2093,7 @@ func processLocals(
 	return nil
 }
 
-// validateTargetDir target destination directory.
+// validateTargetDir errors unless destDir holds expectedFile as a regular file.
 func validateTargetDir(fsys vfs.FS, kind, name, destDir, expectedFile string) error {
 	expectedPath := filepath.Join(destDir, expectedFile)
 
