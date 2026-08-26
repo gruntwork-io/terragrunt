@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -320,6 +321,10 @@ func checkErrors(l log.Logger, v *venv.Venv, contents []byte, tgHclFile string) 
 }
 
 // bytesDiff returns a unified diff between the original and formatted HCL contents.
-func bytesDiff(b1, b2 []byte, path string) []byte {
-	return diff.Diff(filepath.Join("old", path), b1, filepath.Join("new", path), b2)
+func bytesDiff(b1, b2 []byte, name string) []byte {
+	// Diff labels are slash separated on every platform, so that consumers of the diff don't have to
+	// handle a Windows-specific spelling of the same label.
+	name = filepath.ToSlash(name)
+
+	return diff.Diff(path.Join("old", name), b1, path.Join("new", name), b2)
 }
