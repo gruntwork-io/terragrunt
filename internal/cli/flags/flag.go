@@ -3,6 +3,7 @@ package flags
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io"
 	"strconv"
@@ -102,21 +103,21 @@ func (newFlag *Flag) Value() clihelper.FlagValue {
 }
 
 // Apply implements `clihelper.Flag` interface.
-func (newFlag *Flag) Apply(set *flag.FlagSet) error {
-	if err := newFlag.Flag.Apply(set); err != nil {
+func (newFlag *Flag) Apply(set *flag.FlagSet, env map[string]string) error {
+	if err := newFlag.Flag.Apply(set, env); err != nil {
 		return err
 	}
 
 	for _, deprecated := range newFlag.deprecatedFlags {
 		if deprecated.Flag == newFlag.Flag {
-			if err := clihelper.ApplyFlag(deprecated, set); err != nil {
+			if err := clihelper.ApplyFlag(deprecated, set, env); err != nil {
 				return err
 			}
 
 			continue
 		}
 
-		if err := deprecated.Apply(set); err != nil {
+		if err := deprecated.Apply(set, env); err != nil {
 			return err
 		}
 	}
@@ -152,27 +153,32 @@ func (newFlag *Flag) RunAction(ctx context.Context, cliCtx *clihelper.Context) e
 	return newFlag.Flag.RunAction(ctx, cliCtx)
 }
 
-// Parse parses the given `args` for the flag value and env vars values specified in the flag.
+// Parse parses the given `args` for the flag value and the values of the env
+// vars specified in the flag, resolved against `env`.
 // The value will be assigned to the `Destination` field.
 // The value can also be retrieved using `flag.Value().Get()`.
-func (newFlag *Flag) Parse(args clihelper.Args) error {
+func (newFlag *Flag) Parse(args clihelper.Args, env map[string]string) error {
 	flagSet := flag.NewFlagSet("", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	if err := newFlag.Apply(flagSet); err != nil {
+	if err := newFlag.Apply(flagSet, env); err != nil {
 		return err
 	}
 
-	const maxFlagsParse = 1000 // Maximum flags parse
+	const maxFlagsParse = 1000
 
 	for range maxFlagsParse {
 		err := flagSet.Parse(args)
 		if err == nil {
-			break
+			return nil
 		}
 
-		if errStr := err.Error(); !strings.HasPrefix(errStr, clihelper.ErrMsgFlagUndefined) {
-			break
+		// The set holds only this flag, so the loop skips flags owned by other
+		// parsers instead of failing on them. That includes -h and --help, which
+		// arrive as [flag.ErrHelp] rather than as an undefined-flag error.
+		if !errors.Is(err, flag.ErrHelp) &&
+			!strings.HasPrefix(err.Error(), clihelper.ErrMsgFlagUndefined) {
+			return err
 		}
 
 		args = flagSet.Args()

@@ -1,7 +1,7 @@
 // Package tfimpl defines the Terraform implementation type constants.
 package tfimpl
 
-import "os"
+import "github.com/gruntwork-io/terragrunt/internal/venv"
 
 // Type represents which Terraform implementation is being used.
 type Type string
@@ -29,8 +29,10 @@ const (
 // The TG_TF_DEFAULT_REGISTRY_HOST env var wins if set; otherwise the choice
 // follows impl: OpenTofu → registry.opentofu.org, anything else →
 // registry.terraform.io.
-func DefaultRegistryDomain(impl Type) string {
-	if v := os.Getenv(defaultRegistryEnvName); v != "" {
+func DefaultRegistryDomain(env map[string]string, impl Type) string {
+	venv.RequireEnvMap(env)
+
+	if v := env[defaultRegistryEnvName]; v != "" {
 		return v
 	}
 

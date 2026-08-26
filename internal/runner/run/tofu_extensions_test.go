@@ -112,7 +112,7 @@ terraform {
 				fmt.Sprintf(`backend[[:blank:]]+"%s"`, tc.backendType),
 			)
 
-			hasBackend, err := util.RegexFoundInTFFiles(tmpDir, terraformBackendRegexp)
+			hasBackend, err := util.RegexFoundInTFFiles(vfs.NewOSFS(), tmpDir, terraformBackendRegexp)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectBackend, hasBackend, "For test case: %s", tc.description)
@@ -212,7 +212,7 @@ resource "aws_instance" "example" {
 
 			moduleRegex := regexp.MustCompile(`module[[:blank:]]+".+"`)
 
-			hasModules, err := util.RegexFoundInTFFiles(tmpDir, moduleRegex)
+			hasModules, err := util.RegexFoundInTFFiles(vfs.NewOSFS(), tmpDir, moduleRegex)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectModules, hasModules, "For test case: %s", tc.description)

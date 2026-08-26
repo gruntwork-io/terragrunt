@@ -16,9 +16,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestServerDiscoveryURLUsesTheHandlerThatClaimsTheRegistry pins that discovery is answered by the first handler whose include and exclude settings claim the registry, so the mirror a user configured for a host is the one asked where that host's API lives, and no other handler is contacted.
@@ -203,7 +203,7 @@ func TestServerListenReportsBindFailure(t *testing.T) {
 		cache.WithLogger(logger.CreateLogger()),
 	)
 
-	ln, err := server.Listen(t.Context())
+	ln, err := server.Listen(t.Context(), venvtest.NewOSWithEmptyEnv())
 	assert.Nil(t, ln, "no listener is handed back when the address cannot be bound")
 
 	var opErr *net.OpError
@@ -221,10 +221,10 @@ func TestServerRunReportsServeFailure(t *testing.T) {
 	server := cache.NewServer(
 		cache.WithHostname("127.0.0.1"),
 		cache.WithLogger(l),
-		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, vfs.NewOSFS(), vhttp.NewNoNetworkClient())),
+		cache.WithProviderService(services.NewProviderService(tmp, tmp, nil, l, venvtest.NewOSWithEmptyEnv())),
 	)
 
-	ln, err := server.Listen(t.Context())
+	ln, err := server.Listen(t.Context(), venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 	require.NoError(t, ln.Close())
 

@@ -40,6 +40,17 @@ func (e UnitOutputError) Unwrap() error {
 	return e.Err
 }
 
+// UnitAddressCollisionError is returned when two units resolve to the same output
+// address. Expansion makes this reachable: a nested stack and an expanded unit can claim
+// the same name.key pair.
+type UnitAddressCollisionError struct {
+	Address string
+}
+
+func (e UnitAddressCollisionError) Error() string {
+	return fmt.Sprintf("more than one unit resolves to the output address %q", e.Address)
+}
+
 // StackOutput collects and returns the OpenTofu/Terraform output values for all declared units in a stack hierarchy.
 //
 // This function is a central component of Terragrunt's stack output system, providing a mechanism to
@@ -89,7 +100,7 @@ func StackOutput(
 
 	if wts != nil {
 		defer func() {
-			if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
+			if cleanupErr := wts.Cleanup(ctx, l, v.FS); cleanupErr != nil {
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}
 		}()
@@ -107,7 +118,7 @@ func StackOutput(
 	}
 
 	outputs := xsync.NewMap[string, map[string]cty.Value]()
-	declaredStacks := make(map[string]string)
+	declaredStacks := make(map[string][]string)
 	declaredUnits := make(map[string]*config.Unit)
 	parsedStackFiles := make(map[string]*config.StackConfig, len(foundFiles))
 
@@ -154,15 +165,22 @@ func StackOutput(
 		targetDir := filepath.Join(dir, config.StackDir)
 
 		for _, stack := range stackFile.Stacks {
-			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
-			l.Debugf(
-				"Registered stack %s at path %s",
-				stack.Name,
-				filepath.Join(targetDir, stack.Path),
-			)
+			if !stack.IsEnabled() {
+				continue
+			}
+
+			stackPath := filepath.Join(targetDir, stack.Path)
+			key, expanded := stack.InstanceKey()
+			declaredStacks[stackPath] = componentAddress(stack.Name, key, expanded)
+
+			l.Debugf("Registered stack %s at path %s", stack.Name, stackPath)
 		}
 
 		for _, unit := range stackFile.Units {
+			if !unit.IsEnabled() {
+				continue
+			}
+
 			unitDir := unit.GeneratedPath(dir)
 
 			// Excluded units are fully omitted from the final output, matching stack run behavior.
@@ -191,10 +209,8 @@ func StackOutput(
 		return cty.NilVal, err
 	}
 
-	unitOutputs := make(map[string]map[string]cty.Value)
+	collected := make([]UnitOutput, 0, len(declaredUnits))
 
-	// Build stack list separated by stacks, find all nested stacks, and build
-	// a dotted path. If no stack is found, use the unit name.
 	for path, unit := range declaredUnits {
 		output, found := outputs.Load(path)
 		if !found {
@@ -202,111 +218,154 @@ func StackOutput(
 			continue
 		}
 
-		// Implement more logic to find all stacks in which the path is located
-		stackNames := []string{}
-		nameToPath := make(map[string]string) // Map to track which path each stack name came from
-
-		for stackPath, stackName := range declaredStacks {
-			if strings.Contains(path, stackPath) {
-				stackNames = append(stackNames, stackName)
-				nameToPath[stackName] = stackPath
-			}
-		}
-
-		// Sort by stack path length so the outermost stack (shortest path) comes
-		// first; this preserves the parent.child nesting order in the joined key.
-		slices.SortFunc(stackNames, func(a, b string) int {
-			return len(nameToPath[a]) - len(nameToPath[b])
-		})
-
-		stackKey := unit.Name
-		if len(stackNames) > 0 {
-			stackKey = strings.Join(stackNames, ".") + "." + unit.Name
-		}
-
-		unitOutputs[stackKey] = output
-
-		l.Debugf("Added output for stack key %s", stackKey)
+		collected = append(collected, UnitOutput{Unit: unit, Outputs: output, Path: path})
 	}
 
-	// Convert finalMap into a cty.ObjectVal
-	result := make(map[string]cty.Value)
-
-	nestedOutputs, err := nestUnitOutputs(unitOutputs)
+	nestedOutputs, err := NestOutputs(l, declaredStacks, collected)
 	if err != nil {
 		return cty.NilVal, fmt.Errorf("failed to nest unit outputs: %w", err)
 	}
 
 	ctyResult, err := config.GoTypeToCty(nestedOutputs)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf(
-			"failed to convert unit output to cty value: %s %w",
-			result,
-			err,
-		)
+		return cty.NilVal, fmt.Errorf("failed to convert unit outputs to a cty value: %w", err)
 	}
 
 	return ctyResult, nil
 }
 
-// nestUnitOutputs transforms a flat map of unit outputs into a nested hierarchical structure.
-//
-// This function is a critical part of Terragrunt/Opentofu's stack output system, converting flat key-value pairs
-// with dot notation into a proper nested object hierarchy. It processes each flattened key (e.g., "parent.child.unit")
-// by splitting it into path segments and recursively building the corresponding nested structure.
-//
-// The algorithm works as follows:
-//  1. For each entry in the flat map, split its key by dots to get the path segments
-//  2. Iteratively traverse the nested structure, creating intermediate maps as needed
-//  3. When reaching the final path segment, convert the map of cty.Values to a Go interface{}
-//     representation and store it at that location
-//  4. Continue until all flat entries have been properly nested
-//
-// This approach preserves the hierarchical relationship between stacks and units while making
-// the data structure easier to navigate and query programmatically.
-//
-// Parameters:
-//   - flat: A map where keys are dot-separated paths (e.g., "parent.child.unit") and values are
-//     maps of cty.Value representing the OpenTofu/Terraform outputs for each unit
-//
-// Returns:
-//   - map[string]any: A nested map structure reflecting the hierarchy implied by the dot notation
-//   - error: An error if conversion fails, particularly when building the nested structure
-//
-// Errors can occur during cty.Value conversion or when attempting to traverse the nested structure
-// if the path contains contradictory type information (e.g., a path segment is both a leaf and a branch).
-func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, error) {
+// UnitOutput is one unit's outputs together with the on-disk path it generated to.
+type UnitOutput struct {
+	Unit    *config.Unit
+	Outputs map[string]cty.Value
+	Path    string
+}
+
+// NestOutputs arranges each unit's outputs under the address it is reachable at: a unit
+// inside a stack at stack.unit, and one element of an expanded unit at unit.key.
+func NestOutputs(
+	l log.Logger,
+	declaredStacks map[string][]string,
+	units []UnitOutput,
+) (map[string]any, error) {
+	// A stack file that declares no stacks still yields an empty map, so nil means the
+	// caller never built one rather than that there is nothing to place units under.
+	if declaredStacks == nil {
+		panic("NestOutputs requires the non-nil declaredStacks map that StackOutput builds")
+	}
+
+	addressed := make([]unitOutput, 0, len(units))
+
+	for _, unit := range units {
+		key, expanded := unit.Unit.InstanceKey()
+		address := slices.Concat(
+			enclosingStackAddress(declaredStacks, unit.Path),
+			componentAddress(unit.Unit.Name, key, expanded),
+		)
+
+		addressed = append(addressed, unitOutput{address: address, outputs: unit.Outputs})
+
+		l.Debugf("Added output for %s", strings.Join(address, "."))
+	}
+
+	return nestUnitOutputs(addressed)
+}
+
+// unitOutput pairs one unit's outputs with the address it is reachable at. The address
+// stays split into segments rather than joined with dots, so a stack name, unit name, or
+// iteration key that itself contains a dot cannot split into two levels of the result.
+type unitOutput struct {
+	outputs map[string]cty.Value
+	address []string
+}
+
+// componentAddress returns the address segments a unit or stack is reachable at. An
+// expanded component gets its iteration key as a segment of its own, so that
+// `foo["web"]` addresses one element the way `dependency.foo["web"]` already does.
+func componentAddress(name, key string, expanded bool) []string {
+	if !expanded {
+		return []string{name}
+	}
+
+	return []string{name, key}
+}
+
+// enclosingStackAddress returns the address segments of every stack the unit at path sits
+// inside, outermost first, so a unit in a nested stack addresses as parent.child.unit.
+func enclosingStackAddress(declaredStacks map[string][]string, path string) []string {
+	enclosing := make([]string, 0, len(declaredStacks))
+
+	for stackPath := range declaredStacks {
+		if containsPath(stackPath, path) {
+			enclosing = append(enclosing, stackPath)
+		}
+	}
+
+	// Every match is an ancestor of the same unit, so they form a chain in which each is
+	// a prefix of the next. Ordering them lexicographically therefore runs the nesting
+	// from the outermost stack inward.
+	slices.Sort(enclosing)
+
+	address := make([]string, 0, len(enclosing))
+	for _, stackPath := range enclosing {
+		address = append(address, declaredStacks[stackPath]...)
+	}
+
+	return address
+}
+
+// containsPath reports whether path sits inside dir. Comparing the cleaned relative path
+// rather than testing for a string prefix is what stops a stack generated to team/1 from
+// claiming the units under team/10.
+func containsPath(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil || rel == "." {
+		return false
+	}
+
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func nestUnitOutputs(unitOutputs []unitOutput) (map[string]any, error) {
 	nested := make(map[string]any)
 
-	for flatKey, value := range flat {
-		parts := strings.Split(flatKey, ".")
+	for _, unit := range unitOutputs {
 		current := nested
 
-		for i, part := range parts {
-			if i == len(parts)-1 {
-				ctyValue, err := config.ConvertValuesMapToCtyVal(value)
+		for i, segment := range unit.address {
+			// Both branches reject an address already spoken for. Overwriting it would
+			// drop a unit from the output with nothing to signal the loss.
+			if i == len(unit.address)-1 {
+				if _, taken := current[segment]; taken {
+					return nil, UnitAddressCollisionError{Address: strings.Join(unit.address, ".")}
+				}
+
+				ctyValue, err := config.ConvertValuesMapToCtyVal(unit.outputs)
 				if err != nil {
 					return nil, fmt.Errorf(
 						"failed to convert unit output to cty value: %s %w",
-						flatKey,
+						strings.Join(unit.address, "."),
 						err,
 					)
 				}
 
-				current[part] = ctyValue
-			} else {
-				if _, exists := current[part]; !exists { // Traverse or create next level
-					current[part] = make(map[string]any)
-				}
+				current[segment] = ctyValue
 
-				var ok bool
+				break
+			}
 
-				current, ok = current[part].(map[string]any)
+			if _, exists := current[segment]; !exists {
+				current[segment] = make(map[string]any)
+			}
 
-				if !ok {
-					return nil, fmt.Errorf("failed to traverse unit output: %v %s", flat, part)
+			next, ok := current[segment].(map[string]any)
+			if !ok {
+				return nil, UnitAddressCollisionError{
+					Address: strings.Join(unit.address[:i+1], "."),
 				}
 			}
+
+			current = next
 		}
 	}
 

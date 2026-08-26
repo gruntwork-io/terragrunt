@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func TestRunUnwindsCleanlyWhenContextCancelledWithRacing(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- browse.Run(ctx, logger.CreateLogger(), venv.OSVenv(), browse.NewOptions(opts))
+		done <- browse.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), browse.NewOptions(opts))
 	}()
 
 	select {
@@ -55,7 +56,11 @@ func TestRunUnwindsCleanlyWhenContextCancelledWithRacing(t *testing.T) {
 func TestNewCommandIsNamedBrowse(t *testing.T) {
 	t.Parallel()
 
-	cmd := browse.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), venv.OSVenv())
+	cmd := browse.NewCommand(
+		logger.CreateLogger(),
+		options.NewTerragruntOptions(vexec.NewOSExec()),
+		venvtest.NewOSWithEmptyEnv(),
+	)
 
 	require.NotNil(t, cmd)
 	assert.Equal(t, browse.CommandName, cmd.Name)

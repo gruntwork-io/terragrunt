@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -26,7 +27,7 @@ terraform {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 	terragruntConfig, err := config.ParseConfigString(
@@ -43,7 +44,7 @@ terraform {
 	require.NotNil(t, terragruntConfig.Terraform.Version)
 	assert.Equal(t, "~> 3.3", *terragruntConfig.Terraform.Version)
 
-	runConfig := terragruntConfig.ToRunConfig(l)
+	runConfig := terragruntConfig.ToRunConfig(l, vfs.NewOSFS())
 	require.NotNil(t, runConfig)
 	assert.Equal(t, "~> 3.3", runConfig.Terraform.Version)
 }
@@ -144,7 +145,7 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 			terragruntConfig, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)

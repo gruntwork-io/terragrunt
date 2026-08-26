@@ -27,8 +27,8 @@ func run() (code int) {
 	originalConsole := exec.SaveConsoleState()
 	defer originalConsole.Restore()
 
-	opts := options.NewTerragruntOptions()
 	v := venv.OSVenv()
+	opts := options.NewTerragruntOptions(v.Exec)
 
 	l := log.New(
 		log.WithOutput(v.Writers.ErrWriter),
@@ -36,7 +36,7 @@ func run() (code int) {
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	reporter := panicreport.New(v.FS)
+	reporter := panicreport.New(v)
 	// Recover panics here so main owns os.Exit and any future main-level defers still run.
 	defer func() {
 		if reporter.PanicHandler(recover(), l, version.GetVersion, os.Args) {
@@ -44,7 +44,7 @@ func run() (code int) {
 		}
 	}()
 
-	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
+	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args, v.Env); err != nil {
 		l.Errorf("An error has occurred: %v", err)
 		return 1
 	}

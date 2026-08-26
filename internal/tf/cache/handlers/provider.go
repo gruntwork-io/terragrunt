@@ -6,10 +6,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// schemeHTTPS is the scheme every upstream registry URL this package builds is fetched over.
+const schemeHTTPS = "https"
+
+//nolint:goconst // GOARCH values in a platform table are data, not constants.
 var availablePlatforms []*models.Platform = []*models.Platform{
 	{OS: "solaris", Arch: "amd64"},
 	{OS: "openbsd", Arch: "386"},
@@ -39,6 +44,8 @@ func NewProviderHandlers(
 	cliCfg *cliconfig.Config,
 	l log.Logger,
 	c vhttp.Client,
+	fsys vfs.FS,
+	env map[string]string,
 	registryNames []string,
 ) (ProviderHandlers, error) {
 	var (
@@ -56,14 +63,14 @@ func NewProviderHandlers(
 		case *cliconfig.ProviderInstallationFilesystemMirror:
 			providerHandlers = append(
 				providerHandlers,
-				NewFilesystemMirrorProviderHandler(l, c, method),
+				NewFilesystemMirrorProviderHandler(l, c, fsys, method),
 			)
 		case *cliconfig.ProviderInstallationNetworkMirror:
 			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(
 				l,
 				c,
 				method,
-				cliCfg.CredentialsSource(),
+				cliCfg.CredentialsSource(env),
 			)
 			if err != nil {
 				return nil, err
@@ -73,7 +80,7 @@ func NewProviderHandlers(
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(
 				providerHandlers,
-				NewDirectProviderHandler(l, c, method, cliCfg.CredentialsSource()),
+				NewDirectProviderHandler(l, c, method, cliCfg.CredentialsSource(env)),
 			)
 			directIsDefined = true
 		}
@@ -89,7 +96,7 @@ func NewProviderHandlers(
 				l,
 				c,
 				new(cliconfig.ProviderInstallationDirect),
-				cliCfg.CredentialsSource(),
+				cliCfg.CredentialsSource(env),
 			),
 		)
 	}

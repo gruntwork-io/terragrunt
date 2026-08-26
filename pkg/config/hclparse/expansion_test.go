@@ -13,6 +13,7 @@ import (
 
 type testBlock struct {
 	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
+	Name      string                   `hcl:",label"`
 	Path      string                   `hcl:"path,attr"`
 }
 
@@ -553,6 +554,90 @@ dependency "a" {
 			require.Error(t, err)
 		})
 	}
+}
+
+// TestExpandBlockAssignsLabels covers the label field that decoding a block body on its
+// own would otherwise leave empty.
+func TestExpandBlockAssignsLabels(t *testing.T) {
+	t.Parallel()
+
+	instances, err := expand(t, `
+dependency "aurora" {
+  expansion {
+    count = 2
+  }
+
+  path = "../${count.index}"
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, instances, 2)
+
+	for _, inst := range instances {
+		assert.Equal(t, "aurora", inst.Value.(*testBlock).Name)
+	}
+}
+
+func TestExpandBlocksReadsEveryBlockInAFile(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+dependency "vpc" {
+  path = "../vpc"
+}
+
+dependency "aurora" {
+  expansion {
+    for_each = {
+      web = "frontend"
+      api = "backend"
+    }
+  }
+
+  path = "../${each.value}"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	require.NoError(t, err)
+	require.Len(t, instances, 3)
+
+	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
+	assert.Empty(t, instances[0].Key())
+
+	assert.ElementsMatch(t, []string{"web", "api"}, keysOf(instances[1:]))
+}
+
+// TestExpandBlocksDropsBlocksWithSwallowedDiagnostics covers a block the handler forgives
+// leaving the result instead of failing the whole file.
+func TestExpandBlocksDropsBlocksWithSwallowedDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	parser := hclparse.NewParser(
+		hclparse.WithDiagnosticsHandler(
+			func(_ *hcl.File, _ hcl.Diagnostics) (hcl.Diagnostics, error) {
+				return nil, nil
+			},
+		),
+	)
+
+	file, err := parser.ParseFromString(`
+dependency "broken" {
+  path = local.undefined
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+
+	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
 }
 
 func expand(

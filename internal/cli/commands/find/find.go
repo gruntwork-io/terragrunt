@@ -113,7 +113,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, v.Writers.Writer, foundComponents)
+		return outputText(l, v, foundComponents)
 	case FormatJSON:
 		return outputJSON(v.Writers.Writer, foundComponents)
 	default:
@@ -303,16 +303,16 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 }
 
 // outputText outputs the discovered components in text format.
-func outputText(l log.Logger, w io.Writer, components FoundComponents) error {
+func outputText(l log.Logger, v *venv.Venv, components FoundComponents) error {
 	var buf strings.Builder
 
-	colorizer := NewColorizer(stdout.ShouldColor(l))
+	colorizer := NewColorizer(stdout.ShouldColor(l, v))
 
 	for _, c := range components {
 		buf.WriteString(colorizer.Colorize(c) + "\n")
 	}
 
-	_, err := w.Write([]byte(buf.String()))
+	_, err := v.Writers.Writer.Write([]byte(buf.String()))
 
 	return err
 }

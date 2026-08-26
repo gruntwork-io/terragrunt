@@ -7,7 +7,8 @@ import (
 	"errors"
 )
 
-// ValidateStackConfig validates a StackConfigFile instance according to the rules:
+// ValidateStackConfig validates the components a StackConfigFile resolved to, according to
+// the rules:
 // - Unit name, source, and path shouldn't be empty
 // - Unit names should be unique
 // - Units shouldn't have duplicate paths
@@ -18,14 +19,13 @@ import (
 //
 // stackDir is the directory containing the stack file; it is used to compute the
 // generated on-disk path of each unit and stack for the cross-kind collision check.
+//
+// Resolving to no components at all is valid here: a file that declares blocks which all
+// expand to zero elements or set enabled to false has nothing to generate, and
+// [ParseStackConfig] is what rejects a file that declares no blocks in the first place.
 func ValidateStackConfig(config *StackConfigFile, stackDir string) error {
 	if config == nil {
 		return errors.New("stack config cannot be nil")
-	}
-
-	// Check if we have any units or stacks
-	if len(config.Units) == 0 && len(config.Stacks) == 0 {
-		return errors.New("stack config must contain at least one unit or stack")
 	}
 
 	var validationErrors []error
@@ -105,7 +105,7 @@ func validateUnits(units []*Unit) error {
 		"unit",
 		func(element any, i int) (string, string, string) {
 			unit := element.(*Unit)
-			return unit.Name, unit.Path, unit.Source
+			return componentAddress(unit.Name, unit.Expansion), unit.Path, unit.Source
 		},
 	)
 }
@@ -117,7 +117,7 @@ func validateStacks(stacks []*Stack) error {
 		"stack",
 		func(element any, i int) (string, string, string) {
 			stack := element.(*Stack)
-			return stack.Name, stack.Path, stack.Source
+			return componentAddress(stack.Name, stack.Expansion), stack.Path, stack.Source
 		},
 	)
 }

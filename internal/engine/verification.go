@@ -5,22 +5,22 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // verifyFile verifies the checksums file and the signature file of the passed file
-func verifyFile(checkedFile, checksumsFile, signatureFile string) error {
-	checksums, err := os.ReadFile(checksumsFile)
+func verifyFile(fsys vfs.FS, checkedFile, checksumsFile, signatureFile string) error {
+	checksums, err := vfs.ReadFile(fsys, checksumsFile)
 	if err != nil {
 		return err
 	}
 
-	checksumsSignature, err := os.ReadFile(signatureFile)
+	checksumsSignature, err := vfs.ReadFile(fsys, signatureFile)
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func verifyFile(checkedFile, checksumsFile, signatureFile string) error {
 
 	// verify checksums
 	// calculate checksum of package file
-	packageChecksum, err := util.FileSHA256(checkedFile)
+	packageChecksum, err := vfs.FileSHA256(fsys, checkedFile)
 	if err != nil {
 		return err
 	}

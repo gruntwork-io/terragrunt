@@ -37,7 +37,7 @@ func Run(
 		return err
 	}
 
-	runCfg := prepared.Cfg.ToRunConfig(l)
+	runCfg := prepared.Cfg.ToRunConfig(l, v.FS)
 
 	// Generate config
 	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {
@@ -96,7 +96,7 @@ func runTargetCommand(
 				ctx,
 				l,
 				v,
-				configbridge.ShellRunOptsFromOpts(opts),
+				configbridge.ShellRunOptsFromOpts(v.Env, opts),
 				dir,
 				false,
 				false,

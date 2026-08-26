@@ -37,20 +37,19 @@ const versionQueryKey = "version"
 // the parent's protocol set, headers, and decompressors without keeping a
 // stale *Client field around.
 //
-// Authentication reads TG_TF_REGISTRY_TOKEN from Env for a bearer token. See
+// Authentication reads TG_TF_REGISTRY_TOKEN from Venv.Env for a bearer token. See
 // [tfimpl.DefaultRegistryDomain] and
 // [github.com/gruntwork-io/terragrunt/internal/tf/cliconfig] for the rest.
 type RegistryGetter struct {
 	Logger             log.Logger
 	Venv               *venv.Venv
+	authCache          *registryAuthCache
 	TofuImplementation tfimpl.Type
 }
 
-// auth assembles the credentials the registry protocol authenticates with.
-// The user's CLI config lives on the real disk, so it is only consulted when
-// the getter is running against the OS filesystem.
+// auth assembles the environment the registry protocol authenticates with.
 func (r *RegistryGetter) auth() RegistryAuth {
-	return RegistryAuth{Env: r.Venv.Env, ReadUserConfig: vfs.IsOSFS(r.Venv.FS)}
+	return RegistryAuth{Venv: r.Venv, cache: r.authCache}
 }
 
 // NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol
@@ -67,6 +66,7 @@ func NewRegistryGetter(l log.Logger, v *venv.Venv) *RegistryGetter {
 		Logger:             l,
 		Venv:               v,
 		TofuImplementation: tfimpl.OpenTofu,
+		authCache:          &registryAuthCache{},
 	}
 }
 
@@ -80,6 +80,8 @@ func (r *RegistryGetter) WithTofuImplementation(impl tfimpl.Type) *RegistryGette
 // WithEnv sets the environment the registry auth token is read from.
 func (r *RegistryGetter) WithEnv(env map[string]string) *RegistryGetter {
 	r.Venv = r.Venv.WithEnv(env)
+	r.authCache = &registryAuthCache{}
+
 	return r
 }
 
@@ -112,7 +114,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 
 	registryDomain := srcURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(r.TofuImplementation)
+		registryDomain = tfimpl.DefaultRegistryDomain(r.Venv.Env, r.TofuImplementation)
 	}
 
 	queryValues := srcURL.Query()
@@ -223,25 +225,25 @@ func (r *RegistryGetter) getSubdir(
 
 // copySubdirContents resolves subDir under srcRoot and copies its contents
 // into dstPath, replacing whatever was there. source only labels errors.
-func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, source string) error {
+func copySubdirContents(l log.Logger, fsys vfs.FS, srcRoot, subDir, dstPath, source string) error {
 	sourcePath, err := SubdirGlob(srcRoot, subDir)
 	if err != nil {
 		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
 	}
 
-	if _, err := fs.Stat(sourcePath); err != nil {
+	if _, err := fsys.Stat(sourcePath); err != nil {
 		return ModuleDownloadErr{
 			sourceURL: source,
 			details:   fmt.Sprintf("could not stat download path %s: %s", sourcePath, err),
 		}
 	}
 
-	if err := fs.RemoveAll(dstPath); err != nil {
+	if err := fsys.RemoveAll(dstPath); err != nil {
 		return fmt.Errorf("clearing destination path %s: %w", dstPath, err)
 	}
 
 	const ownerWriteGlobalReadExecutePerms = 0755
-	if err := fs.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
+	if err := fsys.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
 		return fmt.Errorf("creating destination path %s: %w", dstPath, err)
 	}
 
@@ -249,14 +251,14 @@ func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, sourc
 	manifestPath := filepath.Join(dstPath, manifestFname)
 
 	defer func(name string) {
-		if err := fs.Remove(name); err != nil {
+		if err := fsys.Remove(name); err != nil {
 			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 
 	return util.CopyFolderContentsWithFilter(
 		l,
-		fs,
+		fsys,
 		sourcePath,
 		dstPath,
 		manifestFname,

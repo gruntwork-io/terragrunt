@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // unitConfig is a unit built the way catalog units are: its inputs come from
@@ -142,7 +142,7 @@ func TestScaffoldRefusesToOverwriteWhenCopying(t *testing.T) {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
-	err = scaffold.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, source, "")
+	err = scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, "")
 	require.Error(t, err)
 
 	assert.NoFileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
@@ -178,7 +178,7 @@ func runScaffold(t *testing.T, source string) string {
 
 	require.NoError(
 		t,
-		scaffold.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, source, ""),
+		scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, ""),
 	)
 
 	return outputDir

@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -163,27 +164,27 @@ func pickS3CacheKey(rawURL string, head *s3.HeadObjectOutput) (string, error) {
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	if v := deref(head.ChecksumSHA256); v != "" {
+	if v := util.Deref(head.ChecksumSHA256); v != "" {
 		return cas.ContentKey("sha256", v), nil
 	}
 
-	if v := deref(head.ChecksumCRC64NVME); v != "" {
+	if v := util.Deref(head.ChecksumCRC64NVME); v != "" {
 		return cas.ContentKey("crc64nvme", v), nil
 	}
 
-	if v := deref(head.ChecksumSHA1); v != "" {
+	if v := util.Deref(head.ChecksumSHA1); v != "" {
 		return cas.ContentKey("sha1", v), nil
 	}
 
-	if v := deref(head.ChecksumCRC32C); v != "" {
+	if v := util.Deref(head.ChecksumCRC32C); v != "" {
 		return cas.ContentKey("crc32c", v), nil
 	}
 
-	if v := deref(head.ChecksumCRC32); v != "" {
+	if v := util.Deref(head.ChecksumCRC32); v != "" {
 		return cas.ContentKey("crc32", v), nil
 	}
 
-	if etag := strings.TrimSpace(deref(head.ETag)); etag != "" {
+	if etag := strings.TrimSpace(util.Deref(head.ETag)); etag != "" {
 		if normalized := normalizeETag(etag); normalized != "" {
 			return cas.OpaqueKey("s3", rawURL, normalized), nil
 		}
@@ -334,7 +335,7 @@ func canonicalAWSS3HTTPSURL(u *url.URL) (string, bool) {
 	}
 
 	scheme := strings.ToLower(u.Scheme)
-	if scheme != "http" && scheme != "https" {
+	if scheme != SchemeHTTP && scheme != SchemeHTTPS {
 		return "", false
 	}
 
@@ -348,7 +349,7 @@ func canonicalAWSS3HTTPSURL(u *url.URL) (string, bool) {
 	}
 
 	canonical := *u
-	canonical.Scheme = "https"
+	canonical.Scheme = SchemeHTTPS
 	canonical.Host = S3HostLabelForRegion(target.Region) + ".amazonaws.com"
 	canonical.Path = "/" + target.Bucket + "/" + target.Key
 

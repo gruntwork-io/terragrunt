@@ -13,6 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -27,7 +29,7 @@ func TestNewCommandExposesTheCatalogFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := catalog.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
 	)
 
 	assert.Equal(t, catalog.CommandName, cmd.Name)
@@ -74,14 +76,17 @@ func TestNewCommandBeforeGatesNonInteractiveFormats(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 			if tc.withExperiment {
 				require.NoError(t, opts.Experiments.EnableExperiment(experiment.CatalogFormat))
 			}
 
 			cmd := catalog.NewCommand(logger.CreateLogger(), opts, venvtest.New())
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args{"--" + catalog.FormatFlagName, tc.format}))
+			require.NoError(
+				t,
+				cmd.Flags.Parse(clihelper.Args{"--" + catalog.FormatFlagName, tc.format}, map[string]string{}),
+			)
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
 
@@ -112,13 +117,14 @@ func TestNewCommandActionLoadsThePositionalSource(t *testing.T) {
 
 	writeLocalRepo(t, v, repoDir)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.CatalogFormat))
 
 	cmd := catalog.NewCommand(logger.CreateLogger(), opts, v)
 
 	require.NoError(t, cmd.Flags.Parse(
 		clihelper.Args{"--" + catalog.FormatFlagName, catalog.FormatJSONL},
+		map[string]string{},
 	))
 	require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
 	require.NoError(t, cmd.Action(
@@ -180,16 +186,17 @@ func TestNewFlagsIgnoreFileAction(t *testing.T) {
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, ignoreFileName), []byte("vendor\n"), 0o644))
 
-			opts := catalog.NewOptions(options.NewTerragruntOptions())
+			opts := catalog.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
 			opts.RootWorkingDir = dir
 
 			if !tc.noWorkingDir {
 				opts.WorkingDir = dir
 			}
 
-			flags := catalog.NewFlags(opts, nil)
+			flags := catalog.NewFlags(vfs.NewOSFS(), opts, nil)
 			require.NoError(t, flags.Parse(
 				clihelper.Args{"--" + catalog.IgnoreFileFlagName, tc.value(dir)},
+				map[string]string{},
 			))
 
 			err := flags.RunActions(t.Context(), &clihelper.Context{})

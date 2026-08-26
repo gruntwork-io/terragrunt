@@ -2,13 +2,12 @@ package hclparse
 
 import (
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -255,19 +254,19 @@ func configPathEvalReason(diags hcl.Diagnostics) string {
 
 // AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
 // It is off the production parse path (the partial-parse merge folds autoinclude dependencies into the config); it is retained for test-time introspection of generated autoinclude files.
-func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
-	if fs == nil {
-		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
+func AutoIncludeDependencyPaths(fsys vfs.FS, unitDir string) ([]string, error) {
+	if fsys == nil {
+		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fsys is nil (unitDir=%q)", unitDir))
 	}
 
 	if unitDir == "" {
 		return nil, EmptyArgError{Func: "AutoIncludeDependencyPaths", Arg: "unitDir"}
 	}
 
-	unitDir = util.ResolvePath(unitDir)
+	unitDir = vfs.ResolveForCompare(fsys, unitDir)
 	autoIncludePath := filepath.Join(unitDir, AutoIncludeFile)
 
-	body, err := readAutoIncludeBody(fs, autoIncludePath)
+	body, err := readAutoIncludeBody(fsys, autoIncludePath)
 	if err != nil || body == nil {
 		return nil, err
 	}
@@ -294,7 +293,7 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 			continue
 		}
 
-		depPath, extractErr := extractDepPath(block, autoIncludePath, unitDir)
+		depPath, extractErr := extractDepPath(fsys, block, autoIncludePath, unitDir)
 		if extractErr != nil {
 			errs = append(errs, extractErr)
 
@@ -312,9 +311,9 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 }
 
 // readAutoIncludeBody reads and parses an autoinclude file, returning (nil, nil) when the file does not exist.
-func readAutoIncludeBody(fs vfs.FS, path string) (*hclsyntax.Body, error) {
-	data, err := vfs.ReadFile(fs, path)
-	if errors.Is(err, iofs.ErrNotExist) {
+func readAutoIncludeBody(fsys vfs.FS, path string) (*hclsyntax.Body, error) {
+	data, err := vfs.ReadFile(fsys, path)
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 
@@ -345,7 +344,7 @@ func blockLabelsString(block *hclsyntax.Block) string {
 }
 
 // extractDepPath returns the resolved config_path for a dependency block. Caller must ensure the block has exactly one label.
-func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (string, error) {
+func extractDepPath(fsys vfs.FS, block *hclsyntax.Block, autoIncludePath, unitDir string) (string, error) {
 	name := block.Labels[0]
 
 	configPathAttr, exists := block.Body.Attributes[attrConfigPath]
@@ -396,7 +395,7 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 		depPath = filepath.Clean(filepath.Join(unitDir, depPath))
 	}
 
-	return util.ResolvePath(depPath), nil
+	return vfs.ResolveForCompare(fsys, depPath), nil
 }
 
 // StackAutoIncludeDepValuesError scans a stack autoinclude body for the unsupported cross-level pattern: an injected unit/stack whose values reference dependency outputs, which are not available at stack generate time. Returns the populated typed error, or nil when absent. Shared by the fail-fast generation check and the pkg/config backstop so the two cannot drift.

@@ -9,9 +9,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +49,7 @@ func TestGenerateStacksCyclicSource_FailsAtMaxLevel(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = liveDir
 	opts.RootWorkingDir = liveDir
 	opts.Parallelism = 1
@@ -58,7 +59,7 @@ func TestGenerateStacksCyclicSource_FailsAtMaxLevel(t *testing.T) {
 
 	err := generate.NewGenerator().
 		WithMaxLevel(maxLevel).
-		GenerateStacks(t.Context(), l, venv.OSVenv(), opts, nil)
+		GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, nil)
 
 	require.ErrorContains(
 		t,

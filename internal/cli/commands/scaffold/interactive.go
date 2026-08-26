@@ -32,7 +32,7 @@ func RunInteractive(
 		return err
 	}
 
-	defer plan.Cleanup()
+	defer plan.Cleanup(v.FS)
 
 	values, err := promptForValues(ctx, l, opts, plan, moduleURL)
 

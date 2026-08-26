@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -34,7 +35,7 @@ func TestNewCommandExposesTheListFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := list.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
 	)
 
 	assert.Equal(t, list.CommandName, cmd.Name)
@@ -103,7 +104,7 @@ func TestNewCommandBeforeResolvesTheFormat(t *testing.T) {
 			var buf strings.Builder
 
 			cmd := newListCommand(t, &buf)
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
 			if tc.wantErr {
@@ -156,7 +157,7 @@ func TestNewCommandBeforeResolvesTheMode(t *testing.T) {
 			var buf strings.Builder
 
 			cmd := newListCommand(t, &buf)
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
 			require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
 			assert.Equal(t, tc.wantPaths, strings.Fields(buf.String()))
@@ -184,7 +185,7 @@ func TestNewCommandTreeFlagRendersATree(t *testing.T) {
 			var buf strings.Builder
 
 			cmd := newListCommand(t, &buf)
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
 			require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
 			assert.Equal(t, []string{".", "alpha", "zulu"}, treeLabels(buf.String()))
@@ -220,7 +221,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			if tc.strictMode {
 				require.NoError(
 					t,
@@ -229,7 +230,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 			}
 
 			flags := list.NewFlags(newTestLogger(t), list.NewOptions(tgOpts), venvtest.New(), nil)
-			require.NoError(t, flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := flags.RunActions(t.Context(), &clihelper.Context{})
 			if tc.wantErr {
@@ -268,10 +269,10 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := list.NewOptions(options.NewTerragruntOptions())
+			opts := list.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 			flags := list.NewFlags(newTestLogger(t), opts, venvtest.New(), nil)
-			require.NoError(t, flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
 			assert.Len(t, opts.Filters, tc.wantFilters)
 		})
@@ -285,7 +286,7 @@ func newListCommand(t *testing.T, w *strings.Builder) *clihelper.Command {
 	root := "/list-cli"
 	v := venvtest.New().WithFS(newUnitsFS(t, root, listCLIUnits)).WithWriter(w)
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 

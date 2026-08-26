@@ -194,7 +194,7 @@ func (err ConfigNotFound) Error() string {
 }
 
 // TFArgumentsToVar converts variables from the terraform config to a list of tflint variables.
-func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
+func TFArgumentsToVar(l log.Logger, fsys vfs.FS, hook *runcfg.Hook,
 	tfCfg *runcfg.TerraformConfig) ([]string, error) {
 	var variables []string
 
@@ -252,7 +252,7 @@ func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
 		if len(arg.OptionalVarFiles) > 0 {
 			// extract optional variables
 			for _, file := range util.RemoveDuplicatesKeepLast(arg.OptionalVarFiles) {
-				exists, err := vfs.FileExists(fs, file)
+				exists, err := vfs.FileExists(fsys, file)
 				if err != nil {
 					l.Debugf("Skipping tflint var-file %s: %v", file, err)
 					continue
@@ -276,7 +276,7 @@ func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
 // FindConfigInProject looks for a .tflint.hcl file in the current
 // folder or it's parents. When running from cache, we start searching
 // from the original config directory to find config in the source directory.
-func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, error) {
+func FindConfigInProject(l log.Logger, fsys vfs.FS, opts *TFLintOptions) (string, error) {
 	startDir := opts.WorkingDir
 	if opts.TerragruntConfigPath != "" {
 		startDir = filepath.Dir(opts.TerragruntConfigPath)
@@ -298,7 +298,7 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 
 		fileToFind := filepath.Join(previousDir, ".tflint.hcl")
 
-		exists, err := vfs.FileExists(fs, fileToFind)
+		exists, err := vfs.FileExists(fsys, fileToFind)
 		if err != nil {
 			return "", err
 		}
@@ -322,7 +322,7 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 // or the result of walking parents to find a .tflint.hcl file.
 func ConfigFilePath(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	opts *TFLintOptions,
 	arguments []string,
 ) (string, error) {
@@ -341,7 +341,7 @@ func ConfigFilePath(
 		}
 	}
 	// find .tflint.hcl configuration in project files if it is not provided in arguments
-	projectConfigFile, err := FindConfigInProject(l, fs, opts)
+	projectConfigFile, err := FindConfigInProject(l, fsys, opts)
 	if err != nil {
 		return "", err
 	}

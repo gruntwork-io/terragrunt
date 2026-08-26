@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -34,7 +35,7 @@ func TestNewCommandExposesTheFindFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := find.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
 	)
 
 	assert.Equal(t, find.CommandName, cmd.Name)
@@ -129,12 +130,12 @@ func TestNewCommandBeforeResolvesFormatAndMode(t *testing.T) {
 			root := "/find-cli"
 			v := venvtest.New().WithFS(newUnitsFS(t, root, findCLIUnits)).WithWriter(&buf)
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
 			cmd := find.NewCommand(newTestLogger(t), tgOpts, v)
-			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
 			if tc.wantErr {
@@ -183,7 +184,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			if tc.strictMode {
 				require.NoError(
 					t,
@@ -192,7 +193,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 			}
 
 			flags := find.NewFlags(newTestLogger(t), find.NewOptions(tgOpts), venvtest.New(), nil)
-			require.NoError(t, flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := flags.RunActions(t.Context(), &clihelper.Context{})
 			if tc.wantErr {
@@ -231,10 +232,10 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := find.NewOptions(options.NewTerragruntOptions())
+			opts := find.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 			flags := find.NewFlags(newTestLogger(t), opts, venvtest.New(), nil)
-			require.NoError(t, flags.Parse(clihelper.Args(tc.args)))
+			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
 			assert.Len(t, opts.Filters, tc.wantFilters)
 		})

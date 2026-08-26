@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -214,7 +215,7 @@ func ociTofuConfigFragments(l log.Logger, v *venv.Venv) ([]string, error) {
 	// tofu reads no fragments when the config directory is absent, unreadable, or not a directory.
 	info, err := v.FS.Stat(dir)
 	if err != nil {
-		if !errors.Is(err, iofs.ErrNotExist) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			l.Warnf("Skipping unreadable OpenTofu CLI config directory %s: %v", dir, err)
 		}
 
@@ -225,7 +226,7 @@ func ociTofuConfigFragments(l log.Logger, v *venv.Venv) ([]string, error) {
 		return nil, nil
 	}
 
-	entries, err := vfs.ReadDirEntries(v.FS, dir)
+	entries, err := vfs.ReadDir(v.FS, dir)
 	if err != nil {
 		l.Warnf("Skipping unreadable OpenTofu CLI config directory %s: %v", dir, err)
 
@@ -385,7 +386,7 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 	}
 
 	defaults := ociTofuDefaults{
-		helper:          deref(decoded.Helper),
+		helper:          util.Deref(decoded.Helper),
 		discoverAmbient: discoverAmbient,
 	}
 
@@ -431,7 +432,7 @@ func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 		label:            block.Labels[0],
 		registryDomain:   ociCanonicalAuthKey(registryDomain),
 		repositoryPrefix: repositoryPrefix,
-		helper:           deref(decoded.Helper),
+		helper:           util.Deref(decoded.Helper),
 	}
 
 	// A helper block carries no inline secret, so it is complete once the helper name is validated.
@@ -522,15 +523,4 @@ func ociSplitRepositoryPrefix(label string) (registryDomain, repositoryPrefix st
 	registryDomain, repositoryPrefix, _ = strings.Cut(strings.TrimRight(label, "/"), "/")
 
 	return registryDomain, repositoryPrefix
-}
-
-// deref returns the pointed-to value, or the zero value of T when nil.
-func deref[T any](v *T) T {
-	if v == nil {
-		var zero T
-
-		return zero
-	}
-
-	return *v
 }

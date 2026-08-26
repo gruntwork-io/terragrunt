@@ -21,6 +21,18 @@
     {
       "source": "/sitemap.xml",
       "destination": "/sitemap-index.xml"
+    },
+    {
+      "source": "/mtag/:path*",
+      "destination": "https://www.googletagmanager.com/:path*"
+    },
+    {
+      "source": "/vtag/:path*",
+      "destination": "https://cdn.vector.co/:path*"
+    },
+    {
+      "source": "/htag/:path*",
+      "destination": "https://js.hs-analytics.net/:path*"
     }
   ],
   "redirects": [

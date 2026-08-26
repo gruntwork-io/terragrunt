@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 type configKey byte
@@ -48,5 +47,5 @@ func ModuleVersionResolverFromContext(ctx context.Context, v *venv.Venv) *getter
 
 func newModuleVersionResolver(v *venv.Venv) *getter.VersionResolver {
 	return getter.NewVersionResolver(v.HTTP).
-		WithAuth(getter.RegistryAuth{Env: v.Env, ReadUserConfig: vfs.IsOSFS(v.FS)})
+		WithAuth(getter.NewRegistryAuth(v))
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -89,6 +90,20 @@ func (err DuplicatedGenerateBlocksError) Error() string {
 	return fmt.Sprintf(
 		"Detected generate blocks with the same name: %v", err.BlockName,
 	)
+}
+
+// InvalidGenerateBlockError wraps a validation error with the generate block name.
+type InvalidGenerateBlockError struct {
+	Err       error
+	BlockName string
+}
+
+func (err InvalidGenerateBlockError) Error() string {
+	return fmt.Sprintf("generate block %q: %s", err.BlockName, err.Err)
+}
+
+func (err InvalidGenerateBlockError) Unwrap() error {
+	return err.Err
 }
 
 type TFVarFileNotFoundError struct {
@@ -334,6 +349,19 @@ func (err StackMockOutputsTypeError) Error() string {
 	)
 }
 
+// DependencyLabelCollisionError is returned when one dependency label has to address both a
+// whole block and the instances of an expanded block.
+type DependencyLabelCollisionError struct {
+	Name string
+}
+
+func (err DependencyLabelCollisionError) Error() string {
+	return fmt.Sprintf(
+		"dependency %q is declared both with and without an expansion, so the block and its instances claim the same address; rename one of them",
+		err.Name,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string
@@ -536,3 +564,32 @@ func (err ExpansionRequiresExperimentError) Error() string {
 		experiment.BlockIteration,
 	)
 }
+
+// EnabledRequiresExperimentError is returned when a unit or stack block carries a bare
+// enabled attribute while the block-iteration experiment is off.
+type EnabledRequiresExperimentError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+}
+
+func (err EnabledRequiresExperimentError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s uses an enabled attribute, which requires the '%s' experiment; enable it with --experiment %s",
+		block,
+		err.ConfigPath,
+		experiment.BlockIteration,
+		experiment.BlockIteration,
+	)
+}
+
+// ErrStackHasNoComponents is returned when a stack file declares no unit or stack block at
+// all. A file whose blocks resolve to no components is a different thing entirely and stays
+// valid: every block may be disabled, or expanded over an empty collection, leaving nothing
+// to generate.
+var ErrStackHasNoComponents = errors.New("stack config must contain at least one unit or stack")

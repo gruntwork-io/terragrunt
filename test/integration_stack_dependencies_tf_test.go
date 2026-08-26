@@ -11,7 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +28,7 @@ func TestTFStackDepsMockLocalResolvesLocal(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsMockLocal)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsMockLocal)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -102,7 +102,7 @@ func TestTFStackDepsAutoIncludeResolvesObjectKey(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncObjectKey)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncObjectKey)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -162,7 +162,7 @@ func TestTFStackDepsAutoIncludeFunctionsAndDeps(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncFuncs)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncFuncs)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -317,7 +317,7 @@ func TestTFStackDepsNestedRemoteStateDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedRemoteStateDep)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedRemoteStateDep)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -360,7 +360,7 @@ func TestTFStackDepsNestedUnitAutoIncludeDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedUnitDep)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedUnitDep)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -611,7 +611,7 @@ func TestTFStackDepsE2ECrossStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsCrossStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsCrossStack)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	err = runner.WithWorkDir(gitPath).Init(t.Context())
@@ -711,7 +711,7 @@ func TestTFStackDepsStackValuesInLocals(t *testing.T) {
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackValuesLocals)
 
 	// The child stack uses get_repo_root() for unit sources, so the fixture copy must be a git repo.
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	err = runner.WithWorkDir(gitPath).Init(t.Context())
@@ -1082,7 +1082,7 @@ func TestTFStackDepsCrossLevelViaValues(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsCrossLevelValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsCrossLevelValues)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 
@@ -1139,7 +1139,7 @@ func TestTFStackDepsValuesRefWithSiblingAutoInclude(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsValuesSiblingAutoInc)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsValuesSiblingAutoInc)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
 

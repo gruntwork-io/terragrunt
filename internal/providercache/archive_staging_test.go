@@ -19,10 +19,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -135,8 +135,7 @@ func startProviderCacheRun(t *testing.T, registryName, upstreamURL string) *prov
 		helpers.TmpDirWOSymlinks(t),
 		nil,
 		l,
-		vfs.NewOSFS(),
-		vhttp.NewOSClient(),
+		venvtest.NewOSWithEmptyEnv(),
 	)
 
 	// The pre-populated discovery cache points version and platform lookups at
@@ -164,7 +163,7 @@ func startProviderCacheRun(t *testing.T, registryName, upstreamURL string) *prov
 
 	ctx, cancel := context.WithCancel(t.Context())
 
-	ln, err := server.Listen(ctx)
+	ln, err := server.Listen(ctx, venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

@@ -9,10 +9,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -335,10 +334,10 @@ func TestFmtGeneratedFile(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			err := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
+			err := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
 			require.NoError(t, err)
 
-			assert.True(t, util.FileExists(tc.path))
+			assert.FileExists(t, tc.path)
 
 			fileContent, err := os.ReadFile(tc.path)
 			require.NoError(t, err)
@@ -390,13 +389,13 @@ func TestGenerateDisabling(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			err := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
+			err := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
 			require.NoError(t, err)
 
 			if tc.disabled {
-				assert.True(t, util.FileNotExists(tc.path))
+				assert.NoFileExists(t, tc.path)
 			} else {
-				assert.True(t, util.FileExists(tc.path))
+				assert.FileExists(t, tc.path)
 			}
 		})
 	}
@@ -554,7 +553,7 @@ func TestWriteToFileOverwritesReadOnlyTarget(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
+			require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
 
 			fileContent, err := os.ReadFile(path)
 			require.NoError(t, err)
@@ -608,7 +607,7 @@ func TestWriteToFileSkipAndErrorLeaveExistingFileIntact(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
+			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
 
 			if tc.wantErr {
 				var existsErr codegen.GenerateFileExistsError
@@ -657,7 +656,7 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
+	require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
 
 	storeContentAfter, err := os.ReadFile(storePath)
 	require.NoError(t, err)
@@ -700,7 +699,7 @@ func TestWriteToFileTargetIsDirectory(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.Error(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
+	require.Error(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
 	assert.DirExists(t, targetPath)
 }
 
@@ -723,8 +722,8 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
-	assert.True(t, util.FileNotExists(targetPath))
+	require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+	assert.NoFileExists(t, targetPath)
 }
 
 // TestWriteToFileSignatureWithoutTrailingNewline verifies that a generated
@@ -768,10 +767,10 @@ func TestWriteToFileSignatureWithoutTrailingNewline(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config))
+			require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
 
 			if tc.disable {
-				assert.True(t, util.FileNotExists(path))
+				assert.NoFileExists(t, path)
 
 				return
 			}
@@ -835,7 +834,7 @@ func TestWriteToFileUnsignedFileWithoutTrailingNewline(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
+			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
 
 			if tc.disable {
 				var removeErr codegen.GenerateFileRemoveError
@@ -884,7 +883,7 @@ func TestWriteToFileWithContentStoreDeduplicates(t *testing.T) {
 
 		l := logger.CreateLogger()
 		require.NoError(t, codegen.WriteToFile(
-			t.Context(), l, venv.OSVenv(), "", &config, codegen.WithContentStore(store),
+			t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config, codegen.WithContentStore(store),
 		))
 	}
 
@@ -940,7 +939,7 @@ func TestWriteToFileWithContentStoreMutableOptsOut(t *testing.T) {
 
 		l := logger.CreateLogger()
 		require.NoError(t, codegen.WriteToFile(
-			t.Context(), l, venv.OSVenv(), "", &config, codegen.WithContentStore(store),
+			t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config, codegen.WithContentStore(store),
 		))
 	}
 
@@ -961,7 +960,7 @@ func TestWriteToFileWithContentStoreMutableOptsOut(t *testing.T) {
 func TestWriteToFileWithContentStoreRegeneratesChangedContents(t *testing.T) {
 	t.Parallel()
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 	testDir := helpers.TmpDirWOSymlinks(t)
 	store := newTestContentStore(t, testDir)
 	targetPath := filepath.Join(testDir, "versions.tf")
@@ -1044,7 +1043,7 @@ func TestWriteToFileOverwritesDanglingSymlink(t *testing.T) {
 
 			l := logger.CreateLogger()
 			require.NoError(t, codegen.WriteToFile(
-				t.Context(), l, venv.OSVenv(), "", &config, opts...,
+				t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config, opts...,
 			))
 
 			info, err := os.Lstat(targetPath)
@@ -1106,7 +1105,7 @@ func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venv.OSVenv(), "", &config)
+			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
 
 			if tc.disable {
 				var removeErr codegen.GenerateFileRemoveError
@@ -1138,7 +1137,7 @@ func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
 func newTestContentStore(t *testing.T, dir string) *cas.Content {
 	t.Helper()
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(dir, "cas")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(dir, "cas")))
 	require.NoError(t, err)
 
 	return cas.NewContent(c.BlobStore())
@@ -1151,4 +1150,38 @@ func writeFileWithPerms(t *testing.T, path, contents string, perms os.FileMode) 
 
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
 	require.NoError(t, os.Chmod(path, perms))
+}
+
+func TestGenerateConfigDisabledFromString(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected codegen.GenerateConfigDisabled
+		wantErr  bool
+	}{
+		{name: "skip", input: "skip", expected: codegen.DisabledSkip},
+		{name: "remove", input: "remove", expected: codegen.DisabledRemove},
+		{name: "remove_terragrunt", input: "remove_terragrunt", expected: codegen.DisabledRemoveTerragrunt},
+		{name: "invalid", input: "invalid", expected: codegen.DisabledUnknown, wantErr: true},
+		{name: "true", input: "true", expected: codegen.DisabledUnknown, wantErr: true},
+		{name: "empty", input: "", expected: codegen.DisabledUnknown, wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := codegen.GenerateConfigDisabledFromString(tc.input)
+			assert.Equal(t, tc.expected, got)
+
+			if tc.wantErr {
+				var target codegen.UnknownGenerateIfDisabledVal
+				require.ErrorAs(t, err, &target)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

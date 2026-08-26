@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -79,7 +80,7 @@ dependency "external" {
 func (f *boundaryFixture) discover(t *testing.T, v *venv.Venv, query, boundary string) (component.Components, error) {
 	t.Helper()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -93,6 +94,28 @@ func (f *boundaryFixture) discover(t *testing.T, v *venv.Venv, query, boundary s
 	}
 
 	return d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+}
+
+// Test that a dependent found by the upstream walk is returned when the
+// boundary encloses it. The walk searches directories above the working
+// directory, and the components it turns up are restamped as graph-discovered,
+// which is the same mark that decides what the boundary withholds. A boundary
+// wide enough to contain a dependent has to return it regardless.
+func TestDiscoveryBoundary_ReturnsDependentsFoundUpstream(t *testing.T) {
+	t.Parallel()
+
+	f, v := newBoundaryFixture(t)
+
+	// environments/ contains both staging (the working directory) and the
+	// production environment holding vpc's other dependent.
+	configs, err := f.discover(t, v, "...{"+f.vpcDir+"}", "..")
+	require.NoError(t, err)
+
+	assert.ElementsMatch(
+		t,
+		[]string{f.vpcDir, f.appDir, f.consumerDir},
+		configs.Filter(component.UnitKind).Paths(),
+	)
 }
 
 // Test that a discovery boundary encloses graph discovery in both directions,
@@ -308,7 +331,7 @@ func TestDiscoveryBoundary_SurvivesFilterEvaluationWithRelationships(t *testing.
 				paths[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -323,6 +346,70 @@ func TestDiscoveryBoundary_SurvivesFilterEvaluationWithRelationships(t *testing.
 
 			configs, err := d.Discover(t.Context(), logger.CreateLogger(), v, opts)
 			require.NoError(t, err)
+			assert.ElementsMatch(t, paths, configs.Filter(component.UnitKind).Paths())
+		})
+	}
+}
+
+// Test what the boundary withholds under filter shapes that do not bound their
+// own traversal. A filter that only excludes starts from every component
+// discovered, so the boundary is the only thing standing between a run and a
+// component traversal reached across it. An inline "(dir)" operand is the one
+// shape that overrides the flag, and it does so for the whole run.
+func TestDiscoveryBoundary_WithholdingAcrossFilterShapes(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		queriesFor func(f boundaryFixture) []string
+		name       string
+		expected   []string
+	}{
+		{
+			name:       "a filter that only excludes still withholds what traversal reached",
+			queriesFor: func(_ boundaryFixture) []string { return []string{"!name=app"} },
+			expected:   []string{"vpc", "edge"},
+		},
+		{
+			name: "an inline operand on any filter stands the flag down",
+			queriesFor: func(f boundaryFixture) []string {
+				return []string{"{" + f.edgeDir + "}...(..)", "{" + f.vpcDir + "}"}
+			},
+			expected: []string{"vpc", "edge", "external"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f, v := newBoundaryFixture(t)
+
+			byName := map[string]string{
+				"vpc":      f.vpcDir,
+				"app":      f.appDir,
+				"edge":     f.edgeDir,
+				"external": f.externalDir,
+			}
+
+			paths := make([]string, len(tc.expected))
+			for i, n := range tc.expected {
+				paths[i] = byName[n]
+			}
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = f.stagingDir
+			opts.RootWorkingDir = f.stagingDir
+
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), tc.queriesFor(f))
+			require.NoError(t, err)
+
+			configs, err := discovery.NewDiscovery(f.stagingDir).
+				WithFilters(filters).
+				WithRelationships().
+				WithDiscoveryBoundary(".").
+				Discover(t.Context(), logger.CreateLogger(), v, opts)
+			require.NoError(t, err)
+
 			assert.ElementsMatch(t, paths, configs.Filter(component.UnitKind).Paths())
 		})
 	}
@@ -384,7 +471,7 @@ func TestDiscoveryBoundary_UnfilteredRunWithholdsOnlyWhatTraversalReached(t *tes
 
 	f, v := newBoundaryFixture(t)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -461,7 +548,7 @@ func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 				expected[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 

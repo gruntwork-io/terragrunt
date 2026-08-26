@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -27,7 +26,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -329,9 +330,9 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 
 // NewTerragruntOptions creates a new TerragruntOptions object with
 // reasonable defaults for real usage.
-func NewTerragruntOptions() *TerragruntOptions {
+func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                   IdentifyDefaultWrappedExecutable(vexec.NewOSExec()),
+		TFPath:                   IdentifyDefaultWrappedExecutable(e),
 		ExcludesFile:             defaultExcludesFile,
 		FiltersFile:              defaultFiltersFile,
 		AutoInit:                 true,
@@ -359,8 +360,11 @@ func NewTerragruntOptions() *TerragruntOptions {
 	}
 }
 
-func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
-	opts := NewTerragruntOptions()
+func NewTerragruntOptionsWithConfigPath(
+	e vexec.Exec,
+	terragruntConfigPath string,
+) (*TerragruntOptions, error) {
+	opts := NewTerragruntOptions(e)
 
 	// Ensure config path is absolute so downstream code can rely on it.
 	// Skip resolution for empty paths (sentinel meaning "not set").
@@ -400,7 +404,7 @@ func NewTerragruntOptionsForTest(
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
 
-	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
+	opts, err := NewTerragruntOptionsWithConfigPath(venv.OSVenv().Exec, terragruntConfigPath)
 	if err != nil {
 		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).
 			Errorf("%v\n", err)
@@ -588,6 +592,7 @@ func IdentifyDefaultWrappedExecutable(e vexec.Exec) string {
 func (opts *TerragruntOptions) RunWithErrorHandling(
 	ctx context.Context,
 	l log.Logger,
+	fsys vfs.FS,
 	r *report.Report,
 	operation func() error,
 ) error {
@@ -633,7 +638,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 
 			// Handle ignore signals if any are configured
 			if len(action.IgnoreSignals) > 0 {
-				if err := opts.handleIgnoreSignals(l, action.IgnoreSignals); err != nil {
+				if err := opts.handleIgnoreSignals(l, fsys, action.IgnoreSignals); err != nil {
 					return err
 				}
 			}
@@ -703,7 +708,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 	}
 }
 
-func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
+func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, fsys vfs.FS, signals map[string]any) error {
 	workingDir := opts.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
 
@@ -716,7 +721,7 @@ func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[str
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
-	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
+	if err := vfs.WriteFile(fsys, signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
 

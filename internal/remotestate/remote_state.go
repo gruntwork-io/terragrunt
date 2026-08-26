@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -135,6 +136,7 @@ func (remote *RemoteState) Migrate(
 			ctx,
 			l,
 			srcV,
+			dstV,
 			remote.BackendConfig,
 			dstRemote.BackendConfig,
 			&opts.Options,
@@ -147,7 +149,7 @@ func (remote *RemoteState) Migrate(
 	}
 
 	defer func() {
-		if err := os.Remove(stateFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := srcV.FS.Remove(stateFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 			l.Warnf("Failed to remove temporary state file %s: %v", stateFile, err)
 		}
 	}()
@@ -246,7 +248,7 @@ func (remote *RemoteState) pullState(
 
 	l.Debugf("Creating temporary state file for migration")
 
-	file, err := os.CreateTemp("", "*.tfstate")
+	file, err := vfs.CreateTemp(v.FS, v.Platform.TempDir(), "*.tfstate")
 	if err != nil {
 		return "", err
 	}

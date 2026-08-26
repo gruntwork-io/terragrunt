@@ -77,6 +77,7 @@ func DownloadTerraformSource(
 
 	terraformSource, err := tf.NewSource(
 		l,
+		v.FS,
 		source,
 		opts.DownloadDir,
 		opts.UnitDir,
@@ -386,7 +387,7 @@ func DownloadTerraformSourceIfNecessary(
 				return util.NotifyIfSlow(
 					childCtx,
 					l,
-					util.SpinnerWriter(),
+					util.SpinnerWriter(v),
 					time.Second,
 					util.SlowNotifyMsg{
 						Spinner: "Downloading source from " + sourceURL + "...",
@@ -607,7 +608,7 @@ func tryCASDownload(
 		return false, err
 	}
 
-	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
+	c, err := cas.New(v, cas.WithCloneDepth(opts.CASCloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
@@ -620,7 +621,7 @@ func tryCASDownload(
 		return false, nil
 	}
 
-	if _, err := git.NewGitRunner(v.Exec); err != nil {
+	if _, err := git.NewGitRunner(v); err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
@@ -644,7 +645,7 @@ func tryCASDownload(
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithDispatchLogger(l),
 		getter.WithDispatchFS(v.FS),
-		getter.WithDispatchEnv(v.Env),
+		getter.WithDispatchVenv(v),
 		getter.WithTFRConfig(opts.TofuImplementation),
 	}
 
@@ -723,7 +724,6 @@ func BuildDownloadClient(
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
-			WithEnv(v.Env).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
 

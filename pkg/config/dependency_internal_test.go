@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -335,7 +335,7 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			pctx := &ParsingContext{Venv: venv.OSVenv().WithEnv(tc.initial)}
+			pctx := &ParsingContext{Venv: venvtest.NewOSWithEmptyEnv().WithEnv(tc.initial)}
 			applyExtraArgsEnvVarsForOutput(pctx, tc.terraform)
 			assert.Equal(t, tc.want, pctx.Venv.Env)
 		})

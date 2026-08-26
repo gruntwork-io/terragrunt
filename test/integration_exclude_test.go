@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -216,7 +217,7 @@ func TestTFExcludeBlockBehavior(t *testing.T) {
 				return
 			}
 
-			runs, err := report.ParseJSONRunsFromFile(reportFile)
+			runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 			require.NoError(t, err, "Failed to parse report file")
 
 			for unitName, expected := range tc.expectedUnits {

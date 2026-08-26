@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
@@ -34,7 +33,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
-	"github.com/gruntwork-io/terragrunt/internal/locks"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -433,7 +431,9 @@ func createTerragruntEvalContext(
 
 // Return the OS platform
 func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return runtime.GOOS, nil
+	pctx.Venv.RequireGOOS()
+
+	return pctx.Venv.Platform.GOOS, nil
 }
 
 // Return the repository root as an absolute path
@@ -792,9 +792,9 @@ func findInParentFoldersImpl(
 			}
 		}
 
-		fileToFind := parentFileCandidate(currentDir, fileToFindParam)
+		fileToFind := parentFileCandidate(pctx.Venv.FS, currentDir, fileToFindParam)
 
-		if parentFileExists(ctx, probes, fileToFind) {
+		if parentFileExists(ctx, pctx.Venv.FS, probes, fileToFind) {
 			return fileToFind, nil
 		}
 
@@ -812,9 +812,9 @@ func findInParentFoldersImpl(
 // the caller passed no argument and wants whichever default config name is
 // present, which costs a probe per known name, so [GetDefaultConfigPath] is
 // only consulted in that case.
-func parentFileCandidate(dir, fileName string) string {
+func parentFileCandidate(fsys vfs.FS, dir, fileName string) string {
 	if fileName == "" {
-		return GetDefaultConfigPath(dir)
+		return GetDefaultConfigPath(fsys, dir)
 	}
 
 	return filepath.Join(dir, fileName)
@@ -829,12 +829,17 @@ func parentFileCandidate(dir, fileName string) string {
 // created in an already-probed ancestor part-way through a run is therefore not
 // observed. Nothing Terragrunt generates lands in an ancestor it has already
 // walked past, and the cache lives only as long as one run.
-func parentFileExists(ctx context.Context, probes *cache.Cache[bool], path string) bool {
+func parentFileExists(
+	ctx context.Context,
+	fsys vfs.FS,
+	probes *cache.Cache[bool],
+	path string,
+) bool {
 	if exists, found := probes.Get(ctx, path); found {
 		return exists
 	}
 
-	exists := util.FileExists(path)
+	exists := vfs.Exists(fsys, path)
 	probes.Put(ctx, path, exists)
 
 	return exists
@@ -959,7 +964,7 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 	// source resolves to a different cache directory.
 	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
-	source, err := tf.NewSource(l, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
+	source, err := tf.NewSource(l, pctx.Venv.FS, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
 	if err != nil {
 		return "", err
 	}
@@ -1058,9 +1063,9 @@ func ParseTerragruntConfig(
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(configPath, pctx.TerragruntConfigPath)
+	targetConfig := getCleanedTargetConfigPath(pctx.Venv.FS, configPath, pctx.TerragruntConfigPath)
 
-	targetConfigFileExists := util.FileExists(targetConfig)
+	targetConfigFileExists := vfs.Exists(pctx.Venv.FS, targetConfig)
 
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, TerragruntConfigNotFoundError{Path: targetConfig}
@@ -1197,7 +1202,7 @@ func readTerragruntConfigAsFuncImpl(
 // Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
 // paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
 // path is a directory.
-func getCleanedTargetConfigPath(configPath string, workingPath string) string {
+func getCleanedTargetConfigPath(fsys vfs.FS, configPath string, workingPath string) string {
 	cwd := filepath.Dir(workingPath)
 
 	targetConfig := configPath
@@ -1205,8 +1210,8 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 		targetConfig = filepath.Join(cwd, targetConfig)
 	}
 
-	if util.IsDir(targetConfig) {
-		targetConfig = GetDefaultConfigPath(targetConfig)
+	if vfs.IsDir(fsys, targetConfig) {
+		targetConfig = GetDefaultConfigPath(fsys, targetConfig)
 	}
 
 	return filepath.Clean(targetConfig)
@@ -1327,58 +1332,30 @@ func sopsDecryptFileImpl(
 	format string,
 	d vsops.Decrypter,
 ) (string, error) {
+	pctx.Venv.RequireEnv()
+
 	sopsCache := cache.ContextCache[string](ctx, SopsCacheContextKey)
 
-	// Fast path: check cache before acquiring lock.
-	// Cache has its own sync.RWMutex, safe for concurrent reads.
 	if val, ok := sopsCache.Get(ctx, path); ok {
 		l.Debugf("sops decrypt: cache hit for %s (len=%d)", path, len(val))
 
 		return val, nil
 	}
 
-	// Cache miss: acquire lock for env mutation + decrypt.
-	// The lock serializes os.Setenv/os.Unsetenv to prevent race conditions
-	// when multiple units decrypt concurrently with different auth credentials.
-	// See https://github.com/gruntwork-io/terragrunt/issues/5515
-	l.Debugf("sops decrypt: cache miss, acquiring lock for %s (format=%s)", path, format)
+	sopsLocks := sopsLocksFromContext(ctx)
 
-	locks.EnvLock.Lock()
-	defer locks.EnvLock.Unlock()
+	sopsLocks.Lock(path)
+	defer sopsLocks.Unlock(path)
 
-	// Double-check: another goroutine may have populated cache while we waited for the lock.
+	// Whoever held the lock may have been decrypting this very path, so the
+	// cache is consulted again before paying for a decrypt of our own.
 	if val, ok := sopsCache.Get(ctx, path); ok {
 		l.Debugf("sops decrypt: cache hit after lock for %s (len=%d)", path, len(val))
 
 		return val, nil
 	}
 
-	// Set env vars from the venv environment that are missing from process env.
-	// Auth-provider credentials (e.g., AWS_SESSION_TOKEN) may not exist
-	// in process env yet — SOPS needs them for KMS auth.
-	// Existing process env vars are preserved to avoid overriding real
-	// credentials with empty auth-provider values.
-	env := pctx.Venv.Env
-
-	setKeys := make([]string, 0, len(env))
-
-	for k, v := range env {
-		if _, exists := os.LookupEnv(k); exists {
-			continue
-		}
-
-		os.Setenv(k, v) //nolint:errcheck
-
-		setKeys = append(setKeys, k)
-	}
-
-	defer func() {
-		for _, k := range setKeys {
-			os.Unsetenv(k) //nolint:errcheck
-		}
-	}()
-
-	l.Debugf("sops decrypt: decrypting %s", path)
+	l.Debugf("sops decrypt: decrypting %s (format=%s)", path, format)
 
 	var rawData []byte
 
@@ -1389,7 +1366,7 @@ func sopsDecryptFileImpl(
 		}, func(ctx context.Context, l log.Logger) error {
 			var decryptErr error
 
-			rawData, decryptErr = d.DecryptFile(path, format)
+			rawData, decryptErr = d.DecryptFile(pctx.Venv.Env, path, format)
 
 			return decryptErr
 		})
@@ -1405,6 +1382,18 @@ func sopsDecryptFileImpl(
 	}
 
 	return "", InvalidSopsFormatError{SourceFilePath: path}
+}
+
+// sopsLocksFromContext returns the per-path decrypt locks, so units sharing an
+// encrypted file wait for the first decrypt rather than each paying for one. A
+// decrypt can be a KMS round-trip, which is why the duplicate work is worth
+// waiting out.
+func sopsLocksFromContext(ctx context.Context) *util.KeyLocks {
+	if val, ok := ctx.Value(SopsLocksContextKey).(*util.KeyLocks); ok && val != nil {
+		return val
+	}
+
+	return util.NewKeyLocks()
 }
 
 // Return the location of the Terraform files provided via --source
@@ -1562,14 +1551,14 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 		varFile = filepath.Clean(varFile)
 	}
 
-	if !util.FileExists(varFile) {
+	if !vfs.Exists(pctx.Venv.FS, varFile) {
 		return "", TFVarFileNotFoundError{File: varFile}
 	}
 
 	// Track that this file was read during parsing
 	pctx.FilesRead.Add(varFile)
 
-	fileContents, err := os.ReadFile(varFile)
+	fileContents, err := vfs.ReadFile(pctx.Venv.FS, varFile)
 	if err != nil {
 		return "", fmt.Errorf("could not read file %q: %w", varFile, err)
 	}

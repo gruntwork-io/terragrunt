@@ -1,24 +1,10 @@
 package exec
 
 import (
-	"fmt"
-	"slices"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
-
-const envVarsListFormat = "%s=%s"
-
-// envMapToSortedSlice formats env as "KEY=VALUE" strings sorted alphabetically.
-func envMapToSortedSlice(env map[string]string) []string {
-	out := make([]string, 0, len(env))
-	for k, v := range env {
-		out = append(out, fmt.Sprintf(envVarsListFormat, k, v))
-	}
-
-	slices.Sort(out)
-
-	return out
-}
 
 // Option is type for passing options to the Cmd.
 type Option func(*Cmd)
@@ -33,7 +19,7 @@ func WithUsePTY(state bool) Option {
 // WithEnv sets envs to the Cmd.
 func WithEnv(env map[string]string) Option {
 	return func(cmd *Cmd) {
-		cmd.SetEnv(envMapToSortedSlice(env))
+		cmd.SetEnv(venv.Environ(env))
 	}
 }
 

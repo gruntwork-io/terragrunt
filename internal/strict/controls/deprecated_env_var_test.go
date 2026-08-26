@@ -42,9 +42,8 @@ func TestNewDeprecatedEnvVar(t *testing.T) {
 	})
 }
 
-// applyEnvVarFlag wires a fake env lookup into the provided flag and applies
-// it to a fresh flag set, so flag.Value().IsEnvSet() / GetName() reflect the
-// provided env value.
+// applyEnvVarFlag applies the provided flag to a fresh flag set against envs,
+// so flag.Value().IsEnvSet() / GetName() reflect the provided env value.
 func applyEnvVarFlag[T clihelper.GenericType](
 	t *testing.T,
 	flag *clihelper.GenericFlag[T],
@@ -52,33 +51,17 @@ func applyEnvVarFlag[T clihelper.GenericType](
 ) {
 	t.Helper()
 
-	flag.LookupEnvFunc = func(key string) []string {
-		if val, ok := envs[key]; ok {
-			return []string{val}
-		}
-
-		return nil
-	}
-
 	set := libflag.NewFlagSet("test", libflag.ContinueOnError)
 	set.SetOutput(io.Discard)
-	require.NoError(t, flag.Apply(set))
+	require.NoError(t, flag.Apply(set, envs))
 }
 
 func applyEnvVarBoolFlag(t *testing.T, flag *clihelper.BoolFlag, envs map[string]string) {
 	t.Helper()
 
-	flag.LookupEnvFunc = func(key string) []string {
-		if val, ok := envs[key]; ok {
-			return []string{val}
-		}
-
-		return nil
-	}
-
 	set := libflag.NewFlagSet("test", libflag.ContinueOnError)
 	set.SetOutput(io.Discard)
-	require.NoError(t, flag.Apply(set))
+	require.NoError(t, flag.Apply(set, envs))
 }
 
 func TestDeprecatedEnvVarEvaluateReturnsNilWhenNotEnvSet(t *testing.T) {
@@ -87,8 +70,8 @@ func TestDeprecatedEnvVarEvaluateReturnsNilWhenNotEnvSet(t *testing.T) {
 	deprecated := &clihelper.GenericFlag[string]{Name: "old", EnvVars: []string{"OLD_ENV"}}
 	newer := &clihelper.GenericFlag[string]{Name: "new", EnvVars: []string{"NEW_ENV"}}
 
-	applyEnvVarFlag(t, deprecated, nil)
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, deprecated, map[string]string{})
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	require.NoError(t, ctrl.Evaluate(t.Context()))
@@ -107,19 +90,12 @@ func TestDeprecatedEnvVarEvaluateReturnsNilWhenNameNotInDeprecatedEnvVars(t *tes
 	// arg so flag.name is overwritten to "old" (the flag name, not env var).
 	// This makes IsEnvSet=true while GetName() returns "old", which is not in
 	// GetEnvVars(), exercising the slices.Contains branch.
-	deprecated.LookupEnvFunc = func(key string) []string {
-		if key == "OLD_ENV" {
-			return []string{"envValue"}
-		}
-
-		return nil
-	}
 	set := libflag.NewFlagSet("test", libflag.ContinueOnError)
 	set.SetOutput(io.Discard)
-	require.NoError(t, deprecated.Apply(set))
+	require.NoError(t, deprecated.Apply(set, map[string]string{"OLD_ENV": "envValue"}))
 	require.NoError(t, set.Parse([]string{"--old", "argValue"}))
 
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	require.NoError(t, ctrl.Evaluate(t.Context()))
@@ -132,7 +108,7 @@ func TestDeprecatedEnvVarEvaluateEnabledActiveReturnsError(t *testing.T) {
 	newer := &clihelper.GenericFlag[string]{Name: "new", EnvVars: []string{"NEW_ENV"}}
 
 	applyEnvVarFlag(t, deprecated, map[string]string{"OLD_ENV": "value"})
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	ctrl.Control.Enabled = true
@@ -150,7 +126,7 @@ func TestDeprecatedEnvVarEvaluateEnabledCompletedReturnsNil(t *testing.T) {
 	newer := &clihelper.GenericFlag[string]{Name: "new", EnvVars: []string{"NEW_ENV"}}
 
 	applyEnvVarFlag(t, deprecated, map[string]string{"OLD_ENV": "value"})
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	ctrl.Control.Enabled = true
@@ -166,7 +142,7 @@ func TestDeprecatedEnvVarEvaluateEnabledEmptyErrorFmtReturnsNil(t *testing.T) {
 	newer := &clihelper.GenericFlag[string]{Name: "new", EnvVars: []string{"NEW_ENV"}}
 
 	applyEnvVarFlag(t, deprecated, map[string]string{"OLD_ENV": "value"})
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	ctrl.Control.Enabled = true
@@ -186,7 +162,7 @@ func TestDeprecatedEnvVarEvaluateDisabledWithLogger(t *testing.T) {
 	newer := &clihelper.GenericFlag[string]{Name: "new", EnvVars: []string{"NEW_ENV"}}
 
 	applyEnvVarFlag(t, deprecated, map[string]string{"OLD_ENV": "value"})
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	require.NoError(t, ctrl.Evaluate(ctx))
@@ -202,7 +178,7 @@ func TestDeprecatedEnvVarEvaluateDisabledWithSuppression(t *testing.T) {
 	newer := &clihelper.GenericFlag[string]{Name: "new", EnvVars: []string{"NEW_ENV"}}
 
 	applyEnvVarFlag(t, deprecated, map[string]string{"OLD_ENV": "value"})
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	ctrl.SuppressWarning()
@@ -216,7 +192,7 @@ func TestDeprecatedEnvVarEvaluateDisabledWithoutLogger(t *testing.T) {
 	newer := &clihelper.GenericFlag[string]{Name: "new", EnvVars: []string{"NEW_ENV"}}
 
 	applyEnvVarFlag(t, deprecated, map[string]string{"OLD_ENV": "value"})
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	require.NoError(t, ctrl.Evaluate(t.Context()))
@@ -229,7 +205,7 @@ func TestDeprecatedEnvVarEvaluateNewFlagWithoutEnvVars(t *testing.T) {
 	newer := &clihelper.GenericFlag[string]{Name: "new"} // no env vars
 
 	applyEnvVarFlag(t, deprecated, map[string]string{"OLD_ENV": "value"})
-	applyEnvVarFlag(t, newer, nil)
+	applyEnvVarFlag(t, newer, map[string]string{})
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	require.NoError(t, ctrl.Evaluate(t.Context()))
@@ -242,7 +218,7 @@ func TestDeprecatedEnvVarEvaluateFallsBackToDeprecatedValue(t *testing.T) {
 	newer := &clihelper.GenericFlag[string]{Name: "new", EnvVars: []string{"NEW_ENV"}}
 
 	applyEnvVarFlag(t, deprecated, map[string]string{"OLD_ENV": "deprecatedVal"})
-	applyEnvVarFlag(t, newer, nil) // newer has no value -> falls back
+	applyEnvVarFlag(t, newer, map[string]string{}) // newer has no value -> falls back
 
 	ctrl := controls.NewDeprecatedEnvVar(deprecated, newer, "")
 	ctrl.Control.Enabled = true

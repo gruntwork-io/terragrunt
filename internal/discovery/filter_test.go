@@ -10,10 +10,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func TestDiscovery_GraphExpressionFilters(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -100,7 +100,7 @@ dependency "vpc" {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+			components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			units := components.Filter(component.UnitKind).Paths()
@@ -116,7 +116,7 @@ func TestDiscovery_GraphExpressionFilters_ComplexGraph(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -182,7 +182,7 @@ dependency "vpc" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
-		configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+		configs, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 		require.NoError(t, err)
 
 		units := configs.Filter(component.UnitKind).Paths()
@@ -241,7 +241,7 @@ dependency "db" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
-		configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+		configs, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 		require.NoError(t, err)
 
 		units := configs.Filter(component.UnitKind).Paths()
@@ -306,7 +306,7 @@ dependency "vpc" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
-		configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+		configs, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 		require.NoError(t, err)
 
 		units := configs.Filter(component.UnitKind).Paths()
@@ -491,7 +491,7 @@ locals {
 				WithFilters(filters).
 				WithReadFiles()
 
-			configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+			configs, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			units := configs.Filter(component.UnitKind).Paths()
@@ -543,7 +543,7 @@ locals {
 		WithFilters(filters).
 		WithReadFiles()
 
-	configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	configs, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Should find the app component when filtering by absolute path
@@ -750,7 +750,7 @@ unit "test" {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+			configs, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			units := configs.Filter(component.UnitKind).Paths()
@@ -844,7 +844,7 @@ func TestDiscovery_FilterEdgeCases(t *testing.T) {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			configs, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+			configs, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			units := configs.Filter(component.UnitKind).Paths()
@@ -931,7 +931,7 @@ func TestDiscovery_FilterErrorHandling(t *testing.T) {
 				WithFilters(filters)
 
 			// Attempt discovery - errors should occur during evaluation
-			_, err = d.Discover(ctx, l, venv.OSVenv(), opts)
+			_, err = d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 			if tt.errorExpected {
 				require.Error(t, err, "Expected error for filter: %v", tt.filterQueries)
 			} else {
@@ -998,7 +998,7 @@ dependency "external" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithFilters(filters)
 
-		components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 		require.NoError(t, err)
 
 		units := components.Filter(component.UnitKind).Paths()
@@ -1015,7 +1015,7 @@ dependency "external" {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithFilters(filters)
 
-		components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 		require.NoError(t, err)
 
 		units := components.Filter(component.UnitKind).Paths()
@@ -1031,7 +1031,7 @@ func TestDiscovery_DependentDiscovery_Standalone(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1086,7 +1086,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Should include vpc (target) and db (direct dependent) and app (transitive dependent)
@@ -1103,7 +1103,7 @@ func TestDiscovery_DependentDiscovery_ExcludeTarget(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1151,7 +1151,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Should include only app (dependent), not vpc (target is excluded)
@@ -1174,7 +1174,7 @@ func TestDiscovery_DependencyDiscovery_ExcludeTarget(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1228,7 +1228,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Should include only db and vpc (dependencies), not app (target is excluded)
@@ -1249,7 +1249,7 @@ func TestDiscovery_DependentDiscovery_Bidirectional(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1303,7 +1303,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Should include: app (dependent), db (target), vpc (dependency)
@@ -1322,7 +1322,7 @@ func TestDiscovery_DependentDiscovery_OutsideWorkingDir(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize git repository at the root
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1383,7 +1383,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: appDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Should include vpc (target) and consumer (dependent outside working dir)
@@ -1408,7 +1408,7 @@ func TestDiscovery_DependentDiscovery_OutsideWorkingDir_MultipleLevels(t *testin
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize git repository at the root
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1478,7 +1478,7 @@ dependency "api" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: infraDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Should include vpc (target), api (direct dependent), and frontend (transitive dependent)
@@ -1507,7 +1507,7 @@ func TestDiscovery_DependentDiscovery_DirectDependentOnly(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1564,7 +1564,7 @@ dependency "db" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	// Should include db (target), api (dependent), web (dependent)
@@ -1626,7 +1626,7 @@ func TestDiscovery_NegatedGraphFilters(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
+			runner, err := git.NewGitRunner(venv.OSVenv())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -1678,7 +1678,7 @@ dependency "vpc" {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			components, err := d.Discover(ctx, l, venv.OSVenv(), opts)
+			components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			paths := components.Filter(component.UnitKind).Paths()

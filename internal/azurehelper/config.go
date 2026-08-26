@@ -1,6 +1,7 @@
 package azurehelper
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -8,8 +9,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -19,6 +22,16 @@ import (
 // from a remote_state backend block, with environment variable fallbacks applied
 // during Build.
 type AzureSessionConfig struct {
+	// UseAzureADAuth selects the Azure AD default credential chain. A nil
+	// value means the user did not say, so an ARM_USE_* environment variable
+	// may set it; an explicit false is honored and never overridden.
+	UseAzureADAuth *bool
+	// UseMSI selects managed identity authentication. nil means unset; see
+	// UseAzureADAuth for how nil differs from an explicit false.
+	UseMSI *bool
+	// UseOIDC selects OIDC / workload identity authentication. nil means
+	// unset; see UseAzureADAuth for how nil differs from an explicit false.
+	UseOIDC *bool
 	// SubscriptionID is the Azure subscription hosting the storage account.
 	SubscriptionID string
 	// TenantID is the Azure AD tenant used by token-based auth methods.
@@ -41,26 +54,24 @@ type AzureSessionConfig struct {
 	OIDCTokenFilePath string
 	// CloudEnvironment selects the cloud: "" / "public", "usgovernment", "china".
 	CloudEnvironment string
-	// UseAzureADAuth selects the Azure AD default credential chain.
-	UseAzureADAuth bool
-	// UseMSI selects managed identity authentication.
-	UseMSI bool
-	// UseOIDC selects OIDC / workload identity authentication.
-	UseOIDC bool
+}
+
+// isUnset reports whether the user left a tri-state flag unset, which is the
+// only state an ARM_USE_* variable may turn on: an explicit false stays false.
+func isUnset(v *bool) bool {
+	return v == nil
 }
 
 // AzureConfigBuilder builds an AzureConfig using the builder pattern.
 // Use NewAzureConfigBuilder to create, chain With* methods, then call Build().
 type AzureConfigBuilder struct {
 	sessionConfig *AzureSessionConfig
-	venv          *venv.Venv
 }
 
 // NewAzureConfigBuilder creates a new builder for AzureConfig.
 func NewAzureConfigBuilder() *AzureConfigBuilder {
 	return &AzureConfigBuilder{
 		sessionConfig: &AzureSessionConfig{},
-		venv:          (&venv.Venv{}).WithEnv(map[string]string{}),
 	}
 }
 
@@ -71,25 +82,6 @@ func (b *AzureConfigBuilder) WithSessionConfig(cfg *AzureSessionConfig) *AzureCo
 	}
 
 	b.sessionConfig = cfg
-
-	return b
-}
-
-// WithVenv sets the virtualized environment whose Env map feeds ARM_* /
-// AZURE_* fallback resolution; the builder never reads the process
-// environment itself.
-func (b *AzureConfigBuilder) WithVenv(v *venv.Venv) *AzureConfigBuilder {
-	if v == nil {
-		return b
-	}
-
-	// WithEnv panics on a nil map, so an unset Env resolves to no fallbacks.
-	env := v.Env
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	b.venv = v.WithEnv(env)
 
 	return b
 }
@@ -136,6 +128,11 @@ type AzureConfig struct {
 	// for passing to Azure SDK client constructors as the embedded
 	// azcore.ClientOptions value.
 	ClientOptions azcore.ClientOptions
+	// UseAzureADAuth records whether the user asked for direct Microsoft Entra
+	// authorization on the blob data plane. When false, the native azurerm
+	// backend authenticates to ARM and uses a storage account key for blob
+	// access instead, so callers with a ctx mirror that.
+	UseAzureADAuth bool
 }
 
 // Build resolves credentials from the session config and environment and
@@ -150,10 +147,13 @@ type AzureConfig struct {
 //
 // Environment variable fallbacks (ARM_* / AZURE_*) are applied to subscription,
 // tenant, client id, client secret, SAS token, and access key when the session
-// config leaves them empty.
-func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
+// config leaves them empty. They resolve from v.Env; the process environment is
+// never consulted, so resolution stays fully caller-controlled.
+func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, error) {
+	v.RequireEnv()
+
 	resolved := *b.sessionConfig
-	b.applyEnvFallbacks(&resolved)
+	applyEnvFallbacks(v.Env, &resolved)
 
 	cloudCfg, err := CloudConfigForEnvironment(resolved.CloudEnvironment)
 	if err != nil {
@@ -163,6 +163,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 	clientOpts := azcore.ClientOptions{Cloud: cloudCfg}
 
 	out := &AzureConfig{
+		UseAzureADAuth: util.Deref(resolved.UseAzureADAuth),
 		SubscriptionID: resolved.SubscriptionID,
 		TenantID:       resolved.TenantID,
 		AccountName:    resolved.StorageAccountName,
@@ -204,7 +205,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case resolved.UseMSI:
+	case util.Deref(resolved.UseMSI):
 		opts := &azidentity.ManagedIdentityCredentialOptions{ClientOptions: clientOpts}
 		opts.ID = managedIdentityID(&resolved)
 
@@ -220,7 +221,28 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case resolved.UseOIDC:
+	case util.Deref(resolved.UseOIDC):
+		// A request-URL flow (GitHub Actions, Azure DevOps) takes precedence
+		// over the token file, matching the native azurerm backend. Without
+		// this, a CI config that authenticates fine during `tofu init` would
+		// fail during Terragrunt's own lifecycle operations.
+		if getAssertion := oidcAssertionProvider(v); getAssertion != nil {
+			cred, err := azidentity.NewClientAssertionCredential(
+				resolved.TenantID, resolved.ClientID, getAssertion,
+				&azidentity.ClientAssertionCredentialOptions{ClientOptions: clientOpts},
+			)
+			if err != nil {
+				return nil, fmt.Errorf("creating OIDC client assertion credential: %w", err)
+			}
+
+			out.Method = AuthMethodOIDC
+			out.Credential = cred
+
+			l.Debugf("azurehelper: using OIDC authentication via a federated token request url")
+
+			return out, validate(out, &resolved)
+		}
+
 		cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
 			ClientOptions: clientOpts,
 			TenantID:      resolved.TenantID,
@@ -238,7 +260,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 		return out, validate(out, &resolved)
 
-	case resolved.UseAzureADAuth:
+	case util.Deref(resolved.UseAzureADAuth):
 		return buildAzureADConfig(out, &resolved, &clientOpts, l, "use_azuread_auth")
 
 	default:
@@ -250,16 +272,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 // chain. Shared by the explicit use_azuread_auth tier and the default fallback
 // so the use_azuread_auth field is honored rather than silently dead.
 //
-// The chain tries an explicit AzureCLICredential first, then
-// DefaultAzureCredential. As of azidentity v1.13, DefaultAzureCredential
-// excludes the Azure CLI unless AZURE_TOKEN_CREDENTIALS opts in, so a plain
-// `az login` would otherwise be ignored. AzureCLICredential reports
-// "unavailable" when az is not installed or not logged in, which lets the chain
-// fall through to DefaultAzureCredential (environment / workload-identity /
-// managed-identity) in CI. The CLI must come first because
-// DefaultAzureCredential can return a hard (non-"unavailable") error (e.g. an
-// IMDS probe that gets an unexpected response) which would halt the chain
-// before the CLI is reached. This matches OpenTofu azurerm's `use_cli` default.
+// AzureCLICredential runs first so `az login` does not wait behind the managed-identity probe in DefaultAzureCredential.
 func buildAzureADConfig(
 	out *AzureConfig,
 	resolved *AzureSessionConfig,
@@ -283,9 +296,11 @@ func buildAzureADConfig(
 	return out, validate(out, resolved)
 }
 
-// chainedCredential prepends an Azure CLI credential to defaultCred when one
-// can be constructed; on any construction error it logs and keeps defaultCred
-// alone, so an operator expecting `az login` precedence is not left guessing.
+// chainedCredential tries the Azure CLI credential before the default chain.
+// DefaultAzureCredential reaches the CLI only after probing the instance
+// metadata endpoint, which costs about 100 seconds on a host that has no
+// managed identity, so an interactive `az login` session would otherwise
+// appear to hang before it is ever consulted.
 func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l log.Logger) azcore.TokenCredential {
 	cliCred, err := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{
 		TenantID: tenantID,
@@ -296,7 +311,10 @@ func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l lo
 		return defaultCred
 	}
 
-	chain, err := azidentity.NewChainedTokenCredential([]azcore.TokenCredential{cliCred, defaultCred}, nil)
+	chain, err := azidentity.NewChainedTokenCredential(
+		[]azcore.TokenCredential{credentialUnavailableOnError{credential: cliCred}, defaultCred},
+		nil,
+	)
 	if err != nil {
 		l.Debugf("azurehelper: failed to build CLI credential chain, using DefaultAzureCredential only: %v", err)
 
@@ -308,8 +326,8 @@ func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l lo
 
 // BuildBlobClient is a convenience that calls Build and then constructs a
 // BlobClient from the resulting AzureConfig.
-func (b *AzureConfigBuilder) BuildBlobClient(l log.Logger) (*BlobClient, error) {
-	cfg, err := b.Build(l)
+func (b *AzureConfigBuilder) BuildBlobClient(l log.Logger, v *venv.Venv) (*BlobClient, error) {
+	cfg, err := b.Build(l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -325,12 +343,17 @@ func (b *AzureConfigBuilder) BuildBlobClient(l log.Logger) (*BlobClient, error) 
 // SAS-token and access-key auth methods are rejected up-front because they
 // cannot reach the ARM control plane; the rejection happens before Build
 // emits any auth-resolution debug logs, keeping the failure mode obvious.
-func (b *AzureConfigBuilder) BuildStorageAccountClient(l log.Logger) (*StorageAccountClient, error) {
+func (b *AzureConfigBuilder) BuildStorageAccountClient(
+	l log.Logger,
+	v *venv.Venv,
+) (*StorageAccountClient, error) {
+	v.RequireEnv()
+
 	// Pre-flight against env-resolved values as well, not just the explicitly
 	// supplied sessionConfig: ARM_SAS_TOKEN / ARM_ACCESS_KEY would otherwise
 	// reach Build and fail with a less obvious error from the ARM client.
 	preflight := *b.sessionConfig
-	b.applyEnvFallbacks(&preflight)
+	applyEnvFallbacks(v.Env, &preflight)
 
 	switch {
 	case preflight.SasToken != "":
@@ -339,7 +362,7 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(l log.Logger) (*StorageAc
 		return nil, &UnsupportedAuthForOpError{Method: AuthMethodAccessKey, Operation: "storage account operations"}
 	}
 
-	cfg, err := b.Build(l)
+	cfg, err := b.Build(l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -347,9 +370,9 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(l log.Logger) (*StorageAc
 	return NewStorageAccountClient(cfg)
 }
 
-// applyEnvFallbacks fills empty fields on cfg from the builder's env map.
+// applyEnvFallbacks fills empty fields on cfg from env.
 // Mirrors the ARM_* and AZURE_* names used by the OpenTofu azurerm backend.
-func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
+func applyEnvFallbacks(env map[string]string, cfg *AzureSessionConfig) {
 	fallbacks := []struct {
 		field *string
 		keys  []string
@@ -375,20 +398,23 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 		*fb.field = strings.TrimSpace(*fb.field)
 
 		if *fb.field == "" {
-			*fb.field = strings.TrimSpace(b.firstEnv(fb.keys...))
+			*fb.field = strings.TrimSpace(firstEnv(env, fb.keys...))
 		}
 	}
 
-	if !cfg.UseMSI && parseBool(b.firstEnv("ARM_USE_MSI")) {
-		cfg.UseMSI = true
+	// Only an UNSET flag may be turned on by the environment. A user who wrote
+	// `use_msi = false` has said what they want, and a stray ARM_USE_MSI on the
+	// runner must not override it.
+	if isUnset(cfg.UseMSI) && parseBool(firstEnv(env, "ARM_USE_MSI")) {
+		cfg.UseMSI = new(true)
 	}
 
-	if !cfg.UseOIDC && parseBool(b.firstEnv("ARM_USE_OIDC")) {
-		cfg.UseOIDC = true
+	if isUnset(cfg.UseOIDC) && parseBool(firstEnv(env, "ARM_USE_OIDC")) {
+		cfg.UseOIDC = new(true)
 	}
 
-	if !cfg.UseAzureADAuth && parseBool(b.firstEnv("ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH")) {
-		cfg.UseAzureADAuth = true
+	if isUnset(cfg.UseAzureADAuth) && parseBool(firstEnv(env, "ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH")) {
+		cfg.UseAzureADAuth = new(true)
 	}
 
 	// Presence of a federated token file implies OIDC / workload-identity auth.
@@ -396,17 +422,25 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	// without ARM_USE_OIDC, so without this the explicit OIDC tier is unreachable.
 	// Defer to an explicit higher-tier choice (MSI / Azure AD) so a stray token
 	// file in the environment does not override what the user asked for.
-	if !cfg.UseOIDC && !cfg.UseMSI && !cfg.UseAzureADAuth && cfg.OIDCTokenFilePath != "" {
-		cfg.UseOIDC = true
+	if isUnset(cfg.UseOIDC) && !util.Deref(cfg.UseMSI) && !util.Deref(cfg.UseAzureADAuth) && cfg.OIDCTokenFilePath != "" {
+		cfg.UseOIDC = new(true)
+	}
+
+	// A federated token request url (GitHub Actions, Azure DevOps) implies OIDC
+	// the same way a token file does. CI injects these without ARM_USE_OIDC, so
+	// without this the request-url flows would be unreachable.
+	if isUnset(cfg.UseOIDC) && !util.Deref(cfg.UseMSI) && !util.Deref(cfg.UseAzureADAuth) &&
+		firstEnv(env, "ARM_OIDC_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_URL", "SYSTEM_OIDCREQUESTURI") != "" {
+		cfg.UseOIDC = new(true)
 	}
 }
 
-// firstEnv returns the first non-empty value found for keys in the builder's
-// venv environment; the process environment is never consulted, so resolution
-// stays hermetic and fully caller-controlled.
-func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
+// firstEnv returns the first non-empty value found for keys in env; the process
+// environment is never consulted, so resolution stays hermetic and fully
+// caller-controlled.
+func firstEnv(env map[string]string, keys ...string) string {
 	for _, k := range keys {
-		if v := b.venv.Env[k]; v != "" {
+		if v := env[k]; v != "" {
 			return v
 		}
 	}
@@ -458,6 +492,11 @@ func managedIdentityID(cfg *AzureSessionConfig) azidentity.ManagedIDKind {
 }
 
 // validate returns an error if required fields are missing for the chosen method.
+//
+// subscription_id is deliberately NOT required here: Blob data-plane access via
+// Microsoft Entra needs only the account endpoint and a token. It is enforced
+// where it is actually used, by NewStorageAccountClient and
+// NewResourceGroupClient, which reach the ARM control plane.
 func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 	// SAS token and access key are data-plane only and bound to a specific
 	// account; subscription not required.
@@ -469,10 +508,6 @@ func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 		return nil
 	}
 
-	if out.SubscriptionID == "" {
-		return fmt.Errorf("%w (set via config, ARM_SUBSCRIPTION_ID, or AZURE_SUBSCRIPTION_ID)", ErrSubscriptionIDRequired)
-	}
-
 	if out.Method == AuthMethodServicePrincipal {
 		if cfg.TenantID == "" || cfg.ClientID == "" || cfg.ClientSecret == "" {
 			return errors.New("service principal authentication requires tenant_id, client_id, and client_secret")
@@ -480,4 +515,20 @@ func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 	}
 
 	return nil
+}
+
+type credentialUnavailableOnError struct {
+	credential azcore.TokenCredential
+}
+
+func (c credentialUnavailableOnError) GetToken(
+	ctx context.Context,
+	opts policy.TokenRequestOptions,
+) (azcore.AccessToken, error) {
+	token, err := c.credential.GetToken(ctx, opts)
+	if err != nil {
+		return token, azidentity.NewCredentialUnavailableError(err.Error())
+	}
+
+	return token, nil
 }

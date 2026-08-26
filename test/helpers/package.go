@@ -211,7 +211,7 @@ func CopyAndFillMapPlaceholders(
 ) {
 	t.Helper()
 
-	contents, err := util.ReadFileAsString(srcPath)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), srcPath)
 	require.NoError(t, err, "Error reading file at %s: %v", srcPath, err)
 
 	// iterate over placeholders and replace placeholders
@@ -784,11 +784,11 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 func unmarshalFile(t *testing.T, filename string, dest any) {
 	t.Helper()
 
-	if !util.FileExists(filename) {
+	data, err := os.ReadFile(filename)
+	if errors.Is(err, os.ErrNotExist) {
 		return
 	}
 
-	data, err := os.ReadFile(filename)
 	require.NoError(t, err)
 	err = json.Unmarshal(data, dest)
 	require.NoError(t, err)
@@ -1193,7 +1193,7 @@ func RunTerragruntCommandWithContext(
 	syncWriter := util.NewSyncWriter(writer)
 	syncErrWriter := util.NewSyncWriter(errwriter)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 	v := venv.OSVenv()
 	v.Writers = &writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
@@ -1321,7 +1321,7 @@ func RunTerragruntValidateInputs(
 	t.Helper()
 
 	maybeNested := filepath.Join(moduleDir, "module")
-	if util.FileExists(maybeNested) {
+	if vfs.Exists(vfs.NewOSFS(), maybeNested) {
 		// Nested module test case with included file, so run terragrunt from the nested module.
 		moduleDir = maybeNested
 	}

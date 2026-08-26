@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -97,6 +96,7 @@ func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 
 	pinned, err := tf.NewSource(
 		l,
+		vfs.NewOSFS(),
 		registryTestModuleSource+"?version=0.0.2",
 		filepath.Join(rootPath, ".terragrunt-cache"),
 		rootPath,
@@ -104,7 +104,7 @@ func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	assert.True(t, util.FileExists(filepath.Join(pinned.WorkingDir, "main.tf")))
+	assert.FileExists(t, filepath.Join(pinned.WorkingDir, "main.tf"))
 
 	wantVersion, err := pinned.EncodeSourceVersion(l, vfs.NewOSFS())
 	require.NoError(t, err)
@@ -114,6 +114,7 @@ func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	// below could not tell 0.0.2 apart from 0.0.1.
 	otherPin, err := tf.NewSource(
 		l,
+		vfs.NewOSFS(),
 		registryTestModuleSource+"?version=0.0.1",
 		filepath.Join(rootPath, ".terragrunt-cache"),
 		rootPath,
@@ -125,7 +126,7 @@ func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, wantVersion, otherVersion)
 
-	gotVersion, err := util.ReadFileAsString(pinned.VersionFile)
+	gotVersion, err := vfs.ReadFileAsString(vfs.NewOSFS(), pinned.VersionFile)
 	require.NoError(t, err)
 	assert.Equal(t, wantVersion, gotVersion)
 }
@@ -155,6 +156,7 @@ func TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *test
 
 		pinned, err := tf.NewSource(
 			l,
+			vfs.NewOSFS(),
 			registryTestModuleSource+"?version=0.0.2",
 			filepath.Join(unitPath, ".terragrunt-cache"),
 			unitPath,
@@ -165,7 +167,7 @@ func TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *test
 		wantVersion, err := pinned.EncodeSourceVersion(l, vfs.NewOSFS())
 		require.NoError(t, err)
 
-		gotVersion, err := util.ReadFileAsString(pinned.VersionFile)
+		gotVersion, err := vfs.ReadFileAsString(vfs.NewOSFS(), pinned.VersionFile)
 		require.NoError(t, err)
 		assert.Equal(t, wantVersion, gotVersion, unit)
 	}

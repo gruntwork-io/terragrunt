@@ -28,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
@@ -36,6 +35,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const (
@@ -175,18 +175,18 @@ func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureCatalogLocalTemplate)
 
 	targetPath := filepath.Join(rootPath, "app")
-	moduleURL := "github.com/gruntwork-io/terragrunt//test/fixtures/inputs"
+	moduleSource := localScaffoldSource(t, testFixtureInputs)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt scaffold --non-interactive --working-dir "+targetPath+" "+moduleURL,
+		"terragrunt scaffold --non-interactive --working-dir "+targetPath+" "+moduleSource,
 	)
 
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(targetPath, "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(targetPath, "custom-template.txt"))
 
-	content, err := util.ReadFileAsString(filepath.Join(targetPath, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(targetPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 	assert.Contains(t, content, "# Custom local template")
 }
@@ -207,7 +207,7 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 		t.Context(),
 		l,
 		pctx,
-		config.DefaultParserOptions(l, opts.StrictControls),
+		config.DefaultParserOptions(l, venvtest.NewWithOSFS(), opts.StrictControls),
 	)
 	require.NoError(t, err)
 
@@ -741,7 +741,7 @@ func ignoreFileAction(
 ) clihelper.FlagActionFunc[string] {
 	t.Helper()
 
-	flagList := catalog.NewFlags(catalog.NewOptions(opts), nil)
+	flagList := catalog.NewFlags(vfs.NewOSFS(), catalog.NewOptions(opts), nil)
 
 	flag := flagList.Get(catalog.IgnoreFileFlagName)
 	require.NotNil(t, flag, "--%s flag not registered", catalog.IgnoreFileFlagName)

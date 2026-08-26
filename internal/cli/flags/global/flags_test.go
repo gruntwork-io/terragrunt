@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,7 @@ import (
 func TestProfileFlagsRegistration(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	profileFlags := global.NewProfileFlags(opts, nil)
 
 	testCases := []struct {
@@ -35,14 +36,14 @@ func TestProfileFlagsRegistration(t *testing.T) {
 func TestProfileFlagsParse(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 	err := global.NewProfileFlags(opts, nil).Parse([]string{
 		"--profile-cpu=cpu.prof",
 		"--profile-mem=mem.prof",
 		"--profile-goroutine=goroutine.prof",
 		"--profile-dir=profiles",
-	})
+	}, map[string]string{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "cpu.prof", opts.ProfileCPU)
@@ -54,9 +55,9 @@ func TestProfileFlagsParse(t *testing.T) {
 func TestProfileFlagsParseSpaceForm(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-	err := global.NewProfileFlags(opts, nil).Parse([]string{"--profile-cpu", "cpu.prof"})
+	err := global.NewProfileFlags(opts, nil).Parse([]string{"--profile-cpu", "cpu.prof"}, map[string]string{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "cpu.prof", opts.ProfileCPU)

@@ -152,7 +152,7 @@ func TestObtainCredsForParsingWithoutAuthProviderCmd(t *testing.T) {
 	})
 	v.Env["UNRELATED"] = "kept"
 
-	getter, err := creds.ObtainCredsForParsing(t.Context(), l, v, "", shell.NewShellOptions())
+	getter, err := creds.ObtainCredsForParsing(t.Context(), l, v, "", shell.NewShellOptions(map[string]string{}))
 	require.NoError(t, err)
 	assert.NotNil(t, getter)
 	assert.Zero(t, calls, "expected no subprocess invocations for an empty auth-provider command")
@@ -207,7 +207,7 @@ func TestObtainCredsForParsingPopulatesEnvBeforeParsing(t *testing.T) {
 				return vexec.Result{Stdout: []byte(tc.stdout)}
 			})
 
-			getter, err := creds.ObtainCredsForParsing(t.Context(), l, v, "auth-cmd", shell.NewShellOptions())
+			getter, err := creds.ObtainCredsForParsing(t.Context(), l, v, "auth-cmd", shell.NewShellOptions(map[string]string{}))
 			require.NoError(t, err)
 			assert.NotNil(t, getter)
 			assert.Equal(t, tc.wantEnv, v.Env)
@@ -226,7 +226,7 @@ func TestObtainCredsForParsingReportsCommandFailure(t *testing.T) {
 	})
 	v.Env["UNRELATED"] = "kept"
 
-	getter, err := creds.ObtainCredsForParsing(t.Context(), l, v, "auth-cmd", shell.NewShellOptions())
+	getter, err := creds.ObtainCredsForParsing(t.Context(), l, v, "auth-cmd", shell.NewShellOptions(map[string]string{}))
 	require.Error(t, err)
 	assert.Nil(t, getter)
 

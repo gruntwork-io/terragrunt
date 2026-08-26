@@ -175,7 +175,12 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		assert.Panics(t, func() { _ = c.Container(tc[0]).CopyBlob(t.Context(), log.New(), tc[1], c.Container(tc[2]), tc[3]) }, "CopyBlob%v should panic", tc)
+		assert.Panics(
+			t,
+			func() { _ = c.Container(tc[0]).CopyBlob(t.Context(), log.New(), tc[1], c.Container(tc[2]), tc[3]) },
+			"CopyBlob%v should panic",
+			tc,
+		)
 	}
 }
 
@@ -184,9 +189,9 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 func TestBlob_LiveRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	env := venv.OSVenv().Env
-	account := env["TG_AZURE_TEST_STORAGE_ACCOUNT"]
-	sub := env["TG_AZURE_TEST_SUBSCRIPTION_ID"]
+	testVenv := venv.OSVenv()
+	account := testVenv.Env["TG_AZURE_TEST_STORAGE_ACCOUNT"]
+	sub := testVenv.Env["TG_AZURE_TEST_SUBSCRIPTION_ID"]
 
 	if account == "" || sub == "" {
 		t.Skip("TG_AZURE_TEST_STORAGE_ACCOUNT and TG_AZURE_TEST_SUBSCRIPTION_ID are required for live test")
@@ -199,9 +204,9 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			SubscriptionID:     sub,
 			StorageAccountName: account,
-			UseAzureADAuth:     true,
+			UseAzureADAuth:     new(true),
 		}).
-		Build(log.New())
+		Build(log.New(), testVenv)
 	require.NoError(t, err, "Build config")
 
 	bc, err := azurehelper.NewBlobClient(cfg)

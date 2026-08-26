@@ -75,7 +75,7 @@ func Run(
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 
@@ -137,7 +137,7 @@ func Run(
 		}
 
 		defer func() {
-			cleanupErr := wts.Cleanup(ctx, l)
+			cleanupErr := wts.Cleanup(ctx, l, v.FS)
 			if cleanupErr != nil {
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}
@@ -160,7 +160,7 @@ func Run(
 						opts.WorkingDir,
 					)
 
-					return clean.CleanStacks(l, opts)
+					return clean.CleanStacks(l, v.FS, opts)
 				})
 			if errClean != nil {
 				return fmt.Errorf(
@@ -219,6 +219,7 @@ func RunAllOnStack(
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
 	if err := rnr.LogUnitDeployOrder(
 		l,
+		v,
 		isDestroy,
 		opts.LogShowAbsPaths,
 		opts.Experiments,

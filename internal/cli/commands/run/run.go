@@ -17,8 +17,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -39,7 +39,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	// This doesn't actually do anything for single-unit runs, but it's
 	// helpful to leave it in here for consistency, if we ever add
 	// support for run summaries in single-unit runs.
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 
@@ -86,7 +86,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v,
-		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
+		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(v.Env, opts)),
 	); err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		}
 	}
 
-	runCfg := cfg.ToRunConfig(l)
+	runCfg := cfg.ToRunConfig(l, v.FS)
 
 	unitPath := filepath.Clean(opts.RootWorkingDir)
 
@@ -175,7 +175,7 @@ func runVersionCommand(
 		ctx,
 		l,
 		v,
-		configbridge.TFRunOptsFromOpts(opts),
+		configbridge.TFRunOptsFromOpts(v.Env, opts),
 		opts.TerraformCliArgs.Slice()...)
 }
 
@@ -185,7 +185,7 @@ func getTFPathFromConfig(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (string, error) {
-	if !util.FileExists(opts.TerragruntConfigPath) {
+	if !vfs.Exists(v.FS, opts.TerragruntConfigPath) {
 		l.Debugf("Did not find the config file %s", opts.TerragruntConfigPath)
 
 		return "", nil
@@ -221,7 +221,7 @@ func checkVersionConstraints(
 	}
 
 	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
 		WorkingDir:   opts.WorkingDir,
 		VersionFiles: opts.VersionManagerFileName,
 	})

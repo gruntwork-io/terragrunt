@@ -50,7 +50,7 @@ func PrepareConfig(
 	provider := externalcmd.NewProvider(
 		l,
 		opts.AuthProviderCmd,
-		configbridge.ShellRunOptsFromOpts(opts),
+		configbridge.ShellRunOptsFromOpts(v.Env, opts),
 	)
 
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
@@ -98,7 +98,7 @@ func PrepareSource(
 		opts.Errors = errConfig
 	}
 
-	runCfg := cfg.ToRunConfig(l)
+	runCfg := cfg.ToRunConfig(l, v.FS)
 
 	l, optsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
@@ -107,7 +107,7 @@ func PrepareSource(
 
 	optsClone.TerraformCommand = run.CommandNameTerragruntReadConfig
 
-	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = optsClone.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return run.ProcessHooks(ctx, l, v, run.ProcessHooksParams{
 			Hooks:    runCfg.Terraform.AfterHooks,
 			Opts:     configbridge.NewRunOptions(optsClone),
@@ -127,7 +127,7 @@ func PrepareSource(
 
 	credsGetter := creds.NewGetter()
 
-	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		provider := amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env)
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider)
 	}); err != nil {
@@ -217,7 +217,7 @@ func PrepareInputsAsEnvVars(
 		return err
 	}
 
-	return run.SetTerragruntInputsAsEnvVars(l, v.Env, cfg)
+	return run.SetTerragruntInputsAsEnvVars(l, v.FS, v.Env, runOpts.CacheDir, cfg)
 }
 
 // PrepareInit runs terraform init if needed. This is the final preparation stage.
@@ -237,7 +237,7 @@ func PrepareInit(
 		return err
 	}
 
-	if err := run.SetTerragruntInputsAsEnvVars(l, v.Env, cfg); err != nil {
+	if err := run.SetTerragruntInputsAsEnvVars(l, v.FS, v.Env, runOpts.CacheDir, cfg); err != nil {
 		return err
 	}
 
