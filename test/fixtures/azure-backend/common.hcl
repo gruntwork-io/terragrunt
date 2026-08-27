@@ -2,6 +2,10 @@ feature "disable_versioning" {
   default = false
 }
 
+feature "enable_soft_delete" {
+  default = false
+}
+
 feature "key_prefix" {
   default = ""
 }
@@ -25,7 +29,9 @@ remote_state {
     account_kind             = "StorageV2"
     access_tier              = "Hot"
 
-    skip_versioning = feature.disable_versioning.value
+    skip_versioning            = feature.disable_versioning.value
+    enable_soft_delete         = feature.enable_soft_delete.value
+    soft_delete_retention_days = 14
 
     assign_blob_data_role = __FILL_IN_ASSIGN_ROLE__
   }
