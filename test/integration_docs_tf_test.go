@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFixtureQuickStart       = "fixtures/docs/01-quick-start"
+	testFixtureStacksLocalState = "fixtures/docs/03-stacks-with-local-state"
+)
+
 func TestTFDocsQuickStart(t *testing.T) {
 	t.Parallel()
 

@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -1040,7 +1039,7 @@ func TestLongFormat(t *testing.T) {
 			t.Parallel()
 
 			root := "/list-long"
-			fsys := newUnitsFS(t, root, map[string]string{
+			fsys := venvtest.NewFS(t, root, map[string]string{
 				"alpha/terragrunt.hcl": `
 dependency "zulu" {
   config_path = "../zulu"
@@ -1097,7 +1096,7 @@ func TestTreeFormat(t *testing.T) {
 			t.Parallel()
 
 			root := "/list-tree"
-			fsys := newUnitsFS(t, root, map[string]string{
+			fsys := venvtest.NewFS(t, root, map[string]string{
 				// The unit at the root of the walk has path ".", which the segment tree cannot hang.
 				"terragrunt.hcl": "",
 				"alpha/terragrunt.hcl": `
@@ -1132,7 +1131,7 @@ func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
 	t.Parallel()
 
 	root := "/list-wide"
-	fsys := newUnitsFS(t, root, map[string]string{
+	fsys := venvtest.NewFS(t, root, map[string]string{
 		filepath.Join(widePathPrefix, "one", "terragrunt.hcl"): "",
 		filepath.Join(widePathPrefix, "two", "terragrunt.hcl"): "",
 	})
@@ -1184,7 +1183,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 			t.Parallel()
 
 			root := "/list-invalid"
-			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
 			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
@@ -1224,7 +1223,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			t.Parallel()
 
 			root := "/list-writer"
-			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
 			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
@@ -1252,22 +1251,6 @@ type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) {
 	return 0, errWriteFailed
-}
-
-// newUnitsFS returns an in-memory filesystem holding files, each path relative to root.
-func newUnitsFS(t *testing.T, root string, files map[string]string) vfs.FS {
-	t.Helper()
-
-	fsys := vfs.NewMemMapFS()
-
-	for path, content := range files {
-		require.NoError(
-			t,
-			vfs.WriteFile(fsys, filepath.Join(root, path), []byte(content), 0o644),
-		)
-	}
-
-	return fsys
 }
 
 // newTestLogger returns a logger with colors off, so output is comparable byte for byte.

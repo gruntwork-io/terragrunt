@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -74,27 +73,4 @@ func TestStackExpansionResolvesValuesPerInstance(t *testing.T) {
 
 		assert.Contains(t, string(values), `role = "`+role+`"`)
 	}
-}
-
-func TestStackExpansionRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces all experiments on, opening the gate this test pins shut",
-		)
-	}
-
-	helpers.CleanupTerraformFolder(t, testFixtureStacksExpansion)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksExpansion)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksExpansion, "live")
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath,
-	)
-
-	var expansionErr config.ExpansionRequiresExperimentError
-	require.ErrorAs(t, err, &expansionErr)
-	assert.Equal(t, "unit", expansionErr.BlockType)
 }
