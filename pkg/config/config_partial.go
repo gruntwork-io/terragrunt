@@ -289,7 +289,6 @@ func mergeIncludedFeatureFlags(
 	includePctx := pctx.WithTrackInclude(trackInclude).WithDecodeList(FeatureFlagsBlock)
 
 	for _, includeConfig := range slices.Backward(trackInclude.CurrentList) {
-
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {
 			return childFlags, err

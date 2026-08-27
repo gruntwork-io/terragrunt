@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 // TestVersionResolverMemoizesWithRacing pins that concurrent and repeated
@@ -47,21 +47,33 @@ func TestVersionResolverMemoizesWithRacing(t *testing.T) {
 	resolver := getter.NewVersionResolver(server.Client())
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 
-	var wg sync.WaitGroup
+	const concurrency = 10
 
-	for range 10 {
+	var g errgroup.Group
 
-		wg.Go(func() {
+	pins := make(chan string, concurrency)
 
+	for range concurrency {
+		g.Go(func() error {
 			pinned, err := resolver.Pin(
 				t.Context(), logger.CreateLogger(), tfimpl.OpenTofu, source, "~> 3.0",
 			)
-			assert.NoError(t, err)
-			assert.Equal(t, source+"?version=3.3.0", pinned)
+			if err != nil {
+				return err
+			}
+
+			pins <- pinned
+
+			return nil
 		})
 	}
 
-	wg.Wait()
+	require.NoError(t, g.Wait())
+	close(pins)
+
+	for pinned := range pins {
+		assert.Equal(t, source+"?version=3.3.0", pinned)
+	}
 
 	assert.Equal(t, int64(1), versionsHits.Load())
 }

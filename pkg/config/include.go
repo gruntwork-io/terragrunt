@@ -140,7 +140,6 @@ func handleInclude(
 	baseConfig := config
 
 	for _, includeConfig := range slices.Backward(includeList) {
-
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {
 			return config, err
@@ -228,7 +227,6 @@ func handleIncludeForDependency(
 	baseDependencyBlock := childDecodedDependency.Dependencies
 
 	for _, includeConfig := range slices.Backward(includeList) {
-
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {
 			return nil, err
