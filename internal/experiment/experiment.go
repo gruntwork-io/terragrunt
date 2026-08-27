@@ -111,6 +111,10 @@ const (
 	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
 	// all dependency output resolution during a run.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
+	// TerragruntRC gates reading the `.terragruntrc` file, which supplies environment
+	// variables and CLI flag defaults from a file that can be committed to a repository
+	// instead of being exported by every engineer.
+	TerragruntRC = "terragruntrc"
 )
 
 const (
@@ -228,6 +232,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalDependencyOutputs,
+		},
+		{
+			Name: TerragruntRC,
 		},
 	}
 }

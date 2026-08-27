@@ -30,6 +30,11 @@ type App struct {
 	// FlagErrHandler processes any error encountered while parsing flags.
 	FlagErrHandler FlagErrHandlerFunc
 
+	// FlagDefaults supplies values for flags that were given neither on the command line
+	// nor through an environment variable, for example from a configuration file. It is
+	// nil unless such a source was configured, in which case no defaults are applied.
+	FlagDefaults FlagDefaultsFunc
+
 	// ExitErrHandler processes any error encountered while running an App before
 	// it is returned to the caller. If no function is provided, HandleExitCoder
 	// is used as the default behavior.

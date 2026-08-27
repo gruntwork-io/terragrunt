@@ -113,6 +113,10 @@ func (app *App) RunContext(
 
 	args = removeNoColorFlagDuplicates(args)
 
+	if err := app.setupRCFile(l, v, args); err != nil {
+		return err
+	}
+
 	if err := app.App.RunContext(ctx, args); err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}

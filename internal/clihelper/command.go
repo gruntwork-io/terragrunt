@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	libflag "flag"
+	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -207,7 +209,9 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	}
 
 	if cmd.SkipFlagParsing {
-		return args, nil
+		// Environment variables were applied when the flag set was built, so external
+		// defaults are applied here too, rather than only on the parsing path.
+		return args, cmd.applyFlagDefaults(ctx)
 	}
 
 	args, builtinCmd := args.Split(BuiltinCmdSep)
@@ -239,7 +243,81 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 		undefArgs = append(undefArgs, builtinCmd...)
 	}
 
+	if err := cmd.applyFlagDefaults(ctx); err != nil {
+		return undefArgs, err
+	}
+
 	return undefArgs, nil
+}
+
+// applyFlagDefaults assigns values from `App.FlagDefaults` to the flags that were given
+// neither on the command line nor through an environment variable.
+//
+// It runs after parsing, so a value from the command line or from the environment always
+// wins. Assigning the value here also marks the flag as set, which is what makes the
+// flag's action run, exactly as it would for a value typed on the command line.
+func (cmd *Command) applyFlagDefaults(ctx *Context) error {
+	if ctx.App == nil || ctx.App.FlagDefaults == nil {
+		return nil
+	}
+
+	cmdPath := cmd.commandPath(ctx)
+
+	for _, flag := range cmd.Flags {
+		value := flag.Value()
+		if value == nil || value.IsSet() || len(flag.Names()) == 0 {
+			continue
+		}
+
+		values, ok := ctx.App.FlagDefaults(cmdPath, flag)
+		if !ok {
+			continue
+		}
+
+		if err := setFlagValues(flag, values); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// commandPath returns the chain of commands from the root command down to this command,
+// one entry per command, each holding the names that command answers to. The root command
+// holds the global flags of the application, so its path is empty.
+func (cmd *Command) commandPath(ctx *Context) [][]string {
+	if cmd.IsRoot {
+		return nil
+	}
+
+	var parents [][]string
+
+	// `ctx` belongs to the parent command, because the context of this command is only
+	// created once its flags have been parsed.
+	for parent := ctx; parent != nil; parent = parent.parent {
+		if parent.Command != nil && !parent.Command.IsRoot {
+			parents = append(parents, parent.Command.Names())
+		}
+	}
+
+	slices.Reverse(parents)
+
+	return append(parents, cmd.Names())
+}
+
+// setFlagValues assigns values to a flag the same way repeated command line arguments do,
+// except that the flag is not reported as having been given by the user.
+func setFlagValues(flag Flag, values []string) error {
+	name := flag.Names()[0]
+	getter := flag.Value().Getter(name)
+
+	for _, value := range values {
+		if err := getter.DefaultSet(value); err != nil {
+			return fmt.Errorf("invalid value %q for flag %s: %w", value, name, err)
+		}
+	}
+
+	return nil
 }
 
 func (cmd *Command) flagSetParse(
