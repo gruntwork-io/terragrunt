@@ -115,17 +115,22 @@ func TestWithEnvRejectsNil(t *testing.T) {
 func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	t.Parallel()
 
-	v := &venv.Venv{Env: map[string]string{"FOO": "bar"}}
+	v := &venv.Venv{
+		Env:        map[string]string{"FOO": "bar"},
+		ProcessEnv: map[string]string{"FOO": "process"},
+	}
 
 	clone := v.WithEnvCloned()
 	clone.Env["AWS_ACCESS_KEY_ID"] = "leaked"
 	clone.Env["FOO"] = "changed"
 
 	assert.Equal(t, map[string]string{"FOO": "bar"}, v.Env)
+	assert.Equal(t, map[string]string{"FOO": "process"}, v.ProcessEnv)
 
 	v.Env["BAZ"] = "qux"
 
 	assert.NotContains(t, clone.Env, "BAZ")
+	assert.Equal(t, map[string]string{"FOO": "process"}, clone.ProcessEnv)
 }
 
 func TestOSVenvProvidesPlatformHandles(t *testing.T) {
@@ -137,6 +142,19 @@ func TestOSVenvProvidesPlatformHandles(t *testing.T) {
 	assert.Equal(t, runtime.GOOS, v.Platform.GOOS)
 	assert.Equal(t, runtime.GOARCH, v.Platform.GOARCH)
 	assert.NotNil(t, v.Platform.UserHomeDir)
+}
+
+func TestOSVenvKeepsProcessEnvironmentIndependent(t *testing.T) {
+	t.Parallel()
+
+	const key = "TG_VENV_PROCESS_ENV_ALIAS_TEST"
+
+	v := venv.OSVenv()
+	want := v.ProcessEnv[key]
+
+	v.Env[key] = want + "-effective"
+
+	assert.Equal(t, want, v.ProcessEnv[key])
 }
 
 func TestVenvPlatformBuilders(t *testing.T) {

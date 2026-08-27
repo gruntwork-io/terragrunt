@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/locks"
 	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -147,93 +146,13 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 	}
 }
 
-func TestDependencyStateDirectReadSharesEnvironmentLockWithRacing(t *testing.T) { //nolint:paralleltest // exercises global EnvLock
-	accessKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
-	testCases := []struct {
-		name          string
-		backend       string
-		backendConfig string
-		enableAzure   bool
-	}{
-		{
-			name:    "GCS",
-			backend: "gcs",
-			backendConfig: `
-        access_token = "test-token"
-        bucket       = "state-bucket"
-        prefix       = "environment/service"`,
-		},
-		{
-			name:    "Azure",
-			backend: "azurerm",
-			backendConfig: fmt.Sprintf(`
-        access_key           = %q
-        container_name       = "state"
-        key                  = "service.tfstate"
-        storage_account_name = "stateaccount"`, accessKey),
-			enableAzure: true,
-		},
-	}
-
-	for _, testCase := range testCases { //nolint:paralleltest // exercises global EnvLock
-		t.Run(testCase.name, func(t *testing.T) { //nolint:paralleltest // exercises global EnvLock
-			requestStarted := make(chan struct{})
-			releaseRequest := make(chan struct{})
-			recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-direct"))
-			recorder.respond = func(*http.Request) *http.Response {
-				close(requestStarted)
-				<-releaseRequest
-
-				return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
-			}
-
-			type result struct {
-				cfg *config.TerragruntConfig
-				err error
-			}
-
-			ctx, pctx, configPath := prepareDependencyStateFixture(
-				t,
-				recorder,
-				testCase.backend,
-				testCase.backendConfig,
-				map[string]string{},
-				testCase.enableAzure,
-				"",
-			)
-			resultCh := make(chan result, 1)
-
-			go func() {
-				cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
-				resultCh <- result{cfg: cfg, err: err}
-			}()
-
-			<-requestStarted
-
-			writerAcquired := locks.EnvLock.TryLock()
-			if writerAcquired {
-				locks.EnvLock.Unlock()
-			}
-
-			assert.False(t, writerAcquired, "a process environment writer must wait for the direct state read")
-			close(releaseRequest)
-
-			got := <-resultCh
-			require.NoError(t, got.err)
-			assert.Equal(t, "from-direct", got.cfg.Inputs["result"])
-
-			require.True(t, locks.EnvLock.TryLock(), "the direct state read must release the environment lock")
-			locks.EnvLock.Unlock()
-		})
-	}
-}
-
 func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
 
 	accessKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
 	testCases := []struct {
 		env           map[string]string
+		processEnv    map[string]string
 		name          string
 		backend       string
 		backendConfig string
@@ -258,6 +177,16 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         storage_custom_endpoint = "https://storage.example.com"`,
 		},
 		{
+			name:    "GCS executable environment differs from process",
+			backend: "gcs",
+			backendConfig: `
+        access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+			env:        map[string]string{"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES": ""},
+			processEnv: map[string]string{"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES": "1"},
+		},
+		{
 			name:    "GCS invalid workspace",
 			backend: "gcs",
 			backendConfig: `
@@ -277,6 +206,18 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         storage_account_name = "stateaccount"`, accessKey),
 			enableAzure: true,
 		},
+		{
+			name:    "Azure proxy environment differs from process",
+			backend: "azurerm",
+			backendConfig: fmt.Sprintf(`
+        access_key           = %q
+        container_name       = "state"
+        key                  = "service.tfstate"
+        storage_account_name = "stateaccount"`, accessKey),
+			env:         map[string]string{"HTTPS_PROXY": ""},
+			processEnv:  map[string]string{"HTTPS_PROXY": "http://process-proxy.example.com"},
+			enableAzure: true,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -290,7 +231,7 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				env = map[string]string{}
 			}
 
-			cfg, err := parseDependencyStateFixture(
+			ctx, pctx, configPath := prepareDependencyStateFixture(
 				t,
 				recorder,
 				testCase.backend,
@@ -299,6 +240,9 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				testCase.enableAzure,
 				"",
 			)
+			maps.Copy(pctx.Venv.ProcessEnv, testCase.processEnv)
+
+			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
 			require.NoError(t, err)
 			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
 			assert.Empty(t, recorder.requestPaths(), "an unsupported config must not use the direct state client")
@@ -308,62 +252,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 			assert.True(t, slices.ContainsFunc(invocations, func(inv vexec.Invocation) bool {
 				return slices.Contains(inv.Args, "output") && slices.Contains(inv.Args, "-json")
 			}))
-		})
-	}
-}
-
-func TestDependencyStateProcessEnvironmentDivergenceFallsBackToNativeOutput(t *testing.T) { //nolint:paralleltest // t.Setenv
-	accessKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
-	testCases := []struct {
-		name          string
-		backend       string
-		backendConfig string
-		processKey    string
-		processValue  string
-		enableAzure   bool
-	}{
-		{
-			name:    "GCS executable environment differs from process",
-			backend: "gcs",
-			backendConfig: `
-        access_token = "test-token"
-        bucket       = "state-bucket"
-        prefix       = "environment/service"`,
-			processKey:   "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES",
-			processValue: "1",
-		},
-		{
-			name:    "Azure proxy environment differs from process",
-			backend: "azurerm",
-			backendConfig: fmt.Sprintf(`
-        access_key           = %q
-        container_name       = "state"
-        key                  = "service.tfstate"
-        storage_account_name = "stateaccount"`, accessKey),
-			processKey:   "HTTPS_PROXY",
-			processValue: "http://process-proxy.example.com",
-			enableAzure:  true,
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) { //nolint:paralleltest // t.Setenv
-			t.Setenv(testCase.processKey, testCase.processValue)
-
-			recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("unexpected-direct"))
-			cfg, err := parseDependencyStateFixture(
-				t,
-				recorder,
-				testCase.backend,
-				testCase.backendConfig,
-				map[string]string{testCase.processKey: ""},
-				testCase.enableAzure,
-				"",
-			)
-			require.NoError(t, err)
-			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
-			assert.Empty(t, recorder.requestPaths(), "a divergent process environment must not use the direct state client")
-			assertEligibilityOutputInvocation(t, recorder.invocations())
 		})
 	}
 }
@@ -394,28 +282,57 @@ func TestDependencyStateGCSCustomerEncryptionKey(t *testing.T) {
 	assert.Equal(t, encryptionKey, headers[0].Get("X-Goog-Encryption-Key"))
 }
 
-func TestDependencyStateMalformedDirectStateSurfacesLocation(t *testing.T) {
+func TestDependencyStateMalformedDirectStateReturnsTypedError(t *testing.T) {
 	t.Parallel()
 
-	recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(`{"version":`))
-	_, err := parseDependencyStateFixture(
-		t,
-		recorder,
-		"gcs",
-		`access_token = "test-token"
+	testCases := []struct {
+		cause error
+		name  string
+		state string
+	}{
+		{
+			cause: io.ErrUnexpectedEOF,
+			name:  "truncated JSON",
+			state: `{"version":`,
+		},
+		{
+			name:  "non-object JSON",
+			state: `[]`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(testCase.state))
+			_, err := parseDependencyStateFixture(
+				t,
+				recorder,
+				"gcs",
+				`access_token = "test-token"
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
-		map[string]string{},
-		false,
-		"",
-	)
+				map[string]string{},
+				false,
+				"",
+			)
 
-	require.Error(t, err)
-	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
-	assert.Contains(t, err.Error(), "parsing dependency state JSON")
-	assert.Contains(t, err.Error(), "gs://state-bucket/environment/service/default.tfstate")
-	assert.Empty(t, recorder.invocations(), "malformed direct state must not be retried through OpenTofu")
-	assert.Equal(t, 1, recorder.closeCount(), "a malformed state response body must be closed")
+			require.Error(t, err)
+
+			var parseErr config.DependencyStateParseError
+			require.ErrorAs(t, err, &parseErr)
+			assert.Equal(t, "gs://state-bucket/environment/service/default.tfstate", parseErr.Location)
+			require.Error(t, parseErr.Err)
+
+			if testCase.cause != nil {
+				require.ErrorIs(t, err, testCase.cause)
+			}
+
+			assert.Empty(t, recorder.invocations(), "malformed direct state must not be retried through OpenTofu")
+			assert.Equal(t, 1, recorder.closeCount(), "a malformed state response body must be closed")
+		})
+	}
 }
 
 func TestDependencyStateStopsReadingAfterOutputs(t *testing.T) {
@@ -532,9 +449,10 @@ func TestDependencyStateTransportFailureIsNotReportedAsMalformedState(t *testing
 				"",
 			)
 
+			var readErr config.DependencyStateReadError
+			require.ErrorAs(t, err, &readErr)
+			assert.Equal(t, "s3://state-bucket/service.tfstate", readErr.Location)
 			require.ErrorIs(t, err, io.ErrClosedPipe)
-			assert.Contains(t, err.Error(), "reading dependency state body")
-			assert.NotContains(t, err.Error(), "parsing dependency state JSON")
 			assert.Empty(t, recorder.invocations(), "a failed direct read must not invoke OpenTofu")
 			assert.Equal(t, 1, recorder.closeCount(), "a failed direct read must close the state body")
 		})
@@ -777,13 +695,15 @@ func prepareDependencyStateFixture(
 		producerPath = "/repo/producer/terragrunt.hcl"
 	)
 
-	effectiveEnv := venv.ParseEnviron(os.Environ())
+	processEnv := venv.ParseEnviron(os.Environ())
+	effectiveEnv := maps.Clone(processEnv)
 	maps.Copy(effectiveEnv, env)
 
 	v := venvtest.New().
 		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())
+	v.ProcessEnv = maps.Clone(processEnv)
 
 	for _, dir := range []string{filepath.Dir(consumerPath), filepath.Dir(producerPath)} {
 		require.NoError(t, v.FS.MkdirAll(dir, 0o700))

@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
-	"github.com/gruntwork-io/terragrunt/internal/locks"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -1656,26 +1655,6 @@ type directStateBackend struct {
 	read      func(context.Context, log.Logger, *ParsingContext, *remotestate.RemoteState, string) ([]byte, error)
 }
 
-func (b directStateBackend) supports(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
-	locks.EnvLock.RLock()
-	defer locks.EnvLock.RUnlock()
-
-	return b.supported(pctx, remoteState)
-}
-
-func (b directStateBackend) readState(
-	ctx context.Context,
-	l log.Logger,
-	pctx *ParsingContext,
-	remoteState *remotestate.RemoteState,
-	workspace string,
-) ([]byte, error) {
-	locks.EnvLock.RLock()
-	defer locks.EnvLock.RUnlock()
-
-	return b.read(ctx, l, pctx, remoteState, workspace)
-}
-
 // directStateBackends contains the backends with direct dependency-state support.
 var directStateBackends = map[string]directStateBackend{
 	s3backend.BackendName: {
@@ -1708,7 +1687,7 @@ func shouldFetchDependencyOutputFromState(pctx *ParsingContext, remoteState *rem
 		return false
 	}
 
-	return stateBackend.supports(pctx, remoteState)
+	return stateBackend.supported(pctx, remoteState)
 }
 
 func backendConfigValueSet(config backend.Config, key string) bool {
@@ -2065,7 +2044,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	// A non-empty workspace means the caller already found a supported backend, so
 	// the reader lookup below cannot miss.
 	if stateBackend, supported := directStateBackends[remoteState.BackendName]; supported && workspace != "" {
-		jsonBytes, readErr := stateBackend.readState(ctx, l, pctx, remoteState, workspace)
+		jsonBytes, readErr := stateBackend.read(ctx, l, pctx, remoteState, workspace)
 		if readErr != nil {
 			return nil, readErr
 		}

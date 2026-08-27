@@ -1164,7 +1164,7 @@ func TestTFDependencyRemoteStateFallbackPreservesExtraArgsEnvVars(t *testing.T) 
 		"terragrunt run --non-interactive --working-dir "+moduleCPath+" -- output -raw echo",
 	)
 	require.NoError(t, err, "dependency output fallback must preserve extra_arguments env_vars: %s", stderr)
-	assert.Contains(t, stdout, "argocd")
+	assert.Equal(t, "argocd", strings.TrimSpace(stdout))
 }
 
 // TestTFDependencyGenuineErrorSurfaces pins that the output-resolution fallback does not swallow a genuine

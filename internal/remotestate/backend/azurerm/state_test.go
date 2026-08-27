@@ -59,7 +59,11 @@ func TestNewStateBlobClientPreservesAzurermAuthorizationPolicy(t *testing.T) {
 			if testCase.wantErr {
 				var setupErr *azurerm.StateClientSetupError
 				require.ErrorAs(t, err, &setupErr)
-				assert.Contains(t, err.Error(), "AuthorizationFailed")
+
+				var responseErr *azcore.ResponseError
+				require.ErrorAs(t, err, &responseErr)
+				assert.Equal(t, "AuthorizationFailed", responseErr.ErrorCode)
+				assert.Equal(t, http.StatusForbidden, responseErr.StatusCode)
 				require.Len(t, transport.Requests(), 1)
 
 				return

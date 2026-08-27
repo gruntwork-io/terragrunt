@@ -22,6 +22,15 @@ func TestNewFailsClosedOnSpawn(t *testing.T) {
 	require.ErrorIs(t, err, vexec.ErrNoSpawn)
 }
 
+func TestNewKeepsEnvironmentMapsIndependent(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+	v.Env["SDK_VISIBLE"] = "effective"
+
+	assert.Empty(t, v.ProcessEnv)
+}
+
 // TestWithHandlerOverridesFailClosed pins the escape hatch a test uses when
 // its subject is meant to run a command.
 func TestWithHandlerOverridesFailClosed(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -258,8 +257,7 @@ func azureEnvSupported(v *venv.Venv) bool {
 	env := v.Env
 
 	for _, key := range azureProcessEnvPassthroughKeys {
-		processValue := os.Getenv(key) //nolint:forbidigo // Read under EnvLock.
-		if value, configured := env[key]; configured && value != processValue {
+		if value, configured := env[key]; configured && value != v.ProcessEnv[key] {
 			return false
 		}
 	}
@@ -354,8 +352,7 @@ func azureEnvKeysUnset(env map[string]string, keys []string) bool {
 // azureEnvKeysUnsetInVenvAndProcess also rejects keys the in-process SDK would read from the Terragrunt process.
 func azureEnvKeysUnsetInVenvAndProcess(v *venv.Venv, keys []string) bool {
 	for _, key := range keys {
-		processValue := os.Getenv(key) //nolint:forbidigo // Read under EnvLock.
-		if _, configured := v.Env[key]; configured || processValue != "" {
+		if _, configured := v.Env[key]; configured || v.ProcessEnv[key] != "" {
 			return false
 		}
 	}

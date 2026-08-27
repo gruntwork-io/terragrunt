@@ -28,6 +28,7 @@ type dependencyStateEligibilityTestCase struct {
 	backendConfig               map[string]string
 	env                         map[string]string
 	files                       map[string]string
+	filesystem                  vfs.FS
 	wantRequest                 string
 	enableAzure                 bool
 	disableDependencyExperiment bool
@@ -353,13 +354,19 @@ func parseDependencyStateEligibilityFixture(
 		env = map[string]string{}
 	}
 
-	effectiveEnv := venv.ParseEnviron(os.Environ())
+	processEnv := venv.ParseEnviron(os.Environ())
+	effectiveEnv := maps.Clone(processEnv)
 	maps.Copy(effectiveEnv, env)
 
 	v := venvtest.New().
 		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())
+	v.ProcessEnv = maps.Clone(processEnv)
+
+	if testCase.filesystem != nil {
+		v = v.WithFS(testCase.filesystem)
+	}
 
 	for _, dir := range []string{filepath.Dir(consumerPath), filepath.Dir(producerPath)} {
 		require.NoError(t, v.FS.MkdirAll(dir, 0o700))

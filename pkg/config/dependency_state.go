@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -67,7 +66,10 @@ func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
 	}
 
 	if delim, ok := tok.(json.Delim); !ok || delim != '{' {
-		return nil, fmt.Errorf("parsing dependency state JSON from %s: state is not a JSON object", location)
+		return nil, DependencyStateParseError{
+			Err:      errors.New("state is not a JSON object"),
+			Location: location,
+		}
 	}
 
 	for d.More() {
@@ -132,10 +134,16 @@ func (r *stateBodyReader) Read(p []byte) (int, error) {
 
 func stateReadError(body *stateBodyReader, location string, err error) error {
 	if body.err != nil {
-		return fmt.Errorf("reading dependency state body from %s: %w", location, body.err)
+		return DependencyStateReadError{
+			Err:      body.err,
+			Location: location,
+		}
 	}
 
-	return fmt.Errorf("parsing dependency state JSON from %s: %w", location, err)
+	return DependencyStateParseError{
+		Err:      err,
+		Location: location,
+	}
 }
 
 // stateStream pairs a state reader with the client that produced it, so closing
