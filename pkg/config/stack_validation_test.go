@@ -20,282 +20,237 @@ import (
 func TestValidateStackConfig(t *testing.T) {
 	t.Parallel()
 
+	genPath := func(path string) string {
+		return inthclparse.GeneratedComponentPath("/stack", path, false)
+	}
+
 	tests := []struct {
-		name    string
+		wantErr error
 		config  *config.StackConfigFile
-		wantErr string
+		name    string
 	}{
 		{
 			name: "valid config",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "unit1",
-						Source: "source1",
-						Path:   "path1",
-					},
-					{
-						Name:   "unit2",
-						Source: "source2",
-						Path:   "path2",
-					},
+					{Name: "unit1", Source: "source1", Path: "path1"},
+					{Name: "unit2", Source: "source2", Path: "path2"},
 				},
 			},
-			wantErr: "",
 		},
 		{
 			name: "config that resolved to no components",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{},
 			},
-			wantErr: "",
 		},
 		{
 			name: "empty unit name",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "",
-						Source: "source1",
-						Path:   "path1",
-					},
+					{Name: "", Source: "source1", Path: "path1"},
 				},
 			},
-			wantErr: "unit at index 0 has empty name",
+			wantErr: config.ComponentFieldEmptyError{Kind: config.ComponentKindUnit, Field: "name"},
 		},
 		{
 			name: "whitespace unit name",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "  ",
-						Source: "source1",
-						Path:   "path1",
-					},
+					{Name: "  ", Source: "source1", Path: "path1"},
 				},
 			},
-			wantErr: "unit at index 0 has empty name",
+			wantErr: config.ComponentFieldEmptyError{Kind: config.ComponentKindUnit, Field: "name"},
 		},
 		{
 			name: "empty unit source",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "unit1",
-						Source: "",
-						Path:   "path1",
-					},
+					{Name: "unit1", Source: "", Path: "path1"},
 				},
 			},
-			wantErr: "unit 'unit1' has empty source",
+			wantErr: config.ComponentFieldEmptyError{
+				Kind:  config.ComponentKindUnit,
+				Field: "source",
+				Name:  "unit1",
+			},
 		},
 		{
 			name: "whitespace unit source",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "unit1",
-						Source: "   ",
-						Path:   "path1",
-					},
+					{Name: "unit1", Source: "   ", Path: "path1"},
 				},
 			},
-			wantErr: "unit 'unit1' has empty source",
+			wantErr: config.ComponentFieldEmptyError{
+				Kind:  config.ComponentKindUnit,
+				Field: "source",
+				Name:  "unit1",
+			},
 		},
 		{
 			name: "empty unit path",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "unit1",
-						Source: "source1",
-						Path:   "",
-					},
+					{Name: "unit1", Source: "source1", Path: ""},
 				},
 			},
-			wantErr: "unit 'unit1' has empty path",
+			wantErr: config.ComponentFieldEmptyError{
+				Kind:  config.ComponentKindUnit,
+				Field: "path",
+				Name:  "unit1",
+			},
 		},
 		{
 			name: "whitespace unit path",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "unit1",
-						Source: "source1",
-						Path:   "  ",
-					},
+					{Name: "unit1", Source: "source1", Path: "  "},
 				},
 			},
-			wantErr: "unit 'unit1' has empty path",
+			wantErr: config.ComponentFieldEmptyError{
+				Kind:  config.ComponentKindUnit,
+				Field: "path",
+				Name:  "unit1",
+			},
 		},
 		{
 			name: "duplicate unit names",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "unit1",
-						Source: "source1",
-						Path:   "path1",
-					},
-					{
-						Name:   "unit1",
-						Source: "source2",
-						Path:   "path2",
-					},
+					{Name: "unit1", Source: "source1", Path: "path1"},
+					{Name: "unit1", Source: "source2", Path: "path2"},
 				},
 			},
-			wantErr: "duplicate unit name found: 'unit1'",
+			wantErr: config.DuplicateComponentNameError{Kind: config.ComponentKindUnit, Name: "unit1"},
 		},
 		{
 			name: "duplicate unit paths",
 			config: &config.StackConfigFile{
 				Units: []*config.Unit{
-					{
-						Name:   "unit1",
-						Source: "source1",
-						Path:   "path1",
-					},
-					{
-						Name:   "unit2",
-						Source: "source2",
-						Path:   "path1",
-					},
+					{Name: "unit1", Source: "source1", Path: "path1"},
+					{Name: "unit2", Source: "source2", Path: "path1"},
 				},
 			},
-			wantErr: "duplicate unit path found: 'path1'",
+			wantErr: config.DuplicateComponentPathError{
+				Kind: config.ComponentKindUnit,
+				Path: genPath("path1"),
+			},
 		},
-
+		{
+			name: "unit paths that differ only before cleaning",
+			config: &config.StackConfigFile{
+				Units: []*config.Unit{
+					{Name: "unit1", Source: "source1", Path: "./path1"},
+					{Name: "unit2", Source: "source2", Path: "path1"},
+				},
+			},
+			wantErr: config.DuplicateComponentPathError{
+				Kind: config.ComponentKindUnit,
+				Path: genPath("path1"),
+			},
+		},
 		{
 			name: "valid config with stacks",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "stack1",
-						Source: "source1",
-						Path:   "path1",
-					},
-					{
-						Name:   "stack2",
-						Source: "source2",
-						Path:   "path2",
-					},
+					{Name: "stack1", Source: "source1", Path: "path1"},
+					{Name: "stack2", Source: "source2", Path: "path2"},
 				},
 			},
-			wantErr: "",
 		},
 		{
 			name: "empty stack name",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "",
-						Source: "source1",
-						Path:   "path1",
-					},
+					{Name: "", Source: "source1", Path: "path1"},
 				},
 			},
-			wantErr: "stack at index 0 has empty name",
+			wantErr: config.ComponentFieldEmptyError{Kind: config.ComponentKindStack, Field: "name"},
 		},
 		{
 			name: "whitespace stack name",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "  ",
-						Source: "source1",
-						Path:   "path1",
-					},
+					{Name: "  ", Source: "source1", Path: "path1"},
 				},
 			},
-			wantErr: "stack at index 0 has empty name",
+			wantErr: config.ComponentFieldEmptyError{Kind: config.ComponentKindStack, Field: "name"},
 		},
 		{
 			name: "empty stack source",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "stack1",
-						Source: "",
-						Path:   "path1",
-					},
+					{Name: "stack1", Source: "", Path: "path1"},
 				},
 			},
-			wantErr: "stack 'stack1' has empty source",
+			wantErr: config.ComponentFieldEmptyError{
+				Kind:  config.ComponentKindStack,
+				Field: "source",
+				Name:  "stack1",
+			},
 		},
 		{
 			name: "whitespace stack source",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "stack1",
-						Source: "   ",
-						Path:   "path1",
-					},
+					{Name: "stack1", Source: "   ", Path: "path1"},
 				},
 			},
-			wantErr: "stack 'stack1' has empty source",
+			wantErr: config.ComponentFieldEmptyError{
+				Kind:  config.ComponentKindStack,
+				Field: "source",
+				Name:  "stack1",
+			},
 		},
 		{
 			name: "empty stack path",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "stack1",
-						Source: "source1",
-						Path:   "",
-					},
+					{Name: "stack1", Source: "source1", Path: ""},
 				},
 			},
-			wantErr: "stack 'stack1' has empty path",
+			wantErr: config.ComponentFieldEmptyError{
+				Kind:  config.ComponentKindStack,
+				Field: "path",
+				Name:  "stack1",
+			},
 		},
 		{
 			name: "whitespace stack path",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "stack1",
-						Source: "source1",
-						Path:   "  ",
-					},
+					{Name: "stack1", Source: "source1", Path: "  "},
 				},
 			},
-			wantErr: "stack 'stack1' has empty path",
+			wantErr: config.ComponentFieldEmptyError{
+				Kind:  config.ComponentKindStack,
+				Field: "path",
+				Name:  "stack1",
+			},
 		},
 		{
 			name: "duplicate stack names",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "stack1",
-						Source: "source1",
-						Path:   "path1",
-					},
-					{
-						Name:   "stack1",
-						Source: "source2",
-						Path:   "path2",
-					},
+					{Name: "stack1", Source: "source1", Path: "path1"},
+					{Name: "stack1", Source: "source2", Path: "path2"},
 				},
 			},
-			wantErr: "duplicate stack name found: 'stack1'",
+			wantErr: config.DuplicateComponentNameError{Kind: config.ComponentKindStack, Name: "stack1"},
 		},
 		{
 			name: "duplicate stack paths",
 			config: &config.StackConfigFile{
 				Stacks: []*config.Stack{
-					{
-						Name:   "stack1",
-						Source: "source1",
-						Path:   "path1",
-					},
-					{
-						Name:   "stack2",
-						Source: "source2",
-						Path:   "path1",
-					},
+					{Name: "stack1", Source: "source1", Path: "path1"},
+					{Name: "stack2", Source: "source2", Path: "path1"},
 				},
 			},
-			wantErr: "duplicate stack path found: 'path1'",
+			wantErr: config.DuplicateComponentPathError{
+				Kind: config.ComponentKindStack,
+				Path: genPath("path1"),
+			},
 		},
 	}
 
@@ -304,11 +259,13 @@ func TestValidateStackConfig(t *testing.T) {
 			t.Parallel()
 
 			err := config.ValidateStackConfig(tt.config, "/stack")
-			if tt.wantErr != "" {
-				assert.Contains(t, err.Error(), tt.wantErr)
-			} else {
-				assert.NoError(t, err)
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+
+				return
 			}
+
+			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
 }
@@ -387,8 +344,9 @@ func TestValidateStackConfigCrossKindPathCollision(t *testing.T) {
 	}
 
 	err := config.ValidateStackConfig(cfg, "/stack")
-	require.Error(t, err, "a unit and a stack sharing a generated path must be rejected")
-	require.Contains(t, err.Error(), "collide")
+	require.ErrorIs(t, err, config.ComponentPathCollisionError{
+		Path: inthclparse.GeneratedComponentPath("/stack", "collide", false),
+	})
 }
 
 // TestValidateStackConfigCrossKindEqualRawPathNoStackNoCollision proves the cross-kind check
@@ -424,28 +382,14 @@ func TestValidateStackConfigCrossKindDifferentRawSameGeneratedCollision(t *testi
 	}
 
 	err := config.ValidateStackConfig(cfg, "/stack")
-	require.Error(
+	require.ErrorIs(
 		t,
 		err,
+		config.ComponentPathCollisionError{
+			Path: inthclparse.GeneratedComponentPath("/stack", "shared", true),
+		},
 		"different raw paths cleaning to the same generated dir must be flagged as a collision",
 	)
-}
-
-// TestValidateStackConfigNilElementDoesNotPanic proves a nil unit or stack element is skipped by the
-// cross-kind check (reported as nil by the generic validator) instead of panicking before that error surfaces.
-func TestValidateStackConfigNilElementDoesNotPanic(t *testing.T) {
-	t.Parallel()
-
-	cfg := &config.StackConfigFile{
-		Units:  []*config.Unit{nil, {Name: "a", Source: "src-a", Path: "x"}},
-		Stacks: []*config.Stack{nil, {Name: "b", Source: "src-b", Path: "y"}},
-	}
-
-	require.NotPanics(t, func() {
-		err := config.ValidateStackConfig(cfg, "/stack")
-		require.Error(t, err, "nil elements must surface as a validation error, not a panic")
-		require.Contains(t, err.Error(), "is nil")
-	})
 }
 
 // TestStackAutoIncludeBackstopPopulatesTypedErrorFields covers the pkg/config backstop in
@@ -1008,4 +952,115 @@ unit "vpc" {
 		"anchor",
 		"the injected path must resolve unit.anchor.path against the base component",
 	)
+}
+
+// TestValidateStackConfigExpandedUnitsCollidingOnPath pins that two elements of one expanded
+// block collide when their paths interpolate to the same string. The elements carry distinct
+// addresses, so the name check passes and only the path check catches them.
+func TestValidateStackConfigExpandedUnitsCollidingOnPath(t *testing.T) {
+	t.Parallel()
+
+	err := parseStackErr(t, `
+unit "app" {
+  expansion {
+    for_each = {
+      a = "shared"
+      b = "shared"
+    }
+  }
+
+  source = "./units/app"
+  path   = "app/${each.value}"
+}
+`)
+
+	require.ErrorIs(t, err, config.DuplicateComponentPathError{
+		Kind: config.ComponentKindUnit,
+		Path: inthclparse.GeneratedComponentPath(".", "app/shared", false),
+	})
+}
+
+// TestValidateStackConfigExpandedStacksCollidingOnPath is the stack-block counterpart, where
+// the path omits count.index so every element targets one directory.
+func TestValidateStackConfigExpandedStacksCollidingOnPath(t *testing.T) {
+	t.Parallel()
+
+	err := parseStackErr(t, `
+stack "team" {
+  expansion {
+    count = 2
+  }
+
+  source = "./stacks/team"
+  path   = "team"
+}
+`)
+
+	require.ErrorIs(t, err, config.DuplicateComponentPathError{
+		Kind: config.ComponentKindStack,
+		Path: inthclparse.GeneratedComponentPath(".", "team", false),
+	})
+}
+
+// TestValidateStackConfigExpandedComponentsKeepDistinctAddresses guards the other
+// direction. Every element of an expanded block carries the label the block was written
+// with, so comparing labels alone would reject a valid block.
+func TestValidateStackConfigExpandedComponentsKeepDistinctAddresses(t *testing.T) {
+	t.Parallel()
+
+	stackCfg, err := parseStackString(t, `
+unit "app" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  source = "./units/app"
+  path   = "app/${each.value}"
+}
+`)
+
+	require.NoError(t, err)
+	assert.Len(t, stackCfg.Units, 2)
+}
+
+// TestValidateStackConfigExpandedUnitCollidesWithStack pins that the cross-kind check reads
+// expanded components too, so an element can collide with a statically declared stack.
+func TestValidateStackConfigExpandedUnitCollidesWithStack(t *testing.T) {
+	t.Parallel()
+
+	err := parseStackErr(t, `
+unit "app" {
+  expansion {
+    for_each = toset(["web"])
+  }
+
+  source = "./units/app"
+  path   = each.value
+}
+
+stack "web" {
+  source = "./stacks/web"
+  path   = "web"
+}
+`)
+
+	require.ErrorIs(t, err, config.ComponentPathCollisionError{
+		Path: inthclparse.GeneratedComponentPath(".", "web", false),
+	})
+}
+
+// TestValidateStackConfigSameRawPathDifferentGeneratedDirs pins the within-kind side of the
+// no_dot_terragrunt_stack case. Two units whose raw paths match generate to different
+// directories when one is hoisted out, so they do not collide.
+func TestValidateStackConfigSameRawPathDifferentGeneratedDirs(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.StackConfigFile{
+		Units: []*config.Unit{
+			{Name: "a", Source: "src-a", Path: "x"},
+			{Name: "b", Source: "src-b", Path: "x", NoStack: new(true)},
+		},
+	}
+
+	require.NoError(t, config.ValidateStackConfig(cfg, "/stack"))
 }

@@ -1,24 +1,22 @@
 package config
 
 import (
-	"fmt"
-	"strings"
-
 	"errors"
+	"strings"
 )
 
 // ValidateStackConfig validates the components a StackConfigFile resolved to, according to
 // the rules:
 // - Unit name, source, and path shouldn't be empty
 // - Unit names should be unique
-// - Units shouldn't have duplicate paths
+// - Units shouldn't generate to duplicate paths
 // - Stack name, source, and path shouldn't be empty
 // - Stack names should be unique
-// - Stack shouldn't have duplicate paths
+// - Stacks shouldn't generate to duplicate paths
 // - A unit and a stack shouldn't generate to the same path
 //
-// stackDir is the directory containing the stack file; it is used to compute the
-// generated on-disk path of each unit and stack for the cross-kind collision check.
+// Components are validated after expansion. The names compared are keyed addresses, and the
+// paths compared are the directories each component generates into under stackDir.
 //
 // Resolving to no components at all is valid here: a file that declares blocks which all
 // expand to zero elements or set enabled to false has nothing to generate, and
@@ -28,198 +26,167 @@ func ValidateStackConfig(config *StackConfigFile, stackDir string) error {
 		return errors.New("stack config cannot be nil")
 	}
 
+	units := unitViews(config.Units, stackDir)
+	stacks := stackViews(config.Stacks, stackDir)
+
+	return errors.Join(
+		validateComponents(units, ComponentKindUnit),
+		validateComponents(stacks, ComponentKindStack),
+		validateCrossKindPaths(units, stacks),
+	)
+}
+
+// componentView is how stack validation reads a unit or stack. The two kinds carry the same
+// fields and obey the same uniqueness rules, so one implementation checks both.
+//
+// [decodeUnitBlocks] and [decodeStackBlocks] construct every element they return, and the
+// autoinclude merge only passes those values along, so the slices read here hold no nil
+// components.
+type componentView struct {
+	label         string
+	address       string
+	source        string
+	generatedPath string
+}
+
+func unitViews(units []*Unit, stackDir string) []componentView {
+	views := make([]componentView, len(units))
+
+	for i, u := range units {
+		label := strings.TrimSpace(u.Name)
+
+		views[i] = componentView{
+			label:         label,
+			address:       componentAddress(label, u.Expansion),
+			source:        strings.TrimSpace(u.Source),
+			generatedPath: generatedPathOrEmpty(u.Path, u.GeneratedPath(stackDir)),
+		}
+	}
+
+	return views
+}
+
+func stackViews(stacks []*Stack, stackDir string) []componentView {
+	views := make([]componentView, len(stacks))
+
+	for i, s := range stacks {
+		label := strings.TrimSpace(s.Name)
+
+		views[i] = componentView{
+			label:         label,
+			address:       componentAddress(label, s.Expansion),
+			source:        strings.TrimSpace(s.Source),
+			generatedPath: generatedPathOrEmpty(s.Path, s.GeneratedPath(stackDir)),
+		}
+	}
+
+	return views
+}
+
+// generatedPathOrEmpty returns the empty string for a component that declared no path.
+// Joining an empty path lands on the stack directory itself, so two components that both
+// omit path would otherwise compare equal and be reported as colliding.
+func generatedPathOrEmpty(rawPath, generatedPath string) string {
+	if strings.TrimSpace(rawPath) == "" {
+		return ""
+	}
+
+	return generatedPath
+}
+
+// validateComponents reports the components of one kind that are missing a required field
+// or that collide with each other on address or generated path.
+func validateComponents(views []componentView, kind ComponentKind) error {
 	var validationErrors []error
 
-	if err := validateUnits(config.Units); err != nil {
-		validationErrors = append(validationErrors, err)
-	}
+	addresses := make(map[string]struct{}, len(views))
+	paths := make(map[string]struct{}, len(views))
 
-	if err := validateStacks(config.Stacks); err != nil {
-		validationErrors = append(validationErrors, err)
-	}
+	for i, view := range views {
+		// Ordered rather than ranged over a map so a component missing more than one field
+		// reports them in the same order every run.
+		for _, required := range []struct {
+			field string
+			value string
+		}{
+			{field: "name", value: view.label},
+			{field: "source", value: view.source},
+			{field: "path", value: view.generatedPath},
+		} {
+			if required.value != "" {
+				continue
+			}
 
-	if err := validateCrossKindPaths(config.Units, config.Stacks, stackDir); err != nil {
-		validationErrors = append(validationErrors, err)
+			validationErrors = append(validationErrors, ComponentFieldEmptyError{
+				Kind:  kind,
+				Field: required.field,
+				Name:  view.address,
+				Index: i,
+			})
+		}
+
+		if view.label != "" {
+			if _, duplicate := addresses[view.address]; duplicate {
+				validationErrors = append(
+					validationErrors,
+					DuplicateComponentNameError{Kind: kind, Name: view.address},
+				)
+			}
+
+			addresses[view.address] = struct{}{}
+		}
+
+		if view.generatedPath != "" {
+			if _, duplicate := paths[view.generatedPath]; duplicate {
+				validationErrors = append(
+					validationErrors,
+					DuplicateComponentPathError{Kind: kind, Path: view.generatedPath},
+				)
+			}
+
+			paths[view.generatedPath] = struct{}{}
+		}
 	}
 
 	return errors.Join(validationErrors...)
 }
 
 // validateCrossKindPaths reports a generated path used by both a unit and a stack, since both
-// components generate into the same on-disk directory and would collide. The comparison uses
-// the normalized GeneratedPath (honoring no_dot_terragrunt_stack and path cleaning), not the raw
-// path string, so it neither misses real collisions nor flags non-colliding raw strings.
-// Within-kind duplicates are already reported by validateUnits and validateStacks.
-func validateCrossKindPaths(units []*Unit, stacks []*Stack, stackDir string) error {
-	unitGenPaths := make(map[string]struct{}, len(units))
+// components generate into the same on-disk directory and would collide. Within-kind
+// duplicates are already reported by [validateComponents].
+func validateCrossKindPaths(units, stacks []componentView) error {
+	unitPaths := make(map[string]struct{}, len(units))
 
 	for _, u := range units {
-		if u == nil {
+		if u.generatedPath == "" {
 			continue
 		}
 
-		if strings.TrimSpace(u.Path) == "" {
-			continue
-		}
-
-		unitGenPaths[u.GeneratedPath(stackDir)] = struct{}{}
+		unitPaths[u.generatedPath] = struct{}{}
 	}
 
-	validationErrors := make([]error, 0, len(stacks))
+	var validationErrors []error
 
 	reported := make(map[string]struct{})
 
 	for _, s := range stacks {
-		if s == nil {
+		if s.generatedPath == "" {
 			continue
 		}
 
-		if strings.TrimSpace(s.Path) == "" {
+		if _, collides := unitPaths[s.generatedPath]; !collides {
 			continue
 		}
 
-		genPath := s.GeneratedPath(stackDir)
-
-		if _, collides := unitGenPaths[genPath]; !collides {
+		if _, seen := reported[s.generatedPath]; seen {
 			continue
 		}
 
-		if _, seen := reported[genPath]; seen {
-			continue
-		}
-
-		reported[genPath] = struct{}{}
+		reported[s.generatedPath] = struct{}{}
 		validationErrors = append(
 			validationErrors,
-			fmt.Errorf("duplicate path found across unit and stack: '%s'", genPath),
+			ComponentPathCollisionError{Path: s.generatedPath},
 		)
-	}
-
-	return errors.Join(validationErrors...)
-}
-
-// validateUnits validates all units in the configuration
-func validateUnits(units []*Unit) error {
-	return validateConfigElementsGeneric(
-		units,
-		"unit",
-		func(element any, i int) (string, string, string) {
-			unit := element.(*Unit)
-			return componentAddress(unit.Name, unit.Expansion), unit.Path, unit.Source
-		},
-	)
-}
-
-// validateStacks validates all stacks in the configuration
-func validateStacks(stacks []*Stack) error {
-	return validateConfigElementsGeneric(
-		stacks,
-		"stack",
-		func(element any, i int) (string, string, string) {
-			stack := element.(*Stack)
-			return componentAddress(stack.Name, stack.Expansion), stack.Path, stack.Source
-		},
-	)
-}
-
-// validateConfigElementsGeneric is a generic function to validate configuration elements
-// It takes a slice of elements, the element type name, and a function to extract name, path, and source from an element
-func validateConfigElementsGeneric(
-	elements any,
-	elementType string,
-	getValues func(element any, index int) (name, path, source string),
-) error {
-	var validationErrors []error
-
-	var slice []any
-
-	// Convert to []any storing nil pointers as untyped nil so the element==nil guard below catches them.
-	switch v := elements.(type) {
-	case []*Unit:
-		slice = make([]any, len(v))
-		for i, unit := range v {
-			if unit == nil {
-				continue
-			}
-
-			slice[i] = unit
-		}
-	case []*Stack:
-		slice = make([]any, len(v))
-		for i, stack := range v {
-			if stack == nil {
-				continue
-			}
-
-			slice[i] = stack
-		}
-	default:
-		return errors.New("unknown element type")
-	}
-
-	names := make(map[string]bool, len(slice))
-	paths := make(map[string]bool, len(slice))
-
-	for i, element := range slice {
-		if element == nil {
-			validationErrors = append(
-				validationErrors,
-				fmt.Errorf("%s at index %d is nil", elementType, i),
-			)
-
-			continue
-		}
-
-		name, path, source := getValues(element, i)
-		name = strings.TrimSpace(name)
-		path = strings.TrimSpace(path)
-		source = strings.TrimSpace(source)
-
-		// Validate name, source, and path
-		if name == "" {
-			validationErrors = append(
-				validationErrors,
-				fmt.Errorf("%s at index %d has empty name", elementType, i),
-			)
-		}
-
-		if source == "" {
-			validationErrors = append(
-				validationErrors,
-				fmt.Errorf("%s '%s' has empty source", elementType, name),
-			)
-		}
-
-		if path == "" {
-			validationErrors = append(
-				validationErrors,
-				fmt.Errorf("%s '%s' has empty path", elementType, name),
-			)
-		}
-
-		// Check for duplicates
-		if names[name] {
-			validationErrors = append(
-				validationErrors,
-				fmt.Errorf("duplicate %s name found: '%s'", elementType, name),
-			)
-		}
-
-		if paths[path] {
-			validationErrors = append(
-				validationErrors,
-				fmt.Errorf("duplicate %s path found: '%s'", elementType, path),
-			)
-		}
-
-		// Save non-empty values for uniqueness check
-		if name != "" {
-			names[name] = true
-		}
-
-		if path != "" {
-			paths[path] = true
-		}
 	}
 
 	return errors.Join(validationErrors...)
