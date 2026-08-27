@@ -164,6 +164,82 @@ func TestRenderWriteWithoutOutputPath(t *testing.T) {
 	}
 }
 
+func TestRenderWriteFilePermissions(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Windows does not enforce POSIX file permissions")
+	}
+
+	testCases := []struct {
+		name   string
+		format string
+	}{
+		{
+			name:   "hcl",
+			format: render.FormatHCL,
+		},
+		{
+			name:   "json",
+			format: render.FormatJSON,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "rendered")
+
+			assert.Equal(t, os.FileMode(0600), renderToFilePerm(t, tc.format, outputPath))
+		})
+	}
+}
+
+func TestRenderWriteReplacesLooserPermissions(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Windows does not enforce POSIX file permissions")
+	}
+
+	outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "rendered")
+	require.NoError(t, os.WriteFile(outputPath, []byte("stale"), 0644))
+
+	assert.Equal(t, os.FileMode(0600), renderToFilePerm(t, render.FormatJSON, outputPath))
+
+	content, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+
+	var result map[string]any
+
+	require.NoError(t, json.Unmarshal(content, &result))
+	validateRenderedJSON(t, result, false)
+}
+
+// renderToFilePerm renders a config and returns the permissions of the file it writes.
+func renderToFilePerm(t *testing.T, format, outputPath string) os.FileMode {
+	t.Helper()
+
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
+	opts.Format = format
+	opts.Write = true
+	opts.OutputPath = outputPath
+
+	err := render.Run(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
+		opts,
+	)
+	require.NoError(t, err)
+
+	info, err := os.Stat(outputPath)
+	require.NoError(t, err)
+
+	return info.Mode().Perm()
+}
+
 func TestRenderJSON_InvalidFormat(t *testing.T) {
 	t.Parallel()
 

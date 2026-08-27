@@ -10,5 +10,6 @@ Terragrunt created several files and directories that other users on the same ma
 - The CLI config Terragrunt writes for OpenTofu/Terraform when the [Provider Cache Server](/features/caching/provider-cache-server) is enabled, and the directory holding it.
 - The JSON plan files written to [`--json-out-dir`](/reference/cli/commands/run#json-out-dir), and that directory.
 - The directories holding the plan files written to [`--out-dir`](/reference/cli/commands/run#out-dir).
+- The config written by [`render --write`](/reference/cli/commands/render#write), which holds the resolved values of `inputs`, `locals`, and `dependency` outputs.
 
 Terragrunt now creates those files as `0600` and those directories as `0700`.
