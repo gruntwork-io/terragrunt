@@ -90,8 +90,8 @@ func sourceTitle(moduleURL string) string {
 	title, _, _ := strings.Cut(moduleURL, "?")
 	title = strings.TrimSuffix(title, "/")
 
-	if idx := strings.LastIndexAny(title, "/"); idx >= 0 {
-		title = title[idx+1:]
+	if _, last, ok := strings.CutLast(title, "/"); ok {
+		title = last
 	}
 
 	if title == "" {

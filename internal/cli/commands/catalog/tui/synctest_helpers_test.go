@@ -147,7 +147,7 @@ func driveModel(t *testing.T, m tea.Model, width, height int, interact []tea.Msg
 			break
 		}
 
-		time.Sleep(50 * time.Millisecond)
+		synctest.Sleep(50 * time.Millisecond)
 	}
 
 	if iter == settleMaxIterations-1 {
