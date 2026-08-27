@@ -106,8 +106,7 @@ func parseIncludedConfig(
 
 	config, err := ParseConfigFile(ctx, parseCtx, l, includePath, includedConfig)
 	if err != nil {
-		var configNotFoundError TerragruntConfigNotFoundError
-		if errors.As(err, &configNotFoundError) {
+		if _, ok := errors.AsType[TerragruntConfigNotFoundError](err); ok {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
 				SourcePath:  pctx.TerragruntConfigPath,
@@ -140,8 +139,7 @@ func handleInclude(
 	includeList := pctx.TrackInclude.CurrentList
 	baseConfig := config
 
-	for i := len(includeList) - 1; i >= 0; i-- {
-		includeConfig := includeList[i]
+	for _, includeConfig := range slices.Backward(includeList) {
 
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {
@@ -229,8 +227,7 @@ func handleIncludeForDependency(
 	includeList := pctx.TrackInclude.CurrentList
 	baseDependencyBlock := childDecodedDependency.Dependencies
 
-	for i := len(includeList) - 1; i >= 0; i-- {
-		includeConfig := includeList[i]
+	for _, includeConfig := range slices.Backward(includeList) {
 
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {

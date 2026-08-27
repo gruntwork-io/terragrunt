@@ -231,16 +231,14 @@ func TestOCIResolverProbeConcurrentWithRacing(t *testing.T) {
 			"oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0",
 			"oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + pinned,
 		} {
-			wg.Add(1)
 
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 
 				key, err := r.Probe(t.Context(), rawURL)
 				assert.NoError(t, err)
 
 				keys <- key
-			}()
+			})
 		}
 	}
 

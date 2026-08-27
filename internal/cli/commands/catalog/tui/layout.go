@@ -114,8 +114,8 @@ func takeWidthSuffix(s string, maxW int) string {
 
 	w := 0
 
-	for i := len(rs) - 1; i >= 0; i-- {
-		r := rs[i]
+	for _, r := range slices.Backward(rs) {
+
 		rw := lipgloss.Width(string(r))
 
 		if w+rw > maxW {

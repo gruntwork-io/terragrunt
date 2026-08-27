@@ -35,10 +35,8 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for range 10 {
-		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			// Fetch the handle from the context on every use, the way the
 			// download path does. If lookups stopped returning the one shared
@@ -49,7 +47,7 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 			)
 			assert.NoError(t, err)
 			assert.Equal(t, source+"?version=3.3.0", pinned)
-		}()
+		})
 	}
 
 	wg.Wait()

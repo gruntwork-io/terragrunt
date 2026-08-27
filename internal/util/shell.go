@@ -29,15 +29,11 @@ type CmdOutput struct {
 // implement errorCode or is not an exec.ExitError, the error is returned.
 // Joined errors are traversed by errors.As via their Unwrap() []error method.
 func GetExitCode(err error) (int, error) {
-	var exitStatus interface {
-		ExitStatus() (int, error)
-	}
-	if errors.As(err, &exitStatus) {
+	if exitStatus, ok := errors.AsType[interface{ ExitStatus() (int, error) }](err); ok {
 		return exitStatus.ExitStatus()
 	}
 
-	var exitCoder clihelper.ExitCoder
-	if errors.As(err, &exitCoder) {
+	if exitCoder, ok := errors.AsType[clihelper.ExitCoder](err); ok {
 		return exitCoder.ExitCode(), nil
 	}
 

@@ -24,7 +24,7 @@ func expandedUnit(name, key, path string) output.UnitOutput {
 			Name: name,
 			Path: path,
 			Expansion: &hclparse.ExpansionBlock{
-				InstanceKey: hclparse.InstanceKey{EachKey: &key},
+				EachKey: &key,
 			},
 		},
 		Outputs: map[string]cty.Value{"id": cty.StringVal(name + "-" + key)},
@@ -39,7 +39,7 @@ func countUnit(name string, index int, path string) output.UnitOutput {
 			Name: name,
 			Path: path,
 			Expansion: &hclparse.ExpansionBlock{
-				InstanceKey: hclparse.InstanceKey{CountIndex: &index},
+				CountIndex: &index,
 			},
 		},
 		Outputs: map[string]cty.Value{"id": cty.StringVal(path)},

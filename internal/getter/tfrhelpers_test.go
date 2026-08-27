@@ -50,17 +50,15 @@ func TestVersionResolverMemoizesWithRacing(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for range 10 {
-		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			pinned, err := resolver.Pin(
 				t.Context(), logger.CreateLogger(), tfimpl.OpenTofu, source, "~> 3.0",
 			)
 			assert.NoError(t, err)
 			assert.Equal(t, source+"?version=3.3.0", pinned)
-		}()
+		})
 	}
 
 	wg.Wait()

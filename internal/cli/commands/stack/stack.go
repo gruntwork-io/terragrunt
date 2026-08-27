@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -213,8 +214,8 @@ func FilterOutputs(outputs cty.Value, index string) (cty.Value, error) {
 		current = next
 	}
 
-	for i := len(segments) - 1; i >= 0; i-- {
-		current = cty.ObjectVal(map[string]cty.Value{segments[i]: current})
+	for _, segment := range slices.Backward(segments) {
+		current = cty.ObjectVal(map[string]cty.Value{segment: current})
 	}
 
 	return current, nil

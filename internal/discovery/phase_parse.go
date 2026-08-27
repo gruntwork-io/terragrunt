@@ -416,8 +416,7 @@ func parseComponent(
 			)
 			if err != nil {
 				if discovery.suppressParseErrors {
-					var notFoundErr config.TerragruntConfigNotFoundError
-					if errors.As(err, &notFoundErr) {
+					if _, ok := errors.AsType[config.TerragruntConfigNotFoundError](err); ok {
 						l.Debugf(
 							"Skipping missing config during discovery: %s",
 							parseOpts.TerragruntConfigPath,

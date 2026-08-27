@@ -621,8 +621,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		// Process the error through our error handling configuration
 		action, recoveryErr := opts.Errors.AttemptErrorRecovery(l, err, currentAttempt)
 		if recoveryErr != nil {
-			var maxAttemptsReachedError *errorconfig.MaxAttemptsReachedError
-			if errors.As(recoveryErr, &maxAttemptsReachedError) {
+			if maxAttemptsReachedError, ok := errors.AsType[*errorconfig.MaxAttemptsReachedError](recoveryErr); ok {
 				return maxAttemptsReachedError
 			}
 

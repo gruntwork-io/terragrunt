@@ -44,8 +44,7 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 	for i, filterString := range filterStrings {
 		filter, err := Parse(filterString)
 		if err != nil {
-			var parseErr ParseError
-			if errors.As(err, &parseErr) {
+			if parseErr, ok := errors.AsType[ParseError](err); ok {
 				diagnostics = append(diagnostics, FormatDiagnostic(&parseErr, i, useColor))
 
 				continue

@@ -32,14 +32,14 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	limitExceeded := make(chan uint32, goroutines)
 
 	var (
-		goRoutinesExecutingSimultaneously uint32
+		goRoutinesExecutingSimultaneously atomic.Uint32
 		waitForAllGoRoutinesToFinish      sync.WaitGroup
 	)
 
 	endGoRoutine := func() {
 		// Decrement the number of running goroutines. Note that decrementing an unsigned int is a bit odd.
 		// This is copied from the docs: https://golang.org/pkg/sync/atomic/#AddUint32
-		atomic.AddUint32(&goRoutinesExecutingSimultaneously, ^uint32(0))
+		goRoutinesExecutingSimultaneously.Add(^uint32(0))
 
 		semaphore.Release()
 		waitForAllGoRoutinesToFinish.Done()
@@ -51,10 +51,7 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 		semaphore.Acquire()
 
 		// Increment the total number of running goroutines
-		totalGoRoutinesExecutingSimultaneously := atomic.AddUint32(
-			&goRoutinesExecutingSimultaneously,
-			1,
-		)
+		totalGoRoutinesExecutingSimultaneously := goRoutinesExecutingSimultaneously.Add(1)
 
 		if totalGoRoutinesExecutingSimultaneously > uint32(permits) {
 			limitExceeded <- totalGoRoutinesExecutingSimultaneously

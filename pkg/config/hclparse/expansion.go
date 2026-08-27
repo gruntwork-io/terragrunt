@@ -430,8 +430,8 @@ func expandCount(
 		}
 
 		instances = append(instances, Instance{
-			Value:       value,
-			InstanceKey: InstanceKey{CountIndex: new(index)},
+			Value:      value,
+			CountIndex: new(index),
 		})
 	}
 
@@ -499,8 +499,8 @@ func expandForEach(
 		}
 
 		instances = append(instances, Instance{
-			Value:       value,
-			InstanceKey: InstanceKey{EachKey: new(key)},
+			Value:   value,
+			EachKey: new(key),
 		})
 	}
 
