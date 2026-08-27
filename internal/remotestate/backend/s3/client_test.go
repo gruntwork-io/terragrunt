@@ -75,15 +75,11 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 	// Launch a bunch of goroutines who will all try to create the same table at more or less the same time.
 	// DynamoDB will, of course, only allow a single table to be created, but we still need to make sure none of
 	// the goroutines report an error.
-	for i := 0; i < 20; i++ {
-		waitGroup.Add(1)
-
-		go func() {
-			defer waitGroup.Done()
-
+	for range 20 {
+		waitGroup.Go(func() {
 			err := client.CreateLockTableIfNecessary(t.Context(), l, tableName, nil)
 			assert.NoError(t, err, "Unexpected error: %v", err)
-		}()
+		})
 	}
 
 	waitGroup.Wait()

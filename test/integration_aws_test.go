@@ -3331,9 +3331,9 @@ func assertS3Tags(
 
 	ctx := t.Context()
 
-	var in = s3.GetBucketTaggingInput{}
-
-	in.Bucket = aws.String(bucketName)
+	var in = s3.GetBucketTaggingInput{
+		Bucket: aws.String(bucketName),
+	}
 
 	var tags, err2 = client.GetBucketTagging(ctx, &in)
 	if err2 != nil {
@@ -3501,8 +3501,7 @@ func doesS3BucketKeyExist(t *testing.T, awsRegion string, bucketName, key string
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 			if apiErr.ErrorCode() == "NotFound" {
 				return false
 			}

@@ -9,6 +9,7 @@ import (
 	"io"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
@@ -418,13 +419,7 @@ func gcsUnsupportedEnvUnset(env map[string]string) bool {
 
 // gcsSDKAmbientEnvOverridden reports whether output-specific configuration changed a value the in-process client reads from the real process.
 func gcsSDKAmbientEnvOverridden(pctx *ParsingContext) bool {
-	for _, key := range gcsSDKAmbientEnvKeys {
-		if pctx.dependencyOutputEnvOverridden(key) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(gcsSDKAmbientEnvKeys, pctx.dependencyOutputEnvOverridden)
 }
 
 // gcsEnvFallbackSuppressionSupported rejects empty configured values whose suppression of an environment fallback gcphelper misses.

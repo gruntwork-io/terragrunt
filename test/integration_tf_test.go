@@ -5073,7 +5073,7 @@ func TestTFLogStreaming(t *testing.T) {
 					continue
 				}
 
-				dateTimestampStr := strings.Split(line, " ")[0]
+				dateTimestampStr, _, _ := strings.Cut(line, " ")
 				// The dateTimestampStr looks like this:
 				// time=2025-01-09EST15:47:04-05:00
 				//
