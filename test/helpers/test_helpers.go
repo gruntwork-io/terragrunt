@@ -483,3 +483,22 @@ func FindCachedFile(t *testing.T, unitDir, filename string) string {
 
 	return matches[0]
 }
+
+// LocalGitRemote copies the fixture tree at fixturePath into a throwaway git
+// repository and returns a file:// URL for it, so tests that need a real clone
+// can have one without reaching a hosting provider.
+//
+// The URL keeps its file:// scheme. A bare directory path reads as an
+// already-checked-out local repo and skips the clone, which is the step these
+// tests exercise.
+func LocalGitRemote(t *testing.T, fixturePath string) string {
+	t.Helper()
+
+	repoDir := TmpDirWOSymlinks(t)
+
+	require.NoError(t, os.CopyFS(repoDir, os.DirFS(MustAbs(t, fixturePath))))
+
+	InitGitRepoWithBranchRef(t, repoDir, "main")
+
+	return "file://" + filepath.ToSlash(repoDir)
+}

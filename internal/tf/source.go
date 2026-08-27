@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	"github.com/gruntwork-io/terragrunt/internal/detect"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -337,7 +338,7 @@ func normalizeSourceURL(source string, workingDir string) (string, error) {
 		new(getter.GitHubDetector),
 		new(getter.GitLabDetector),
 		new(getter.GitDetector),
-		new(getter.BitBucketDetector),
+		new(detect.BitBucket),
 	}
 
 	for _, detector := range detectors {

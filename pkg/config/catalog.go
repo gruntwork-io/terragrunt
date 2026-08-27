@@ -61,14 +61,14 @@ func (cfg *CatalogConfig) normalize(fsys vfs.FS, configPath string) {
 	for i, url := range cfg.URLs {
 		url := filepath.Join(configDir, url)
 
-		if _, err := fsys.Stat(url); err == nil {
+		if vfs.Exists(fsys, url) {
 			cfg.URLs[i] = url
 		}
 	}
 
 	if cfg.DefaultTemplate != "" {
 		path := filepath.Join(configDir, cfg.DefaultTemplate)
-		if _, err := fsys.Stat(path); err == nil {
+		if vfs.Exists(fsys, path) {
 			cfg.DefaultTemplate = path
 		}
 	}

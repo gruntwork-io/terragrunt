@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -270,11 +271,16 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 // decodeDependencyBlocks decodes a config's dependency blocks, returning one Dependency
 // per iteration element. A block that declares no expansion yields a single Dependency.
 func decodeDependencyBlocks(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
-	experiments experiment.Experiments,
+	opts ...hclparse.ExpandOption,
 ) (Dependencies, error) {
-	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext)
+	experiments := pctx.Experiments
+
+	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -297,12 +303,67 @@ func decodeDependencyBlocks(
 			}
 
 			dep.Expansion.InstanceKey = instance.InstanceKey
+			dep.Expansion.Source = instance.Source
 		}
 
 		dependencies = append(dependencies, *dep)
 	}
 
+	if err := validateUniqueDependencies(ctx, pctx, l, file.ConfigPath, dependencies); err != nil {
+		return nil, err
+	}
+
 	return dependencies, nil
+}
+
+// validateUniqueDependencies reports two dependency blocks in one config that address the
+// same dependency. HCL allows the repeated label, and nothing downstream reports it: the
+// dependency map is keyed by address, so the last block silently wins and the ones before
+// it become unreachable.
+//
+// Whether that is an error or a warning is left to the duplicate-dependency-labels strict
+// control, since configs carrying a shadowed block have always run.
+func validateUniqueDependencies(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	configPath string,
+	deps Dependencies,
+) error {
+	address, found := duplicateDependencyAddress(deps)
+	if !found {
+		return nil
+	}
+
+	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
+	if control == nil {
+		return errors.New("failed to find control " + controls.DuplicateDependencyLabels)
+	}
+
+	if control.GetEnabled() {
+		return DuplicateDependencyError{ConfigPath: configPath, Address: address}
+	}
+
+	return control.Evaluate(log.ContextWithLogger(ctx, l))
+}
+
+// duplicateDependencyAddress returns the first address that two dependency blocks both
+// claim. Blocks are compared by address rather than by label, so the elements of an
+// expanded block, which all carry the label the block was written with, stay distinct.
+func duplicateDependencyAddress(deps Dependencies) (string, bool) {
+	seen := make(map[string]struct{}, len(deps))
+
+	for i := range deps {
+		address := deps[i].mergeKey()
+
+		if _, duplicate := seen[address]; duplicate {
+			return address, true
+		}
+
+		seen[address] = struct{}{}
+	}
+
+	return "", false
 }
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
@@ -322,7 +383,7 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocks(file, evalParsingContext, pctx.Experiments)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, l, file, evalParsingContext)
 	if err != nil {
 		return nil, err
 	}
@@ -1410,10 +1471,11 @@ func resolveOutputJSON(
 		pctx.IAMRoleOptions = iam.RoleOptions{}
 	}
 
-	// Decode dependency blocks plus terraform source and extra_arguments, skipping hooks that may reference the dependency namespace.
+	// Decode dependency blocks, terraform source and extra_arguments, and terraform_binary, skipping hooks that may
+	// reference the dependency namespace.
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs).WithDiagnosticsSuppressed(l),
+		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).WithDiagnosticsSuppressed(l),
 		l,
 		targetConfig,
 		nil,
@@ -1970,6 +2032,13 @@ func runTerragruntOutputJSON(
 		return nil, err
 	}
 
+	// [resolveOutputJSON] falls back here when its lightweight parse could not read the target's config, so the parse
+	// above is the first look at the binary the target configures. Without this the run would read the target's state
+	// through whichever binary the calling unit resolved.
+	if !pctx.TFPathExplicitlySet && cfg.TerraformBinary != "" {
+		pctx.TFPath = cfg.TerraformBinary
+	}
+
 	// A `--source` override carries the module subdir of whichever unit the run started from, not the dependency being
 	// resolved here, so retarget it to this module's own subdir before running. The full parse above resolves the
 	// target's real source even when it references a dependency output (which the lightweight parse in resolveOutputJSON
@@ -2244,6 +2313,58 @@ func parseAutoIncludeFileCached(
 	hclCache.Put(ctx, cacheKey, file)
 
 	return file, nil
+}
+
+// decodeDependencyBlocksWithAutoIncludeOverrides decodes the file's dependency blocks, leaving
+// out the ones a sibling autoinclude replaces wholesale.
+//
+// A replaced block contributes nothing to the final config, so evaluating it can only raise
+// errors about a body that is about to be thrown away. A unit source whose config_path reads a
+// values attribute the stack stopped setting hits exactly that.
+func decodeDependencyBlocksWithAutoIncludeOverrides(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+) (Dependencies, error) {
+	overrides, err := siblingAutoIncludeDepOverrides(ctx, pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return decodeDependencyBlocks(
+		ctx,
+		pctx,
+		l,
+		file,
+		evalContext,
+		hclparse.WithSkipLabels(overrides),
+	)
+}
+
+// siblingAutoIncludeDepOverrides returns the names of the dependency blocks the sibling
+// autoinclude replaces wholesale, or nil when no autoinclude is registered.
+//
+// [mergeDependencyBlocks] keys the merge on a dependency's name, so an unexpanded autoinclude
+// block named vpc displaces the unit's unexpanded vpc outright. Expansion keys the merge per
+// instance instead, so WithSkipLabels leaves expanded unit blocks alone. Encoding then rejects a
+// bare autoinclude label that would sit beside those instances. [hclparse.File.UnexpandedLabels]
+// reports only the unexpanded names for that reason.
+func siblingAutoIncludeDepOverrides(
+	ctx context.Context,
+	pctx *ParsingContext,
+) (map[string]struct{}, error) {
+	if !hasSiblingAutoInclude(pctx) {
+		return nil, nil
+	}
+
+	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, pctx.TrackInclude.AutoIncludeOverride.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	return autoFile.UnexpandedLabels(MetadataDependency, &Dependency{})
 }
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.

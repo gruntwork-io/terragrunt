@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -33,6 +34,7 @@ var ErrPTYRequiresOSBackend = errors.New("PTY allocation requires an OS-backed v
 type Cmd struct {
 	vc                         vexec.Cmd
 	interruptSignal            os.Signal
+	notifier                   signal.NotifierFunc
 	filename                   string
 	dir                        string
 	forwardSignalDelay         time.Duration
@@ -56,6 +58,7 @@ func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cm
 		vc:              vc,
 		filename:        filepath.Base(name),
 		interruptSignal: signal.InterruptSignal,
+		notifier:        signal.NotifierWithContext,
 	}
 
 	cmd.SetStdin(v.Stdin)
@@ -72,10 +75,6 @@ func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cm
 		sig := signal.SignalFromContext(ctx)
 		if sig == nil {
 			sig = cmd.interruptSignal
-		}
-
-		if sig == nil {
-			sig = os.Kill
 		}
 
 		if err := vc.Signal(sig); err != nil && !errors.Is(err, vexec.ErrProcessNotStarted) {
@@ -188,12 +187,13 @@ func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context, l log.Logger) fu
 // ForwardSignal forwards a given `sig` with a delay if cmd.forwardSignalDelay is greater than 0,
 // and if the same signal is received again, it is forwarded immediately.
 func (cmd *Cmd) ForwardSignal(ctx context.Context, l log.Logger, sig os.Signal) {
-	ctxDelay, cancelDelay := context.WithCancel(ctx)
-	defer cancelDelay()
+	escalate := make(chan struct{})
+	stopWaiting := sync.OnceFunc(func() { close(escalate) })
 
-	signal.NotifierWithContext(ctx, func(_ os.Signal) {
-		cancelDelay()
-	}, sig)
+	notifyCtx, stopNotifying := context.WithCancel(ctx)
+	defer stopNotifying()
+
+	cmd.notifier(notifyCtx, func(os.Signal) { stopWaiting() }, sig)
 
 	if cmd.forwardSignalDelay > 0 {
 		l.Debugf("%s signal will be forwarded to %s with delay %s",
@@ -203,11 +203,14 @@ func (cmd *Cmd) ForwardSignal(ctx context.Context, l log.Logger, sig os.Signal) 
 		)
 	}
 
+	// escalate is a plain channel rather than a context derived from ctx. A derived one
+	// would leave two ready cases here when the caller cancels, and select would forward
+	// the signal about half the time.
 	select {
 	case <-ctx.Done():
 		return
 	case <-time.After(cmd.forwardSignalDelay):
-	case <-ctxDelay.Done():
+	case <-escalate:
 	}
 
 	cmd.SendSignal(l, sig)
