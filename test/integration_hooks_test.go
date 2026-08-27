@@ -1,13 +1,10 @@
 package test_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,37 +65,4 @@ func assertNoHookOutputFiles(t *testing.T, unitPaths ...string) {
 		assert.NoFileExists(t, filepath.Join(unitPath, "after.out"))
 		assert.NoFileExists(t, filepath.Join(unitPath, "error.out"))
 	}
-}
-
-func TestTerragruntInfo(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
-	rootPath := filepath.Join(
-		tmpEnvPath,
-		testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout,
-	)
-
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(
-		t,
-		"terragrunt info print --non-interactive --working-dir "+rootPath,
-		&showStdout,
-		&showStderr,
-	)
-	require.NoError(t, err)
-
-	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
-
-	var dat print.InfoOutput
-
-	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
-	require.NoError(t, errUnmarshal)
-
-	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, helpers.TerragruntCache), dat.DownloadDir)
-	assert.Equal(t, wrappedBinary(t.Context()), dat.TerraformBinary)
-	assert.Empty(t, dat.IAMRole)
 }

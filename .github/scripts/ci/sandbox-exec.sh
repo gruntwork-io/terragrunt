@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run a command without the two side effects a unit test run should not have:
+# Run a command without the side effects a unit test run should not have:
 #
 # - network reach beyond loopback
 # - writes outside the directories the run owns
+# - execution of a real OpenTofu or Terraform binary
 #
 # Written for `go test -exec`:
 #
 #   go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" ./...
 #
 # Loopback stays reachable so tests can stand up httptest servers, and writes
-# stay open in the temp dir, the Go caches and Terragrunt's user cache.
+# stay open in the temp dir, the Go caches and Terragrunt's user cache. A test
+# that needs a real toolchain belongs behind the `tf` build tag.
 #
 # How much of that holds depends on the platform:
 #
-# - macOS confines both through one seatbelt profile.
+# - macOS confines all of them through one seatbelt profile.
 # - Linux confines the network alone, through a network namespace.
 #
 # The --check flag confirms the sandbox is working properly.
@@ -95,6 +97,25 @@ check_writes() {
 	echo "sandbox-exec.sh: writes are confined to the temp dir and the caches"
 }
 
+check_tf_exec() {
+	local script="$1"
+
+	local binary
+	binary="$(command -v tofu || command -v terraform || true)"
+
+	if [[ -z "$binary" ]]; then
+		echo "sandbox-exec.sh: no tofu or terraform on PATH, skipping the execution check"
+		return
+	fi
+
+	if "$script" "$binary" -version >/dev/null 2>&1; then
+		echo "sandbox-exec.sh: check failed, $binary still runs inside the sandbox" >&2
+		exit 1
+	fi
+
+	echo "sandbox-exec.sh: toolchain execution is blocked"
+}
+
 run_check() {
 	local script="${BASH_SOURCE[0]}"
 
@@ -106,11 +127,12 @@ run_check() {
 	check_egress "$script"
 
 	if [[ "$(uname -s)" != "Darwin" ]]; then
-		echo "sandbox-exec.sh: writes are NOT confined on $(uname -s)"
+		echo "sandbox-exec.sh: writes and execution are NOT confined on $(uname -s)"
 		return
 	fi
 
 	check_writes "$script"
+	check_tf_exec "$script"
 }
 
 if [[ "${1:-}" == "--check" ]]; then
