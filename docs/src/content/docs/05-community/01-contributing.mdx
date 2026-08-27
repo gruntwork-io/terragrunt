@@ -337,12 +337,13 @@ The convention we use for race tests is to prefix them with `WithRacing`. The Te
 
 Terragrunt routes its side effects through a virtualized environment, so tests can drive filesystem, subprocess and HTTP behavior without touching the real thing.
 
-A test can break that in two ways, and neither shows up as a test failure:
+A test can break that in ways that never show up as a test failure:
 
 1. A test that reaches the network either exercises a code path that bypasses the virtualized environment or is an integration test sitting in the untagged suite.
 1. A test that writes outside its own temp directory leaves state behind for the next run.
+1. A test that runs a real OpenTofu or Terraform binary belongs behind the `tf` build tag, where the integration jobs give it a real toolchain. A test that only needs to stand in for the binary substitutes `vexec.NewMemExec`.
 
-To check for both, run the suite through the sandbox wrapper:
+To check for all of them, run the suite through the sandbox wrapper:
 
 ```bash
 go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" ./...
@@ -358,13 +359,13 @@ Before reading anything into a passing run, confirm the sandbox took effect. The
 
 </Aside>
 
-Loopback stays reachable, so tests that stand up an `httptest` server keep working. Writes stay open in the temp directory, the Go caches and Terragrunt's user cache. Compilation happens outside the sandbox, so module downloads are unaffected. Reads are untouched, so none of this says anything about a test picking up `~/.gitconfig` or `~/.terraformrc`.
+Loopback stays reachable, so tests that stand up an `httptest` server keep working. Writes stay open in the temp directory, the Go caches and Terragrunt's user cache. A test that needs to stand in for the toolchain substitutes `vexec.NewMemExec` rather than putting a mock binary on `PATH`. Compilation happens outside the sandbox, so module downloads are unaffected. Reads are untouched, so none of this says anything about a test picking up `~/.gitconfig` or `~/.terraformrc`.
 
 How the sandbox is built, and how much it covers, differ by platform:
 
 <Tabs syncKey="operating-systems">
   <TabItem label="Linux">
-    Each test binary runs in its own network namespace, created with `unshare`. The `network_namespaces(7)` and `user_namespaces(7)` man pages cover what that isolates. Writes are not confined. Doing that needs bubblewrap or a Landlock wrapper, neither of which is wired up, so `--check` reports the network half alone.
+    Each test binary runs in its own network namespace, created with `unshare`. The `network_namespaces(7)` and `user_namespaces(7)` man pages cover what that isolates. Writes and execution are not confined. Doing either needs bubblewrap or a Landlock wrapper, neither of which is wired up, so `--check` reports the network half alone.
 
     This is the platform Continuous Integration runs on, so CI checks the network and nothing else.
 
@@ -375,7 +376,7 @@ How the sandbox is built, and how much it covers, differ by platform:
     ```
   </TabItem>
   <TabItem label="macOS">
-    Each test binary runs under the seatbelt profile at `.github/scripts/ci/sandbox.sb`, applied with `sandbox-exec`. That profile confines the network and writes together.
+    Each test binary runs under the seatbelt profile at `.github/scripts/ci/sandbox.sb`, applied with `sandbox-exec`. That profile confines the network, writes and toolchain execution together.
 
     Nothing to set up. `sandbox-exec` ships with macOS. Apple documents `sandbox-exec(1)` and `sandbox(7)` but not the profile language, so the profiles under `/System/Library/Sandbox/Profiles` are the working reference for changing `sandbox.sb`.
   </TabItem>
