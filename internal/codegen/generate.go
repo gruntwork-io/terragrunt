@@ -233,7 +233,7 @@ func materialize(
 	store *cas.Content,
 ) error {
 	if store == nil || (mutable != nil && *mutable) {
-		return vfs.WriteFile(v.FS, targetPath, contents, generatedFilePerms)
+		return vfs.WriteFileAtomic(v.FS, targetPath, contents, generatedFilePerms)
 	}
 
 	// Matches how the blob store keys files ingested from local sources, so a

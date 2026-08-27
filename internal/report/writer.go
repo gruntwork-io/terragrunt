@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -23,6 +22,9 @@ const (
 	csvFieldCount = 9
 	// csvRowOffset accounts for: 0-indexed loop (i starts at 0) + skipped header row.
 	csvRowOffset = 2
+	// reportFilePerms keeps a report readable only by the user who ran the command,
+	// since it names every unit and why each one failed.
+	reportFilePerms = 0o600
 )
 
 // JSONRun represents a run in JSON format.
@@ -250,7 +252,11 @@ func (r *Report) WriteToFile(fsys vfs.FS, path string) error {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	return writeFileAtomic(fsys, path, writeBody)
+	if err := vfs.StreamFileAtomic(fsys, path, reportFilePerms, writeBody); err != nil {
+		return fmt.Errorf("failed to write report: %w", err)
+	}
+
+	return nil
 }
 
 // WriteCSV writes the report to a writer in CSV format.
@@ -387,35 +393,8 @@ func (r *Report) WriteSchemaToFile(fsys vfs.FS, path string) error {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	return writeFileAtomic(fsys, path, WriteSchema)
-}
-
-// writeFileAtomic writes content produced by write into a temporary file in
-// path's directory and then renames it onto path, so a concurrent reader never
-// observes a partially written file and a failed write leaves no truncated one.
-// The temp file shares path's directory so the rename stays on one filesystem.
-func writeFileAtomic(fsys vfs.FS, path string, write func(w io.Writer) error) error {
-	tmpFile, err := vfs.CreateTemp(fsys, filepath.Dir(path), "terragrunt-report-")
-	if err != nil {
-		return err
-	}
-
-	tmpName := tmpFile.Name()
-
-	if err := write(tmpFile); err != nil {
-		return errors.Join(
-			fmt.Errorf("failed to write report: %w", err),
-			tmpFile.Close(),
-			fsys.Remove(tmpName),
-		)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return errors.Join(fmt.Errorf("failed to close report file: %w", err), fsys.Remove(tmpName))
-	}
-
-	if err := fsys.Rename(tmpName, path); err != nil {
-		return errors.Join(err, fsys.Remove(tmpName))
+	if err := vfs.StreamFileAtomic(fsys, path, reportFilePerms, WriteSchema); err != nil {
+		return fmt.Errorf("failed to write report schema: %w", err)
 	}
 
 	return nil
