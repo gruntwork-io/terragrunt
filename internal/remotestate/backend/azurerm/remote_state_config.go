@@ -180,7 +180,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) normalize() {
 		&rs.SasToken, &rs.AccessKey, &rs.Environment, &rs.MSIResourceID,
 		&rs.OIDCTokenFilePath,
 		&cfg.Location, &cfg.AccountTier, &cfg.AccountReplicationType,
-		&cfg.AccountKind, &cfg.AccessTier,
+		&cfg.AccountKind, &cfg.AccessTier, &cfg.PrincipalID,
 	} {
 		*field = strings.TrimSpace(*field)
 	}

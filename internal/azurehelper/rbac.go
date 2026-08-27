@@ -38,6 +38,10 @@ const (
 // jwtParts is the number of dot-separated segments in a JWT.
 const jwtParts = 3
 
+// maxRoleAssignmentPages bounds role-assignment list walks so a misbehaving
+// service cannot hang bootstrap indefinitely.
+const maxRoleAssignmentPages = 100
+
 // roleDefinitionsPath joins a subscription and a role GUID into a full role definition id.
 const roleDefinitionsPath = "/providers/Microsoft.Authorization/roleDefinitions/"
 
@@ -167,7 +171,14 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 		Filter: new("assignedTo('" + principalID + "')"),
 	})
 
+	pages := 0
+
 	for pager.More() {
+		pages++
+		if pages > maxRoleAssignmentPages {
+			return false, &TooManyRoleAssignmentPagesError{Scope: scope, MaxPages: maxRoleAssignmentPages}
+		}
+
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return false, fmt.Errorf("listing role assignments: %w", err)
@@ -175,6 +186,10 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 
 		for _, ra := range page.Value {
 			if ra == nil || ra.Properties == nil || ra.Properties.RoleDefinitionID == nil {
+				continue
+			}
+
+			if ra.Properties.PrincipalID == nil || !strings.EqualFold(*ra.Properties.PrincipalID, principalID) {
 				continue
 			}
 
@@ -224,14 +239,20 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 	var errs []error
 
 	removed := 0
+	pages := 0
 
 	for pager.More() {
+		pages++
+		if pages > maxRoleAssignmentPages {
+			return &TooManyRoleAssignmentPagesError{Scope: scope, MaxPages: maxRoleAssignmentPages}
+		}
+
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return fmt.Errorf("listing role assignments for removal: %w", err)
 		}
 
-		n, pageErrs := c.deleteMatchingAssignments(ctx, page.Value, roleDefSuffix)
+		n, pageErrs := c.deleteMatchingAssignments(ctx, page.Value, principalID, roleDefSuffix)
 		errs = append(errs, pageErrs...)
 		removed += n
 	}
@@ -245,14 +266,24 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 	return nil
 }
 
-// deleteMatchingAssignments deletes assignments matching roleDefSuffix, counting a concurrent removal as success.
-func (c *RBACClient) deleteMatchingAssignments(ctx context.Context, ras []*armauthorization.RoleAssignment, roleDefSuffix string) (int, []error) {
+// deleteMatchingAssignments deletes assignments owned by principalID that match roleDefSuffix.
+// A concurrent removal is treated as success. assignedTo() can also surface group-inherited
+// rows, so the principal id is checked before delete.
+func (c *RBACClient) deleteMatchingAssignments(
+	ctx context.Context,
+	ras []*armauthorization.RoleAssignment,
+	principalID, roleDefSuffix string,
+) (int, []error) {
 	var errs []error
 
 	removed := 0
 
 	for _, ra := range ras {
 		if ra == nil || ra.Properties == nil || ra.Properties.RoleDefinitionID == nil || ra.ID == nil {
+			continue
+		}
+
+		if ra.Properties.PrincipalID == nil || !strings.EqualFold(*ra.Properties.PrincipalID, principalID) {
 			continue
 		}
 

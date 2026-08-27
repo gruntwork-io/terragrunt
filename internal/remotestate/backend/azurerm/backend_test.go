@@ -128,8 +128,11 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 
 	err := b.Migrate(ctx, l, venvtest.New(), venvtest.New(), srcCfg, dstCfg, opts)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cross-account")
-	assert.NotContains(t, err.Error(), "server-side", "copy is client-side streaming, not server-side")
+
+	var crossAccount *azurerm.CrossAccountMigrationError
+	require.ErrorAs(t, err, &crossAccount)
+	assert.Equal(t, "tfstate1234", crossAccount.SrcStorageAccount)
+	assert.Equal(t, "differentaccount", crossAccount.DstStorageAccount)
 }
 
 // TestMigrate_CrossCloudRefused verifies the azurerm backend refuses a

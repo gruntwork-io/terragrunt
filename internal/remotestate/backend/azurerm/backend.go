@@ -387,6 +387,14 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 		return err
 	}
 
+	// Resolve the auto principal before the inited short-circuit so CacheKey
+	// includes the identity that AssignRoleIfMissing will target. Without this,
+	// two callers sharing assign_blob_data_role=true and an empty principal_id
+	// would share one "already initialized" entry and the second would skip the grant.
+	if err := resolveAssignBlobDataPrincipal(ctx, extCfg, cfg); err != nil {
+		return err
+	}
+
 	rs := &extCfg.RemoteStateConfigAzurerm
 
 	// Only one goroutine bootstraps a given account/container at a time.
@@ -529,7 +537,7 @@ func ensureBlobDataRole(
 		return nil
 	}
 
-	// A configured principal is left untyped so Azure infers it.
+	// A configured or pre-resolved principal is left untyped so Azure infers it.
 	principal := azurehelper.Principal{ID: extCfg.PrincipalID}
 
 	if principal.ID == "" {
@@ -554,6 +562,28 @@ func ensureBlobDataRole(
 		PrincipalType:    principal.Type,
 		RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
 	})
+}
+
+// resolveAssignBlobDataPrincipal fills PrincipalID from the caller's token when
+// assign_blob_data_role is set and principal_id was left empty, so CacheKey
+// distinguishes identities before the bootstrap short-circuit.
+func resolveAssignBlobDataPrincipal(
+	ctx context.Context,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+) error {
+	if !extCfg.AssignBlobDataRole || extCfg.PrincipalID != "" || !armCapable(cfg) {
+		return nil
+	}
+
+	resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	extCfg.PrincipalID = resolved.ID
+
+	return nil
 }
 
 // createAccount provisions the resource group (when allowed) and the storage

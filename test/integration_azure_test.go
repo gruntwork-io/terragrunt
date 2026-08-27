@@ -464,7 +464,7 @@ func createAzureTestAccount(t *testing.T) (string, string) {
 		ReplicationType:   "LRS",
 	}), "creating the throwaway storage account")
 
-	t.Cleanup(func() { deleteAzureTestAccount(saClient) })
+	t.Cleanup(func() { deleteAzureTestAccount(t, saClient) })
 
 	return account, resourceGroup
 }
@@ -534,11 +534,15 @@ func deleteAzureResourceGroup(t *testing.T, account, resourceGroup string) {
 
 // deleteAzureTestAccount tears down a throwaway account on its own context,
 // because the test context is cancelled by the time cleanup runs.
-func deleteAzureTestAccount(saClient *azurehelper.StorageAccountClient) {
+func deleteAzureTestAccount(t *testing.T, saClient *azurehelper.StorageAccountClient) {
+	t.Helper()
+
 	ctx, cancel := context.WithTimeout(context.Background(), azureCleanupTimeout)
 	defer cancel()
 
-	_ = saClient.EnsureDeleted(ctx, log.New())
+	if err := saClient.EnsureDeleted(ctx, log.New()); err != nil {
+		t.Logf("cleanup: deleting throwaway storage account: %v", err)
+	}
 }
 
 // azureFixtureForAccount renders the shared fixture against an explicit account.

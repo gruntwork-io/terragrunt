@@ -409,8 +409,9 @@ remote_state {
 ```
 
 Creating a storage account grants no access to the blobs inside it, so an identity using
-`use_azuread_auth` can create the account and still read state as unauthorized. Set
-`assign_blob_data_role` to have bootstrap grant **Storage Blob Data Contributor** on the
+`use_azuread_auth` can create the account and still read state as unauthorized.
+<Since version="1.1.5">
+Set `assign_blob_data_role` to have bootstrap grant **Storage Blob Data Contributor** on the
 account, which closes that gap:
 
 ```hcl
@@ -433,6 +434,7 @@ The assignment is skipped when it already exists, so reruns need no write permis
 This is opt-in because creating a role assignment requires
 `Microsoft.Authorization/roleAssignments/write` (held by Owner and User Access
 Administrator, but not Contributor), which many CI identities deliberately lack.
+</Since>
 
 When bootstrapping (`terragrunt backend bootstrap` or `--backend-bootstrap`), Terragrunt creates the resource group,
 storage account, and blob container when they do not exist (each step can be skipped with the `skip_*` options below),
@@ -454,7 +456,10 @@ The following config options are only valid for the `azurerm` backend and are us
 - `soft_delete_retention_days` - Soft delete retention in days, 1 to 365. Defaults to 7 when unset; values outside 1 to 365 are clamped to 7 at bootstrap (a warning is logged).
 - `allow_blob_public_access` - When `true`, allow containers on the account to permit anonymous access. Defaults to `false`.
 - `msi_resource_id` - Resource ID of a user-assigned managed identity to use with `use_msi`.
-
+<Since version="1.1.5">
+- `assign_blob_data_role` - When `true`, bootstrap grants **Storage Blob Data Contributor** on the storage account to `principal_id` (or to the identity Terragrunt authenticated as when unset). Opt-in because it requires `Microsoft.Authorization/roleAssignments/write`.
+- `principal_id` - Microsoft Entra object id that receives the data-plane role when `assign_blob_data_role` is `true`. Defaults to the caller resolved from the access token.
+</Since>
 Authentication is resolved in the following order, with `ARM_*` and `AZURE_*` environment variable fallbacks applied
 to any values not set in the config:
 

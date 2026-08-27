@@ -30,16 +30,25 @@ func TestNewRBACClient_Validation(t *testing.T) {
 	t.Parallel()
 
 	tt := []struct {
-		cfg  *azurehelper.AzureConfig
-		name string
+		checkAs func(t *testing.T, err error)
+		cfg     *azurehelper.AzureConfig
+		wantIs  error
+		name    string
 	}{
-		{name: "nil config", cfg: nil},
-		{name: "missing subscription", cfg: &azurehelper.AzureConfig{Credential: fakeCredential{}}},
+		{name: "nil config", cfg: nil, wantIs: azurehelper.ErrAzureConfigRequired},
+		{name: "missing subscription", cfg: &azurehelper.AzureConfig{Credential: fakeCredential{}}, wantIs: azurehelper.ErrSubscriptionIDRequired},
 		{
 			name: "data-plane auth cannot manage rbac",
 			cfg: &azurehelper.AzureConfig{
 				SubscriptionID: testSub,
 				Method:         azurehelper.AuthMethodAccessKey,
+			},
+			checkAs: func(t *testing.T, err error) {
+				t.Helper()
+
+				var unsupported *azurehelper.UnsupportedAuthForOpError
+				require.ErrorAs(t, err, &unsupported)
+				assert.Equal(t, azurehelper.AuthMethodAccessKey, unsupported.Method)
 			},
 		},
 	}
@@ -50,6 +59,14 @@ func TestNewRBACClient_Validation(t *testing.T) {
 
 			_, err := azurehelper.NewRBACClient(tc.cfg)
 			require.Error(t, err)
+
+			if tc.wantIs != nil {
+				require.ErrorIs(t, err, tc.wantIs)
+			}
+
+			if tc.checkAs != nil {
+				tc.checkAs(t, err)
+			}
 		})
 	}
 }
@@ -157,7 +174,10 @@ func TestAssignRole_SurfacesOtherFailures(t *testing.T) {
 		RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "AuthorizationFailed")
+
+	var respErr *azcore.ResponseError
+	require.ErrorAs(t, err, &respErr)
+	assert.Equal(t, "AuthorizationFailed", respErr.ErrorCode)
 }
 
 // TestHasRoleAssignment_UsesAssignedToFilter pins the filter form: Azure only
@@ -207,8 +227,11 @@ func TestHasRoleAssignment_MatchesBySuffix(t *testing.T) {
 			tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
 				"value": []any{
 					map[string]any{
-						"id":         "/ra/1",
-						"properties": map[string]any{"roleDefinitionId": tc.roleDef},
+						"id": "/ra/1",
+						"properties": map[string]any{
+							"principalId":      testPrincipalID,
+							"roleDefinitionId": tc.roleDef,
+						},
 					},
 				},
 			})}
@@ -233,6 +256,7 @@ func TestAssignRoleIfMissing_SkipsCreateWhenPresent(t *testing.T) {
 			map[string]any{
 				"id": "/ra/1",
 				"properties": map[string]any{
+					"principalId":      testPrincipalID,
 					"roleDefinitionId": "/subscriptions/x/providers/Microsoft.Authorization/roleDefinitions/" + azurehelper.RoleStorageBlobDataContributor,
 				},
 			},
@@ -262,6 +286,52 @@ func TestRemoveRole_MissingAssignmentIsNoop(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, c.RemoveRole(t.Context(), log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor))
+}
+
+// TestRemoveRole_IgnoresInheritedAssignments pins that assignedTo() rows for a
+// different principal (for example a group membership expansion) are not deleted.
+func TestRemoveRole_IgnoresInheritedAssignments(t *testing.T) {
+	t.Parallel()
+
+	otherPrincipal := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	tr := &recordingTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"value": []any{
+			map[string]any{
+				"id": "/ra/group",
+				"properties": map[string]any{
+					"principalId":      otherPrincipal,
+					"roleDefinitionId": "/subscriptions/x/providers/Microsoft.Authorization/roleDefinitions/" + azurehelper.RoleStorageBlobDataContributor,
+				},
+			},
+		},
+	})}
+
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
+	require.NoError(t, err)
+
+	require.NoError(t, c.RemoveRole(t.Context(), log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor))
+
+	for _, m := range tr.methods {
+		assert.NotEqual(t, http.MethodDelete, m, "inherited assignments must not be deleted")
+	}
+}
+
+func TestHasRoleAssignment_BoundsPages(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"value":    []any{},
+		"nextLink": "https://management.azure.com/next",
+	})}
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
+	require.NoError(t, err)
+
+	_, err = c.HasRoleAssignment(t.Context(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor)
+
+	var tooMany *azurehelper.TooManyRoleAssignmentPagesError
+	require.ErrorAs(t, err, &tooMany)
+	assert.Equal(t, testScope, tooMany.Scope)
+	assert.Equal(t, 100, tooMany.MaxPages)
 }
 
 func TestStorageAccountScope(t *testing.T) {
@@ -355,6 +425,10 @@ func TestResolvePrincipal_RequiresTokenCredential(t *testing.T) {
 
 	_, err := azurehelper.ResolvePrincipal(t.Context(), &azurehelper.AzureConfig{Method: azurehelper.AuthMethodAccessKey})
 	require.Error(t, err)
+
+	var unsupported *azurehelper.UnsupportedAuthForOpError
+	require.ErrorAs(t, err, &unsupported)
+	assert.Equal(t, azurehelper.AuthMethodAccessKey, unsupported.Method)
 
 	_, err = azurehelper.ResolvePrincipal(t.Context(), nil)
 	require.ErrorIs(t, err, azurehelper.ErrAzureConfigRequired)
