@@ -1,4 +1,4 @@
-package runnerpool
+package runner
 
 import (
 	"context"
@@ -19,13 +19,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// UnitRunner defines a function type that executes a Unit within a given context and returns an error.
-type UnitRunner func(ctx context.Context, u *component.Unit) error
+// UnitRunnerFunc executes a single [component.Unit].
+type UnitRunnerFunc func(ctx context.Context, u *component.Unit) error
 
 // Controller orchestrates concurrent execution over a DAG.
 type Controller struct {
 	q           *queue.Queue
-	runner      UnitRunner
+	runner      UnitRunnerFunc
 	readyCh     chan struct{}
 	unitsMap    map[string]*component.Unit
 	concurrency int
@@ -34,8 +34,8 @@ type Controller struct {
 // ControllerOption is a function that modifies a Controller.
 type ControllerOption func(*Controller)
 
-// WithRunner sets the UnitRunner for the Controller.
-func WithRunner(runner UnitRunner) ControllerOption {
+// WithRunner sets the UnitRunnerFunc for the Controller.
+func WithRunner(runner UnitRunnerFunc) ControllerOption {
 	return func(dr *Controller) {
 		dr.runner = runner
 	}
@@ -59,7 +59,6 @@ func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOp
 		readyCh:     make(chan struct{}, 1), // buffered to avoid blocking
 		concurrency: options.DefaultParallelism,
 	}
-	// Map to link runner Units and Queue Entries
 	unitsMap := make(map[string]*component.Unit)
 
 	for _, u := range units {
@@ -76,7 +75,7 @@ func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOp
 	return dr
 }
 
-// Run executes the Queue return error summarizing all entries that failed to run.
+// Run drains the queue and returns an error summarizing every entry that failed.
 func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	return telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "runner_pool_controller", map[string]any{

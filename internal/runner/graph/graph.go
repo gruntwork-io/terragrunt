@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -31,7 +30,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in v.Env during HCL evaluation.
 	// *Getter discarded: graph.Run only needs creds in v.Env for initial config parse.
-	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
+	// Per-unit creds are re-fetched by the runner's unit task (intentional: each unit may have
 	// different opts after clone).
 	shellOpts := configbridge.ShellRunOptsFromOpts(v.Env, opts)
 	if _, err := creds.ObtainCredsForParsing(
@@ -76,8 +75,6 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 	// This allows discovering all modules including dependents (modules that depend on the working dir)
 	graphOpts := opts.Clone()
 	graphOpts.RootWorkingDir = rootDir
-
-	runnerOpts := make([]common.Option, 0, 1)
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -131,7 +128,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 		}()
 	}
 
-	rnr, err := runner.NewStackRunner(ctx, l, v, graphOpts, runnerOpts...)
+	rnr, err := runner.New(ctx, l, v, graphOpts)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -29,16 +29,16 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 	discUnit := component.NewUnit(tmpDir).WithConfig(&config.TerragruntConfig{})
 	discovered := component.Components{discUnit}
 
-	// Build runner stack from discovery and verify units
+	// Build the runner stack from discovery and verify units
 	opts, err := options.NewTerragruntOptionsForTest(tgPath)
 	require.NoError(t, err)
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, discovered)
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, discovered)
 	require.NoError(t, err)
 
-	units := runner.GetStack().Units
+	units := rnr.GetStack().Units
 	require.Len(t, units, 1)
 	require.Equal(t, tmpDir, units[0].Path())
 }

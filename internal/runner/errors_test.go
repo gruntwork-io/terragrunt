@@ -1,9 +1,9 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -11,7 +11,7 @@ import (
 func TestUnitEarlyExitError_WithDependency(t *testing.T) {
 	t.Parallel()
 
-	err := runnerpool.UnitEarlyExitError{
+	err := runner.UnitEarlyExitError{
 		UnitPath:         "/units/app",
 		FailedDependency: "/units/vpc",
 	}
@@ -24,7 +24,7 @@ func TestUnitEarlyExitError_WithDependency(t *testing.T) {
 func TestUnitEarlyExitError_WithoutDependency(t *testing.T) {
 	t.Parallel()
 
-	err := runnerpool.UnitEarlyExitError{
+	err := runner.UnitEarlyExitError{
 		UnitPath: "/units/app",
 	}
 
@@ -36,7 +36,7 @@ func TestUnitEarlyExitError_WithoutDependency(t *testing.T) {
 func TestUnitFailedError(t *testing.T) {
 	t.Parallel()
 
-	err := runnerpool.UnitFailedError{
+	err := runner.UnitFailedError{
 		UnitPath: "/units/vpc",
 	}
 
@@ -48,7 +48,7 @@ func TestUnitFailedError(t *testing.T) {
 func TestNewUnitFailedError(t *testing.T) {
 	t.Parallel()
 
-	err := runnerpool.NewUnitFailedError("/units/db")
+	err := runner.NewUnitFailedError("/units/db")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "/units/db")
 }
@@ -56,7 +56,7 @@ func TestNewUnitFailedError(t *testing.T) {
 func TestNewUnitEarlyExitError(t *testing.T) {
 	t.Parallel()
 
-	err := runnerpool.NewUnitEarlyExitError("/units/app", "/units/vpc")
+	err := runner.NewUnitEarlyExitError("/units/app", "/units/vpc")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "/units/app")
 	assert.Contains(t, err.Error(), "/units/vpc")

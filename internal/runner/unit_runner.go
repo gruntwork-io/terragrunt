@@ -1,4 +1,4 @@
-package common
+package runner
 
 import (
 	"bytes"
@@ -29,14 +29,14 @@ const (
 	Finished
 )
 
-// UnitRunner handles the logic for running a single component.Unit.
+// UnitRunner runs a single [component.Unit].
 type UnitRunner struct {
 	Err    error
 	Unit   *component.Unit
 	Status UnitStatus
 }
 
-// NewUnitRunner creates a UnitRunner from a component.Unit.
+// NewUnitRunner returns a [UnitRunner] for unit.
 func NewUnitRunner(unit *component.Unit) *UnitRunner {
 	return &UnitRunner{
 		Unit:   unit,
@@ -65,7 +65,6 @@ func (runner *UnitRunner) runTerragrunt(
 		}
 	}()
 
-	// Only create report entries if report is not nil
 	if r != nil {
 		unitPath := runner.Unit.Path()
 		unitPath = filepath.Clean(unitPath)
@@ -97,14 +96,12 @@ func (runner *UnitRunner) runTerragrunt(
 
 	runErr := run.Run(ctx, l, v, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
 
-	// Store the unit exit code in the global map using the unit path as key.
 	if globalExitCode != nil {
 		unitPath := runner.Unit.Path()
 		code := unitExitCode.Get(unitPath)
 		globalExitCode.Set(unitPath, code)
 	}
 
-	// End the run with appropriate result (only if report is not nil)
 	if r != nil {
 		unitPath := runner.Unit.Path()
 		unitPath = filepath.Clean(unitPath)
@@ -133,7 +130,8 @@ func (runner *UnitRunner) runTerragrunt(
 	return runErr
 }
 
-// Run executes a component.Unit right now.
+// Run executes the unit and, when the unit has a JSON output file configured,
+// writes its plan out as JSON.
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,
@@ -153,7 +151,6 @@ func (runner *UnitRunner) Run(
 		return err
 	}
 
-	// convert terragrunt output to json
 	if runner.Unit.OutputJSONFile(opts.RootWorkingDir, opts.JSONOutputFolder) != "" {
 		jsonLogger, jsonOptions, err := opts.CloneWithConfigPath(
 			l,
@@ -190,7 +187,6 @@ func (runner *UnitRunner) Run(
 			return err
 		}
 
-		// save the json output to the file plan file
 		outputFile := runner.Unit.OutputJSONFile(opts.RootWorkingDir, opts.JSONOutputFolder)
 		jsonDir := filepath.Dir(outputFile)
 

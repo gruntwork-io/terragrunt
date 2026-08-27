@@ -1,4 +1,4 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -45,7 +45,7 @@ func TestCloneUnitOptions_WithStackOpts(t *testing.T) {
 	unit := component.NewUnit(memRoot)
 	l := thlogger.CreateLogger()
 
-	opts, logger, err := runnerpool.CloneUnitOptions(stackOpts, unit, configPath, "", l)
+	opts, logger, err := runner.CloneUnitOptions(stackOpts, unit, configPath, "", l)
 
 	require.NoError(t, err)
 	require.NotNil(t, opts)
@@ -63,7 +63,7 @@ func TestBuildUnitOpts_BasicUnit(t *testing.T) {
 	unit := component.NewUnit(memRoot)
 	l := thlogger.CreateLogger()
 
-	unitOpts, unitLogger, err := runnerpool.BuildUnitOpts(l, stackOpts, unit)
+	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, stackOpts, unit)
 
 	require.NoError(t, err)
 	require.NotNil(t, unitOpts)
@@ -85,7 +85,7 @@ func TestBuildUnitOpts_WithDiscoveryContext(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	unitOpts, _, err := runnerpool.BuildUnitOpts(l, stackOpts, unit)
+	unitOpts, _, err := runner.BuildUnitOpts(l, stackOpts, unit)
 
 	require.NoError(t, err)
 	assert.Equal(
@@ -165,7 +165,7 @@ func TestBuildUnitOpts_WithSource(t *testing.T) {
 				unit = unit.WithConfig(tc.unitConfig)
 			}
 
-			unitOpts, _, err := runnerpool.BuildUnitOpts(thlogger.CreateLogger(), stackOpts, unit)
+			unitOpts, _, err := runner.BuildUnitOpts(thlogger.CreateLogger(), stackOpts, unit)
 
 			if tc.assertErr != nil {
 				tc.assertErr(t, err)
@@ -187,7 +187,7 @@ func TestBuildUnitOpts_UnitPathIsAConfigFile(t *testing.T) {
 	stackOpts, err := options.NewTerragruntOptionsForTest(configPath)
 	require.NoError(t, err)
 
-	unitOpts, _, err := runnerpool.BuildUnitOpts(
+	unitOpts, _, err := runner.BuildUnitOpts(
 		thlogger.CreateLogger(),
 		stackOpts,
 		component.NewUnit(configPath),
@@ -211,7 +211,7 @@ func TestCloneUnitOptions_WithCustomDownloadDir(t *testing.T) {
 	unit := component.NewUnit(memRoot)
 	l := thlogger.CreateLogger()
 
-	opts, _, err := runnerpool.CloneUnitOptions(stackOpts, unit, configPath, "", l)
+	opts, _, err := runner.CloneUnitOptions(stackOpts, unit, configPath, "", l)
 
 	require.NoError(t, err)
 	assert.Equal(t, "/custom/download", opts.DownloadDir)

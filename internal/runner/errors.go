@@ -1,4 +1,4 @@
-package runnerpool
+package runner
 
 import (
 	"errors"
@@ -7,10 +7,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 )
 
-// ErrRunnerNotSet is returned when a Controller is run without a UnitRunner.
+// ErrRunnerNotSet is returned when a [Controller] is run without a [UnitRunnerFunc].
 var ErrRunnerNotSet = errors.New("runner pool controller: runner is not set, cannot run")
 
-// UnitEarlyExitError is an error type for units that didn't run due to dependency failure.
+// UnitEarlyExitError reports a unit that never ran because a dependency failed.
 type UnitEarlyExitError struct {
 	UnitPath         string
 	FailedDependency string // The dependency that caused the early exit (optional)
@@ -33,7 +33,7 @@ func NewUnitEarlyExitError(unitPath, failedDep string) error {
 	}
 }
 
-// UnitNotDiscoveredError is an error type for queue entries with no matching discovered unit.
+// UnitNotDiscoveredError reports a queue entry with no matching discovered unit.
 type UnitNotDiscoveredError struct {
 	UnitPath string
 }
@@ -47,7 +47,7 @@ func NewUnitNotDiscoveredError(unitPath string) error {
 	return UnitNotDiscoveredError{UnitPath: unitPath}
 }
 
-// UnitFailedError is an error type for units that failed during execution.
+// UnitFailedError reports a unit that failed during execution.
 type UnitFailedError struct {
 	UnitPath string
 }
