@@ -58,12 +58,16 @@ func TestFindModules(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.repoPath, func(t *testing.T) {
 			t.Parallel()
-			// Unfortunately, we are unable to commit the `.git` directory. We have to temporarily rename it while running the tests.
-			os.Rename(filepath.Join(tc.repoPath, "gitdir"), filepath.Join(tc.repoPath, ".git"))
-			defer os.Rename(
-				filepath.Join(tc.repoPath, ".git"),
-				filepath.Join(tc.repoPath, "gitdir"),
-			)
+
+			// The fixture carries its git metadata as `gitdir`, because a real
+			// `.git` directory cannot be committed. Copying first keeps that
+			// rename out of the checked-out tree.
+			repoDir := filepath.Join(t.TempDir(), "repo")
+			require.NoError(t, os.CopyFS(repoDir, os.DirFS(tc.repoPath)))
+			require.NoError(t, os.Rename(
+				filepath.Join(repoDir, "gitdir"),
+				filepath.Join(repoDir, ".git"),
+			))
 
 			ctx := t.Context()
 
@@ -74,7 +78,7 @@ func TestFindModules(t *testing.T) {
 				ctx,
 				logger.CreateLogger(),
 				v,
-				&module.RepoOpts{CloneURL: tc.repoPath},
+				&module.RepoOpts{CloneURL: repoDir},
 			)
 			require.NoError(t, err)
 

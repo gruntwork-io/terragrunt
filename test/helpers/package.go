@@ -1320,6 +1320,10 @@ func RunTerragruntValidateInputs(
 ) {
 	t.Helper()
 
+	// Terragrunt writes a .terragrunt-cache into whatever directory it runs in,
+	// so this runs against a copy rather than the fixture in the checked-out tree.
+	moduleDir = filepath.Join(CopyEnvironment(t, moduleDir), moduleDir)
+
 	maybeNested := filepath.Join(moduleDir, "module")
 	if vfs.Exists(vfs.NewOSFS(), maybeNested) {
 		// Nested module test case with included file, so run terragrunt from the nested module.
