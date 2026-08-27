@@ -42,40 +42,51 @@ func (writer *Writer) SetOption(opts ...Option) {
 
 // Write implements `io.Writer` interface.
 func (writer *Writer) Write(p []byte) (n int, err error) {
-	var (
-		str  = string(p)
-		strs = []string{str}
-	)
+	str := string(p)
 
-	if writer.msgSeparator != "" {
-		strs = strings.Split(str, writer.msgSeparator)
-	}
-
-	for _, str := range strs {
-		if len(str) == 0 {
-			continue
-		}
-
-		msg, time, level, err := writer.parseFunc(str)
-		if err != nil {
+	if writer.msgSeparator == "" {
+		if err := writer.logRecord(str); err != nil {
 			return 0, err
 		}
 
-		// Reset ANSI styles at the end of a line so that the new line does not inherit them
-		msg = log.ResetASCISeq(msg)
+		return len(p), nil
+	}
 
-		logger := writer.logger
-
-		if time != nil {
-			logger = logger.WithTime(*time)
+	// Every byte of tofu output crosses this writer, so range over the records as
+	// they are split instead of collecting them into a slice first.
+	for record := range strings.SplitSeq(str, writer.msgSeparator) {
+		if err := writer.logRecord(record); err != nil {
+			return 0, err
 		}
-
-		if level == nil {
-			level = &writer.defaultLevel
-		}
-
-		logger.Log(*level, msg)
 	}
 
 	return len(p), nil
+}
+
+func (writer *Writer) logRecord(str string) error {
+	if len(str) == 0 {
+		return nil
+	}
+
+	msg, time, level, err := writer.parseFunc(str)
+	if err != nil {
+		return err
+	}
+
+	// Reset ANSI styles at the end of a line so that the new line does not inherit them
+	msg = log.ResetASCISeq(msg)
+
+	logger := writer.logger
+
+	if time != nil {
+		logger = logger.WithTime(*time)
+	}
+
+	if level == nil {
+		level = &writer.defaultLevel
+	}
+
+	logger.Log(*level, msg)
+
+	return nil
 }

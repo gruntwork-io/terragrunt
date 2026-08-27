@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
@@ -11,6 +12,11 @@ import (
 	svchost "github.com/hashicorp/terraform-svchost"
 	"github.com/puzpuzpuz/xsync/v4"
 )
+
+// maxPreallocBody bounds how much memory a response's Content-Length is trusted
+// to reserve before any of the body has arrived. Registry metadata sits orders of
+// magnitude below it, so a larger value buys nothing and costs a header's word.
+const maxPreallocBody = 32 << 20
 
 // Client is the cache server's outbound HTTP client. It wraps a
 // [vhttp.Client] with registry credential injection and a per-URL response
@@ -83,17 +89,33 @@ func decodeResponse(resp *http.Response) ([]byte, error) {
 		return nil, nil
 	}
 
-	buffer, err := ResponseBuffer(resp)
+	reader, err := ResponseReader(resp)
 	if err != nil {
 		return nil, err
 	}
 
-	bodyBytes, err := io.ReadAll(buffer)
-	if err != nil {
+	body, readErr := readBody(reader, resp.ContentLength)
+	if err := errors.Join(readErr, reader.Close()); err != nil {
 		return nil, err
 	}
 
-	resp.Body = io.NopCloser(buffer)
+	return body, nil
+}
 
-	return bodyBytes, nil
+// readBody reads r to completion. A positive size, which [ResponseReader] clears
+// when it unwraps a gzip stream, is the body's exact length, so the read needs one
+// allocation rather than [io.ReadAll]'s repeated doubling. Anything above
+// maxPreallocBody falls back to [io.ReadAll], so a registry advertising a bogus
+// Content-Length cannot make Terragrunt reserve that memory up front.
+func readBody(r io.Reader, size int64) ([]byte, error) {
+	if size <= 0 || size > maxPreallocBody {
+		return io.ReadAll(r)
+	}
+
+	body := make([]byte, size)
+	if _, err := io.ReadFull(r, body); err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
