@@ -11,7 +11,7 @@ bats = "1.13.0"
 shellcheck = "0.11.0"
 shfmt = "3.13.1"
 jq = "1.8.1"
-bun = "1.2.2"
+bun = "1.4.0"
 go-junit-report = "2.1.0"
 pre-commit = { version = "4.2.0", os = ["macos", "linux"] }
 pipx = { version = "1.8.0", os = ["macos", "linux"] }
