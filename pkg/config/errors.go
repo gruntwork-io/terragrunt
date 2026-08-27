@@ -291,6 +291,38 @@ func (err DependencyConfigNotFound) Error() string {
 	return err.Path + " does not exist"
 }
 
+// DependencyStateReadError reports a failure while reading a dependency's remote state body.
+type DependencyStateReadError struct {
+	// Err is the underlying reader failure.
+	Err error
+	// Location identifies the remote state object that was being read.
+	Location string
+}
+
+func (err DependencyStateReadError) Error() string {
+	return "reading dependency state body from " + err.Location + ": " + err.Err.Error()
+}
+
+func (err DependencyStateReadError) Unwrap() error {
+	return err.Err
+}
+
+// DependencyStateParseError reports malformed dependency remote state JSON.
+type DependencyStateParseError struct {
+	// Err is the underlying JSON parsing failure.
+	Err error
+	// Location identifies the remote state object that could not be parsed.
+	Location string
+}
+
+func (err DependencyStateParseError) Error() string {
+	return "parsing dependency state JSON from " + err.Location + ": " + err.Err.Error()
+}
+
+func (err DependencyStateParseError) Unwrap() error {
+	return err.Err
+}
+
 type TerragruntOutputParsingError struct {
 	Err  error
 	Path string
@@ -315,6 +347,15 @@ func (err TerragruntOutputEncodingError) Error() string {
 		err.Path,
 		err.Err,
 	)
+}
+
+// InvalidTFWorkspaceError is returned when TF_WORKSPACE cannot name a state object.
+type InvalidTFWorkspaceError struct {
+	Workspace string
+}
+
+func (err InvalidTFWorkspaceError) Error() string {
+	return fmt.Sprintf("determining dependency workspace: invalid TF_WORKSPACE value %q", err.Workspace)
 }
 
 // StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs

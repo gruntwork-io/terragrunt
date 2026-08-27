@@ -59,6 +59,45 @@ func (e *CrossCloudMigrationError) Error() string {
 // always supplies.
 var ErrBackendOptionsRequired = errors.New("backend options are required")
 
+// StateClientSetupError marks a client-construction failure, never an absent state blob.
+type StateClientSetupError struct {
+	// Err is the underlying setup failure.
+	Err error
+}
+
+func (err *StateClientSetupError) Error() string {
+	return "building azurerm state client: " + err.Err.Error()
+}
+
+func (err *StateClientSetupError) Unwrap() error {
+	return err.Err
+}
+
+// StateClientCacheRequiredError reports a direct state read outside a run-scoped cache.
+type StateClientCacheRequiredError struct{}
+
+func (StateClientCacheRequiredError) Error() string {
+	return "azurerm state client cache is required"
+}
+
+// StateClientCoordinatesError reports that the configured resource coordinates
+// or the identity's permissions prevented state-client setup. Match with
+// errors.As.
+type StateClientCoordinatesError struct {
+	// Err is the underlying Azure API failure.
+	Err error
+}
+
+func (err *StateClientCoordinatesError) Error() string {
+	return "verify that resource_group_name, storage_account_name, and subscription_id in the " +
+		"remote_state block refer to resources that exist, and that the identity may list " +
+		"storage account keys: " + err.Err.Error()
+}
+
+func (err *StateClientCoordinatesError) Unwrap() error {
+	return err.Err
+}
+
 // ErrAzureBackendExperimentRequired is returned when an azurerm backend
 // lifecycle operation is attempted without the `azure-backend` experiment
 // enabled. Match with errors.Is.

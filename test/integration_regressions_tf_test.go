@@ -1140,6 +1140,33 @@ func TestTFDependencyRemoteStateOutputResolution(t *testing.T) {
 	assert.Contains(t, stdout, "argocd")
 }
 
+// TestTFDependencyRemoteStateFallbackPreservesExtraArgsEnvVars checks that the output fallback keeps
+// extra_arguments env_vars available while fully parsing the dependency config.
+func TestTFDependencyRemoteStateFallbackPreservesExtraArgsEnvVars(t *testing.T) {
+	t.Parallel()
+
+	const fixture = "fixtures/regressions/dependency-remote-state-fallback-extra-args-env"
+
+	tmpEnvPath := helpers.CopyEnvironment(t, fixture)
+	rootPath := filepath.Join(tmpEnvPath, fixture)
+
+	// module-a <- module-b (remote_state references module-a and output-time inputs
+	// read an extra_arguments env var) <- module-c
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply",
+	)
+	require.NoError(t, err)
+
+	moduleCPath := filepath.Join(rootPath, "module-c")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+moduleCPath+" -- output -raw echo",
+	)
+	require.NoError(t, err, "dependency output fallback must preserve extra_arguments env_vars: %s", stderr)
+	assert.Equal(t, "argocd", strings.TrimSpace(stdout))
+}
+
 // TestTFDependencyGenuineErrorSurfaces pins that the output-resolution fallback does not swallow a genuine
 // (non-dependency) error in a dependency's terraform block: the fallback's full run must reproduce it. module-b
 // resolves module-a's outputs while module-a is unapplied; module-a's extra_arguments calls an undefined function,

@@ -6,6 +6,9 @@ sidebar:
   order: 4
 ---
 
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
 Infrastructure as Code (IaC) tooling necessarily requires a lot of terminology to describe various concepts and features due to the breadth of the domain.
 
 Whenever possible, Terragrunt terminology attempts to align with wider industry standards, but there are always exceptions. There are going to be times when certain terms are used in different tools, but have special meaning in Terragrunt, and there are times when the same term might have different meaning in different contexts.
@@ -223,7 +226,13 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
+<Before version="1.1.4">
 Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
+</Before>
+
+<Since version="1.1.4">
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies using a supported remote-state backend. This is an experimental feature, and more tooling is planned to make this easier to use.
+</Since>
 
 ### Feature
 

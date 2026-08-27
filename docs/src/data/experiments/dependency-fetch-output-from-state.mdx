@@ -9,14 +9,17 @@ By default, Terragrunt retrieves dependency outputs by running `tofu output` or 
 
 **Current Backend Support:**
 
-- S3 backend: Fully supported
+- S3 and GCS backends: Direct state reads are supported
+- Azure Storage (`azurerm`) backend: Direct state reads are supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled
 - Other backends: Falls back to the normal method (using `tofu/terraform output`)
 
-When an unsupported backend is encountered, Terragrunt will automatically fall back to the default method of using `tofu/terraform output`.
+Azure state protected with `customer_provided_key`, and Azure configurations that rely on native-only authentication, `metadata_host`, or `timeout_seconds`, also use the normal method.
+
+GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths, service-account impersonation, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
 
 **Known Limitations:**
 
-This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the state file stored in S3 is encrypted before upload. Since this experiment reads the raw state file directly from S3 via the AWS SDK, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, you must disable this experiment using the `--no-dependency-fetch-output-from-state` flag.
+This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the state file is encrypted before upload. Since this experiment reads the raw state object directly through the backend's cloud storage API, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, you must disable this experiment using the `--no-dependency-fetch-output-from-state` flag.
 
 **Disabling the feature:**
 
@@ -36,8 +39,9 @@ Provide your feedback in the dedicated [GitHub discussion](https://github.com/gr
 ### `dependency-fetch-output-from-state` - Criteria for stabilization
 To transition the `dependency-fetch-output-from-state` feature to a stable release, the following must be addressed, at a minimum:
 
-- [ ] Add support for additional backends (e.g., GCS, etc.)
-- [ ] Comprehensive integration testing across different backend types
+- [x] Add support for additional backends (GCS and Azure Storage)
+- [x] Live direct-state-read integration coverage for S3, GCS, and Azure Storage
+- [ ] Comprehensive integration testing across backend authentication, encryption, workspace, and error scenarios
 - [ ] Performance benchmarking to validate speed improvements
 - [ ] Error handling and edge case testing
 - [x] Documentation of supported backends and limitations

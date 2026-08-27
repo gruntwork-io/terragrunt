@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	testFixtureAzureBackend = "fixtures/azure-backend"
+	testFixtureAzureBackend         = "fixtures/azure-backend"
+	testFixtureAzureDependencyState = "fixtures/output-from-remote-state-azure"
 
 	// azureTestLocation is the region the test resource group and storage
 	// account are created in.
@@ -39,6 +40,39 @@ const (
 	// azureLookupTimeout bounds the resource group lookup.
 	azureLookupTimeout = 2 * time.Minute
 )
+
+// TestAzureDependencyFetchOutputFromState proves that dependency outputs are read from the
+// Azure state blob without invoking the producer's configured OpenTofu/Terraform binary.
+func TestAzureDependencyFetchOutputFromState(t *testing.T) {
+	t.Parallel()
+
+	_, _, rootPath := setupAzureFixture(t, testFixtureAzureDependencyState)
+	producerPath := filepath.Join(rootPath, "producer")
+	consumerPath := filepath.Join(rootPath, "consumer")
+	consumerPlan := "terragrunt run plan --backend-bootstrap --experiment azure-backend " +
+		"--dependency-fetch-output-from-state --non-interactive --log-level debug --working-dir " + consumerPath
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "mock-azure-value")
+	assert.NotContains(t, stdout, "from-azure-state")
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run apply --backend-bootstrap --experiment azure-backend --non-interactive --tf-path "+
+			helpers.WrappedBinary(t.Context())+" --working-dir "+producerPath+" -- -auto-approve",
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "from-azure-state")
+	assert.NotContains(t, stdout, "mock-azure-value")
+
+	// The value alone proves nothing: only the direct reader emits this line.
+	assert.Contains(t, stderr+stdout, "Fetching outputs directly from azurerm://",
+		"outputs must come from the state blob, not from running tofu output")
+}
 
 // Environment variables the live tests read, most specific first. The ARM_* /
 // AZURE_* names are the ones the azurerm backend and the Azure SDK already
@@ -215,6 +249,14 @@ func TestAzureBackendRequiresExperiment(t *testing.T) {
 func setupAzureBackendFixture(t *testing.T) (string, string, string) {
 	t.Helper()
 
+	return setupAzureFixture(t, testFixtureAzureBackend)
+}
+
+// setupAzureFixture copies an Azure fixture, fills in the live account details, and registers
+// cleanup of the unique container it will create.
+func setupAzureFixture(t *testing.T, fixture string) (string, string, string) {
+	t.Helper()
+
 	subscriptionID := requireAzureEnv(t, envAzureSubscriptionID)
 	account := requireAzureEnv(t, envAzureStorageAccount)
 	resourceGroup := azureResourceGroup(t.Context(), t, account)
@@ -222,8 +264,8 @@ func setupAzureBackendFixture(t *testing.T) (string, string, string) {
 	// Container names are lowercase alphanumeric with dashes, 3-63 chars.
 	container := "tg-test-" + strings.ToLower(helpers.UniqueID())
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureBackend)
+	tmpEnvPath := helpers.CopyEnvironment(t, fixture)
+	rootPath := filepath.Join(tmpEnvPath, fixture)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	commonConfigPath := filepath.Join(rootPath, "common.hcl")

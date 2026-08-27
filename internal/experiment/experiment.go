@@ -61,10 +61,9 @@ const (
 	// the module) and the mark_glob_as_read HCL function. Both are enabled
 	// by default.
 	MarkManyAsRead = "mark-many-as-read"
-	// AzureBackend reserves the experiment flag for native Azure Storage (azurerm)
-	// remote state support. The backend is stubbed out for now; full Azure helper
-	// and state-management behavior (bootstrap, delete, migrate, dependency output
-	// fetching) will land in follow-up PRs.
+	// AzureBackend enables Terragrunt-managed Azure Storage (azurerm) remote state
+	// bootstrap, delete, and migrate operations and, together with
+	// DependencyFetchOutputFromState, direct dependency state reads.
 	AzureBackend = "azure-backend"
 	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"

@@ -115,7 +115,9 @@ func TestWithEnvRejectsNil(t *testing.T) {
 func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	t.Parallel()
 
-	v := &venv.Venv{Env: map[string]string{"FOO": "bar"}}
+	v := &venv.Venv{
+		Env: map[string]string{"FOO": "bar"},
+	}
 
 	clone := v.WithEnvCloned()
 	clone.Env["AWS_ACCESS_KEY_ID"] = "leaked"
@@ -126,6 +128,7 @@ func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	v.Env["BAZ"] = "qux"
 
 	assert.NotContains(t, clone.Env, "BAZ")
+	assert.Equal(t, "changed", clone.Env["FOO"])
 }
 
 func TestOSVenvProvidesPlatformHandles(t *testing.T) {

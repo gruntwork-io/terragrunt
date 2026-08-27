@@ -38,7 +38,57 @@ const (
 	testFixtureGcsNoPrefix          = "fixtures/gcs-no-prefix/"
 	testFixtureGcsParallelStateInit = "fixtures/gcs-parallel-state-init"
 	testFixtureGCSBackend           = "fixtures/gcs-backend"
+	testFixtureGCSDependencyState   = "fixtures/output-from-remote-state-gcs"
 )
+
+// TestGcpDependencyFetchOutputFromState proves that dependency outputs are read from the
+// GCS state object without invoking the producer's configured OpenTofu/Terraform binary.
+func TestGcpDependencyFetchOutputFromState(t *testing.T) {
+	t.Parallel()
+
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSDependencyState)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGCSDependencyState)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	rootConfigPath := filepath.Join(rootPath, "root.hcl")
+	copyTerragruntGCSConfigAndFillPlaceholders(
+		t,
+		rootConfigPath,
+		rootConfigPath,
+		os.Getenv("GOOGLE_CLOUD_PROJECT"),
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+	)
+
+	producerPath := filepath.Join(rootPath, "producer")
+	consumerPath := filepath.Join(rootPath, "consumer")
+	consumerPlan := "terragrunt run plan --backend-bootstrap --dependency-fetch-output-from-state " +
+		"--non-interactive --log-level debug --working-dir " + consumerPath
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "mock-gcs-value")
+	assert.NotContains(t, stdout, "from-gcs-state")
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run apply --backend-bootstrap --non-interactive --tf-path "+
+			helpers.WrappedBinary(t.Context())+" --working-dir "+producerPath+" -- -auto-approve",
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "from-gcs-state")
+	assert.NotContains(t, stdout, "mock-gcs-value")
+
+	// The value alone proves nothing: only the direct reader emits this line.
+	assert.Contains(t, stderr+stdout, "Fetching outputs directly from gs://",
+		"outputs must come from the state object, not from running tofu output")
+}
 
 func TestGcpBootstrapBackend(t *testing.T) {
 	t.Parallel()

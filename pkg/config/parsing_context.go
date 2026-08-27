@@ -63,8 +63,12 @@ type ParsingContext struct {
 	Features            *cty.Value
 	Locals              *cty.Value
 
-	SourceMap           map[string]string
-	PredefinedFunctions map[string]function.Function
+	SourceMap map[string]string
+	// dependencyOutputEnvKeys records environment keys set for dependency output resolution through
+	// extra_arguments.env_vars. Inherited process values stay eligible for direct state reads until
+	// output-specific configuration overrides them.
+	dependencyOutputEnvKeys map[string]struct{}
+	PredefinedFunctions     map[string]function.Function
 
 	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
@@ -178,6 +182,10 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 	}
 
 	clone.ProviderCacheOptions.RegistryNames = slices.Clone(ctx.ProviderCacheOptions.RegistryNames)
+
+	if ctx.dependencyOutputEnvKeys != nil {
+		clone.dependencyOutputEnvKeys = maps.Clone(ctx.dependencyOutputEnvKeys)
+	}
 
 	return &clone
 }
