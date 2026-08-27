@@ -32,12 +32,12 @@ func GetExitCode(err error) (int, error) {
 	var exitStatus interface {
 		ExitStatus() (int, error)
 	}
+
 	if errors.As(err, &exitStatus) {
 		return exitStatus.ExitStatus()
 	}
 
-	var exitCoder clihelper.ExitCoder
-	if errors.As(err, &exitCoder) {
+	if exitCoder, ok := errors.AsType[clihelper.ExitCoder](err); ok {
 		return exitCoder.ExitCode(), nil
 	}
 

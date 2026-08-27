@@ -983,8 +983,7 @@ func (client *Client) CreateS3BucketWithRetry(
 
 // or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
 func isBucketAlreadyOwnedByYouError(err error) bool {
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 		return apiErr.ErrorCode() == "BucketAlreadyOwnedByYou" ||
 			apiErr.ErrorCode() == "OperationAborted"
 	}
@@ -994,8 +993,7 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 
 // isBucketErrorRetriable returns true if the error is temporary and can be retried.
 func isBucketErrorRetriable(l log.Logger, err error) bool {
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 		unrecoverable := apiErr.ErrorCode() == "InternalError" ||
 			apiErr.ErrorCode() == "OperationAborted" ||
 			apiErr.ErrorCode() == "InvalidParameter"

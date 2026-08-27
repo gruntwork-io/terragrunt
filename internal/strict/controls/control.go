@@ -40,7 +40,7 @@ type Control struct {
 
 	// Suppress suppresses the warning message from being displayed.
 	// Uses int32 for atomic operations (0 = false, 1 = true)
-	suppress int32
+	suppress atomic.Int32
 }
 
 // String implements `fmt.Stringer` interface.
@@ -89,12 +89,12 @@ func (ctrl *Control) AddSubcontrols(newCtrls ...strict.Control) {
 
 // SuppressWarning suppresses the warning message from being displayed.
 func (ctrl *Control) SuppressWarning() {
-	atomic.StoreInt32(&ctrl.suppress, 1)
+	ctrl.suppress.Store(1)
 }
 
 // isSuppressed returns true if warning is suppressed.
 func (ctrl *Control) isSuppressed() bool {
-	return atomic.LoadInt32(&ctrl.suppress) == 1
+	return ctrl.suppress.Load() == 1
 }
 
 // Evaluate implements `strict.Control` interface.

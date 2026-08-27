@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/opencontainers/go-digest"
-	specs "github.com/opencontainers/image-spec/specs-go"
 	ociv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -589,11 +588,11 @@ func TestOCIGetterGetManifestHardening(t *testing.T) {
 	negativeSize.Size = -1
 
 	mismatchedManifest := ociv1.Manifest{
-		Versioned:    specs.Versioned{SchemaVersion: 2},
-		MediaType:    "application/vnd.example.other",
-		ArtifactType: getter.ArtifactTypeModulePkg,
-		Config:       ociv1.DescriptorEmptyJSON,
-		Layers:       []ociv1.Descriptor{layer},
+		SchemaVersion: 2,
+		MediaType:     "application/vnd.example.other",
+		ArtifactType:  getter.ArtifactTypeModulePkg,
+		Config:        ociv1.DescriptorEmptyJSON,
+		Layers:        []ociv1.Descriptor{layer},
 	}
 	mismatchedBytes, err := json.Marshal(mismatchedManifest)
 	require.NoError(t, err)
@@ -1226,11 +1225,11 @@ func manifestFor(
 	t.Helper()
 
 	manifest := ociv1.Manifest{
-		Versioned:    specs.Versioned{SchemaVersion: 2},
-		MediaType:    ociv1.MediaTypeImageManifest,
-		ArtifactType: artifactType,
-		Config:       ociv1.DescriptorEmptyJSON,
-		Layers:       layers,
+		SchemaVersion: 2,
+		MediaType:     ociv1.MediaTypeImageManifest,
+		ArtifactType:  artifactType,
+		Config:        ociv1.DescriptorEmptyJSON,
+		Layers:        layers,
 	}
 
 	manifestBytes, err := json.Marshal(manifest)

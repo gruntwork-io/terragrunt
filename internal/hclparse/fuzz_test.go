@@ -339,8 +339,7 @@ func FuzzAutoIncludeDependencyPaths_ArgErrors(f *testing.F) {
 		_, err := hclparse.AutoIncludeDependencyPaths(fs, unitDir)
 
 		if unitDir == "" {
-			var emptyErr hclparse.EmptyArgError
-			if !errors.As(err, &emptyErr) {
+			if _, ok := errors.AsType[hclparse.EmptyArgError](err); !ok {
 				t.Errorf("expected EmptyArgError for empty unitDir, got %v", err)
 			}
 		}

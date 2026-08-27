@@ -2072,8 +2072,8 @@ func TestReadTFVarsFiles(t *testing.T) {
 }
 
 func mockConfigWithSource(sourceURL string) *config.TerragruntConfig {
-	cfg := config.TerragruntConfig{IsPartial: true}
-	cfg.Terraform = &config.TerraformConfig{Source: &sourceURL}
+	cfg := config.TerragruntConfig{IsPartial: true,
+		Terraform: &config.TerraformConfig{Source: &sourceURL}}
 
 	return &cfg
 }

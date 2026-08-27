@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -421,10 +422,8 @@ type readOnlyDirsFS struct {
 func (r *readOnlyDirsFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
 	if flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE) != 0 {
 		dir := filepath.Dir(name)
-		for _, ro := range r.readOnlyDirs {
-			if dir == ro {
-				return nil, errors.New("read-only filesystem")
-			}
+		if slices.Contains(r.readOnlyDirs, dir) {
+			return nil, errors.New("read-only filesystem")
 		}
 	}
 

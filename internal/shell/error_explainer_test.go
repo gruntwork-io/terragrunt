@@ -44,8 +44,8 @@ func TestExplainError(t *testing.T) {
 		t.Run(tt.errorOutput, func(t *testing.T) {
 			t.Parallel()
 
-			output := util.CmdOutput{}
-			output.Stderr = *bytes.NewBufferString(tt.errorOutput)
+			output := util.CmdOutput{
+				Stderr: *bytes.NewBufferString(tt.errorOutput)}
 
 			errs := errors.Join(util.ProcessExecutionError{
 				Err:    errors.New(""),

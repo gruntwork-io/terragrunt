@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -1213,9 +1214,7 @@ func credentialVenv(home string, extra map[string]string) *venv.Venv {
 // credentialVenvForGOOS builds a hermetic in-memory Venv for goos.
 func credentialVenvForGOOS(goos, home string, extra map[string]string) *venv.Venv {
 	env := map[string]string{}
-	for name, value := range extra {
-		env[name] = value
-	}
+	maps.Copy(env, extra)
 
 	return venvtest.New().
 		WithGOOS(goos).

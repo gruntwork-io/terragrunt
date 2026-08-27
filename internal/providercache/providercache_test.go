@@ -322,7 +322,8 @@ func addFakeProvider(
 	require.NoError(t, err)
 
 	downloadBody, err := json.Marshal(&models.ResponseBody{
-		Platform:               models.Platform{OS: osName, Arch: arch},
+		OS:                     osName,
+		Arch:                   arch,
 		Filename:               filename,
 		DownloadURL:            releasesURL + archivePath,
 		SHA256SumsURL:          releasesURL + shasumsPath,

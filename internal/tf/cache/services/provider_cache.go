@@ -881,8 +881,7 @@ func (service *ProviderService) startProviderCaching(
 
 		// UnexpectedProviderCachePathError signals that the path holds user
 		// content; RemoveAll here would silently override that contract.
-		var unexpectedPath *UnexpectedProviderCachePathError
-		if !errors.As(cache.err, &unexpectedPath) {
+		if _, ok := errors.AsType[*UnexpectedProviderCachePathError](cache.err); !ok {
 			if err := service.FS().RemoveAll(cache.packageDir); err != nil {
 				service.logger.Warnf("Failed to clean up package dir %q: %v", cache.packageDir, err)
 			}

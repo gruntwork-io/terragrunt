@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -224,8 +225,7 @@ func PanicDetails(err error) (msg string, stack []byte) {
 		return "", nil
 	}
 
-	var ctyPanic function.PanicError
-	if stdErrors.As(err, &ctyPanic) {
+	if ctyPanic, ok := stdErrors.AsType[function.PanicError](err); ok {
 		return fmt.Sprintf("%v", ctyPanic.Value), ctyPanic.Stack
 	}
 
@@ -267,13 +267,11 @@ func IsPanic(err error) bool {
 		return false
 	}
 
-	var ctyPanic function.PanicError
-	if stdErrors.As(err, &ctyPanic) {
+	if _, ok := stdErrors.AsType[function.PanicError](err); ok {
 		return true
 	}
 
-	var runtimeErr runtime.Error
-	if stdErrors.As(err, &runtimeErr) {
+	if _, ok := stdErrors.AsType[runtime.Error](err); ok {
 		return true
 	}
 
@@ -291,13 +289,7 @@ func hasPanicStack(err error) bool {
 	}
 
 	if u, ok := err.(interface{ Unwrap() []error }); ok {
-		for _, e := range u.Unwrap() {
-			if hasPanicStack(e) {
-				return true
-			}
-		}
-
-		return false
+		return slices.ContainsFunc(u.Unwrap(), hasPanicStack)
 	}
 
 	return hasPanicStack(stdErrors.Unwrap(err))
