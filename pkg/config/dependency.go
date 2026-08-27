@@ -1474,6 +1474,8 @@ func resolveOutputJSON(
 		pctx.IAMRoleOptions = iam.RoleOptions{}
 	}
 
+	pctx.dependencyOutputEnvKeys = nil
+
 	credentialGetter, err := creds.ObtainCredsForParsing(
 		ctx,
 		l,
@@ -1880,8 +1882,30 @@ func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *Terra
 			continue
 		}
 
+		for key := range *arg.EnvVars {
+			pctx.markDependencyOutputEnvKey(key)
+		}
+
 		maps.Copy(pctx.Venv.Env, *arg.EnvVars)
 	}
+}
+
+func (ctx *ParsingContext) markDependencyOutputEnvKey(key string) {
+	if ctx.dependencyOutputEnvKeys == nil {
+		ctx.dependencyOutputEnvKeys = make(map[string]struct{})
+	}
+
+	ctx.dependencyOutputEnvKeys[key] = struct{}{}
+}
+
+func (ctx *ParsingContext) dependencyOutputEnvOverridden(key string) bool {
+	if ctx == nil || ctx.dependencyOutputEnvKeys == nil {
+		return false
+	}
+
+	_, overridden := ctx.dependencyOutputEnvKeys[key]
+
+	return overridden
 }
 
 // terragruntAlreadyInit returns true if it detects that the module specified by the given terragrunt configuration is

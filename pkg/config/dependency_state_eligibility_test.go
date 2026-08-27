@@ -27,6 +27,7 @@ type dependencyStateEligibilityTestCase struct {
 	env                         map[string]string
 	files                       map[string]string
 	filesystem                  vfs.FS
+	producerTerraformExtra      string
 	wantRequest                 string
 	enableAzure                 bool
 	disableDependencyExperiment bool
@@ -188,6 +189,32 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			env:           map[string]string{"TF_WORKSPACE": ".."},
 		},
 		{
+			name:          "GCS inherited HOME remains direct",
+			backend:       "gcs",
+			backendConfig: gcsConfig,
+			env:           map[string]string{"HOME": "/home/user"},
+			wantRequest:   "storage.googleapis.com/state-bucket/environment/service/default.tfstate",
+			wantDirect:    true,
+		},
+		{
+			name:          "GCS output proxy override falls back",
+			backend:       "gcs",
+			backendConfig: gcsConfig,
+			env: map[string]string{
+				"HTTPS_PROXY": "http://inherited.example.com",
+			},
+			producerTerraformExtra: `terraform {
+  extra_arguments "output_proxy" {
+    commands = ["output"]
+    env_vars = {
+      HTTPS_PROXY = "http://override.example.com"
+    }
+  }
+}
+
+`,
+		},
+		{
 			name:          "Azure requires backend experiment",
 			backend:       "azurerm",
 			backendConfig: azureConfig,
@@ -217,6 +244,32 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"use_cli": "false"}),
 			enableAzure:   true,
+		},
+		{
+			name:          "Azure inherited HTTPS_PROXY remains direct",
+			backend:       "azurerm",
+			backendConfig: azureConfig,
+			env:           map[string]string{"HTTPS_PROXY": "http://proxy.example.com"},
+			enableAzure:   true,
+			wantRequest:   "stateaccount.blob.core.windows.net/state/service.tfstate",
+			wantDirect:    true,
+		},
+		{
+			name:          "Azure output proxy override falls back",
+			backend:       "azurerm",
+			backendConfig: azureConfig,
+			env:           map[string]string{"HTTPS_PROXY": "http://inherited.example.com"},
+			enableAzure:   true,
+			producerTerraformExtra: `terraform {
+  extra_arguments "output_proxy" {
+    commands = ["output"]
+    env_vars = {
+      HTTPS_PROXY = "http://override.example.com"
+    }
+  }
+}
+
+`,
 		},
 		{
 			name:    "Azure competing access key and SAS token fall back",
@@ -387,13 +440,13 @@ func parseDependencyStateEligibilityFixture(
 		require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o600))
 	}
 
-	producer := fmt.Sprintf(`remote_state {
+	producer := fmt.Sprintf(`%sremote_state {
   backend = %q
   config = {
 %s
   }
 }
-`, testCase.backend, eligibilityConfigHCL(testCase.backendConfig))
+`, testCase.producerTerraformExtra, testCase.backend, eligibilityConfigHCL(testCase.backendConfig))
 	consumer := `dependency "producer" {
   config_path = "../producer"
 }

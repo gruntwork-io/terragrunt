@@ -58,8 +58,8 @@ var azureUnsupportedConfigKeys = []string{
 }
 
 // azureSDKAmbientEnvKeys are read by the in-process Azure SDK from the real
-// process. When a dependency venv configures any of them, fall back to native
-// output instead of guessing whether the SDK would see the same value.
+// process. Direct reads fall back only when output-specific configuration
+// overrides one of these keys through extra_arguments.env_vars.
 var azureSDKAmbientEnvKeys = []string{
 	"ALL_PROXY",
 	"HTTPS_PROXY",
@@ -195,7 +195,7 @@ func azureDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestat
 	}
 
 	env := pctx.Venv.Env
-	if !azureEnvSupported(pctx.Venv) {
+	if !azureEnvSupported(pctx) {
 		return false
 	}
 
@@ -255,11 +255,11 @@ func azureBackendConfigSupported(config backend.Config) bool {
 }
 
 // azureEnvSupported rejects dependency environments azurehelper cannot mirror.
-func azureEnvSupported(v *venv.Venv) bool {
-	env := v.Env
+func azureEnvSupported(pctx *ParsingContext) bool {
+	env := pctx.Venv.Env
 
 	for _, key := range azureSDKAmbientEnvKeys {
-		if _, configured := env[key]; configured {
+		if pctx.dependencyOutputEnvOverridden(key) {
 			return false
 		}
 	}

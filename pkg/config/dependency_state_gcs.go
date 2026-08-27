@@ -16,7 +16,6 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -54,8 +53,8 @@ var gcsUnsupportedEnvKeys = []string{
 }
 
 // gcsSDKAmbientEnvKeys are read by the in-process GCS client from the real
-// process. When a dependency venv configures any of them, fall back to native
-// output instead of guessing whether the client would see the same value.
+// process. Direct reads fall back only when output-specific configuration
+// overrides one of these keys through extra_arguments.env_vars.
 var gcsSDKAmbientEnvKeys = []string{
 	"ALL_PROXY",
 	"APPDATA",
@@ -116,7 +115,7 @@ func gcsDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.
 		return false
 	}
 
-	if !gcsDirectStateReadEnvSupported(pctx.Venv, settings) {
+	if !gcsDirectStateReadEnvSupported(pctx, settings) {
 		return false
 	}
 
@@ -377,8 +376,8 @@ func gcsConfiguredCredentialsSupported(settings gcsDirectStateReadSettings) bool
 }
 
 // gcsDirectStateReadEnvSupported rejects environments whose credential or encryption inputs the in-process client resolves differently.
-func gcsDirectStateReadEnvSupported(v *venv.Venv, settings gcsDirectStateReadSettings) bool {
-	env := v.Env
+func gcsDirectStateReadEnvSupported(pctx *ParsingContext, settings gcsDirectStateReadSettings) bool {
+	env := pctx.Venv.Env
 
 	// The same CSEK and CMEK conflict is the native backend's to reject once its environment fallbacks are folded in.
 	if (settings.encryptionKey != "" || env["GOOGLE_ENCRYPTION_KEY"] != "") &&
@@ -390,11 +389,12 @@ func gcsDirectStateReadEnvSupported(v *venv.Venv, settings gcsDirectStateReadSet
 		return false
 	}
 
-	if !gcsSDKAmbientEnvUnset(env) {
+	if gcsSDKAmbientEnvOverridden(pctx) {
 		return false
 	}
 
-	if value, configured := env["GOOGLE_APPLICATION_CREDENTIALS"]; configured && value == "" {
+	if pctx.dependencyOutputEnvOverridden("GOOGLE_APPLICATION_CREDENTIALS") &&
+		env["GOOGLE_APPLICATION_CREDENTIALS"] == "" {
 		return false
 	}
 
@@ -416,16 +416,15 @@ func gcsUnsupportedEnvUnset(env map[string]string) bool {
 	return true
 }
 
-// gcsSDKAmbientEnvUnset rejects keys the in-process client reads from the real
-// process when the dependency venv configures them.
-func gcsSDKAmbientEnvUnset(env map[string]string) bool {
+// gcsSDKAmbientEnvOverridden reports whether output-specific configuration changed a value the in-process client reads from the real process.
+func gcsSDKAmbientEnvOverridden(pctx *ParsingContext) bool {
 	for _, key := range gcsSDKAmbientEnvKeys {
-		if _, configured := env[key]; configured {
-			return false
+		if pctx.dependencyOutputEnvOverridden(key) {
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
 // gcsEnvFallbackSuppressionSupported rejects empty configured values whose suppression of an environment fallback gcphelper misses.

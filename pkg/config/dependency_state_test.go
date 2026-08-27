@@ -220,17 +220,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         storage_account_name = "stateaccount"`, accessKey),
 			enableAzure: true,
 		},
-		{
-			name:    "Azure proxy environment set",
-			backend: "azurerm",
-			backendConfig: fmt.Sprintf(`
-        access_key           = %q
-        container_name       = "state"
-        key                  = "service.tfstate"
-        storage_account_name = "stateaccount"`, accessKey),
-			env:         map[string]string{"HTTPS_PROXY": "http://proxy.example.com"},
-			enableAzure: true,
-		},
 	}
 
 	for _, testCase := range testCases {

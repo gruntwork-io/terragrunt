@@ -289,10 +289,6 @@ func sharedKeyConfig(ctx context.Context, cfg *azurehelper.AzureConfig) (*azureh
 		return nil, err
 	}
 
-	if len(keys) == 0 {
-		return nil, azurehelper.ErrNoAccessKeysReturned
-	}
-
 	keyed := *cfg
 	keyed.Method = azurehelper.AuthMethodAccessKey
 	keyed.AccessKey = keys[0]
