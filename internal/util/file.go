@@ -1783,9 +1783,28 @@ type writerFunc func(data []byte) (int, error)
 
 func (wf writerFunc) Write(data []byte) (int, error) { return wf(data) }
 
+// copyBufferSize matches what io.Copy allocates for itself, so pooling changes how
+// often the memory is claimed rather than how much moves per read.
+const copyBufferSize = 32 * 1024
+
+// copyBuffers holds the scratch space [Copy] reads through. The wrappers below hide
+// whatever WriteTo or ReadFrom dst and src implement, leaving io.Copy no fast path
+// and a fresh buffer on every call.
+var copyBuffers = sync.Pool{
+	New: func() any {
+		buf := make([]byte, copyBufferSize)
+
+		return &buf
+	},
+}
+
 // Copy is a io.Copy cancellable by context.
 func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
-	num, err := io.Copy(
+	// Only New fills this pool, so the assertion holds.
+	buf := copyBuffers.Get().(*[]byte)
+	defer copyBuffers.Put(buf)
+
+	return io.CopyBuffer(
 		writerFunc(func(data []byte) (int, error) {
 			select {
 			case <-ctx.Done():
@@ -1806,9 +1825,8 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 				return src.Read(data)
 			}
 		}),
+		*buf,
 	)
-
-	return num, err
 }
 
 // ErrPathEscapesBaseDir reports that a path handed to [SanitizePath] would
