@@ -1703,15 +1703,21 @@ func backendConfigValueSet(config backend.Config, key string) bool {
 	return true
 }
 
-func backendConfigString(config backend.Config, key string) (string, bool, bool) {
+type backendConfigStringResult struct {
+	value      string
+	configured bool
+	valid      bool
+}
+
+func backendConfigString(config backend.Config, key string) backendConfigStringResult {
 	value, configured := config[key]
 	if !configured {
-		return "", false, true
+		return backendConfigStringResult{valid: true}
 	}
 
 	parsed, valid := value.(string)
 
-	return parsed, true, valid
+	return backendConfigStringResult{value: parsed, configured: true, valid: valid}
 }
 
 func backendConfigStringWithEnv(
@@ -1720,13 +1726,13 @@ func backendConfigStringWithEnv(
 	env map[string]string,
 	envKeys ...string,
 ) (string, bool) {
-	value, configured, valid := backendConfigString(config, key)
-	if !valid {
+	result := backendConfigString(config, key)
+	if !result.valid {
 		return "", false
 	}
 
-	if configured {
-		return value, true
+	if result.configured {
+		return result.value, true
 	}
 
 	return firstNonEmptyFromMap(env, envKeys...), true
@@ -1819,7 +1825,9 @@ func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, 
 	}
 
 	if workspace := pctx.Venv.Env["TF_WORKSPACE"]; workspace != "" {
-		if url.PathEscape(workspace) != workspace {
+		// PathEscape leaves "." and ".." unchanged, but path.Join then drops those
+		// segments and can select the wrong state object.
+		if workspace == "." || workspace == ".." || url.PathEscape(workspace) != workspace {
 			return "", InvalidTFWorkspaceError{Workspace: workspace}
 		}
 

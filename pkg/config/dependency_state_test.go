@@ -7,7 +7,6 @@ import (
 	"io"
 	"maps"
 	"net/http"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -152,7 +150,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 	accessKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
 	testCases := []struct {
 		env           map[string]string
-		processEnv    map[string]string
 		name          string
 		backend       string
 		backendConfig string
@@ -177,14 +174,13 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         storage_custom_endpoint = "https://storage.example.com"`,
 		},
 		{
-			name:    "GCS executable environment differs from process",
+			name:    "GCS executable environment set",
 			backend: "gcs",
 			backendConfig: `
         access_token = "test-token"
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
-			env:        map[string]string{"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES": ""},
-			processEnv: map[string]string{"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES": "1"},
+			env: map[string]string{"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES": "1"},
 		},
 		{
 			name:    "GCS invalid workspace",
@@ -194,6 +190,24 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 			env: map[string]string{"TF_WORKSPACE": "invalid/workspace"},
+		},
+		{
+			name:    "GCS dot workspace",
+			backend: "gcs",
+			backendConfig: `
+        access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+			env: map[string]string{"TF_WORKSPACE": "."},
+		},
+		{
+			name:    "GCS parent-directory workspace",
+			backend: "gcs",
+			backendConfig: `
+        access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+			env: map[string]string{"TF_WORKSPACE": ".."},
 		},
 		{
 			name:    "Azure metadata host",
@@ -207,15 +221,14 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 			enableAzure: true,
 		},
 		{
-			name:    "Azure proxy environment differs from process",
+			name:    "Azure proxy environment set",
 			backend: "azurerm",
 			backendConfig: fmt.Sprintf(`
         access_key           = %q
         container_name       = "state"
         key                  = "service.tfstate"
         storage_account_name = "stateaccount"`, accessKey),
-			env:         map[string]string{"HTTPS_PROXY": ""},
-			processEnv:  map[string]string{"HTTPS_PROXY": "http://process-proxy.example.com"},
+			env:         map[string]string{"HTTPS_PROXY": "http://proxy.example.com"},
 			enableAzure: true,
 		},
 	}
@@ -240,7 +253,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				testCase.enableAzure,
 				"",
 			)
-			maps.Copy(pctx.Venv.ProcessEnv, testCase.processEnv)
 
 			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
 			require.NoError(t, err)
@@ -695,15 +707,15 @@ func prepareDependencyStateFixture(
 		producerPath = "/repo/producer/terragrunt.hcl"
 	)
 
-	processEnv := venv.ParseEnviron(os.Environ())
-	effectiveEnv := maps.Clone(processEnv)
-	maps.Copy(effectiveEnv, env)
+	effectiveEnv := maps.Clone(env)
+	if effectiveEnv == nil {
+		effectiveEnv = map[string]string{}
+	}
 
 	v := venvtest.New().
 		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())
-	v.ProcessEnv = maps.Clone(processEnv)
 
 	for _, dir := range []string{filepath.Dir(consumerPath), filepath.Dir(producerPath)} {
 		require.NoError(t, v.FS.MkdirAll(dir, 0o700))

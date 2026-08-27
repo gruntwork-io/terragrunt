@@ -129,8 +129,7 @@ type Terminal struct {
 // process-execution, HTTP, SOPS-decryption, environment-variable, platform,
 // and writer handles that every Terragrunt operation needs. Env is shared by
 // reference across the run and mutated in place as provider-cache, hook, and
-// inputs contributions resolve. ProcessEnv is an independent startup snapshot
-// that callers must not mutate. Writers is held as a pointer so per-call
+// inputs contributions resolve. Writers is held as a pointer so per-call
 // overrides via [writer.Writers.WithWriter] and [writer.Writers.WithErrWriter]
 // produce fresh pointers without mutating the caller's value; never mutate its
 // fields in place, since shallow-copied Venvs share the pointer.
@@ -143,17 +142,16 @@ type Terminal struct {
 // EOF whether the child reads or not, which is enough for one incidental
 // `tofu -version` to swallow the whole input.
 type Venv struct {
-	FS         vfs.FS
-	Exec       vexec.Exec
-	HTTP       vhttp.Client
-	Sops       vsops.Decrypter
-	Listen     Listener
-	Stdin      io.Reader
-	Env        map[string]string
-	ProcessEnv map[string]string
-	Platform   *Platform
-	Terminal   *Terminal
-	Writers    *writer.Writers
+	FS       vfs.FS
+	Exec     vexec.Exec
+	HTTP     vhttp.Client
+	Sops     vsops.Decrypter
+	Listen   Listener
+	Stdin    io.Reader
+	Env      map[string]string
+	Platform *Platform
+	Terminal *Terminal
+	Writers  *writer.Writers
 }
 
 // Listener opens a socket to serve on. Terragrunt listens for one thing, the
@@ -455,17 +453,14 @@ func (v *Venv) RequireTempDir() {
 // environment variables; writer swaps stay independent because
 // [writer.Writers.WithWriter] returns a fresh copy.
 func OSVenv() *Venv {
-	processEnv := ParseEnviron(os.Environ())
-
 	return &Venv{
-		FS:         vfs.NewOSFS(),
-		Exec:       vexec.NewOSExec(),
-		HTTP:       vhttp.NewOSClient(),
-		Sops:       vsops.NewOSDecrypter(),
-		Listen:     (&net.ListenConfig{}).Listen,
-		Stdin:      os.Stdin,
-		Env:        maps.Clone(processEnv),
-		ProcessEnv: processEnv,
+		FS:     vfs.NewOSFS(),
+		Exec:   vexec.NewOSExec(),
+		HTTP:   vhttp.NewOSClient(),
+		Sops:   vsops.NewOSDecrypter(),
+		Listen: (&net.ListenConfig{}).Listen,
+		Stdin:  os.Stdin,
+		Env:    ParseEnviron(os.Environ()),
 		Platform: &Platform{
 			UserHomeDir:  os.UserHomeDir,
 			UserCacheDir: os.UserCacheDir,

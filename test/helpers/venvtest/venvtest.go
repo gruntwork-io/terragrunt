@@ -64,9 +64,8 @@ func New() *venv.Venv {
 		Listen: func(context.Context, string, string) (net.Listener, error) {
 			return nil, ErrNoListen
 		},
-		Stdin:      strings.NewReader(""),
-		Env:        map[string]string{},
-		ProcessEnv: map[string]string{},
+		Stdin: strings.NewReader(""),
+		Env:   map[string]string{},
 		Platform: &venv.Platform{
 			UserHomeDir: func() (string, error) {
 				return "", nil

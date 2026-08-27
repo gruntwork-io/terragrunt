@@ -48,17 +48,15 @@ var gcsUnsupportedEnvKeys = []string{
 	"GOOGLE_BACKEND_UNIVERSE_DOMAIN",
 	"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
 	"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES",
-}
-
-// gcsUnsupportedProcessEnvKeys names variables that redirect the in-process client whether the venv or the process sets them.
-var gcsUnsupportedProcessEnvKeys = []string{
 	"GOOGLE_CLOUD_UNIVERSE_DOMAIN",
 	"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES",
 	"GOOGLE_STORAGE_CUSTOM_ENDPOINT",
 }
 
-// gcsProcessSharedEnvKeys names variables the in-process client reads from the process, so a differing venv value diverges.
-var gcsProcessSharedEnvKeys = []string{
+// gcsSDKAmbientEnvKeys are read by the in-process GCS client from the real
+// process. When a dependency venv configures any of them, fall back to native
+// output instead of guessing whether the client would see the same value.
+var gcsSDKAmbientEnvKeys = []string{
 	"ALL_PROXY",
 	"APPDATA",
 	"AWS_ACCESS_KEY_ID",
@@ -344,13 +342,13 @@ func gcsBackendConfigSettings(config backend.Config) (gcsDirectStateReadSettings
 	configuredValues := make(map[string]bool)
 
 	for _, key := range gcsStringConfigKeys {
-		value, configured, valid := backendConfigString(config, key)
-		if !valid {
+		result := backendConfigString(config, key)
+		if !result.valid {
 			return gcsDirectStateReadSettings{}, false
 		}
 
-		values[key] = value
-		configuredValues[key] = configured
+		values[key] = result.value
+		configuredValues[key] = result.configured
 	}
 
 	return gcsDirectStateReadSettings{
@@ -388,11 +386,15 @@ func gcsDirectStateReadEnvSupported(v *venv.Venv, settings gcsDirectStateReadSet
 		return false
 	}
 
-	if !gcsUnsupportedEnvUnset(v) {
+	if !gcsUnsupportedEnvUnset(env) {
 		return false
 	}
 
-	if !gcsProcessEnvDivergenceSupported(v) {
+	if !gcsSDKAmbientEnvUnset(env) {
+		return false
+	}
+
+	if value, configured := env["GOOGLE_APPLICATION_CREDENTIALS"]; configured && value == "" {
 		return false
 	}
 
@@ -403,18 +405,10 @@ func gcsDirectStateReadEnvSupported(v *venv.Venv, settings gcsDirectStateReadSet
 	return gcsEncryptionKeyDirectStateReadSupported(gcsEffectiveEncryptionKey(env, settings))
 }
 
-// gcsUnsupportedEnvUnset rejects variables selecting an identity or host that gcphelper ignores or reads past the venv.
-func gcsUnsupportedEnvUnset(v *venv.Venv) bool {
-	env := v.Env
-
+// gcsUnsupportedEnvUnset rejects variables selecting an identity or host that gcphelper ignores or cannot mirror.
+func gcsUnsupportedEnvUnset(env map[string]string) bool {
 	for _, key := range gcsUnsupportedEnvKeys {
 		if env[key] != "" {
-			return false
-		}
-	}
-
-	for _, key := range gcsUnsupportedProcessEnvKeys {
-		if env[key] != "" || v.ProcessEnv[key] != "" {
 			return false
 		}
 	}
@@ -422,18 +416,11 @@ func gcsUnsupportedEnvUnset(v *venv.Venv) bool {
 	return true
 }
 
-// gcsProcessEnvDivergenceSupported rejects venv values the in-process client would not see, since it reads the real process.
-func gcsProcessEnvDivergenceSupported(v *venv.Venv) bool {
-	env := v.Env
-
-	value, configured := env["GOOGLE_APPLICATION_CREDENTIALS"]
-
-	if configured && value == "" && v.ProcessEnv["GOOGLE_APPLICATION_CREDENTIALS"] != "" {
-		return false
-	}
-
-	for _, key := range gcsProcessSharedEnvKeys {
-		if value, configured := env[key]; configured && value != v.ProcessEnv[key] {
+// gcsSDKAmbientEnvUnset rejects keys the in-process client reads from the real
+// process when the dependency venv configures them.
+func gcsSDKAmbientEnvUnset(env map[string]string) bool {
+	for _, key := range gcsSDKAmbientEnvKeys {
+		if _, configured := env[key]; configured {
 			return false
 		}
 	}

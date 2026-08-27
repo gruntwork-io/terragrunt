@@ -57,8 +57,10 @@ var azureUnsupportedConfigKeys = []string{
 	"timeout_seconds",
 }
 
-// azureProcessEnvPassthroughKeys reach the in-process SDK from the Terragrunt process, so a diverging dependency value changes transport behavior.
-var azureProcessEnvPassthroughKeys = []string{
+// azureSDKAmbientEnvKeys are read by the in-process Azure SDK from the real
+// process. When a dependency venv configures any of them, fall back to native
+// output instead of guessing whether the SDK would see the same value.
+var azureSDKAmbientEnvKeys = []string{
 	"ALL_PROXY",
 	"HTTPS_PROXY",
 	"HTTP_PROXY",
@@ -237,8 +239,8 @@ func azureBackendConfigSupported(config backend.Config) bool {
 	}
 
 	for _, key := range azureTrimmedStringConfigKeys {
-		value, configured, valid := backendConfigString(config, key)
-		if !valid || (configured && value != strings.TrimSpace(value)) {
+		result := backendConfigString(config, key)
+		if !result.valid || (result.configured && result.value != strings.TrimSpace(result.value)) {
 			return false
 		}
 	}
@@ -252,12 +254,12 @@ func azureBackendConfigSupported(config backend.Config) bool {
 	return true
 }
 
-// azureEnvSupported rejects dependency environments that diverge from the Terragrunt process or that azurehelper cannot mirror.
+// azureEnvSupported rejects dependency environments azurehelper cannot mirror.
 func azureEnvSupported(v *venv.Venv) bool {
 	env := v.Env
 
-	for _, key := range azureProcessEnvPassthroughKeys {
-		if value, configured := env[key]; configured && value != v.ProcessEnv[key] {
+	for _, key := range azureSDKAmbientEnvKeys {
+		if _, configured := env[key]; configured {
 			return false
 		}
 	}
@@ -306,7 +308,7 @@ func azureResolveAuthToggles(config backend.Config, v *venv.Venv) (azureAuthTogg
 		return azureAuthToggles{}, false
 	}
 
-	if useOIDC.value && !azureEnvKeysUnsetInVenvAndProcess(v, azureWorkloadIdentityEnvKeys) {
+	if useOIDC.value && !azureEnvKeysUnset(env, azureWorkloadIdentityEnvKeys) {
 		return azureAuthToggles{}, false
 	}
 
@@ -349,22 +351,11 @@ func azureEnvKeysUnset(env map[string]string, keys []string) bool {
 	return true
 }
 
-// azureEnvKeysUnsetInVenvAndProcess also rejects keys the in-process SDK would read from the Terragrunt process.
-func azureEnvKeysUnsetInVenvAndProcess(v *venv.Venv, keys []string) bool {
-	for _, key := range keys {
-		if _, configured := v.Env[key]; configured || v.ProcessEnv[key] != "" {
-			return false
-		}
-	}
-
-	return true
-}
-
 // azureConfigEmptyOverridesEnv reports whether an explicit empty config value suppresses an env fallback azurehelper still applies.
 func azureConfigEmptyOverridesEnv(config backend.Config, env map[string]string) bool {
 	for configKey, envKeys := range azureConfigEnvFallbacks {
-		value, configured, _ := backendConfigString(config, configKey)
-		if configured && value == "" && firstNonEmptyFromMap(env, envKeys...) != "" {
+		result := backendConfigString(config, configKey)
+		if result.configured && result.value == "" && firstNonEmptyFromMap(env, envKeys...) != "" {
 			return true
 		}
 	}
@@ -416,22 +407,22 @@ func azureResolveCredentials(config backend.Config, env map[string]string) (*azu
 
 // azureResolveStorageCoordinates validates the blob coordinates and returns the resource group the storage-key lookup needs.
 func azureResolveStorageCoordinates(config backend.Config) (string, bool) {
-	resourceGroup, _, valid := backendConfigString(config, "resource_group_name")
-	if !valid {
+	resourceGroup := backendConfigString(config, "resource_group_name")
+	if !resourceGroup.valid {
 		return "", false
 	}
 
-	storageAccount, _, valid := backendConfigString(config, "storage_account_name")
-	if !valid || !azureStorageAccountNameValid(storageAccount) {
+	storageAccount := backendConfigString(config, "storage_account_name")
+	if !storageAccount.valid || !azureStorageAccountNameValid(storageAccount.value) {
 		return "", false
 	}
 
-	container, _, valid := backendConfigString(config, "container_name")
-	if !valid || !azureContainerNameValid(container) {
+	container := backendConfigString(config, "container_name")
+	if !container.valid || !azureContainerNameValid(container.value) {
 		return "", false
 	}
 
-	return resourceGroup, true
+	return resourceGroup.value, true
 }
 
 // azureCloudEnvironmentSupported keeps cloud aliases azurehelper does not resolve to the same endpoints on the native path.

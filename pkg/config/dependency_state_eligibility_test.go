@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -176,6 +174,18 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backend:       "gcs",
 			backendConfig: gcsConfig,
 			env:           map[string]string{"TF_WORKSPACE": "invalid/workspace"},
+		},
+		{
+			name:          "GCS dot workspace falls back",
+			backend:       "gcs",
+			backendConfig: gcsConfig,
+			env:           map[string]string{"TF_WORKSPACE": "."},
+		},
+		{
+			name:          "GCS parent-directory workspace falls back",
+			backend:       "gcs",
+			backendConfig: gcsConfig,
+			env:           map[string]string{"TF_WORKSPACE": ".."},
 		},
 		{
 			name:          "Azure requires backend experiment",
@@ -354,15 +364,15 @@ func parseDependencyStateEligibilityFixture(
 		env = map[string]string{}
 	}
 
-	processEnv := venv.ParseEnviron(os.Environ())
-	effectiveEnv := maps.Clone(processEnv)
-	maps.Copy(effectiveEnv, env)
+	effectiveEnv := maps.Clone(env)
+	if effectiveEnv == nil {
+		effectiveEnv = map[string]string{}
+	}
 
 	v := venvtest.New().
 		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())
-	v.ProcessEnv = maps.Clone(processEnv)
 
 	if testCase.filesystem != nil {
 		v = v.WithFS(testCase.filesystem)
