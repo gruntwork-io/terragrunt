@@ -3,7 +3,6 @@
 package runner
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -35,6 +34,14 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+)
+
+// Seen together in a unit's plan stderr, these mean the unit failed because a
+// terraform_remote_state data source had nothing to read yet, which points the
+// user at applying dependencies first.
+const (
+	planRemoteStateErrorPrefix   = "Error running plan:"
+	planRemoteStateErrorResource = ": Resource 'data.terraform_remote_state."
 )
 
 // Runner executes the units of a discovered stack.
@@ -384,14 +391,17 @@ func (rnr *Runner) Run(
 		needsCliSync = true
 	}
 
-	var planErrorBuffers map[string]*bytes.Buffer
+	var planErrorScanners map[string]*SubstringScanner
 	if isPlan {
-		planErrorBuffers = make(map[string]*bytes.Buffer, len(rnr.Stack.Units))
+		planErrorScanners = make(map[string]*SubstringScanner, len(rnr.Stack.Units))
 		for _, u := range rnr.Stack.Units {
-			planErrorBuffers[u.Path()] = &bytes.Buffer{}
+			planErrorScanners[u.Path()] = NewSubstringScanner(
+				planRemoteStateErrorPrefix,
+				planRemoteStateErrorResource,
+			)
 		}
 
-		defer rnr.summarizePlanAllErrors(l, planErrorBuffers)
+		defer rnr.summarizePlanAllErrors(l, planErrorScanners)
 	}
 
 	// Emit report entries for excluded units that haven't been reported yet.
@@ -452,13 +462,11 @@ func (rnr *Runner) Run(
 			syncUnitCliArgs(l, stackOpts, unitOpts, u)
 		}
 
-		// Wrap ErrWriter with plan error buffer for plan commands. The
-		// wrapped writer is materialized on the per-unit venv below.
 		var unitErrWriterWrap io.Writer
 
 		if isPlan {
-			if buf := planErrorBuffers[u.Path()]; buf != nil {
-				unitErrWriterWrap = io.MultiWriter(buf, v.Writers.ErrWriter)
+			if scanner := planErrorScanners[u.Path()]; scanner != nil {
+				unitErrWriterWrap = io.MultiWriter(scanner, v.Writers.ErrWriter)
 			}
 		}
 
@@ -834,42 +842,32 @@ func (rnr *Runner) ListStackDependentUnits() map[string][]string {
 }
 
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
-func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorStreams map[string]*bytes.Buffer) {
+func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorScanners map[string]*SubstringScanner) {
 	for _, unit := range rnr.Stack.Units {
-		buf := errorStreams[unit.Path()]
-		if buf == nil {
+		scanner := errorScanners[unit.Path()]
+		if scanner == nil || !scanner.FoundAll() {
 			continue
 		}
 
-		output := buf.String()
+		var dependenciesMsg string
 
-		if len(output) == 0 {
-			// An empty buffer means the unit's plan wrote nothing to stderr.
-			continue
-		}
-
-		if strings.Contains(output, "Error running plan:") &&
-			strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
-			var dependenciesMsg string
-
-			if len(unit.Dependencies()) > 0 {
-				cfg := unit.Config()
-				if cfg != nil && cfg.Dependencies != nil && len(cfg.Dependencies.Paths) > 0 {
-					dependenciesMsg = fmt.Sprintf(
-						" contains dependencies to %v and",
-						cfg.Dependencies.Paths,
-					)
-				} else {
-					dependenciesMsg = " contains dependencies and"
-				}
+		if len(unit.Dependencies()) > 0 {
+			cfg := unit.Config()
+			if cfg != nil && cfg.Dependencies != nil && len(cfg.Dependencies.Paths) > 0 {
+				dependenciesMsg = fmt.Sprintf(
+					" contains dependencies to %v and",
+					cfg.Dependencies.Paths,
+				)
+			} else {
+				dependenciesMsg = " contains dependencies and"
 			}
-
-			l.Infof("%v%v refers to remote State "+
-				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
-				unit.Path(),
-				dependenciesMsg,
-			)
 		}
+
+		l.Infof("%v%v refers to remote State "+
+			"you may have to apply your changes in the dependencies before running terragrunt run --all plan.\n",
+			unit.Path(),
+			dependenciesMsg,
+		)
 	}
 }
 

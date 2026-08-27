@@ -1,0 +1,12 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### Lower memory use during `run --all`
+
+When you set [`--json-out-dir`](/reference/cli/commands/run#json-out-dir), Terragrunt saves a JSON plan for every unit it runs. It used to build each of those documents in memory in full before writing any of it to disk, so a unit with a 64 MB plan needed roughly 168 MB to save it, and every unit running in parallel needed its own. Terragrunt now writes the document as it arrives. That same plan needs about 300 KB, roughly 550x less, and saving it finishes about 18% faster.
+
+Two other places held on to more than they needed. During `run --all plan`, Terragrunt kept every unit's error output until the run finished so it could check it for a single message at the end, and it now checks that as the output streams. Responses from a provider registry were read twice on the way in, and are now read once, which uses about 19% less memory per request.
+
+JSON plans are also replaced atomically now. A run that fails part way through leaves the previous file in place instead of truncating it.
