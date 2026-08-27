@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -72,7 +73,9 @@ func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, v v
 			err = processError.Err
 		}
 
-		return fmt.Sprintf("Failed to execute \"%s %s\": %s\n\nThis may be caused by a shim wrapping the configured Terraform/OpenTofu binary.", opts.TFPath, strings.Join(terraformHelpCmd, " "), err.Error())
+		tips.GiveTFHelpShimTip(l, v.FS, opts.TFPath, opts.WorkingDir, v.Env["PATH"], opts.Tips)
+
+		return fmt.Sprintf("Failed to execute \"%s %s\": %s", opts.TFPath, strings.Join(terraformHelpCmd, " "), err.Error())
 	}
 
 	result := out.Stdout.String()

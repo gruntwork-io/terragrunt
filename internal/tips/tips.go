@@ -1,6 +1,14 @@
 package tips
 
 const (
+	// OpenTofuTerraformShim is the tip shown when the configured OpenTofu/Terraform
+	// binary looks like a text-based version-manager shim after command help fails.
+	OpenTofuTerraformShim = "opentofu-terraform-shim"
+
+	// OpenTofuTerraformShimMessage explains how a version-manager shim can interfere
+	// with rendering OpenTofu/Terraform command help.
+	OpenTofuTerraformShimMessage = "The configured OpenTofu/Terraform binary appears to be a version-manager shim, which may interfere with rendering command help. Try running the underlying binary directly."
+
 	// DebuggingDocs is the tip that points users to the debugging documentation.
 	DebuggingDocs = "debugging-docs"
 
@@ -55,6 +63,10 @@ const (
 // used after removing it from the codebase, just set `disabled` to `1` here for that tip.
 func NewTips() Tips {
 	return Tips{
+		{
+			Name:    OpenTofuTerraformShim,
+			Message: OpenTofuTerraformShimMessage,
+		},
 		{
 			Name:    DebuggingDocs,
 			Message: "For help troubleshooting errors, visit https://docs.terragrunt.com/troubleshooting/debugging",
