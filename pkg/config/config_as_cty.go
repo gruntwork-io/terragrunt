@@ -680,16 +680,33 @@ func RemoteStateAsCty(remote *remotestate.RemoteState) (cty.Value, error) {
 }
 
 // Serialize the list of dependency blocks to a cty Value as a map that maps the block names to the cty representation.
+//
+// Every element of an expanded block carries its label, and this map is keyed by label, so
+// serializing the elements would keep only the last. Unlike the HCL render, JSON has no comment
+// to preview them in.
 func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 	out := map[string]cty.Value{}
 
-	for _, block := range dependencyBlocks {
-		blockCty, err := GoTypeToCty(block)
-		if err != nil {
-			return cty.NilVal, err
+	for _, group := range groupExpandedDependencies(dependencyBlocks) {
+		if group.source != nil {
+			blockCty, err := group.source.BodyAsCty()
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			out[group.deps[0].Name] = blockCty
+
+			continue
 		}
 
-		out[block.Name] = blockCty
+		for _, dep := range group.deps {
+			blockCty, err := GoTypeToCty(*dep)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			out[dep.Name] = blockCty
+		}
 	}
 
 	return ConvertValuesMapToCtyVal(out)
