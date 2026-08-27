@@ -3,8 +3,10 @@ package venvtest
 import (
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/stretchr/testify/require"
@@ -30,10 +32,15 @@ func NewFS(t *testing.T, root string, files map[string]string) vfs.FS {
 	return fsys
 }
 
+// [LoadFS] skips these, so running Terragrunt inside a fixture cannot change
+// what a test mirroring it sees. A test that needs one writes it into the
+// filesystem LoadFS returns.
+var generatedDirs = []string{".terraform", util.TerragruntCacheDir}
+
 // LoadFS mirrors the on-disk tree at dir into an in-memory filesystem and
 // returns it with the root the copy landed at, for fixtures that are easier to
 // keep as files than as literals. A subject that reached for os instead of the
-// venv leaves the copy untouched and fails loudly.
+// venv would leave the copy untouched, and every assertion against it fails.
 //
 // Only files are copied. Writing one registers its parent directories, so the
 // tree arrives with them, but a directory holding nothing does not survive.
@@ -48,8 +55,16 @@ func LoadFS(t *testing.T, dir string) (vfs.FS, string) {
 	src, dst := vfs.NewOSFS(), vfs.NewMemMapFS()
 
 	require.NoError(t, vfs.WalkDir(src, abs, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
 			return err
+		}
+
+		if d.IsDir() {
+			if slices.Contains(generatedDirs, d.Name()) {
+				return fs.SkipDir
+			}
+
+			return nil
 		}
 
 		rel, err := filepath.Rel(abs, path)

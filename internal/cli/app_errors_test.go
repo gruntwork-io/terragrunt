@@ -1,52 +1,17 @@
 package cli_test
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// unitRoot is where the tests below mount the units they discover.
-const unitRoot = "/units"
-
-// runCLI drives the whole CLI against v and returns what the run wrote to
-// standard output. Colors are off so output compares byte for byte.
-func runCLI(t *testing.T, v *venv.Venv, args ...string) (string, error) {
-	t.Helper()
-
-	var out bytes.Buffer
-
-	v = v.WithWriter(&out)
-
-	l := logger.CreateLogger()
-	l.Formatter().SetDisabledColors(true)
-
-	err := cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).
-		Run(l, v, append([]string{"terragrunt"}, args...))
-
-	return out.String(), err
-}
-
-// oneUnit returns a venv holding a single unit, for the runs below that need
-// somewhere to point --working-dir but never get far enough to read it.
-func oneUnit(t *testing.T) *venv.Venv {
-	t.Helper()
-
-	return venvtest.New().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
-		"terragrunt.hcl": "",
-	}))
-}
 
 // TestCLIFlagHints pins the hint a misplaced flag earns. Each name below
 // belongs to a real flag, just not to the command it was passed to, so the
@@ -104,8 +69,8 @@ func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
 	require.ErrorAs(t, err, &expectedErr)
 }
 
-// TestShowErrorWhenRunAllInvokedWithoutArguments pins that `run --all` with
-// nothing to run says so, rather than reporting a queue that did nothing.
+// TestShowErrorWhenRunAllInvokedWithoutArguments pins that `run --all` with no
+// command names what is missing. An empty queue would report success.
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	t.Parallel()
 
