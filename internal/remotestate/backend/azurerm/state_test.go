@@ -282,7 +282,8 @@ func TestNewStateBlobClientSeparatesTransientFromCoordinateFailures(t *testing.T
 
 			var setupErr *azurerm.StateClientSetupError
 			require.ErrorAs(t, err, &setupErr)
-			assert.Equal(t, testCase.wantGuidance, errors.Is(err, azurerm.ErrStateClientCoordinates),
+			_, hasGuidance := errors.AsType[*azurerm.StateClientCoordinatesError](err)
+			assert.Equal(t, testCase.wantGuidance, hasGuidance,
 				"coordinate guidance must appear only for configuration or permission causes")
 		})
 	}
@@ -302,7 +303,9 @@ func TestNewStateBlobClientCancelledContextOmitsGuidance(t *testing.T) {
 
 	var setupErr *azurerm.StateClientSetupError
 	require.ErrorAs(t, err, &setupErr)
-	assert.NotErrorIs(t, err, azurerm.ErrStateClientCoordinates,
+
+	var coordinateErr *azurerm.StateClientCoordinatesError
+	assert.NotErrorAs(t, err, &coordinateErr,
 		"a cancelled context must not be reported as a configuration problem")
 }
 
@@ -511,7 +514,9 @@ func TestNewStateBlobClientTransportFailureOmitsGuidance(t *testing.T) {
 
 	var setupErr *azurerm.StateClientSetupError
 	require.ErrorAs(t, err, &setupErr)
-	assert.NotErrorIs(t, err, azurerm.ErrStateClientCoordinates,
+
+	var coordinateErr *azurerm.StateClientCoordinatesError
+	assert.NotErrorAs(t, err, &coordinateErr,
 		"a transport failure must not be reported as a configuration problem")
 }
 

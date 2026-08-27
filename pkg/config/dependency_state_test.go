@@ -613,7 +613,9 @@ func TestDependencyStateAzureClientSetupFailureDoesNotUseMocks(t *testing.T) {
 
 	var setupErr *azurermbackend.StateClientSetupError
 	require.ErrorAs(t, err, &setupErr)
-	require.ErrorIs(t, err, azurermbackend.ErrStateClientCoordinates)
+
+	var coordinateErr *azurermbackend.StateClientCoordinatesError
+	require.ErrorAs(t, err, &coordinateErr)
 	assert.Empty(t, recorder.invocations(), "a client setup failure must not invoke OpenTofu")
 	requests := recorder.requestPaths()
 	assert.True(t, slices.ContainsFunc(requests, func(request string) bool {

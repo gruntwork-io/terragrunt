@@ -80,14 +80,23 @@ func (StateClientCacheRequiredError) Error() string {
 	return "azurerm state client cache is required"
 }
 
-// ErrStateClientCoordinates is added when the cause points at the configured
-// resource coordinates or the identity's permissions, rather than a transient
-// service condition. Match with errors.Is.
-var ErrStateClientCoordinates = errors.New(
-	"verify that resource_group_name, storage_account_name, and subscription_id in the " +
+// StateClientCoordinatesError reports that the configured resource coordinates
+// or the identity's permissions prevented state-client setup. Match with
+// errors.As.
+type StateClientCoordinatesError struct {
+	// Err is the underlying Azure API failure.
+	Err error
+}
+
+func (err *StateClientCoordinatesError) Error() string {
+	return "verify that resource_group_name, storage_account_name, and subscription_id in the " +
 		"remote_state block refer to resources that exist, and that the identity may list " +
-		"storage account keys",
-)
+		"storage account keys: " + err.Err.Error()
+}
+
+func (err *StateClientCoordinatesError) Unwrap() error {
+	return err.Err
+}
 
 // ErrAzureBackendExperimentRequired is returned when an azurerm backend
 // lifecycle operation is attempted without the `azure-backend` experiment

@@ -169,7 +169,7 @@ func NewStateBlobClient(
 	if err != nil {
 		// Only a response that implicates the config or permissions earns the guidance.
 		if coordinateStateClientFailure(err) {
-			err = fmt.Errorf("%w: %w", ErrStateClientCoordinates, err)
+			err = &StateClientCoordinatesError{Err: err}
 		}
 
 		return nil, &StateClientSetupError{Err: err}

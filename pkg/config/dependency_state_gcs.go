@@ -150,7 +150,7 @@ func gcsCredentialFileDirectStateReadSupported(pctx *ParsingContext, filename st
 		return true
 	}
 
-	contents, err := vfs.ReadFile(pctx.Venv.FS, filename)
+	file, err := pctx.Venv.FS.Open(filename)
 	if err != nil {
 		return false
 	}
@@ -159,7 +159,17 @@ func gcsCredentialFileDirectStateReadSupported(pctx *ParsingContext, filename st
 		Type string `json:"type"`
 	}
 
-	if err := json.Unmarshal(contents, &metadata); err != nil {
+	decoder := json.NewDecoder(file)
+	validJSON := decoder.Decode(&metadata) == nil
+
+	if validJSON {
+		_, trailingErr := decoder.Token()
+		validJSON = errors.Is(trailingErr, io.EOF)
+	}
+
+	closeErr := file.Close()
+
+	if !validJSON || closeErr != nil {
 		return false
 	}
 
