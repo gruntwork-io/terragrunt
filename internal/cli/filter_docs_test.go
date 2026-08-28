@@ -13,14 +13,14 @@ import (
 )
 
 // The filter documentation pairs each query with the components it selects.
-// Every case below is one of those pairs. A change in what a filter selects
-// fails here, on the page that promised it.
+// Every case below is one of those pairs. A filter that stops selecting what
+// its page claims fails here.
 //
 // The pages are under docs/src/content/docs/03-features/08-filter.
 
-// docsRoot is where a documentation example's tree is mounted. Each example
-// discovers from the root directory inside it, leaving room beside that
-// directory for the external dependencies some of the examples reach.
+// docsRoot holds one example's tree. Discovery starts at the root directory
+// inside it, which leaves room alongside for the external dependencies a few
+// examples reach.
 const docsRoot = "/docs"
 
 // unitHCL is the smallest configuration that makes a directory discoverable as
@@ -31,7 +31,6 @@ const unitHCL = "terraform {\n  source = \".\"\n}"
 // tree collects the files one documentation example runs against.
 type tree map[string]string
 
-// unit adds a discoverable unit at each path.
 func (t tree) unit(paths ...string) tree {
 	for _, path := range paths {
 		t.config(path, unitHCL)
@@ -40,7 +39,6 @@ func (t tree) unit(paths ...string) tree {
 	return t
 }
 
-// stack adds a discoverable stack at each path.
 func (t tree) stack(paths ...string) tree {
 	for _, path := range paths {
 		t[filepath.Join(path, "terragrunt.stack.hcl")] = ""
@@ -49,7 +47,6 @@ func (t tree) stack(paths ...string) tree {
 	return t
 }
 
-// config adds a unit at path whose configuration is contents.
 func (t tree) config(path, contents string) tree {
 	t[filepath.Join(path, "terragrunt.hcl")] = contents
 	t[filepath.Join(path, "main.tf")] = ""
@@ -79,7 +76,6 @@ func (t tree) dependent(path string, deps ...string) tree {
 	return t.config(path, contents.String())
 }
 
-// findWithFilters runs find against files and returns the paths it printed.
 func findWithFilters(t *testing.T, files tree, filters ...string) string {
 	t.Helper()
 
@@ -449,7 +445,7 @@ terraform {
 	}
 }
 
-// TestFilterDocumentationExamplesWithUnion covers the examples that pass more
+// TestFilterDocumentationExamplesWithUnion pins the examples that pass more
 // than one --filter, where the results are the union of what each selects.
 func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 	t.Parallel()

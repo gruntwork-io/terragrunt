@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -45,6 +46,11 @@ func TestHCLFmt(t *testing.T) {
 	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
 	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
+	original := onDisk(t, "./testdata/fixtures/terragrunt.hcl")
+
+	// .gitignore covers the cache directory, so a fixture cannot carry this file.
+	cached := filepath.Join(tmpPath, "ignored", util.TerragruntCacheDir, "terragrunt.hcl")
+	require.NoError(t, vfs.WriteFile(fsys, cached, []byte(original), 0o644))
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -74,13 +80,12 @@ func TestHCLFmt(t *testing.T) {
 			})
 		}
 
-		// check to make sure the file in the `.terragrunt-cache` folder was ignored and untouched
+		// Formatting a cached copy edits a file the next download overwrites.
 		t.Run("terragrunt-cache", func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t,
-				onDisk(t, "./testdata/fixtures/ignored/.terragrunt-cache/terragrunt.hcl"),
-				readFixture(t, fsys, tmpPath, "ignored/.terragrunt-cache/terragrunt.hcl"))
+			assert.Equal(t, original,
+				readFixture(t, fsys, tmpPath, "ignored", util.TerragruntCacheDir, "terragrunt.hcl"))
 		})
 
 		// Finally, check to make sure the file in the `.history` folder was ignored and untouched
@@ -587,9 +592,8 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 // [TestHCLFmtStdin] covers the same flag for content arriving on standard
 // input, where the header names stdin instead of a path.
 //
-// The header names the path the file was found at. An in-memory root is the
-// same string on every machine, so the header is pinned alongside the hunk
-// rather than stripped.
+// The header names the path the file was found at. An in-memory root gives
+// the same string on every machine, so this compares the header too.
 func TestHCLFmtDiffFile(t *testing.T) {
 	t.Parallel()
 

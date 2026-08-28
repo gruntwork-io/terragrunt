@@ -3,8 +3,8 @@ package cli
 import "fmt"
 
 // UnknownCommandError is returned when the first non-flag argument names no
-// command. Terragrunt used to hand such an argument to the wrapped binary, so
-// the message names the explicit form that replaced that behavior.
+// command. The message points at `terragrunt run --`, the explicit form for
+// handing a command to the wrapped binary.
 type UnknownCommandError string
 
 func (err UnknownCommandError) Error() string {
