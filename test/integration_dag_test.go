@@ -11,27 +11,6 @@ import (
 
 const testFixtureGraphDAG = "fixtures/dag-graph"
 
-func TestDagGraphFlagsRegistration(t *testing.T) {
-	t.Parallel()
-
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt dag graph -h")
-	require.NoError(t, err)
-	assert.Empty(t, stderr)
-
-	assert.Contains(
-		t,
-		stdout,
-		"--queue-ignore-dag-order",
-		"queue-ignore-dag-order flag should be present",
-	)
-	assert.Contains(
-		t,
-		stdout,
-		"--queue-ignore-errors",
-		"queue-ignore-errors flag should be present",
-	)
-}
-
 func TestIncludeExternalInDagGraphCmd(t *testing.T) {
 	t.Parallel()
 

@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -671,7 +670,7 @@ func TestRunJSONReportsExcludeAndInclude(t *testing.T) {
 	t.Parallel()
 
 	root := "/find-json"
-	fsys := newUnitsFS(t, root, map[string]string{
+	fsys := venvtest.NewFS(t, root, map[string]string{
 		"root.hcl": "",
 		"unit1/terragrunt.hcl": `
 include "root" {
@@ -726,7 +725,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			t.Parallel()
 
 			root := "/find-writer"
-			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
 			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
@@ -766,7 +765,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 			t.Parallel()
 
 			root := "/find-invalid"
-			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
 			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
@@ -795,22 +794,6 @@ type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) {
 	return 0, errWriteFailed
-}
-
-// newUnitsFS returns an in-memory filesystem holding files, each path relative to root.
-func newUnitsFS(t *testing.T, root string, files map[string]string) vfs.FS {
-	t.Helper()
-
-	fsys := vfs.NewMemMapFS()
-
-	for path, content := range files {
-		require.NoError(
-			t,
-			vfs.WriteFile(fsys, filepath.Join(root, path), []byte(content), 0o644),
-		)
-	}
-
-	return fsys
 }
 
 // newTestLogger returns a logger with colors off, so output is comparable byte for byte.

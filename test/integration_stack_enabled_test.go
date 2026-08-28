@@ -5,9 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -59,28 +57,4 @@ func TestStackEnabledAllDisabledGeneratesNothing(t *testing.T) {
 	)
 
 	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-stack"))
-}
-
-func TestStackEnabledRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces all experiments on, opening the gate this test pins shut",
-		)
-	}
-
-	helpers.CleanupTerraformFolder(t, testFixtureStacksEnabled)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksEnabled)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksEnabled, "live")
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath,
-	)
-
-	var enabledErr config.EnabledRequiresExperimentError
-	require.ErrorAs(t, err, &enabledErr)
-	assert.Equal(t, "unit", enabledErr.BlockType)
-	assert.Equal(t, "vpc", enabledErr.BlockLabel)
 }

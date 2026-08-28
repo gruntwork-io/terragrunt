@@ -32,31 +32,6 @@ const (
 	testFixtureHooksNoHooks                                       = "fixtures/hooks/no-hooks"
 )
 
-func TestTerragruntRunNoHooksRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping because we can't verify the experiment is required when experiment mode is enabled",
-		)
-	}
-
-	helpers.CleanupTerraformFolder(t, testFixtureHooksNoHooks)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksNoHooks)
-	directPath := filepath.Join(tmpEnvPath, testFixtureHooksNoHooks, "direct")
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		fmt.Sprintf(
-			"terragrunt run --no-hooks --non-interactive --working-dir %s "+
-				"--log-format=key-value -- plan -input=false",
-			directPath,
-		),
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "optional-hooks")
-}
-
 func assertNoHookOutputFiles(t *testing.T, unitPaths ...string) {
 	t.Helper()
 

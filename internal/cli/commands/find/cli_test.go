@@ -128,7 +128,7 @@ func TestNewCommandBeforeResolvesFormatAndMode(t *testing.T) {
 			var buf strings.Builder
 
 			root := "/find-cli"
-			v := venvtest.New().WithFS(newUnitsFS(t, root, findCLIUnits)).WithWriter(&buf)
+			v := venvtest.New().WithFS(venvtest.NewFS(t, root, findCLIUnits)).WithWriter(&buf)
 
 			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
