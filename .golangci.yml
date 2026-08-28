@@ -228,6 +228,11 @@ linters:
       - linters:
           - forbidigo
         path: ^(internal/view/tui/tty\.go|internal/tf/run_cmd\.go)$
+      # colorgen runs from `go generate`, not inside a Terragrunt process, so it
+      # writes its output file and reports failures through the real OS.
+      - linters:
+          - forbidigo
+        path: ^pkg/log/format/options/colorgen/
       # main is where the process arguments enter the program and become the
       # arguments every layer below is handed, so it is the one place that has
       # nothing to read them from.

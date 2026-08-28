@@ -13,6 +13,8 @@ import (
 	"github.com/puzpuzpuz/xsync/v4"
 )
 
+//go:generate go run ./colorgen
+
 // ColorOptionName is the option name.
 const ColorOptionName = "color"
 
@@ -119,22 +121,6 @@ func (val *ColorList) Parse(str string) error {
 
 type ColorScheme map[ColorValue]ColorStyle
 
-func (scheme ColorScheme) Compile() compiledColorScheme {
-	compiled := make(compiledColorScheme, len(scheme))
-
-	for name, val := range scheme {
-		compiled[name] = val.ColorFunc()
-	}
-
-	for i := range 255 {
-		s := strconv.Itoa(i)
-
-		compiled[ColorValue(i)] = ColorStyle(s).ColorFunc()
-	}
-
-	return compiled
-}
-
 type ColorStyle string
 
 // ColorFunc parses the style spec and returns a function that wraps text in
@@ -219,12 +205,46 @@ type ColorFunc func(string) string
 
 type ColorValue int
 
-type compiledColorScheme map[ColorValue]ColorFunc
+// ColorReset ends a styled run. One SGR reset clears every attribute, so lipgloss
+// closes with it however many the prefix set, and colorgen refuses to write a table
+// whose entries close with anything else.
+const ColorReset = "\x1b[m"
+
+// ColorSeq is the pair of escape sequences that wrap text in one color.
+type ColorSeq struct {
+	Prefix string
+	Suffix string
+}
+
+// BuildColorTable renders every [ColorValue] through lipgloss and returns the
+// sequences it produces. [colorPrefixes] is generated from it, and
+// TestColorTableIsCurrent compares the two. Nothing on the logging path calls it.
+func BuildColorTable() []ColorSeq {
+	table := make([]ColorSeq, int(LightWhiteColor)+1)
+
+	for value := range table {
+		table[value] = renderSeq(styleFor(ColorValue(value)))
+	}
+
+	return table
+}
+
+// seqSentinel is text no style spec produces, so splitting a rendered sample on
+// it recovers what lipgloss added around it.
+const seqSentinel = "\x00\x00terragrunt\x00\x00"
+
+func renderSeq(style ColorStyle) ColorSeq {
+	prefix, suffix, found := strings.Cut(parseColorStyle(string(style)).Render(seqSentinel), seqSentinel)
+	if !found {
+		panic(fmt.Sprintf("options.renderSeq: lipgloss rewrote the sentinel for style %q", style))
+	}
+
+	return ColorSeq{Prefix: prefix, Suffix: suffix}
+}
 
 type ColorOption struct {
 	*CommonOption[ColorValue]
-	compiledColors compiledColorScheme
-	gradientColor  *gradientColor
+	gradientColor *gradientColor
 }
 
 // Format implements `Option` interface.
@@ -250,19 +270,49 @@ func (color *ColorOption) Format(data *Data, val any) (any, error) {
 		value = color.gradientColor.Value(str)
 	}
 
-	if colorFn, ok := color.compiledColors[value]; ok {
-		str = colorFn(str)
+	return colorize(value, str), nil
+}
+
+const lipglossFormatting = "\n\t"
+
+// colorize wraps str in value's escape sequences. A value with no sequences in
+// the table leaves str unstyled.
+func colorize(value ColorValue, str string) string {
+	if value < 0 || int(value) >= len(colorPrefixes) {
+		return str
 	}
 
-	return str, nil
+	prefix := colorPrefixes[value]
+	if prefix == "" {
+		return str
+	}
+
+	// lipgloss lays this text out rather than wrapping it. It re-styles each line
+	// of a multi-line value, pads those lines to a common width, and expands tabs.
+	// A prefix and suffix reproduce none of that, so lipgloss renders it itself.
+	if strings.ContainsAny(str, lipglossFormatting) {
+		return styleFor(value).ColorFunc()(str)
+	}
+
+	return prefix + str + ColorReset
+}
+
+// styleFor returns the style spec a [ColorValue] renders with. Values below
+// [NoneColor] are palette indices a user named directly. The rest are scheme
+// entries.
+func styleFor(value ColorValue) ColorStyle {
+	if value < NoneColor {
+		return ColorStyle(strconv.Itoa(int(value)))
+	}
+
+	return colorScheme[value]
 }
 
 // Color creates the option to change the color of text.
 func Color(val ColorValue) Option {
 	return &ColorOption{
-		CommonOption:   NewCommonOption(ColorOptionName, colorList.Set(val)),
-		compiledColors: colorScheme.Compile(),
-		gradientColor:  newGradientColor(),
+		CommonOption:  NewCommonOption(ColorOptionName, colorList.Set(val)),
+		gradientColor: newGradientColor(),
 	}
 }
 
