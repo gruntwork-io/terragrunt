@@ -98,7 +98,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 
 	var cfg *config.TerragruntConfig
 
-	// Fresh parsing context per attempt, so a retried parse never reads caches seeded by the failed one.
+	// A fresh ParsingContext resets parser state; failed results are never cached, so a retry re-evaluates them.
 	if err := opts.RunWithParseRetry(ctx, l, func() error {
 		parseCtx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
@@ -272,7 +272,7 @@ func getTerragruntConfig(
 ) (*config.TerragruntConfig, error) {
 	var cfg *config.TerragruntConfig
 
-	// Fresh parsing context per attempt, so a retried parse never reads caches seeded by the failed one.
+	// A fresh ParsingContext resets parser state; failed results are never cached, so a retry re-evaluates them.
 	err := opts.RunWithParseRetry(ctx, l, func() error {
 		parseCtx, configCtx := configbridge.NewParsingContext(ctx, l, v, opts)
 		configCtx = configCtx.WithDecodeList(

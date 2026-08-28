@@ -170,6 +170,36 @@ func TestDefaultRetryableErrorsMatch(t *testing.T) {
 			wantMatch: true,
 		},
 		{
+			name: "sops decrypt numeric-only 429 from oauth2 token endpoint",
+			errMsg: `Call to function "sops_decrypt_file" failed: error decrypting key:` +
+				" oauth2/google/externalaccount: status code 429:",
+			wantMatch: true,
+		},
+		{
+			name: "sops decrypt numeric-only 503 from AWS KMS transport",
+			errMsg: `Call to function "sops_decrypt_file" failed: error decrypting key:` +
+				" operation error KMS: Decrypt, https response error StatusCode: 503, RequestID: abc",
+			wantMatch: true,
+		},
+		{
+			name: "sops decrypt context deadline exceeded",
+			errMsg: `Call to function "sops_decrypt_file" failed: error decrypting key:` +
+				" context deadline exceeded",
+			wantMatch: true,
+		},
+		{
+			name: "sops decrypt connection reset by peer",
+			errMsg: `Call to function "sops_decrypt_file" failed: error decrypting key:` +
+				" read tcp 10.0.0.5:54322: connection reset by peer",
+			wantMatch: true,
+		},
+		{
+			name: "sops decrypt TLS handshake timeout",
+			errMsg: `Call to function "sops_decrypt_file" failed: error decrypting key:` +
+				` Post "https://cloudkms.googleapis.com/v1/key:decrypt": TLS handshake timeout`,
+			wantMatch: true,
+		},
+		{
 			name: "sops decrypt access denied with 503 inside an account id is permanent",
 			errMsg: `Call to function "sops_decrypt_file" failed: AccessDenied: user` +
 				" arn:aws:iam::503212345678:role/deploy is not authorized to perform kms:Decrypt",

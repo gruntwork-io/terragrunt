@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -160,4 +161,72 @@ func TestRunnerRun_RetryParseErrorsHonorsUnitErrorsBlock(t *testing.T) {
 	require.NoError(t, rnr.Run(t.Context(), l, v, opts, r), "the unit's own catch-all retry rule applies to its re-parse")
 	// One parse attempt evaluates locals at most twice (partial + full parse), so recovering from two failures proves a re-parse.
 	assert.GreaterOrEqual(t, calls.Load(), int32(3), "the two failed decrypts are retried until one succeeds")
+}
+
+// TestRunnerRun_RetryParseErrorsDiscoveryHandoffEndToEnd pins the documented
+// composition end to end: discovery reads the unit's errors.retry block from
+// real HCL, stores it on the unit, and the runner's full parse retries with it.
+func TestRunnerRun_RetryParseErrorsDiscoveryHandoffEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	// The discovery parse (first decrypt) succeeds so the errors block is stored; the runner's
+	// full parse fails transiently once and must be retried by the discovery-read rule.
+	v := memVenv(tfVersionOutput).WithSops(vsops.NewMemDecrypter(
+		func(map[string]string, string, string) ([]byte, error) {
+			if calls.Add(1) == 2 {
+				return nil, errors.New("flaky parse gremlin")
+			}
+
+			return []byte(`{"value":"ok"}`), nil
+		}))
+
+	writeUnit(t, v, memRoot, "app", `
+errors {
+  retry "gremlins" {
+    retryable_errors   = [".*flaky parse gremlin.*"]
+    max_attempts       = 3
+    sleep_interval_sec = 0
+  }
+}
+
+locals {
+  secret = sops_decrypt_file("secret.enc.json")
+}
+`)
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.RetryParseErrors))
+
+	l := thlogger.CreateLogger()
+
+	d := discovery.NewDiscovery(memRoot).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: memRoot}).
+		WithRelationships()
+
+	components, err := d.Discover(t.Context(), l, v, opts)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+
+	unit, ok := components[0].(*component.Unit)
+	require.True(t, ok)
+	require.NotNil(t, unit.Config(), "discovery stored the partial-parsed config on the unit")
+	require.NotNil(t, unit.Config().Errors, "the stored config carries the unit's errors block")
+
+	if unit.DiscoveryContext() == nil {
+		unit.SetDiscoveryContext(&component.DiscoveryContext{WorkingDir: memRoot})
+	}
+
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
+	require.NoError(t, err)
+
+	r := report.NewReport().WithWorkingDir(memRoot)
+
+	require.NoError(
+		t,
+		rnr.Run(t.Context(), l, v, opts, r),
+		"the discovery-read catch rule retries the full-parse failure; the defaults would not match it",
+	)
+	assert.GreaterOrEqual(t, calls.Load(), int32(3), "discovery decrypt, one failed full-parse decrypt, then a retried one")
 }

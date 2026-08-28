@@ -131,6 +131,27 @@ func TestRunWithParseRetry(t *testing.T) {
 			},
 		},
 		{
+			name:     "no-auto-retry with an exhausted budget still surfaces the original error",
+			failures: 3,
+			configure: func(t *testing.T, opts *options.TerragruntOptions) {
+				t.Helper()
+
+				opts.Errors = retryIOTimeouts(1)
+				opts.AutoRetry = false
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.RetryParseErrors))
+			},
+			expectCalls: 1,
+			assertErr: func(t *testing.T, err error) {
+				t.Helper()
+
+				require.ErrorIs(t, err, errTransientParse, "no retry ran, so no max-attempts error may be reported")
+
+				var maxAttemptsErr *errorconfig.MaxAttemptsReachedError
+
+				require.NotErrorAs(t, err, &maxAttemptsErr)
+			},
+		},
+		{
 			name:     "ignore rules do not apply to parse failures",
 			failures: 3,
 			configure: func(t *testing.T, opts *options.TerragruntOptions) {

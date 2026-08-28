@@ -383,8 +383,8 @@ func parseComponent(
 				parsingCtx *config.ParsingContext
 			)
 
-			// Fresh parsing context per attempt, so a retried parse never reads caches seeded by the failed
-			// one; the closure runs at least once and publishes the last attempt's context to parsingCtx.
+			// A fresh ParsingContext resets parser state (failed results are never cached, so a retry
+			// re-evaluates them); the closure runs at least once and publishes its context to parsingCtx.
 			err := parseOpts.RunWithParseRetry(ctx, l, func() error {
 				parseCtx, pctx := configbridge.NewParsingContext(ctx, l, parseV, parseOpts)
 				pctx = pctx.WithDecodeList(

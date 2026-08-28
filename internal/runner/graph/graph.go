@@ -45,7 +45,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	var cfg *config.TerragruntConfig
 
-	// Fresh parsing context per attempt, so a retried parse never reads caches seeded by the failed one.
+	// A fresh ParsingContext resets parser state; failed results are never cached, so a retry re-evaluates them.
 	if err := opts.RunWithParseRetry(ctx, l, func() error {
 		parseCtx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 

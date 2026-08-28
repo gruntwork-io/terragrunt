@@ -695,15 +695,16 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 
 // RunWithParseRetry runs operation, a configuration parse, retrying failures that
 // match the errors.retry rules in opts.Errors. It is a no-op wrapper unless the
-// retry-parse-errors experiment is enabled. Unlike RunWithErrorHandling it never
-// touches the report and does not apply ignore rules: a parse that produced no
-// configuration cannot be ignored, only retried or surfaced.
+// retry-parse-errors experiment is enabled and auto-retry is on: with retries
+// disabled the original parse error surfaces untouched. Unlike RunWithErrorHandling
+// it never touches the report and does not apply ignore rules: a parse that
+// produced no configuration cannot be ignored, only retried or surfaced.
 func (opts *TerragruntOptions) RunWithParseRetry(
 	ctx context.Context,
 	l log.Logger,
 	operation func() error,
 ) error {
-	if !opts.Experiments.Evaluate(experiment.RetryParseErrors) || opts.Errors == nil {
+	if !opts.Experiments.Evaluate(experiment.RetryParseErrors) || opts.Errors == nil || !opts.AutoRetry {
 		return operation()
 	}
 
@@ -723,7 +724,7 @@ func (opts *TerragruntOptions) RunWithParseRetry(
 			return recoveryErr
 		}
 
-		if action == nil || !action.ShouldRetry || !opts.AutoRetry {
+		if action == nil || !action.ShouldRetry {
 			return err
 		}
 

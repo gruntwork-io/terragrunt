@@ -7,7 +7,7 @@ Extending the `errors.retry` engine to configuration parsing, so transient failu
 
 ### `retry-parse-errors` - What it does
 
-Without the experiment, the rules in the [errors block](/reference/hcl/blocks#errors) only apply to run-phase operations: hooks, credential fetching, and OpenTofu/Terraform invocations. A transient network failure during configuration parsing (for example, `sops_decrypt_file` in a `locals` block hitting an `i/o timeout` against GCP KMS) aborts the run immediately, and with `--fail-fast` a single blip can kill an entire `run --all`.
+Without the experiment, the rules in the [errors block](/reference/hcl/blocks#errors) only apply to post-parse operations such as hooks, IAM-role credential fetching, source fetching, and OpenTofu/Terraform invocations. (`--auth-provider-cmd` runs before any retry rules are available, so its failures are never retried.) A transient network failure during configuration parsing (for example, `sops_decrypt_file` in a `locals` block hitting an `i/o timeout` against GCP KMS) aborts the run immediately, and with `--fail-fast` a single blip can kill an entire `run --all`.
 
 With the experiment enabled, a failed configuration parse is passed through the same retry engine:
 
@@ -43,7 +43,7 @@ To transition the `retry-parse-errors` feature to a stable release, the followin
 
 - [ ] Transient `sops_decrypt_file` failures during `run --all` are retried using the unit's own `errors.retry` rules.
 - [ ] Parse retries respect `--no-auto-retry`, retry budgets, and sleep intervals.
-- [ ] Retried parses do not replay cached failures (each attempt parses from a clean slate).
+- [ ] Retried parses do not replay cached failures (failed `sops_decrypt_file` and `run_cmd` results are never cached, so a retry re-evaluates them).
 - [ ] Feedback is collected on whether `ignore` rules need parse-phase semantics (for example, skipping a unit whose parse failed).
 - [ ] Feedback is collected on retry budgets stacking across phases (a unit parsed during discovery and again at run time gets a fresh budget for each parse).
 - [ ] Test coverage for parse retries across discovery, `run --all`, and single-unit runs.
