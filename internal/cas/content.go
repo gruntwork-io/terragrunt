@@ -84,6 +84,15 @@ func (c *Content) Link(
 	}, func(childCtx context.Context, _ log.Logger) error {
 		sourcePath := c.getPath(hash)
 
+		targetDir := filepath.Dir(targetPath)
+		if err := v.FS.MkdirAll(targetDir, DefaultDirPerms); err != nil {
+			return &WrappedError{
+				Op:   "write_target",
+				Path: targetDir,
+				Err:  err,
+			}
+		}
+
 		// Hardlink when the stored blob's perms already match what the caller
 		// wants. Otherwise we must produce a fresh inode so a chmod cannot
 		// leak back into the shared store and so the destination carries the
@@ -108,15 +117,6 @@ func (c *Content) Link(
 				Op:   "read_source",
 				Path: sourcePath,
 				Err:  ErrReadFile,
-			}
-		}
-
-		targetDir := filepath.Dir(targetPath)
-		if err := v.FS.MkdirAll(targetDir, DefaultDirPerms); err != nil {
-			return &WrappedError{
-				Op:   "write_target",
-				Path: targetDir,
-				Err:  err,
 			}
 		}
 

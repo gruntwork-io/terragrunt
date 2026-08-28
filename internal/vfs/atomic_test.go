@@ -31,6 +31,21 @@ func TestWriteFileAtomic(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
+// TestWriteFileAtomicCreatesParentDirs confirms a destination under a directory
+// that does not exist yet is written rather than failing on the scratch file.
+func TestWriteFileAtomicCreatesParentDirs(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+	path := filepath.Join(t.TempDir(), "generated", "nested", "out.txt")
+
+	require.NoError(t, vfs.WriteFileAtomic(fsys, path, []byte("hello"), 0o600))
+
+	contents, err := vfs.ReadFile(fsys, path)
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(contents))
+}
+
 // TestWriteFileAtomicReplacesSymlink confirms a symlink at the destination is
 // replaced rather than followed, so the content goes to the path that was named.
 func TestWriteFileAtomicReplacesSymlink(t *testing.T) {

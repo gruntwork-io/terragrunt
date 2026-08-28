@@ -681,6 +681,50 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	assert.Contains(t, string(targetContent), ">= 1.3.0")
 }
 
+// TestWriteToFileCreatesParentDirs covers a generate block whose path names a
+// subdirectory the module does not have, such as a "generated" directory that a
+// prior run created and the user then deleted.
+func TestWriteToFileCreatesParentDirs(t *testing.T) {
+	t.Parallel()
+
+	contents := "terraform {\n  required_version = \">= 1.0\"\n}\n"
+
+	for _, tc := range []struct {
+		name      string
+		withStore bool
+	}{
+		{name: "without a content store"},
+		{name: "with a content store", withStore: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			testDir := helpers.TmpDirWOSymlinks(t)
+
+			config := codegen.GenerateConfig{
+				Path:             filepath.Join("generated", "provider.tf"),
+				IfExists:         codegen.ExistsOverwrite,
+				DisableSignature: true,
+				Contents:         contents,
+			}
+
+			var opts []codegen.WriteOption
+			if tc.withStore {
+				opts = append(opts, codegen.WithContentStore(newTestContentStore(t, testDir)))
+			}
+
+			l := logger.CreateLogger()
+			require.NoError(t, codegen.WriteToFile(
+				t.Context(), l, venvtest.NewOSWithEmptyEnv(), testDir, &config, opts...,
+			))
+
+			written, err := os.ReadFile(filepath.Join(testDir, "generated", "provider.tf"))
+			require.NoError(t, err)
+			assert.Equal(t, contents, string(written))
+		})
+	}
+}
+
 // TestWriteToFileTargetIsDirectory verifies that a directory at the target
 // path still produces an error instead of being removed.
 func TestWriteToFileTargetIsDirectory(t *testing.T) {

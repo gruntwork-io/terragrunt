@@ -162,6 +162,36 @@ func TestContent_Link(t *testing.T) {
 		assert.True(t, os.SameFile(sourceInfo, targetInfo), "expected hard link (same inode)")
 	})
 
+	// A generated file whose destination directory was deleted between runs still
+	// hardlinks, rather than quietly falling back to a copy.
+	t.Run("create hard link under missing directory on real filesystem", func(t *testing.T) {
+		t.Parallel()
+
+		v := venvtest.NewOSWithEmptyEnv()
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		err := content.Store(l, v, testHash, testData)
+		require.NoError(t, err)
+
+		targetPath := filepath.Join(targetDir, "generated", "nested", "test.txt")
+		err = content.Link(t.Context(), v, testHash, targetPath, 0o644)
+		require.NoError(t, err)
+
+		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
+		sourceInfo, err := os.Stat(sourcePath)
+		require.NoError(t, err)
+		targetInfo, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.True(t, os.SameFile(sourceInfo, targetInfo), "expected hard link (same inode)")
+	})
+
 	t.Run("force copy creates independent inode on real filesystem", func(t *testing.T) {
 		t.Parallel()
 
