@@ -64,20 +64,31 @@ func TestParseStackFileFromPath_EmptyStackDir_Panics(t *testing.T) {
 func TestUnitPathsFromStackDir_NilFS_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: fsys is nil", func() {
-		_, _ = hclparse.UnitPathsFromStackDir(nil, "/x", noFuncs)
+		_, _ = hclparse.UnitPathsFromStackDir(nil, "/x", &hclparse.StackDirArgs{FuncsFor: noFuncs})
 	})
 }
 
 func TestUnitPathsFromStackDir_EmptyStackDir_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: stackDir is empty", func() {
-		_, _ = hclparse.UnitPathsFromStackDir(vfs.NewMemMapFS(), "", noFuncs)
+		_, _ = hclparse.UnitPathsFromStackDir(
+			vfs.NewMemMapFS(),
+			"",
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
 	})
 }
 
 func TestUnitPathsFromStackDir_NilFuncsFactory_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: funcsFor is nil", func() {
+		_, _ = hclparse.UnitPathsFromStackDir(vfs.NewMemMapFS(), "/x", &hclparse.StackDirArgs{})
+	})
+}
+
+func TestUnitPathsFromStackDir_NilArgs_Panics(t *testing.T) {
+	t.Parallel()
+	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: args is nil", func() {
 		_, _ = hclparse.UnitPathsFromStackDir(vfs.NewMemMapFS(), "/x", nil)
 	})
 }
