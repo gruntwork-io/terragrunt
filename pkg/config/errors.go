@@ -649,3 +649,63 @@ func (err EnabledRequiresExperimentError) Error() string {
 // valid: every block may be disabled, or expanded over an empty collection, leaving nothing
 // to generate.
 var ErrStackHasNoComponents = errors.New("stack config must contain at least one unit or stack")
+
+// ComponentKind is the kind of block a stack component was declared as. The values reach
+// users verbatim in validation messages.
+type ComponentKind string
+
+const (
+	ComponentKindUnit  ComponentKind = "unit"
+	ComponentKindStack ComponentKind = "stack"
+)
+
+// ComponentFieldEmptyError is returned when a unit or stack leaves a required attribute
+// empty.
+type ComponentFieldEmptyError struct {
+	Kind  ComponentKind
+	Field string
+	Name  string
+	Index int
+}
+
+func (err ComponentFieldEmptyError) Error() string {
+	// The label names a component in every other message, so one missing its label has to be
+	// identified by position.
+	if err.Name == "" {
+		return fmt.Sprintf("%s at index %d has empty %s", err.Kind, err.Index, err.Field)
+	}
+
+	return fmt.Sprintf("%s '%s' has empty %s", err.Kind, err.Name, err.Field)
+}
+
+// DuplicateComponentNameError is returned when two units or two stacks in one file claim the
+// same address, leaving no way to reference one of them.
+type DuplicateComponentNameError struct {
+	Kind ComponentKind
+	Name string
+}
+
+func (err DuplicateComponentNameError) Error() string {
+	return fmt.Sprintf("duplicate %s name found: '%s'", err.Kind, err.Name)
+}
+
+// DuplicateComponentPathError is returned when two units or two stacks generate into the
+// same directory.
+type DuplicateComponentPathError struct {
+	Kind ComponentKind
+	Path string
+}
+
+func (err DuplicateComponentPathError) Error() string {
+	return fmt.Sprintf("duplicate %s path found: '%s'", err.Kind, err.Path)
+}
+
+// ComponentPathCollisionError is returned when a unit and a stack generate into the same
+// directory.
+type ComponentPathCollisionError struct {
+	Path string
+}
+
+func (err ComponentPathCollisionError) Error() string {
+	return fmt.Sprintf("duplicate path found across unit and stack: '%s'", err.Path)
+}
