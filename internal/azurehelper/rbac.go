@@ -21,7 +21,7 @@ import (
 )
 
 // Built-in Azure role definition ids. Microsoft documents that built-in roles keep
-// the same role ID across clouds (Azure public, Azure Government, Azure China):
+// the same role ID across clouds (including Azure Government / usgovernment):
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/role-definitions
 const (
 	RoleStorageBlobDataOwner       = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"

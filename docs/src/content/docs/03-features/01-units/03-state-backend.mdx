@@ -456,6 +456,7 @@ The following config options are only valid for the `azurerm` backend and are us
 - `soft_delete_retention_days` - Soft delete retention in days, 1 to 365. Defaults to 7 when unset; values outside 1 to 365 are clamped to 7 at bootstrap (a warning is logged).
 - `allow_blob_public_access` - When `true`, allow containers on the account to permit anonymous access. Defaults to `false`.
 - `msi_resource_id` - Resource ID of a user-assigned managed identity to use with `use_msi`.
+- `environment` - Azure cloud partition: `public` (default), `usgovernment` (Azure Government), or `china`. Also accepted via `ARM_ENVIRONMENT`.
 <Since version="1.1.5">
 - `assign_blob_data_role` - When `true`, bootstrap grants **Storage Blob Data Contributor** on the storage account to `principal_id` (or to the identity Terragrunt authenticated as when unset). Opt-in because it requires `Microsoft.Authorization/roleAssignments/write`.
 - `principal_id` - Microsoft Entra object id that receives the data-plane role when `assign_blob_data_role` is `true`. Defaults to the caller resolved from the access token.
@@ -470,9 +471,26 @@ to any values not set in the config:
 5. OIDC / workload identity (`use_oidc`, `oidc_token_file_path`)
 6. Azure AD (`use_azuread_auth`, or the default credential chain, which honors `az login`)
 
-The `environment` key selects the Azure cloud: `public` (the default), `usgovernment`, or `china`.
-Built-in role definition IDs (including **Storage Blob Data Contributor**) are the same across those clouds;
-see [Understand Azure role definitions](https://learn.microsoft.com/en-us/azure/role-based-access-control/role-definitions).
+For Azure Government, set `environment = "usgovernment"` (or `ARM_ENVIRONMENT=usgovernment`) so Terragrunt
+talks to the Government endpoints for auth, ARM, and blob storage. Credentials must come from that partition
+(for example `az cloud set --name AzureUSGovernment` then `az login`, or a Government tenant service principal).
+Bootstrap and `assign_blob_data_role` use the same keys as public cloud; built-in role definition IDs
+(including **Storage Blob Data Contributor**) are the same across partitions per
+[Understand Azure role definitions](https://learn.microsoft.com/en-us/azure/role-based-access-control/role-definitions).
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    # ...
+
+    environment           = "usgovernment"
+    use_azuread_auth      = true
+    assign_blob_data_role = true
+  }
+}
+```
 
 <Aside type="note" title="Known limitations">
 - SAS token and access key authentication are data-plane only: Terragrunt can create the blob container but not the resource group or storage account, which must already exist.

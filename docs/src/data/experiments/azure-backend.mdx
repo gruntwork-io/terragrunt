@@ -50,8 +50,8 @@ Authentication supports six methods, resolved in the following order:
 5. OIDC / workload identity
 6. Azure AD (`use_azuread_auth` or the default credential chain, which honors `az login`)
 
-`ARM_*` and `AZURE_*` environment variable fallbacks are applied, and public, US
-Government, and China clouds are supported via the `environment` key.
+`ARM_*` and `AZURE_*` environment variable fallbacks are applied. Set `environment`
+(or `ARM_ENVIRONMENT`) to `usgovernment` for Azure Government.
 
 Without the experiment enabled, these lifecycle operations return an error naming
 the experiment; normal state reading and writing is handled by the native
