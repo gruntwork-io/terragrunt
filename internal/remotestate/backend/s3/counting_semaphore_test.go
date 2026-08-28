@@ -1,4 +1,3 @@
-//nolint:govet
 package s3_test
 
 import (
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAwsCountingSemaphoreHappyPath(t *testing.T) {
@@ -29,16 +29,17 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	permits := 10
 	goroutines := 100
 	semaphore := s3backend.NewCountingSemaphore(permits)
+	limitExceeded := make(chan uint32, goroutines)
 
 	var (
-		goRoutinesExecutingSimultaneously uint32
+		goRoutinesExecutingSimultaneously atomic.Uint32
 		waitForAllGoRoutinesToFinish      sync.WaitGroup
 	)
 
 	endGoRoutine := func() {
 		// Decrement the number of running goroutines. Note that decrementing an unsigned int is a bit odd.
 		// This is copied from the docs: https://golang.org/pkg/sync/atomic/#AddUint32
-		atomic.AddUint32(&goRoutinesExecutingSimultaneously, ^uint32(0))
+		goRoutinesExecutingSimultaneously.Add(^uint32(0))
 
 		semaphore.Release()
 		waitForAllGoRoutinesToFinish.Done()
@@ -50,17 +51,10 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 		semaphore.Acquire()
 
 		// Increment the total number of running goroutines
-		totalGoRoutinesExecutingSimultaneously := atomic.AddUint32(
-			&goRoutinesExecutingSimultaneously,
-			1,
-		)
+		totalGoRoutinesExecutingSimultaneously := goRoutinesExecutingSimultaneously.Add(1)
 
 		if totalGoRoutinesExecutingSimultaneously > uint32(permits) {
-			t.Fatalf(
-				"The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d",
-				permits,
-				totalGoRoutinesExecutingSimultaneously,
-			)
+			limitExceeded <- totalGoRoutinesExecutingSimultaneously
 		}
 
 		// Sleep for a random amount of time to represent this goroutine doing work
@@ -76,4 +70,14 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	}
 
 	waitForAllGoRoutinesToFinish.Wait()
+	close(limitExceeded)
+
+	total, exceeded := <-limitExceeded
+	require.Falsef(
+		t,
+		exceeded,
+		"The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d",
+		permits,
+		total,
+	)
 }

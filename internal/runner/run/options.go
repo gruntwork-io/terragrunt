@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -227,14 +226,12 @@ func (o *Options) tfRunOptions(env map[string]string) *tf.TFOptions {
 // remoteStateOpts builds a *remotestate.Options from this Options.
 func (o *Options) remoteStateOpts(env map[string]string) *remotestate.Options {
 	return &remotestate.Options{
-		Options: backend.Options{
-			Experiments:                  o.Experiments,
-			IAMRoleOptions:               o.IAMRoleOptions,
-			NonInteractive:               o.NonInteractive,
-			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
-		},
-		TFRunOpts:           o.tfRunOptions(env),
-		DisableBucketUpdate: o.DisableBucketUpdate,
+		Experiments:                  o.Experiments,
+		IAMRoleOptions:               o.IAMRoleOptions,
+		NonInteractive:               o.NonInteractive,
+		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
+		TFRunOpts:                    o.tfRunOptions(env),
+		DisableBucketUpdate:          o.DisableBucketUpdate,
 	}
 }
 
@@ -279,8 +276,7 @@ func (o *Options) RunWithErrorHandling(
 
 		action, recoveryErr := o.Errors.AttemptErrorRecovery(l, err, currentAttempt)
 		if recoveryErr != nil {
-			var maxAttemptsReachedError *errorconfig.MaxAttemptsReachedError
-			if errors.As(recoveryErr, &maxAttemptsReachedError) {
+			if maxAttemptsReachedError, ok := errors.AsType[*errorconfig.MaxAttemptsReachedError](recoveryErr); ok {
 				return maxAttemptsReachedError
 			}
 

@@ -2,6 +2,8 @@ package azurehelper
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -54,6 +56,18 @@ type AzureSessionConfig struct {
 	OIDCTokenFilePath string
 	// CloudEnvironment selects the cloud: "" / "public", "usgovernment", "china".
 	CloudEnvironment string
+}
+
+// credentialFingerprint hashes the secret material a config authenticates with,
+// so callers can tell two credentials apart without holding either.
+func credentialFingerprint(cfg *AzureSessionConfig) string {
+	sum := sha256.New()
+	for _, secret := range []string{cfg.ClientSecret, cfg.SasToken, cfg.AccessKey, cfg.OIDCTokenFilePath} {
+		sum.Write([]byte(secret))
+		sum.Write([]byte{0})
+	}
+
+	return hex.EncodeToString(sum.Sum(nil))
 }
 
 // isUnset reports whether the user left a tri-state flag unset, which is the
@@ -116,6 +130,15 @@ type AzureConfig struct {
 	SubscriptionID string
 	// TenantID is the Azure AD tenant scope. May be empty for non-AD methods.
 	TenantID string
+	// ClientID is the resolved service principal or workload identity client id.
+	ClientID string
+	// MSIResourceID is the resolved user-assigned managed identity resource ID.
+	MSIResourceID string
+	// CredentialFingerprint identifies the secret material that proves this
+	// identity, so a cache keyed on it never reuses one principal's successful
+	// authentication for a caller presenting different credentials. It is a hash,
+	// never the secret itself.
+	CredentialFingerprint string
 	// AccountName is the storage account name.
 	AccountName string
 	// ResourceGroup is the resource group containing the storage account.
@@ -160,16 +183,19 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 		return nil, err
 	}
 
-	clientOpts := azcore.ClientOptions{Cloud: cloudCfg}
+	clientOpts := azcore.ClientOptions{Cloud: cloudCfg, Transport: v.HTTP}
 
 	out := &AzureConfig{
-		UseAzureADAuth: util.Deref(resolved.UseAzureADAuth),
-		SubscriptionID: resolved.SubscriptionID,
-		TenantID:       resolved.TenantID,
-		AccountName:    resolved.StorageAccountName,
-		ResourceGroup:  resolved.ResourceGroupName,
-		CloudConfig:    cloudCfg,
-		ClientOptions:  clientOpts,
+		UseAzureADAuth:        util.Deref(resolved.UseAzureADAuth),
+		SubscriptionID:        resolved.SubscriptionID,
+		TenantID:              resolved.TenantID,
+		ClientID:              resolved.ClientID,
+		MSIResourceID:         resolved.MSIResourceID,
+		CredentialFingerprint: credentialFingerprint(&resolved),
+		AccountName:           resolved.StorageAccountName,
+		ResourceGroup:         resolved.ResourceGroupName,
+		CloudConfig:           cloudCfg,
+		ClientOptions:         clientOpts,
 	}
 
 	switch {

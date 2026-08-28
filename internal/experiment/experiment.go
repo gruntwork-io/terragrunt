@@ -61,10 +61,9 @@ const (
 	// the module) and the mark_glob_as_read HCL function. Both are enabled
 	// by default.
 	MarkManyAsRead = "mark-many-as-read"
-	// AzureBackend reserves the experiment flag for native Azure Storage (azurerm)
-	// remote state support. The backend is stubbed out for now; full Azure helper
-	// and state-management behavior (bootstrap, delete, migrate, dependency output
-	// fetching) will land in follow-up PRs.
+	// AzureBackend enables Terragrunt-managed Azure Storage (azurerm) remote state
+	// bootstrap, delete, and migrate operations and, together with
+	// DependencyFetchOutputFromState, direct dependency state reads.
 	AzureBackend = "azure-backend"
 	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
@@ -111,6 +110,11 @@ const (
 	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
 	// all dependency output resolution during a run.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
+	// TGLogin reserves the experiment flag for signing in to the Gruntwork
+	// Developer Portal from the CLI, so an admin can define a catalog in the
+	// portal instead of local HCL. Nothing is gated on it yet; the login
+	// command and the portal-defined catalog land in follow-up PRs.
+	TGLogin = "tg-login"
 )
 
 const (
@@ -228,6 +232,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalDependencyOutputs,
+		},
+		{
+			Name: TGLogin,
 		},
 	}
 }

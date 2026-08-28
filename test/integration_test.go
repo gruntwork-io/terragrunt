@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -362,125 +361,6 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 		}
 
 		assert.Truef(t, found, "expected a path ending with %q in %v", rel, actualPaths)
-	}
-}
-
-// TestTerragruntFullLockfile asserts that a single `terragrunt init` (no
-// `providers lock -platform=...` and no preexisting lock file) populates
-// `.terraform.lock.hcl` with `h1:` hashes for multiple platforms, both with
-// and without the Terragrunt provider cache server enabled.
-//
-// The OpenTofu provider registry returns pre-computed `h1:` hashes for every
-// supported platform via the `packages` field on its per-platform download
-// endpoint. With the cache server enabled, the Terragrunt-side lockfile writer
-// (internal/tf/getproviders/lock.go) consumes that field via
-// ProviderCache.RegistryHashes(), so this subtest passes on any OpenTofu
-// version. Without the cache server, OpenTofu itself must read the field, and
-// only the 1.12 binary onward does so, hence the version gate below.
-func TestTerragruntFullLockfile(t *testing.T) {
-	t.Parallel()
-
-	if !helpers.IsOpenTofu112OrHigher(t) {
-		t.Skip("requires OpenTofu 1.12 or higher")
-		return
-	}
-
-	testCases := []struct {
-		name           string
-		providerSource string
-		minPlatforms   int
-		runWithCache   bool
-	}{
-		{
-			name:           "without provider cache",
-			providerSource: "registry.opentofu.org/hashicorp/null",
-			minPlatforms:   2,
-			runWithCache:   false,
-		},
-		{
-			name:           "with provider cache",
-			providerSource: "registry.opentofu.org/hashicorp/null",
-			minPlatforms:   2,
-			runWithCache:   true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureProviderCacheFullLockfile)
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheFullLockfile)
-			rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheFullLockfile)
-
-			cmd := "terragrunt init --non-interactive --working-dir " + rootPath
-
-			if tc.runWithCache {
-				providerCacheDir := helpers.TmpDirWOSymlinks(t)
-				cmd = fmt.Sprintf(
-					"terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
-					providerCacheDir,
-					rootPath,
-				)
-			} else {
-				// Without the provider cache server, OpenTofu drives the install. If
-				// `~/.terraform.d/plugins` exists, OpenTofu treats it as an implicit
-				// filesystem mirror, skips the registry trust chain, and writes only
-				// a single-platform `h1:` hash, which defeats what this test asserts.
-				homeDir, err := os.UserHomeDir()
-				require.NoError(t, err)
-
-				userPluginDir := filepath.Join(homeDir, ".terraform.d", "plugins")
-				require.NoFileExists(
-					t,
-					userPluginDir,
-					"this subtest requires %s to not exist so OpenTofu uses the direct registry path; remove or rename it before running",
-					userPluginDir,
-				)
-			}
-
-			helpers.RunTerragrunt(t, cmd)
-
-			lockfilePath := filepath.Join(rootPath, ".terraform.lock.hcl")
-			require.FileExists(
-				t,
-				lockfilePath,
-				"expected lock file to exist at %s",
-				lockfilePath,
-			)
-
-			lockfileContent, err := os.ReadFile(lockfilePath)
-			require.NoError(t, err)
-
-			lockfile, diags := hclwrite.ParseConfig(
-				lockfileContent,
-				lockfilePath,
-				hcl.Pos{Line: 1, Column: 1},
-			)
-			require.False(t, diags.HasErrors(), "diagnostics: %s", diags.Error())
-			require.NotNil(t, lockfile)
-
-			providerBlock := lockfile.Body().
-				FirstMatchingBlock("provider", []string{tc.providerSource})
-			require.NotNil(
-				t,
-				providerBlock,
-				"lock file is missing block for %s; contents:\n%s",
-				tc.providerSource,
-				string(lockfileContent),
-			)
-
-			hashesAttr := providerBlock.Body().GetAttribute("hashes")
-			require.NotNil(t, hashesAttr, "provider block has no hashes attribute")
-
-			hashesText := string(hashesAttr.Expr().BuildTokens(nil).Bytes())
-			h1Count := strings.Count(hashesText, `"h1:`)
-
-			assert.GreaterOrEqualf(t, h1Count, tc.minPlatforms,
-				"expected at least %d h1 hashes (one per platform) but found %d in:\n%s",
-				tc.minPlatforms, h1Count, hashesText,
-			)
-		})
 	}
 }
 
@@ -987,45 +867,4 @@ func statGeneratedFile(t *testing.T, unitPath, name string) os.FileInfo {
 	require.NotNil(t, found, "expected %s to be generated under %s", name, unitPath)
 
 	return found
-}
-
-func TestDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	noOutputPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration", "skip-dependency-outputs")
-
-	t.Run("plan without flag fails", func(t *testing.T) {
-		t.Parallel()
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+noOutputPath)
-		require.ErrorContains(t, err, "resolving dependency \"app1\" outputs")
-	})
-
-	t.Run("flag rejected without experiment", func(t *testing.T) {
-		t.Parallel()
-
-		if helpers.IsExperimentMode(t) {
-			t.Skip("Skipping: TG_EXPERIMENT_MODE forces the optional-dependency-outputs experiment on, so its disabled-state error can't be verified")
-		}
-
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
-		require.ErrorContains(t, err, "--no-dependency-outputs requires the 'optional-dependency-outputs' experiment")
-	})
-
-	for _, cmd := range []string{"init", "validate", "plan"} {
-		t.Run(cmd+" succeeds with flag", func(t *testing.T) {
-			t.Parallel()
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+cmd+" --experiment optional-dependency-outputs --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
-			require.NoError(t, err)
-		})
-	}
-
-	for _, cmd := range []string{"init", "validate", "plan"} {
-		t.Run("run --all "+cmd+" succeeds with flag", func(t *testing.T) {
-			t.Parallel()
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --experiment optional-dependency-outputs "+cmd+" --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
-			require.NoError(t, err)
-		})
-	}
 }

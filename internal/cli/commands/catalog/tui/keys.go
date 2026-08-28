@@ -178,30 +178,28 @@ func (keys PagerKeyMap) FullHelp() [][]key.Binding {
 // NewPagerKeyMap returns a set of keybindings for the pager view.
 func NewPagerKeyMap() PagerKeyMap {
 	return PagerKeyMap{
-		KeyMap: viewport.KeyMap{
-			HalfPageUp: key.NewBinding(
-				key.WithDisabled(),
-			),
-			HalfPageDown: key.NewBinding(
-				key.WithDisabled(),
-			),
-			Up: key.NewBinding(
-				key.WithKeys("k", "up", "ctrl+p"),
-				key.WithHelp("k/↑", "move up"),
-			),
-			Down: key.NewBinding(
-				key.WithKeys("j", "down", "ctrl+n"),
-				key.WithHelp("j/↓", "move down"),
-			),
-			PageDown: key.NewBinding(
-				key.WithKeys("l", "right", "pgdown", "ctrl+v"),
-				key.WithHelp("l/→", "page down"),
-			),
-			PageUp: key.NewBinding(
-				key.WithKeys("h", "left", "pgup", "alt+v"),
-				key.WithHelp("h/←", "page up"),
-			),
-		},
+		HalfPageUp: key.NewBinding(
+			key.WithDisabled(),
+		),
+		HalfPageDown: key.NewBinding(
+			key.WithDisabled(),
+		),
+		Up: key.NewBinding(
+			key.WithKeys("k", "up", "ctrl+p"),
+			key.WithHelp("k/↑", "move up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("j", "down", "ctrl+n"),
+			key.WithHelp("j/↓", "move down"),
+		),
+		PageDown: key.NewBinding(
+			key.WithKeys("l", "right", "pgdown", "ctrl+v"),
+			key.WithHelp("l/→", "page down"),
+		),
+		PageUp: key.NewBinding(
+			key.WithKeys("h", "left", "pgup", "alt+v"),
+			key.WithHelp("h/←", "page up"),
+		),
 		HelpModel: help.New(),
 		Navigation: key.NewBinding(
 			key.WithKeys("tab", "shift+tab"),

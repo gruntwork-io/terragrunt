@@ -1061,6 +1061,17 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 	assert.Equal(t, expectedPath, actualPath)
 }
 
+// newMemTestDir returns an in-memory venv and a root path for a test's config tree, so a
+// test that builds one never touches the real filesystem.
+//
+// The path comes from TempDir because it is absolute on every platform, which a hand-rolled
+// "/name" is not on Windows. Nothing is written to it on disk.
+func newMemTestDir(tb testing.TB) (*venv.Venv, string) {
+	tb.Helper()
+
+	return venvtest.New(), tb.TempDir()
+}
+
 // newTestParsingContext creates a ParsingContext around v with sensible test
 // defaults. Replicates NewTerragruntOptionsForTest + configbridge.populateFromOpts.
 func newTestParsingContext(
@@ -2061,8 +2072,8 @@ func TestReadTFVarsFiles(t *testing.T) {
 }
 
 func mockConfigWithSource(sourceURL string) *config.TerragruntConfig {
-	cfg := config.TerragruntConfig{IsPartial: true}
-	cfg.Terraform = &config.TerraformConfig{Source: &sourceURL}
+	cfg := config.TerragruntConfig{IsPartial: true,
+		Terraform: &config.TerraformConfig{Source: &sourceURL}}
 
 	return &cfg
 }

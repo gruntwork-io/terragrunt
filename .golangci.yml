@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.26"
+  go: "1.27"
   issues-exit-code: 1
   tests: true
 output:
@@ -167,6 +167,12 @@ linters:
       asserts: true
       comparison: true
     goconst:
+      # v2.12+ counts package-wide test fixtures; keep repeated test data local.
+      # Tracked upstream: https://github.com/golangci/golangci-lint/issues/6563
+      ignore-tests: true
+      # v2.13+ reports repeated schema/config map keys, which are data rather than constants.
+      # Tracked upstream: https://github.com/golangci/golangci-lint/issues/6707
+      ignore-map-keys: true
       min-len: 3
       min-occurrences: 5
     gocritic:

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -99,8 +100,8 @@ func (checks packageAuthenticationAll) Authenticate(
 }
 
 func (checks packageAuthenticationAll) AcceptableHashes() []Hash {
-	for i := len(checks) - 1; i >= 0; i-- {
-		check, ok := checks[i].(PackageAuthenticationHashes)
+	for _, check := range slices.Backward(checks) {
+		check, ok := check.(PackageAuthenticationHashes)
 		if !ok {
 			continue
 		}

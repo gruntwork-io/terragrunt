@@ -363,9 +363,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return err
 	}
 
-	userProviderExists, err := vfs.FileExists(fsys, cache.userProviderDir)
-	if err != nil {
-		return err
+	userProviderExists := false
+
+	if cache.userProviderDir != "" {
+		userProviderExists, err = vfs.FileExists(fsys, cache.userProviderDir)
+		if err != nil {
+			return err
+		}
 	}
 
 	if userProviderExists {
@@ -683,12 +687,6 @@ func (service *ProviderService) CacheProvider(
 		Provider:        provider,
 		started:         make(chan struct{}, 1),
 
-		userProviderDir: filepath.Join(
-			service.userCacheDir,
-			provider.Address(),
-			provider.Version,
-			provider.Platform(),
-		),
 		packageDir: filepath.Join(
 			service.cacheDir,
 			provider.Address(),
@@ -697,6 +695,17 @@ func (service *ProviderService) CacheProvider(
 		),
 		lockfilePath: filepath.Join(service.tempDir, packageName+".lock"),
 		archivePath:  filepath.Join(service.archiveDir, packageName+path.Ext(provider.Filename)),
+	}
+
+	// An unset user cache dir means no user plugin directory resolved; joining onto it
+	// would produce a path relative to the unit's working directory.
+	if service.userCacheDir != "" {
+		cache.userProviderDir = filepath.Join(
+			service.userCacheDir,
+			provider.Address(),
+			provider.Version,
+			provider.Platform(),
+		)
 	}
 
 	service.logger.Debugf("Sending provider %s to warm up channel", provider)
@@ -872,8 +881,7 @@ func (service *ProviderService) startProviderCaching(
 
 		// UnexpectedProviderCachePathError signals that the path holds user
 		// content; RemoveAll here would silently override that contract.
-		var unexpectedPath *UnexpectedProviderCachePathError
-		if !errors.As(cache.err, &unexpectedPath) {
+		if _, ok := errors.AsType[*UnexpectedProviderCachePathError](cache.err); !ok {
 			if err := service.FS().RemoveAll(cache.packageDir); err != nil {
 				service.logger.Warnf("Failed to clean up package dir %q: %v", cache.packageDir, err)
 			}

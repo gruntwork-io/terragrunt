@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 )
@@ -38,6 +39,7 @@ const (
 const DefaultMaxInstances = 1_000_000
 
 type expandConfig struct {
+	skipLabels   map[string]struct{}
 	maxInstances int
 }
 
@@ -52,13 +54,36 @@ func WithMaxInstances(maxInstances int) ExpandOption {
 	}
 }
 
+// WithSkipLabels leaves blocks whose first label is in the set undecoded, so nothing inside
+// them is evaluated. A block declaring an expansion sub-block is decoded anyway. Expansion
+// splits one block into separately keyed instances, and a bare label does not name those.
+func WithSkipLabels(labels map[string]struct{}) ExpandOption {
+	return func(cfg *expandConfig) {
+		cfg.skipLabels = labels
+	}
+}
+
 // ExpansionBlock is the decoded expansion sub-block of a dependency, unit, or stack
 // block. It stays nil unless the block declares expansion.
 type ExpansionBlock struct {
 	ForEach *cty.Value `hcl:"for_each,attr"`
 	Count   *cty.Value `hcl:"count,attr"`
 
+	Source *SourceBlock
+
 	InstanceKey
+}
+
+// SourceBlock is a block as it was written, before expansion decoded it once per
+// element. Every instance of one block points at the same SourceBlock, so a caller can
+// group instances back together by [SourceBlock.Range].
+//
+// Only [ExpandBlocks] fills it in, and only for native HCL syntax: a block handed to
+// [ExpandBlock] on its own carries no file to slice, and a JSON config has no HCL text
+// to quote back.
+type SourceBlock struct {
+	Text  string
+	Range hcl.Range
 }
 
 // InstanceKey identifies which expansion element produced a decoded block. It carries
@@ -95,7 +120,8 @@ func (key InstanceKey) Expanded() bool {
 // Instance is one decoded product of expanding a block. A block with no expansion
 // block yields a single Instance with both keys nil.
 type Instance struct {
-	Value any
+	Value  any
+	Source *SourceBlock
 	InstanceKey
 }
 
@@ -117,26 +143,32 @@ func (file *File) ExpandBlocks(
 		}
 	}
 
-	labels := labelFields(reflect.TypeOf(out).Elem())
-	labelNames := make([]string, 0, len(labels))
-
-	for _, label := range labels {
-		labelNames = append(labelNames, label.name)
+	cfg := expandConfig{maxInstances: DefaultMaxInstances}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
-	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labelNames}},
-	})
-	if err := file.HandleDiagnostics(diags); err != nil {
+	content, err := file.blockContent(blockType, out)
+	if err != nil {
 		return nil, err
 	}
 
 	instances := make([]Instance, 0, len(content.Blocks))
 
 	for _, block := range content.Blocks {
+		if skipBlock(block, cfg.skipLabels) {
+			continue
+		}
+
 		expanded, err := ExpandBlock(block, out, ctx, opts...)
 		if err == nil {
+			source := blockSource(file.Bytes, block)
+			for i := range expanded {
+				expanded[i].Source = source
+			}
+
 			instances = append(instances, expanded...)
+
 			continue
 		}
 
@@ -151,6 +183,96 @@ func (file *File) ExpandBlocks(
 	}
 
 	return instances, nil
+}
+
+// UnexpandedLabels returns the first label of every blockType block in the file that declares
+// no expansion sub-block. Labels come off the block header, so a block whose body cannot be
+// evaluated still reports its label.
+//
+// [WithSkipLabels] also spares expanded blocks, so pairing the two never drops an expanded
+// block.
+func (file *File) UnexpandedLabels(blockType string, out any) (map[string]struct{}, error) {
+	content, err := file.blockContent(blockType, out)
+	if err != nil {
+		return nil, err
+	}
+
+	labels := make(map[string]struct{}, len(content.Blocks))
+
+	for _, block := range content.Blocks {
+		if len(block.Labels) == 0 {
+			continue
+		}
+
+		expansion, err := expansionBlock(block)
+		if err != nil {
+			return nil, err
+		}
+
+		if expansion == nil {
+			labels[block.Labels[0]] = struct{}{}
+		}
+	}
+
+	return labels, nil
+}
+
+// blockContent returns the file's blockType blocks.
+func (file *File) blockContent(blockType string, out any) (*hcl.BodyContent, error) {
+	labels := labelFields(reflect.TypeOf(out).Elem())
+	labelNames := make([]string, 0, len(labels))
+
+	for _, label := range labels {
+		labelNames = append(labelNames, label.name)
+	}
+
+	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labelNames}},
+	})
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+// skipBlock reports whether the caller named this block in [WithSkipLabels] and it can be left
+// undecoded without losing instances.
+func skipBlock(block *hcl.Block, skipLabels map[string]struct{}) bool {
+	if len(block.Labels) == 0 {
+		return false
+	}
+
+	if _, named := skipLabels[block.Labels[0]]; !named {
+		return false
+	}
+
+	expansion, err := expansionBlock(block)
+
+	// A sub-block that will not parse is a structural error. Keep the block so the decode
+	// below reports it.
+	return err == nil && expansion == nil
+}
+
+// blockSource slices block back out of the file it was parsed from, so a caller can quote
+// the block as written rather than as decoded. A body that is not native HCL syntax has
+// no such text and yields nil.
+func blockSource(src []byte, block *hcl.Block) *SourceBlock {
+	body, ok := block.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	rng := hcl.Range{
+		Filename: block.TypeRange.Filename,
+		Start:    block.TypeRange.Start,
+		End:      body.SrcRange.End,
+	}
+
+	return &SourceBlock{
+		Text:  string(src[rng.Start.Byte:rng.End.Byte]),
+		Range: rng,
+	}
 }
 
 // ExpandBlock decodes block once per iteration element, returning one Instance per
@@ -308,8 +430,8 @@ func expandCount(
 		}
 
 		instances = append(instances, Instance{
-			Value:       value,
-			InstanceKey: InstanceKey{CountIndex: new(index)},
+			Value:      value,
+			CountIndex: new(index),
 		})
 	}
 
@@ -377,8 +499,8 @@ func expandForEach(
 		}
 
 		instances = append(instances, Instance{
-			Value:       value,
-			InstanceKey: InstanceKey{EachKey: new(key)},
+			Value:   value,
+			EachKey: new(key),
 		})
 	}
 

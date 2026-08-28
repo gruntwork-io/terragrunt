@@ -136,7 +136,7 @@ func TestDiscoveryBoundaryRejectsDependentTraversalOutsideIt(t *testing.T) {
 func discoveredPaths(stdout string) []string {
 	var paths []string
 
-	for _, line := range strings.Split(stdout, "\n") {
+	for line := range strings.SplitSeq(stdout, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			paths = append(paths, line)
 		}

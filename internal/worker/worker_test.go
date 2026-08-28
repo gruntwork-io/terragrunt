@@ -105,12 +105,12 @@ func TestStopAndRestart(t *testing.T) {
 
 	wp := worker.NewWorkerPool(2)
 
-	var counter int32
+	var counter atomic.Int32
 
 	// Submit some tasks
 	for range 5 {
 		wp.Submit(func() error {
-			atomic.AddInt32(&counter, 1)
+			counter.Add(1)
 			return nil
 		})
 	}
@@ -120,7 +120,7 @@ func TestStopAndRestart(t *testing.T) {
 	require.NoError(t, err)
 	wp.Stop()
 
-	finalCount := atomic.LoadInt32(&counter)
+	finalCount := counter.Load()
 	require.Equal(t, int32(5), finalCount, "expected counter to be 5")
 
 	// Create a new worker pool instead of assuming restart
@@ -130,7 +130,7 @@ func TestStopAndRestart(t *testing.T) {
 	// Submit new tasks
 	for range 3 {
 		wp.Submit(func() error {
-			atomic.AddInt32(&counter, 1)
+			counter.Add(1)
 			return nil
 		})
 	}
@@ -138,7 +138,7 @@ func TestStopAndRestart(t *testing.T) {
 	errs := wp.Wait()
 	require.NoError(t, errs)
 
-	finalCountAfterRestart := atomic.LoadInt32(&counter)
+	finalCountAfterRestart := counter.Load()
 	require.Equal(t, int32(8), finalCountAfterRestart, "expected counter to be 8")
 }
 
@@ -168,7 +168,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 
 	t.Cleanup(func() { wp.Stop() })
 
-	var totalCount int32
+	var totalCount atomic.Int32
 
 	t.Run("parallelTaskSubmit1", func(t *testing.T) {
 		t.Parallel()
@@ -178,7 +178,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 
 		for range 10 {
 			localWp.Submit(func() error {
-				atomic.AddInt32(&totalCount, 1)
+				totalCount.Add(1)
 				return nil
 			})
 		}
@@ -195,7 +195,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 
 		for range 15 {
 			localWp.Submit(func() error {
-				atomic.AddInt32(&totalCount, 1)
+				totalCount.Add(1)
 				return nil
 			})
 		}

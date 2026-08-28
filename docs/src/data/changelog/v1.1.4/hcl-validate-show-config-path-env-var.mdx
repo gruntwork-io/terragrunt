@@ -1,0 +1,12 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Fixed the deprecated environment variables for `hcl validate`
+
+`TG_HCLVALIDATE_STRICT_VALIDATE`, the deprecated name for [`--strict`](/reference/cli/commands/hcl/validate#strict), also turned on [`--show-config-path`](/reference/cli/commands/hcl/validate#show-config-path). `--strict` only takes effect alongside `--inputs`, and `--show-config-path` cannot be combined with `--inputs`. With that variable set, `terragrunt hcl validate --inputs` failed with `specifying both -show-config-path and -inputs is invalid`.
+
+`TG_HCLVALIDATE_SHOW_CONFIG_PATH`, the deprecated name for `--show-config-path`, was not recognized at all.
+
+`TG_HCLVALIDATE_STRICT_VALIDATE` now sets only `--strict`, and `TG_HCLVALIDATE_SHOW_CONFIG_PATH` sets `--show-config-path`. `TG_STRICT_VALIDATE`, `TERRAGRUNT_STRICT_VALIDATE`, and `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH` are unchanged.

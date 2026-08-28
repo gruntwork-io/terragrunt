@@ -25,19 +25,23 @@ type CmdOutput struct {
 	Stderr bytes.Buffer
 }
 
-// GetExitCode returns the exit code of a command. If the error does not
-// implement errorCode or is not an exec.ExitError, the error is returned.
-// Joined errors are traversed by errors.As via their Unwrap() []error method.
+// exitStatuser is an error that carries the exit status of a failed command.
+// [errors.AsType] constrains its type parameter to error, so the embedded error is
+// required even though every value it can return already implements it.
+type exitStatuser interface {
+	error
+	ExitStatus() (int, error)
+}
+
+// GetExitCode returns the exit code of a command. An error that implements neither
+// [exitStatuser] nor [clihelper.ExitCoder] and is not an [exec.ExitError] comes back
+// unchanged. The search walks joined errors through their Unwrap() []error method.
 func GetExitCode(err error) (int, error) {
-	var exitStatus interface {
-		ExitStatus() (int, error)
-	}
-	if errors.As(err, &exitStatus) {
+	if exitStatus, ok := errors.AsType[exitStatuser](err); ok {
 		return exitStatus.ExitStatus()
 	}
 
-	var exitCoder clihelper.ExitCoder
-	if errors.As(err, &exitCoder) {
+	if exitCoder, ok := errors.AsType[clihelper.ExitCoder](err); ok {
 		return exitCoder.ExitCode(), nil
 	}
 

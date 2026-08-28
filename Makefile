@@ -50,6 +50,18 @@ run-lint-fix:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" mise x golangci-lint -- golangci-lint run -v --timeout=30m --fix ./...
 
+# go fix only analyzes files whose build tags are satisfied, so a bare `go fix ./...`
+# skips every tagged package without reporting it.
+run-go-fix:
+	@echo "Running go fix with feature flags: [$(LINT_TAGS)]"
+	mise x go -- go fix -tags=$(LINT_TAGS) ./...
+	@echo "Reformatting, since go fix does not gofmt the code it rewrites..."
+	mise x go -- gofmt -w $(GOFMT_FILES)
+
+run-go-fix-check:
+	@echo "Checking go fix with feature flags: [$(LINT_TAGS)]"
+	mise x go -- go fix -diff -tags=$(LINT_TAGS) ./...
+
 generate-mocks:
 	go generate ./...
 
@@ -67,4 +79,4 @@ fuzz:
 		done; \
 	done
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix fuzz print-lint-tags
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix run-go-fix run-go-fix-check fuzz print-lint-tags

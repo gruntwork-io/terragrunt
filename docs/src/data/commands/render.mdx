@@ -18,6 +18,10 @@ flags:
   - render-all
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
 Render the Terragrunt configuration in the current working directory, with as much work done as possible beforehand (that is, with all includes merged, dependencies resolved/interpolated, function calls executed, etc).
 
 The only supported format at the moment is JSON, but support for HCL will be added in a future version.
@@ -83,3 +87,67 @@ terragrunt render --all --json -w
 ```
 
 This will render all configurations discovered from the current working directory and write the rendered configurations to `terragrunt.rendered.json` files adjacent to the configurations they are derived from.
+
+## Expanded dependencies
+
+<Before version="1.1.4">
+Previewing how a `dependency` block expands will be supported in v1.1.4.
+</Before>
+
+<Since version="1.1.4">
+
+<Aside type="tip" title="Experimental">
+Expanding a `dependency` block over a `count` or `for_each` is gated behind the [`block-iteration`](/reference/experiments/active#block-iteration) experiment. Enable it with `--experiment=block-iteration` or `TG_EXPERIMENT=block-iteration`.
+</Aside>
+
+A `dependency` block that carries an `expansion` block renders as it was written, references and all, followed by the elements it expanded into. Each element is commented out, with its body resolved against the iteration it came from:
+
+```bash
+$ terragrunt render --experiment block-iteration
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path = "../aurora-${each.key}"
+}
+
+# Expands to:
+#
+# dependency "aurora" {
+#   config_path = "../aurora-api"
+# }
+#
+# dependency "aurora" {
+#   config_path = "../aurora-web"
+# }
+```
+
+`count` reads the same way:
+
+```bash
+$ terragrunt render --experiment block-iteration
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../shard-${count.index}"
+}
+
+# Expands to:
+#
+# dependency "shard" {
+#   config_path = "../shard-0"
+# }
+#
+# dependency "shard" {
+#   config_path = "../shard-1"
+# }
+```
+
+The expanded blocks are in comments because they are not a valid Terragrunt configuration: they all carry one label, and only the last block with a given label can be referenced. Terragrunt warns about that, and rejects it outright under the `duplicate-dependency-labels` [strict control](/reference/strict-controls/active#duplicate-dependency-labels). They are present as comments to help you predict how Terragrunt will expand the block with an `expansion` block.
+
+A `dependency` block with no `expansion` block renders as it always has.
+
+</Since>

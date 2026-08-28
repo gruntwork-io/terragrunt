@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -287,9 +288,7 @@ func mergeIncludedFeatureFlags(
 	baseConfig := &TerragruntConfig{FeatureFlags: childFlags}
 	includePctx := pctx.WithTrackInclude(trackInclude).WithDecodeList(FeatureFlagsBlock)
 
-	for i := len(trackInclude.CurrentList) - 1; i >= 0; i-- {
-		includeConfig := trackInclude.CurrentList[i]
-
+	for _, includeConfig := range slices.Backward(trackInclude.CurrentList) {
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {
 			return childFlags, err
@@ -618,7 +617,7 @@ func PartialParseConfig(
 		return nil, err
 	}
 
-	if err := ValidateExpansionExperiment(pctx.Experiments, file); err != nil {
+	if err := ValidateBlockIterationExperiment(pctx.Experiments, file); err != nil {
 		return nil, err
 	}
 
@@ -734,10 +733,12 @@ func PartialParseConfig(
 			}
 
 		case DependencyBlock:
-			decodedDeps, err := decodeDependencyBlocks(
+			decodedDeps, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+				ctx,
+				pctx,
+				l,
 				file,
 				evalParsingContext,
-				pctx.Experiments,
 			)
 			if err != nil {
 				return nil, err
@@ -971,8 +972,7 @@ func partialParseIncludedConfig(
 	)
 	if err != nil {
 		// Convert generic config not found error to include-specific error
-		var configNotFoundError TerragruntConfigNotFoundError
-		if errors.As(err, &configNotFoundError) {
+		if _, ok := errors.AsType[TerragruntConfigNotFoundError](err); ok {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
 				SourcePath:  pctx.TerragruntConfigPath,

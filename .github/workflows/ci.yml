@@ -32,6 +32,12 @@ jobs:
       contents: read
     secrets: inherit
 
+  go_fix_check:
+    uses: ./.github/workflows/go-fix-check.yml
+    permissions:
+      contents: read
+    secrets: inherit
+
   markdownlint:
     uses: ./.github/workflows/markdownlint.yml
     permissions:
@@ -57,14 +63,21 @@ jobs:
     secrets: inherit
 
   # Fast feedback: only gate on lint/precommit/go_mod_tidy. Other checks (codespell,
-  # markdownlint, license_check, install_script_test) run in parallel and are enforced
-  # by branch protection rules, not by job dependencies.
+  # markdownlint, license_check, install_script_test, go_fix_check) run in parallel and
+  # are enforced by branch protection rules, not by job dependencies.
   base_tests:
     needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/base-test.yml
     permissions:
       contents: read
       checks: write
+    secrets: inherit
+
+  sandboxed_tests:
+    needs: [lint, precommit, go_mod_tidy_check]
+    uses: ./.github/workflows/sandboxed-test.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   build:

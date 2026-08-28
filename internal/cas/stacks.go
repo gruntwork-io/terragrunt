@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/go-getter/v2"
 
+	"github.com/gruntwork-io/terragrunt/internal/detect"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -27,7 +28,7 @@ import (
 var RemoteSourceDetectors = []getter.Detector{
 	new(getter.GitHubDetector),
 	new(getter.GitDetector),
-	new(getter.BitBucketDetector),
+	new(detect.BitBucket),
 	new(getter.GitLabDetector),
 }
 

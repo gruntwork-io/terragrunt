@@ -341,7 +341,7 @@ remote_state {
 
 - `skip_bucket_versioning` — Skip versioning on the state bucket. Use only if the object store does not support versioning.
 - `enable_bucket_policy_only` — Enable uniform bucket-level access. See [uniform bucket-level access](https://cloud.google.com/storage/docs/uniform-bucket-level-access) for details.
-- `encryption_key` — A Cloud KMS key name to use for encrypting state objects.
+- `encryption_key` — A base64-encoded 32-byte customer-supplied encryption key used to read and write state objects.
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
 
@@ -361,8 +361,11 @@ OpenTofu/Terraform's native `azurerm` backend is used as-is.
 </Before>
 <Since version="1.1.2">
 With the experiment enabled, Terragrunt bootstraps, deletes, and migrates Azure Storage state resources.
-Otherwise, these operations return an error. Reading and writing the state itself is always handled by
-OpenTofu/Terraform's native `azurerm` backend.
+Otherwise, these operations return an error. OpenTofu/Terraform's native azurerm backend handles normal state reads and writes.
+
+<Since version="1.1.4">
+When both `azure-backend` and [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) are enabled, and the Azure backend configuration is supported by the direct reader, Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
+</Since>
 </Since>
 </Aside>
 

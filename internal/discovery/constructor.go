@@ -84,6 +84,12 @@ func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOpt
 			return nil, err
 		}
 
+		// The parser stops at a shell operator like ';' or '|' without reporting an error, so
+		// a value that leads with one yields no words. A quoted empty string yields one empty word.
+		if len(args) == 0 || args[0] == "" {
+			return nil, NewEmptyQueueConstructAsError(opts.QueueConstructAs)
+		}
+
 		cmd := args[0]
 		if len(args) > 1 {
 			args = args[1:]

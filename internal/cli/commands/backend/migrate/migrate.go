@@ -46,7 +46,7 @@ func Run(
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.NewStackRunner(ctx, l, v, opts)
+	rnr, err := runner.New(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}

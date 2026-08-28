@@ -2,6 +2,7 @@
 package format
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +42,7 @@ func TestBytesDiff(t *testing.T) {
 		"path is prefixed with old/ and new/ labels": {
 			before: "a\n",
 			after:  "b\n",
-			path:   "nested/dir/file.hcl",
+			path:   filepath.Join("nested", "dir", "file.hcl"),
 			wantHeader: []string{
 				"--- old/nested/dir/file.hcl",
 				"+++ new/nested/dir/file.hcl",

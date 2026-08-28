@@ -645,7 +645,7 @@ func tryCASDownload(
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithDispatchLogger(l),
 		getter.WithDispatchFS(v.FS),
-		getter.WithDispatchEnv(v.Env),
+		getter.WithDispatchVenv(v),
 		getter.WithTFRConfig(opts.TofuImplementation),
 	}
 
@@ -724,7 +724,6 @@ func BuildDownloadClient(
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
-			WithEnv(v.Env).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
 

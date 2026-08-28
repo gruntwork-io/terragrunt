@@ -12,7 +12,7 @@ import (
 )
 
 // renderWithoutColor renders components the same way both production callers do
-// (runnerpool's logUnitDeployOrderDAG and list's renderTree): generate the tree,
+// (the runner's logUnitDeployOrderDAG and list's renderTree): generate the tree,
 // apply the styler, and stringify. Color is disabled so the output is stable.
 func renderWithoutColor(components dag.ListedComponents) string {
 	styler := dag.NewTreeStyler(false)

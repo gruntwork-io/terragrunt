@@ -1,0 +1,12 @@
+---
+version: "v1.1.4"
+category: "experiments-updated"
+---
+
+#### Read dependency outputs directly from GCS state
+
+The `dependency-fetch-output-from-state` experiment can now read dependency outputs directly from GCS state, in addition to S3. This avoids initializing the dependency and running `tofu output` or `terraform output`.
+
+Unsupported GCS configurations continue to use the native output path. When a dependency has no state yet, Terragrunt uses that dependency block's `mock_outputs`, as it already does for S3.
+
+Thanks to [@joshmyers](https://github.com/joshmyers) for the original GCS implementation.

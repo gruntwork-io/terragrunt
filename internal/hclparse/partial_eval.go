@@ -51,11 +51,11 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	maxDepth := args.maxDepth()
 	if args.depth > maxDepth {
 		return RangeBytes(
-				args.SrcBytes,
-				expr.Range(),
-			), PartialEvalDepthExceededError{
-				MaxDepth: maxDepth,
-			}
+			args.SrcBytes,
+			expr.Range(),
+		), PartialEvalDepthExceededError{
+			MaxDepth: maxDepth,
+		}
 	}
 
 	args.depth++
@@ -147,12 +147,12 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]by
 	}
 
 	return RangeBytes(
-			args.SrcBytes,
-			e.Range(),
-		), PartialEvalUnresolvedError{
-			Reason: "traversal value is null, unknown, or non-finite at generation time",
-			Err:    diags,
-		}
+		args.SrcBytes,
+		e.Range(),
+	), PartialEvalUnresolvedError{
+		Reason: "traversal value is null, unknown, or non-finite at generation time",
+		Err:    diags,
+	}
 }
 
 // partialEvalChildren rebuilds parent source bytes with each child replaced by its PartialEval output; gaps stay verbatim.
@@ -212,11 +212,11 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byt
 	// Null/unknown condition: emit source bytes and a typed error for strict callers.
 	if err != nil || boolVal.IsNull() || !boolVal.IsKnown() {
 		return RangeBytes(
-				args.SrcBytes,
-				e.Range(),
-			), PartialEvalUnresolvedError{
-				Reason: "conditional condition is null or unknown",
-			}
+			args.SrcBytes,
+			e.Range(),
+		), PartialEvalUnresolvedError{
+			Reason: "conditional condition is null or unknown",
+		}
 	}
 
 	if boolVal.True() {

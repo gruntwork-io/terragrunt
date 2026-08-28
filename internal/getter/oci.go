@@ -775,8 +775,7 @@ func (g *OCIGetter) extractModuleWithLimits(
 
 	err = g.promoteModule(staging, sourcePath, dstPath)
 
-	var restoreErr OCIRestoreError
-	if errors.As(err, &restoreErr) {
+	if _, ok := errors.AsType[OCIRestoreError](err); ok {
 		keepStaging = true
 	}
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -89,6 +90,20 @@ func (err DuplicatedGenerateBlocksError) Error() string {
 	return fmt.Sprintf(
 		"Detected generate blocks with the same name: %v", err.BlockName,
 	)
+}
+
+// InvalidGenerateBlockError wraps a validation error with the generate block name.
+type InvalidGenerateBlockError struct {
+	Err       error
+	BlockName string
+}
+
+func (err InvalidGenerateBlockError) Error() string {
+	return fmt.Sprintf("generate block %q: %s", err.BlockName, err.Err)
+}
+
+func (err InvalidGenerateBlockError) Unwrap() error {
+	return err.Err
 }
 
 type TFVarFileNotFoundError struct {
@@ -276,6 +291,38 @@ func (err DependencyConfigNotFound) Error() string {
 	return err.Path + " does not exist"
 }
 
+// DependencyStateReadError reports a failure while reading a dependency's remote state body.
+type DependencyStateReadError struct {
+	// Err is the underlying reader failure.
+	Err error
+	// Location identifies the remote state object that was being read.
+	Location string
+}
+
+func (err DependencyStateReadError) Error() string {
+	return "reading dependency state body from " + err.Location + ": " + err.Err.Error()
+}
+
+func (err DependencyStateReadError) Unwrap() error {
+	return err.Err
+}
+
+// DependencyStateParseError reports malformed dependency remote state JSON.
+type DependencyStateParseError struct {
+	// Err is the underlying JSON parsing failure.
+	Err error
+	// Location identifies the remote state object that could not be parsed.
+	Location string
+}
+
+func (err DependencyStateParseError) Error() string {
+	return "parsing dependency state JSON from " + err.Location + ": " + err.Err.Error()
+}
+
+func (err DependencyStateParseError) Unwrap() error {
+	return err.Err
+}
+
 type TerragruntOutputParsingError struct {
 	Err  error
 	Path string
@@ -300,6 +347,15 @@ func (err TerragruntOutputEncodingError) Error() string {
 		err.Path,
 		err.Err,
 	)
+}
+
+// InvalidTFWorkspaceError is returned when TF_WORKSPACE cannot name a state object.
+type InvalidTFWorkspaceError struct {
+	Workspace string
+}
+
+func (err InvalidTFWorkspaceError) Error() string {
+	return fmt.Sprintf("determining dependency workspace: invalid TF_WORKSPACE value %q", err.Workspace)
 }
 
 // StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs
@@ -344,6 +400,21 @@ func (err DependencyLabelCollisionError) Error() string {
 	return fmt.Sprintf(
 		"dependency %q is declared both with and without an expansion, so the block and its instances claim the same address; rename one of them",
 		err.Name,
+	)
+}
+
+// DuplicateDependencyError is returned when two dependency blocks in one config claim the
+// same address, which leaves no way to reference either but the last.
+type DuplicateDependencyError struct {
+	ConfigPath string
+	Address    string
+}
+
+func (err DuplicateDependencyError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependency %s is declared more than once; every dependency needs an address of its own",
+		err.ConfigPath,
+		err.Address,
 	)
 }
 
@@ -549,3 +620,32 @@ func (err ExpansionRequiresExperimentError) Error() string {
 		experiment.BlockIteration,
 	)
 }
+
+// EnabledRequiresExperimentError is returned when a unit or stack block carries a bare
+// enabled attribute while the block-iteration experiment is off.
+type EnabledRequiresExperimentError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+}
+
+func (err EnabledRequiresExperimentError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s uses an enabled attribute, which requires the '%s' experiment; enable it with --experiment %s",
+		block,
+		err.ConfigPath,
+		experiment.BlockIteration,
+		experiment.BlockIteration,
+	)
+}
+
+// ErrStackHasNoComponents is returned when a stack file declares no unit or stack block at
+// all. A file whose blocks resolve to no components is a different thing entirely and stays
+// valid: every block may be disabled, or expanded over an empty collection, leaving nothing
+// to generate.
+var ErrStackHasNoComponents = errors.New("stack config must contain at least one unit or stack")

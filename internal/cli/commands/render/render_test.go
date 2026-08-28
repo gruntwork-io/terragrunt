@@ -9,18 +9,20 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestRenderJSON_Basic(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 
 	var outputBuffer bytes.Buffer
 
@@ -48,7 +50,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 func TestRenderJSON_WithMetadata(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 
 	var outputBuffer bytes.Buffer
 
@@ -76,7 +78,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 func TestRenderJSON_WriteToFile(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 	outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "output.json")
 	opts.Format = render.FormatJSON
 	opts.RenderMetadata = false
@@ -104,10 +106,144 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	validateRenderedJSON(t, result, false)
 }
 
+func TestRenderWriteWithoutOutputPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		check    func(t *testing.T, content []byte)
+		name     string
+		format   string
+		filename string
+	}{
+		{
+			name:     "hcl",
+			format:   render.FormatHCL,
+			filename: "terragrunt.rendered.hcl",
+			check: func(t *testing.T, content []byte) {
+				t.Helper()
+
+				assert.Equal(t, testTerragruntConfigFixture, string(content))
+			},
+		},
+		{
+			name:     "json",
+			format:   render.FormatJSON,
+			filename: "terragrunt.rendered.json",
+			check: func(t *testing.T, content []byte) {
+				t.Helper()
+
+				var result map[string]any
+
+				require.NoError(t, json.Unmarshal(content, &result))
+				validateRenderedJSON(t, result, false)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, configPath := setupTest(t, testTerragruntConfigFixture)
+			opts.Format = tc.format
+			opts.Write = true
+
+			err := render.Run(
+				t.Context(),
+				logger.CreateLogger(),
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
+				opts,
+			)
+			require.NoError(t, err)
+
+			content, err := os.ReadFile(filepath.Join(filepath.Dir(configPath), tc.filename))
+			require.NoError(t, err)
+
+			tc.check(t, content)
+		})
+	}
+}
+
+func TestRenderWriteFilePermissions(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Windows does not enforce POSIX file permissions")
+	}
+
+	testCases := []struct {
+		name   string
+		format string
+	}{
+		{
+			name:   "hcl",
+			format: render.FormatHCL,
+		},
+		{
+			name:   "json",
+			format: render.FormatJSON,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "rendered")
+
+			assert.Equal(t, os.FileMode(0600), renderToFilePerm(t, tc.format, outputPath))
+		})
+	}
+}
+
+func TestRenderWriteReplacesLooserPermissions(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Windows does not enforce POSIX file permissions")
+	}
+
+	outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "rendered")
+	require.NoError(t, os.WriteFile(outputPath, []byte("stale"), 0644))
+
+	assert.Equal(t, os.FileMode(0600), renderToFilePerm(t, render.FormatJSON, outputPath))
+
+	content, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+
+	var result map[string]any
+
+	require.NoError(t, json.Unmarshal(content, &result))
+	validateRenderedJSON(t, result, false)
+}
+
+// renderToFilePerm renders a config and returns the permissions of the file it writes.
+func renderToFilePerm(t *testing.T, format, outputPath string) os.FileMode {
+	t.Helper()
+
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
+	opts.Format = format
+	opts.Write = true
+	opts.OutputPath = outputPath
+
+	err := render.Run(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
+		opts,
+	)
+	require.NoError(t, err)
+
+	info, err := os.Stat(outputPath)
+	require.NoError(t, err)
+
+	return info.Mode().Perm()
+}
+
 func TestRenderJSON_InvalidFormat(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 	opts.Format = "invalid"
 
 	err := render.Run(
@@ -123,7 +259,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 func TestRenderJSON_HCLFormat(t *testing.T) {
 	t.Parallel()
 
-	opts, _ := setupTest(t)
+	opts, _ := setupTest(t, testTerragruntConfigFixture)
 	opts.Format = render.FormatHCL
 
 	var renderedBuffer bytes.Buffer
@@ -139,13 +275,37 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	assert.Equal(t, testTerragruntConfigFixture, renderedBuffer.String())
 }
 
-// setupTest creates a temporary directory with a terragrunt config file and returns the necessary test setup
-func setupTest(t *testing.T) (*render.Options, string) {
+func TestRenderJSON_NumberOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	opts, configPath := setupTest(t, testExtremeExponentConfigFixture)
+	depDir := filepath.Join(filepath.Dir(configPath), "dep")
+	require.NoError(t, os.MkdirAll(depDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0644))
+
+	opts.Format = render.FormatJSON
+	opts.Write = false
+
+	err := render.Run(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
+		opts,
+	)
+
+	var rangeErr ctyhelper.NumberOutOfRangeError
+
+	require.ErrorAs(t, err, &rangeErr)
+	assert.Equal(t, cty.GetAttrPath("dependency").GetAttr("dep").GetAttr("mock_outputs").GetAttr("count"), rangeErr.Path)
+}
+
+// setupTest writes config to a terragrunt.hcl in a fresh temporary directory
+func setupTest(t *testing.T, config string) (*render.Options, string) {
 	t.Helper()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	err := os.WriteFile(configPath, []byte(testTerragruntConfigFixture), 0644)
+	err := os.WriteFile(configPath, []byte(config), 0644)
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest(configPath)
@@ -231,5 +391,15 @@ inputs = {
   }
   number_input = 42
   string_input = "test"
+}
+`
+
+const testExtremeExponentConfigFixture = `dependency "dep" {
+  config_path  = "./dep"
+  skip_outputs = true
+
+  mock_outputs = {
+    count = 9E9999999
+  }
 }
 `

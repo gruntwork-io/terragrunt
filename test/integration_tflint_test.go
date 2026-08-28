@@ -143,7 +143,7 @@ func TestTflintInitSameModule(t *testing.T) {
 	runPath := filepath.Join(rootPath, testFixtureParallelRun, "dev")
 	appTemplate := filepath.Join(rootPath, testFixtureParallelRun, "dev", "app")
 	// generate multiple "app" modules that will be initialized in parallel
-	for i := 0; i < tflintInitSamples; i++ {
+	for i := range tflintInitSamples {
 		appPath := filepath.Join(modulePath, "dev", fmt.Sprintf("app-%d", i))
 		err := util.CopyFolderContents(createLogger(), vfs.NewOSFS(), appTemplate, appPath, ".terragrunt-test")
 		require.NoError(t, err)

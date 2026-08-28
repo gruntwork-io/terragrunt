@@ -3,12 +3,12 @@ package config_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -59,9 +59,21 @@ stack "team" {
 }
 `
 
-// TestValidateExpansionExperiment pins which blocks the gate rejects while the
-// block-iteration experiment is off, and that it names the offending block.
-func TestValidateExpansionExperiment(t *testing.T) {
+// unitWithExpansionJSON is the JSON encoding of unitWithExpansionHCL. Stack files are only
+// ever HCL, but an include block may point at a JSON file, so the gate has to read one.
+const unitWithExpansionJSON = `{
+  "unit": {
+    "app": {
+      "expansion": {"for_each": ["web"]},
+      "source": "./modules/app",
+      "path": "app/${each.value}"
+    }
+  }
+}`
+
+// TestValidateBlockIterationExperimentGatesExpansion pins which block types reject an
+// expansion block while the experiment is off, and that the error names the offending block.
+func TestValidateBlockIterationExperimentGatesExpansion(t *testing.T) {
 	t.Parallel()
 
 	skipInExperimentMode(t)
@@ -96,6 +108,14 @@ func TestValidateExpansionExperiment(t *testing.T) {
 			cfg:           stackWithExpansionHCL,
 			wantBlockType: "stack",
 			wantLabel:     "team",
+			wantErr:       true,
+		},
+		{
+			name:          "unit with expansion in a json body",
+			configPath:    "extra.json",
+			cfg:           unitWithExpansionJSON,
+			wantBlockType: "unit",
+			wantLabel:     "app",
 			wantErr:       true,
 		},
 		{
@@ -140,7 +160,7 @@ generate "backend" {
 
 			file := parseHCLString(t, tc.cfg, tc.configPath)
 
-			err := config.ValidateExpansionExperiment(experiment.NewExperiments(), file)
+			err := config.ValidateBlockIterationExperiment(experiment.NewExperiments(), file)
 
 			if !tc.wantErr {
 				require.NoError(t, err)
@@ -156,9 +176,9 @@ generate "backend" {
 	}
 }
 
-// TestValidateExpansionExperimentEnabled pins that enabling the experiment clears the
-// gate for every block type it covers.
-func TestValidateExpansionExperimentEnabled(t *testing.T) {
+// TestValidateBlockIterationExperimentGateClearsWhenOn pins that turning the experiment on
+// clears the gate for both expansion blocks and bare enabled attributes.
+func TestValidateBlockIterationExperimentGateClearsWhenOn(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -181,6 +201,16 @@ func TestValidateExpansionExperimentEnabled(t *testing.T) {
 			configPath: config.DefaultStackFile,
 			cfg:        stackWithExpansionHCL,
 		},
+		{
+			name:       "unit with enabled",
+			configPath: config.DefaultStackFile,
+			cfg:        unitWithEnabledHCL,
+		},
+		{
+			name:       "stack with enabled",
+			configPath: config.DefaultStackFile,
+			cfg:        stackWithEnabledHCL,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -192,7 +222,7 @@ func TestValidateExpansionExperimentEnabled(t *testing.T) {
 
 			require.NoError(
 				t,
-				config.ValidateExpansionExperiment(
+				config.ValidateBlockIterationExperiment(
 					experiments,
 					parseHCLString(t, tc.cfg, tc.configPath),
 				),
@@ -209,7 +239,7 @@ func TestParseConfigStringExpansionRequiresExperiment(t *testing.T) {
 	skipInExperimentMode(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -255,7 +285,7 @@ func TestReadStackConfigStringExpansionRequiresExperiment(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultStackFile)
+			ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultStackFile)
 
 			_, err := config.ReadStackConfigString(
 				ctx,
@@ -299,7 +329,7 @@ include "extra" {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), stackPath)
 	pctx.Venv.FS = fsys
 
 	_, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
@@ -422,7 +452,7 @@ dependency "vpc" {
 func TestDisabledExpandedDependencySkipsOutputRetrieval(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -466,12 +496,13 @@ func TestIncludeMergeKeepsEveryExpandedInstance(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			dir := t.TempDir()
+			v, dir := newMemTestDir(t)
 
-			require.NoError(t, os.MkdirAll(filepath.Join(dir, "network"), 0o755))
-			require.NoError(t, os.MkdirAll(filepath.Join(dir, "logging"), 0o755))
+			// Both directories stay empty, so nothing else brings them into existence.
+			require.NoError(t, v.FS.MkdirAll(filepath.Join(dir, "network"), 0o755))
+			require.NoError(t, v.FS.MkdirAll(filepath.Join(dir, "logging"), 0o755))
 
-			require.NoError(t, os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(`
+			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(dir, "root.hcl"), []byte(`
 dependencies {
   paths = ["./network"]
 }
@@ -483,7 +514,7 @@ dependency "vpc" {
 `), 0o644))
 
 			configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-			require.NoError(t, os.WriteFile(configPath, []byte(`
+			require.NoError(t, vfs.WriteFile(v.FS, configPath, []byte(`
 include "root" {
   path = "root.hcl"
   `+tc.mergeStrategy+`
@@ -503,7 +534,7 @@ dependency "shard" {
 }
 `), 0o644))
 
-			ctx, pctx := newExpansionParsingContext(t, configPath)
+			ctx, pctx := newExpansionParsingContext(t, v, configPath)
 
 			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
 			require.NoError(t, err)
@@ -526,7 +557,7 @@ dependency "shard" {
 func TestExpandedDependencyCarriesItsOwnOutputConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -596,7 +627,7 @@ func TestJSONExpansionRequiresExperiment(t *testing.T) {
 
 	skipInExperimentMode(t)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), jsonConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), jsonConfigPath)
 
 	_, err := config.PartialParseConfigString(
 		ctx,
@@ -616,7 +647,7 @@ func TestJSONExpansionRequiresExperiment(t *testing.T) {
 func TestUnknownBlockRemainsRejected(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -813,7 +844,7 @@ func TestDependencyCtyShapeExcludesExpansionMetadata(t *testing.T) {
 func TestDependencyOutputsAddressedByInstanceKey(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -887,7 +918,7 @@ inputs = {
 func TestDependencyOutputsRejectExpandedBlockWithoutKey(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -928,7 +959,7 @@ inputs = {
 func TestDependencyOutputsEncodeDivergentSchemasPerKey(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -972,7 +1003,7 @@ inputs = {
 func TestDependencyInstanceKeysMatchAddressableKeys(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -1055,7 +1086,7 @@ inputs = {
 func TestDependencyOutputsAddressEmptyEachKey(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -1096,7 +1127,7 @@ inputs = {
 func TestDependencyLabelClaimedByBlockAndInstances(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -1143,7 +1174,7 @@ inputs = {
 func TestDependencyOutputsResolveUnknownWhenOutputsSkipped(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 	pctx.SkipOutput = true
 	pctx.SkipOutputsResolution = true
 
@@ -1176,7 +1207,7 @@ inputs = {
 func TestDependencyInstancesAccumulateWithRacing(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -1243,7 +1274,7 @@ inputs = {
 func parseDependencyString(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	return config.PartialParseConfigString(
 		ctx,
@@ -1269,7 +1300,7 @@ func parseDependencyJSONString(
 ) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, jsonConfigPath)
+	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), jsonConfigPath)
 
 	return config.PartialParseConfigString(
 		ctx,
@@ -1284,7 +1315,7 @@ func parseDependencyJSONString(
 func parseStackString(tb testing.TB, cfg string) (*config.StackConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, config.DefaultStackFile)
+	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), config.DefaultStackFile)
 
 	return config.ReadStackConfigString(
 		ctx,
@@ -1306,11 +1337,12 @@ func parseStackErr(tb testing.TB, cfg string) error {
 
 func newExpansionParsingContext(
 	tb testing.TB,
+	v *venv.Venv,
 	configPath string,
 ) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
-	ctx, pctx := newTestParsingContext(tb, venvtest.NewWithOSFS(), configPath)
+	ctx, pctx := newTestParsingContext(tb, v, configPath)
 	require.NoError(tb, pctx.Experiments.EnableExperiment(experiment.BlockIteration))
 
 	return ctx, pctx

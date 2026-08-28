@@ -897,12 +897,10 @@ func createEngine(
 		}
 
 		client := plugin.NewClient(&plugin.ClientConfig{
-			Logger: logger,
-			HandshakeConfig: plugin.HandshakeConfig{
-				ProtocolVersion:  engineVersion,
-				MagicCookieKey:   engineCookieKey,
-				MagicCookieValue: engineCookieValue,
-			},
+			Logger:           logger,
+			ProtocolVersion:  engineVersion,
+			MagicCookieKey:   engineCookieKey,
+			MagicCookieValue: engineCookieValue,
 			Plugins: map[string]plugin.Plugin{
 				"plugin": &engine.TerragruntGRPCEngine{},
 			},

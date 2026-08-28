@@ -16,7 +16,8 @@ set -euo pipefail
 #   timing <events.ndjson> <out.json>  Roll `go test -json` events into per-package /
 #                                    per-test wall-time JSON.
 #   compare-coverage <cur> <prev> [out]  Diff two coverage summaries -> report JSON + HTML.
-#   compare-timing <cur> <prev> [out]    Diff two timing summaries -> report JSON.
+#   compare-timing <cur> <prev> [out]    Diff two timing summaries -> report JSON;
+#                                    entries in report-suppressions.json are omitted.
 #   render <cov-report> <timing-report>  Render the combined Markdown report to
 #                                    $GITHUB_STEP_SUMMARY (or stdout).
 #   notify <cov-report> <timing-report>  Post the combined report to Slack.
@@ -306,6 +307,31 @@ count_lines() {
 	done <<<"$list"
 
 	echo "$count"
+}
+
+# Read report suppressions as normalized JSON
+read_report_suppressions() {
+	local suppressions_file="${REPORT_SUPPRESSIONS_FILE:-${SELF%/*}/report-suppressions.json}"
+
+	if [[ ! -f "$suppressions_file" ]]; then
+		echo '{"packages":[],"tests":[]}'
+
+		return 0
+	fi
+
+	jq '
+		def string_array($name):
+			(.[$name] // []) as $values
+			| if ($values | type) != "array" or any($values[]; type != "string")
+				then error($name + " must be an array of strings")
+				else ($values | unique)
+			end;
+
+		{
+			packages: string_array("packages"),
+			tests: string_array("tests")
+		}
+	' "$suppressions_file"
 }
 
 # Replay the captured output of each selected "package<TAB>test" key
@@ -675,21 +701,35 @@ cmd_compare_timing() {
 		exit 1
 	fi
 
+	local suppressions
+	suppressions=$(read_report_suppressions)
+
 	if [[ ! -s "$previous" ]]; then
 		echo "No previous timing data found - emitting current-only report."
-		jq '{
+		jq --argjson suppressions "$suppressions" '
+		def matches_suppression($name; $entries):
+			any($entries[];
+				. as $entry
+				| $name == $entry or ($name | startswith($entry + "/"))
+			);
+		def without_suppressed_tests:
+			with_entries(select(.key as $name | matches_suppression($name; $suppressions.tests) | not));
+
+		{
 			baseline: true,
 			current_total_sec: ((.total_sec * 10 | round) / 10),
 			previous_total_sec: null,
 			total_delta_sec: null,
 			slow_packages: (
-				.packages | to_entries | sort_by(-.value.wall_sec) | .[:5] | map({
+				.packages | to_entries
+				| map(select(.key as $name | matches_suppression($name; $suppressions.packages) | not))
+				| sort_by(-.value.wall_sec) | .[:5] | map({
 					package: .key,
 					current_sec: .value.wall_sec,
 					previous_sec: null,
 					delta_sec: null,
 					top_tests: (
-						.value.tests | to_entries | sort_by(-.value) | .[:5] | map({
+						.value.tests | without_suppressed_tests | to_entries | sort_by(-.value) | .[:5] | map({
 							name: .key,
 							current_sec: .value,
 							previous_sec: null,
@@ -704,9 +744,18 @@ cmd_compare_timing() {
 	fi
 
 	jq -n \
+		--argjson suppressions "$suppressions" \
 		--slurpfile curr "$current" \
 		--slurpfile prev "$previous" \
 		'
+		def matches_suppression($name; $entries):
+			any($entries[];
+				. as $entry
+				| $name == $entry or ($name | startswith($entry + "/"))
+			);
+		def without_suppressed_tests:
+			with_entries(select(.key as $name | matches_suppression($name; $suppressions.tests) | not));
+
 		($curr[0]) as $c |
 		($prev[0]) as $p |
 		($c.packages) as $cp |
@@ -727,12 +776,16 @@ cmd_compare_timing() {
 					then (($cs - $ps) * 10 | round / 10)
 					else null end
 				),
-				current_tests: ($cp[$pkg].tests // {}),
-				previous_tests: ($pp[$pkg].tests // {})
+				current_tests: (($cp[$pkg].tests // {}) | without_suppressed_tests),
+				previous_tests: (($pp[$pkg].tests // {}) | without_suppressed_tests)
 			}
 		)) as $pkg_diff |
 
-		([$pkg_diff[] | select(.current_sec != null)] | sort_by(-.current_sec) | .[:5] | map(
+		($pkg_diff
+		 | map(select(.package as $name | matches_suppression($name; $suppressions.packages) | not))
+		) as $visible_pkg_diff |
+
+		([$visible_pkg_diff[] | select(.current_sec != null)] | sort_by(-.current_sec) | .[:5] | map(
 			. as $row |
 			{
 				package: $row.package,
@@ -757,7 +810,7 @@ cmd_compare_timing() {
 			}
 		)) as $slow_packages |
 
-		([$pkg_diff[] | select(.delta_sec != null and .delta_sec > 0)]
+		([$visible_pkg_diff[] | select(.delta_sec != null and .delta_sec > 0)]
 		 | sort_by(-.delta_sec) | .[:5] | map({
 			package: .package,
 			current_sec: .current_sec,

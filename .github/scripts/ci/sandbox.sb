@@ -1,0 +1,47 @@
+;; macOS seatbelt profile that blocks the side effects a unit test run should
+;; not have. It binds the process and everything it spawns.
+;;
+;; Apple documents sandbox-exec(1) and sandbox(7) but not the profile language
+;; below. The working reference for the syntax is the set of profiles Apple
+;; ships in /System/Library/Sandbox/Profiles.
+;;
+;; Network: nothing beyond loopback. Loopback stays open so tests can stand up
+;; httptest servers. Unix domain sockets stay open too, because the platform
+;; reaches system daemons (mDNSResponder, notifyd) through them. Name resolution
+;; still succeeds as a result. Connecting to what it resolves does not.
+;;
+;; Writes: nothing outside the directories a run owns, which are its temp dir,
+;; the Go build and module caches, and Terragrunt's user cache. The checked-out
+;; source tree is not among them. A test that writes into testdata or a fixture
+;; fails here instead of leaving the change behind for the next run.
+;;
+;; Execution: no real OpenTofu or Terraform binary. The `tf` build tag marks
+;; the tests that need one, and the integration jobs run those against a real
+;; toolchain. A test that needs to stand in for the binary substitutes
+;; vexec.NewMemExec instead of putting a mock on PATH.
+;;
+;; Reads are untouched.
+(version 1)
+(allow default)
+
+(deny network*)
+(allow network-bind (local ip "localhost:*"))
+(allow network-inbound (local ip "localhost:*"))
+(allow network-outbound (remote ip "localhost:*"))
+(allow network-outbound (remote unix-socket))
+
+(deny file-write*)
+(allow file-write* (subpath (param "TMP")))
+(allow file-write* (subpath (param "GOCACHE")))
+(allow file-write* (subpath (param "GOMODCACHE")))
+(allow file-write* (subpath (param "TGCACHE")))
+
+(deny process-exec (regex #"/(tofu|terraform)$"))
+
+;; Terminal and null devices, which the test binary and anything it spawns write
+;; through for ordinary output.
+(allow file-write-data (literal "/dev/null"))
+(allow file-write-data (literal "/dev/dtracehelper"))
+(allow file-write* (regex #"^/dev/tty"))
+(allow file-write* (regex #"^/dev/pty"))
+(allow file-write* (regex #"^/dev/ptmx"))

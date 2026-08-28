@@ -107,8 +107,7 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	_, err = config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.Error(t, err)
 
-	var target config.CouldNotEvaluateAllLocalsError
-	if !errors.As(err, &target) {
+	if _, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err); !ok {
 		t.Fatalf("Did not get expected error: %s", err)
 	}
 }

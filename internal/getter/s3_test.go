@@ -157,12 +157,12 @@ func TestS3SessionCredentialEndpointHosts(t *testing.T) {
 			var called atomic.Bool
 
 			sess, err := session.NewSession(&aws.Config{
-				Region: aws.String("us-east-1"),
+				Region: new("us-east-1"),
 				HTTPClient: &http.Client{
 					Transport: recordingTransport(&called),
 				},
-				CredentialsChainVerboseErrors: aws.Bool(true),
-				MaxRetries:                    aws.Int(0),
+				CredentialsChainVerboseErrors: new(true),
+				MaxRetries:                    new(0),
 			})
 			require.NoError(t, err)
 
@@ -211,7 +211,7 @@ func TestS3SessionEKSPodIdentityAuthTokenFile(t *testing.T) {
 	var gotAuthHeader string
 
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String("us-east-1"),
+		Region: new("us-east-1"),
 		HTTPClient: &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				gotAuthHeader = req.Header.Get("Authorization")
@@ -223,7 +223,7 @@ func TestS3SessionEKSPodIdentityAuthTokenFile(t *testing.T) {
 				}, nil
 			}),
 		},
-		MaxRetries: aws.Int(0),
+		MaxRetries: new(0),
 	})
 	require.NoError(t, err)
 

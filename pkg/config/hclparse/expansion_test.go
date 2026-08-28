@@ -640,6 +640,119 @@ dependency "vpc" {
 	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
 }
 
+// WithSkipLabels leaves a named block undecoded, so an unresolvable reference inside it never
+// gets evaluated.
+func TestExpandBlocksSkipLabels(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+dependency "broken" {
+  path = local.undefined
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	_, err = file.ExpandBlocks("dependency", new(testBlock), nil)
+	require.Error(t, err, "without the option, the unresolvable reference must fail the decode")
+
+	instances, err := file.ExpandBlocks(
+		"dependency", new(testBlock), nil,
+		hclparse.WithSkipLabels(map[string]struct{}{"broken": {}}),
+	)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
+}
+
+// A block whose label is NOT in the skip set still fails.
+func TestExpandBlocksSkipLabelsNonMatchingStillFails(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+dependency "broken" {
+  path = local.undefined
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	_, err = file.ExpandBlocks(
+		"dependency", new(testBlock), nil,
+		hclparse.WithSkipLabels(map[string]struct{}{"other": {}}),
+	)
+	require.Error(t, err, "a label outside the skip set must still fail the decode")
+}
+
+// An expanded block is decoded even when its label is in the skip set. Its instances carry keys
+// the bare label cannot name.
+func TestExpandBlocksSkipLabelsKeepsExpandedBlock(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+dependency "vpc" {
+  expansion {
+    for_each = local.services
+  }
+
+  path = "../vpc-${each.value}"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"local": cty.ObjectVal(map[string]cty.Value{
+				"services": cty.SetVal([]cty.Value{cty.StringVal("api"), cty.StringVal("web")}),
+			}),
+		},
+	}
+
+	instances, err := file.ExpandBlocks(
+		"dependency", new(testBlock), evalCtx,
+		hclparse.WithSkipLabels(map[string]struct{}{"vpc": {}}),
+	)
+	require.NoError(t, err)
+	require.Len(t, instances, 2)
+	assert.Equal(t, "../vpc-api", instances[0].Value.(*testBlock).Path)
+	assert.Equal(t, "../vpc-web", instances[1].Value.(*testBlock).Path)
+}
+
+// UnexpandedLabels reads labels off the block header, so a block whose body cannot be
+// evaluated still reports its label. An expanded block does not.
+func TestUnexpandedLabels(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+dependency "broken" {
+  path = local.undefined
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+
+dependency "shard" {
+  expansion {
+    for_each = local.services
+  }
+
+  path = "../shard-${each.value}"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	labels, err := file.UnexpandedLabels("dependency", new(testBlock))
+	require.NoError(t, err)
+	assert.Equal(t, map[string]struct{}{"broken": {}, "vpc": {}}, labels)
+}
+
 func expand(
 	tb testing.TB,
 	cfg string,

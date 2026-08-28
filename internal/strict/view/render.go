@@ -6,6 +6,6 @@ type Render interface {
 	// List renders the list of controls.
 	List(controls strict.Controls) (string, error)
 
-	// DetailControl renders the detailed information about the control, including its subcontrols.
-	DetailControl(control strict.Control) (string, error)
+	// DetailSubcontrols renders the subcontrols of a single control.
+	DetailSubcontrols(subcontrols strict.Controls) (string, error)
 }
