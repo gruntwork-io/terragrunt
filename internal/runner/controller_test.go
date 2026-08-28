@@ -1,4 +1,4 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -64,18 +64,18 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		components[i] = u
 	}
 
-	runner := func(ctx context.Context, u *component.Unit) error {
+	rnr := func(ctx context.Context, u *component.Unit) error {
 		return nil
 	}
 
 	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
-	dagRunner := runnerpool.NewController(
+	dagRunner := runner.NewController(
 		q,
 		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(2),
+		runner.WithRunner(rnr),
+		runner.WithMaxConcurrency(2),
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		},
 	)
 
-	runner := func(ctx context.Context, u *component.Unit) error {
+	rnr := func(ctx context.Context, u *component.Unit) error {
 		return nil
 	}
 
@@ -106,11 +106,11 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
-	dagRunner := runnerpool.NewController(
+	dagRunner := runner.NewController(
 		q,
 		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(2),
+		runner.WithRunner(rnr),
+		runner.WithMaxConcurrency(2),
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		},
 	)
 
-	runner := func(ctx context.Context, u *component.Unit) error {
+	rnr := func(ctx context.Context, u *component.Unit) error {
 		if u.Path() == "A" {
 			return errors.New("unit A failed")
 		}
@@ -144,11 +144,11 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	require.NoError(t, err)
 
 	q.FailFast = true
-	dagRunner := runnerpool.NewController(
+	dagRunner := runner.NewController(
 		q,
 		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(2),
+		runner.WithRunner(rnr),
+		runner.WithMaxConcurrency(2),
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
@@ -158,7 +158,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	}
 }
 
-// TestRunnerPool_RunnerNotSet pins the typed error returned when a controller runs without a runner.
+// TestRunnerPool_RunnerNotSet pins the typed error returned when a controller runs without a unit runner.
 func TestRunnerPool_RunnerNotSet(t *testing.T) {
 	t.Parallel()
 
@@ -167,8 +167,8 @@ func TestRunnerPool_RunnerNotSet(t *testing.T) {
 	q, err := queue.NewQueue(component.Components{units[0]})
 	require.NoError(t, err)
 
-	err = runnerpool.NewController(q, units).Run(t.Context(), logger.CreateLogger())
-	require.ErrorIs(t, err, runnerpool.ErrRunnerNotSet)
+	err = runner.NewController(q, units).Run(t.Context(), logger.CreateLogger())
+	require.ErrorIs(t, err, runner.ErrRunnerNotSet)
 }
 
 // TestRunnerPool_NonPositiveConcurrencyRunsSerially pins that a non-positive concurrency is clamped to one worker.
@@ -207,10 +207,10 @@ func TestRunnerPool_NonPositiveConcurrencyRunsSerially(t *testing.T) {
 			}
 		}
 
-		dagRunner := runnerpool.NewController(
+		dagRunner := runner.NewController(
 			q,
 			units,
-			runnerpool.WithRunner(func(_ context.Context, u *component.Unit) error {
+			runner.WithRunner(func(_ context.Context, u *component.Unit) error {
 				done := enter(u.Path())
 				defer done()
 
@@ -219,7 +219,7 @@ func TestRunnerPool_NonPositiveConcurrencyRunsSerially(t *testing.T) {
 
 				return nil
 			}),
-			runnerpool.WithMaxConcurrency(0),
+			runner.WithMaxConcurrency(0),
 		)
 		require.NoError(t, dagRunner.Run(t.Context(), logger.CreateLogger()))
 
@@ -241,15 +241,15 @@ func TestRunnerPool_UnitMissingFromDiscoveredUnits(t *testing.T) {
 	require.NoError(t, err)
 
 	// The controller is handed no units, so the queue entry has nothing to run.
-	dagRunner := runnerpool.NewController(
+	dagRunner := runner.NewController(
 		q,
 		nil,
-		runnerpool.WithRunner(func(context.Context, *component.Unit) error { return nil }),
+		runner.WithRunner(func(context.Context, *component.Unit) error { return nil }),
 	)
 
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 
-	var target runnerpool.UnitNotDiscoveredError
+	var target runner.UnitNotDiscoveredError
 
 	require.ErrorAs(t, err, &target)
 	assert.Equal(t, "A", target.UnitPath, "the error carries the path that had no discovered unit")
@@ -267,10 +267,10 @@ func TestRunnerPool_ContextCancelled(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 
-	dagRunner := runnerpool.NewController(
+	dagRunner := runner.NewController(
 		q,
 		units,
-		runnerpool.WithRunner(func(context.Context, *component.Unit) error {
+		runner.WithRunner(func(context.Context, *component.Unit) error {
 			close(started)
 			<-release
 
@@ -316,7 +316,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *component.Unit) error {
+	rnr := func(ctx context.Context, u *component.Unit) error {
 		if u.Path() == "B" {
 			return errors.New("unit B failed")
 		}
@@ -332,11 +332,11 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
-	dagRunner := runnerpool.NewController(
+	dagRunner := runner.NewController(
 		q,
 		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(8),
+		runner.WithRunner(rnr),
+		runner.WithMaxConcurrency(8),
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
@@ -351,7 +351,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *component.Unit) error {
+	rnr := func(ctx context.Context, u *component.Unit) error {
 		if u.Path() == "A" {
 			return errors.New("unit A failed")
 		}
@@ -368,11 +368,11 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 	require.NoError(t, err)
 
 	q.FailFast = true
-	dagRunner := runnerpool.NewController(
+	dagRunner := runner.NewController(
 		q,
 		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(8),
+		runner.WithRunner(rnr),
+		runner.WithMaxConcurrency(8),
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
@@ -393,7 +393,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *component.Unit) error {
+	rnr := func(ctx context.Context, u *component.Unit) error {
 		if u.Path() == "B" {
 			return errors.New("unit B failed")
 		}
@@ -410,11 +410,11 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	require.NoError(t, err)
 
 	q.FailFast = true
-	dagRunner := runnerpool.NewController(
+	dagRunner := runner.NewController(
 		q,
 		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(8),
+		runner.WithRunner(rnr),
+		runner.WithMaxConcurrency(8),
 	)
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)

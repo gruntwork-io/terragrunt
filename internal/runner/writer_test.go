@@ -1,4 +1,4 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 )
 
 func TestUnitWriter_WriteErrorPropagation(t *testing.T) {
@@ -17,7 +17,7 @@ func TestUnitWriter_WriteErrorPropagation(t *testing.T) {
 	writeErr := errors.New("write failed")
 	failingWriter := &failingWriter{err: writeErr}
 
-	writer := runnerpool.NewUnitWriter(failingWriter)
+	writer := runner.NewUnitWriter(failingWriter)
 
 	data := []byte("line 1\nline 2\n")
 	n, err := writer.Write(data)
@@ -36,7 +36,7 @@ func TestUnitWriter_FlushCompleteLines(t *testing.T) {
 
 	var buf strings.Builder
 
-	writer := runnerpool.NewUnitWriter(&buf)
+	writer := runner.NewUnitWriter(&buf)
 
 	data := []byte("line 1\nline 2\npartial")
 	_, err := writer.Write(data)
@@ -57,14 +57,14 @@ func TestUnitWriter_Unwrap(t *testing.T) {
 
 	var buf strings.Builder
 
-	writer := runnerpool.NewUnitWriter(&buf)
+	writer := runner.NewUnitWriter(&buf)
 	assert.Equal(t, &buf, writer.Unwrap())
 }
 
 func TestUnitWriter_NilOutput(t *testing.T) {
 	t.Parallel()
 
-	writer := runnerpool.NewUnitWriter(nil)
+	writer := runner.NewUnitWriter(nil)
 
 	n, err := writer.Write([]byte("data\n"))
 	require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestUnitWriter_NoNewline(t *testing.T) {
 
 	var buf strings.Builder
 
-	writer := runnerpool.NewUnitWriter(&buf)
+	writer := runner.NewUnitWriter(&buf)
 
 	_, err := writer.Write([]byte("no newline"))
 	require.NoError(t, err)

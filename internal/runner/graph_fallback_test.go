@@ -1,6 +1,6 @@
 //go:build tf
 
-package runnerpool_test
+package runner_test
 
 import (
 	"os"
@@ -10,9 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -73,8 +72,7 @@ dependency "db" {
 	require.NoError(t, parseErr)
 
 	optsOn.Filters = parsedFilters
-	// Build runner
-	runnerOn, err := runnerpool.Build(ctx, l, venvtest.NewOSWithEmptyEnv(), optsOn)
+	runnerOn, err := runner.New(ctx, l, venvtest.NewOSWithEmptyEnv(), optsOn)
 	require.NoError(t, err)
 	// Collect unit paths
 	onPaths := make([]string, 0, len(runnerOn.GetStack().Units))
@@ -87,12 +85,12 @@ dependency "db" {
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option
-	runnerOff, err := runnerpool.Build(
+	runnerOff, err := runner.New(
 		ctx,
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		optsOff,
-		discovery.WithGraphTarget(vpcDir),
+		runner.WithGraphTarget(vpcDir),
 	)
 	require.NoError(t, err)
 

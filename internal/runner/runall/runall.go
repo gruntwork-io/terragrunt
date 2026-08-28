@@ -8,7 +8,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
@@ -45,9 +44,7 @@ var runAllDisabledCommands = map[string]string{
 		" and thus should not be run with run --all.",
 }
 
-// Run executes the configured terraform command across every unit in the
-// stack. v is the virtualized environment threaded through the runner pool
-// into each unit's run pipeline.
+// Run executes the configured terraform command across every unit in the stack.
 func Run(
 	ctx context.Context,
 	l log.Logger,
@@ -71,7 +68,7 @@ func Run(
 		}
 	}
 
-	runnerOpts := []common.Option{}
+	runnerOpts := []runner.Option{}
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -194,10 +191,10 @@ func Run(
 
 	// Pass worktrees to runner for git filter expressions
 	if wts != nil && len(wts.WorktreePairs) > 0 {
-		runnerOpts = append(runnerOpts, common.WithWorktrees(wts))
+		runnerOpts = append(runnerOpts, runner.WithWorktrees(wts))
 	}
 
-	rnr, err := runner.NewStackRunner(ctx, l, v, opts, runnerOpts...)
+	rnr, err := runner.New(ctx, l, v, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}
@@ -205,13 +202,13 @@ func Run(
 	return RunAllOnStack(ctx, l, v, opts, rnr, r)
 }
 
-// RunAllOnStack drives the supplied [common.StackRunner] to completion.
+// RunAllOnStack drives the supplied [runner.Runner] to completion.
 func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
-	rnr common.StackRunner,
+	rnr *runner.Runner,
 	r *report.Report,
 ) error {
 	l.Debugf("%s", rnr.GetStack().String())

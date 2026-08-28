@@ -1,4 +1,4 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"context"
@@ -12,9 +12,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -24,7 +23,7 @@ import (
 )
 
 // TestBuild pins which units Build discovers for a given set of options.
-func TestBuild(t *testing.T) {
+func TestNew(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty working dir yields no units", func(t *testing.T) {
@@ -33,7 +32,7 @@ func TestBuild(t *testing.T) {
 		v := memVenv(tfVersionOutput)
 		require.NoError(t, v.FS.MkdirAll(memRoot, 0o755))
 
-		rnr, err := runnerpool.Build(
+		rnr, err := runner.New(
 			t.Context(),
 			thlogger.CreateLogger(),
 			v,
@@ -50,7 +49,7 @@ func TestBuild(t *testing.T) {
 		writeUnit(t, v, memRoot, "vpc", "")
 		writeUnit(t, v, memRoot, "app", dependencyBlock("../vpc"))
 
-		rnr, err := runnerpool.Build(
+		rnr, err := runner.New(
 			t.Context(),
 			thlogger.CreateLogger(),
 			v,
@@ -79,7 +78,7 @@ func TestBuild(t *testing.T) {
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.WorkingDir = filepath.Join(memRoot, "app")
 
-		rnr, err := runnerpool.Build(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 		assert.Len(
 			t,
@@ -100,7 +99,7 @@ func TestBuild(t *testing.T) {
 		opts.RootWorkingDir = ""
 		opts.WorkingDir = filepath.Join(memRoot, "app")
 
-		rnr, err := runnerpool.Build(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
@@ -122,7 +121,7 @@ func TestBuild(t *testing.T) {
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.TerragruntConfigPath = filepath.Join(memRoot, "custom.hcl")
 
-		rnr, err := runnerpool.Build(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
@@ -146,12 +145,12 @@ func TestBuild(t *testing.T) {
 		opts.Filters = filters
 		opts.DiscoveryBoundary = memRoot
 
-		rnr, err := runnerpool.Build(
+		rnr, err := runner.New(
 			t.Context(),
 			l,
 			v,
 			opts,
-			common.WithWorktrees(&worktrees.Worktrees{OriginalWorkingDir: memRoot}),
+			runner.WithWorktrees(&worktrees.Worktrees{OriginalWorkingDir: memRoot}),
 		)
 		require.NoError(t, err)
 
@@ -166,7 +165,7 @@ func TestBuild(t *testing.T) {
 		v := memVenv(tfVersionOutput)
 		writeUnit(t, v, memRoot, "vpc", invalidHCL)
 
-		_, err := runnerpool.Build(
+		_, err := runner.New(
 			t.Context(),
 			thlogger.CreateLogger(),
 			v,
@@ -185,13 +184,13 @@ func TestBuild(t *testing.T) {
 		opts.WorkingDir = filepath.Join(memRoot, "does-not-exist")
 		opts.RootWorkingDir = opts.WorkingDir
 
-		_, err := runnerpool.Build(t.Context(), thlogger.CreateLogger(), v, opts)
+		_, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
 		require.Error(t, err)
 	})
 }
 
 // TestBuild_VersionConstraints pins the typed errors Build returns for unsatisfied version constraints.
-func TestBuild_VersionConstraints(t *testing.T) {
+func TestNew_VersionConstraints(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -251,7 +250,7 @@ func TestBuild_VersionConstraints(t *testing.T) {
 			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 			opts.TerragruntVersion = goversion.Must(goversion.NewVersion("0.1.0"))
 
-			rnr, err := runnerpool.Build(t.Context(), thlogger.CreateLogger(), v, opts)
+			rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
 
 			if tc.assertErr != nil {
 				tc.assertErr(t, err)
@@ -282,10 +281,10 @@ func TestCheckUnitVersionConstraints_UnitLeftUnparsed(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	unitOpts, unitLogger, err := runnerpool.BuildUnitOpts(l, opts, unit)
+	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runnerpool.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
 
 	var target run.InvalidTerragruntVersion
 
@@ -293,7 +292,7 @@ func TestCheckUnitVersionConstraints_UnitLeftUnparsed(t *testing.T) {
 }
 
 // TestBuild_TerraformBinaryOverridesVersionProbe pins that the version probe runs a unit's terraform_binary.
-func TestBuild_TerraformBinaryOverridesVersionProbe(t *testing.T) {
+func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -312,7 +311,7 @@ func TestBuild_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 
 	writeUnit(t, v, memRoot, "vpc", `terraform_binary = "custom-tofu"`)
 
-	_, err := runnerpool.Build(
+	_, err := runner.New(
 		t.Context(),
 		thlogger.CreateLogger(),
 		v,

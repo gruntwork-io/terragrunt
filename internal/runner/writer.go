@@ -1,4 +1,4 @@
-package runnerpool
+package runner
 
 import (
 	"bytes"
@@ -6,16 +6,16 @@ import (
 	"sync"
 )
 
-// UnitWriter buffers output for a single unit and flushes incrementally during execution.
-// This prevents interleaved output when multiple units run in parallel while ensuring
-// output appears in real-time during execution, not just at completion.
+// UnitWriter buffers output for a single unit and flushes each complete line as it
+// arrives. Buffering keeps parallel units from interleaving their output. Flushing per
+// line keeps that output appearing during the run instead of only at the end.
 type UnitWriter struct {
 	out    io.Writer
 	buffer bytes.Buffer
 	mu     sync.Mutex
 }
 
-// NewUnitWriter returns a new UnitWriter instance.
+// NewUnitWriter returns a [UnitWriter] that writes to w.
 func NewUnitWriter(w io.Writer) *UnitWriter {
 	return &UnitWriter{
 		out: w,
@@ -75,7 +75,7 @@ func (writer *UnitWriter) Flush() error {
 	return nil
 }
 
-// Unwrap returns the underlying output writer that this UnitWriter wraps.
+// Unwrap returns the writer this [UnitWriter] wraps.
 func (writer *UnitWriter) Unwrap() io.Writer {
 	return writer.out
 }

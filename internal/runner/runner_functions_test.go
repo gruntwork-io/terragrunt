@@ -1,4 +1,4 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"path/filepath"
@@ -11,8 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -23,29 +22,29 @@ import (
 func TestLogUnitDeployOrder_Flat(t *testing.T) {
 	t.Parallel()
 
-	runner := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
+	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
-	err := runner.LogUnitDeployOrder(l, venvtest.New(), false, false, nil)
+	err := rnr.LogUnitDeployOrder(l, venvtest.New(), false, false, nil)
 	require.NoError(t, err)
 }
 
 func TestLogUnitDeployOrder_Destroy(t *testing.T) {
 	t.Parallel()
 
-	runner := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
+	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
-	err := runner.LogUnitDeployOrder(l, venvtest.New(), true, false, nil)
+	err := rnr.LogUnitDeployOrder(l, venvtest.New(), true, false, nil)
 	require.NoError(t, err)
 }
 
 func TestJSONUnitDeployOrder(t *testing.T) {
 	t.Parallel()
 
-	runner := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
+	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 
-	result, err := runner.JSONUnitDeployOrder(false, true)
+	result, err := rnr.JSONUnitDeployOrder(false, true)
 	require.NoError(t, err)
 	assert.Contains(t, result, "/tmp/test/vpc")
 	assert.Contains(t, result, "/tmp/test/app")
@@ -54,9 +53,9 @@ func TestJSONUnitDeployOrder(t *testing.T) {
 func TestJSONUnitDeployOrder_Destroy(t *testing.T) {
 	t.Parallel()
 
-	runner := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
+	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 
-	result, err := runner.JSONUnitDeployOrder(true, false)
+	result, err := rnr.JSONUnitDeployOrder(true, false)
 	require.NoError(t, err)
 	assert.Contains(t, result, "vpc")
 	assert.Contains(t, result, "app")
@@ -65,9 +64,9 @@ func TestJSONUnitDeployOrder_Destroy(t *testing.T) {
 func TestListStackDependentUnits_NoDeps(t *testing.T) {
 	t.Parallel()
 
-	runner := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc"})
+	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc"})
 
-	deps := runner.ListStackDependentUnits()
+	deps := rnr.ListStackDependentUnits()
 	assert.Empty(t, deps)
 }
 
@@ -78,9 +77,9 @@ func TestListStackDependentUnits_WithDeps(t *testing.T) {
 	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
 	app.AddDependency(vpc)
 
-	runner := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, app})
+	rnr := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, app})
 
-	deps := runner.ListStackDependentUnits()
+	deps := rnr.ListStackDependentUnits()
 	require.Contains(t, deps, "/tmp/test/vpc")
 	assert.Contains(t, deps["/tmp/test/vpc"], "/tmp/test/app")
 }
@@ -95,7 +94,7 @@ func TestFilterDiscoveredUnits_ExcludesExcluded(t *testing.T) {
 	units := []*component.Unit{vpc, app}
 	discovered := component.Components{vpc, app}
 
-	filtered := runnerpool.FilterDiscoveredUnits(discovered, units)
+	filtered := runner.FilterDiscoveredUnits(discovered, units)
 	require.Len(t, filtered, 1)
 	assert.Equal(t, "/tmp/test/vpc", filtered[0].Path())
 }
@@ -109,18 +108,18 @@ func TestFilterDiscoveredUnits_AllIncluded(t *testing.T) {
 	units := []*component.Unit{vpc, app}
 	discovered := component.Components{vpc, app}
 
-	filtered := runnerpool.FilterDiscoveredUnits(discovered, units)
+	filtered := runner.FilterDiscoveredUnits(discovered, units)
 	require.Len(t, filtered, 2)
 }
 
 func TestFilterDiscoveredUnits_Empty(t *testing.T) {
 	t.Parallel()
 
-	filtered := runnerpool.FilterDiscoveredUnits(nil, nil)
+	filtered := runner.FilterDiscoveredUnits(nil, nil)
 	assert.Empty(t, filtered)
 }
 
-func TestNewRunnerPoolStack_Empty(t *testing.T) {
+func TestNewFromComponents_Empty(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
@@ -128,32 +127,32 @@ func TestNewRunnerPoolStack_Empty(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		l,
 		opts,
 		component.Components{},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, runner)
+	require.NotNil(t, rnr)
 
-	stack := runner.GetStack()
+	stack := rnr.GetStack()
 	assert.Empty(t, stack.Units)
 }
 
 func TestLogUnitDeployOrder_DAGExperiment(t *testing.T) {
 	t.Parallel()
 
-	runner := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
+	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
 	exps := experiment.NewExperiments()
 
-	err := runner.LogUnitDeployOrder(l, venvtest.New(), false, false, exps)
+	err := rnr.LogUnitDeployOrder(l, venvtest.New(), false, false, exps)
 	require.NoError(t, err)
 }
 
-func TestNewRunnerPoolStack_WithPreventDestroy(t *testing.T) {
+func TestNewFromComponents_WithPreventDestroy(t *testing.T) {
 	t.Parallel()
 
 	prevent := true
@@ -170,17 +169,17 @@ func TestNewRunnerPoolStack_WithPreventDestroy(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		l,
 		opts,
 		component.Components{vpc, app},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, runner)
+	require.NotNil(t, rnr)
 
 	// vpc should be excluded due to prevent_destroy
-	stack := runner.GetStack()
+	stack := rnr.GetStack()
 
 	foundVPC := false
 
@@ -195,7 +194,7 @@ func TestNewRunnerPoolStack_WithPreventDestroy(t *testing.T) {
 	require.True(t, foundVPC, "expected /tmp/test/vpc unit in stack")
 }
 
-func TestNewRunnerPoolStack_FilterAllowDestroy(t *testing.T) {
+func TestNewFromComponents_FilterAllowDestroy(t *testing.T) {
 	t.Parallel()
 
 	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
@@ -213,7 +212,7 @@ func TestNewRunnerPoolStack_FilterAllowDestroy(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		l,
 		opts,
@@ -221,7 +220,7 @@ func TestNewRunnerPoolStack_FilterAllowDestroy(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	stack := runner.GetStack()
+	stack := rnr.GetStack()
 
 	foundVPC := false
 
@@ -269,7 +268,7 @@ func TestFilterDiscoveredUnits_PrunesAndAugments(t *testing.T) {
 	discDB.AddDependency(component.NewUnit(unitPath("vpc")))
 	discDB.AddDependency(component.NewUnit(unitPath("old")))
 
-	filtered := runnerpool.FilterDiscoveredUnits(
+	filtered := runner.FilterDiscoveredUnits(
 		component.Components{component.NewStack(unitPath("stack")), discVPC, discDB},
 		[]*component.Unit{vpc, db, old, app},
 	)
@@ -291,7 +290,7 @@ func TestFilterDiscoveredUnits_PrunesAndAugments(t *testing.T) {
 	assert.Equal(t, []string{unitPath("db")}, dependencyPaths(byPath[unitPath("app")]))
 }
 
-func TestNewRunnerPoolStack_PreventDestroyExcludesDependencies(t *testing.T) {
+func TestNewFromComponents_PreventDestroyExcludesDependencies(t *testing.T) {
 	t.Parallel()
 
 	prevent := true
@@ -306,7 +305,7 @@ func TestNewRunnerPoolStack_PreventDestroyExcludesDependencies(t *testing.T) {
 
 	opts.TerraformCommand = tf.CommandNameDestroy
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		thlogger.CreateLogger(),
 		opts,
@@ -314,12 +313,12 @@ func TestNewRunnerPoolStack_PreventDestroyExcludesDependencies(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	for _, unit := range runner.GetStack().Units {
+	for _, unit := range rnr.GetStack().Units {
 		assert.True(t, unit.Excluded(), "%s should be excluded", unit.Path())
 	}
 }
 
-func TestNewRunnerPoolStack_DestroyWithoutProtectedUnits(t *testing.T) {
+func TestNewFromComponents_DestroyWithoutProtectedUnits(t *testing.T) {
 	t.Parallel()
 
 	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
@@ -329,17 +328,17 @@ func TestNewRunnerPoolStack_DestroyWithoutProtectedUnits(t *testing.T) {
 
 	opts.TerraformCommand = tf.CommandNameDestroy
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
 	)
 	require.NoError(t, err)
-	assert.False(t, runner.GetStack().Units[0].Excluded())
+	assert.False(t, rnr.GetStack().Units[0].Excluded())
 }
 
-func TestNewRunnerPoolStack_FilterAllowDestroyKeepsUnit(t *testing.T) {
+func TestNewFromComponents_FilterAllowDestroyKeepsUnit(t *testing.T) {
 	t.Parallel()
 
 	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
@@ -355,30 +354,30 @@ func TestNewRunnerPoolStack_FilterAllowDestroyKeepsUnit(t *testing.T) {
 	opts.TerraformCommand = "apply"
 	opts.FilterAllowDestroy = true
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
 	)
 	require.NoError(t, err)
-	assert.False(t, runner.GetStack().Units[0].Excluded())
+	assert.False(t, rnr.GetStack().Units[0].Excluded())
 }
 
-func TestNewRunnerPoolStack_UnitWithoutParsedConfig(t *testing.T) {
+func TestNewFromComponents_UnitWithoutParsedConfig(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{component.NewUnit("/tmp/test/vpc")},
 	)
 	require.NoError(t, err)
-	assert.Len(t, runner.GetStack().Units, 1)
+	assert.Len(t, rnr.GetStack().Units, 1)
 }
 
 func TestListStackDependentUnits_Transitive(t *testing.T) {
@@ -391,14 +390,14 @@ func TestListStackDependentUnits_Transitive(t *testing.T) {
 	db.AddDependency(vpc)
 	app.AddDependency(db)
 
-	runner := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, db, app})
+	rnr := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, db, app})
 
-	deps := runner.ListStackDependentUnits()
+	deps := rnr.ListStackDependentUnits()
 	assert.ElementsMatch(t, []string{"/tmp/test/db", "/tmp/test/app"}, deps["/tmp/test/vpc"])
 	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/db"])
 }
 
-func TestNewRunnerPoolStack_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
+func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
 	t.Parallel()
 
 	prevent := true
@@ -466,7 +465,7 @@ func TestNewRunnerPoolStack_PreventDestroyWalksTheDependencyGraph(t *testing.T) 
 
 			opts.TerraformCommand = tf.CommandNameDestroy
 
-			runner, err := runnerpool.NewRunnerPoolStack(
+			rnr, err := runner.NewFromComponents(
 				t.Context(),
 				thlogger.CreateLogger(),
 				opts,
@@ -474,7 +473,7 @@ func TestNewRunnerPoolStack_PreventDestroyWalksTheDependencyGraph(t *testing.T) 
 			)
 			require.NoError(t, err)
 
-			byPath := unitsByPath(runner)
+			byPath := unitsByPath(rnr)
 
 			for _, path := range tc.excluded {
 				require.Contains(t, byPath, path)
@@ -489,12 +488,12 @@ func TestNewRunnerPoolStack_PreventDestroyWalksTheDependencyGraph(t *testing.T) 
 	}
 }
 
-// TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth pins that a protected unit only protects dependencies within the traversal bound.
-func TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
+// TestNewFromComponents_PreventDestroyStopsAtTraversalDepth pins that a protected unit only protects dependencies within the traversal bound.
+func TestNewFromComponents_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	t.Parallel()
 
 	const (
-		maxDepth = runnerpool.MaxDependencyTraversalDepth
+		maxDepth = runner.MaxDependencyTraversalDepth
 		chainLen = maxDepth + 10
 	)
 
@@ -519,7 +518,7 @@ func TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 
 	opts.TerraformCommand = tf.CommandNameDestroy
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		thlogger.CreateLogger(),
 		opts,
@@ -527,7 +526,7 @@ func TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	byPath := unitsByPath(runner)
+	byPath := unitsByPath(rnr)
 
 	require.Contains(t, byPath, unitPathAt(maxDepth))
 	require.Contains(t, byPath, unitPathAt(maxDepth+1))
@@ -536,8 +535,8 @@ func TestNewRunnerPoolStack_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	assert.False(t, byPath[unitPathAt(maxDepth+1)].Excluded(), "first unit beyond the depth bound")
 }
 
-// TestNewRunnerPoolStack_WithGitRefsAndStateBackends pins stack construction across Git ref and state backend combinations.
-func TestNewRunnerPoolStack_WithGitRefsAndStateBackends(t *testing.T) {
+// TestNewFromComponents_WithGitRefsAndStateBackends pins stack construction across Git ref and state backend combinations.
+func TestNewFromComponents_WithGitRefsAndStateBackends(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -590,19 +589,19 @@ func TestNewRunnerPoolStack_WithGitRefsAndStateBackends(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 			require.NoError(t, err)
 
-			runner, err := runnerpool.NewRunnerPoolStack(
+			rnr, err := runner.NewFromComponents(
 				t.Context(),
 				thlogger.CreateLogger(),
 				opts,
 				component.Components{unit},
 			)
 			require.NoError(t, err)
-			assert.Len(t, runner.GetStack().Units, 1, "the unit is kept whatever its state backend")
+			assert.Len(t, rnr.GetStack().Units, 1, "the unit is kept whatever its state backend")
 		})
 	}
 }
 
-func TestNewRunnerPoolStack_IgnoresStackComponents(t *testing.T) {
+func TestNewFromComponents_IgnoresStackComponents(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
@@ -613,7 +612,7 @@ func TestNewRunnerPoolStack_IgnoresStackComponents(t *testing.T) {
 		component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{}),
 	}
 
-	runner, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		thlogger.CreateLogger(),
 		opts,
@@ -621,7 +620,7 @@ func TestNewRunnerPoolStack_IgnoresStackComponents(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	units := runner.GetStack().Units
+	units := rnr.GetStack().Units
 	require.Len(t, units, 1)
 	assert.Equal(t, "/tmp/test/vpc", units[0].Path())
 }
@@ -632,8 +631,8 @@ func unitPathAt(i int) string {
 }
 
 // unitsByPath indexes the units of a runner's stack by path.
-func unitsByPath(runner common.StackRunner) map[string]*component.Unit {
-	units := runner.GetStack().Units
+func unitsByPath(rnr *runner.Runner) map[string]*component.Unit {
+	units := rnr.GetStack().Units
 	byPath := make(map[string]*component.Unit, len(units))
 
 	for _, unit := range units {
@@ -654,7 +653,7 @@ func dependencyPaths(c component.Component) []string {
 }
 
 // buildTestRunner creates a Runner with simple unit components for testing.
-func buildTestRunner(t *testing.T, workDir string, unitPaths []string) *runnerpool.Runner {
+func buildTestRunner(t *testing.T, workDir string, unitPaths []string) *runner.Runner {
 	t.Helper()
 
 	components := make(component.Components, 0, len(unitPaths))
@@ -670,7 +669,7 @@ func buildTestRunnerFromUnits(
 	t *testing.T,
 	workDir string,
 	components component.Components,
-) *runnerpool.Runner {
+) *runner.Runner {
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(workDir, "terragrunt.hcl"))
@@ -678,8 +677,8 @@ func buildTestRunnerFromUnits(
 
 	l := thlogger.CreateLogger()
 
-	runner, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, components)
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
 	require.NoError(t, err)
 
-	return runner.(*runnerpool.Runner)
+	return rnr
 }

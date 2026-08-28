@@ -1,4 +1,4 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"context"
@@ -13,8 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -44,12 +43,11 @@ func TestRunnerRun_ExcludedUnitsAreReported(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		l,
 		opts,
 		component.Components{vpc, app},
-		common.WithParseOptions(nil),
 	)
 	require.NoError(t, err)
 
@@ -85,7 +83,7 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runnerpool.NewRunnerPoolStack(
+	rnr, err := runner.NewFromComponents(
 		t.Context(),
 		l,
 		opts,
@@ -131,7 +129,7 @@ func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, component.Components{vpc, app})
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc, app})
 	require.NoError(t, err)
 
 	r := report.NewReport().WithWorkingDir(memRoot)
@@ -157,7 +155,7 @@ func TestRunnerRun_WithoutReport(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
 	require.Error(t, rnr.Run(t.Context(), l, v, opts, nil))
@@ -190,7 +188,7 @@ func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
 	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
@@ -207,7 +205,7 @@ func TestRunnerRun_UnitRunFailsWithoutBinary(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
 	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
@@ -224,7 +222,7 @@ func TestRunnerRun_UnitTerraformBinaryOverride(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 	require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
 
@@ -241,7 +239,7 @@ func TestRunnerRun_EmptyStack(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, component.Components{})
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{})
 	require.NoError(t, err)
 
 	require.NoError(
@@ -342,7 +340,7 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 
 			l := thlogger.CreateLogger()
 
-			rnr, err := runnerpool.NewRunnerPoolStack(
+			rnr, err := runner.NewFromComponents(
 				t.Context(),
 				l,
 				opts,
@@ -431,7 +429,7 @@ func TestRunnerRun_PlanWithRemoteStateErrors(t *testing.T) {
 
 			l := thlogger.CreateLogger()
 
-			rnr, err := runnerpool.NewRunnerPoolStack(t.Context(), l, opts, components)
+			rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
 			require.NoError(t, err)
 			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
 		})

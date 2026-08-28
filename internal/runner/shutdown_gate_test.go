@@ -1,4 +1,4 @@
-package runnerpool_test
+package runner_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 )
 
 // TestUnitsWithDependents verifies a unit is flagged iff another in-run unit depends on
@@ -28,7 +28,7 @@ func TestUnitsWithDependents(t *testing.T) {
 		{Component: leaf},
 	}}
 
-	got := runnerpool.UnitsWithDependents(q)
+	got := runner.UnitsWithDependents(q)
 
 	assert.True(t, got[d.Path()], "d has a dependent (y) → must be kept alive, not shut down early")
 	assert.False(t, got[y.Path()], "y has no dependents → safe to shut down early")
@@ -40,5 +40,5 @@ func TestUnitsWithDependents(t *testing.T) {
 func TestUnitsWithDependents_NilQueue(t *testing.T) {
 	t.Parallel()
 
-	assert.Empty(t, runnerpool.UnitsWithDependents(nil))
+	assert.Empty(t, runner.UnitsWithDependents(nil))
 }

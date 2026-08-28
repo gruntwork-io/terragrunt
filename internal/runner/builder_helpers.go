@@ -1,4 +1,4 @@
-package runnerpool
+package runner
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -22,13 +21,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// telemetry event names used in this file
 const (
 	telemetryDiscovery = "runner_pool_discovery"
 	telemetryCreation  = "runner_pool_creation"
 )
 
-// doWithTelemetry is a small helper to standardize telemetry collection calls.
 func doWithTelemetry(
 	ctx context.Context,
 	l log.Logger,
@@ -61,10 +58,9 @@ func buildConfigFilenames(opts *options.TerragruntOptions) []string {
 	return configFilenames
 }
 
-// extractWorktrees finds WorktreeOption in options and returns worktrees.
-func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
+func extractWorktrees(opts []Option) *worktrees.Worktrees {
 	for _, opt := range opts {
-		if wo, ok := opt.(common.WorktreeOption); ok {
+		if wo, ok := opt.(WorktreeOption); ok {
 			return wo.Worktrees
 		}
 	}
@@ -72,12 +68,11 @@ func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
 	return nil
 }
 
-// newBaseDiscovery constructs the base discovery with common immutable options.
 func newBaseDiscovery(
 	opts *options.TerragruntOptions,
 	workingDir string,
 	configFilenames []string,
-	runnerOpts ...common.Option,
+	runnerOpts ...Option,
 ) *discovery.Discovery {
 	anyOpts := make([]any, len(runnerOpts))
 	for i, v := range runnerOpts {
@@ -98,17 +93,15 @@ func newBaseDiscovery(
 	return d
 }
 
-// prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
 func prepareDiscovery(
 	opts *options.TerragruntOptions,
-	runnerOpts ...common.Option,
+	runnerOpts ...Option,
 ) *discovery.Discovery {
 	workingDir := resolveWorkingDir(opts)
 	configFilenames := buildConfigFilenames(opts)
 
 	d := newBaseDiscovery(opts, workingDir, configFilenames, runnerOpts...)
 
-	// Apply pre-parsed filters when provided
 	if len(opts.Filters) > 0 {
 		d = d.WithFilters(opts.Filters)
 	}
@@ -125,16 +118,14 @@ func prepareDiscovery(
 	return d
 }
 
-// discoverWithRetry runs discovery and retries without exclude-by-default if zero results
-// are found and modules-that-include / units-reading flags are set.
+// discoverWithRetry runs discovery once, under a telemetry span.
 func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
-	runnerOpts ...common.Option,
+	runnerOpts ...Option,
 ) (component.Components, error) {
-	// Initial discovery with current excludeByDefault setting
 	d := prepareDiscovery(opts, runnerOpts...)
 
 	var discovered component.Components
@@ -159,15 +150,13 @@ func discoverWithRetry(
 	return discovered, nil
 }
 
-// createRunner wraps runner creation with telemetry and returns the stack runner.
 func createRunner(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	comps component.Components,
-	runnerOpts ...common.Option,
-) (common.StackRunner, error) {
-	var rnr common.StackRunner
+) (*Runner, error) {
+	var rnr *Runner
 
 	err := doWithTelemetry(ctx, l, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
@@ -175,7 +164,7 @@ func createRunner(
 	}, func(childCtx context.Context, l log.Logger) error {
 		var err2 error
 
-		rnr, err2 = NewRunnerPoolStack(childCtx, l, opts, comps, runnerOpts...)
+		rnr, err2 = NewFromComponents(childCtx, l, opts, comps)
 
 		return err2
 	})
@@ -186,8 +175,8 @@ func createRunner(
 	return rnr, nil
 }
 
-// checkVersionConstraints performs version constraint checks on all discovered units concurrently.
-// It uses errgroup to coordinate concurrent checks and returns the first error encountered.
+// checkVersionConstraints checks every discovered unit concurrently and returns the
+// first error encountered.
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
@@ -197,7 +186,6 @@ func checkVersionConstraints(
 ) error {
 	g, checkCtx := errgroup.WithContext(ctx)
 
-	// Cap concurrent unit checks to user-specified parallelism or available CPUs, whichever is lower.
 	maxWorkers := min(runtime.GOMAXPROCS(0), opts.Parallelism)
 	g.SetLimit(maxWorkers)
 
