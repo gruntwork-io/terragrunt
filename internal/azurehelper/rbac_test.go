@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -375,6 +376,51 @@ func TestResolvePrincipal(t *testing.T) {
 	}
 }
 
+// TestResolvePrincipal_UsesCloudARMAudience pins that sovereign clouds request
+// their own ARM token audience instead of the public management.azure.com scope.
+func TestResolvePrincipal_UsesCloudARMAudience(t *testing.T) {
+	t.Parallel()
+
+	tt := []struct {
+		name      string
+		cloudCfg  cloud.Configuration
+		wantScope string
+	}{
+		{
+			name:      "public",
+			cloudCfg:  cloud.AzurePublic,
+			wantScope: strings.TrimSuffix(cloud.AzurePublic.Services[cloud.ResourceManager].Audience, "/") + "/.default",
+		},
+		{
+			name:      "us government",
+			cloudCfg:  cloud.AzureGovernment,
+			wantScope: strings.TrimSuffix(cloud.AzureGovernment.Services[cloud.ResourceManager].Audience, "/") + "/.default",
+		},
+		{
+			name:      "china",
+			cloudCfg:  cloud.AzureChina,
+			wantScope: strings.TrimSuffix(cloud.AzureChina.Services[cloud.ResourceManager].Audience, "/") + "/.default",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cred := &recordingCredential{token: jwtWithClaims(map[string]any{"oid": testPrincipalID})}
+			cfg := cfgWithTransport(&stubTransport{status: http.StatusOK, body: []byte(`{}`)})
+			cfg.CloudConfig = tc.cloudCfg
+			cfg.ClientOptions.Cloud = tc.cloudCfg
+			cfg.Credential = cred
+
+			got, err := azurehelper.ResolvePrincipal(t.Context(), cfg)
+			require.NoError(t, err)
+			assert.Equal(t, testPrincipalID, got.ID)
+			require.Equal(t, []string{tc.wantScope}, cred.scopes)
+		})
+	}
+}
+
 // TestAssignRole_OmitsUnknownPrincipalType pins that an unset type is left out so Azure infers it instead of answering UnmatchedPrincipalType.
 func TestAssignRole_OmitsUnknownPrincipalType(t *testing.T) {
 	t.Parallel()
@@ -441,6 +487,19 @@ type tokenCredential struct {
 }
 
 func (c tokenCredential) GetToken(_ context.Context, _ policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: c.token, ExpiresOn: time.Now().Add(time.Hour)}, nil
+}
+
+// recordingCredential captures the scopes ResolvePrincipal requested so tests
+// can assert sovereign-cloud audiences.
+type recordingCredential struct {
+	token  string
+	scopes []string
+}
+
+func (c *recordingCredential) GetToken(_ context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	c.scopes = append([]string(nil), opts.Scopes...)
+
 	return azcore.AccessToken{Token: c.token, ExpiresOn: time.Now().Add(time.Hour)}, nil
 }
 

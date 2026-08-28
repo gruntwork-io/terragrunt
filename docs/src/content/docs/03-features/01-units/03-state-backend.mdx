@@ -471,6 +471,8 @@ to any values not set in the config:
 6. Azure AD (`use_azuread_auth`, or the default credential chain, which honors `az login`)
 
 The `environment` key selects the Azure cloud: `public` (the default), `usgovernment`, or `china`.
+Built-in role definition IDs (including **Storage Blob Data Contributor**) are the same across those clouds;
+see [Understand Azure role definitions](https://learn.microsoft.com/en-us/azure/role-based-access-control/role-definitions).
 
 <Aside type="note" title="Known limitations">
 - SAS token and access key authentication are data-plane only: Terragrunt can create the blob container but not the resource group or storage account, which must already exist.

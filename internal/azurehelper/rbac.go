@@ -12,6 +12,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/google/uuid"
@@ -19,15 +20,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Built-in Azure role definition ids, stable across every subscription.
+// Built-in Azure role definition ids. Microsoft documents that built-in roles keep
+// the same role ID across clouds (Azure public, Azure Government, Azure China):
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/role-definitions
 const (
 	RoleStorageBlobDataOwner       = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
 	RoleStorageBlobDataContributor = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
 	RoleStorageBlobDataReader      = "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1"
 )
-
-// armScope is the token audience whose access token carries the caller's object id.
-const armScope = "https://management.azure.com/.default"
 
 // Principal types accepted by the role-assignment API.
 const (
@@ -115,12 +115,34 @@ func ResolvePrincipal(ctx context.Context, cfg *AzureConfig) (Principal, error) 
 		return Principal{}, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "resolving the caller principal"}
 	}
 
-	tok, err := cfg.Credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{armScope}})
+	scope, err := armTokenScope(cfg)
+	if err != nil {
+		return Principal{}, err
+	}
+
+	tok, err := cfg.Credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{scope}})
 	if err != nil {
 		return Principal{}, fmt.Errorf("acquiring token to resolve principal id: %w", err)
 	}
 
 	return principalFromToken(tok.Token)
+}
+
+// armTokenScope returns the ARM OAuth scope for cfg's cloud. Sovereign clouds
+// reject a public-cloud audience, so the scope must follow CloudConfig (or the
+// ClientOptions cloud) rather than a fixed management.azure.com value.
+func armTokenScope(cfg *AzureConfig) (string, error) {
+	cloudCfg := cfg.CloudConfig
+	if len(cloudCfg.Services) == 0 {
+		cloudCfg = cfg.ClientOptions.Cloud
+	}
+
+	svc, ok := cloudCfg.Services[cloud.ResourceManager]
+	if !ok || svc.Audience == "" {
+		return "", ErrARMAudienceRequired
+	}
+
+	return strings.TrimSuffix(svc.Audience, "/") + "/.default", nil
 }
 
 // AssignRole creates a role assignment, treating an already-existing one as success.

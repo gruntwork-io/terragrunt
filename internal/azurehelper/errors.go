@@ -24,6 +24,12 @@ var (
 	ErrNoAccessKeysReturned         = errors.New("no access keys returned for storage account")
 	ErrAllAccessKeysEmpty           = errors.New("storage account returned keys but all values were empty")
 	ErrScopePrincipalRoleArgs       = errors.New("scope, principal id, and role definition id are required")
+	// ErrARMAudienceRequired is returned when the cloud config has no Resource
+	// Manager audience, so ResolvePrincipal cannot pick a sovereign-cloud scope.
+	ErrARMAudienceRequired = errors.New(
+		"azure cloud configuration is missing a Resource Manager audience; " +
+			"set remote_state.config.environment to public, usgovernment, or china",
+	)
 	// ErrPrincipalIDUnresolved is returned when the access token has no usable oid claim.
 	// Set remote_state.config.principal_id to the Microsoft Entra object id instead.
 	ErrPrincipalIDUnresolved = errors.New(
