@@ -23,7 +23,51 @@ var (
 	ErrLocationRequired             = errors.New("location is required")
 	ErrNoAccessKeysReturned         = errors.New("no access keys returned for storage account")
 	ErrAllAccessKeysEmpty           = errors.New("storage account returned keys but all values were empty")
+	ErrScopePrincipalRoleArgs       = errors.New("scope, principal id, and role definition id are required")
+	// ErrARMAudienceRequired is returned when the cloud config has no Resource
+	// Manager audience, so ResolvePrincipal cannot pick a sovereign-cloud scope.
+	ErrARMAudienceRequired = errors.New(
+		"azure cloud configuration is missing a Resource Manager audience; " +
+			"set remote_state.config.environment to public, usgovernment, or china",
+	)
+	// ErrPrincipalIDUnresolved is returned when the access token has no usable oid claim.
+	// Set remote_state.config.principal_id to the Microsoft Entra object id instead.
+	ErrPrincipalIDUnresolved = errors.New(
+		"principal id could not be resolved from the access token; " +
+			"set remote_state.config.principal_id to the Microsoft Entra object id to assign",
+	)
 )
+
+// InvalidPrincipalIDError is returned when a principal id is not a UUID, which
+// Azure requires for the object id of a user, group, or service principal.
+// Match with errors.As.
+type InvalidPrincipalIDError struct {
+	PrincipalID string
+}
+
+func (e *InvalidPrincipalIDError) Error() string {
+	return fmt.Sprintf("principal id %q is not a valid uuid", e.PrincipalID)
+}
+
+// InvalidRoleDefinitionIDError is returned when a role definition id is not a
+// UUID. Match with errors.As.
+type InvalidRoleDefinitionIDError struct {
+	RoleDefinitionID string
+}
+
+func (e *InvalidRoleDefinitionIDError) Error() string {
+	return fmt.Sprintf("role definition id %q is not a valid uuid", e.RoleDefinitionID)
+}
+
+// TooManyRoleAssignmentPagesError is returned when a role-assignment list exceeds the page bound.
+type TooManyRoleAssignmentPagesError struct {
+	Scope    string
+	MaxPages int
+}
+
+func (e *TooManyRoleAssignmentPagesError) Error() string {
+	return fmt.Sprintf("listing role assignments at %s exceeded %d pages", e.Scope, e.MaxPages)
+}
 
 // TooManyBlobPagesError is returned when a ListBlobs walk exceeds the page
 // bound, which indicates a container far larger than a state container
