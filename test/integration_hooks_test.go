@@ -1,13 +1,10 @@
 package test_test
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
