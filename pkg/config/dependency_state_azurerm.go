@@ -258,10 +258,8 @@ func azureBackendConfigSupported(config backend.Config) bool {
 func azureEnvSupported(pctx *ParsingContext) bool {
 	env := pctx.Venv.Env
 
-	for _, key := range azureSDKAmbientEnvKeys {
-		if pctx.dependencyOutputEnvOverridden(key) {
-			return false
-		}
+	if slices.ContainsFunc(azureSDKAmbientEnvKeys, pctx.dependencyOutputEnvOverridden) {
+		return false
 	}
 
 	for _, key := range azureTrimmedEnvKeys {

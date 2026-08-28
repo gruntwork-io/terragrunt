@@ -41,7 +41,7 @@ func mockProviderWithConstraints(
 
 	var documentSB strings.Builder
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		packageName := fmt.Sprintf("%s-%s-%d", address, ver, i)
 		hasher := sha256.New()
 		_, err := hasher.Write([]byte(packageName))
@@ -84,7 +84,7 @@ func mockProviderUpdateLock(
 
 	var documentSB strings.Builder
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		packageName := fmt.Sprintf("%s-%s-%d", address, version, i)
 		hasher := sha256.New()
 		_, err := hasher.Write([]byte(packageName))
