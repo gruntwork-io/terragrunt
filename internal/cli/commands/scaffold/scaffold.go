@@ -569,11 +569,9 @@ func ExtractQueryParam(rawURL, param string) string {
 // string. Go-getter URLs may contain "::" prefixes that prevent full URL
 // parsing, but the query string is always after the final "?".
 func splitURLQuery(rawURL string) (string, string) {
-	if idx := strings.LastIndex(rawURL, "?"); idx >= 0 {
-		return rawURL[:idx], rawURL[idx+1:]
-	}
+	base, query, _ := strings.CutLast(rawURL, "?")
 
-	return rawURL, ""
+	return base, query
 }
 
 // applyCatalogConfigToScaffold applies catalog configuration settings to scaffold options.

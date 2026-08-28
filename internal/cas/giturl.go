@@ -12,11 +12,11 @@ import "net/url"
 // honored. Clone depth comes solely from --cas-clone-depth, whose default of 1
 // applies whether or not the flag was passed.
 func StripGitURLParams(u *url.URL) (*url.URL, string) {
-	stripped := *u
+	stripped := u.Clone()
 
 	q := stripped.Query()
 	if len(q) == 0 {
-		return &stripped, ""
+		return stripped, ""
 	}
 
 	ref := q.Get("ref")
@@ -26,5 +26,5 @@ func StripGitURLParams(u *url.URL) (*url.URL, string) {
 
 	stripped.RawQuery = q.Encode()
 
-	return &stripped, ref
+	return stripped, ref
 }

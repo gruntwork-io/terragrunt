@@ -14,8 +14,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"

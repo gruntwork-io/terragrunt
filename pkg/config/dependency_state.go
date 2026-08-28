@@ -2,7 +2,7 @@ package config
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"io"
 
@@ -58,61 +58,53 @@ func readDependencyStateOutputs(
 // state normally costs one buffered read instead of a full download.
 func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
 	body := &stateBodyReader{r: r}
-	d := json.NewDecoder(body)
+	// jsontext rejects duplicate names and invalid UTF-8 by default, and the v1 decoder
+	// this replaced accepted both. A state that reads today would start failing with an
+	// error whose guidance points at client-side encryption.
+	d := jsontext.NewDecoder(
+		body,
+		jsontext.AllowDuplicateNames(true),
+		jsontext.AllowInvalidUTF8(true),
+	)
 
-	tok, err := d.Token()
+	tok, err := d.ReadToken()
 	if err != nil {
 		return nil, stateReadError(body, location, err)
 	}
 
-	if delim, ok := tok.(json.Delim); !ok || delim != '{' {
+	if tok.Kind() != '{' {
 		return nil, DependencyStateParseError{
 			Err:      errors.New("state is not a JSON object"),
 			Location: location,
 		}
 	}
 
-	for d.More() {
-		key, err := d.Token()
+	// PeekKind reports an invalid kind after a read failure, which keeps this condition
+	// true so ReadToken returns the cached error instead of spinning here forever.
+	for d.PeekKind() != '}' {
+		name, err := d.ReadToken()
 		if err != nil {
 			return nil, stateReadError(body, location, err)
 		}
 
-		if name, _ := key.(string); name != "outputs" {
-			if err := skipValue(d); err != nil {
+		if name.String() != "outputs" {
+			if err := d.SkipValue(); err != nil {
 				return nil, stateReadError(body, location, err)
 			}
 
 			continue
 		}
 
-		var outputs json.RawMessage
-		if err := d.Decode(&outputs); err != nil {
+		outputs, err := d.ReadValue()
+		if err != nil {
 			return nil, stateReadError(body, location, err)
 		}
 
-		if len(outputs) == 0 {
-			return []byte("null"), nil
-		}
-
-		return outputs, nil
-	}
-
-	if _, err := d.Token(); err != nil {
-		return nil, stateReadError(body, location, err)
+		// ReadValue borrows the decoder's buffer, which the next decoder call invalidates.
+		return outputs.Clone(), nil
 	}
 
 	return []byte("null"), nil
-}
-
-// skipValue advances past the next value. Decoding into a RawMessage materializes
-// what it skips, which a token walk would avoid, but the token walk costs four times
-// as much when it has to step over a large resources array. State files put outputs
-// ahead of resources, so this normally skips only scalars.
-func skipValue(d *json.Decoder) error {
-	var skip json.RawMessage
-
-	return d.Decode(&skip)
 }
 
 // stateBodyReader records the last transport failure so a dropped connection is not

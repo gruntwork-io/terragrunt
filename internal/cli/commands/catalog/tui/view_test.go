@@ -517,7 +517,7 @@ func runUntilQuiet(t *testing.T, m tea.Model, initialCmd tea.Cmd, budget time.Du
 			}
 		}
 
-		time.Sleep(50 * time.Millisecond)
+		synctest.Sleep(50 * time.Millisecond)
 	}
 
 	return m
@@ -607,7 +607,7 @@ func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscoveryWithRacing(t *
 		// Repeatedly nudge time forward and drain. Each cycle gives any
 		// goroutines we've spawned a chance to finish and push onto msgCh.
 		for range 20 {
-			time.Sleep(100 * time.Millisecond)
+			synctest.Sleep(100 * time.Millisecond)
 			drainOnce()
 		}
 
