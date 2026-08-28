@@ -516,29 +516,50 @@ func (rnr *Runner) Run(
 
 				var cfg *config.TerragruntConfig
 
+				// Discovery already partial-parsed this unit's errors block, so its own retry rules govern the full parse too.
+				if unitOpts.Experiments.Evaluate(experiment.RetryParseErrors) {
+					if storedCfg := u.Config(); storedCfg != nil {
+						errCfg, errCfgErr := storedCfg.ErrorsConfig()
+						if errCfgErr != nil {
+							// The full parse below revalidates the errors block and surfaces this to the user.
+							unitLogger.Debugf(
+								"Not using the errors config of %s for parse retries: %v",
+								unitPath,
+								errCfgErr,
+							)
+						}
+
+						if errCfg != nil && errCfgErr == nil {
+							unitOpts.Errors = errCfg
+						}
+					}
+				}
+
 				err = telemetry.TelemeterFromContext(childCtx).
 					Collect(childCtx, unitLogger, "unit_read_config", map[string]any{
 						"unit_path":              unitPath,
 						"unit_name":              unitName,
 						"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 					}, func(readCtx context.Context, unitLogger log.Logger) error {
-						parseCtx, pctx := configbridge.NewParsingContext(
-							readCtx,
-							unitLogger,
-							unitV,
-							unitOpts,
-						)
+						return unitOpts.RunWithParseRetry(readCtx, unitLogger, func() error {
+							parseCtx, pctx := configbridge.NewParsingContext(
+								readCtx,
+								unitLogger,
+								unitV,
+								unitOpts,
+							)
 
-						var readErr error
+							var readErr error
 
-						cfg, readErr = config.ReadTerragruntConfig(
-							parseCtx,
-							unitLogger,
-							pctx,
-							pctx.ParserOptions,
-						)
+							cfg, readErr = config.ReadTerragruntConfig(
+								parseCtx,
+								unitLogger,
+								pctx,
+								pctx.ParserOptions,
+							)
 
-						return readErr
+							return readErr
+						})
 					})
 				if err != nil {
 					logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)

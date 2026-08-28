@@ -1,8 +1,10 @@
 package retry_test
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/stretchr/testify/assert"
 )
@@ -121,6 +123,75 @@ func TestDefaultRetryableErrorsMatch(t *testing.T) {
 			name:      "generic registry context deadline",
 			errMsg:    "registry.terraform.io: context deadline exceeded",
 			wantMatch: true,
+		},
+
+		// Parse-phase sops_decrypt_file transient failures (issue #6755, retry-parse-errors experiment)
+		{
+			name: "sops decrypt i/o timeout against KMS",
+			errMsg: `Call to function "sops_decrypt_file" failed: error decrypting key: failed to decrypt sops` +
+				" data key with GCP KMS key: rpc error: code = Unauthenticated desc = transport: per-RPC creds" +
+				` failed due to error: credentials: invalid response when retrieving subject token: Get "https://x":` +
+				" dial tcp 20.85.130.105:443: i/o timeout",
+			wantMatch: true,
+		},
+		{
+			name:      "sops decrypt 503 from KMS",
+			errMsg:    `Call to function "sops_decrypt_file" failed: error decrypting key: 503 Service Unavailable`,
+			wantMatch: true,
+		},
+		{
+			name:      "sops decrypt 429 from token endpoint",
+			errMsg:    `Call to function "sops_decrypt_file" failed: error decrypting key: 429 Too Many Requests`,
+			wantMatch: true,
+		},
+		{
+			name: "sops decrypt i/o timeout after error cleaning",
+			errMsg: errorconfig.ExtractErrorMessage(errors.New(
+				`/repo/app/terragrunt.hcl:3,12-30: Error in function call; Call to function "sops_decrypt_file"` +
+					" failed: error decrypting key: dial tcp 20.85.130.105:443: i/o timeout.")),
+			wantMatch: true,
+		},
+		{
+			name: "sops decrypt client timeout awaiting headers",
+			errMsg: `Call to function "sops_decrypt_file" failed: error decrypting key:` +
+				" net/http: request canceled (Client.Timeout exceeded while awaiting headers)",
+			wantMatch: true,
+		},
+		{
+			name: "sops decrypt with wrong key is permanent",
+			errMsg: `Call to function "sops_decrypt_file" failed:` +
+				" Error getting data key: 0 successful groups required, got 0",
+			wantMatch: false,
+		},
+		{
+			name: "sops decrypt rpc unavailable from KMS",
+			errMsg: `Call to function "sops_decrypt_file" failed: error decrypting key:` +
+				" rpc error: code = Unavailable desc = the service is currently unavailable",
+			wantMatch: true,
+		},
+		{
+			name: "sops decrypt access denied with 503 inside an account id is permanent",
+			errMsg: `Call to function "sops_decrypt_file" failed: AccessDenied: user` +
+				" arn:aws:iam::503212345678:role/deploy is not authorized to perform kms:Decrypt",
+			wantMatch: false,
+		},
+		{
+			name: "sops decrypt missing file under a 503 directory is permanent",
+			errMsg: `Call to function "sops_decrypt_file" failed:` +
+				" open secrets/503/missing.json: no such file or directory",
+			wantMatch: false,
+		},
+		{
+			name: "sops decrypt missing file under a 429 directory is permanent",
+			errMsg: `Call to function "sops_decrypt_file" failed:` +
+				" open secrets/429/missing.json: no such file or directory",
+			wantMatch: false,
+		},
+		{
+			name: "sops decrypt missing file under an Unavailable directory is permanent",
+			errMsg: `Call to function "sops_decrypt_file" failed:` +
+				" open secrets/Unavailable/missing.json: no such file or directory",
+			wantMatch: false,
 		},
 
 		// Permanent errors that must NOT match

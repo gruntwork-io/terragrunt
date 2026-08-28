@@ -115,6 +115,11 @@ const (
 	// portal instead of local HCL. Nothing is gated on it yet; the login
 	// command and the portal-defined catalog land in follow-up PRs.
 	TGLogin = "tg-login"
+	// RetryParseErrors extends the errors.retry engine to configuration
+	// parsing: transient failures raised while evaluating HCL (for example
+	// sops_decrypt_file reaching a KMS or OIDC endpoint) are retried instead
+	// of aborting the run on the first attempt.
+	RetryParseErrors = "retry-parse-errors"
 )
 
 const (
@@ -235,6 +240,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: TGLogin,
+		},
+		{
+			Name: RetryParseErrors,
 		},
 	}
 }

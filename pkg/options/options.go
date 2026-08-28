@@ -619,13 +619,9 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		}
 
 		// Process the error through our error handling configuration
-		action, recoveryErr := opts.Errors.AttemptErrorRecovery(l, err, currentAttempt)
+		action, recoveryErr := recoverErrorAction(l, opts.Errors, err, currentAttempt)
 		if recoveryErr != nil {
-			if maxAttemptsReachedError, ok := errors.AsType[*errorconfig.MaxAttemptsReachedError](recoveryErr); ok {
-				return maxAttemptsReachedError
-			}
-
-			return fmt.Errorf("encountered error while attempting error recovery: %w", recoveryErr)
+			return recoveryErr
 		}
 
 		if action == nil {
@@ -666,13 +662,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 				return err
 			}
 
-			l.Warnf(
-				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
-				action.RetryBlockName,
-				currentAttempt,
-				action.RetryAttempts,
-				action.RetrySleepSecs,
-			)
+			logRetryWarning(l, "", action, currentAttempt)
 
 			// Record that a retry will be attempted without prematurely marking success.
 			run, err := r.EnsureRun(l, reportDir)
@@ -690,12 +680,8 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 				return err
 			}
 
-			// Sleep before retry
-			select {
-			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
-				// try again
-			case <-ctx.Done():
-				return ctx.Err()
+			if err := sleepBeforeRetry(ctx, action); err != nil {
+				return err
 			}
 
 			currentAttempt++
@@ -704,6 +690,92 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		}
 
 		return err
+	}
+}
+
+// RunWithParseRetry runs operation, a configuration parse, retrying failures that
+// match the errors.retry rules in opts.Errors. It is a no-op wrapper unless the
+// retry-parse-errors experiment is enabled. Unlike RunWithErrorHandling it never
+// touches the report and does not apply ignore rules: a parse that produced no
+// configuration cannot be ignored, only retried or surfaced.
+func (opts *TerragruntOptions) RunWithParseRetry(
+	ctx context.Context,
+	l log.Logger,
+	operation func() error,
+) error {
+	if !opts.Experiments.Evaluate(experiment.RetryParseErrors) || opts.Errors == nil {
+		return operation()
+	}
+
+	// A retry-only view of the rules, so an ignore rule matching the same error cannot veto a retry.
+	retryRules := &errorconfig.Config{Retry: opts.Errors.Retry}
+
+	currentAttempt := 1
+
+	for {
+		err := operation()
+		if err == nil {
+			return nil
+		}
+
+		action, recoveryErr := recoverErrorAction(l, retryRules, err, currentAttempt)
+		if recoveryErr != nil {
+			return recoveryErr
+		}
+
+		if action == nil || !action.ShouldRetry || !opts.AutoRetry {
+			return err
+		}
+
+		logRetryWarning(l, " while parsing configuration", action, currentAttempt)
+
+		if err := sleepBeforeRetry(ctx, action); err != nil {
+			return err
+		}
+
+		currentAttempt++
+	}
+}
+
+// recoverErrorAction evaluates err against cfg for the given attempt, translating a
+// recovery failure into the typed max-attempts error callers match on.
+func recoverErrorAction(
+	l log.Logger,
+	cfg *errorconfig.Config,
+	err error,
+	currentAttempt int,
+) (*errorconfig.Action, error) {
+	action, recoveryErr := cfg.AttemptErrorRecovery(l, err, currentAttempt)
+	if recoveryErr != nil {
+		if maxAttemptsReachedError, ok := errors.AsType[*errorconfig.MaxAttemptsReachedError](recoveryErr); ok {
+			return nil, maxAttemptsReachedError
+		}
+
+		return nil, fmt.Errorf("encountered error while attempting error recovery: %w", recoveryErr)
+	}
+
+	return action, nil
+}
+
+// logRetryWarning announces the upcoming retry attempt for the matched rule.
+func logRetryWarning(l log.Logger, during string, action *errorconfig.Action, currentAttempt int) {
+	l.Warnf(
+		"Encountered retryable error%s: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
+		during,
+		action.RetryBlockName,
+		currentAttempt,
+		action.RetryAttempts,
+		action.RetrySleepSecs,
+	)
+}
+
+// sleepBeforeRetry waits the action's sleep interval, ending early when ctx is canceled.
+func sleepBeforeRetry(ctx context.Context, action *errorconfig.Action) error {
+	select {
+	case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

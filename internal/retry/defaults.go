@@ -47,6 +47,13 @@ var DefaultRetryableErrors = []string{
 	`(?s).*Failed to query available provider packages.*timeout.*`,
 	`(?s).*Failed to query available provider packages.*connection reset by peer.*`,
 	`(?s).*Failed to query available provider packages.*context deadline exceeded.*`,
+	// Transient network failures inside sops_decrypt_file (KMS/OIDC round-trips); only reachable with the
+	// retry-parse-errors experiment, since the function runs during configuration parsing. The [_ ] classes
+	// keep the pattern matching after error cleaning, which replaces underscores with spaces. HTTP and RPC
+	// status tokens require their response phrases, so a path or ID containing 429/503 stays permanent.
+	`(?s).*Call to function "sops[_ ]decrypt[_ ]file" failed.*` +
+		`(?:i/o timeout|context deadline exceeded|connection reset by peer|TLS handshake timeout` +
+		`|Client\.Timeout exceeded|Too Many Requests|Service Unavailable|code = Unavailable).*`,
 }
 
 // DefaultRetryableRegexps contains pre-compiled regexps for DefaultRetryableErrors.

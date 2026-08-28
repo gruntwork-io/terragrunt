@@ -1,0 +1,12 @@
+---
+version: "v1.1.5"
+category: "experiments-added"
+---
+
+#### `retry-parse-errors` retries transient configuration parsing failures
+
+The `retry-parse-errors` experiment extends the `errors.retry` engine to configuration parsing. Transient failures raised while evaluating HCL — most commonly `sops_decrypt_file` timing out against a KMS or OIDC endpoint (`i/o timeout`, `Client.Timeout exceeded while awaiting headers`, HTTP 429/503) — are retried with the configured backoff instead of aborting the run on the first attempt ([#6755](https://github.com/gruntwork-io/terragrunt/issues/6755)).
+
+During `run --all`, a unit's own `errors.retry` rules (already parsed during discovery) govern retries of its configuration parse, so a catch-all rule like `retryable_errors = [".*"]` now covers parse failures too. Parses that run before the unit's `errors` block has been read fall back to the default retryable errors, which now also include transient `sops_decrypt_file` network failures.
+
+Enable it with `--experiment retry-parse-errors` (or `TG_EXPERIMENT=retry-parse-errors`). See the [experiment documentation](/reference/experiments/active#retry-parse-errors) for details.

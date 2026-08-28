@@ -43,10 +43,18 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 		return err
 	}
 
-	ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	var cfg *config.TerragruntConfig
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
-	if err != nil {
+	// Fresh parsing context per attempt, so a retried parse never reads caches seeded by the failed one.
+	if err := opts.RunWithParseRetry(ctx, l, func() error {
+		parseCtx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+
+		var parseErr error
+
+		cfg, parseErr = config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
+
+		return parseErr
+	}); err != nil {
 		return err
 	}
 

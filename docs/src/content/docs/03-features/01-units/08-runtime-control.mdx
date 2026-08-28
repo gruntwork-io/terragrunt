@@ -6,6 +6,8 @@ sidebar:
   order: 8
 ---
 
+import Since from '@components/Since.astro';
+
 Sometimes, you need to have Terragrunt behave differently at runtime due to specific context that you have in your environment.
 
 The following configuration blocks have been designed to work together in concert to provide you a great deal of flexibility in how Terragrunt behaves at runtime.
@@ -134,6 +136,12 @@ errors {
 In this example, the `enable_flaky_module` feature flag sets _both_ the version of the module, and the error handling behavior for the unit that consumes it. This would allow the developer to integrate the unit configuration update with the rest of the codebase, enable the flag that introduces the module update in a lower environment, and then ignore any errors that are known to be safe to ignore.
 
 This pattern allows for greater speed of integration with larger codebases, and can be a useful tool for managing risk in your infrastructure.
+
+<Since version="1.1.5">
+
+By default, retry rules apply to run-phase operations like hooks and OpenTofu/Terraform invocations. With the [retry-parse-errors](/reference/experiments/active#retry-parse-errors) experiment enabled, they also cover transient failures raised while parsing configuration itself, such as `sops_decrypt_file` timing out against a KMS endpoint.
+
+</Since>
 
 ## Excludes
 
