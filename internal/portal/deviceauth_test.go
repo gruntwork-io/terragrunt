@@ -113,6 +113,29 @@ func TestAuthorizeDeviceDefaultsInterval(t *testing.T) {
 	assert.Empty(t, auth.VerificationURIComplete)
 }
 
+// TestAuthorizeDeviceDefaultsOverflowingInterval pins that a polling interval
+// that overflows a [time.Duration] falls back to the default. The interval here
+// wraps to roughly forty-nine years, which is positive, so a check for a
+// negative wait would let it through.
+func TestAuthorizeDeviceDefaultsOverflowingInterval(t *testing.T) {
+	t.Parallel()
+
+	body := `{
+		"device_code": "fake-device-code",
+		"user_code": "FAKE-CODE",
+		"verification_uri": "https://portal.example.com/auth/device",
+		"expires_in": 600,
+		"interval": 20000000000
+	}`
+
+	c := respondJSON(nil, http.StatusOK, body, nil)
+
+	auth, err := portal.AuthorizeDevice(t.Context(), logger.CreateLogger(), c, "https://portal.example.com")
+	require.NoError(t, err)
+
+	assert.Equal(t, 5*time.Second, auth.Interval)
+}
+
 func TestAuthorizeDeviceRejectsUnusableResponse(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +158,16 @@ func TestAuthorizeDeviceRejectsUnusableResponse(t *testing.T) {
 			name: "unbrowsable complete verification uri",
 			body: `{"device_code":"fake-device-code","user_code":"FAKE-CODE","verification_uri":"https://p.example.com/d",` +
 				`"verification_uri_complete":"file:///fake/path","expires_in":600}`,
+		},
+		{
+			name: "hostless verification uri",
+			body: `{"device_code":"fake-device-code","user_code":"FAKE-CODE","verification_uri":"https:///auth/device",` +
+				`"expires_in":600}`,
+		},
+		{
+			name: "overflowing expires_in",
+			body: `{"device_code":"fake-device-code","user_code":"FAKE-CODE","verification_uri":"https://p.example.com/d",` +
+				`"expires_in":20000000000}`,
 		},
 	}
 
@@ -278,25 +311,32 @@ func TestAuthorizeDeviceReportsRefusal(t *testing.T) {
 	}
 }
 
-// TestAuthorizeDeviceIgnoresUnreadableRetryAfter pins that the HTTP-date form of
-// Retry-After, which the portal does not send, reads as no advice rather than as
-// an immediate retry.
-func TestAuthorizeDeviceIgnoresUnreadableRetryAfter(t *testing.T) {
+// TestAuthorizeDeviceIgnoresUnusableRetryAfter pins that a Retry-After the CLI
+// cannot act on reads as no advice rather than as an immediate retry: the
+// HTTP-date form, which the portal does not send, and a delta-seconds count
+// that overflows a [time.Duration].
+func TestAuthorizeDeviceIgnoresUnusableRetryAfter(t *testing.T) {
 	t.Parallel()
 
-	c := respondJSON(
-		nil,
-		http.StatusTooManyRequests,
-		`{"error":"slow_down"}`,
-		http.Header{"Retry-After": {"Wed, 21 Oct 2026 07:28:00 GMT"}},
-	)
+	for _, header := range []string{"Wed, 21 Oct 2026 07:28:00 GMT", "20000000000"} {
+		t.Run(header, func(t *testing.T) {
+			t.Parallel()
 
-	_, err := portal.AuthorizeDevice(t.Context(), logger.CreateLogger(), c, "https://portal.example.com")
+			c := respondJSON(
+				nil,
+				http.StatusTooManyRequests,
+				`{"error":"slow_down"}`,
+				http.Header{"Retry-After": {header}},
+			)
 
-	var portalErr *portal.Error
-	require.ErrorAs(t, err, &portalErr)
+			_, err := portal.AuthorizeDevice(t.Context(), logger.CreateLogger(), c, "https://portal.example.com")
 
-	assert.Zero(t, portalErr.RetryAfter)
+			var portalErr *portal.Error
+			require.ErrorAs(t, err, &portalErr)
+
+			assert.Zero(t, portalErr.RetryAfter)
+		})
+	}
 }
 
 // truncatedReader serves prefix and then fails, standing in for a connection

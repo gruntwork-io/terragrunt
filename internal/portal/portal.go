@@ -14,6 +14,11 @@
 // [RFC 8628]: https://datatracker.ietf.org/doc/html/rfc8628
 package portal
 
+import (
+	"math"
+	"time"
+)
+
 const (
 	// DefaultBaseURL addresses the production Gruntwork Developer Portal. A
 	// preview or local deployment answers on its own host, so every URL in a
@@ -54,4 +59,19 @@ func (s Secret) GoString() string {
 // Reveal returns the credential, for the request that has to carry it.
 func (s Secret) Reveal() string {
 	return string(s)
+}
+
+// maxDurationSeconds is the largest whole-second count that fits in a
+// [time.Duration].
+const maxDurationSeconds = math.MaxInt64 / int64(time.Second)
+
+// secondsToDuration reads a wait the portal reported in whole seconds. A count
+// that overflows a [time.Duration] wraps to an unrelated wait, so it is
+// rejected along with the counts that are zero or negative.
+func secondsToDuration(n int64) (time.Duration, bool) {
+	if n <= 0 || n > maxDurationSeconds {
+		return 0, false
+	}
+
+	return time.Duration(n) * time.Second, true
 }
