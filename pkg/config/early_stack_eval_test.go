@@ -291,7 +291,11 @@ unit "vpc" {
 		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
 	}
 
-	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcsFor)
+	paths, err := inthclparse.UnitPathsFromStackDir(
+		vfs.NewOSFS(),
+		stackDir,
+		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
+	)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// basename(dirname(.../root.hcl)) == basename(tmpRoot); resolve symlinks
@@ -330,7 +334,11 @@ unit "vpc" {
 		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
 	}
 
-	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcsFor)
+	paths, err := inthclparse.UnitPathsFromStackDir(
+		vfs.NewOSFS(),
+		stackDir,
+		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
+	)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.True(
