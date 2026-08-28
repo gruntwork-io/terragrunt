@@ -3,6 +3,7 @@ package azurerm_test
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
@@ -216,6 +217,45 @@ func TestBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(), venvtest.New(), backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
 	require.NoError(t, err)
+}
+
+// TestBootstrap_AssignBlobDataRoleRequiresARM refuses silent success when the
+// flag is set under data-plane-only auth that cannot call roleAssignments.
+func TestBootstrap_AssignBlobDataRoleRequiresARM(t *testing.T) {
+	t.Parallel()
+
+	cfg := fullConfig()
+	cfg["access_key"] = "dGVzdGtleQ=="
+	cfg["assign_blob_data_role"] = true
+	delete(cfg, "use_azuread_auth")
+
+	err := azurerm.NewBackend().Bootstrap(
+		t.Context(),
+		logger.CreateLogger(), venvtest.New(), backend.Config(cfg), optsWithExperiment(t, true))
+
+	var requiresARM *azurerm.AssignBlobDataRoleRequiresARMError
+	require.ErrorAs(t, err, &requiresARM)
+	assert.Equal(t, azurehelper.AuthMethodAccessKey, requiresARM.Method)
+}
+
+// TestNeedsBootstrap_AssignBlobDataRoleRequiresARM mirrors Bootstrap: the flag
+// must not be soft-skipped under SAS/access-key auth.
+func TestNeedsBootstrap_AssignBlobDataRoleRequiresARM(t *testing.T) {
+	t.Parallel()
+
+	cfg := fullConfig()
+	cfg["sas_token"] = "sv=test"
+	cfg["assign_blob_data_role"] = true
+	delete(cfg, "access_key")
+	delete(cfg, "use_azuread_auth")
+
+	_, err := azurerm.NewBackend().NeedsBootstrap(
+		t.Context(),
+		logger.CreateLogger(), venvtest.New(), backend.Config(cfg), optsWithExperiment(t, true))
+
+	var requiresARM *azurerm.AssignBlobDataRoleRequiresARMError
+	require.ErrorAs(t, err, &requiresARM)
+	assert.Equal(t, azurehelper.AuthMethodSasToken, requiresARM.Method)
 }
 
 // TestIsVersionControlEnabled_NoResourceGroupDegrades verifies the versioning

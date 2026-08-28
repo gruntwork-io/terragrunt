@@ -102,11 +102,11 @@ func armWorkRequested(extCfg *ExtendedRemoteStateConfigAzurerm) bool {
 		extCfg.AssignBlobDataRole
 }
 
-// warnArmWorkSkipped logs that account creation or versioning/soft-delete
-// convergence was requested but cannot run under data-plane-only auth.
+// warnArmWorkSkipped logs that account creation, versioning/soft-delete
+// convergence, or role assignment was requested but cannot run under data-plane-only auth.
 func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod) {
 	l.Warnf(
-		"Cannot manage the storage account for %s backend with %s authentication; skipping account creation and versioning/soft-delete convergence.",
+		"Cannot manage the storage account for %s backend with %s authentication; skipping account creation, versioning/soft-delete convergence, and role assignment.",
 		name,
 		method,
 	)
@@ -313,6 +313,10 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv
 	rs := &extCfg.RemoteStateConfigAzurerm
 
 	if armWorkRequested(extCfg) && !armCapable(cfg) {
+		if extCfg.AssignBlobDataRole {
+			return false, &AssignBlobDataRoleRequiresARMError{Method: cfg.Method}
+		}
+
 		warnArmWorkSkipped(l, b.Name(), cfg.Method)
 	}
 
@@ -369,10 +373,10 @@ func accountNeedsBootstrap(
 		return !extCfg.SkipStorageAccountCreation, nil
 	}
 
-	// An existing account is checked for versioning / soft-delete drift even
+	// An existing account is checked for versioning / soft-delete / role drift even
 	// under skip_storage_account_creation, since those policies are converged
 	// on pre-created accounts too.
-	return accountPolicyDrift(ctx, saClient, extCfg)
+	return accountPolicyDrift(ctx, saClient, cfg, extCfg)
 }
 
 // Bootstrap creates (if necessary) the resource group, storage account, and
@@ -407,6 +411,10 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 		l.Debugf("%s container %s has already been confirmed to be initialized, skipping initialization checks", b.Name(), rs.CacheKey())
 
 		return nil
+	}
+
+	if extCfg.AssignBlobDataRole && !armCapable(cfg) {
+		return &AssignBlobDataRoleRequiresARMError{Method: cfg.Method}
 	}
 
 	if armWorkRequested(extCfg) && !armCapable(cfg) {
@@ -620,11 +628,12 @@ func createAccount(
 	return saClient.Create(ctx, l, extCfg.StorageAccountConfig())
 }
 
-// accountPolicyDrift reports whether the existing account's blob versioning or
-// soft-delete configuration differs from what the config requests.
+// accountPolicyDrift reports whether the existing account's blob versioning,
+// soft-delete, or blob-data role configuration differs from what the config requests.
 func accountPolicyDrift(
 	ctx context.Context,
 	saClient *azurehelper.StorageAccountClient,
+	cfg *azurehelper.AzureConfig,
 	extCfg *ExtendedRemoteStateConfigAzurerm,
 ) (bool, error) {
 	if !extCfg.SkipVersioning {
@@ -653,7 +662,51 @@ func accountPolicyDrift(
 		}
 	}
 
-	return false, nil
+	missing, err := blobDataRoleMissing(ctx, cfg, extCfg)
+	if err != nil {
+		return false, err
+	}
+
+	return missing, nil
+}
+
+// blobDataRoleMissing reports whether assign_blob_data_role is set and the
+// target principal does not yet hold Storage Blob Data Contributor. Without
+// this check, --backend-bootstrap skips ensureBlobDataRole on an otherwise
+// healthy account and OpenTofu/Terraform then fails data-plane auth.
+func blobDataRoleMissing(
+	ctx context.Context,
+	cfg *azurehelper.AzureConfig,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+) (bool, error) {
+	if !extCfg.AssignBlobDataRole {
+		return false, nil
+	}
+
+	principalID := extCfg.PrincipalID
+	if principalID == "" {
+		resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+		if err != nil {
+			return false, err
+		}
+
+		principalID = resolved.ID
+	}
+
+	rbacClient, err := azurehelper.NewRBACClient(cfg)
+	if err != nil {
+		return false, err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+	scope := azurehelper.StorageAccountScope(cfg.SubscriptionID, cfg.ResourceGroup, rs.StorageAccountName)
+
+	has, err := rbacClient.HasRoleAssignment(ctx, scope, principalID, azurehelper.RoleStorageBlobDataContributor)
+	if err != nil {
+		return false, err
+	}
+
+	return !has, nil
 }
 
 // effectiveSoftDeleteDays returns the retention that bootstrap actually applies
