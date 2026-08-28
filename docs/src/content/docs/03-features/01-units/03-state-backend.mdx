@@ -474,6 +474,7 @@ The `environment` key selects the Azure cloud: `public` (the default), `usgovern
 
 <Aside type="note" title="Known limitations">
 - SAS token and access key authentication are data-plane only: Terragrunt can create the blob container but not the resource group or storage account, which must already exist.
+- With SAS token or access key authentication, `assign_blob_data_role = true` errors because role assignment needs Microsoft Entra / ARM authentication (`use_azuread_auth`, a service principal, managed identity, or OIDC). Grant **Storage Blob Data Contributor** out of band and unset `assign_blob_data_role`, or switch auth.
 - With SAS token or access key authentication, or when `resource_group_name` is not set, Terragrunt cannot verify blob versioning (it is an ARM management-plane property), so `backend delete` and `backend migrate` treat the account as unversioned and require the `--force` flag even when versioning is enabled.
 - With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Set `assign_blob_data_role = true` to have bootstrap assign it, or grant it out of band.
 - State migration is supported within a single storage account; cross-account migration must be performed manually (init, state pull, state push).

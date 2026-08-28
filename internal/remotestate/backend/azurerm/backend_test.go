@@ -1,12 +1,17 @@
 package azurerm_test
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -258,6 +263,42 @@ func TestNeedsBootstrap_AssignBlobDataRoleRequiresARM(t *testing.T) {
 	assert.Equal(t, azurehelper.AuthMethodSasToken, requiresARM.Method)
 }
 
+// TestNeedsBootstrap_RoleOnlyDriftRequiresBootstrap locks the regression where
+// an otherwise healthy account with assign_blob_data_role set and the blob-data
+// role absent returned NeedsBootstrap false, so --backend-bootstrap skipped the
+// grant and OpenTofu/Terraform then failed data-plane auth.
+func TestNeedsBootstrap_RoleOnlyDriftRequiresBootstrap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("role absent", func(t *testing.T) {
+		t.Parallel()
+
+		needs, err := azurerm.NewBackend().NeedsBootstrap(
+			t.Context(),
+			logger.CreateLogger(),
+			venvtest.New().WithHTTP(roleDriftHTTP(false)),
+			backend.Config(roleOnlyDriftConfig()),
+			optsWithExperiment(t, true),
+		)
+		require.NoError(t, err)
+		assert.True(t, needs, "missing blob-data role must require bootstrap")
+	})
+
+	t.Run("role present", func(t *testing.T) {
+		t.Parallel()
+
+		needs, err := azurerm.NewBackend().NeedsBootstrap(
+			t.Context(),
+			logger.CreateLogger(),
+			venvtest.New().WithHTTP(roleDriftHTTP(true)),
+			backend.Config(roleOnlyDriftConfig()),
+			optsWithExperiment(t, true),
+		)
+		require.NoError(t, err)
+		assert.False(t, needs, "assigned blob-data role must not require bootstrap")
+	})
+}
+
 // TestIsVersionControlEnabled_NoResourceGroupDegrades verifies the versioning
 // check degrades to false instead of erroring when no resource group is known.
 func TestIsVersionControlEnabled_NoResourceGroupDegrades(t *testing.T) {
@@ -302,6 +343,84 @@ func rgLessSkipAllConfig() azurerm.Config {
 	cfg["skip_container_creation"] = true
 
 	return cfg
+}
+
+// roleOnlyDriftConfig is a pre-created account with every policy converged
+// except optional blob-data role assignment: the only ARM work left is RBAC.
+func roleOnlyDriftConfig() azurerm.Config {
+	cfg := fullConfig()
+	delete(cfg, "enable_soft_delete")
+	delete(cfg, "soft_delete_retention_days")
+	delete(cfg, "use_azuread_auth")
+
+	cfg["skip_storage_account_creation"] = true
+	cfg["skip_versioning"] = true
+	cfg["skip_container_creation"] = true
+	cfg["assign_blob_data_role"] = true
+	cfg["principal_id"] = "11111111-2222-3333-4444-555555555555"
+	// Service principal auth reaches ARM through the stubbed HTTP transport.
+	cfg["client_id"] = "00000000-0000-0000-0000-000000000001"
+	cfg["client_secret"] = "test-secret"
+	cfg["tenant_id"] = "00000000-0000-0000-0000-000000000002"
+
+	return cfg
+}
+
+// roleDriftHTTP answers Entra token issuance, storage-account Exists, and
+// role-assignment list so NeedsBootstrap can exercise blobDataRoleMissing
+// without a live subscription.
+func roleDriftHTTP(rolePresent bool) vhttp.Client {
+	jsonHeaders := http.Header{"Content-Type": []string{"application/json"}}
+
+	return vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		path := req.URL.Path
+
+		switch {
+		case strings.HasSuffix(path, "/discovery/instance"):
+			return vhttp.Respond(http.StatusOK, []byte(
+				`{"tenant_discovery_endpoint":"https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/v2.0/.well-known/openid-configuration","metadata":[{"preferred_network":"login.microsoftonline.com","preferred_cache":"login.microsoftonline.com","aliases":["login.microsoftonline.com"]}]}`,
+			), jsonHeaders), nil
+		case strings.HasSuffix(path, "/openid-configuration"):
+			return vhttp.Respond(http.StatusOK, []byte(
+				`{"token_endpoint":"https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/oauth2/v2.0/token","issuer":"https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/v2.0","authorization_endpoint":"https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/oauth2/v2.0/authorize"}`,
+			), jsonHeaders), nil
+		case strings.HasSuffix(path, "/token"):
+			return vhttp.Respond(http.StatusOK, []byte(
+				`{"token_type":"Bearer","expires_in":3600,"access_token":"test-token"}`,
+			), jsonHeaders), nil
+		case strings.Contains(path, "/roleAssignments"):
+			body := map[string]any{"value": []any{}}
+			if rolePresent {
+				body["value"] = []any{
+					map[string]any{
+						"id": "/ra/1",
+						"properties": map[string]any{
+							"principalId": "11111111-2222-3333-4444-555555555555",
+							"roleDefinitionId": "/subscriptions/00000000-0000-0000-0000-000000000000" +
+								"/providers/Microsoft.Authorization/roleDefinitions/" +
+								azurehelper.RoleStorageBlobDataContributor,
+						},
+					},
+				}
+			}
+
+			raw, err := json.Marshal(body)
+			if err != nil {
+				return nil, err
+			}
+
+			return vhttp.Respond(http.StatusOK, raw, jsonHeaders), nil
+		case strings.Contains(path, "/Microsoft.Storage/storageAccounts/"):
+			return vhttp.Respond(http.StatusOK, []byte(
+				`{"name":"tfstate1234","location":"eastus"}`,
+			), jsonHeaders), nil
+		default:
+			// 400 is terminal for the Azure SDK retry policy.
+			return vhttp.Respond(http.StatusBadRequest, []byte(
+				`{"error":{"code":"UnmatchedTestRequest","message":"`+path+`"}}`,
+			), jsonHeaders), nil
+		}
+	})
 }
 
 // TestMigrate_CrossCloudFromDestinationEnvRefused pins the case a config-only
