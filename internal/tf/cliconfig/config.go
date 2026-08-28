@@ -126,12 +126,24 @@ func (cfg *Config) Clone() *Config {
 	var providerInstallation *ProviderInstallation
 
 	hosts := make([]ConfigHost, 0, len(cfg.Hosts))
-
-	hosts = append(hosts, cfg.Hosts...)
+	for _, host := range cfg.Hosts {
+		hosts = append(hosts, ConfigHost{
+			Name:     host.Name,
+			Services: maps.Clone(host.Services),
+		})
+	}
 
 	if cfg.ProviderInstallation != nil {
 		providerInstallation = &ProviderInstallation{
 			Methods: cfg.ProviderInstallation.Methods.Clone(),
+		}
+	}
+
+	var credentialsHelpers *ConfigCredentialsHelper
+	if cfg.CredentialsHelpers != nil {
+		credentialsHelpers = &ConfigCredentialsHelper{
+			Name: cfg.CredentialsHelpers.Name,
+			Args: slices.Clone(cfg.CredentialsHelpers.Args),
 		}
 	}
 
@@ -140,7 +152,7 @@ func (cfg *Config) Clone() *Config {
 		DisableCheckpoint:          cfg.DisableCheckpoint,
 		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
 		Credentials:                slices.Clone(cfg.Credentials),
-		CredentialsHelpers:         cfg.CredentialsHelpers,
+		CredentialsHelpers:         credentialsHelpers,
 		Hosts:                      hosts,
 		ProviderInstallation:       providerInstallation,
 		fsys:                       cfg.fsys,

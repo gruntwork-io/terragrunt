@@ -228,3 +228,38 @@ func TestCloneCredentialsAreIndependent(t *testing.T) {
 	assert.Equal(t, "real-token", original.Credentials[0].Token)
 	assert.Equal(t, "substituted-token", clone.Credentials[0].Token)
 }
+
+// TestCloneCredentialsHelpersAreIndependent pins that rewriting a clone's helper
+// args leaves the source config untouched.
+func TestCloneCredentialsHelpersAreIndependent(t *testing.T) {
+	t.Parallel()
+
+	original := cliconfig.NewConfig(vfs.NewMemMapFS())
+	original.CredentialsHelpers = &cliconfig.ConfigCredentialsHelper{
+		Name: "my-helper",
+		Args: []string{"arg1", "arg2"},
+	}
+
+	clone := original.Clone()
+	clone.CredentialsHelpers.Args[0] = "modified"
+
+	assert.Equal(t, "arg1", original.CredentialsHelpers.Args[0])
+	assert.Equal(t, "modified", clone.CredentialsHelpers.Args[0])
+}
+
+// TestCloneHostsServicesAreIndependent pins that rewriting a clone's host
+// services map leaves the source config untouched.
+func TestCloneHostsServicesAreIndependent(t *testing.T) {
+	t.Parallel()
+
+	original := cliconfig.NewConfig(vfs.NewMemMapFS())
+	original.AddHost("registry.example.com", map[string]string{
+		"providers.v1": "https://old.example.com/",
+	})
+
+	clone := original.Clone()
+	clone.Hosts[0].Services["providers.v1"] = "https://new.example.com/"
+
+	assert.Equal(t, "https://old.example.com/", original.Hosts[0].Services["providers.v1"])
+	assert.Equal(t, "https://new.example.com/", clone.Hosts[0].Services["providers.v1"])
+}
