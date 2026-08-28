@@ -132,7 +132,8 @@ func parseDeviceAuthorization(r io.Reader) (*DeviceAuthorization, error) {
 		}
 	}
 
-	if parsed.ExpiresIn <= 0 {
+	expiresIn, ok := secondsToDuration(parsed.ExpiresIn)
+	if !ok {
 		return nil, fmt.Errorf("%w: unusable expires_in of %d", ErrMalformedResponse, parsed.ExpiresIn)
 	}
 
@@ -148,8 +149,8 @@ func parseDeviceAuthorization(r io.Reader) (*DeviceAuthorization, error) {
 		}
 	}
 
-	interval := time.Duration(parsed.Interval) * time.Second
-	if interval <= 0 {
+	interval, ok := secondsToDuration(parsed.Interval)
+	if !ok {
 		interval = defaultPollInterval
 	}
 
@@ -158,7 +159,7 @@ func parseDeviceAuthorization(r io.Reader) (*DeviceAuthorization, error) {
 		UserCode:                parsed.UserCode,
 		VerificationURI:         parsed.VerificationURI,
 		VerificationURIComplete: parsed.VerificationURIComplete,
-		ExpiresIn:               time.Duration(parsed.ExpiresIn) * time.Second,
+		ExpiresIn:               expiresIn,
 		Interval:                interval,
 	}, nil
 }
@@ -201,6 +202,10 @@ func checkBrowsable(rawURL string) error {
 
 	if parsed.Scheme != "https" && parsed.Scheme != "http" {
 		return fmt.Errorf("%w: verification URL %q is not an HTTP URL", ErrMalformedResponse, rawURL)
+	}
+
+	if parsed.Host == "" {
+		return fmt.Errorf("%w: verification URL %q names no host", ErrMalformedResponse, rawURL)
 	}
 
 	return nil
