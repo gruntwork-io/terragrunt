@@ -36,6 +36,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/flock v0.13.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
+	github.com/google/uuid v1.6.0
 	github.com/gruntwork-io/boilerplate v0.16.0
 	github.com/gruntwork-io/terragrunt-engine-go v0.1.0
 	github.com/hashicorp/go-getter/gcs/v2 v2.2.3
@@ -202,7 +203,6 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-jsonnet v0.21.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.20 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
