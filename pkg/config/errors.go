@@ -323,6 +323,25 @@ func (err DependencyStateParseError) Unwrap() error {
 	return err.Err
 }
 
+// ErrDependencyStateEncrypted reports state that OpenTofu encrypted client-side, which a
+// direct backend read has no key material to decrypt.
+var ErrDependencyStateEncrypted = errors.New("dependency state is encrypted")
+
+// DependencyStateEncryptedError reports a dependency state protected by OpenTofu's
+// client-side state encryption, so its outputs have to come from OpenTofu itself.
+type DependencyStateEncryptedError struct {
+	// Location identifies the encrypted remote state object.
+	Location string
+}
+
+func (err DependencyStateEncryptedError) Error() string {
+	return ErrDependencyStateEncrypted.Error() + ": " + err.Location
+}
+
+func (err DependencyStateEncryptedError) Unwrap() error {
+	return ErrDependencyStateEncrypted
+}
+
 type TerragruntOutputParsingError struct {
 	Err  error
 	Path string

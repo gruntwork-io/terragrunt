@@ -545,6 +545,48 @@ func TestDependencyStateAzureClientSetupFailureDoesNotUseMocks(t *testing.T) {
 	}), "a failed ARM lookup must not reach blob storage")
 }
 
+func TestDependencyStateEncryptedDirectStateFallsBackToNativeOutput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		state string
+	}{
+		{
+			name:  "envelope first",
+			state: `{"encrypted_data":"Y2lwaGVydGV4dA==","encryption_version":"v0","meta":{"key_provider.pbkdf2.default":{"salt":"c2FsdA=="}}}`,
+		},
+		{
+			name:  "envelope after metadata",
+			state: `{"serial":3,"lineage":"6d4c9f18","meta":{"key_provider.pbkdf2.default":{"salt":"c2FsdA=="}},"encryption_version":"v0","encrypted_data":"Y2lwaGVydGV4dA=="}`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(testCase.state))
+			cfg, err := parseDependencyStateFixture(
+				t,
+				recorder,
+				"gcs",
+				`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+				map[string]string{},
+				false,
+				"",
+			)
+
+			require.NoError(t, err)
+			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+			assert.NotEmpty(t, recorder.invocations(), "encrypted direct state must fall back to OpenTofu")
+			assert.Equal(t, 1, recorder.closeCount(), "an encrypted state response body must be closed")
+		})
+	}
+}
+
 type dependencyStateRecorder struct {
 	respond    func(*http.Request) *http.Response
 	httpBody   []byte

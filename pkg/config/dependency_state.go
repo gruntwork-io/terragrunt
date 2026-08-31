@@ -53,6 +53,10 @@ func readDependencyStateOutputs(
 	return jsonOutputs, nil
 }
 
+// encryptedStateKey is the top-level key OpenTofu writes when client-side state
+// encryption is on, in place of the plaintext document the outputs live in.
+const encryptedStateKey = "encrypted_data"
+
 // stateOutputsJSON returns the state's top-level outputs object, reading only as far
 // as it must. OpenTofu and Terraform write outputs ahead of resources, so a large
 // state normally costs one buffered read instead of a full download.
@@ -78,7 +82,13 @@ func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
 			return nil, stateReadError(body, location, err)
 		}
 
-		if name, _ := key.(string); name != "outputs" {
+		name, _ := key.(string)
+
+		if name == encryptedStateKey {
+			return nil, DependencyStateEncryptedError{Location: location}
+		}
+
+		if name != "outputs" {
 			if err := skipValue(d); err != nil {
 				return nil, stateReadError(body, location, err)
 			}
@@ -116,8 +126,7 @@ func skipValue(d *json.Decoder) error {
 }
 
 // stateBodyReader records the last transport failure so a dropped connection is not
-// reported as malformed state. The docs point users at a JSON parse error to tell
-// them client-side state encryption is on, so that message has to stay specific.
+// reported as malformed state.
 type stateBodyReader struct {
 	r   io.Reader
 	err error
