@@ -9,4 +9,4 @@ With the [`dependency-fetch-output-from-state`](/reference/experiments/active#de
 
 Terragrunt reads the raw state object through the backend's cloud storage API and holds no key material for it. The encrypted envelope parsed as valid JSON with no `outputs` key, so dependency outputs silently resolved to nothing and the run failed later with an unrelated `Unsupported attribute` error. Terragrunt now recognizes the envelope and retrieves the outputs through OpenTofu, so the outputs are correct and only the speedup is lost.
 
-Setting `--no-dependency-fetch-output-from-state` is no longer necessary for encrypted state.
+Documentation previously told you to turn that experiment off when state encryption was in use. Setting `--no-dependency-fetch-output-from-state` is no longer necessary for encrypted state, and if you added the flag on that advice you can drop it.
