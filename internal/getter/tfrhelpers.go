@@ -629,7 +629,7 @@ func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, 
 
 	// Every non-Terraform implementation reads the same tofu-order files, so share one entry.
 	impl := tfimpl.OpenTofu
-	if tfimpl.UsesTerraformCLIConfig(auth.Impl) {
+	if auth.Impl == tfimpl.Terraform {
 		impl = tfimpl.Terraform
 	}
 

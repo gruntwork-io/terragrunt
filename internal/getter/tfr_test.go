@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -268,25 +269,30 @@ credentials %q {
 func TestRegistryGetterUsesInjectedVenvForCLIConfig(t *testing.T) {
 	t.Parallel()
 
-	homeDir := t.TempDir()
+	const homeDir = "/virtual/home"
+
 	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
 		assert.Equal(t, "Bearer configured-token", r.Header.Get("Authorization"))
 	})
 
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
+
+	v := venvtest.New().
+		WithGOOS("linux").
+		WithHTTP(server.Client()).
+		WithUserHomeDir(func() (string, error) { return homeDir, nil })
+
+	require.NoError(t, v.FS.MkdirAll(homeDir, 0o755))
 	// A credential-less ~/.tofurc shadows ~/.terraformrc under OpenTofu's search order,
 	// so the assertion fails if the getter stops forwarding the Terraform implementation.
-	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".tofurc"), []byte("\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".terraformrc"), []byte(fmt.Sprintf(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(homeDir, ".tofurc"), []byte("\n"), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(homeDir, ".terraformrc"), []byte(fmt.Sprintf(`
 credentials %q {
   token = "configured-token"
 }
 `, serverURL.Hostname())), 0o600))
 
-	v := venvtest.NewWithOSFS().
-		WithHTTP(server.Client()).
-		WithUserHomeDir(func() (string, error) { return homeDir, nil })
 	client := newRegistryTestClientWithVenv(t, v, tfimpl.Terraform)
 
 	_, err = client.Get(t.Context(), &getter.Request{

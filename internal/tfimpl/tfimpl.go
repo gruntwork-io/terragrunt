@@ -42,9 +42,3 @@ func DefaultRegistryDomain(env map[string]string, impl Type) string {
 
 	return defaultRegistryDomain
 }
-
-// UsesTerraformCLIConfig reports whether impl reads Terraform's CLI config file
-// locations; every other implementation reads OpenTofu's.
-func UsesTerraformCLIConfig(impl Type) bool {
-	return impl == Terraform
-}

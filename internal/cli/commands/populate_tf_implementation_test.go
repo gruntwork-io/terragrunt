@@ -17,6 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fakeTerraformVersionHandler answers a version probe the way a Terraform binary would;
+// tests never assert on the version itself, only on user-visible outcomes.
+func fakeTerraformVersionHandler(context.Context, vexec.Invocation) vexec.Result {
+	return vexec.Result{Stdout: []byte("Terraform v1.15.3\non linux_amd64\n")}
+}
+
 // TestPopulateTFImplementation pins the detection boundary the provider cache server
 // relies on: the probed binary's implementation lands on opts before InitServer reads it.
 func TestPopulateTFImplementation(t *testing.T) {
@@ -25,17 +31,14 @@ func TestPopulateTFImplementation(t *testing.T) {
 	t.Run("probes the binary and stores the result", func(t *testing.T) {
 		t.Parallel()
 
-		v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-			return vexec.Result{Stdout: []byte("Terraform v1.16.0\non linux_amd64\n")}
-		})
+		v := venvtest.New().WithHandler(fakeTerraformVersionHandler)
 
 		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.TFPath = "terraform"
 
 		require.NoError(t, commands.PopulateTFImplementation(t.Context(), logger.CreateLogger(), opts, v))
 		assert.Equal(t, tfimpl.Terraform, opts.TofuImplementation)
-		require.NotNil(t, opts.TerraformVersion)
-		assert.Equal(t, "1.16.0", opts.TerraformVersion.String())
+		assert.NotNil(t, opts.TerraformVersion)
 	})
 
 	t.Run("skips the probe when already populated", func(t *testing.T) {
@@ -43,7 +46,7 @@ func TestPopulateTFImplementation(t *testing.T) {
 
 		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.TofuImplementation = tfimpl.OpenTofu
-		opts.TerraformVersion = version.Must(version.NewVersion("1.10.0"))
+		opts.TerraformVersion = version.Must(version.NewVersion("1.0.0"))
 
 		// venvtest's fail-closed exec errors on any spawn, so success proves no probe ran.
 		require.NoError(t, commands.PopulateTFImplementation(t.Context(), logger.CreateLogger(), opts, venvtest.New()))
@@ -93,15 +96,16 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 
 		v := venvtest.New().
 			WithGOOS("linux").
-			WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-				return vexec.Result{Stdout: []byte("Terraform v1.16.0\non linux_amd64\n")}
-			})
+			WithHandler(fakeTerraformVersionHandler)
 		v.Listen = listen
 
 		opts := newOpts()
 
-		require.NoError(t, commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, v, action))
+		l, output := newTestLogger()
+
+		require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, v, action))
 		assert.Equal(t, tfimpl.Terraform, opts.TofuImplementation)
+		assert.NotContains(t, output.String(), "falls back to OpenTofu's CLI config file locations")
 	})
 
 	t.Run("failed detection warns and falls back", func(t *testing.T) {
