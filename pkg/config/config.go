@@ -2069,6 +2069,23 @@ func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name strin
 	return -1
 }
 
+// remoteStateFromAttr decodes a `remote_state` written as an attribute rather than a block.
+// JSON configs produce the attribute form.
+func remoteStateFromAttr(attr cty.Value) (*remotestate.RemoteState, error) {
+	remoteStateMap, err := ctyhelper.ParseCtyValueToMap(attr)
+	if err != nil {
+		return nil, err
+	}
+
+	var config *remotestate.Config
+
+	if err := mapstructure.WeakDecode(remoteStateMap, &config); err != nil {
+		return nil, err
+	}
+
+	return remotestate.New(config), nil
+}
+
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
 func convertToTerragruntConfig(
 	ctx context.Context,
@@ -2101,19 +2118,12 @@ func convertToTerragruntConfig(
 	}
 
 	if terragruntConfigFromFile.RemoteStateAttr != nil {
-		remoteStateMap, err := ctyhelper.ParseCtyValueToMap(
-			*terragruntConfigFromFile.RemoteStateAttr,
-		)
+		remoteState, err := remoteStateFromAttr(*terragruntConfigFromFile.RemoteStateAttr)
 		if err != nil {
 			return nil, err
 		}
 
-		var config *remotestate.Config
-		if err := mapstructure.WeakDecode(remoteStateMap, &config); err != nil {
-			return nil, err
-		}
-
-		terragruntConfig.RemoteState = remotestate.New(config)
+		terragruntConfig.RemoteState = remoteState
 		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
 
@@ -2748,12 +2758,65 @@ func ParseRemoteState(
 	l log.Logger,
 	pctx *ParsingContext,
 ) (*remotestate.RemoteState, error) {
-	cfg, err := ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
+	cfg, err := readBackendConfig(ctx, l, pctx)
 	if err != nil {
-		return nil, err
+		l.Debugf(
+			"Decoding only the backend blocks of %s failed (%v), reading the whole config instead",
+			util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths),
+			err,
+		)
+
+		cfg, err = ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return cfg.GetRemoteState(ctx, l, pctx)
+}
+
+// readBackendConfig reads the config and decodes the two things a backend needs: the
+// `remote_state` block, and the `terraform` block's `source`, which decides the directory the
+// backend operates in. Keeping the decode this narrow lets a backend command run against a unit
+// whose dependencies have never been applied.
+//
+// It fails when `remote_state` itself reads dependency outputs, since nothing here defines the
+// `dependency` variable. [ParseRemoteState] handles that by reading the whole config.
+func readBackendConfig(
+	ctx context.Context,
+	l log.Logger,
+	pctx *ParsingContext,
+) (*TerragruntConfig, error) {
+	// The whole-config read decides whether this config is valid, so a failure here must not
+	// print diagnostics for a command that goes on to succeed.
+	quietCtx := pctx.WithDiagnosticsSuppressed(l)
+
+	iamRoleOptions := pctx.OriginalIAMRoleOptions
+
+	// A whole-config read resolves `iam_role` before decoding anything, so that functions such as
+	// get_aws_account_id() called from `remote_state` run under the assumed role.
+	if iamRoleOptions.RoleARN == "" {
+		flags, err := PartialParseConfigFile(
+			ctx,
+			quietCtx.WithDecodeList(TerragruntFlags),
+			l,
+			pctx.TerragruntConfigPath,
+			nil,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		iamRoleOptions = iam.MergeRoleOptions(
+			flags.GetIAMRoleOptions(),
+			pctx.OriginalIAMRoleOptions,
+		)
+	}
+
+	backendCtx := quietCtx.WithDecodeList(RemoteStateBlock, TerraformSource)
+	backendCtx.IAMRoleOptions = iamRoleOptions
+
+	return PartialParseConfigFile(ctx, backendCtx, l, pctx.TerragruntConfigPath, nil)
 }
 
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside configPath
