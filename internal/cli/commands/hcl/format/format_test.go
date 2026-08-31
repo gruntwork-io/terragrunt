@@ -2,7 +2,7 @@ package format_test
 
 import (
 	"bytes"
-	"io/fs"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,54 +12,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
-
-// loadFixture copies the on-disk fixture tree at dir into a fresh in-memory
-// filesystem and returns it with the root the copy landed at. The tests run
-// the format command against that filesystem, so a formatter that reached for
-// os instead of the venv would leave the fixture untouched and fail loudly.
-//
-// Only files are copied: writing one registers its parent directories, so the
-// tree arrives with the copy. An empty fixture directory would not survive,
-// and none of these fixtures has one.
-func loadFixture(t *testing.T, dir string) (vfs.FS, string) {
-	t.Helper()
-
-	const root = "/fixture"
-
-	src, dst := vfs.NewOSFS(), vfs.NewMemMapFS()
-	abs := helpers.MustAbs(t, dir)
-
-	require.NoError(t, vfs.WalkDir(src, abs, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-
-		rel, err := filepath.Rel(abs, path)
-		if err != nil {
-			return err
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-
-		contents, err := vfs.ReadFile(src, path)
-		if err != nil {
-			return err
-		}
-
-		return vfs.WriteFile(dst, filepath.Join(root, rel), contents, info.Mode())
-	}))
-
-	return dst, root
-}
 
 // readFixture reads a fixture-relative path out of the in-memory filesystem.
 func readFixture(t *testing.T, fsys vfs.FS, root string, elem ...string) string {
@@ -85,9 +43,14 @@ func onDisk(t *testing.T, path string) string {
 func TestHCLFmt(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "./testdata/fixtures")
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
 	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
+	original := onDisk(t, "./testdata/fixtures/terragrunt.hcl")
+
+	// .gitignore covers the cache directory, so a fixture cannot carry this file.
+	cached := filepath.Join(tmpPath, "ignored", util.TerragruntCacheDir, "terragrunt.hcl")
+	require.NoError(t, vfs.WriteFile(fsys, cached, []byte(original), 0o644))
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -117,13 +80,12 @@ func TestHCLFmt(t *testing.T) {
 			})
 		}
 
-		// check to make sure the file in the `.terragrunt-cache` folder was ignored and untouched
+		// Formatting a cached copy edits a file the next download overwrites.
 		t.Run("terragrunt-cache", func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t,
-				onDisk(t, "./testdata/fixtures/ignored/.terragrunt-cache/terragrunt.hcl"),
-				readFixture(t, fsys, tmpPath, "ignored/.terragrunt-cache/terragrunt.hcl"))
+			assert.Equal(t, original,
+				readFixture(t, fsys, tmpPath, "ignored", util.TerragruntCacheDir, "terragrunt.hcl"))
 		})
 
 		// Finally, check to make sure the file in the `.history` folder was ignored and untouched
@@ -140,7 +102,7 @@ func TestHCLFmt(t *testing.T) {
 func TestHCLFmtErrors(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "../../../../../test/fixtures/hclfmt-errors")
+	fsys, tmpPath := venvtest.LoadFS(t, "../../../../../test/fixtures/hclfmt-errors")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -173,7 +135,7 @@ func TestHCLFmtErrors(t *testing.T) {
 func TestHCLFmtCheck(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "../../../../../test/fixtures/hclfmt-check")
+	fsys, tmpPath := venvtest.LoadFS(t, "../../../../../test/fixtures/hclfmt-check")
 
 	expected := onDisk(t, "../../../../../test/fixtures/hclfmt-check/expected.hcl")
 
@@ -207,7 +169,7 @@ func TestHCLFmtCheck(t *testing.T) {
 func TestHCLFmtCheckErrors(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "../../../../../test/fixtures/hclfmt-check-errors")
+	fsys, tmpPath := venvtest.LoadFS(t, "../../../../../test/fixtures/hclfmt-check-errors")
 
 	expected := onDisk(t, "../../../../../test/fixtures/hclfmt-check-errors/expected.hcl")
 
@@ -240,7 +202,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "./testdata/fixtures")
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
 	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
 
@@ -375,7 +337,7 @@ func TestHCLFmtStdin(t *testing.T) {
 func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "../../../../../test/fixtures/hclfmt-heredoc")
+	fsys, tmpPath := venvtest.LoadFS(t, "../../../../../test/fixtures/hclfmt-heredoc")
 
 	expected := onDisk(t, "../../../../../test/fixtures/hclfmt-heredoc/expected.hcl")
 
@@ -393,7 +355,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 func TestRunForFiles(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "./testdata/fixtures")
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
 	expected := onDisk(t, filepath.Join(".", "testdata", "fixtures", "expected.hcl"))
 	original := onDisk(t, filepath.Join(".", "testdata", "fixtures", "terragrunt.hcl"))
@@ -458,7 +420,7 @@ func TestRunForFilesEmptyList(t *testing.T) {
 func TestHCLFmtFilter(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "./testdata/fixtures")
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
 	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
 
@@ -513,7 +475,7 @@ func TestHCLFmtFilter(t *testing.T) {
 func TestHCLFmtFilterMultiple(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "./testdata/fixtures")
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
 	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
 
@@ -571,7 +533,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 func TestHCLFmtFilterNegation(t *testing.T) {
 	t.Parallel()
 
-	fsys, tmpPath := loadFixture(t, "./testdata/fixtures")
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
 	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
 
@@ -624,4 +586,41 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestHCLFmtDiffFile pins what --diff prints for a file on the filesystem.
+// [TestHCLFmtStdin] covers the same flag for content arriving on standard
+// input, where the header names stdin instead of a path.
+//
+// The header names the path the file was found at. An in-memory root gives
+// the same string on every machine, so this compares the header too.
+func TestHCLFmtDiffFile(t *testing.T) {
+	t.Parallel()
+
+	const fixture = "../../../../../test/fixtures/hclfmt-diff"
+
+	fsys, root := venvtest.LoadFS(t, fixture)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = root
+	tgOptions.Diff = true
+
+	var out bytes.Buffer
+
+	require.NoError(t, format.Run(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.New().WithFS(fsys).WithWriter(&out),
+		tgOptions,
+	))
+
+	formatted := filepath.Join(root, "terragrunt.hcl")
+	header := fmt.Sprintf(
+		"diff old%[1]s new%[1]s\n--- old%[1]s\n+++ new%[1]s\n",
+		formatted,
+	)
+
+	assert.Equal(t, header+onDisk(t, filepath.Join(fixture, "expected.diff")), out.String())
 }

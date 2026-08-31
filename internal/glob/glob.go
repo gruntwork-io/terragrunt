@@ -274,11 +274,8 @@ func splitRoot(pattern string) (string, bool) {
 		return filepath.FromSlash(pattern), false
 	}
 
-	prefix := pattern[:metaIdx]
-
-	if i := strings.LastIndex(prefix, "/"); i >= 0 {
-		prefix = prefix[:i]
-	} else {
+	prefix, _, ok := strings.CutLast(pattern[:metaIdx], "/")
+	if !ok {
 		prefix = "."
 	}
 

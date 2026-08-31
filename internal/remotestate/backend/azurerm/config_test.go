@@ -93,6 +93,7 @@ func TestGetTFInitArgs_StripsTerragruntOnlyKeys(t *testing.T) {
 		"access_tier", "tags", "skip_resource_group_creation", "skip_storage_account_creation",
 		"skip_container_creation", "skip_versioning", "enable_soft_delete",
 		"soft_delete_retention_days", "allow_blob_public_access",
+		"assign_blob_data_role", "principal_id",
 	} {
 		_, ok := args[k]
 		assert.Falsef(t, ok, "terragrunt-only key %q must not be forwarded to tofu init", k)
@@ -178,6 +179,8 @@ func fullConfig() azurerm.Config {
 		"enable_soft_delete":         true,
 		"soft_delete_retention_days": 14,
 		"tags":                       map[string]string{"team": "platform"},
+		"assign_blob_data_role":      true,
+		"principal_id":               "11111111-2222-3333-4444-555555555555",
 	}
 }
 
@@ -255,4 +258,33 @@ func TestExtendedCacheKey_IsPolicyAware(t *testing.T) {
 	// The container identity is still part of it.
 	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["container_name"] = "other" }))
 	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["environment"] = "usgovernment" }))
+}
+
+// TestCacheKey_DistinguishesRoleAssignment pins that a unit asking for the
+// blob data role does not inherit the "already initialized" entry of a unit
+// that did not, which would silently skip the assignment.
+func TestCacheKey_DistinguishesRoleAssignment(t *testing.T) {
+	t.Parallel()
+
+	base := fullConfig()
+	base["assign_blob_data_role"] = false
+	delete(base, "principal_id")
+
+	withRole := fullConfig()
+	withRole["assign_blob_data_role"] = true
+	delete(withRole, "principal_id")
+
+	otherPrincipal := fullConfig()
+	otherPrincipal["assign_blob_data_role"] = true
+	otherPrincipal["principal_id"] = "99999999-8888-7777-6666-555555555555"
+
+	keyOf := func(c azurerm.Config) string {
+		ext, err := c.ExtendedAzurermConfig()
+		require.NoError(t, err)
+
+		return ext.CacheKey()
+	}
+
+	assert.NotEqual(t, keyOf(base), keyOf(withRole))
+	assert.NotEqual(t, keyOf(withRole), keyOf(otherPrincipal))
 }

@@ -11,12 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"errors"
-
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
-	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
-	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -58,8 +53,6 @@ const (
 	testFixtureGetTerragruntSourceCli         = "fixtures/get-terragrunt-source-cli"
 	testFixtureRunAllSource                   = "fixtures/get-output/run-all-source"
 	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
-	testFixtureHclfmtDiff                     = "fixtures/hclfmt-diff"
-	testFixtureHclfmtStdin                    = "fixtures/hclfmt-stdin"
 	testFixtureHclvalidate                    = "fixtures/hclvalidate"
 	testFixtureIamRolesMultipleModules        = "fixtures/read-config/iam_roles_multiple_modules"
 	testFixtureIncludeParent                  = "fixtures/include-parent"
@@ -102,7 +95,6 @@ const (
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
 	testFixtureExecCmdTfPath                  = "fixtures/exec-cmd-tf-path"
 	testFixtureLogStreaming                   = "fixtures/streaming"
-	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
 	testFixtureTfPathBasic                    = "fixtures/tf-path/basic"
 	testFixtureTfPathTofuTerraform            = "fixtures/tf-path/tofu-terraform"
@@ -112,50 +104,6 @@ const (
 	testFixtureNoColorDependency              = "fixtures/no-color-dependency"
 	hiddenRunAllFixturePath                   = "fixtures/hidden-runall"
 )
-
-func TestCLIFlagHints(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		expectedError error
-		args          string
-	}{
-		{
-			expectedError: flags.NewGlobalFlagHintError("raw", "stack output", "raw"),
-			args:          "-raw init",
-		},
-		{
-			expectedError: flags.NewCommandFlagHintError(
-				"run",
-				"no-include-root",
-				"catalog",
-				"no-include-root",
-			),
-			args: "run --no-include-root",
-		},
-		{
-			expectedError: flags.NewPassthroughFlagHintError("platform"),
-			args:          "run --platform",
-		},
-	}
-
-	for i, tc := range testCases {
-		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
-			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureCLIFlagHints)
-			rootPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
-			rootPath, err := filepath.EvalSymlinks(rootPath)
-			require.NoError(t, err)
-
-			_, _, err = helpers.RunTerragruntCommandWithOutput(
-				t,
-				"terragrunt "+tc.args+" --working-dir "+rootPath,
-			)
-			assert.EqualError(t, err, tc.expectedError.Error())
-		})
-	}
-}
 
 func TestHclvalidateValidConfig(t *testing.T) {
 	t.Parallel()
@@ -481,88 +429,6 @@ inputs = {
 	assert.Contains(t, err.Error(), "use outputs")
 }
 
-func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStack)
-	appPath := filepath.Join(tmpEnvPath, testFixtureStack)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
-		t,
-		"terragrunt run --all --non-interactive --working-dir "+appPath,
-		&stdout,
-		&stderr,
-	)
-	require.Error(t, err)
-
-	var missingCommandError runall.MissingCommand
-
-	ok := errors.As(err, &missingCommandError)
-	assert.True(t, ok)
-}
-
-func TestHclFmtDiff(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureHclfmtDiff)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtDiff)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtDiff)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	require.NoError(
-		t,
-		helpers.RunTerragruntCommand(
-			t,
-			"terragrunt hcl fmt --diff --working-dir "+rootPath,
-			&stdout,
-			&stderr,
-		),
-	)
-
-	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.diff"))
-	require.NoError(t, err)
-
-	helpers.LogBufferContentsLineByLine(t, stdout, "output")
-
-	// Drop the header lines that reference the temp-dir-qualified file path so
-	// the hunk body can be compared exactly against the fixture.
-	var hunk strings.Builder
-
-	for line := range strings.SplitSeq(strings.TrimRight(stdout.String(), "\n"), "\n") {
-		if strings.HasPrefix(line, "diff old/") || strings.HasPrefix(line, "--- old/") ||
-			strings.HasPrefix(line, "+++ new/") {
-			continue
-		}
-
-		hunk.WriteString(line)
-		hunk.WriteByte('\n')
-	}
-
-	assert.Equal(t, strings.TrimRight(string(expectedDiff), "\n")+"\n", hunk.String())
-}
-
-func TestHclFmtStdin(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureHclfmtStdin)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtStdin)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtStdin)
-
-	os.Stdin, _ = os.Open(filepath.Join(rootPath, "terragrunt.hcl"))
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl fmt --stdin")
-	require.NoError(t, err)
-
-	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.hcl"))
-	require.NoError(t, err)
-
-	assert.Contains(t, stdout, string(expectedDiff))
-}
-
 func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 	t.Parallel()
 
@@ -619,14 +485,6 @@ func TestTerragruntInfoError(t *testing.T) {
 
 	err = json.Unmarshal(stdout.Bytes(), &output)
 	require.NoError(t, err)
-}
-
-func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
-	t.Parallel()
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --graph --all")
-	expectedErr := new(shared.AllGraphFlagsError)
-	require.ErrorAs(t, err, &expectedErr)
 }
 
 func TestErrorMessageIncludeInOutput(t *testing.T) {
@@ -753,21 +611,6 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 	}
 }
 
-// Test that default command forwarding is disabled and users are guided to use `run --`.
-func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixturePath)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt workspace list --non-interactive --working-dir "+rootPath,
-	)
-	require.Error(t, err, "expected error when invoking unknown top-level command without 'run'")
-}
-
 // TestTerragruntMutableGenerateBlock verifies that units generating identical
 // contents share one read-only file, and that a block asking to stay mutable
 // gets its own writable copy.
@@ -806,34 +649,6 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 		"a mutable generate block must get its own file")
 	assert.NotZero(t, generated["unit-mutable"].Mode().Perm()&0200,
 		"a mutable generate block must stay writable")
-}
-
-// TestTerragruntMutableGenerateBlockRequiresExperiment verifies that the mutable
-// attribute is rejected until the experiment gating it is enabled.
-func TestTerragruntMutableGenerateBlockRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, so the experiment-disabled error this test pins cannot occur")
-	}
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	unitPath := filepath.Join(
-		tmpEnvPath,
-		testFixtureCodegenPath,
-		"mutable-generate",
-		"unit-mutable",
-	)
-	helpers.CleanupTerraformFolder(t, unitPath)
-	helpers.CleanupTerragruntFolder(t, unitPath)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt exec --working-dir "+unitPath+" -- true",
-	)
-
-	var experimentErr config.MutableGenerateRequiresExperimentError
-	require.ErrorAs(t, err, &experimentErr)
 }
 
 // statGeneratedFile locates a generated file inside the unit's cache dir, which

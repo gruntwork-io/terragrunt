@@ -3,6 +3,9 @@
 // With methods (WithHandler, WithExec, WithFS, WithSops, WithEnv, WithGOOS,
 // WithGOARCH,
 // WithUserHomeDir). Production code builds venvs through [venv.OSVenv] instead.
+//
+// [NewFS] and [LoadFS] build the filesystems those venvs carry, from literals
+// and from an on-disk fixture tree.
 package venvtest
 
 import (

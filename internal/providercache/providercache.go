@@ -12,12 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"uuid"
 
 	"maps"
 
 	"errors"
 
-	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"

@@ -107,8 +107,8 @@ func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *FunctionCall {
 	calledAs := callInfo.CalledFunctionName()
 
 	baseName := calledAs
-	if idx := strings.LastIndex(baseName, "::"); idx >= 0 {
-		baseName = baseName[idx+2:]
+	if _, bare, ok := strings.CutLast(calledAs, "::"); ok {
+		baseName = bare
 	}
 
 	var signature *Function

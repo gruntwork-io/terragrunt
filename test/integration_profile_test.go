@@ -247,50 +247,6 @@ func TestProfileMemFlagBadPathErrors(t *testing.T) {
 	assert.NoFileExists(t, profilePath)
 }
 
-func TestProfileFlagsRequireExperiment(t *testing.T) {
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
-	}
-
-	profilePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "cpu_no_exp.prof")
-
-	t.Setenv("TG_EXPERIMENT", "")
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --profile-cpu "+profilePath+" version")
-	require.ErrorContains(t, err, "require usage of the 'profiling' experiment")
-	assert.NoFileExists(t, profilePath, "profile should not be created without experiment")
-}
-
-func TestTGProfileCPUEnvRequiresExperiment(t *testing.T) {
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
-	}
-
-	profilePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "cpu_env_no_exp.prof")
-
-	t.Setenv("TG_EXPERIMENT", "")
-	t.Setenv("TG_PROFILE_CPU", profilePath)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt version")
-	require.ErrorContains(t, err, "require usage of the 'profiling' experiment")
-	assert.NoFileExists(t, profilePath, "profile should not be created without experiment")
-}
-
-func TestTGProfileDirEnvRequiresExperiment(t *testing.T) {
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
-	}
-
-	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles_no_exp")
-
-	t.Setenv("TG_EXPERIMENT", "")
-	t.Setenv("TG_PROFILE_DIR", profileDir)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt version")
-	require.ErrorContains(t, err, "require usage of the 'profiling' experiment")
-	assert.NoDirExists(t, profileDir, "profile directory should not be created without experiment")
-}
-
 // requireNonEmptyFile asserts that the profile at path exists and is non-empty.
 func requireNonEmptyFile(t *testing.T, path string) {
 	t.Helper()

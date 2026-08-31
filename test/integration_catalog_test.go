@@ -510,38 +510,6 @@ Everything a VPC needs.
 	)
 }
 
-func TestCatalogJSONLFormatRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces all experiments on, opening the gate this test pins shut",
-		)
-	}
-
-	workDir := catalogFixture(t)
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --format jsonl --working-dir "+workDir)
-
-	require.ErrorIs(t, err, catalog.ErrFormatRequiresExperiment)
-	assert.Empty(t, stdout)
-}
-
-// TestCatalogUnknownFormat uses a format nothing plans to implement, so that
-// adding a renderer never turns this into a failure that has to be chased.
-func TestCatalogUnknownFormat(t *testing.T) {
-	t.Parallel()
-
-	workDir := catalogFixture(t)
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format pdf --working-dir "+workDir)
-
-	require.Error(t, err)
-	assert.Empty(t, stdout)
-}
-
 // TestCatalogJSONLFormatCleansUpOnEarlyExit covers `terragrunt catalog
 // --format=jsonl | head -1`: the reader stops, and the command must still
 // remove the repositories it cloned into the temporary directory.

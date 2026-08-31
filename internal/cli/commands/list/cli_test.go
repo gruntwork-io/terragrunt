@@ -284,7 +284,7 @@ func newListCommand(t *testing.T, w *strings.Builder) *clihelper.Command {
 	t.Helper()
 
 	root := "/list-cli"
-	v := venvtest.New().WithFS(newUnitsFS(t, root, listCLIUnits)).WithWriter(w)
+	v := venvtest.New().WithFS(venvtest.NewFS(t, root, listCLIUnits)).WithWriter(w)
 
 	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = root

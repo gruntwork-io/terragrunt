@@ -50,8 +50,8 @@ Authentication supports six methods, resolved in the following order:
 5. OIDC / workload identity
 6. Azure AD (`use_azuread_auth` or the default credential chain, which honors `az login`)
 
-`ARM_*` and `AZURE_*` environment variable fallbacks are applied, and public, US
-Government, and China clouds are supported via the `environment` key.
+`ARM_*` and `AZURE_*` environment variable fallbacks are applied. Set `environment`
+(or `ARM_ENVIRONMENT`) to `usgovernment` for Azure Government.
 
 Without the experiment enabled, these lifecycle operations return an error naming
 the experiment; normal state reading and writing is handled by the native
@@ -94,10 +94,10 @@ To transition the `azure-backend` feature to a stable release, the following mus
 
 - [x] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
 - [x] Bootstrap of storage accounts and blob containers, including versioning and soft delete convergence.
-- [ ] Optional RBAC role assignment for `use_azuread_auth` during bootstrap (the data-plane role must currently be granted manually).
+- [x] Optional RBAC role assignment for `use_azuread_auth` during bootstrap, via `assign_blob_data_role`.
 - [x] Delete operations for state blobs and containers, with confirmation prompts, and state migration within a storage account.
 - [x] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
 - [x] Documentation covering authentication methods, configuration keys, and troubleshooting.
 - [x] End-to-end live coverage against a real subscription for container bootstrap, blob versioning convergence, backend delete, and direct dependency state reads, behind the `azure` build tag.
-- [ ] End-to-end live coverage for resource group and storage account creation, soft-delete retention convergence, and state migration. The current live tests assume a pre-existing storage account.
+- [x] End-to-end live coverage for resource group and storage account creation, soft-delete retention convergence, and state migration.
 - [ ] Community feedback on real-world usage.

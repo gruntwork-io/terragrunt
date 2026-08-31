@@ -104,13 +104,18 @@ func newError(resp *http.Response, body io.Reader) *Error {
 }
 
 // retryAfter reads the delta-seconds form of Retry-After (RFC 9110 §10.2.3),
-// which is what the portal sends. An HTTP-date, or a header the portal omitted,
-// reads as no advice.
+// which is what the portal sends. An HTTP-date, a count that overflows a
+// [time.Duration], or a header the portal omitted, reads as no advice.
 func retryAfter(header http.Header) time.Duration {
 	seconds, err := strconv.Atoi(header.Get("Retry-After"))
-	if err != nil || seconds < 0 {
+	if err != nil {
 		return 0
 	}
 
-	return time.Duration(seconds) * time.Second
+	delay, ok := secondsToDuration(int64(seconds))
+	if !ok {
+		return 0
+	}
+
+	return delay
 }

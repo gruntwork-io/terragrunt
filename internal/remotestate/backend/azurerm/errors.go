@@ -3,6 +3,8 @@ package azurerm
 import (
 	"errors"
 	"fmt"
+
+	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 )
 
 // MissingRequiredAzurermRemoteStateConfigError is returned when a required
@@ -105,3 +107,19 @@ var ErrAzureBackendExperimentRequired = errors.New(
 	"the azurerm backend is experimental and requires the 'azure-backend' experiment to be enabled " +
 		"(e.g. --experiment azure-backend or experiments = [\"azure-backend\"])",
 )
+
+// AssignBlobDataRoleRequiresARMError is returned when assign_blob_data_role is
+// set but the resolved auth method cannot call the ARM role-assignment API
+// (SAS token and access key are data-plane only). Match with errors.As.
+type AssignBlobDataRoleRequiresARMError struct {
+	Method azurehelper.AuthMethod
+}
+
+func (e *AssignBlobDataRoleRequiresARMError) Error() string {
+	return fmt.Sprintf(
+		"assign_blob_data_role requires Microsoft Entra / ARM authentication, not %s; "+
+			"use use_azuread_auth, a service principal, managed identity, or OIDC, "+
+			"or grant Storage Blob Data Contributor out of band and unset assign_blob_data_role",
+		e.Method,
+	)
+}

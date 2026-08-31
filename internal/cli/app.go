@@ -161,14 +161,8 @@ func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {
 		cmdName := cliCtx.Args().CommandName()
 		if cmdName != "" {
 			if cliCtx.Command == nil || cliCtx.Command.Subcommand(cmdName) == nil {
-				// Show a clear error pointing users to the explicit run form.
-				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
 				return clihelper.NewExitError(
-					fmt.Errorf(
-						"unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command",
-						cmdName,
-						cmdName,
-					),
+					UnknownCommandError(cmdName),
 					clihelper.ExitCodeGeneralError,
 				)
 			}

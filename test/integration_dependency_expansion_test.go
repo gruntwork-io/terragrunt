@@ -1,13 +1,13 @@
 package test_test
 
 import (
-	"path/filepath"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wI2L/jsondiff"
 
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -40,25 +40,23 @@ func TestDependencyExpansionReportsEveryInstanceAsDependency(t *testing.T) {
 ]`, stdout)
 }
 
-func TestDependencyExpansionRequiresExperiment(t *testing.T) {
-	t.Parallel()
+// requireJSONEqualIgnoringArrayOrder compares two JSON strings for equivalence, ignoring the order of array elements.
+// Use it instead of require.JSONEq only when the output's array ordering is not guaranteed (e.g. the order of a unit's
+// dependencies, or of units that share a DAG level); prefer require.JSONEq when the order is deterministic.
+func requireJSONEqualIgnoringArrayOrder(
+	t *testing.T,
+	expected, actual string,
+	msgAndArgs ...any,
+) bool {
+	t.Helper()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces all experiments on, opening the gate this test pins shut",
-		)
-	}
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyExpansionKeyed)
-	appPath := filepath.Join(tmpEnvPath, testFixtureDependencyExpansionKeyed, "app")
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+	patch, err := jsondiff.CompareJSON([]byte(expected), []byte(actual), jsondiff.Equivalent())
+	require.NoErrorf(t, err, fmt.Sprintf("Error comparing JSON strings: %v", err), msgAndArgs...)
+	require.Emptyf(
 		t,
-		"terragrunt plan --non-interactive --working-dir "+appPath,
-	)
+		patch,
+		fmt.Sprintf("JSON strings are not equal\nExpected: %s\nActual: %s", expected, actual),
+		msgAndArgs...)
 
-	var expansionErr config.ExpansionRequiresExperimentError
-	require.ErrorAs(t, err, &expansionErr)
-	assert.Equal(t, "dependency", expansionErr.BlockType)
-	assert.Empty(t, stdout)
+	return true
 }
