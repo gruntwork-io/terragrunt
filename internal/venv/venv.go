@@ -26,6 +26,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -58,6 +59,11 @@ var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
 // nil. Production callers build the Venv through [OSVenv], so it points at a
 // test that forgot to set HTTP rather than a runtime condition.
 var ErrVenvHTTPUnset = errors.New("venv.Venv.HTTP is required but unset")
+
+// ErrVenvBrowserUnset is the panic value [Venv.RequireBrowser] raises when
+// Browser is nil. Production callers build the Venv through [OSVenv], so it
+// points at a test that forgot to set Browser rather than a runtime condition.
+var ErrVenvBrowserUnset = errors.New("venv.Venv.Browser is required but unset")
 
 // ErrVenvStdinUnset is the panic value [Venv.RequireStdin] raises when Stdin is
 // nil. Production callers build the Venv through [OSVenv], so it points at a
@@ -126,8 +132,8 @@ type Terminal struct {
 }
 
 // Venv is the root virtualized environment. It carries the filesystem,
-// process-execution, HTTP, SOPS-decryption, environment-variable, platform,
-// and writer handles that every Terragrunt operation needs. Env is shared by
+// process-execution, HTTP, SOPS-decryption, browser, environment-variable,
+// platform, and writer handles that every Terragrunt operation needs. Env is shared by
 // reference across the run and mutated in place as provider-cache, hook, and
 // inputs contributions resolve. Writers is held as a pointer so per-call
 // overrides via [writer.Writers.WithWriter] and [writer.Writers.WithErrWriter]
@@ -146,6 +152,7 @@ type Venv struct {
 	Exec     vexec.Exec
 	HTTP     vhttp.Client
 	Sops     vsops.Decrypter
+	Browser  vbrowser.Opener
 	Listen   Listener
 	Stdin    io.Reader
 	Env      map[string]string
@@ -211,6 +218,14 @@ func (v *Venv) WithHTTP(c vhttp.Client) *Venv {
 	cp.HTTP = c
 
 	return &cp
+}
+
+// WithBrowser returns a copy of v whose browser opener is o.
+func (v *Venv) WithBrowser(o vbrowser.Opener) *Venv {
+	c := *v
+	c.Browser = o
+
+	return &c
 }
 
 // WithSops returns a copy of v whose SOPS decrypter is d.
@@ -354,6 +369,13 @@ func (v *Venv) RequireHTTP() {
 	}
 }
 
+// RequireBrowser panics with [ErrVenvBrowserUnset] when Browser is nil.
+func (v *Venv) RequireBrowser() {
+	if v.Browser == nil {
+		panic(ErrVenvBrowserUnset)
+	}
+}
+
 // RequireTerminal panics with [ErrVenvTerminalUnset] when Terminal is nil.
 // Functions that size or color their output call this as their first
 // statement so a missing handle panics at the offending call site instead of
@@ -454,13 +476,14 @@ func (v *Venv) RequireTempDir() {
 // [writer.Writers.WithWriter] returns a fresh copy.
 func OSVenv() *Venv {
 	return &Venv{
-		FS:     vfs.NewOSFS(),
-		Exec:   vexec.NewOSExec(),
-		HTTP:   vhttp.NewOSClient(),
-		Sops:   vsops.NewOSDecrypter(),
-		Listen: (&net.ListenConfig{}).Listen,
-		Stdin:  os.Stdin,
-		Env:    ParseEnviron(os.Environ()),
+		FS:      vfs.NewOSFS(),
+		Exec:    vexec.NewOSExec(),
+		HTTP:    vhttp.NewOSClient(),
+		Sops:    vsops.NewOSDecrypter(),
+		Browser: vbrowser.NewOSOpener(),
+		Listen:  (&net.ListenConfig{}).Listen,
+		Stdin:   os.Stdin,
+		Env:     ParseEnviron(os.Environ()),
 		Platform: &Platform{
 			UserHomeDir:  os.UserHomeDir,
 			UserCacheDir: os.UserCacheDir,
