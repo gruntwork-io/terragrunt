@@ -67,7 +67,8 @@ func (r *TFRResolver) WithLogger(l log.Logger) *TFRResolver {
 }
 
 // WithTofuImplementation selects which default registry domain is used
-// when a tfr:// URL omits its host. See [tfimpl.DefaultRegistryDomain].
+// when a tfr:// URL omits its host, and which implementation's CLI config
+// files supply registry credentials. See [tfimpl.DefaultRegistryDomain] and [RegistryAuth.Impl].
 func (r *TFRResolver) WithTofuImplementation(impl tfimpl.Type) *TFRResolver {
 	r.TofuImplementation = impl
 	return r

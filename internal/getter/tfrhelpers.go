@@ -320,7 +320,8 @@ func GetMatchingModuleVersion(
 // PinModuleVersion resolves constraint against the OpenTofu or Terraform module
 // registry addressed by the tfr:// source and returns the source URL rewritten
 // to pin the exact version that satisfies the constraint. tofuImpl selects the
-// default registry host when the source omits it.
+// default registry host when the source omits it, and which implementation's
+// CLI config files supply registry credentials. See [RegistryAuth.Impl].
 func PinModuleVersion(
 	ctx context.Context,
 	l log.Logger,
@@ -626,10 +627,16 @@ func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, 
 		return auth.readCredentialsSource()
 	}
 
+	// Every non-Terraform implementation reads the same tofu-order files, so share one entry.
+	impl := tfimpl.OpenTofu
+	if tfimpl.UsesTerraformCLIConfig(auth.Impl) {
+		impl = tfimpl.Terraform
+	}
+
 	auth.cache.mu.Lock()
 	defer auth.cache.mu.Unlock()
 
-	entry, ok := auth.cache.entries[auth.Impl]
+	entry, ok := auth.cache.entries[impl]
 	if !ok {
 		entry = &registryAuthCacheEntry{}
 		entry.credentialsSource, entry.err = auth.readCredentialsSource()
@@ -638,7 +645,7 @@ func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, 
 			auth.cache.entries = make(map[tfimpl.Type]*registryAuthCacheEntry)
 		}
 
-		auth.cache.entries[auth.Impl] = entry
+		auth.cache.entries[impl] = entry
 	}
 
 	return entry.credentialsSource, entry.err

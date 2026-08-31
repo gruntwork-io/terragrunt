@@ -3,7 +3,7 @@ version: "v1.1.5"
 category: "bug-fixes"
 ---
 
-#### Provider Cache Server reads only the CLI config files the running implementation reads
+#### Provider Cache Server reads only the running implementation's CLI config files
 
 In v1.1.4, the [Provider Cache Server](/features/caching/provider-cache-server) started reading OpenTofu's CLI config file locations (`~/.tofurc` and `$XDG_CONFIG_HOME/opentofu/tofurc`) regardless of which binary Terragrunt was running. A machine with a stray `~/.tofurc` (for example, one declaring a `network_mirror`) could break `terragrunt init` for Terraform users with errors like:
 
@@ -11,6 +11,13 @@ In v1.1.4, the [Provider Cache Server](/features/caching/provider-cache-server) 
 ERROR Failed to get provider versions from "network_mirror '...'": invalid character '<' looking for beginning of value
 ```
 
-Terragrunt now detects whether the configured binary is OpenTofu or Terraform before starting the cache server and reads only that implementation's CLI config files: OpenTofu reads `~/.tofurc`, then `~/.terraformrc`, then `$XDG_CONFIG_HOME/opentofu/tofurc`, while Terraform's only primary config file is `~/.terraformrc` (`%APPDATA%\terraform.rc` on Windows). Terragrunt also merges, for both implementations, the `*.tfrc` and `*.tfrc.json` fragments from the CLI config directory (`~/.terraform.d`, or `$XDG_CONFIG_HOME/opentofu` for OpenTofu when `~/.terraform.d` does not exist). The same selection applies to the credentials read for module registry downloads and version-constraint resolution, kept separately per implementation within a single run. `TF_CLI_CONFIG_FILE` continues to override the config file location for both implementations.
+Terragrunt now detects whether the configured binary is OpenTofu or Terraform before starting the cache server and reads only that implementation's CLI config files:
+
+- OpenTofu reads the first of these that exists: `~/.tofurc`, `~/.terraformrc`, `$XDG_CONFIG_HOME/opentofu/tofurc` (on Windows: `%APPDATA%\tofu.rc`, then `%APPDATA%\terraform.rc`).
+- Terraform reads only `~/.terraformrc` (`%APPDATA%\terraform.rc` on Windows).
+- For both implementations, Terragrunt also merges the `*.tfrc` and `*.tfrc.json` fragments from the CLI config directory (`~/.terraform.d`, or `$XDG_CONFIG_HOME/opentofu` for OpenTofu when `~/.terraform.d` does not exist).
+- Setting `TF_CLI_CONFIG_FILE` continues to override the config file location for both implementations.
+
+The same selection applies to the credentials read for module registry downloads and version-constraint resolution, kept separately per implementation within a single run.
 
 The implementation is detected from the binary Terragrunt is configured to run at startup (`--tf-path`, `TG_TF_PATH`, or the first of `tofu`/`terraform` found on `PATH`); a `terraform_binary` setting inside a unit's configuration does not change which files the cache server reads, and Terragrunt warns when a run's implementation differs from the one the cache server was configured for. If detection fails, Terragrunt logs a warning and falls back to OpenTofu's file locations.

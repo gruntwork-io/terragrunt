@@ -250,6 +250,14 @@ func TestUserConfigDir(t *testing.T) {
 			impl: tfimpl.OpenTofu,
 		},
 		{
+			name: "terraform on windows uses APPDATA terraform.d",
+			goos: "windows",
+			home: testHome,
+			impl: tfimpl.Terraform,
+			env:  map[string]string{"APPDATA": testAppData},
+			want: filepath.Join(testAppData, "terraform.d"),
+		},
+		{
 			name: "terraform always uses the legacy directory",
 			goos: "linux",
 			home: testHome,

@@ -892,7 +892,7 @@ func ImplementationMismatchWarning(serverImpl, runImpl tfimpl.Type) string {
 		return ""
 	}
 
-	if (serverImpl == tfimpl.Terraform) == (runImpl == tfimpl.Terraform) {
+	if tfimpl.UsesTerraformCLIConfig(serverImpl) == tfimpl.UsesTerraformCLIConfig(runImpl) {
 		return ""
 	}
 
@@ -908,7 +908,7 @@ func ImplementationMismatchWarning(serverImpl, runImpl tfimpl.Type) string {
 
 // implementationFileOrder names the CLI-config file set an implementation reads, for log messages.
 func implementationFileOrder(impl tfimpl.Type) string {
-	if impl == tfimpl.Terraform {
+	if tfimpl.UsesTerraformCLIConfig(impl) {
 		return string(tfimpl.Terraform)
 	}
 

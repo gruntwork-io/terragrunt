@@ -44,7 +44,7 @@ func UserConfigCandidates(v *venv.Venv, impl tfimpl.Type) []string {
 			return nil
 		}
 
-		if impl == tfimpl.Terraform {
+		if tfimpl.UsesTerraformCLIConfig(impl) {
 			return []string{filepath.Join(appData, "terraform.rc")}
 		}
 
@@ -55,7 +55,7 @@ func UserConfigCandidates(v *venv.Venv, impl tfimpl.Type) []string {
 	}
 
 	// terraform reads only ~/.terraformrc and never falls back to XDG.
-	if impl == tfimpl.Terraform {
+	if tfimpl.UsesTerraformCLIConfig(impl) {
 		if home == "" {
 			return nil
 		}
@@ -93,7 +93,7 @@ func UserConfigDir(v *venv.Venv, impl tfimpl.Type) (string, error) {
 	}
 
 	// terraform always uses ~/.terraform.d and never falls back to XDG.
-	if impl == tfimpl.Terraform {
+	if tfimpl.UsesTerraformCLIConfig(impl) {
 		if home == "" {
 			return "", nil
 		}
