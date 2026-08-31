@@ -1,39 +1,45 @@
 package config_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// writeUnitPair writes a `bar` unit and a `foo` unit beside it, and returns the path to foo's config.
-func writeUnitPair(t *testing.T, barHCL, fooHCL string) string {
+// unitsVenv builds a venv over an in-memory tree of the given files, rooted at a directory named
+// for the test, and returns it with the root. The exec handle refuses to spawn, so a parse that
+// reaches for `tofu output` fails at the spawn rather than on whatever the machine running the
+// suite happens to have installed.
+func unitsVenv(t *testing.T, files map[string]string) (*venv.Venv, string) {
 	t.Helper()
 
-	tmpDir := t.TempDir()
+	root := filepath.Join("/units", t.Name())
 
-	for name, contents := range map[string]string{"bar": barHCL, "foo": fooHCL} {
-		unitDir := filepath.Join(tmpDir, name)
-		require.NoError(t, os.MkdirAll(unitDir, 0755))
-		require.NoError(t, os.WriteFile(
-			filepath.Join(unitDir, config.DefaultTerragruntConfigPath),
-			[]byte(contents),
-			0644,
-		))
-	}
+	return venvtest.New().WithFS(venvtest.NewFS(t, root, files)), root
+}
 
-	return filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath)
+// unitPairVenv builds a venv over a `bar` unit and a `foo` unit beside it, and returns it with the
+// path to foo's config.
+func unitPairVenv(t *testing.T, barHCL, fooHCL string) (*venv.Venv, string) {
+	t.Helper()
+
+	v, root := unitsVenv(t, map[string]string{
+		filepath.Join("bar", config.DefaultTerragruntConfigPath): barHCL,
+		filepath.Join("foo", config.DefaultTerragruntConfigPath): fooHCL,
+	})
+
+	return v, filepath.Join(root, "foo", config.DefaultTerragruntConfigPath)
 }
 
 func TestParseRemoteStateIgnoresUnappliedDependency(t *testing.T) {
 	t.Parallel()
 
-	fooPath := writeUnitPair(t, `inputs = {}`, `
+	v, fooPath := unitPairVenv(t, `inputs = {}`, `
 dependency "bar" {
   config_path = "../bar"
 }
@@ -54,7 +60,7 @@ inputs = {
 `)
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), fooPath)
+	ctx, pctx := newTestParsingContext(t, v, fooPath)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	require.NoError(t, err)
@@ -67,7 +73,7 @@ inputs = {
 func TestParseRemoteStateResolvesDependencyOutputs(t *testing.T) {
 	t.Parallel()
 
-	fooPath := writeUnitPair(t, `inputs = {}`, `
+	v, fooPath := unitPairVenv(t, `inputs = {}`, `
 dependency "bar" {
   config_path  = "../bar"
   skip_outputs = true
@@ -89,7 +95,7 @@ remote_state {
 `)
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), fooPath)
+	ctx, pctx := newTestParsingContext(t, v, fooPath)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	require.NoError(t, err)
@@ -101,7 +107,7 @@ remote_state {
 func TestParseRemoteStateAsAttribute(t *testing.T) {
 	t.Parallel()
 
-	fooPath := writeUnitPair(t, `inputs = {}`, `
+	v, fooPath := unitPairVenv(t, `inputs = {}`, `
 dependency "bar" {
   config_path = "../bar"
 }
@@ -122,7 +128,7 @@ inputs = {
 `)
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), fooPath)
+	ctx, pctx := newTestParsingContext(t, v, fooPath)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	require.NoError(t, err)
@@ -135,10 +141,8 @@ inputs = {
 func TestParseRemoteStateFromJSONConfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-
-	fooPath := filepath.Join(tmpDir, config.DefaultTerragruntJSONConfigPath)
-	require.NoError(t, os.WriteFile(fooPath, []byte(`{
+	v, root := unitsVenv(t, map[string]string{
+		config.DefaultTerragruntJSONConfigPath: `{
   "remote_state": {
     "backend": "s3",
     "config": {
@@ -148,10 +152,15 @@ func TestParseRemoteStateFromJSONConfig(t *testing.T) {
     }
   }
 }
-`), 0644))
+`,
+	})
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), fooPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		v,
+		filepath.Join(root, config.DefaultTerragruntJSONConfigPath),
+	)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	require.NoError(t, err)
@@ -164,19 +173,13 @@ func TestParseRemoteStateFromJSONConfig(t *testing.T) {
 func TestParseRemoteStateFromExposedInclude(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "root.hcl"), []byte(`
+	v, root := unitsVenv(t, map[string]string{
+		"root.hcl": `
 locals {
   bucket = "root-state"
 }
-`), 0644))
-
-	unitDir := filepath.Join(tmpDir, "foo")
-	require.NoError(t, os.MkdirAll(unitDir, 0755))
-
-	fooPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
-	require.NoError(t, os.WriteFile(fooPath, []byte(`
+`,
+		filepath.Join("foo", config.DefaultTerragruntConfigPath): `
 include "root" {
   path   = find_in_parent_folders("root.hcl")
   expose = true
@@ -191,10 +194,15 @@ remote_state {
     region = "us-east-1"
   }
 }
-`), 0644))
+`,
+	})
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), fooPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		v,
+		filepath.Join(root, "foo", config.DefaultTerragruntConfigPath),
+	)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	require.NoError(t, err)
@@ -206,9 +214,8 @@ remote_state {
 func TestParseRemoteStateFromIncludeReadingDependencyOutputs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "root.hcl"), []byte(`
+	v, root := unitsVenv(t, map[string]string{
+		"root.hcl": `
 remote_state {
   backend = "s3"
 
@@ -218,20 +225,9 @@ remote_state {
     region = "us-east-1"
   }
 }
-`), 0644))
-
-	for _, name := range []string{"foo", "bar"} {
-		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0755))
-	}
-
-	require.NoError(t, os.WriteFile(
-		filepath.Join(tmpDir, "bar", config.DefaultTerragruntConfigPath),
-		[]byte(`inputs = {}`),
-		0644,
-	))
-
-	fooPath := filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath)
-	require.NoError(t, os.WriteFile(fooPath, []byte(`
+`,
+		filepath.Join("bar", config.DefaultTerragruntConfigPath): `inputs = {}`,
+		filepath.Join("foo", config.DefaultTerragruntConfigPath): `
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -244,10 +240,15 @@ dependency "bar" {
     bucket = "bar-state"
   }
 }
-`), 0644))
+`,
+	})
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), fooPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		v,
+		filepath.Join(root, "foo", config.DefaultTerragruntConfigPath),
+	)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	require.NoError(t, err)
@@ -259,9 +260,8 @@ dependency "bar" {
 func TestParseRemoteStateFromIncludedConfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "root.hcl"), []byte(`
+	v, root := unitsVenv(t, map[string]string{
+		"root.hcl": `
 locals {
   bucket = "root-state"
 }
@@ -275,13 +275,9 @@ remote_state {
     region = "us-east-1"
   }
 }
-`), 0644))
-
-	unitDir := filepath.Join(tmpDir, "foo")
-	require.NoError(t, os.MkdirAll(unitDir, 0755))
-
-	fooPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
-	require.NoError(t, os.WriteFile(fooPath, []byte(`
+`,
+		filepath.Join("bar", config.DefaultTerragruntConfigPath): `inputs = {}`,
+		filepath.Join("foo", config.DefaultTerragruntConfigPath): `
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -293,18 +289,15 @@ dependency "bar" {
 inputs = {
   name = dependency.bar.outputs.name
 }
-`), 0644))
-
-	barDir := filepath.Join(tmpDir, "bar")
-	require.NoError(t, os.MkdirAll(barDir, 0755))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(barDir, config.DefaultTerragruntConfigPath),
-		[]byte(`inputs = {}`),
-		0644,
-	))
+`,
+	})
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), fooPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		v,
+		filepath.Join(root, "foo", config.DefaultTerragruntConfigPath),
+	)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	require.NoError(t, err)
