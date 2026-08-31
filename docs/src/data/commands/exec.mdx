@@ -65,4 +65,4 @@ Passing [`--in-download-dir`](/reference/cli/commands/exec#in-download-dir) runs
 terragrunt exec --in-download-dir --no-auto-init -- cat main.tf
 ```
 
-`--no-auto-init` also covers the units named in `dependency` blocks, which Terragrunt initializes while resolving their outputs. That happens on every `exec` run, with or without `--in-download-dir`. In both cases Terragrunt logs a warning in place of `init`, and what runs next may fail if it needs an initialized directory.
+`--no-auto-init` also covers units named in `dependency` blocks. Terragrunt initializes a dependency when resolving its outputs requires it, with or without `--in-download-dir`. In either case Terragrunt logs a warning in place of `init`, and what runs next may fail if it needs an initialized directory.

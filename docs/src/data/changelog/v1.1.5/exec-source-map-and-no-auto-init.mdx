@@ -5,7 +5,7 @@ category: "bug-fixes"
 
 #### `exec` accepts `--source-map` and `--no-auto-init`
 
-`terragrunt exec` rejected [`--source-map`](/reference/cli/commands/exec#source-map) and [`--no-auto-init`](/reference/cli/commands/exec#no-auto-init) with ``flag `--source-map` is not a valid flag for `exec` ``, even though it reads configuration and downloads source the same way `run` does. There was no way to point `exec` at a local copy of a module, or to stop it from running `init`. Both flags are now registered on `exec`.
+`terragrunt exec` rejected [`--source-map`](/reference/cli/commands/exec#source-map) and [`--no-auto-init`](/reference/cli/commands/exec#no-auto-init) as invalid flags, one message per flag: ``flag `--source-map` is not a valid flag for `exec` ``. It reads configuration and downloads source the same way `run` does, so there was no way to point `exec` at a local copy of a module, or to stop it from running `init`. Both flags are now registered on `exec`.
 
 ```bash
 terragrunt exec --source-map git::ssh://git@github.com/acme/modules.git=/local/modules -- tfmigrate plan
@@ -13,4 +13,4 @@ terragrunt exec --source-map git::ssh://git@github.com/acme/modules.git=/local/m
 
 `exec` therefore also reads `TG_SOURCE_MAP` and `TG_NO_AUTO_INIT`, along with the deprecated `TERRAGRUNT_SOURCE_MAP` and `TERRAGRUNT_AUTO_INIT`, which it previously ignored. If you export any of those for `run`, `exec` starts honoring them too.
 
-`--no-auto-init` reaches the unit `exec` targets only under [`--in-download-dir`](/reference/cli/commands/exec#in-download-dir), since `exec` otherwise never runs `init` for it. It reaches the units named in `dependency` blocks on every run, because Terragrunt initializes those while resolving their outputs.
+`--no-auto-init` reaches the unit `exec` targets only under [`--in-download-dir`](/reference/cli/commands/exec#in-download-dir), since `exec` otherwise never runs `init` for it. It also reaches units named in `dependency` blocks, with or without that flag, because Terragrunt initializes a dependency when resolving its outputs requires it.
