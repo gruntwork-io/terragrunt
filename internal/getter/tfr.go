@@ -49,7 +49,7 @@ type RegistryGetter struct {
 
 // auth assembles the environment the registry protocol authenticates with.
 func (r *RegistryGetter) auth() RegistryAuth {
-	return RegistryAuth{Venv: r.Venv, cache: r.authCache}
+	return RegistryAuth{Venv: r.Venv, Impl: r.TofuImplementation, cache: r.authCache}
 }
 
 // NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol

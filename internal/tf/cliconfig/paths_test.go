@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -95,7 +96,7 @@ func TestUserConfigOverride(t *testing.T) {
 	}
 }
 
-// TestUserConfigCandidates: the default file locations follow OpenTofu's platform-specific search order.
+// TestUserConfigCandidates: the default file locations follow the implementation's platform-specific search order.
 func TestUserConfigCandidates(t *testing.T) {
 	t.Parallel()
 
@@ -104,18 +105,21 @@ func TestUserConfigCandidates(t *testing.T) {
 		name string
 		goos string
 		home string
+		impl tfimpl.Type
 		want []string
 	}{
 		{
 			name: "unix dotfiles",
 			goos: "linux",
 			home: testHome,
+			impl: tfimpl.OpenTofu,
 			want: []string{filepath.Join(testHome, ".tofurc"), filepath.Join(testHome, ".terraformrc")},
 		},
 		{
 			name: "unix XDG appended when set",
 			goos: "linux",
 			home: testHome,
+			impl: tfimpl.OpenTofu,
 			env:  map[string]string{"XDG_CONFIG_HOME": testXDG},
 			want: []string{
 				filepath.Join(testHome, ".tofurc"),
@@ -126,17 +130,20 @@ func TestUserConfigCandidates(t *testing.T) {
 		{
 			name: "unix without a home reads XDG only",
 			goos: "linux",
+			impl: tfimpl.OpenTofu,
 			env:  map[string]string{"XDG_CONFIG_HOME": testXDG},
 			want: []string{filepath.Join(testXDG, "opentofu", "tofurc")},
 		},
 		{
 			name: "unix without a home or XDG has no candidate",
 			goos: "linux",
+			impl: tfimpl.OpenTofu,
 		},
 		{
 			name: "windows reads APPDATA only",
 			goos: "windows",
 			home: testHome,
+			impl: tfimpl.OpenTofu,
 			env:  map[string]string{"APPDATA": testAppData, "XDG_CONFIG_HOME": testXDG},
 			want: []string{filepath.Join(testAppData, "tofu.rc"), filepath.Join(testAppData, "terraform.rc")},
 		},
@@ -144,6 +151,36 @@ func TestUserConfigCandidates(t *testing.T) {
 			name: "windows without APPDATA has no candidate",
 			goos: "windows",
 			home: testHome,
+			impl: tfimpl.OpenTofu,
+		},
+		{
+			name: "terraform reads only .terraformrc",
+			goos: "linux",
+			home: testHome,
+			impl: tfimpl.Terraform,
+			env:  map[string]string{"XDG_CONFIG_HOME": testXDG},
+			want: []string{filepath.Join(testHome, ".terraformrc")},
+		},
+		{
+			name: "terraform without a home has no candidate",
+			goos: "linux",
+			impl: tfimpl.Terraform,
+			env:  map[string]string{"XDG_CONFIG_HOME": testXDG},
+		},
+		{
+			name: "terraform on windows reads terraform.rc only",
+			goos: "windows",
+			home: testHome,
+			impl: tfimpl.Terraform,
+			env:  map[string]string{"APPDATA": testAppData},
+			want: []string{filepath.Join(testAppData, "terraform.rc")},
+		},
+		{
+			name: "unknown implementation follows OpenTofu's order",
+			goos: "linux",
+			home: testHome,
+			impl: tfimpl.Unknown,
+			want: []string{filepath.Join(testHome, ".tofurc"), filepath.Join(testHome, ".terraformrc")},
 		},
 	}
 
@@ -151,12 +188,12 @@ func TestUserConfigCandidates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, cliconfig.UserConfigCandidates(pathsVenv(tt.goos, tt.home, tt.env)))
+			assert.Equal(t, tt.want, cliconfig.UserConfigCandidates(pathsVenv(tt.goos, tt.home, tt.env), tt.impl))
 		})
 	}
 }
 
-// TestUserConfigDir: the config directory prefers the legacy directory, then XDG, then the legacy default.
+// TestUserConfigDir: tofu prefers the legacy directory, then XDG, then the legacy default; terraform reads only the legacy directory.
 func TestUserConfigDir(t *testing.T) {
 	t.Parallel()
 
@@ -165,6 +202,7 @@ func TestUserConfigDir(t *testing.T) {
 		name        string
 		goos        string
 		home        string
+		impl        tfimpl.Type
 		existingDir string
 		want        string
 	}{
@@ -172,6 +210,7 @@ func TestUserConfigDir(t *testing.T) {
 			name:        "existing legacy directory wins",
 			goos:        "linux",
 			home:        testHome,
+			impl:        tfimpl.OpenTofu,
 			env:         map[string]string{"XDG_CONFIG_HOME": testXDG},
 			existingDir: filepath.Join(testHome, ".terraform.d"),
 			want:        filepath.Join(testHome, ".terraform.d"),
@@ -180,6 +219,7 @@ func TestUserConfigDir(t *testing.T) {
 			name: "absent legacy directory falls back to XDG",
 			goos: "linux",
 			home: testHome,
+			impl: tfimpl.OpenTofu,
 			env:  map[string]string{"XDG_CONFIG_HOME": testXDG},
 			want: filepath.Join(testXDG, "opentofu"),
 		},
@@ -187,16 +227,19 @@ func TestUserConfigDir(t *testing.T) {
 			name: "no XDG falls back to the legacy default",
 			goos: "linux",
 			home: testHome,
+			impl: tfimpl.OpenTofu,
 			want: filepath.Join(testHome, ".terraform.d"),
 		},
 		{
 			name: "no home and no XDG has no directory",
 			goos: "linux",
+			impl: tfimpl.OpenTofu,
 		},
 		{
 			name: "windows reads APPDATA",
 			goos: "windows",
 			home: testHome,
+			impl: tfimpl.OpenTofu,
 			env:  map[string]string{"APPDATA": testAppData},
 			want: filepath.Join(testAppData, "terraform.d"),
 		},
@@ -204,6 +247,29 @@ func TestUserConfigDir(t *testing.T) {
 			name: "windows without APPDATA has no directory",
 			goos: "windows",
 			home: testHome,
+			impl: tfimpl.OpenTofu,
+		},
+		{
+			name: "terraform always uses the legacy directory",
+			goos: "linux",
+			home: testHome,
+			impl: tfimpl.Terraform,
+			env:  map[string]string{"XDG_CONFIG_HOME": testXDG},
+			want: filepath.Join(testHome, ".terraform.d"),
+		},
+		{
+			name: "terraform without a home has no directory",
+			goos: "linux",
+			impl: tfimpl.Terraform,
+			env:  map[string]string{"XDG_CONFIG_HOME": testXDG},
+		},
+		{
+			name: "unknown implementation follows OpenTofu's fallbacks",
+			goos: "linux",
+			home: testHome,
+			impl: tfimpl.Unknown,
+			env:  map[string]string{"XDG_CONFIG_HOME": testXDG},
+			want: filepath.Join(testXDG, "opentofu"),
 		},
 	}
 
@@ -216,7 +282,7 @@ func TestUserConfigDir(t *testing.T) {
 				require.NoError(t, v.FS.MkdirAll(tt.existingDir, 0o755))
 			}
 
-			dir, err := cliconfig.UserConfigDir(v)
+			dir, err := cliconfig.UserConfigDir(v, tt.impl)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, dir)
 		})
@@ -231,6 +297,20 @@ func TestUserConfigDirStatFailure(t *testing.T) {
 	v := pathsVenv("linux", testHome, map[string]string{"XDG_CONFIG_HOME": testXDG})
 	v = v.WithFS(statErrorFS{FS: v.FS, failPath: legacy})
 
-	_, err := cliconfig.UserConfigDir(v)
+	_, err := cliconfig.UserConfigDir(v, tfimpl.OpenTofu)
 	require.ErrorIs(t, err, errStatFailed, "an unreadable config directory must not silently fall through to XDG")
+}
+
+// TestUserConfigDirTerraformSkipsExistenceProbe: terraform never probes the legacy directory,
+// so a filesystem that cannot stat it still resolves rather than failing the run.
+func TestUserConfigDirTerraformSkipsExistenceProbe(t *testing.T) {
+	t.Parallel()
+
+	legacy := filepath.Join(testHome, ".terraform.d")
+	v := pathsVenv("linux", testHome, map[string]string{"XDG_CONFIG_HOME": testXDG})
+	v = v.WithFS(statErrorFS{FS: v.FS, failPath: legacy})
+
+	dir, err := cliconfig.UserConfigDir(v, tfimpl.Terraform)
+	require.NoError(t, err)
+	assert.Equal(t, legacy, dir)
 }

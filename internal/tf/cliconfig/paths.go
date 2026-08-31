@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
@@ -28,24 +29,38 @@ func UserConfigOverride(v *venv.Venv) (path, envName string) {
 	return "", ""
 }
 
-// UserConfigCandidates lists OpenTofu's default CLI-config file locations for the injected platform, most preferred first.
-func UserConfigCandidates(v *venv.Venv) []string {
+// UserConfigCandidates lists impl's default CLI-config file locations for the injected platform, most
+// preferred first. Terraform reads only its own file; any other impl follows OpenTofu's search order.
+func UserConfigCandidates(v *venv.Venv, impl tfimpl.Type) []string {
 	home, err := v.Platform.UserHomeDir()
 	if err != nil {
 		home = ""
 	}
 
-	// On Windows tofu reads only tofu.rc and terraform.rc under %APPDATA%.
+	// On Windows tofu reads tofu.rc then terraform.rc under %APPDATA%; terraform reads only terraform.rc.
 	if v.Platform.GOOS == windowsGOOS {
 		appData := v.Env["APPDATA"]
 		if appData == "" {
 			return nil
 		}
 
+		if impl == tfimpl.Terraform {
+			return []string{filepath.Join(appData, "terraform.rc")}
+		}
+
 		return []string{
 			filepath.Join(appData, "tofu.rc"),
 			filepath.Join(appData, "terraform.rc"),
 		}
+	}
+
+	// terraform reads only ~/.terraformrc and never falls back to XDG.
+	if impl == tfimpl.Terraform {
+		if home == "" {
+			return nil
+		}
+
+		return []string{filepath.Join(home, ".terraformrc")}
 	}
 
 	var paths []string
@@ -62,8 +77,8 @@ func UserConfigCandidates(v *venv.Venv) []string {
 	return paths
 }
 
-// UserConfigDir resolves OpenTofu's CLI config directory, whose *.tfrc fragments extend the CLI config.
-func UserConfigDir(v *venv.Venv) (string, error) {
+// UserConfigDir resolves impl's CLI config directory, whose *.tfrc fragments extend the CLI config.
+func UserConfigDir(v *venv.Venv, impl tfimpl.Type) (string, error) {
 	home, err := v.Platform.UserHomeDir()
 	if err != nil {
 		home = ""
@@ -75,6 +90,15 @@ func UserConfigDir(v *venv.Venv) (string, error) {
 		}
 
 		return "", nil
+	}
+
+	// terraform always uses ~/.terraform.d and never falls back to XDG.
+	if impl == tfimpl.Terraform {
+		if home == "" {
+			return "", nil
+		}
+
+		return filepath.Join(home, ".terraform.d"), nil
 	}
 
 	if home != "" {

@@ -275,7 +275,10 @@ func TestRegistryGetterUsesInjectedVenvForCLIConfig(t *testing.T) {
 
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".tofurc"), []byte(fmt.Sprintf(`
+	// A credential-less ~/.tofurc shadows ~/.terraformrc under OpenTofu's search order,
+	// so the assertion fails if the getter stops forwarding the Terraform implementation.
+	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".tofurc"), []byte("\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".terraformrc"), []byte(fmt.Sprintf(`
 credentials %q {
   token = "configured-token"
 }

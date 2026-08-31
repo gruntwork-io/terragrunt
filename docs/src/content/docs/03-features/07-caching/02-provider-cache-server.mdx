@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components'
+import Since from '@components/Since.astro'
 
 <Aside type="tip">
 If you're using OpenTofu >= 1.10, you'll use the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) feature by default on the latest version of Terragrunt.
@@ -91,6 +92,12 @@ terragrunt apply
 
     - [provider-installation](https://opentofu.org/docs/cli/config/config-file/#provider-installation) forces OpenTofu/Terraform to look for the required providers in the cache directory and create symbolic links to them, if not found, then request them from the remote registry.
     - [host](https://github.com/hashicorp/terraform/issues/28309) forces OpenTofu/Terraform to [forward](#how-forwarding-requests-through-the-provider-cache-server-works) all provider requests through the Terragrunt Provider Cache server. The address link contains [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) and is unique for each module, used by Terragrunt Provider Cache server to associate modules with the requested providers.
+
+    <Since version="1.1.5">
+
+    The user configuration is read from the file locations the detected implementation would read. OpenTofu reads `~/.tofurc`, then `~/.terraformrc`, then `$XDG_CONFIG_HOME/opentofu/tofurc` (`%APPDATA%\tofu.rc`, then `%APPDATA%\terraform.rc` on Windows), while Terraform's only primary config file is `~/.terraformrc` (`%APPDATA%\terraform.rc` on Windows). Terragrunt also merges, for both implementations, the `*.tfrc` and `*.tfrc.json` fragments from the CLI config directory (`~/.terraform.d`, or `$XDG_CONFIG_HOME/opentofu` for OpenTofu when `~/.terraform.d` does not exist). Setting `TF_CLI_CONFIG_FILE` overrides the config file location for both implementations. The implementation is detected from the binary Terragrunt is configured to run at startup (`--tf-path`, `TG_TF_PATH`, or the first of `tofu`/`terraform` found on `PATH`); a `terraform_binary` setting inside a unit's configuration does not change which files the cache server reads, and Terragrunt warns when a run's implementation differs from the one the cache server was configured for.
+
+    </Since>
   - Set environment variables:
     - [TF_CLI_CONFIG_FILE](https://opentofu.org/docs/cli/config/environment-variables/#tf_plugin_cache_dir) sets to use just created local CLI config `.terragrunt-cache/.terraformrc`
     - [`TF_TOKEN_*`](https://opentofu.org/docs/cli/config/config-file/#environment-variable-credentials) sets per-remote-registry tokens for authentication to Terragrunt Provider Cache server.

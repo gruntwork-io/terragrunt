@@ -11,6 +11,7 @@ import (
 	hclast "github.com/hashicorp/hcl/hcl/ast"
 	svchost "github.com/hashicorp/terraform-svchost"
 
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
@@ -55,13 +56,14 @@ type providerInstallationMethodAttributes struct {
 }
 
 // LoadUserConfig loads the OpenTofu/Terraform CLI configuration from the
-// filesystem and platform handles carried by v.
-func LoadUserConfig(v *venv.Venv, opts ...ConfigOption) (*Config, error) {
+// filesystem and platform handles carried by v, reading the file locations
+// impl's binary would read.
+func LoadUserConfig(v *venv.Venv, impl tfimpl.Type, opts ...ConfigOption) (*Config, error) {
 	v.RequireEnv()
 	v.RequireFS()
 	v.RequirePlatform()
 
-	paths, err := userConfigPaths(v)
+	paths, err := userConfigPaths(v, impl)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +101,8 @@ func LoadUserConfig(v *venv.Venv, opts ...ConfigOption) (*Config, error) {
 // user-installed provider plugins, or "" when no CLI config directory resolves. It never
 // returns a relative path, which a caller would otherwise resolve against its own
 // working directory.
-func UserProviderDir(v *venv.Venv) (string, error) {
-	configDir, err := UserConfigDir(v)
+func UserProviderDir(v *venv.Venv, impl tfimpl.Type) (string, error) {
+	configDir, err := UserConfigDir(v, impl)
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +115,7 @@ func UserProviderDir(v *venv.Venv) (string, error) {
 }
 
 // userConfigPaths lists the CLI config files to load, most general first, honoring the env-var override.
-func userConfigPaths(v *venv.Venv) ([]string, error) {
+func userConfigPaths(v *venv.Venv, impl tfimpl.Type) ([]string, error) {
 	// An override names the file outright, so an unreadable one is the user's error and the config dir is skipped.
 	if override, envName := UserConfigOverride(v); override != "" {
 		exists, err := vfs.FileExists(v.FS, override)
@@ -131,7 +133,7 @@ func userConfigPaths(v *venv.Venv) ([]string, error) {
 	var paths []string
 
 	// A default candidate that cannot be stat'd reads as absent, the way OpenTofu treats one.
-	for _, candidate := range UserConfigCandidates(v) {
+	for _, candidate := range UserConfigCandidates(v, impl) {
 		if !vfs.Exists(v.FS, candidate) {
 			continue
 		}
@@ -141,7 +143,7 @@ func userConfigPaths(v *venv.Venv) ([]string, error) {
 		break
 	}
 
-	configDir, err := UserConfigDir(v)
+	configDir, err := UserConfigDir(v, impl)
 	if err != nil {
 		return nil, err
 	}

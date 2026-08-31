@@ -329,6 +329,9 @@ func PinModuleVersion(
 	tofuImpl tfimpl.Type,
 	source, constraint string,
 ) (string, error) {
+	// Credential lookup must read the same implementation's CLI config files as domain selection.
+	auth.Impl = tofuImpl
+
 	sourceURL, err := url.Parse(source)
 	if err != nil {
 		return "", err
@@ -561,6 +564,9 @@ type RegistryAuth struct {
 	Venv *venv.Venv
 
 	cache *registryAuthCache
+
+	// Impl selects which implementation's CLI config files supply credentials; the zero value reads OpenTofu's locations.
+	Impl tfimpl.Type
 }
 
 // NewRegistryAuth returns the credentials the registry protocol authenticates with, memoizing
@@ -570,14 +576,20 @@ func NewRegistryAuth(v *venv.Venv) RegistryAuth {
 		panic(ErrNilVenv)
 	}
 
-	return RegistryAuth{Venv: v, cache: &registryAuthCache{}}
+	return RegistryAuth{Venv: v, Impl: tfimpl.OpenTofu, cache: &registryAuthCache{}}
 }
 
-// registryAuthCache memoizes the user's CLI config for the lifetime of the [RegistryAuth] holding it.
+// registryAuthCache memoizes the user's CLI config per implementation for the lifetime of the
+// [RegistryAuth] holding it, so mixed OpenTofu/Terraform runs never share the wrong credentials.
 type registryAuthCache struct {
+	entries map[tfimpl.Type]*registryAuthCacheEntry
+	mu      sync.Mutex
+}
+
+// registryAuthCacheEntry is one implementation's parsed credentials source, or the error parsing produced.
+type registryAuthCacheEntry struct {
 	credentialsSource *cliconfig.CredentialsSource
 	err               error
-	once              sync.Once
 }
 
 // applyHostToken adds an Authorization header to req based on the user's
@@ -603,7 +615,8 @@ func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error)
 	return req, nil
 }
 
-// loadCredentialsSource returns the memoized credentials source, or nil when no user CLI config is reachable.
+// loadCredentialsSource returns the memoized credentials source for auth.Impl, or nil
+// when no user CLI config is reachable.
 func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, error) {
 	if !auth.canLoadUserConfig() {
 		return nil, nil
@@ -613,16 +626,27 @@ func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, 
 		return auth.readCredentialsSource()
 	}
 
-	auth.cache.once.Do(func() {
-		auth.cache.credentialsSource, auth.cache.err = auth.readCredentialsSource()
-	})
+	auth.cache.mu.Lock()
+	defer auth.cache.mu.Unlock()
 
-	return auth.cache.credentialsSource, auth.cache.err
+	entry, ok := auth.cache.entries[auth.Impl]
+	if !ok {
+		entry = &registryAuthCacheEntry{}
+		entry.credentialsSource, entry.err = auth.readCredentialsSource()
+
+		if auth.cache.entries == nil {
+			auth.cache.entries = make(map[tfimpl.Type]*registryAuthCacheEntry)
+		}
+
+		auth.cache.entries[auth.Impl] = entry
+	}
+
+	return entry.credentialsSource, entry.err
 }
 
 // readCredentialsSource parses the user's CLI config through the injected venv.
 func (auth RegistryAuth) readCredentialsSource() (*cliconfig.CredentialsSource, error) {
-	cliCfg, err := cliconfig.LoadUserConfig(auth.Venv)
+	cliCfg, err := cliconfig.LoadUserConfig(auth.Venv, auth.Impl)
 	if err != nil {
 		return nil, err
 	}

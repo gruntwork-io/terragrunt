@@ -76,6 +76,15 @@ func (r *TFRResolver) WithTofuImplementation(impl tfimpl.Type) *TFRResolver {
 // Scheme returns "tfr".
 func (r *TFRResolver) Scheme() string { return SchemeTFR }
 
+// resolverAuth returns r.Auth carrying the resolver's implementation, so credential
+// lookup reads the same implementation's CLI config files as registry-domain selection.
+func (r *TFRResolver) resolverAuth() RegistryAuth {
+	auth := r.Auth
+	auth.Impl = r.TofuImplementation
+
+	return auth
+}
+
 // Probe runs the registry's service-discovery + module-download protocol
 // against rawURL and returns the resolved X-Terraform-Get URL as a
 // content-addressed cache key.
@@ -114,7 +123,7 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		ctx,
 		r.Logger,
 		r.HTTPClient,
-		r.Auth,
+		r.resolverAuth(),
 		registryDomain,
 	)
 	if err != nil {
@@ -126,7 +135,7 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, r.Auth, moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, r.resolverAuth(), moduleURL)
 	if err != nil {
 		return "", cas.ErrNoVersionMetadata
 	}
