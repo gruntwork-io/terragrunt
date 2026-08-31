@@ -271,8 +271,11 @@ func (pc *ProviderCache) TerraformCommandHook(
 		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
 	}
 
+	// A mismatched implementation must not consume the wrong CLI config, so run without the cache.
 	if warning := ImplementationMismatchWarning(pc.implementation, tfOpts.TofuImplementation); warning != "" {
 		pc.mismatchWarning.Do(func() { l.Warn(warning) })
+
+		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
 	}
 
 	cacheEnvV := v.WithEnv(
@@ -886,7 +889,7 @@ func StripProxiedCredentials(
 // ImplementationMismatchWarning returns the warning to log when a run's implementation reads
 // different CLI config files than the ones the cache server loaded at startup, or "" when the
 // two agree. Anything but Terraform reads OpenTofu's file locations, so only crossing that
-// boundary warrants a warning.
+// boundary warrants a warning; the hook then bypasses the cache for that run.
 func ImplementationMismatchWarning(serverImpl, runImpl tfimpl.Type) string {
 	if runImpl == "" || runImpl == tfimpl.Unknown {
 		return ""
@@ -897,9 +900,9 @@ func ImplementationMismatchWarning(serverImpl, runImpl tfimpl.Type) string {
 	}
 
 	return fmt.Sprintf(
-		"The Terragrunt provider cache server loaded the CLI config files %s reads, but this run uses %s. "+
-			"The cache server keeps serving the startup implementation's configuration; "+
-			"set --tf-path or TG_TF_PATH to the %s binary, or align terraform_binary in your unit configuration, so both match.",
+		"The Terragrunt provider cache server loaded the CLI config files %s reads, but this run uses %s, "+
+			"so the run skips the provider cache and uses its own CLI configuration. "+
+			"To cache providers for %s, set --tf-path or TG_TF_PATH to that binary, or align terraform_binary in your unit configuration.",
 		implementationFileOrder(serverImpl),
 		runImpl,
 		runImpl,

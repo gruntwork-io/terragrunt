@@ -3,12 +3,17 @@ package commands_test
 import (
 	"context"
 	"net"
+	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -122,4 +127,77 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 		assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 		assert.Contains(t, output.String(), "falls back to OpenTofu's CLI config file locations")
 	})
+}
+
+// TestRunActionProviderCacheUsesDetectedImplementation pins the InitServer boundary
+// end-to-end: the cache server must be initialized with the implementation RunAction
+// detected, proven by the generated CLI config a unit's run receives. Hard-coding the
+// wrong implementation at the InitServer call site makes the hook bypass the cache and
+// fails this test.
+func TestRunActionProviderCacheUsesDetectedImplementation(t *testing.T) {
+	t.Parallel()
+
+	const (
+		home    = "/virtual/home"
+		workDir = "/virtual/work"
+		mirror  = "https://mirror.example.test/providers/"
+	)
+
+	v := venvtest.New().
+		WithGOOS("linux").
+		WithUserHomeDir(func() (string, error) { return home, nil }).
+		WithHandler(func(ctx context.Context, inv vexec.Invocation) vexec.Result {
+			if slices.Contains(inv.Args, "-version") {
+				return fakeTerraformVersionHandler(ctx, inv)
+			}
+
+			return vexec.Result{}
+		})
+	v.Listen = func(ctx context.Context, network, addr string) (net.Listener, error) {
+		var lc net.ListenConfig
+
+		return lc.Listen(ctx, network, addr)
+	}
+
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
+	// The .tofurc mirror must never reach a Terraform run's generated CLI config.
+	require.NoError(t, vfs.WriteFile(v.FS, home+"/.tofurc", []byte(`
+provider_installation {
+  network_mirror {
+    url = "`+mirror+`"
+  }
+}
+`), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, home+"/.terraformrc", []byte("\n"), 0o600))
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.NoAutoProviderCacheDir = true
+	opts.TFPath = "terraform"
+	opts.ProviderCacheOptions.Enabled = true
+	opts.ProviderCacheOptions.Dir = "/virtual/provider-cache"
+	opts.ProviderCacheOptions.Hostname = "127.0.0.1"
+	opts.ProviderCacheOptions.Token = "11111111-2222-3333-4444-555555555555"
+
+	action := func(ctx context.Context, _ *clihelper.Context) error {
+		hook := tf.TerraformCommandHookFromContext(ctx)
+		require.NotNil(t, hook, "RunAction must install the provider cache hook")
+
+		tfOpts := &tf.TFOptions{
+			TerraformCliArgs:   iacargs.New(),
+			ShellOptions:       shell.NewShellOptions(map[string]string{}).WithTFPath("terraform").WithWorkingDir(workDir),
+			TofuImplementation: tfimpl.Terraform,
+		}
+
+		_, err := hook(ctx, logger.CreateLogger(), v, tfOpts, clihelper.Args{"init"})
+
+		return err
+	}
+
+	require.NoError(t, commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, v, action))
+
+	generated, err := vfs.ReadFile(v.FS, workDir+"/.terraformrc")
+	require.NoError(t, err, "a matching implementation must go through the cache and generate its CLI config")
+	assert.NotContains(t, string(generated), mirror)
+	assert.Contains(t, string(generated), "registry.terraform.io")
 }

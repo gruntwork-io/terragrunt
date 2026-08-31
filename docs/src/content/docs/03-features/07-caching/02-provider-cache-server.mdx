@@ -99,10 +99,10 @@ terragrunt apply
 
     - OpenTofu reads the first of these that exists: `~/.tofurc`, `~/.terraformrc`, `$XDG_CONFIG_HOME/opentofu/tofurc` (on Windows: `%APPDATA%\tofu.rc`, then `%APPDATA%\terraform.rc`).
     - Terraform reads only `~/.terraformrc` (`%APPDATA%\terraform.rc` on Windows).
-    - For both implementations, Terragrunt also merges the `*.tfrc` and `*.tfrc.json` fragments from the CLI config directory (`~/.terraform.d`, or `$XDG_CONFIG_HOME/opentofu` for OpenTofu when `~/.terraform.d` does not exist).
+    - For both implementations, Terragrunt also merges the `*.tfrc` and `*.tfrc.json` fragments from the CLI config directory: `~/.terraform.d` (`%APPDATA%\terraform.d` on Windows), or `$XDG_CONFIG_HOME/opentofu` for OpenTofu when `~/.terraform.d` does not exist.
     - Setting `TF_CLI_CONFIG_FILE` overrides the config file location for both implementations.
 
-    The implementation is detected from the binary Terragrunt is configured to run at startup (`--tf-path`, `TG_TF_PATH`, or the first of `tofu`/`terraform` found on `PATH`). A `terraform_binary` setting inside a unit's configuration does not change which files the cache server reads, and Terragrunt warns when a run's implementation differs from the one the cache server was configured for.
+    The implementation is detected from the binary Terragrunt is configured to run at startup (`--tf-path`, `TG_TF_PATH`, or the first of `tofu`/`terraform` found on `PATH`). A `terraform_binary` setting inside a unit's configuration does not change which files the cache server reads. When a run's implementation differs from the one the cache server was configured for, that run skips the provider cache and uses its own CLI configuration; Terragrunt prints a warning when such a run initializes providers (`init` or `providers lock`).
 
     </Since>
   - Set environment variables:
