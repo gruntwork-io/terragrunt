@@ -70,7 +70,7 @@ type ParsingContext struct {
 	dependencyOutputEnvKeys map[string]struct{}
 	PredefinedFunctions     map[string]function.Function
 
-	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, cfgPath string, cfgFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
@@ -277,7 +277,7 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 
 // WithConfigPath returns a new ParsingContext targeting a different config file.
 //
-// It normalizes configPath to an absolute path, sets TerragruntConfigPath and
+// It normalizes cfgPath to an absolute path, sets TerragruntConfigPath and
 // WorkingDir accordingly, and updates the logger when the working directory changes.
 //
 // OriginalTerragruntConfigPath is preserved so that get_original_terragrunt_dir()
@@ -287,14 +287,14 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 // To parse a dependency as an independent unit, use [ParsingContext.WithDependencyConfigPath].
 func (ctx *ParsingContext) WithConfigPath(
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) (log.Logger, *ParsingContext, error) {
-	configPath = filepath.Clean(configPath)
-	if !filepath.IsAbs(configPath) {
-		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
+	cfgPath = filepath.Clean(cfgPath)
+	if !filepath.IsAbs(cfgPath) {
+		cfgPath = filepath.Clean(filepath.Join(ctx.WorkingDir, cfgPath))
 	}
 
-	workingDir := filepath.Dir(configPath)
+	workingDir := filepath.Dir(cfgPath)
 
 	if workingDir != ctx.WorkingDir {
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
@@ -310,10 +310,10 @@ func (ctx *ParsingContext) WithConfigPath(
 	// dirs (which won't match any module's default) are preserved unchanged.
 	_, defaultDir := util.DefaultWorkingAndDownloadDirs(ctx.TerragruntConfigPath)
 	if filepath.Clean(c.DownloadDir) == filepath.Clean(defaultDir) {
-		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(configPath)
+		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(cfgPath)
 	}
 
-	c.TerragruntConfigPath = configPath
+	c.TerragruntConfigPath = cfgPath
 	c.WorkingDir = workingDir
 
 	return l, c, nil
@@ -328,9 +328,9 @@ func (ctx *ParsingContext) WithConfigPath(
 // own directory rather than the caller's.
 func (ctx *ParsingContext) WithDependencyConfigPath(
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) (log.Logger, *ParsingContext, error) {
-	l, c, err := ctx.WithConfigPath(l, configPath)
+	l, c, err := ctx.WithConfigPath(l, cfgPath)
 	if err != nil {
 		return l, nil, err
 	}

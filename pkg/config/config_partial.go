@@ -451,21 +451,21 @@ func PartialParseConfigFile(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
-	fileInfo, err := pctx.Venv.FS.Stat(configPath)
+	fileInfo, err := pctx.Venv.FS.Stat(cfgPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, TerragruntConfigNotFoundError{Path: configPath}
+			return nil, TerragruntConfigNotFoundError{Path: cfgPath}
 		}
 
 		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", cfgPath, fileInfo.ModTime().UnixMicro())
 
 	// Check cache hit status before tracing
 	_, cacheHit := hclCache.Get(ctx, cacheKey)
@@ -475,7 +475,7 @@ func PartialParseConfigFile(
 	err = TraceParseConfigFile(
 		ctx,
 		l,
-		configPath,
+		cfgPath,
 		pctx.WorkingDir,
 		true, // isPartial
 		pctx.PartialParseDecodeList,
@@ -490,7 +490,7 @@ func PartialParseConfigFile(
 				var parseErr error
 
 				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
-					ParseFromFile(pctx.Venv.FS, configPath)
+					ParseFromFile(pctx.Venv.FS, cfgPath)
 				if parseErr != nil {
 					return parseErr
 				}
@@ -590,10 +590,10 @@ func PartialParseConfigString(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath, configString string,
+	cfgPath, configString string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, configPath)
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1015,14 +1015,14 @@ func decodeAsTerragruntInclude(
 // registerSiblingAutoInclude records the sibling terragrunt.autoinclude.hcl on trackInclude as a high-priority override when it is in scope and exists, so the merge consumers read one registered entry instead of recomputing the gate.
 func registerSiblingAutoInclude(
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 	trackInclude *TrackInclude,
 ) {
 	if trackInclude == nil {
 		return
 	}
 
-	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, cfgPath)
 	if !ok {
 		return
 	}
@@ -1147,9 +1147,9 @@ func reconcileAutoIncludeModulePaths(
 func autoIncludeCacheKeySuffix(
 	ctx context.Context,
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 ) string {
-	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, cfgPath)
 	if !ok {
 		return ""
 	}

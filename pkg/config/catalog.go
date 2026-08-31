@@ -54,8 +54,8 @@ func (cfg *CatalogConfig) String() string {
 	)
 }
 
-func (cfg *CatalogConfig) normalize(fsys vfs.FS, configPath string) {
-	configDir := filepath.Dir(configPath)
+func (cfg *CatalogConfig) normalize(fsys vfs.FS, cfgPath string) {
+	configDir := filepath.Dir(cfgPath)
 
 	// transform relative paths to absolute ones
 	for i, url := range cfg.URLs {
@@ -90,20 +90,20 @@ func ReadCatalogConfig(
 	l log.Logger,
 	pctx *ParsingContext,
 ) (*CatalogConfig, error) {
-	configPath, configString, err := findCatalogConfig(parentCtx, l, pctx)
-	if err != nil || configPath == "" {
+	cfgPath, configString, err := findCatalogConfig(parentCtx, l, pctx)
+	if err != nil || cfgPath == "" {
 		return nil, err
 	}
 
 	pctx = pctx.Clone()
-	pctx.TerragruntConfigPath = configPath
+	pctx.TerragruntConfigPath = cfgPath
 	pctx.ParserOptions = append(
 		pctx.ParserOptions,
 		hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}),
 	)
 	pctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
-	config, err := ParseConfigString(parentCtx, pctx, l, configPath, configString, nil)
+	config, err := ParseConfigString(parentCtx, pctx, l, cfgPath, configString, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func findCatalogConfig(
 	outerPctx *ParsingContext,
 ) (string, string, error) {
 	var (
-		configPath = filepath.Join(
+		cfgPath = filepath.Join(
 			filepath.Dir(outerPctx.TerragruntConfigPath),
 			outerPctx.ScaffoldRootFileName,
 		)
@@ -136,7 +136,7 @@ func findCatalogConfig(
 
 		parseCtx, pctx := NewParsingContext(ctx, l, outerPctx.Venv, WithStrictControls(outerPctx.StrictControls))
 		pctx.TerragruntConfigPath = filepath.Join(
-			filepath.Dir(configPath),
+			filepath.Dir(cfgPath),
 			util.UniqueID(),
 			configName,
 		)
@@ -167,16 +167,16 @@ func findCatalogConfig(
 			catalogConfigPath = newConfigPath
 		}
 
-		configPath = filepath.Dir(newConfigPath)
+		cfgPath = filepath.Dir(newConfigPath)
 	}
 
 	// if the config with the `catalog` block is found, create the root config with `include{ find_in_parent_folders() }`
 	// and the path one directory deeper in order for `find_in_parent_folders` can find the catalog configuration.
 	if catalogConfigPath != "" {
 		configString := fmt.Sprintf(rootConfigFmt, configName)
-		configPath = filepath.Join(filepath.Dir(catalogConfigPath), util.UniqueID(), configName)
+		cfgPath = filepath.Join(filepath.Dir(catalogConfigPath), util.UniqueID(), configName)
 
-		return configPath, configString, nil
+		return cfgPath, configString, nil
 	}
 
 	return "", "", nil
@@ -185,33 +185,31 @@ func findCatalogConfig(
 func convertToTerragruntCatalogConfig(
 	ctx context.Context,
 	pctx *ParsingContext,
-	configPath string,
-	terragruntConfigFromFile *terragruntConfigFile,
+	cfgPath string,
+	cfgFromFile *terragruntConfigFile,
 ) (cfg *TerragruntConfig, err error) {
-	var (
-		terragruntConfig = &TerragruntConfig{}
-		defaultMetadata  = map[string]any{FoundInFile: configPath}
-	)
+	cfg = &TerragruntConfig{}
+	defaultMetadata := map[string]any{FoundInFile: cfgPath}
 
-	if terragruntConfigFromFile.Catalog != nil {
-		terragruntConfig.Catalog = terragruntConfigFromFile.Catalog
-		terragruntConfig.Catalog.normalize(pctx.Venv.FS, configPath)
-		terragruntConfig.SetFieldMetadata(MetadataCatalog, defaultMetadata)
+	if cfgFromFile.Catalog != nil {
+		cfg.Catalog = cfgFromFile.Catalog
+		cfg.Catalog.normalize(pctx.Venv.FS, cfgPath)
+		cfg.SetFieldMetadata(MetadataCatalog, defaultMetadata)
 	}
 
-	if terragruntConfigFromFile.Engine != nil {
-		terragruntConfig.Engine = terragruntConfigFromFile.Engine
-		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
+	if cfgFromFile.Engine != nil {
+		cfg.Engine = cfgFromFile.Engine
+		cfg.SetFieldMetadata(MetadataEngine, defaultMetadata)
 	}
 
-	if terragruntConfigFromFile.Exclude != nil {
-		terragruntConfig.Exclude = terragruntConfigFromFile.Exclude
-		terragruntConfig.SetFieldMetadata(MetadataExclude, defaultMetadata)
+	if cfgFromFile.Exclude != nil {
+		cfg.Exclude = cfgFromFile.Exclude
+		cfg.SetFieldMetadata(MetadataExclude, defaultMetadata)
 	}
 
-	if terragruntConfigFromFile.Errors != nil {
-		terragruntConfig.Errors = terragruntConfigFromFile.Errors
-		terragruntConfig.SetFieldMetadata(MetadataErrors, defaultMetadata)
+	if cfgFromFile.Errors != nil {
+		cfg.Errors = cfgFromFile.Errors
+		cfg.SetFieldMetadata(MetadataErrors, defaultMetadata)
 	}
 
 	if pctx.Locals != nil && *pctx.Locals != cty.NilVal {
@@ -221,10 +219,10 @@ func convertToTerragruntCatalogConfig(
 		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*pctx.Locals)
 		// Only set Locals if there are actual values to avoid setting an empty map
 		if len(localsParsed) > 0 {
-			terragruntConfig.Locals = localsParsed
-			terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+			cfg.Locals = localsParsed
+			cfg.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 		}
 	}
 
-	return terragruntConfig, nil
+	return cfg, nil
 }
