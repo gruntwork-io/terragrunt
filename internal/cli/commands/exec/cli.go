@@ -34,6 +34,8 @@ func NewFlags(
 			shared.NewTFPathFlag(opts),
 			shared.NewAuthProviderCmdFlag(opts, prefix),
 			shared.NewInputsDebugFlag(opts, prefix),
+			shared.NewNoAutoInitFlag(opts, prefix),
+			shared.NewSourceMapFlag(opts, prefix),
 		},
 		shared.NewIAMAssumeRoleFlags(opts, prefix)...,
 	)

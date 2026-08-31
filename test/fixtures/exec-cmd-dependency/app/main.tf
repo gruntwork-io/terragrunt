@@ -1,0 +1,3 @@
+variable "id" {
+  type = string
+}

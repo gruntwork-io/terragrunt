@@ -26,6 +26,8 @@ flags:
   - iam-assume-role-web-identity-token
   - in-download-dir
   - inputs-debug
+  - no-auto-init
+  - source-map
 ---
 
 ## Difference between `run` and `exec`
@@ -53,3 +55,14 @@ $ terragrunt exec -- env | grep 'TF_VAR_message'
 TF_VAR_message=Hello, Terragrunt!
 ```
 
+## Auto-init and exec
+
+By default, `exec` does not run `init` for the unit it targets. It reads configuration, downloads source, and sets inputs as environment variables, then runs your command from the working directory.
+
+Passing [`--in-download-dir`](/reference/cli/commands/exec#in-download-dir) runs the command in the download directory instead, and `exec` runs `init` there first when it detects that initialization is required. Pass [`--no-auto-init`](/reference/cli/commands/exec#no-auto-init) to skip it:
+
+```bash
+terragrunt exec --in-download-dir --no-auto-init -- cat main.tf
+```
+
+`--no-auto-init` also covers the units named in `dependency` blocks, which Terragrunt initializes while resolving their outputs. That happens on every `exec` run, with or without `--in-download-dir`. In both cases Terragrunt logs a warning in place of `init`, and what runs next may fail if it needs an initialized directory.
