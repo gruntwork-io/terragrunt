@@ -1137,15 +1137,15 @@ func (u *Unit) ReadOutputs(
 	pctx *ParsingContext,
 	unitDir string,
 ) (map[string]cty.Value, error) {
-	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 	l.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
 
-	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, configPath)
+	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 
-	outputMap, err := TerraformOutputJSONToCtyValueMap(configPath, jsonBytes)
+	outputMap, err := TerraformOutputJSONToCtyValueMap(cfgPath, jsonBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -1183,7 +1183,7 @@ func ReadStackConfigString(
 	ctx context.Context,
 	l log.Logger,
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 	configString string,
 	values *cty.Value,
 ) (*StackConfig, error) {
@@ -1192,7 +1192,7 @@ func ReadStackConfigString(
 	}
 
 	hclFile, err := hclparse.NewParser(pctx.ParserOptions...).
-		ParseFromString(configString, configPath)
+		ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
