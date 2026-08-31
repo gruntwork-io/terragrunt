@@ -817,7 +817,9 @@ func expansionPreviewLines(deps []*Dependency) ([]string, error) {
 		rendered := hclwrite.NewEmptyFile()
 		rendered.Body().AppendBlock(block)
 
-		lines = append(lines, strings.Split(strings.TrimRight(string(rendered.Bytes()), "\n"), "\n")...)
+		lines = append(
+			lines,
+			strings.Split(strings.TrimRight(string(rendered.Bytes()), "\n"), "\n")...)
 	}
 
 	return lines, nil
@@ -2001,7 +2003,13 @@ func decodeAsTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, l, file, evalContext)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+		ctx,
+		pctx,
+		l,
+		file,
+		evalContext,
+	)
 	if err != nil {
 		return &cfgFile, err
 	}
@@ -2762,7 +2770,11 @@ func ParseRemoteState(
 	if err != nil {
 		l.Debugf(
 			"Decoding only the backend blocks of %s failed (%v), reading the whole config instead",
-			util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths),
+			util.RelPathForLog(
+				pctx.RootWorkingDir,
+				pctx.TerragruntConfigPath,
+				pctx.LogShowAbsPaths,
+			),
 			err,
 		)
 

@@ -964,7 +964,14 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 	// source resolves to a different cache directory.
 	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
-	source, err := tf.NewSource(l, pctx.Venv.FS, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
+	source, err := tf.NewSource(
+		l,
+		pctx.Venv.FS,
+		sourceURL,
+		pctx.DownloadDir,
+		pctx.WorkingDir,
+		walkWithSymlinks,
+	)
 	if err != nil {
 		return "", err
 	}

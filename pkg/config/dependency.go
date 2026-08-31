@@ -391,7 +391,13 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, l, file, evalParsingContext)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+		ctx,
+		pctx,
+		l,
+		file,
+		evalParsingContext,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1493,7 +1499,8 @@ func resolveOutputJSON(
 	// reference the dependency namespace.
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).WithDiagnosticsSuppressed(l),
+		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
+			WithDiagnosticsSuppressed(l),
 		l,
 		targetConfig,
 		nil,
@@ -1678,7 +1685,10 @@ var directStateBackends = map[string]directStateBackend{
 }
 
 // shouldFetchDependencyOutputFromState reports whether a registered backend supports a direct state read.
-func shouldFetchDependencyOutputFromState(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+func shouldFetchDependencyOutputFromState(
+	pctx *ParsingContext,
+	remoteState *remotestate.RemoteState,
+) bool {
 	if remoteState == nil ||
 		!pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) ||
 		pctx.NoDependencyFetchOutputFromState {
@@ -2076,7 +2086,8 @@ func getTerragruntOutputJSONFromRemoteState(
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
 	// A non-empty workspace means the caller already found a supported backend, so
 	// the reader lookup below cannot miss.
-	if stateBackend, supported := directStateBackends[remoteState.BackendName]; supported && workspace != "" {
+	if stateBackend, supported := directStateBackends[remoteState.BackendName]; supported &&
+		workspace != "" {
 		jsonBytes, readErr := stateBackend.read(ctx, l, pctx, remoteState, workspace)
 		if readErr != nil {
 			return nil, readErr
@@ -2509,7 +2520,11 @@ func siblingAutoIncludeDepOverrides(
 		return nil, nil
 	}
 
-	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, pctx.TrackInclude.AutoIncludeOverride.Path)
+	autoFile, err := parseAutoIncludeFileCached(
+		ctx,
+		pctx,
+		pctx.TrackInclude.AutoIncludeOverride.Path,
+	)
 	if err != nil {
 		return nil, err
 	}

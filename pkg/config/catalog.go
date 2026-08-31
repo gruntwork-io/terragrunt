@@ -134,7 +134,12 @@ func findCatalogConfig(
 		default: // continue
 		}
 
-		parseCtx, pctx := NewParsingContext(ctx, l, outerPctx.Venv, WithStrictControls(outerPctx.StrictControls))
+		parseCtx, pctx := NewParsingContext(
+			ctx,
+			l,
+			outerPctx.Venv,
+			WithStrictControls(outerPctx.StrictControls),
+		)
 		pctx.TerragruntConfigPath = filepath.Join(
 			filepath.Dir(cfgPath),
 			util.UniqueID(),
