@@ -47,7 +47,15 @@ This only applies to S3 backends.
 This applies to S3 and GCS backends. Azure Storage (`azurerm`) also supports it when the `azure-backend` experiment is enabled.
 </Since>
 
-It falls back to the normal output path for dependencies whose state is protected by OpenTofu client-side state encryption, since Terragrunt cannot decrypt an encrypted state file. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) before turning it on.
+<Before version="1.1.5">
+It fails outright with OpenTofu client-side state encryption, since Terragrunt cannot parse an encrypted state file.
+</Before>
+
+<Since version="1.1.5">
+It falls back to the normal output path for dependencies whose state is protected by OpenTofu client-side state encryption, since Terragrunt cannot decrypt an encrypted state file.
+</Since>
+
+See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) before turning it on.
 
 ## Cache repository clones
 

@@ -2,6 +2,9 @@
 name: dependency-fetch-output-from-state
 ---
 
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
+
 Support for fetching dependency outputs directly from state files.
 
 ### `dependency-fetch-output-from-state` - What it does
@@ -19,7 +22,13 @@ GCS configurations that rely on backend-only credential environment variables, i
 
 **Known Limitations:**
 
+<Before version="1.1.5">
+This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the state file is encrypted before upload. Since this experiment reads the raw state object directly through the backend's cloud storage API, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, you must disable this experiment using the `--no-dependency-fetch-output-from-state` flag.
+</Before>
+
+<Since version="1.1.5">
 A direct state read cannot decrypt state protected by OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/), because the encryption keys live in OpenTofu's configuration rather than in the backend. When Terragrunt reads an encrypted state object, it falls back to the normal method (`tofu/terraform output`) for that dependency, so the outputs are still resolved correctly and only the speedup is lost. You do not need to set `--no-dependency-fetch-output-from-state` for encrypted state.
+</Since>
 
 **Disabling the feature:**
 
