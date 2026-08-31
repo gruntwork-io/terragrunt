@@ -101,6 +101,7 @@ func TestExecAcceptsSourceMapAndNoAutoInit(t *testing.T) {
 	}
 }
 
+// runExecAppTest runs the real app with every command action neutralized, so only flag parsing is exercised.
 func runExecAppTest(
 	t *testing.T,
 	opts *options.TerragruntOptions,

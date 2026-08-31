@@ -203,6 +203,10 @@ func TestTFExecCommandNoAutoInit(t *testing.T) {
 func TestTFExecCommandNoAutoInitDependency(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since `env` is not available")
+	}
+
 	testCases := []struct {
 		name           string
 		args           string

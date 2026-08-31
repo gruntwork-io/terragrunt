@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewFlagsRegistersSourceMapAndNoAutoInit pins the two flags issue 4200 reported missing on `exec`.
 func TestNewFlagsRegistersSourceMapAndNoAutoInit(t *testing.T) {
 	t.Parallel()
 
@@ -23,6 +24,7 @@ func TestNewFlagsRegistersSourceMapAndNoAutoInit(t *testing.T) {
 	}
 }
 
+// TestNewFlagsParsesSourceMapAndNoAutoInit covers both flags across CLI values, env vars and deprecated env vars.
 func TestNewFlagsParsesSourceMapAndNoAutoInit(t *testing.T) {
 	t.Parallel()
 
@@ -157,6 +159,7 @@ func TestNewFlagsParsesSourceMapAndNoAutoInit(t *testing.T) {
 	}
 }
 
+// newExecFlags builds the exec flag set against throwaway options.
 func newExecFlags(t *testing.T) clihelper.Flags {
 	t.Helper()
 
