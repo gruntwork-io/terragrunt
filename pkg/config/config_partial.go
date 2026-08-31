@@ -160,10 +160,12 @@ type TerragruntDependency struct {
 	Dependencies Dependencies `hcl:"dependency,block"`
 }
 
-// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config
+// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config.
+// It decodes remote_state written as either a block or an attribute, as [terragruntConfigFile] does.
 type terragruntRemoteState struct {
-	RemoteState *remotestate.ConfigFile `hcl:"remote_state,block"`
-	Remain      hcl.Body                `hcl:",remain"`
+	RemoteState     *remotestate.ConfigFile `hcl:"remote_state,block"`
+	RemoteStateAttr *cty.Value              `hcl:"remote_state,optional"`
+	Remain          hcl.Body                `hcl:",remain"`
 }
 
 // terragruntEngine is a struct that can only be used to decode the engine block.
@@ -824,6 +826,15 @@ func PartialParseConfig(
 				}
 
 				output.RemoteState = remotestate.New(config)
+			}
+
+			if decoded.RemoteStateAttr != nil {
+				remoteState, err := remoteStateFromAttr(*decoded.RemoteStateAttr)
+				if err != nil {
+					return nil, err
+				}
+
+				output.RemoteState = remoteState
 			}
 		case FeatureFlagsBlock:
 			decoded := terragruntFeatureFlags{}
