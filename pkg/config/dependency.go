@@ -1621,7 +1621,19 @@ func resolveOutputJSON(
 			workspace,
 		)
 
-		return out, "state", fetchErr
+		if !errors.Is(fetchErr, ErrDependencyStateEncrypted) {
+			return out, "state", fetchErr
+		}
+
+		// Client-side state encryption is only visible once the object has been read. The
+		// routes below run OpenTofu where it selects the workspace itself, which a fallback
+		// inside the direct reader would not.
+		l.Debugf(
+			"Dependency state for %s is encrypted. Falling back to native output retrieval.",
+			pctx.TerragruntConfigPath,
+		)
+
+		workspace = ""
 	}
 
 	if isInit {
@@ -2078,27 +2090,17 @@ func getTerragruntOutputJSONFromRemoteState(
 	// the reader lookup below cannot miss.
 	if stateBackend, supported := directStateBackends[remoteState.BackendName]; supported && workspace != "" {
 		jsonBytes, readErr := stateBackend.read(ctx, l, pctx, remoteState, workspace)
-
-		switch {
-		case errors.Is(readErr, ErrDependencyStateEncrypted):
-			// Client-side state encryption is only visible once the object has been read, so
-			// this fallback lands here rather than in the pre-flight eligibility checks.
-			l.Debugf(
-				"Dependency state for %s is encrypted, so its outputs cannot be read directly from %s. Falling back to native output retrieval.",
-				pctx.TerragruntConfigPath,
-				remoteState.BackendName,
-			)
-		case readErr != nil:
+		if readErr != nil {
 			return nil, readErr
-		default:
-			l.Debugf(
-				"Retrieved dependency outputs for %s directly from %s state",
-				pctx.TerragruntConfigPath,
-				remoteState.BackendName,
-			)
-
-			return jsonBytes, nil
 		}
+
+		l.Debugf(
+			"Retrieved dependency outputs for %s directly from %s state",
+			pctx.TerragruntConfigPath,
+			remoteState.BackendName,
+		)
+
+		return jsonBytes, nil
 	}
 
 	// Generate the backend configuration in the working dir. If no generate config is set on the remote state block,

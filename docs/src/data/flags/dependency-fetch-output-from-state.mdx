@@ -32,11 +32,11 @@ Terragrunt also uses the native output path for Azure state protected by `custom
 OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
 
 <Aside type="caution">
-<Before version="1.1.5">
-This flag is **not compatible with OpenTofu state encryption**. When OpenTofu's client-side state encryption is enabled, the state file is encrypted before upload. Since this flag causes Terragrunt to read the raw state object directly through the backend's cloud storage API, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, disable this flag with `--no-dependency-fetch-output-from-state`.
+<Before version="1.2.0-rc1">
+This flag is **not compatible with OpenTofu state encryption**. When OpenTofu's client-side state encryption is enabled, the state file is encrypted before upload. Since this flag causes Terragrunt to read the raw state object directly through the backend's cloud storage API, it cannot decrypt the state, and the encrypted envelope carries no `outputs` object. Dependency outputs resolve empty and the run fails later with an unrelated `Unsupported attribute` error. If you are using OpenTofu state encryption, disable this flag with `--no-dependency-fetch-output-from-state`.
 </Before>
 
-<Since version="1.1.5">
+<Since version="1.2.0-rc1">
 This flag cannot read state protected by OpenTofu's client-side state encryption, because the raw state object it reads through the backend's cloud storage API is encrypted and Terragrunt holds no key material for it. Terragrunt falls back to the normal `tofu/terraform output` path for those dependencies, so outputs still resolve correctly and only the speedup is lost.
 </Since>
 </Aside>

@@ -15,6 +15,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -585,6 +587,76 @@ func TestDependencyStateEncryptedDirectStateFallsBackToNativeOutput(t *testing.T
 			assert.Equal(t, 1, recorder.closeCount(), "an encrypted state response body must be closed")
 		})
 	}
+}
+
+func TestDependencyStateEncryptedFallbackUsesInitFolder(t *testing.T) {
+	t.Parallel()
+
+	recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(
+		`{"encrypted_data":"Y2lwaGVydGV4dA==","encryption_version":"v0"}`,
+	))
+	ctx, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		"gcs",
+		`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+		map[string]string{},
+		false,
+		"",
+	)
+
+	l := logger.CreateLogger()
+
+	// A workspace selected through .terraform/environment lives in the unit's init folder,
+	// and only OpenTofu running there sees it. Resolve that folder the way the dependency
+	// code does, so the fixture puts the marker where an init-ed unit would have it.
+	producerDir := "/repo/producer"
+	source, err := tf.NewSource(
+		l,
+		pctx.Venv.FS,
+		".",
+		filepath.Join(producerDir, util.TerragruntCacheDir),
+		producerDir,
+		false,
+	)
+	require.NoError(t, err)
+
+	dataDir := filepath.Join(source.WorkingDir, ".terraform")
+	require.NoError(t, pctx.Venv.FS.MkdirAll(dataDir, 0o700))
+	require.NoError(
+		t,
+		vfs.WriteFile(pctx.Venv.FS, filepath.Join(dataDir, "environment"), []byte("production"), 0o600),
+	)
+
+	cfg, err := config.ParseConfigFile(ctx, pctx, l, configPath, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+
+	assert.True(t, slices.ContainsFunc(recorder.requestPaths(), func(request string) bool {
+		return strings.Contains(request, "production.tfstate")
+	}), "the direct read must target the selected workspace")
+
+	outputs := 0
+
+	for _, invocation := range recorder.invocations() {
+		if !slices.Contains(invocation.Args, "output") {
+			continue
+		}
+
+		outputs++
+
+		assert.Equal(
+			t,
+			source.WorkingDir,
+			invocation.Dir,
+			"the encrypted-state fallback must run output in the init folder so OpenTofu selects the workspace",
+		)
+	}
+
+	assert.Positive(t, outputs, "the encrypted state must fall back to an OpenTofu output run")
 }
 
 type dependencyStateRecorder struct {

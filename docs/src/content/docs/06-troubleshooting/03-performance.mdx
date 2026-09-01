@@ -160,11 +160,11 @@ There is no guarantee that OpenTofu/Terraform will maintain the existing schema 
 
 <Card title="OpenTofu state encryption" icon="warning">
 
-<Before version="1.1.5">
-When client-side state encryption is enabled, the state file is encrypted before upload and cannot be parsed directly by Terragrunt, resulting in a hard failure. If you encounter JSON parsing errors when using this experiment, check whether you have OpenTofu state encryption enabled and disable the experiment with `--no-dependency-fetch-output-from-state` if so.
+<Before version="1.2.0-rc1">
+When client-side state encryption is enabled, the state file is encrypted before upload, and the encrypted envelope carries no plaintext `outputs` object. Terragrunt resolves empty outputs for that dependency, and the run fails later with an unrelated `Unsupported attribute` error where a dependency output is referenced. If you hit that error, check whether you have OpenTofu state encryption enabled and disable the experiment with `--no-dependency-fetch-output-from-state` if so.
 </Before>
 
-<Since version="1.1.5">
+<Since version="1.2.0-rc1">
 When client-side state encryption is enabled, the state file is encrypted before upload, and Terragrunt has no key material to decrypt it. Terragrunt detects the encrypted state and falls back to the normal `tofu/terraform output` path for that dependency, so outputs still resolve correctly and only the speedup is lost. You do not need to disable the experiment.
 </Since>
 

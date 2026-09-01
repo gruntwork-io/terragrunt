@@ -27,7 +27,10 @@ func readDependencyStateOutputs(
 ) ([]byte, error) {
 	l.Debugf("Fetching outputs directly from %s", location)
 
-	var jsonOutputs []byte
+	var (
+		jsonOutputs []byte
+		encrypted   error
+	)
 
 	err := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, metric, attrs, func(ctx context.Context, l log.Logger) error {
@@ -44,10 +47,22 @@ func readDependencyStateOutputs(
 
 			jsonOutputs, err = stateOutputsJSON(reader, location)
 
+			// An encrypted state is an expected fallback rather than a failed read, so it is
+			// carried out of the callback to keep it off this metric's error counter.
+			if errors.Is(err, ErrDependencyStateEncrypted) {
+				encrypted = err
+
+				return nil
+			}
+
 			return err
 		})
 	if err != nil {
 		return nil, err
+	}
+
+	if encrypted != nil {
+		return nil, encrypted
 	}
 
 	return jsonOutputs, nil
