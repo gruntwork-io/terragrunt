@@ -183,8 +183,14 @@ func createTerragruntEvalContext(
 	l log.Logger,
 	configPath string,
 ) (*hcl.EvalContext, error) {
+	// The read trackers below resolve relative paths against the same directory
+	// as tfscope's file(), so that file(mark_as_read(...)) names a single file
+	// even when the call sits in an included configuration, whose directory is
+	// not the unit's.
+	basedir := filepath.Dir(configPath)
+
 	tfscope := tflang.Scope{
-		BaseDir: filepath.Dir(configPath),
+		BaseDir: basedir,
 	}
 
 	terragruntFunctions := map[string]function.Function{
@@ -222,6 +228,7 @@ func createTerragruntEvalContext(
 			ctx,
 			pctx,
 			l,
+			basedir,
 		),
 		FuncNameGetPlatform: wrapVoidToStringAsFuncImpl(
 			ctx,
@@ -317,7 +324,9 @@ func createTerragruntEvalContext(
 			ctx,
 			pctx,
 			l,
-			sopsDecryptFile,
+			func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
+				return sopsDecryptFile(ctx, pctx, l, basedir, params)
+			},
 		),
 		FuncNameGetTerragruntSourceCLIFlag: wrapVoidToStringAsFuncImpl(
 			ctx,
@@ -335,7 +344,9 @@ func createTerragruntEvalContext(
 			ctx,
 			pctx,
 			l,
-			readTFVarsFile,
+			func(_ context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
+				return readTFVarsFile(pctx, l, basedir, args)
+			},
 		),
 		FuncNameGetWorkingDir: wrapVoidToStringAsFuncImpl(
 			ctx,
@@ -347,13 +358,17 @@ func createTerragruntEvalContext(
 			ctx,
 			pctx,
 			l,
-			markAsRead,
+			func(_ context.Context, pctx *ParsingContext, _ log.Logger, args []string) (string, error) {
+				return markAsRead(pctx, basedir, args)
+			},
 		),
 		FuncNameMarkGlobAsRead: wrapStringSliceToStringSliceAsFuncImpl(
 			ctx,
 			pctx,
 			l,
-			markGlobAsRead,
+			func(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
+				return markGlobAsRead(ctx, pctx, l, basedir, args)
+			},
 		),
 		FuncNameConstraintCheck: wrapStringSliceToBoolAsFuncImpl(
 			ctx,
@@ -1163,6 +1178,7 @@ func readTerragruntConfigAsFuncImpl(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
+	basedir string,
 ) function.Function {
 	return function.New(&function.Spec{
 		// Takes one required string param
@@ -1192,7 +1208,14 @@ func readTerragruntConfigAsFuncImpl(
 				defaultVal = &args[1]
 			}
 
+			// Anchor the argument here rather than in ParseTerragruntConfig, whose
+			// other callers resolve against the unit and must keep doing so.
+			// Passing it on absolute leaves the directory-argument handling in
+			// ParseTerragruntConfig intact.
 			targetConfigPath := strArgs[0]
+			if !filepath.IsAbs(targetConfigPath) {
+				targetConfigPath = filepath.Clean(filepath.Join(basedir, targetConfigPath))
+			}
 
 			return ParseTerragruntConfig(ctx, pctx, l, targetConfigPath, defaultVal)
 		},
@@ -1292,16 +1315,18 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 	return matches[1], nil
 }
 
-// decrypts and returns sops encrypted utf-8 yaml or json data as a string
+// decrypts and returns sops encrypted utf-8 yaml or json data as a string.
+// A relative path resolves against the directory of the configuration file holding the call.
 func sopsDecryptFile(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
+	basedir string,
 	params []string,
 ) (string, error) {
 	if len(params) != 1 {
 		return "", WrongNumberOfParamsError{
-			Func:     "sops_decrypt_file",
+			Func:     FuncNameSopsDecryptFile,
 			Expected: "1",
 			Actual:   len(params),
 		}
@@ -1314,7 +1339,7 @@ func sopsDecryptFile(
 	path := sourceFile
 
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(pctx.WorkingDir, path)
+		path = filepath.Join(basedir, path)
 		path = filepath.Clean(path)
 	}
 
@@ -1524,21 +1549,12 @@ func StrContains(ctx context.Context, pctx *ParsingContext, args []string) (bool
 	return strings.Contains(args[0], args[1]), nil
 }
 
-// readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string
-func readTFVarsFile(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	args []string,
-) (string, error) {
-	return readTFVarsFileImpl(pctx, l, args)
-}
-
-// readTFVarsFileImpl contains the actual implementation of readTFVarsFile
-func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (string, error) {
+// readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string.
+// A relative path resolves against the directory of the configuration file holding the call.
+func readTFVarsFile(pctx *ParsingContext, l log.Logger, basedir string, args []string) (string, error) {
 	if len(args) != 1 {
 		return "", WrongNumberOfParamsError{
-			Func:     "read_tfvars_file",
+			Func:     FuncNameReadTfvarsFile,
 			Expected: "1",
 			Actual:   len(args),
 		}
@@ -1547,7 +1563,7 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 	varFile := args[0]
 
 	if !filepath.IsAbs(varFile) {
-		varFile = filepath.Join(pctx.WorkingDir, varFile)
+		varFile = filepath.Join(basedir, varFile)
 		varFile = filepath.Clean(varFile)
 	}
 
@@ -1587,14 +1603,10 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 }
 
 // markAsRead marks a file as explicitly read. This is useful for detection via TerragruntUnitsReading flag.
-func markAsRead(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	args []string,
-) (string, error) {
+// A relative path resolves against the directory of the configuration file holding the call.
+func markAsRead(pctx *ParsingContext, basedir string, args []string) (string, error) {
 	if len(args) != 1 {
-		return "", WrongNumberOfParamsError{Func: "mark_as_read", Expected: "1", Actual: len(args)}
+		return "", WrongNumberOfParamsError{Func: FuncNameMarkAsRead, Expected: "1", Actual: len(args)}
 	}
 
 	file := args[0]
@@ -1605,7 +1617,7 @@ func markAsRead(
 	path := file
 
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(pctx.WorkingDir, path)
+		path = filepath.Join(basedir, path)
 		path = filepath.Clean(path)
 	}
 
@@ -1635,13 +1647,17 @@ const markGlobBoundaryFlag = "--terragrunt-boundary"
 // [markGlobBoundaryFlag] argument sets the boundary explicitly; otherwise it
 // defaults to the enclosing Git repository root. Outside a Git repository and
 // without the flag, no boundary applies.
+//
+// A relative pattern resolves against the directory of the configuration file
+// holding the call.
 func markGlobAsRead(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
+	basedir string,
 	args []string,
 ) ([]string, error) {
-	boundary, args, err := parseMarkGlobBoundary(pctx, args)
+	boundary, args, err := parseMarkGlobBoundary(basedir, args)
 	if err != nil {
 		return nil, err
 	}
@@ -1662,7 +1678,7 @@ func markGlobAsRead(
 			ctx,
 			l,
 			pctx.Venv,
-			pctx.WorkingDir,
+			basedir,
 		); repoErr == nil {
 			boundary = repoRoot
 		}
@@ -1678,7 +1694,7 @@ func markGlobAsRead(
 	if filepath.IsAbs(raw) {
 		pattern = path.Clean(raw)
 	} else {
-		pattern = path.Clean(filepath.ToSlash(pctx.WorkingDir) + "/" + raw)
+		pattern = path.Clean(filepath.ToSlash(basedir) + "/" + raw)
 	}
 
 	opts := []glob.ExpandOption{glob.WithFilesOnly()}
@@ -1711,9 +1727,10 @@ func markGlobAsRead(
 
 // parseMarkGlobBoundary strips a leading [markGlobBoundaryFlag] from args and
 // returns the resolved absolute boundary directory alongside the remaining
-// arguments. A relative boundary is resolved against the unit's working
-// directory. An empty boundary means no flag was supplied.
-func parseMarkGlobBoundary(pctx *ParsingContext, args []string) (string, []string, error) {
+// arguments. A relative boundary is resolved against the directory of the
+// configuration file holding the call. An empty boundary means no flag was
+// supplied.
+func parseMarkGlobBoundary(basedir string, args []string) (string, []string, error) {
 	if len(args) == 0 || !strings.HasPrefix(args[0], markGlobBoundaryFlag) {
 		return "", args, nil
 	}
@@ -1744,7 +1761,7 @@ func parseMarkGlobBoundary(pctx *ParsingContext, args []string) (string, []strin
 	}
 
 	if !filepath.IsAbs(raw) {
-		raw = filepath.Join(pctx.WorkingDir, raw)
+		raw = filepath.Join(basedir, raw)
 	}
 
 	return filepath.Clean(raw), args, nil

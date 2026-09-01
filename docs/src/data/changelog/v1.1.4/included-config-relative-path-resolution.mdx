@@ -1,0 +1,12 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Fix relative paths in `read_terragrunt_config`, `read_tfvars_file`, and `sops_decrypt_file` when called from an included configuration
+
+These functions resolved a relative path against the directory of the unit being parsed rather than the directory of the configuration file containing the call. A shared configuration pulled in by an `include` block therefore looked for its files next to each including unit. Most of the time that path did not exist and the run failed; where a file of the same name did sit in the unit's directory, the wrong file was read with no indication.
+
+All three now resolve relative paths the same way `file` does, matching the change to `mark_as_read` and `mark_glob_as_read`. Calls outside an `include` are unaffected, since there the two directories are the same.
+
+If you have a shared configuration that relies on the previous behaviour, reading a file kept in each unit's own directory, pass an absolute path built from `get_terragrunt_dir()` to keep resolving against the unit.
