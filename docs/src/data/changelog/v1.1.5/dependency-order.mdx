@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### `find --dependencies` lists dependencies in a stable order
+
+When a unit had more than one dependency, `terragrunt find --dependencies --json` could report them in a different order on each run, with no change to the configuration.
+
+The order is now fixed. `list`, `dag graph`, and `browse` sorted before rendering already, so their output is unchanged.

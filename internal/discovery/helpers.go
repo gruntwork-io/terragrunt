@@ -255,7 +255,8 @@ func sanitizeReadFiles(files []string) []string {
 	return slices.Compact(files)
 }
 
-// extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
+// extractDependencyPaths extracts all dependency paths from a Terragrunt
+// configuration, sorted and deduplicated.
 func extractDependencyPaths(fsys vfs.FS, cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
 	if cfg == nil {
 		return nil, nil
@@ -266,7 +267,7 @@ func extractDependencyPaths(fsys vfs.FS, cfg *config.TerragruntConfig, c compone
 		maxDedupLen += len(cfg.Dependencies.Paths)
 	}
 
-	deduped := make(map[string]struct{}, maxDedupLen)
+	depPaths := make([]string, 0, maxDedupLen)
 
 	errs := make([]error, 0, maxDedupLen)
 
@@ -289,7 +290,7 @@ func extractDependencyPaths(fsys vfs.FS, cfg *config.TerragruntConfig, c compone
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		deduped[vfs.ResolveForCompare(fsys, depPath)] = struct{}{}
+		depPaths = append(depPaths, vfs.ResolveForCompare(fsys, depPath))
 	}
 
 	if cfg.Dependencies != nil {
@@ -298,15 +299,13 @@ func extractDependencyPaths(fsys vfs.FS, cfg *config.TerragruntConfig, c compone
 				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
 			}
 
-			deduped[vfs.ResolveForCompare(fsys, dependency)] = struct{}{}
+			depPaths = append(depPaths, vfs.ResolveForCompare(fsys, dependency))
 		}
 	}
 
-	depPaths := make([]string, 0, len(deduped))
+	slices.Sort(depPaths)
 
-	for depPath := range deduped {
-		depPaths = append(depPaths, depPath)
-	}
+	depPaths = slices.Compact(depPaths)
 
 	if len(errs) > 0 {
 		return depPaths, errors.Join(errs...)
