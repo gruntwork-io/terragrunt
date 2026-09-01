@@ -150,6 +150,26 @@ func writeJSONOutputBuffered(fsys vfs.FS, path string, fn func(w io.Writer) erro
 	return vfs.WriteFile(fsys, path, buf.Bytes(), filePerms)
 }
 
+// BenchmarkWriteJSONOutputPerUnit writes a plan the size a small unit produces.
+// Moving content to disk dominates the larger sizes below and hides the setup each
+// call does first. At this size that setup is most of the cost, and a `run --all`
+// pays it once per unit.
+func BenchmarkWriteJSONOutputPerUnit(b *testing.B) {
+	const smallPlan = 64 << 10
+
+	fsys := vfs.NewOSFS()
+	path := filepath.Join(b.TempDir(), "plan.json")
+
+	b.ReportAllocs()
+	b.SetBytes(smallPlan)
+
+	for b.Loop() {
+		require.NoError(b, runner.WriteJSONOutput(fsys, path, func(w io.Writer) error {
+			return showJSON(w, smallPlan)
+		}))
+	}
+}
+
 // BenchmarkWriteJSONOutput contrasts streaming a plan document to disk against
 // buffering it first. Read the bytes-per-operation column. Under `run --all` every
 // unit running concurrently pays that figure at the same time.
@@ -181,12 +201,9 @@ func BenchmarkWriteJSONOutput(b *testing.B) {
 				b.SetBytes(int64(size.size))
 
 				for b.Loop() {
-					err := strategy.write(fsys, path, func(w io.Writer) error {
+					require.NoError(b, strategy.write(fsys, path, func(w io.Writer) error {
 						return showJSON(w, size.size)
-					})
-					if err != nil {
-						b.Fatal(err)
-					}
+					}))
 				}
 			})
 		}
