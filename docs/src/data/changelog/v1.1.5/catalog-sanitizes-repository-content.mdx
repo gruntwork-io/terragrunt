@@ -1,0 +1,17 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### `catalog` sanitizes the content it draws from a repository
+
+`terragrunt catalog` browses repositories you point it at, and drew their titles,
+descriptions, tags and READMEs to the terminal as it found them. Terminals act on escape
+sequences in that text, so a repository could move your cursor, set your window title, or
+write your clipboard while you browsed it. Content that was not valid UTF-8 could end the
+session outright, since the Markdown and syntax renderers reject it.
+
+`catalog` now sanitizes everything it draws, the way `terragrunt browse` already sanitized
+the files it previews. Control characters become the Unicode replacement character, so
+that content draws as visible placeholders. `--format jsonl` and `--format md` keep the
+text as the repository wrote it.

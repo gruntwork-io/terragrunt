@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // KindForTag returns the component.Kind that tag names case-insensitively,
@@ -115,7 +116,7 @@ func RenderTagPills(tags []string, maxWidth int, selected bool) string {
 		return ""
 	}
 
-	sorted := sortPrivilegedFirst(tags)
+	sorted := sortPrivilegedFirst(sanitizeTags(tags))
 
 	// Reserve against the widest possible +N so the indicator always fits.
 	worstOverflowText := fmt.Sprintf("+%d", len(sorted))
@@ -181,7 +182,7 @@ func RenderDetailTagPills(tags []string) string {
 		return ""
 	}
 
-	sorted := sortPrivilegedFirst(tags)
+	sorted := sortPrivilegedFirst(sanitizeTags(tags))
 	rendered := make([]string, 0, len(sorted))
 
 	for _, tag := range sorted {
@@ -211,6 +212,17 @@ func TagsMarkdownSection(tags []string) string {
 	}
 
 	return b.String()
+}
+
+// sanitizeTags returns tags ready to draw. A pill is measured before it is
+// placed, so the text is sanitized before any width is taken from it.
+func sanitizeTags(tags []string) []string {
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, viewtui.SanitizeLabel(tag))
+	}
+
+	return out
 }
 
 // sortPrivilegedFirst returns tags reordered so kind-matching ones come

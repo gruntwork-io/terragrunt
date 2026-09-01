@@ -21,6 +21,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// maxAPIResponseBytes bounds an API response. The one response read here
+// describes a single release.
+const maxAPIResponseBytes = 1 << 20
+
 // GitHubAPIClient represents a GitHub API client.
 type GitHubAPIClient struct {
 	baseURL        string
@@ -148,7 +152,7 @@ func (c *GitHubAPIClient) GetLatestRelease(
 		)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}

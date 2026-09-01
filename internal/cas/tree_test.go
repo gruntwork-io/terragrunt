@@ -1,6 +1,7 @@
 package cas_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -421,4 +422,87 @@ func TestLinkTree(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLinkTreeStopsAtNestingBound(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venvtest.New()
+
+	require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+	store := cas.NewStore("/store")
+	content := cas.NewContent(store)
+
+	const (
+		maxDepth = 3
+		depth    = maxDepth + 1
+	)
+
+	hashes := make([]string, depth)
+	for i := range hashes {
+		hashes[i] = fmt.Sprintf("%010d", i)
+	}
+
+	for i := range depth - 1 {
+		subtree := fmt.Sprintf("040000 tree %s sub", hashes[i+1])
+		require.NoError(t, content.Store(l, v, hashes[i], []byte(subtree), cas.StoredFilePerms))
+	}
+
+	require.NoError(t, content.Store(l, v, hashes[depth-1], []byte(""), cas.StoredFilePerms))
+
+	tree, err := git.ParseTree([]byte("040000 tree "+hashes[0]+" sub"), "deep-repo")
+	require.NoError(t, err)
+
+	require.NoError(t, v.FS.MkdirAll("/target", 0755))
+
+	err = cas.LinkTree(t.Context(), l, v, store, store, tree, "/target", cas.WithMaxTreeDepth(maxDepth))
+
+	var depthErr *cas.TreeDepthExceededError
+
+	require.ErrorAs(t, err, &depthErr)
+	assert.Equal(t, maxDepth, depthErr.MaxDepth, "the configured cap is the one enforced")
+}
+
+func TestLinkTreeAcceptsTreeAtNestingBound(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venvtest.New()
+
+	require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+	store := cas.NewStore("/store")
+	content := cas.NewContent(store)
+
+	const maxDepth = 3
+
+	hashes := make([]string, maxDepth)
+	for i := range hashes {
+		hashes[i] = fmt.Sprintf("%010d", i)
+	}
+
+	for i := range maxDepth - 1 {
+		subtree := fmt.Sprintf("040000 tree %s sub", hashes[i+1])
+		require.NoError(t, content.Store(l, v, hashes[i], []byte(subtree), cas.StoredFilePerms))
+	}
+
+	require.NoError(t, content.Store(
+		l, v, hashes[maxDepth-1], []byte("100644 blob deadbeef01 README.md"), cas.StoredFilePerms,
+	))
+	require.NoError(t, content.Store(l, v, "deadbeef01", []byte("hello"), cas.StoredFilePerms))
+
+	tree, err := git.ParseTree([]byte("040000 tree "+hashes[0]+" sub"), "deep-repo")
+	require.NoError(t, err)
+
+	require.NoError(t, v.FS.MkdirAll("/target", 0755))
+
+	require.NoError(t, cas.LinkTree(
+		t.Context(), l, v, store, store, tree, "/target", cas.WithMaxTreeDepth(maxDepth),
+	))
+
+	got, err := vfs.ReadFile(v.FS, filepath.Join("/target", "sub", "sub", "sub", "README.md"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hello"), got)
 }
