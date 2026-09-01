@@ -3,10 +3,14 @@ version: "v1.1.5"
 category: "experiments-added"
 ---
 
-#### `tg-login` reserved for signing in to the Gruntwork Developer Portal
+#### `tg-login` - Signing in to the Gruntwork Developer Portal
 
-The `tg-login` experiment has been added as the gate for `terragrunt login`, a command for signing in to the Gruntwork Developer Portal. Once it lands, signing in lets `terragrunt catalog` read the repositories your organization selected in the portal rather than a `catalog` block you maintain yourself.
+The `tg-login` experiment has been added. It enables `terragrunt login`, which signs you in to the Gruntwork Developer Portal.
 
-In this release the flag is reserved only. Enabling it has no effect, and no command reads it.
+Running it prints a one-time code and opens your browser to the page that asks for it. Confirm the code there and the CLI receives a token scoped to your organization and files it under your user configuration directory (`~/.config/terragrunt/tokens.json` on Linux). On a machine with no browser, or over SSH, the code and the URL are still on screen and the CLI keeps waiting, so you can approve from another device.
 
-See the [experiment documentation](/reference/experiments/active#tg-login) for what is planned and what has to land before it stabilizes.
+```bash
+terragrunt --experiment tg-login login
+```
+
+See the [experiment documentation](/reference/experiments/active#tg-login) for what still has to land before it stabilizes.

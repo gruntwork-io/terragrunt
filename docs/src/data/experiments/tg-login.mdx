@@ -3,15 +3,19 @@ name: tg-login
 since: "1.1.5"
 ---
 
-Signing in to the Gruntwork Developer Portal from the CLI, so an admin can define a catalog in the portal instead of local HCL.
+Signing in to the Gruntwork Developer Portal from the CLI, so an admin can define a catalog in the portal alongside the one local HCL names.
 
 ### `tg-login` - What it does
 
-Nothing yet. The flag is reserved, and no command reads it.
+Adds `terragrunt login`, which signs you in to the Gruntwork Developer Portal using the OAuth 2.0 Device Authorization Grant ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)).
 
-Once the command lands, `terragrunt login` will sign you in through your browser using the OAuth 2.0 Device Authorization Grant ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)). The CLI shows a short code, your browser opens to a page where you confirm that code and grant access, and the CLI receives a token scoped to your organization. `terragrunt catalog` then reads the repositories an admin selected in the portal, so there is no `catalog` block to write or maintain.
+The CLI prints a one-time code and opens your browser to the page that asks for it. Confirm the code there, and the CLI receives a token scoped to your organization and files it under your user configuration directory, readable only by you. The token lasts 30 days. There is no way to renew it and no `logout` command, so when it runs out you sign in again.
 
-A `catalog` block in your configuration keeps working whether or not you are signed in.
+On a machine with no browser, or over SSH, the code and the URL are printed and the CLI keeps waiting, so you can approve from a phone or another computer.
+
+Running `terragrunt login` while a token is still good reports who you are signed in as and leaves it alone. Pass `--force` to sign in again anyway. That replaces the stored credential, which is what you want when it stopped working before it expired, or when you think it has been exposed.
+
+`terragrunt catalog` does not read the portal yet. That lands in a follow-up release. Until then a `catalog` block in your configuration is the only source, and it keeps working whether or not you are signed in.
 
 ### `tg-login` - How to enable it
 
@@ -24,15 +28,15 @@ export TG_EXPERIMENT=tg-login
 terragrunt login
 ```
 
-`terragrunt login` does not exist yet, so both forms currently set a flag that nothing reads.
+Without the experiment, `terragrunt login` is still listed in `--help` and refuses to run, naming the experiment it needs.
 
 ### `tg-login` - Criteria for stabilization
 
 To transition the `tg-login` feature to a stable release, the following must be addressed, at a minimum:
 
-- [ ] `terragrunt login` completes the device flow and reports the signed-in user and organization.
-- [ ] On a headless or SSH session, the CLI prints the URL and code to open on another device, and login still completes.
-- [ ] The CLI stores the token so it survives between commands and expires on its own.
+- [x] `terragrunt login` completes the device flow and reports the signed-in user and organization.
+- [x] On a headless or SSH session, the CLI prints the URL and code to open on another device, and login still completes.
+- [x] The CLI stores the token so it survives between commands and expires on its own.
 - [ ] `terragrunt catalog` browses and scaffolds from the portal-defined catalog as it does from a local one.
 - [ ] A user who is not signed in still gets a catalog from local configuration.
 - [ ] A user with no catalog configured anywhere gets guidance on setting one up.
