@@ -178,7 +178,8 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 // zglob offers no way to walk anything but the real filesystem, so the walk is
 // reproduced here over fsys. Deciding whether a path matches is still zglob's
 // own matcher, built from the pattern by [zglob.New], which keeps the grammar
-// identical; fsys supplies nothing but the directory entries.
+// identical; fsys supplies only the directory entries and the resolution of a
+// symlinked walk root.
 // TestLegacyExpandMatchesZglob pins the two against each other over a corpus
 // of patterns.
 func LegacyExpand(fsys vfs.FS, pattern string) ([]string, error) {
@@ -200,14 +201,37 @@ func LegacyExpand(fsys vfs.FS, pattern string) ([]string, error) {
 		return nil, err
 	}
 
+	// zglob stats its walk root through symlinks, so a pattern rooted at a
+	// symlinked directory expands through the link. Walking the link target
+	// while reporting entries under the root's own spelling keeps that
+	// behavior (issue #6791). A failed Lstat is deliberately left to the walk
+	// below, which probes the same root and surfaces the same error.
+	walkRoot := root
+
+	if info, lstatErr := vfs.Lstat(fsys, root); lstatErr == nil && info.Mode()&fs.ModeSymlink != 0 {
+		walkRoot, err = vfs.EvalSymlinks(fsys, root)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	matches := []string{}
 
 	// zglob surfaces a walk failure rather than treating it as an empty match,
 	// including the common case of a pattern rooted at a directory that does
 	// not exist, so the error is passed straight back here too.
-	walkErr := vfs.WalkDir(fsys, root, func(entry string, _ fs.DirEntry, err error) error {
+	walkErr := vfs.WalkDir(fsys, walkRoot, func(entry string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if walkRoot != root {
+			rel, relErr := filepath.Rel(walkRoot, entry)
+			if relErr != nil {
+				return relErr
+			}
+
+			entry = filepath.Join(root, rel)
 		}
 
 		if matcher.Match(filepath.ToSlash(entry)) {
