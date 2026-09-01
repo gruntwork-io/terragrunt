@@ -163,8 +163,7 @@ func handleInclude(
 			return baseConfig, err
 		}
 
-		// TODO: Remove lint suppression
-		switch mergeStrategy { //nolint:exhaustive
+		switch mergeStrategy { //nolint:exhaustive // the default branch handles the rest
 		case NoMerge:
 			l.Debugf(
 				"%sIncluded config %s has strategy no merge: not merging config in.",
@@ -242,8 +241,7 @@ func handleIncludeForDependency(
 			return nil, err
 		}
 
-		// TODO: Remove lint suppression
-		switch mergeStrategy { //nolint:exhaustive
+		switch mergeStrategy { //nolint:exhaustive // the default branch handles the rest
 		case NoMerge:
 			l.Debugf(
 				"Included config %s has strategy no merge: not merging config in for dependency.",

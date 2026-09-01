@@ -932,7 +932,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 			dependencyConfig.MockOutputs != nil {
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 
-			switch mockMergeStrategy { // nolint:exhaustive
+			switch mockMergeStrategy { //nolint:exhaustive // the default branch handles the rest
 			case NoMerge:
 				return outputVal, nil
 			case ShallowMerge:

@@ -106,7 +106,7 @@ var (
 			writer.WithMsgSeparator(logMsgSeparator),
 		)
 
-		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
+		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd // capacity hint for the options appended below
 		parseOpts = append(parseOpts,
 			hclparse.WithDiagnosticsWriter(v, writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
