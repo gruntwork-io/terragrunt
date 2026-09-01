@@ -197,6 +197,8 @@ linters:
         - -SA9005
         - -QF1008
         - -ST1001
+        # Strict-control and config errors are shown to users as sentences.
+        - -ST1005
     unparam:
       check-exported: false
     wsl_v5:

@@ -21,6 +21,7 @@ type EvaluateWrapperFunc func(ctx context.Context, evalFn func(ctx context.Conte
 // Flag is a wrapper for `clihelper.Flag` that avoids displaying deprecated flags in help, but registers their flag names and environment variables.
 type Flag struct {
 	clihelper.Flag
+	deprecatedErr   error
 	evaluateWrapper EvaluateWrapperFunc
 	deprecatedFlags DeprecatedFlags
 }
@@ -73,33 +74,41 @@ func (newFlag *Flag) DeprecatedNames() []string {
 }
 
 // Value implements `clihelper.Flag` interface.
+//
+// A deprecated flag's value is carried over to this flag, so that reading this
+// flag is enough to see a value the user gave by an old name. A value already
+// set under the current name wins: the carry-over only fills an empty flag.
 func (newFlag *Flag) Value() clihelper.FlagValue {
+	value := newFlag.Flag.Value()
+
 	for _, deprecatedFlag := range newFlag.deprecatedFlags {
-		if deprecatedFlag.Flag == newFlag.Flag {
+		if deprecatedFlag.Flag == newFlag.Flag || value.IsSet() {
 			continue
 		}
 
-		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue != nil &&
-			deprecatedFlagValue.IsSet() {
-			newValue := deprecatedFlagValue.String()
+		deprecatedFlagValue := deprecatedFlag.Value()
+		if deprecatedFlagValue == nil || !deprecatedFlagValue.IsSet() {
+			continue
+		}
 
-			if newFlag.Flag.Value().IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
-				if v, ok := deprecatedFlagValue.Get().(bool); ok {
-					newValue = strconv.FormatBool(!v)
-				}
+		newValue := deprecatedFlagValue.String()
+
+		if value.IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
+			if v, ok := deprecatedFlagValue.Get().(bool); ok {
+				newValue = strconv.FormatBool(!v)
 			}
+		}
 
-			if deprecatedFlag.newValueFn != nil {
-				newValue = deprecatedFlag.newValueFn(deprecatedFlagValue)
-			}
+		if deprecatedFlag.newValueFn != nil {
+			newValue = deprecatedFlag.newValueFn(deprecatedFlagValue)
+		}
 
-			newFlag.Flag.Value().
-				Getter(deprecatedFlagValue.GetName()).
-				Set(newValue) //nolint:errcheck // TODO: report a value the deprecated flag can't carry over
+		if err := value.Getter(deprecatedFlagValue.GetName()).Set(newValue); err != nil {
+			newFlag.deprecatedErr = errors.Join(newFlag.deprecatedErr, err)
 		}
 	}
 
-	return newFlag.Flag.Value()
+	return value
 }
 
 // Apply implements `clihelper.Flag` interface.
@@ -127,6 +136,10 @@ func (newFlag *Flag) Apply(set *flag.FlagSet, env map[string]string) error {
 
 // RunAction implements `clihelper.Flag` interface.
 func (newFlag *Flag) RunAction(ctx context.Context, cliCtx *clihelper.Context) error {
+	if newFlag.deprecatedErr != nil {
+		return newFlag.deprecatedErr
+	}
+
 	for _, deprecated := range newFlag.deprecatedFlags {
 		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err

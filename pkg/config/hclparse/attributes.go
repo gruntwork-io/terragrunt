@@ -24,7 +24,7 @@ func NewAttributes(file *File, hclAttrs hcl.Attributes) Attributes {
 func (attrs Attributes) ValidateIdentifier() error {
 	for _, attr := range attrs {
 		if err := attr.ValidateIdentifier(); err != nil {
-			return nil //nolint:nilerr // TODO: work out whether this should return the error
+			return err
 		}
 	}
 

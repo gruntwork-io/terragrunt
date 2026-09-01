@@ -132,7 +132,7 @@ func ExtractErrorMessage(err error) string {
 
 	// For ProcessExecutionError, match only against stderr and the underlying error,
 	// not the full command string with flags.
-	if processErr, ok := errors.AsType[util.ProcessExecutionError](err); ok {
+	if processErr, ok := errors.AsType[*util.ProcessExecutionError](err); ok {
 		errText = processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
 	} else {
 		errText = err.Error()

@@ -1,4 +1,4 @@
-package config //nolint:testpackage // needs access to sopsDecryptFileImpl
+package config_test
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
@@ -64,7 +66,7 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 		barrier = make(chan struct{})
 	)
 
-	ctx := WithConfigValues(t.Context())
+	ctx := config.WithConfigValues(t.Context())
 
 	for i, f := range files {
 		wg.Add(1)
@@ -79,10 +81,10 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: token})
 
-			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(filePath)
 
-			result, err := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", mockDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, filePath, "json", mockDecrypter)
 			assert.NoError(t, err)
 			assert.Contains(t, result, `"value":"secret-from-unit-`)
 			assert.Contains(t, result, token)
@@ -127,7 +129,7 @@ func TestSOPSDecryptDistinctPathsOverlapWithRacing(t *testing.T) {
 			return os.ReadFile(path)
 		})
 
-	ctx := WithConfigValues(t.Context())
+	ctx := config.WithConfigValues(t.Context())
 
 	var wg sync.WaitGroup
 
@@ -136,10 +138,10 @@ func TestSOPSDecryptDistinctPathsOverlapWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
-			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
 			pctx.WorkingDir = dir
 
-			result, err := sopsDecryptFileImpl(ctx, pctx, l, f, "json", blockingDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, f, "json", blockingDecrypter)
 			require.NoError(t, err)
 			assert.Contains(t, result, `"value":"secret"`)
 		})
@@ -185,7 +187,7 @@ func TestSOPSDecryptDeduplicatesSamePathWithRacing(t *testing.T) {
 		barrier = make(chan struct{})
 	)
 
-	ctx := WithConfigValues(t.Context())
+	ctx := config.WithConfigValues(t.Context())
 
 	for range numGoroutines {
 		wg.Go(func() {
@@ -194,10 +196,10 @@ func TestSOPSDecryptDeduplicatesSamePathWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
-			_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
 			pctx.WorkingDir = dir
 
-			result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", countingDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", countingDecrypter)
 			require.NoError(t, err)
 			assert.Contains(t, result, `"value":"shared"`)
 		})

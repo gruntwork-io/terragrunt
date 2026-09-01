@@ -1811,7 +1811,7 @@ func DetectDeprecatedConfigurations(
 	if DetectInputsCtyUsage(file) {
 		// Dependency inputs (dependency.foo.inputs.bar) are now blocked by default for performance.
 		// This deprecated feature causes significant performance overhead due to recursive parsing.
-		return errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+		return errors.New(
 			"Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs (dependency.foo.outputs.bar) instead.",
 		)
 	}

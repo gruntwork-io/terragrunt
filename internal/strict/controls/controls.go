@@ -117,7 +117,7 @@ func New() strict.Controls {
 	skipDependenciesInputsControl := &Control{
 		Name:        SkipDependenciesInputs,
 		Description: "Controls whether to allow the deprecated dependency inputs feature. Dependency inputs are now disabled by default for performance. Use dependency outputs instead.",
-		Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+		Error: errors.New(
 			"reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs.",
 		),
 		Warning: "Reading inputs from dependencies has been deprecated and is now disabled by default for performance. Use dependency outputs instead.",
@@ -127,7 +127,7 @@ func New() strict.Controls {
 	requireExplicitBootstrapControl := &Control{
 		Name:        RequireExplicitBootstrap,
 		Description: "Don't bootstrap backends by default. When enabled, users must supply `--backend-bootstrap` explicitly to automatically bootstrap backend resources.",
-		Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+		Error: errors.New(
 			"bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead.",
 		),
 		Warning: "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
@@ -222,7 +222,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        RootTerragruntHCL,
 			Description: "Throw an error when users try to reference a root terragrunt.hcl file using find_in_parent_folders.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
 			),
 			Warning: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
@@ -231,7 +231,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        BareInclude,
 			Description: "Prevents the use of the `include` block without a label.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"Using an `include` block without a label is deprecated. Please use the `include` block with a label instead.",
 			),
 			Warning: "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://docs.terragrunt.com/migrate/bare-include/",
@@ -240,7 +240,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        DuplicateDependencyLabels,
 			Description: "Prevents two `dependency` blocks in one configuration from claiming the same address.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"Two `dependency` blocks address the same dependency. Give each block a label of its own.",
 			),
 			Warning: "Two `dependency` blocks address the same dependency, so only the last of them can be referenced and the rest are unreachable. Give each block a label of its own. In a future version of Terragrunt, this will result in an error.",
@@ -249,7 +249,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        DoubleStar,
 			Description: "Use the `**` glob pattern to select all files in a directory and its subdirectories.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 			),
 			Warning: "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
@@ -258,7 +258,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        QueueExcludeExternal,
 			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them.",
 			),
 			Warning: "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
@@ -266,7 +266,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        QueueStrictInclude,
 			Description: "Prevents the use of the deprecated `--queue-strict-include` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--queue-strict-include` flag is no longer supported. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
 			),
 			Warning: "The `--queue-strict-include` flag is deprecated and will be removed in a future version of Terragrunt. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
@@ -274,7 +274,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        UnitsThatInclude,
 			Description: "Prevents the use of the deprecated `--units-that-include` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--units-that-include` flag is no longer supported. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
 			),
 			Warning: "The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
@@ -282,7 +282,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        DisableCommandValidation,
 			Description: "Prevents the use of the deprecated `--disable-command-validation` flag. Command validation has been removed entirely.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--disable-command-validation` flag is no longer supported. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
 			),
 			Warning: "The `--disable-command-validation` flag is deprecated and will be removed in a future version of Terragrunt. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
@@ -290,7 +290,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        NoDestroyDependenciesCheck,
 			Description: "Prevents the use of the deprecated `--no-destroy-dependencies-check` flag. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--no-destroy-dependencies-check` flag is no longer supported. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
 			),
 			Warning: "The `--no-destroy-dependencies-check` flag is deprecated and will be removed in a future version of Terragrunt. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
@@ -298,7 +298,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        InternalTFLint,
 			Description: "Prevents the use of the deprecated embedded version of tflint, instead treating `tflint` as a normal hook.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The embedded version of tflint is no longer supported. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally.",
 			),
 			Warning: "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally and avoid this warning.",
@@ -306,7 +306,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        DeprecatedHiddenFlag,
 			Description: "Prevents the use of the deprecated `--hidden` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--hidden` flag is no longer supported. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
 			),
 			Warning: "The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
@@ -314,7 +314,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        DisableDependentModules,
 			Description: "Prevents the use of the deprecated `--disable-dependent-modules` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`.",
 			),
 			Warning: "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",

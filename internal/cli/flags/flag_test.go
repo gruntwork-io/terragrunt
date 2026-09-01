@@ -74,6 +74,76 @@ func TestFlag_TakesValue(t *testing.T) {
 	}
 }
 
+// newDeprecatedAliasFlag mirrors the shape of `--no-auto-init`: a negative bool flag
+// whose deprecated alias is a separate flag carrying the opposite sense.
+func newDeprecatedAliasFlag(dest *bool) *flags.Flag {
+	return flags.NewFlag(
+		&clihelper.BoolFlag{
+			Name:        "no-auto-init",
+			Negative:    true,
+			Destination: dest,
+		},
+		flags.WithDeprecatedFlag(&clihelper.BoolFlag{
+			EnvVars: []string{"TERRAGRUNT_AUTO_INIT"},
+		}, nil, strict.Controls{}),
+	)
+}
+
+// TestFlag_ValueCarriesDeprecatedAlias pins that a value given only by a deprecated
+// alias reaches the flag, and that reading the flag repeatedly does not change it.
+func TestFlag_ValueCarriesDeprecatedAlias(t *testing.T) {
+	t.Parallel()
+
+	dest := new(true)
+	testFlag := newDeprecatedAliasFlag(dest)
+
+	require.NoError(t, testFlag.Parse(nil, map[string]string{"TERRAGRUNT_AUTO_INIT": "false"}))
+
+	assert.Equal(t, false, testFlag.Value().Get())
+	assert.Equal(t, false, testFlag.Value().Get(), "reading the flag again must not change its value")
+	assert.False(t, *dest)
+}
+
+// TestFlag_ValueKeepsExplicitOverDeprecatedAlias pins that a value given under the
+// flag's current name wins over the same setting given by a deprecated alias.
+func TestFlag_ValueKeepsExplicitOverDeprecatedAlias(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		env      map[string]string
+		name     string
+		args     []string
+		expected bool
+	}{
+		{
+			name:     "flag turns auto-init off, alias turns it on",
+			args:     []string{"--no-auto-init"},
+			env:      map[string]string{"TERRAGRUNT_AUTO_INIT": "true"},
+			expected: false,
+		},
+		{
+			name:     "flag turns auto-init on, alias turns it off",
+			args:     []string{"--no-auto-init=false"},
+			env:      map[string]string{"TERRAGRUNT_AUTO_INIT": "false"},
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dest := new(true)
+			testFlag := newDeprecatedAliasFlag(dest)
+
+			require.NoError(t, testFlag.Parse(tc.args, tc.env))
+
+			assert.Equal(t, tc.expected, testFlag.Value().Get())
+			assert.Equal(t, tc.expected, *dest)
+		})
+	}
+}
+
 func TestFlag_Evaluate(t *testing.T) {
 	t.Parallel()
 

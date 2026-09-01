@@ -112,7 +112,6 @@ func traverseNestedObject(topKey string, topValue cty.Value) (cty.Value, error) 
 func writePrimitiveValue(writer io.Writer, value cty.Value, path string) error {
 	// Check if the value is null
 	if value.IsNull() {
-		//nolint:staticcheck // user-facing message intentionally written as full sentences
 		return errors.New("Error: Unsupported value for raw output\n\n" +
 			"The -raw option only supports strings, numbers, and boolean values, but the output value is null.\n\n" +
 			"Use the -json option for machine-readable representations of output values that have complex types.")

@@ -1320,11 +1320,12 @@ func sopsDecryptFile(
 
 	pctx.FilesRead.Add(path)
 
-	return sopsDecryptFileImpl(ctx, pctx, l, path, format, pctx.Venv.Sops)
+	return SopsDecryptFileWithDecrypter(ctx, pctx, l, path, format, pctx.Venv.Sops)
 }
 
-// sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
-func sopsDecryptFileImpl(
+// SopsDecryptFileWithDecrypter decrypts the SOPS-encrypted file at `path` with `d`,
+// caching the plaintext for the rest of the run.
+func SopsDecryptFileWithDecrypter(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
