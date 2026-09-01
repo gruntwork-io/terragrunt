@@ -350,7 +350,7 @@ func TestHCLFormatFilterIntegration(t *testing.T) {
 		content, readErr := os.ReadFile(filename)
 		require.NoError(t, readErr)
 
-		component.Contents = content //nolint:govet
+		component.Contents = content //nolint:govet // unusedwrite: the loop exists to assert every file reads; the copy is discarded
 	}
 
 	checkCmd := "terragrunt hcl format --filter './needs-formatting/**' --check --working-dir " + rootPath

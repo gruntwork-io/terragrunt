@@ -1,6 +1,6 @@
 //go:build tf
 
-//nolint:paralleltest
+//nolint:paralleltest // tests here set process env with t.Setenv, so none of them may run in parallel
 package test_test
 
 import (
