@@ -93,7 +93,7 @@ terragrunt apply
     - [provider-installation](https://opentofu.org/docs/cli/config/config-file/#provider-installation) forces OpenTofu/Terraform to look for the required providers in the cache directory and create symbolic links to them, if not found, then request them from the remote registry.
     - [host](https://github.com/hashicorp/terraform/issues/28309) forces OpenTofu/Terraform to [forward](#how-forwarding-requests-through-the-provider-cache-server-works) all provider requests through the Terragrunt Provider Cache server. The address link contains [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) and is unique for each module, used by Terragrunt Provider Cache server to associate modules with the requested providers.
 
-    <Since version="1.2.0">
+    <Since version="1.1.5">
 
     The user configuration is read from the file locations the detected implementation would use:
 
