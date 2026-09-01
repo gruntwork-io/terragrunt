@@ -226,7 +226,7 @@ func TestLinkTreeSymlinks(t *testing.T) {
 			targetDir := "/target"
 			require.NoError(t, v.FS.MkdirAll(targetDir, 0o755))
 
-			err = cas.LinkTree(t.Context(), v, store, store, tree, targetDir)
+			err = cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -389,7 +389,7 @@ func TestLinkTree(t *testing.T) {
 			require.NoError(t, v.FS.MkdirAll(targetDir, 0755))
 
 			// Link the tree
-			err = cas.LinkTree(t.Context(), v, store, store, tree, targetDir)
+			err = cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

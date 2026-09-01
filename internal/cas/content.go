@@ -43,7 +43,8 @@ func NewContent(store *Store) *Content {
 type LinkOption func(*linkOpts)
 
 type linkOpts struct {
-	forceCopy bool
+	forceCopy  bool
+	storedPerm bool
 }
 
 // WithLinkForceCopy makes Link copy the file from the store into the target
@@ -53,15 +54,23 @@ func WithLinkForceCopy() LinkOption {
 	return func(o *linkOpts) { o.forceCopy = true }
 }
 
+// WithLinkStoredPerm leaves the destination at the blob's stored permissions
+// when they differ from the ones requested, rather than taking a private copy.
+// Permissions are fixed when content is first stored.
+func WithLinkStoredPerm() LinkOption {
+	return func(o *linkOpts) { o.storedPerm = true }
+}
+
 // Link materializes a stored blob at targetPath under gitPerm.
 //
 // The default path hardlinks the stored blob with its write bits stripped, so
 // the destination cannot be edited back into the shared store. The fallback
-// copy path applies when stored perms don't match the request (rare cross-mode
-// collision) or when [WithLinkForceCopy] is in effect, so callers can edit
-// the working tree freely.
+// copy path applies when stored perms don't match the request (a cross-mode
+// collision, unless [WithLinkStoredPerm] says to share anyway) or when
+// [WithLinkForceCopy] is in effect, so callers can edit the working tree freely.
 func (c *Content) Link(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	hash, targetPath string,
 	gitPerm os.FileMode,
@@ -77,12 +86,12 @@ func (c *Content) Link(
 		desired &^= WriteBitMask
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, "cas_link", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "cas_link", map[string]any{
 		"hash":       hash,
 		"path":       targetPath,
 		"force_copy": o.forceCopy,
 		"perm":       uint32(desired),
-	}, func(childCtx context.Context, _ log.Logger) error {
+	}, func(childCtx context.Context, l log.Logger) error {
 		sourcePath := c.getPath(hash)
 
 		targetDir := filepath.Dir(targetPath)
@@ -99,10 +108,8 @@ func (c *Content) Link(
 		// leak back into the shared store and so the destination carries the
 		// requested mode.
 		if !o.forceCopy {
-			if info, statErr := v.FS.Stat(
-				sourcePath,
-			); statErr == nil &&
-				info.Mode().Perm() == desired {
+			if info, statErr := v.FS.Stat(sourcePath); statErr == nil &&
+				linkable(l, hash, targetPath, info.Mode().Perm(), desired, o.storedPerm) {
 				linkErr := vfs.Link(v.FS, sourcePath, targetPath)
 				if linkErr == nil {
 					return nil
@@ -181,6 +188,33 @@ func (c *Content) Link(
 
 		return nil
 	})
+}
+
+// linkable reports whether a blob stored under stored can be shared by hard
+// link with a caller wanting desired. The modes have to agree, since a link and
+// the blob are one inode, unless the caller has said it would rather share on
+// the store's terms than take a private copy.
+func linkable(
+	l log.Logger,
+	hash, targetPath string,
+	stored, desired os.FileMode,
+	acceptStored bool,
+) bool {
+	if stored == desired {
+		return true
+	}
+
+	if !acceptStored {
+		return false
+	}
+
+	l.Debugf(
+		"CAS already holds %s with permissions %#o, so %s keeps those rather than %#o."+
+			" Permissions are fixed when content is first stored.",
+		hash, uint32(stored), targetPath, uint32(desired),
+	)
+
+	return true
 }
 
 // linkOver hardlinks sourcePath beside targetPath and renames the result onto

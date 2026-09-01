@@ -143,7 +143,7 @@ func TestContent_Link(t *testing.T) {
 		// Then create a link to it
 		targetPath := filepath.Join("/target", "test.txt")
 
-		err = content.Link(t.Context(), v, testHash, targetPath, 0o644)
+		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		// Verify link was created and contains correct content
@@ -169,7 +169,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		err = content.Link(t.Context(), v, testHash, targetPath, 0o644)
+		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		// Verify hard link by comparing inodes
@@ -200,7 +200,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "generated", "nested", "test.txt")
-		err = content.Link(t.Context(), v, testHash, targetPath, 0o644)
+		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
@@ -228,7 +228,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		err = content.Link(t.Context(), v, testHash, targetPath, 0o644, cas.WithLinkForceCopy())
+		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644, cas.WithLinkForceCopy())
 		require.NoError(t, err)
 
 		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
@@ -273,7 +273,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o644))
+		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o644))
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)
@@ -305,7 +305,7 @@ func TestContent_Link(t *testing.T) {
 			require.NoError(t, os.Chmod(sourcePath, 0o555))
 
 			targetPath := filepath.Join(targetDir, "run.sh")
-			require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o755))
+			require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o755))
 
 			info, err := os.Stat(targetPath)
 			require.NoError(t, err)
@@ -339,7 +339,7 @@ func TestContent_Link(t *testing.T) {
 		// Link must produce a fresh inode at 0o555 rather than hardlinking
 		// the 0o444 blob.
 		targetPath := filepath.Join(targetDir, "run.sh")
-		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o755))
+		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o755))
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)
@@ -370,7 +370,7 @@ func TestContent_Link(t *testing.T) {
 		targetPath := filepath.Join(targetDir, "run.sh")
 		require.NoError(
 			t,
-			content.Link(t.Context(), v, testHash, targetPath, 0o755, cas.WithLinkForceCopy()),
+			content.Link(t.Context(), l, v, testHash, targetPath, 0o755, cas.WithLinkForceCopy()),
 		)
 
 		info, err := os.Stat(targetPath)
@@ -404,7 +404,7 @@ func TestContent_Link(t *testing.T) {
 		err = vfs.WriteFile(v.FS, targetPath, []byte("existing content"), 0644)
 		require.NoError(t, err)
 
-		err = content.Link(t.Context(), v, testHash, targetPath, 0o644)
+		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		got, err := vfs.ReadFile(v.FS, targetPath)
@@ -432,7 +432,7 @@ func TestContent_Link(t *testing.T) {
 		targetPath := filepath.Join(targetDir, "test.txt")
 		require.NoError(t, os.WriteFile(targetPath, []byte("stale"), 0o444))
 
-		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o644))
+		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o644))
 
 		got, err := os.ReadFile(targetPath)
 		require.NoError(t, err)
@@ -445,6 +445,68 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, os.SameFile(sourceInfo, info),
 			"an occupied target must still end up sharing the stored blob")
+	})
+
+	t.Run("stored perms win over a narrower request when accepted", func(t *testing.T) {
+		t.Parallel()
+
+		v := venvtest.NewOSWithEmptyEnv()
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+
+		require.NoError(
+			t,
+			content.Store(l, v, testHash, []byte("test content"), cas.StoredFilePerms),
+		)
+
+		sourceInfo, err := os.Stat(filepath.Join(storeDir, testHash[:2], testHash))
+		require.NoError(t, err)
+
+		targetPath := filepath.Join(targetDir, "test.txt")
+		require.NoError(t, content.Link(
+			t.Context(), l, v, testHash, targetPath, 0o600, cas.WithLinkStoredPerm(),
+		))
+
+		info, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.True(t, os.SameFile(sourceInfo, info),
+			"sharing the stored blob matters more than the exact mode")
+		assert.Equal(t, os.FileMode(0o444), info.Mode().Perm())
+	})
+
+	t.Run("a narrower request copies when stored perms are not accepted", func(t *testing.T) {
+		t.Parallel()
+
+		v := venvtest.NewOSWithEmptyEnv()
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+
+		require.NoError(
+			t,
+			content.Store(l, v, testHash, []byte("test content"), cas.StoredFilePerms),
+		)
+
+		sourceInfo, err := os.Stat(filepath.Join(storeDir, testHash[:2], testHash))
+		require.NoError(t, err)
+
+		targetPath := filepath.Join(targetDir, "test.txt")
+		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o600))
+
+		info, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.False(t, os.SameFile(sourceInfo, info))
+		assert.Equal(t, os.FileMode(0o400), info.Mode().Perm(),
+			"a caller holding out for the narrow mode gets an inode of its own")
 	})
 
 	t.Run("copy path recovers from a stale read-only temp file", func(t *testing.T) {
@@ -471,7 +533,7 @@ func TestContent_Link(t *testing.T) {
 		// it for writing fails with EACCES, so Link must not reuse it.
 		require.NoError(t, os.WriteFile(targetPath+".tmp", []byte("partial"), 0o444))
 
-		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o644))
+		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o644))
 
 		got, err := os.ReadFile(targetPath)
 		require.NoError(t, err)

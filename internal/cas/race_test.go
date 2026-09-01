@@ -176,7 +176,7 @@ func TestContentLinkConcurrentSameTargetWithRacing(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			errs[idx] = content.Link(t.Context(), v, hash, targetPath, 0o644)
+			errs[idx] = content.Link(t.Context(), l, v, hash, targetPath, 0o644)
 		}(i)
 	}
 

@@ -239,7 +239,15 @@ func materialize(
 		return err
 	}
 
-	return store.Link(ctx, v, hash, targetPath, generatedFilePerms)
+	return store.Link(
+		ctx,
+		l,
+		v,
+		hash,
+		targetPath,
+		generatedFilePerms,
+		cas.WithLinkStoredPerm(),
+	)
 }
 
 // Whether or not file generation should continue if the file path already exists. The answer depends on the
