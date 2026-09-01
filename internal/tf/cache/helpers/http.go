@@ -16,9 +16,26 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
-// Fetch dispatches req through c and copies the (possibly
-// gzip-decoded) response body into dst.
-func Fetch(ctx context.Context, c vhttp.Client, req *http.Request, dst io.Writer) error {
+// MaxJSONResponseBytes bounds what [ResponseBuffer] reads into memory.
+// Everything it reads is registry metadata, orders of magnitude smaller than
+// this.
+const MaxJSONResponseBytes = 1 << 20
+
+// ResponseTooLargeError is returned when a response outgrows the limit it was
+// read under.
+type ResponseTooLargeError struct {
+	Limit int64
+}
+
+func (err ResponseTooLargeError) Error() string {
+	return fmt.Sprintf("response exceeds the limit of %d bytes", err.Limit)
+}
+
+// Fetch dispatches req through c and copies the (possibly gzip-decoded)
+// response body into dst, up to limit bytes. The limit applies after decoding,
+// because the server decides how far a compressed response expands and the
+// declared content length says nothing about it.
+func Fetch(ctx context.Context, c vhttp.Client, req *http.Request, dst io.Writer, limit int64) error {
 	req.Header.Add("Accept-Encoding", "gzip")
 
 	resp, err := c.Do(req)
@@ -36,9 +53,18 @@ func Fetch(ctx context.Context, c vhttp.Client, req *http.Request, dst io.Writer
 		return err
 	}
 
-	if written, err := util.Copy(ctx, dst, reader); err != nil {
+	// Read one byte past the limit to tell a response that outgrew it from one
+	// that ends exactly on it.
+	written, err := util.Copy(ctx, dst, io.LimitReader(reader, limit+1))
+	if err != nil {
 		return err
-	} else if resp.ContentLength != -1 && written != resp.ContentLength {
+	}
+
+	if written > limit {
+		return fmt.Errorf("fetching %s: %w", req.URL, ResponseTooLargeError{Limit: limit})
+	}
+
+	if resp.ContentLength != -1 && written != resp.ContentLength {
 		return fmt.Errorf(
 			"incorrect response size: expected %d bytes, but got %d bytes",
 			resp.ContentLength,
@@ -49,15 +75,23 @@ func Fetch(ctx context.Context, c vhttp.Client, req *http.Request, dst io.Writer
 	return nil
 }
 
-// FetchToFile downloads req's response through c into the file at dst.
-func FetchToFile(ctx context.Context, c vhttp.Client, fsys vfs.FS, req *http.Request, dst string) error {
+// FetchToFile downloads req's response through c into the file at dst, up to
+// limit bytes.
+func FetchToFile(
+	ctx context.Context,
+	c vhttp.Client,
+	fsys vfs.FS,
+	req *http.Request,
+	dst string,
+	limit int64,
+) error {
 	file, err := fsys.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer file.Close() //nolint:errcheck
 
-	if err := Fetch(ctx, c, req, file); err != nil {
+	if err := Fetch(ctx, c, req, file, limit); err != nil {
 		return err
 	}
 
@@ -88,6 +122,8 @@ func ResponseReader(resp *http.Response) (io.ReadCloser, error) {
 	}
 }
 
+// ResponseBuffer reads resp's (possibly gzip-decoded) body into a buffer,
+// refusing a body that outgrows [MaxJSONResponseBytes].
 func ResponseBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	reader, err := ResponseReader(resp)
 	if err != nil {
@@ -97,8 +133,13 @@ func ResponseBuffer(resp *http.Response) (*bytes.Buffer, error) {
 
 	buffer := new(bytes.Buffer)
 
-	if _, err := buffer.ReadFrom(reader); err != nil {
+	read, err := buffer.ReadFrom(io.LimitReader(reader, MaxJSONResponseBytes+1))
+	if err != nil {
 		return nil, err
+	}
+
+	if read > MaxJSONResponseBytes {
+		return nil, ResponseTooLargeError{Limit: MaxJSONResponseBytes}
 	}
 
 	return buffer, nil

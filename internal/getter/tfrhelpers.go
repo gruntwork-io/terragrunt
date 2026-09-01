@@ -26,6 +26,10 @@ import (
 const (
 	serviceDiscoveryPath = "/.well-known/terraform.json"
 	authTokenEnvName     = "TG_TF_REGISTRY_TOKEN"
+
+	// maxRegistryResponseBytes bounds a registry response. The largest of them
+	// lists a module's versions, which stays well under this.
+	maxRegistryResponseBytes = 1 << 20
 )
 
 // RegistryServicePath is the modules service path returned by service discovery.
@@ -689,7 +693,7 @@ func httpGETAndGetResponse(
 		return nil, nil, RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode}
 	}
 
-	bodyData, err := io.ReadAll(resp.Body)
+	bodyData, err := io.ReadAll(io.LimitReader(resp.Body, maxRegistryResponseBytes))
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading registry response body from %s: %w", getURL, err)
 	}
