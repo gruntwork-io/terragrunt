@@ -8,6 +8,11 @@
 // so the device code the portal issues is the only credential in the exchange,
 // and [Secret] keeps it out of terminal output and log lines.
 //
+// The credential a login yields is kept under the user's configuration
+// directory, readable by them alone, so a later command reaches the same org
+// without another approval. It expires and cannot be renewed: once it does, the
+// user logs in again.
+//
 // The device-authorization request is built here rather than through
 // golang.org/x/oauth2. Its Config.DeviceAuth sends a request carrying no
 // context, so a cancelled login cannot abandon a call already in flight.

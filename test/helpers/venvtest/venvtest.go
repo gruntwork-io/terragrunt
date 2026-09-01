@@ -1,8 +1,8 @@
 // Package venvtest builds in-memory [venv.Venv] values for tests. New seeds
 // the mem defaults; callers refine individual handles with venv.Venv's fluent
 // With methods (WithHandler, WithExec, WithFS, WithSops, WithBrowser, WithEnv,
-// WithGOOS, WithGOARCH, WithUserHomeDir). Production code builds venvs through
-// [venv.OSVenv] instead.
+// WithGOOS, WithGOARCH, WithUserHomeDir, WithUserConfigDir). Production code
+// builds venvs through [venv.OSVenv] instead.
 //
 // [NewFS] and [LoadFS] build the filesystems those venvs carry, from literals
 // and from an on-disk fixture tree.
@@ -35,9 +35,10 @@ var ErrNoListen = errors.New("venvtest: listening is not permitted")
 // machine uses, so a test that accidentally runs them against the OS filesystem
 // fails loudly instead of writing into the invoking user's directories.
 const (
-	memCacheDir = "/venvtest/cache"
-	memTempDir  = "/venvtest/tmp"
-	memWorkDir  = "/venvtest/work"
+	memCacheDir  = "/venvtest/cache"
+	memConfigDir = "/venvtest/config"
+	memTempDir   = "/venvtest/tmp"
+	memWorkDir   = "/venvtest/work"
 
 	// memPID is a fixed process id, so a crash report or log line carrying it
 	// compares equal between runs.
@@ -79,6 +80,9 @@ func New() *venv.Venv {
 			},
 			UserCacheDir: func() (string, error) {
 				return memCacheDir, nil
+			},
+			UserConfigDir: func() (string, error) {
+				return memConfigDir, nil
 			},
 			TempDir: func() string {
 				return memTempDir
