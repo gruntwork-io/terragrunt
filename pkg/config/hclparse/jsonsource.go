@@ -508,13 +508,13 @@ func expectDelim(dec *json.Decoder, want json.Delim) error {
 func blockFields(structType reflect.Type) map[string]reflect.Type {
 	fields := map[string]reflect.Type{}
 
-	for i := range structType.NumField() {
-		name, kind, found := strings.Cut(structType.Field(i).Tag.Get("hcl"), ",")
+	for field := range structType.Fields() {
+		name, kind, found := strings.Cut(field.Tag.Get("hcl"), ",")
 		if !found || kind != blockTagKind {
 			continue
 		}
 
-		fields[name] = elementType(structType.Field(i).Type)
+		fields[name] = elementType(field.Type)
 	}
 
 	return fields
