@@ -38,6 +38,7 @@ linters:
     - nilerr
     - nilnesserr
     - noctx
+    - nolintlint
     - paralleltest
     - perfsprint
     - prealloc
@@ -187,6 +188,9 @@ linters:
         - unusedwrite
     nakedret:
       max-func-lines: 20
+    nolintlint:
+      require-explanation: true
+      require-specific: true
     staticcheck:
       checks:
         - all
