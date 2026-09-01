@@ -33,6 +33,32 @@ var ErrLoginExpired = errors.New("the login request expired before it was approv
 // here rather than anything the portal did.
 var ErrPollLimit = errors.New("the login poll ran past the attempts its request allows")
 
+// ErrCredentialRejected reports a credential the portal will not accept, which
+// is what an expired one and a withdrawn one both come back as.
+var ErrCredentialRejected = errors.New("the portal rejected the stored credential")
+
+// ErrNoHostedCatalog reports a portal serving no catalog.
+var ErrNoHostedCatalog = errors.New("the portal serves no catalog")
+
+// ErrPortalUnreachable reports a portal that gave no answer at all: the request
+// failed to arrive, the connection broke, or the CLI stopped waiting for a
+// reply.
+var ErrPortalUnreachable = errors.New("the portal could not be reached")
+
+// RateLimitedError reports a portal that rate limited the CLI and went on doing
+// so for every retry.
+type RateLimitedError struct {
+	RetryAfter time.Duration
+}
+
+func (e *RateLimitedError) Error() string {
+	if e.RetryAfter > 0 {
+		return "the portal is rate limiting requests; it asked to wait " + e.RetryAfter.String() + " before trying again"
+	}
+
+	return "the portal is rate limiting requests; try again shortly"
+}
+
 // ErrUnusablePortalURL reports a portal base URL the CLI cannot address, and so
 // cannot file a credential under either. A caller matches it to tell a base URL
 // the user has to correct from a failure it can do nothing about.
