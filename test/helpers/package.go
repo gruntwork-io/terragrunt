@@ -84,6 +84,9 @@ const (
 
 	caKeyBits = 4096
 
+	// fakeProviderBinarySize is the size of the dummy binary FakeProvider packs into its archive.
+	fakeProviderBinarySize = 1e7
+
 	// certValidityYears is how long the test CA and its leaf certificate stay valid.
 	certValidityYears = 10
 
@@ -752,7 +755,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 		require.NoError(t, os.Remove(filepath.Join(providerDir, provider.filename())))
 	}()
 
-	err = file.Truncate(1e7) //nolint:mnd // TODO: work out what this size is for
+	err = file.Truncate(fakeProviderBinarySize)
 	require.NoError(t, err)
 
 	err = file.Sync()

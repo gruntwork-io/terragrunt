@@ -1065,7 +1065,7 @@ func invoke(
 		l.Debugf("Engine execution done in %v", runOptions.CacheDir)
 
 		if resultCode != 0 {
-			err = util.ProcessExecutionError{
+			err = &util.ProcessExecutionError{
 				Err:             fmt.Errorf("command failed with exit code %d", resultCode),
 				Output:          output,
 				WorkingDir:      runOptions.CacheDir,

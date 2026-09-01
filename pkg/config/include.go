@@ -195,7 +195,7 @@ func handleInclude(
 
 			baseConfig = parsedIncludeConfig
 		case DeepMergeMapOnly:
-			return nil, InvalidMergeStrategyTypeError(mergeStrategy)
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		default:
 			return nil, fmt.Errorf(
 				"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s",
@@ -288,7 +288,7 @@ func handleIncludeForDependency(
 
 			baseDependencyBlock = mergedDependencyBlock
 		case DeepMergeMapOnly:
-			return nil, InvalidMergeStrategyTypeError(mergeStrategy)
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		default:
 			return nil, fmt.Errorf(
 				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
