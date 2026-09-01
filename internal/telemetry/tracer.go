@@ -159,7 +159,7 @@ func NewTraceExporter(
 		exporterType = noneTraceExporterType
 	}
 
-	switch exporterType { //nolint:exhaustive // the default branch handles the rest
+	switch exporterType {
 	case httpTraceExporterType:
 		if opts.TraceExporterHTTPEndpoint == "" {
 			return nil, &ErrorMissingEnvVariable{
@@ -191,6 +191,8 @@ func NewTraceExporter(
 		return otlptracegrpc.New(ctx, config...)
 	case consoleTraceExporterType:
 		return stdouttrace.New(stdouttrace.WithWriter(writer))
+	case noneTraceExporterType:
+		return nil, nil
 	default:
 		return nil, nil
 	}
@@ -255,9 +257,9 @@ func (tracer *Tracer) openSpan(
 		}
 	}
 
-	ctx, span := tracer.Start(ctx, name) //nolint:spancheck // every openSpan caller closes the span in a defer
+	ctx, span := tracer.Start(ctx, name) //nolint:spancheck // Trace, the only caller, defers span.End
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
 
-	return ctx, span //nolint:spancheck // as above: the caller closes the span
+	return ctx, span //nolint:spancheck // Trace, the only caller, defers span.End
 }

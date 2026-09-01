@@ -789,12 +789,9 @@ func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) 
 			continue
 		}
 
-		if strings.HasPrefix(line, "ref:") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 { //nolint:mnd // "ref: refs/heads/<name>" is two fields
-				ref := parts[1]
-
-				if after, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
+		if symref, ok := strings.CutPrefix(line, "ref:"); ok {
+			if fields := strings.Fields(symref); len(fields) > 0 {
+				if after, ok := strings.CutPrefix(fields[0], "refs/heads/"); ok {
 					return after, nil
 				}
 			}

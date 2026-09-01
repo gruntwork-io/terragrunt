@@ -42,7 +42,7 @@ func MustWalkTerraformOutput(value any, path ...string) any {
 	for _, p := range path {
 		v := reflect.ValueOf(found)
 
-		switch reflect.TypeOf(found).Kind() { //nolint:exhaustive // the default branch handles the rest
+		switch reflect.TypeOf(found).Kind() { //nolint:exhaustive // only the kinds a path can descend into matter; reflect.Kind has 26 members
 		case reflect.Map:
 			if !v.MapIndex(reflect.ValueOf(p)).IsValid() {
 				return nil

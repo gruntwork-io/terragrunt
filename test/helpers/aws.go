@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// deleteS3BucketBackoff is how long DeleteS3BucketWithRetry waits between attempts, giving
+// S3 time to settle after an eventually consistent read.
+const deleteS3BucketBackoff = 10 * time.Second
+
 // DeleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
 // handle eventual consistency issues.
 func DeleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
@@ -23,8 +27,12 @@ func DeleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) 
 			return
 		}
 
-		t.Logf("Error deleting s3 bucket %s. Sleeping for 10 seconds before retrying.", bucketName)
-		time.Sleep(10 * time.Second) //nolint:mnd // back off ten seconds between delete attempts
+		t.Logf(
+			"Error deleting s3 bucket %s. Sleeping for %s before retrying.",
+			bucketName,
+			deleteS3BucketBackoff,
+		)
+		time.Sleep(deleteS3BucketBackoff)
 	}
 
 	t.Fatalf("Max retries attempting to delete s3 bucket %s in region %s", bucketName, awsRegion)

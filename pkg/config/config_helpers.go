@@ -1720,12 +1720,15 @@ func parseMarkGlobBoundary(pctx *ParsingContext, args []string) (string, []strin
 
 	switch {
 	case args[0] == markGlobBoundaryFlag:
-		if len(args) < 2 { //nolint:mnd // the flag and the value it takes
+		// lenFlagWithValue counts the flag and the directory it takes.
+		const lenFlagWithValue = 2
+
+		if len(args) < lenFlagWithValue {
 			return "", nil, fmt.Errorf("%s requires a directory value", markGlobBoundaryFlag)
 		}
 
 		raw = args[1]
-		args = slices.Delete(args, 0, 2) //nolint:mnd // drops the flag and its value
+		args = slices.Delete(args, 0, lenFlagWithValue)
 	case strings.HasPrefix(args[0], markGlobBoundaryFlag+"="):
 		raw = strings.TrimPrefix(args[0], markGlobBoundaryFlag+"=")
 		args = slices.Delete(args, 0, 1)

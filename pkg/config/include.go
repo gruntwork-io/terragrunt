@@ -163,7 +163,7 @@ func handleInclude(
 			return baseConfig, err
 		}
 
-		switch mergeStrategy { //nolint:exhaustive // the default branch handles the rest
+		switch mergeStrategy {
 		case NoMerge:
 			l.Debugf(
 				"%sIncluded config %s has strategy no merge: not merging config in.",
@@ -194,6 +194,8 @@ func handleInclude(
 			}
 
 			baseConfig = parsedIncludeConfig
+		case DeepMergeMapOnly:
+			return nil, InvalidMergeStrategyTypeError(mergeStrategy)
 		default:
 			return nil, fmt.Errorf(
 				"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s",
@@ -241,7 +243,7 @@ func handleIncludeForDependency(
 			return nil, err
 		}
 
-		switch mergeStrategy { //nolint:exhaustive // the default branch handles the rest
+		switch mergeStrategy {
 		case NoMerge:
 			l.Debugf(
 				"Included config %s has strategy no merge: not merging config in for dependency.",
@@ -285,6 +287,8 @@ func handleIncludeForDependency(
 			}
 
 			baseDependencyBlock = mergedDependencyBlock
+		case DeepMergeMapOnly:
+			return nil, InvalidMergeStrategyTypeError(mergeStrategy)
 		default:
 			return nil, fmt.Errorf(
 				"you reached an impossible condition. This is most likely a bug in terragrunt. "+

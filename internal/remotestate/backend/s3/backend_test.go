@@ -14,37 +14,37 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 
 	remoteBackend := s3backend.NewBackend()
 
-	testCases := []struct { //nolint:govet // fieldalignment: readability beats packing in a test table
-		name          string
+	testCases := []struct {
 		config        backend.Config
 		expected      map[string]any
+		name          string
 		shouldBeEqual bool
 	}{
 		{
-			"empty-no-values",
-			backend.Config{},
-			map[string]any{},
-			true,
+			name:          "empty-no-values",
+			config:        backend.Config{},
+			expected:      map[string]any{},
+			shouldBeEqual: true,
 		},
 		{
-			"valid-s3-configuration-keys",
-			backend.Config{
+			name: "valid-s3-configuration-keys",
+			config: backend.Config{
 				"bucket":  "foo",
 				"encrypt": "bar",
 				"key":     "baz",
 				"region":  "quux",
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":  "foo",
 				"encrypt": "bar",
 				"key":     "baz",
 				"region":  "quux",
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"terragrunt-keys-filtered",
-			backend.Config{
+			name: "terragrunt-keys-filtered",
+			config: backend.Config{
 				"bucket":                      "foo",
 				"encrypt":                     "bar",
 				"key":                         "baz",
@@ -52,18 +52,18 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 				"skip_credentials_validation": true,
 				"s3_bucket_tags":              map[string]string{},
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":                      "foo",
 				"encrypt":                     "bar",
 				"key":                         "baz",
 				"region":                      "quux",
 				"skip_credentials_validation": true,
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"empty-no-values-all-terragrunt-keys-filtered",
-			backend.Config{
+			name: "empty-no-values-all-terragrunt-keys-filtered",
+			config: backend.Config{
 				"s3_bucket_tags":                                    map[string]string{},
 				"dynamodb_table_tags":                               map[string]string{},
 				"accesslogging_bucket_tags":                         map[string]string{},
@@ -83,48 +83,48 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 				"skip_accesslogging_bucket_public_access_blocking":  false,
 				"skip_accesslogging_bucket_ssencryption":            false,
 			},
-			map[string]any{},
-			true,
+			expected:      map[string]any{},
+			shouldBeEqual: true,
 		},
 		{
-			"lock-table-replaced-with-dynamodb-table",
-			backend.Config{
+			name: "lock-table-replaced-with-dynamodb-table",
+			config: backend.Config{
 				"bucket":     "foo",
 				"encrypt":    "bar",
 				"key":        "baz",
 				"region":     "quux",
 				"lock_table": "xyzzy",
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":         "foo",
 				"encrypt":        "bar",
 				"key":            "baz",
 				"region":         "quux",
 				"dynamodb_table": "xyzzy",
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"dynamodb-table-not-replaced-with-lock-table",
-			backend.Config{
+			name: "dynamodb-table-not-replaced-with-lock-table",
+			config: backend.Config{
 				"bucket":         "foo",
 				"encrypt":        "bar",
 				"key":            "baz",
 				"region":         "quux",
 				"dynamodb_table": "xyzzy",
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":     "foo",
 				"encrypt":    "bar",
 				"key":        "baz",
 				"region":     "quux",
 				"lock_table": "xyzzy",
 			},
-			false,
+			shouldBeEqual: false,
 		},
 		{
-			"assume-role",
-			backend.Config{
+			name: "assume-role",
+			config: backend.Config{
 				"bucket": "foo",
 				"assume_role": map[string]any{
 					"role_arn":     "arn:aws:iam::123:role/role",
@@ -132,111 +132,111 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 					"session_name": "qwe",
 				},
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":      "foo",
 				"assume_role": "{external_id=\"123\",role_arn=\"arn:aws:iam::123:role/role\",session_name=\"qwe\"}",
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"use-lockfile-native-s3-locking",
-			backend.Config{
+			name: "use-lockfile-native-s3-locking",
+			config: backend.Config{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"use_lockfile": true,
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"use_lockfile": true,
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"use-lockfile-false",
-			backend.Config{
+			name: "use-lockfile-false",
+			config: backend.Config{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"use_lockfile": false,
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"use_lockfile": false,
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"dual-locking-dynamodb-and-s3",
-			backend.Config{
+			name: "dual-locking-dynamodb-and-s3",
+			config: backend.Config{
 				"bucket":         "foo",
 				"key":            "bar",
 				"region":         "us-east-1",
 				"dynamodb_table": "my-lock-table",
 				"use_lockfile":   true,
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":         "foo",
 				"key":            "bar",
 				"region":         "us-east-1",
 				"dynamodb_table": "my-lock-table",
 				"use_lockfile":   true,
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"string-bool-use-lockfile-true",
-			backend.Config{
+			name: "string-bool-use-lockfile-true",
+			config: backend.Config{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"use_lockfile": "true",
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"use_lockfile": true,
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"string-bool-use-lockfile-false",
-			backend.Config{
+			name: "string-bool-use-lockfile-false",
+			config: backend.Config{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"use_lockfile": "false",
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"use_lockfile": false,
 			},
-			true,
+			shouldBeEqual: true,
 		},
 		{
-			"string-bool-encrypt-and-use-lockfile",
-			backend.Config{
+			name: "string-bool-encrypt-and-use-lockfile",
+			config: backend.Config{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"encrypt":      "true",
 				"use_lockfile": "true",
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":       "foo",
 				"key":          "bar",
 				"region":       "us-east-1",
 				"encrypt":      true,
 				"use_lockfile": true,
 			},
-			true,
+			shouldBeEqual: true,
 		},
 	}
 

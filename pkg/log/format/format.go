@@ -18,10 +18,17 @@ const (
 	KeyValueFormatName = "key-value"
 )
 
+const (
+	// bareLevelWidth is the width of the level column in the bare format.
+	bareLevelWidth = 4
+	// prettyLevelWidth is the width of the level column in the pretty format.
+	prettyLevelWidth = 6
+)
+
 func NewBareFormatPlaceholders() Placeholders {
 	return Placeholders{
 		Level(
-			Width(4), //nolint:mnd // the bare format pads the level to four characters
+			Width(bareLevelWidth),
 			Case(UpperCase),
 		),
 		Interval(
@@ -46,7 +53,7 @@ func NewPrettyFormatPlaceholders() Placeholders {
 		),
 		PlainText(" "),
 		Level(
-			Width(6), //nolint:mnd // the level column is six characters wide
+			Width(prettyLevelWidth),
 			Case(UpperCase),
 			Color(PresetColor),
 		),
