@@ -254,7 +254,7 @@ func (remote *RemoteState) pullState(
 	}
 
 	defer func() {
-		file.Close() // nolint: errcheck
+		file.Close() //nolint:errcheck // best-effort close of the temp state file
 	}()
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {

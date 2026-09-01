@@ -97,7 +97,7 @@ func TestGiveStackTargetTip(t *testing.T) {
 
 			for _, dir := range tc.stackDirs {
 				abs := filepath.Join(workingDir, dir)
-				require.NoError(t, fs.MkdirAll(abs, 0o755)) //nolint:mnd
+				require.NoError(t, fs.MkdirAll(abs, 0o755))
 				f, err := fs.Create(filepath.Join(abs, config.DefaultStackFile))
 				require.NoError(t, err)
 				require.NoError(t, f.Close())
@@ -105,7 +105,7 @@ func TestGiveStackTargetTip(t *testing.T) {
 
 			for _, dir := range tc.unitDirs {
 				abs := filepath.Join(workingDir, dir)
-				require.NoError(t, fs.MkdirAll(abs, 0o755)) //nolint:mnd
+				require.NoError(t, fs.MkdirAll(abs, 0o755))
 				f, err := fs.Create(filepath.Join(abs, "terragrunt.hcl"))
 				require.NoError(t, err)
 				require.NoError(t, f.Close())
@@ -146,7 +146,7 @@ func TestGiveStackTargetTipFiresOnceAcrossCalls(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 
 	abs := filepath.Join(workingDir, "envs/prod")
-	require.NoError(t, fs.MkdirAll(abs, 0o755)) //nolint:mnd
+	require.NoError(t, fs.MkdirAll(abs, 0o755))
 	f, err := fs.Create(filepath.Join(abs, config.DefaultStackFile))
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
@@ -208,7 +208,7 @@ func TestGiveStackTargetTipConcurrentWithRacing(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 
 	abs := filepath.Join(workingDir, "envs/prod")
-	require.NoError(t, fs.MkdirAll(abs, 0o755)) //nolint:mnd
+	require.NoError(t, fs.MkdirAll(abs, 0o755))
 	f, err := fs.Create(filepath.Join(abs, config.DefaultStackFile))
 	require.NoError(t, err)
 	require.NoError(t, f.Close())

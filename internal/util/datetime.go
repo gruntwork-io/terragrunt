@@ -1,4 +1,3 @@
-//nolint:gocritic
 package util
 
 import (
@@ -10,8 +9,7 @@ import (
 func ParseTimestamp(ts string) (time.Time, error) {
 	t, err := time.Parse(time.RFC3339, ts)
 	if err != nil {
-		// TODO: Remove this lint suppression
-		switch err := err.(type) { //nolint:errorlint
+		switch err := err.(type) { //nolint:errorlint,gocritic // time.Parse returns *time.ParseError directly, and the switch binds it
 		case *time.ParseError:
 			// If err is a time.ParseError then its string representation is not
 			// appropriate since it relies on details of Go's strange date format

@@ -437,11 +437,11 @@ func (p *WorktreePhase) walkChangedStack(
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	// Run at most 2 discovery tasks (from/to) in parallel, capped by available CPUs.
-	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
+	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd // 2: the from and to discoveries
 
 	var (
 		mu   sync.Mutex
-		errs = make([]error, 0, 2) //nolint:mnd
+		errs = make([]error, 0, 2) //nolint:mnd // 2: one error per discovery task
 	)
 
 	parentFilters := discovery.filters.ExcludingGitFilters()
@@ -538,7 +538,7 @@ func (p *WorktreePhase) walkChangedStack(
 
 		shaGroup, _ := errgroup.WithContext(ctx)
 		// Hash from/to directories in parallel (at most 2), capped by available CPUs.
-		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
+		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd // 2: the from and to directories
 
 		shaGroup.Go(func() error {
 			var localErr error

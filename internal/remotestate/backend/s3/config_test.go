@@ -14,7 +14,7 @@ import (
 func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
+	testCases := []struct { //nolint:govet // fieldalignment: readability beats packing in a test table
 		name   string
 		config s3backend.Config
 		check  func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3)

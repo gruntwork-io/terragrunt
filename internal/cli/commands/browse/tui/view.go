@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	appStyle      = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd
+	appStyle      = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd // one row of vertical padding, two of horizontal
 	itemStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(itemColor))
 	selectedStyle = lipgloss.NewStyle().Bold(true).
 			Foreground(lipgloss.Color(viewtui.SelectionText)).
@@ -108,7 +108,7 @@ func (m Model) paneSizes(header, footer string) (sideWidth, previewWidth, paneHe
 	_, frameV := appStyle.GetFrameSize()
 
 	content := m.contentWidth()
-	sideWidth = content / 4 //nolint:mnd
+	sideWidth = content / 4 //nolint:mnd // the side pane takes a quarter of the content width
 	previewWidth = content - sideWidth*(columnCount-1)
 
 	paneHeight = max(m.height-frameV-lipgloss.Height(header)-lipgloss.Height(footer), 0)

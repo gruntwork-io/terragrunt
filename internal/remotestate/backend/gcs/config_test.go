@@ -14,7 +14,7 @@ func TestConfig_IsEqual(t *testing.T) {
 
 	logger := logger.CreateLogger()
 
-	testCases := []struct { //nolint: govet
+	testCases := []struct { //nolint:govet // fieldalignment: readability beats packing in a test table
 		name          string
 		cfg           gcs.Config
 		comparableCfg gcs.Config
@@ -110,7 +110,7 @@ func TestConfig_IsEqual(t *testing.T) {
 func TestParseExtendedGCSConfig_StringBoolCoercion(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
+	testCases := []struct { //nolint:govet // fieldalignment: readability beats packing in a test table
 		name   string
 		config gcs.Config
 		check  func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS)

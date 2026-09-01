@@ -664,7 +664,7 @@ func (rnr *Runner) Run(
 					}
 				}
 
-				switch entry.Status { //nolint:exhaustive
+				switch entry.Status { //nolint:exhaustive // only failed and early-exit runs are ended here
 				case queue.StatusEarlyExit:
 					endOpts := []report.EndOption{
 						report.WithResult(report.ResultEarlyExit),

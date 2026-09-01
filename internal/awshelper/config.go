@@ -215,7 +215,7 @@ func (b *AWSConfigBuilder) BuildS3Client(
 		return s3.NewFromConfig(cfg), nil
 	}
 
-	customFN := make([]func(*s3.Options), 0, 2) //nolint:mnd
+	customFN := make([]func(*s3.Options), 0, 2) //nolint:mnd // at most two S3 option overrides are appended below
 
 	if b.sessionConfig.CustomS3Endpoint != "" {
 		customFN = append(customFN, func(o *s3.Options) {

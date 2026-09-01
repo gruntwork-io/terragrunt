@@ -4,7 +4,7 @@ package cloner
 import "reflect"
 
 // Clone returns a deep cloned instance of the given `src` variable.
-func Clone[T any](src T, opts ...Option) T { //nolint:ireturn
+func Clone[T any](src T, opts ...Option) T {
 	conf := &Config{}
 	for _, opt := range opts {
 		opt(conf)

@@ -473,7 +473,7 @@ func (d *Discovery) runGraphPhase(
 
 		var buildErrs []error
 
-		telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
+		telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck // the closure records its errors in buildErrs
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
 				buildErrs = d.buildDependencyGraph(childCtx, l, v, opts, allComponents)
@@ -495,7 +495,7 @@ func (d *Discovery) runGraphPhase(
 		err    error
 	)
 
-	telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
+	telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck // the closure records its error in err
 		ctx, l, "discover_dependencies", map[string]any{},
 		func(childCtx context.Context, l log.Logger) error {
 			result, err = phase.Run(childCtx, l, v, &PhaseInput{

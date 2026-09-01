@@ -62,8 +62,6 @@ func NewLogger(
 // NewLogsExporter creates a new logs exporter based on the telemetry options.
 // The structure mirrors NewMetricsExporter and NewTraceExporter; the per-signal
 // OTLP option types prevent sharing a single implementation.
-//
-//nolint:dupl
 func NewLogsExporter(ctx context.Context, writer io.Writer, opts *Options) (log.Exporter, error) {
 	exporterType := logsExporterType(opts.LogsExporter)
 	if exporterType == "" {

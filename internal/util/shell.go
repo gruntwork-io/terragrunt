@@ -66,7 +66,7 @@ type ProcessExecutionError struct {
 	DisableSummary  bool
 }
 
-func (err ProcessExecutionError) Error() string { //nolint:gocritic
+func (err ProcessExecutionError) Error() string { //nolint:gocritic // hugeParam: ProcessExecutionError is used as an error by value, not by pointer
 	commandStr := strings.TrimSpace(
 		strings.Join(append([]string{err.Command}, err.Args...), " "),
 	)
@@ -88,10 +88,10 @@ func (err ProcessExecutionError) Error() string { //nolint:gocritic
 	)
 }
 
-func (err ProcessExecutionError) ExitStatus() (int, error) { //nolint:gocritic
+func (err ProcessExecutionError) ExitStatus() (int, error) { //nolint:gocritic // hugeParam: ProcessExecutionError is used as an error by value, not by pointer
 	return GetExitCode(err.Err)
 }
 
-func (err ProcessExecutionError) Unwrap() error { //nolint:gocritic
+func (err ProcessExecutionError) Unwrap() error { //nolint:gocritic // hugeParam: ProcessExecutionError is used as an error by value, not by pointer
 	return err.Err
 }

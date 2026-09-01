@@ -254,8 +254,7 @@ func shouldContinueWithFileExists(
 	path string,
 	ifExists GenerateConfigExists,
 ) (bool, error) {
-	// TODO: Make exhaustive
-	switch ifExists { //nolint:exhaustive
+	switch ifExists { //nolint:exhaustive // TODO: enumerate the rest; the default branch handles them
 	case ExistsError:
 		return false, GenerateFileExistsError{path: path}
 	case ExistsSkip:
@@ -307,8 +306,7 @@ func shouldRemoveWithFileExists(
 	path string,
 	ifDisable GenerateConfigDisabled,
 ) (bool, error) {
-	// TODO: Make exhaustive
-	switch ifDisable { //nolint:exhaustive
+	switch ifDisable { //nolint:exhaustive // TODO: enumerate the rest; the default branch handles them
 	case DisabledSkip:
 		// Do nothing since skip was configured.
 		l.Debugf("The file path %s already exists and if_disabled for code"+

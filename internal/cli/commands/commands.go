@@ -80,7 +80,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
-			Order: 10, //nolint: mnd
+			Order: 10, //nolint:mnd // help categories are ordered in steps of ten
 		},
 	)
 
@@ -90,7 +90,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
-			Order: 20, //nolint: mnd
+			Order: 20, //nolint:mnd // help categories are ordered in steps of ten
 		},
 	)
 
@@ -101,7 +101,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
-			Order: 30, //nolint: mnd
+			Order: 30, //nolint:mnd // help categories are ordered in steps of ten
 		},
 	)
 
@@ -116,14 +116,14 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  ConfigurationCommandsCategoryName,
-			Order: 40, //nolint: mnd
+			Order: 40, //nolint:mnd // help categories are ordered in steps of ten
 		},
 	)
 
 	shortcutsCommands := NewShortcutsCommands(l, opts, v).SetCategory(
 		&clihelper.Category{
 			Name:  ShortcutsCommandsCategoryName,
-			Order: 50, //nolint: mnd
+			Order: 50, //nolint:mnd // help categories are ordered in steps of ten
 		},
 	)
 
@@ -259,7 +259,7 @@ func GiveWindowsSymlinksTip(
 	source := filepath.Join(tmp, "source")
 	target := filepath.Join(tmp, "target")
 
-	if err := fsys.Mkdir(source, 0755); err != nil { //nolint:mnd
+	if err := fsys.Mkdir(source, 0755); err != nil { //nolint:mnd // 0755 is the usual directory mode
 		l.Debugf("Failed to create source directory for testing symlink: %v", err)
 		return
 	}
@@ -346,7 +346,7 @@ func RunAction(
 		if err != nil {
 			return err
 		}
-		defer ln.Close() //nolint:errcheck
+		defer ln.Close() //nolint:errcheck // best-effort close of the cache server's listener
 
 		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
 

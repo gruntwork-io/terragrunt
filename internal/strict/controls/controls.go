@@ -113,7 +113,6 @@ func IsFastCopyEnabled(strictControls strict.Controls) bool {
 	return len(strictControls.FilterByNames(FastCopy).FilterByEnabled()) > 0
 }
 
-//nolint:lll
 func New() strict.Controls {
 	skipDependenciesInputsControl := &Control{
 		Name:        SkipDependenciesInputs,
