@@ -20,6 +20,13 @@ const (
 	testScaffoldLocalTofuModulePath = "fixtures/scaffold/scaffold-module-tofu"
 	testScaffoldCopyableUnitPath    = "fixtures/scaffold/copyable/units/app"
 	testScaffoldCopyableStackPath   = "fixtures/scaffold/copyable/stacks/prod"
+
+	// testScaffoldRegistryModuleSource is the tfr:// module the registry
+	// scaffold tests resolve against. It has exactly two published versions,
+	// 0.0.1 and 0.0.2, so the latest-version pin is deterministic. It mirrors
+	// registryTestModuleSource in integration_registry_test.go, which is
+	// behind the `tf` build tag and so is not visible here.
+	testScaffoldRegistryModuleSource = "tfr://registry.opentofu.org/yorinasub17/terragrunt-registry-test/null"
 )
 
 // scaffoldModuleURL returns the canonical scaffold-module source on the
@@ -63,6 +70,58 @@ func TestScaffoldModule(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
+}
+
+// TestScaffoldModuleTFRSource verifies that `terragrunt scaffold` works
+// against a tfr:// registry source, not just git-shaped sources.
+// See https://github.com/gruntwork-io/terragrunt/issues/3677.
+func TestScaffoldModuleTFRSource(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
+
+	moduleURL := testScaffoldRegistryModuleSource + "?version=0.0.2"
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			moduleURL,
+		),
+	)
+	require.NoError(t, err)
+	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
+
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpEnvPath+"/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Contains(t, content, `source = "`+moduleURL+`"`)
+}
+
+// TestScaffoldModuleTFRSourceUnpinned verifies that a tfr:// source with no
+// ?version= query param gets pinned to the latest stable registry version in
+// the generated source, mirroring the ?ref= pinning git sources get from
+// their latest release tag. testScaffoldRegistryModuleSource has exactly two
+// published versions, 0.0.1 and 0.0.2, so the expected pin is deterministic.
+func TestScaffoldModuleTFRSourceUnpinned(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			testScaffoldRegistryModuleSource,
+		),
+	)
+	require.NoError(t, err)
+	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
+
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpEnvPath+"/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Contains(t, content, `source = "`+testScaffoldRegistryModuleSource+`?version=0.0.2"`)
 }
 
 func TestScaffoldModuleShortUrl(t *testing.T) {
