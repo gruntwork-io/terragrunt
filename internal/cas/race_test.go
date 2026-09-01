@@ -152,7 +152,7 @@ func TestContentLinkConcurrentSameTargetWithRacing(t *testing.T) {
 	content := cas.NewContent(store)
 
 	const hash = "3333333333333333333333333333333333333333"
-	require.NoError(t, content.Store(l, v, hash, []byte("ref: refs/heads/master\n")))
+	require.NoError(t, content.Store(l, v, hash, []byte("ref: refs/heads/master\n"), cas.StoredFilePerms))
 
 	// Leave the stored blob writable so its perms differ from the requested
 	// read-only result, forcing Link onto the copy path even on a

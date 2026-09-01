@@ -344,7 +344,7 @@ func (c *CAS) storeFetchedContent(
 				return fmt.Errorf("read symlink %s: %w", path, err)
 			}
 
-			if err := blobContent.Ensure(l, v, blobHash, []byte(target)); err != nil {
+			if err := blobContent.Ensure(l, v, blobHash, []byte(target), StoredFilePerms); err != nil {
 				return fmt.Errorf("store symlink blob %s: %w", path, err)
 			}
 		default:
@@ -360,7 +360,7 @@ func (c *CAS) storeFetchedContent(
 	}
 
 	treeContent := NewContent(c.treeStore)
-	if err := treeContent.EnsureWithWait(l, v, treeKey, treeData); err != nil {
+	if err := treeContent.EnsureWithWait(l, v, treeKey, treeData, StoredFilePerms); err != nil {
 		return fmt.Errorf("store tree %s: %w", treeKey, err)
 	}
 

@@ -799,7 +799,7 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 
 	assert.True(t, os.SameFile(generated["unit-a"], generated["unit-b"]),
 		"units generating identical contents must share one file")
-	assert.Equal(t, os.FileMode(0444), generated["unit-a"].Mode().Perm(),
+	assert.Equal(t, os.FileMode(0400), generated["unit-a"].Mode().Perm(),
 		"deduplicated files must be read-only so an edit cannot reach the shared store")
 
 	assert.False(t, os.SameFile(generated["unit-a"], generated["unit-mutable"]),

@@ -33,7 +33,7 @@ func TestContent_Store(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err := content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		// Verify content was stored
@@ -42,6 +42,25 @@ func TestContent_Store(t *testing.T) {
 		storedData, err := vfs.ReadFile(v.FS, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
+	})
+
+	t.Run("stores under the requested perm with write bits cleared", func(t *testing.T) {
+		t.Parallel()
+
+		v := venvtest.NewOSWithEmptyEnv()
+
+		storeDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+
+		require.NoError(t, content.Store(l, v, testHash, []byte("test content"), 0o600))
+
+		info, err := os.Stat(filepath.Join(storeDir, testHash[:2], testHash))
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o400), info.Mode().Perm(),
+			"a caller asking for an owner-only blob must not get a world-readable one")
 	})
 
 	t.Run("ensure existing content", func(t *testing.T) {
@@ -58,9 +77,9 @@ func TestContent_Store(t *testing.T) {
 		differentData := []byte("different content")
 
 		// Store content twice
-		err := content.Ensure(l, v, testHash, testData)
+		err := content.Ensure(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
-		err = content.Ensure(l, v, testHash, differentData)
+		err = content.Ensure(l, v, testHash, differentData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		// Verify original content remains
@@ -85,9 +104,9 @@ func TestContent_Store(t *testing.T) {
 		differentData := []byte("different content")
 
 		// Store content twice
-		err := content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
-		err = content.Store(l, v, testHash, differentData)
+		err = content.Store(l, v, testHash, differentData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		// Verify content was overwritten
@@ -118,7 +137,7 @@ func TestContent_Link(t *testing.T) {
 		testData := []byte("test content")
 
 		// First store some content
-		err := content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		// Then create a link to it
@@ -146,7 +165,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err := content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
@@ -177,7 +196,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err := content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "generated", "nested", "test.txt")
@@ -205,7 +224,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err := content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
@@ -251,7 +270,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		require.NoError(t, content.Store(l, v, testHash, testData))
+		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		targetPath := filepath.Join(targetDir, "test.txt")
 		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o644))
@@ -277,7 +296,7 @@ func TestContent_Link(t *testing.T) {
 			testHash := testHashValue
 			testData := []byte("#!/bin/sh\necho hi\n")
 
-			require.NoError(t, content.Store(l, v, testHash, testData))
+			require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 			// Mirror the store-side chmod that the git-clone path applies: stored
 			// blobs carry their original git mode with write bits cleared, so
@@ -313,7 +332,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		require.NoError(t, content.Store(l, v, testHash, testData))
+		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		// The blob landed in the store at 0o444 (treated as non-exec). A second
 		// tree referencing the same content under mode 100755 wants 0o555.
@@ -346,7 +365,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("#!/bin/sh\necho hi\n")
 
-		require.NoError(t, content.Store(l, v, testHash, testData))
+		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		targetPath := filepath.Join(targetDir, "run.sh")
 		require.NoError(
@@ -374,7 +393,7 @@ func TestContent_Link(t *testing.T) {
 		testData := []byte("test content")
 
 		// Store content
-		err := content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		// Pre-populate the target with stale bytes. A previous failed
@@ -406,7 +425,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		require.NoError(t, content.Store(l, v, testHash, testData))
+		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		// The state a rerun finds: the previous materialization is still
 		// there, read-only, on a name no hard link can be made over.
@@ -441,7 +460,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("ref: refs/heads/master\n")
 
-		require.NoError(t, content.Store(l, v, testHash, testData))
+		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		// Mismatched store perms route Link through the copy path.
 		require.NoError(t, os.Chmod(filepath.Join(storeDir, testHash[:2], testHash), 0o644))
@@ -478,11 +497,11 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		testData := []byte("test content")
 
 		// Store content first
-		err := content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		// EnsureWithWait should not need to write again
-		err = content.EnsureWithWait(l, v, testHash, []byte("different content"))
+		err = content.EnsureWithWait(l, v, testHash, []byte("different content"), cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		// Verify original content remains
@@ -506,7 +525,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		testData := []byte("new test content")
 
 		// EnsureWithWait should store the content
-		err := content.EnsureWithWait(l, v, testHash, testData)
+		err := content.EnsureWithWait(l, v, testHash, testData, cas.StoredFilePerms)
 		require.NoError(t, err)
 
 		// Verify content was stored
@@ -537,7 +556,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		go func() {
 			defer close(process1Done)
 
-			err := content.EnsureWithWait(l, v, testHash, []byte("process 1 data"))
+			err := content.EnsureWithWait(l, v, testHash, []byte("process 1 data"), cas.StoredFilePerms)
 			assert.NoError(t, err)
 
 			close(process1Started)
@@ -550,7 +569,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 			// Wait for process 1 to start
 			<-process1Started
 
-			err := content.EnsureWithWait(l, v, testHash, []byte("process 2 data"))
+			err := content.EnsureWithWait(l, v, testHash, []byte("process 2 data"), cas.StoredFilePerms)
 			assert.NoError(t, err)
 		}()
 

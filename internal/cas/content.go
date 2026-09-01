@@ -215,9 +215,17 @@ func linkOver(v *venv.Venv, sourcePath, targetPath string) error {
 	return nil
 }
 
-// Store stores a single content item. This is typically used for trees,
-// as blobs are written directly from git cat-file stdout.
-func (c *Content) Store(l log.Logger, v *venv.Venv, hash string, data []byte) error {
+// Store stores a single content item under perm with its write bits cleared, so
+// nothing holding a link to the blob can edit the copy every other holder sees.
+// This is typically used for trees, as blobs are written directly from git
+// cat-file stdout.
+func (c *Content) Store(
+	l log.Logger,
+	v *venv.Venv,
+	hash string,
+	data []byte,
+	perm os.FileMode,
+) error {
 	lock, err := c.store.AcquireLock(v, hash)
 	if err != nil {
 		return fmt.Errorf("acquire lock for %s: %w", hash, err)
@@ -238,22 +246,36 @@ func (c *Content) Store(l log.Logger, v *venv.Venv, hash string, data []byte) er
 		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
 	}
 
-	return c.writeContentToFile(l, v, hash, data)
+	return c.writeContentToFile(l, v, hash, data, perm)
 }
 
-// Ensure ensures that a content item exists in the store.
-func (c *Content) Ensure(l log.Logger, v *venv.Venv, hash string, data []byte) error {
+// Ensure ensures that a content item exists in the store under perm. A blob
+// already there keeps the mode it was first stored with, so content two callers
+// want at different modes is stored once and the second caller links a copy.
+func (c *Content) Ensure(
+	l log.Logger,
+	v *venv.Venv,
+	hash string,
+	data []byte,
+	perm os.FileMode,
+) error {
 	path := c.getPath(hash)
 	if c.store.hasContent(v, path) {
 		return nil
 	}
 
-	return c.Store(l, v, hash, data)
+	return c.Store(l, v, hash, data, perm)
 }
 
 // EnsureWithWait ensures that a content item exists in the store, with optimization
 // to wait for concurrent writes instead of doing redundant work.
-func (c *Content) EnsureWithWait(l log.Logger, v *venv.Venv, hash string, data []byte) error {
+func (c *Content) EnsureWithWait(
+	l log.Logger,
+	v *venv.Venv,
+	hash string,
+	data []byte,
+	perm os.FileMode,
+) error {
 	needsWrite, lock, err := c.store.EnsureWithWait(v, hash)
 	if err != nil {
 		return fmt.Errorf("ensure content for %s: %w", hash, err)
@@ -278,7 +300,7 @@ func (c *Content) EnsureWithWait(l log.Logger, v *venv.Venv, hash string, data [
 		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
 	}
 
-	return c.writeContentToFile(l, v, hash, data)
+	return c.writeContentToFile(l, v, hash, data, perm)
 }
 
 // EnsureCopy ensures that a content item exists in the store by copying from a file.
@@ -402,7 +424,13 @@ func (c *Content) Read(v *venv.Venv, hash string) ([]byte, error) {
 
 // writeContentToFile writes data to a temporary file, sets appropriate
 // permissions, and performs an atomic rename.
-func (c *Content) writeContentToFile(l log.Logger, v *venv.Venv, hash string, data []byte) error {
+func (c *Content) writeContentToFile(
+	l log.Logger,
+	v *venv.Venv,
+	hash string,
+	data []byte,
+	perm os.FileMode,
+) error {
 	v.RequireGOOS()
 
 	path := c.getPath(hash)
@@ -447,7 +475,9 @@ func (c *Content) writeContentToFile(l log.Logger, v *venv.Venv, hash string, da
 		return fmt.Errorf("close %s: %w", tempPath, err)
 	}
 
-	if err := v.FS.Chmod(tempPath, StoredFilePerms); err != nil {
+	stored := perm.Perm() &^ WriteBitMask
+
+	if err := v.FS.Chmod(tempPath, stored); err != nil {
 		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
@@ -472,7 +502,7 @@ func (c *Content) writeContentToFile(l log.Logger, v *venv.Venv, hash string, da
 	}
 
 	if v.Platform.GOOS == WindowsOS {
-		if err := v.FS.Chmod(path, StoredFilePerms); err != nil {
+		if err := v.FS.Chmod(path, stored); err != nil {
 			return fmt.Errorf("chmod %s: %w", path, err)
 		}
 	}

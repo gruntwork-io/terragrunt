@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Files from `generate` blocks are created as `0600`
+
+A [`generate`](/reference/hcl/blocks#generate) block writes files for Terragrunt and the processes it spawns, all of which run as the user who ran Terragrunt. Creating them as `0644` granted read access that nothing uses.
+
+They are now created as `0600`. Under the [`mutable-generate`](/reference/experiments/active#mutable-generate) experiment, where the file is a read-only link to a copy shared between working directories, it is `0400` rather than `0444`.

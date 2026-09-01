@@ -697,6 +697,37 @@ func (f *createErrorFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.F
 	return f.FS.OpenFile(name, flag, perm)
 }
 
+// TestWriteToFileKeepsGeneratedFilePrivate covers the mode a generate block's
+// output lands with. A generate block is where backend and provider credentials
+// get written, so no other user on the machine may read it, whatever umask the
+// run happened to inherit.
+func TestWriteToFileKeepsGeneratedFilePrivate(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	path := filepath.Join(helpers.TmpDirWOSymlinks(t), "backend.tf")
+
+	config := codegen.GenerateConfig{
+		Path:             path,
+		IfExists:         codegen.ExistsOverwrite,
+		DisableSignature: true,
+		Contents:         "terraform {\n  required_version = \">= 1.0.0\"\n}\n",
+	}
+
+	l := logger.CreateLogger()
+	require.NoError(
+		t,
+		codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+	)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
 // TestWriteToFileFailedWriteLeavesExistingFile covers a generation that cannot
 // get its contents onto disk. The file it was going to overwrite is the one the
 // module is still configured with, so a run that gets nowhere has to leave it.
@@ -996,7 +1027,7 @@ func TestWriteToFileWithContentStoreDeduplicates(t *testing.T) {
 
 	assert.True(t, os.SameFile(firstInfo, secondInfo),
 		"identical generated contents must share one inode")
-	assert.Equal(t, os.FileMode(0444), firstInfo.Mode().Perm(),
+	assert.Equal(t, os.FileMode(0400), firstInfo.Mode().Perm(),
 		"deduplicated files must be read-only so an edit cannot reach the store")
 
 	firstContents, err := os.ReadFile(first)

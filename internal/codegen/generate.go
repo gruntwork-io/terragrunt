@@ -32,7 +32,10 @@ const (
 	// The default prefix to use for comments in the generated file
 	DefaultCommentPrefix = "# "
 
-	generatedFilePerms = 0644
+	// generatedFilePerms is the mode a generated file is written under. The
+	// store clears the write bits from it for the copy it shares between
+	// working directories.
+	generatedFilePerms = 0o600
 )
 
 // GenerateConfigExists is an enum to represent valid values for if_exists.
@@ -229,10 +232,10 @@ func materialize(
 		return vfs.WriteFileAtomic(v.FS, targetPath, contents, generatedFilePerms)
 	}
 
-	// Matches how the blob store keys files ingested from local sources, so a
-	// generated file also dedupes against an identical file from a module.
+	// Keyed the way the blob store keys files ingested from local sources, so
+	// every working directory generating these contents lands on one blob.
 	hash := cas.HashSHA256.Sum(contents)
-	if err := store.Ensure(l, v, hash, contents); err != nil {
+	if err := store.Ensure(l, v, hash, contents, generatedFilePerms); err != nil {
 		return err
 	}
 
