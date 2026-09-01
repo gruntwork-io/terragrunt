@@ -791,7 +791,7 @@ func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) 
 
 		if strings.HasPrefix(line, "ref:") {
 			parts := strings.Fields(line)
-			if len(parts) >= 2 { //nolint:mnd
+			if len(parts) >= 2 { //nolint:mnd // "ref: refs/heads/<name>" is two fields
 				ref := parts[1]
 
 				if after, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
@@ -848,8 +848,7 @@ func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
 	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
-		// Older Git versions don't support --show-object-format; default to sha1.
-		return "sha1", nil //nolint:nilerr
+		return "sha1", nil //nolint:nilerr // older Git lacks --show-object-format, and only ever wrote sha1
 	}
 
 	return strings.TrimSpace(stdout.String()), nil

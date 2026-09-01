@@ -16,8 +16,7 @@ const (
 type DiagnosticSeverity hcl.DiagnosticSeverity
 
 func (severity DiagnosticSeverity) String() string {
-	// TODO: Remove lint suppression
-	switch hcl.DiagnosticSeverity(severity) { //nolint:exhaustive
+	switch hcl.DiagnosticSeverity(severity) { //nolint:exhaustive // the default branch handles the rest
 	case hcl.DiagError:
 		return DiagnosticSeverityError
 	case hcl.DiagWarning:

@@ -11,7 +11,7 @@ import (
 func TestConfig_IsEqual(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
+	testCases := []struct { //nolint:govet // fieldalignment: readability beats packing in a test table
 		name            string
 		existingBackend backend.Config
 		cfg             backend.Config

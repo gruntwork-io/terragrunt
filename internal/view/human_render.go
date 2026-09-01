@@ -23,7 +23,6 @@ const (
 	ansiReset = "\x1b[0m"
 )
 
-//nolint:gochecknoglobals
 var (
 	redStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	yellowStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
@@ -112,8 +111,7 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 		leftRuleWidth                            int // in visual character cells
 	)
 
-	// TODO: Remove lint suppression
-	switch hcl.DiagnosticSeverity(diag.Severity) { //nolint:exhaustive
+	switch hcl.DiagnosticSeverity(diag.Severity) { //nolint:exhaustive // the default branch handles the rest
 	case hcl.DiagError:
 		buf.WriteString(render.styled(&boldRedStyle, "Error: "))
 		leftRuleLine = render.styled(&redStyle, "│") + " "

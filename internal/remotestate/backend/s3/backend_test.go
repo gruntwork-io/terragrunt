@@ -14,7 +14,7 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 
 	remoteBackend := s3backend.NewBackend()
 
-	testCases := []struct { //nolint: govet
+	testCases := []struct { //nolint:govet // fieldalignment: readability beats packing in a test table
 		name          string
 		config        backend.Config
 		expected      map[string]any

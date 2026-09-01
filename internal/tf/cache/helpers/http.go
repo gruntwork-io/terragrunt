@@ -25,7 +25,7 @@ func Fetch(ctx context.Context, c vhttp.Client, req *http.Request, dst io.Writer
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer resp.Body.Close() //nolint:errcheck // best-effort close of the response body
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%s returned from %s", resp.Status, req.URL)
@@ -55,7 +55,7 @@ func FetchToFile(ctx context.Context, c vhttp.Client, fsys vfs.FS, req *http.Req
 	if err != nil {
 		return err
 	}
-	defer file.Close() //nolint:errcheck
+	defer file.Close() //nolint:errcheck // best-effort close of the downloaded file
 
 	if err := Fetch(ctx, c, req, file); err != nil {
 		return err
@@ -93,7 +93,7 @@ func ResponseBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close() //nolint:errcheck
+	defer reader.Close() //nolint:errcheck // best-effort close of the response reader
 
 	buffer := new(bytes.Buffer)
 
