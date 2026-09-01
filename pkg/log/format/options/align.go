@@ -14,7 +14,7 @@ const (
 	RightAlign
 )
 
-var alignList = NewMapValue(map[AlignValue]string{ //nolint:gochecknoglobals
+var alignList = NewMapValue(map[AlignValue]string{
 	LeftAlign:   "left",
 	CenterAlign: "center",
 	RightAlign:  "right",

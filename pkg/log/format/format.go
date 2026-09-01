@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:revive
-	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:revive
+	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"
+	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 func NewBareFormatPlaceholders() Placeholders {
 	return Placeholders{
 		Level(
-			Width(4), //nolint:mnd
+			Width(4), //nolint:mnd // the bare format pads the level to four characters
 			Case(UpperCase),
 		),
 		Interval(
@@ -46,7 +46,7 @@ func NewPrettyFormatPlaceholders() Placeholders {
 		),
 		PlainText(" "),
 		Level(
-			Width(6), //nolint:mnd
+			Width(6), //nolint:mnd // the level column is six characters wide
 			Case(UpperCase),
 			Color(PresetColor),
 		),

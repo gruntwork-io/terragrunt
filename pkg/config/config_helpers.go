@@ -1448,8 +1448,6 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 }
 
 // StartsWith Implementation of Terraform's StartsWith function
-//
-//nolint:dupl
 func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	if len(args) != stringCompParams {
 		return false, WrongNumberOfParamsError{
@@ -1463,8 +1461,6 @@ func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool,
 }
 
 // EndsWith Implementation of Terraform's EndsWith function
-//
-//nolint:dupl
 func EndsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	if len(args) != stringCompParams {
 		return false, WrongNumberOfParamsError{
@@ -1510,8 +1506,6 @@ func TimeCmp(
 }
 
 // StrContains Implementation of Terraform's StrContains function
-//
-//nolint:dupl
 func StrContains(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	if len(args) != stringCompParams {
 		return false, WrongNumberOfParamsError{
@@ -1726,12 +1720,12 @@ func parseMarkGlobBoundary(pctx *ParsingContext, args []string) (string, []strin
 
 	switch {
 	case args[0] == markGlobBoundaryFlag:
-		if len(args) < 2 { //nolint:mnd
+		if len(args) < 2 { //nolint:mnd // the flag and the value it takes
 			return "", nil, fmt.Errorf("%s requires a directory value", markGlobBoundaryFlag)
 		}
 
 		raw = args[1]
-		args = slices.Delete(args, 0, 2) //nolint:mnd
+		args = slices.Delete(args, 0, 2) //nolint:mnd // drops the flag and its value
 	case strings.HasPrefix(args[0], markGlobBoundaryFlag+"="):
 		raw = strings.TrimPrefix(args[0], markGlobBoundaryFlag+"=")
 		args = slices.Delete(args, 0, 1)

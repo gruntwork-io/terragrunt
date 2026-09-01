@@ -99,7 +99,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) {
 
 // TestSOPSDecryptLeavesProcessEnvAlone pins that a credential the run was
 // started with outlives a decrypt that carried its own value for the same name.
-func TestSOPSDecryptLeavesProcessEnvAlone(t *testing.T) { //nolint:paralleltest // t.Setenv
+func TestSOPSDecryptLeavesProcessEnvAlone(t *testing.T) { // t.Setenv bars t.Parallel
 	const authKey = "SOPS_TEST_UNTOUCHED_CRED"
 
 	t.Setenv(authKey, "real-ci-token")
