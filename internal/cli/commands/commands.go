@@ -39,6 +39,7 @@ import (
 	helpcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/help"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/login"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
@@ -87,6 +88,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	catalogCommands := clihelper.Commands{
 		catalog.NewCommand(l, opts, v),  // catalog
 		scaffold.NewCommand(l, opts, v), // scaffold
+		login.NewCommand(l, opts, v),    // login
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,

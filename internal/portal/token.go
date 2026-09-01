@@ -178,7 +178,8 @@ func (p *poller) next(l log.Logger, err error) (bool, error) {
 		return false, ErrLoginDenied
 	case ErrorCodeExpiredToken:
 		return false, ErrLoginExpired
-	case ErrorCodeInvalidRequest, ErrorCodeInvalidClient, ErrorCodeInvalidScope, ErrorCodeServerError:
+	case ErrorCodeInvalidRequest, ErrorCodeInvalidClient, ErrorCodeInvalidScope,
+		ErrorCodeFeatureNotEnabled, ErrorCodeServerError:
 		return false, err
 	default:
 		l.Debugf("The portal refused the login with the unrecognized code %q", portalErr.Code)

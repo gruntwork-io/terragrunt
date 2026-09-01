@@ -1,4 +1,11 @@
-package util
+// Package spinner reports the progress of an operation the user is waiting on.
+//
+// On a terminal the report is an animated spinner. Where there is none it is a
+// log line, repeated with an elapsed time so a CI system watching for output
+// does not take the wait for a hang.
+//
+// [Show] reports from the start. [ShowAfter] waits for a threshold first.
+package spinner
 
 import (
 	"context"
@@ -25,17 +32,17 @@ const keepaliveInterval = 30 * time.Second
 // this over-clears by a couple of columns, which is harmless.
 const spinnerLineOverhead = 4
 
-// SlowNotifyMsg holds the messages for NotifyIfSlow.
-type SlowNotifyMsg struct {
-	// Spinner is shown while the operation is in progress (e.g. "Creating Git worktree for ref main...").
-	Spinner string
+// Messages holds the messages for ShowAfter.
+type Messages struct {
+	// Working is shown while the operation is in progress (e.g. "Creating Git worktree for ref main...").
+	Working string
 	// Done is logged as INFO when the operation completes (e.g. "Created Git worktree for ref main").
 	Done string
 }
 
-// SpinnerWriter returns v's error writer if it is an interactive terminal, nil
-// otherwise. Use the returned writer as the spinnerW argument to NotifyIfSlow.
-func SpinnerWriter(v *venv.Venv) io.Writer {
+// Writer returns v's error writer if it is an interactive terminal, nil
+// otherwise. Use the returned writer as the spinnerW argument to ShowAfter.
+func Writer(v *venv.Venv) io.Writer {
 	v.RequireTerminal()
 
 	if v.Terminal.StderrIsTTY() {
@@ -45,15 +52,22 @@ func SpinnerWriter(v *venv.Venv) io.Writer {
 	return nil
 }
 
-// NotifyIfSlow runs fn and, if it takes longer than timeout, shows a spinner on spinnerW.
+// Show runs fn and reports its progress from the moment it starts, for an
+// operation already known to be slow. Use [ShowAfter] for one that is usually
+// quick, so nothing is reported unless it turns out not to be.
+func Show(ctx context.Context, l log.Logger, spinnerW io.Writer, msgs Messages, fn func() error) error {
+	return ShowAfter(ctx, l, spinnerW, 0, msgs, fn)
+}
+
+// ShowAfter runs fn and, if it takes longer than timeout, shows a spinner on spinnerW.
 // When fn completes successfully, the spinner is replaced by an INFO log with the done message and elapsed time.
 // When fn returns an error, the spinner is cleared but no success message is logged.
-func NotifyIfSlow(
+func ShowAfter(
 	ctx context.Context,
 	l log.Logger,
 	spinnerW io.Writer,
 	timeout time.Duration,
-	msgs SlowNotifyMsg,
+	msgs Messages,
 	fn func() error,
 ) error {
 	result := make(chan error, 1)
@@ -79,7 +93,7 @@ func notifyLoop(
 	l log.Logger,
 	spinnerW io.Writer,
 	timeout time.Duration,
-	msgs SlowNotifyMsg,
+	msgs Messages,
 	start time.Time,
 	result <-chan error,
 	showed chan<- struct{},
@@ -100,7 +114,7 @@ func notifyLoop(
 	// No spinner writer — log and emit periodic keepalive lines so CI systems
 	// (e.g. CircleCI) do not kill the job due to prolonged output silence.
 	if spinnerW == nil {
-		l.Info(msgs.Spinner)
+		l.Info(msgs.Working)
 
 		ticker := time.NewTicker(keepaliveInterval)
 		defer ticker.Stop()
@@ -108,7 +122,7 @@ func notifyLoop(
 		for {
 			select {
 			case <-ticker.C:
-				l.Infof("%s (%.0fs elapsed)", msgs.Spinner, time.Since(start).Seconds())
+				l.Infof("%s (%.0fs elapsed)", msgs.Working, time.Since(start).Seconds())
 			case err := <-result:
 				if err == nil {
 					logDone(l, msgs.Done, start)
@@ -127,18 +141,18 @@ func notifyLoop(
 
 	frame := 0
 
-	writeSpinnerFrame(spinnerW, spinnerFrames[0], msgs.Spinner)
+	writeSpinnerFrame(spinnerW, spinnerFrames[0], msgs.Working)
 
 	frame++
 
 	for {
 		select {
 		case <-ticker.C:
-			writeSpinnerFrame(spinnerW, spinnerFrames[frame%len(spinnerFrames)], msgs.Spinner)
+			writeSpinnerFrame(spinnerW, spinnerFrames[frame%len(spinnerFrames)], msgs.Working)
 
 			frame++
 		case err := <-result:
-			clearSpinner(spinnerW, msgs.Spinner)
+			clearSpinner(spinnerW, msgs.Working)
 
 			if err == nil {
 				logDone(l, msgs.Done, start)
@@ -146,7 +160,7 @@ func notifyLoop(
 
 			return
 		case <-ctx.Done():
-			clearSpinner(spinnerW, msgs.Spinner)
+			clearSpinner(spinnerW, msgs.Working)
 
 			return
 		}

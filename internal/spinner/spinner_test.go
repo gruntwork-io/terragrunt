@@ -1,4 +1,4 @@
-package util_test
+package spinner_test
 
 import (
 	"bytes"
@@ -10,21 +10,21 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNotifyIfSlow_FastCompletion(t *testing.T) {
+func TestShowAfterFastCompletion(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		buf := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(buf))
 
-		err := util.NotifyIfSlow(t.Context(), l, nil, 100*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
+		err := spinner.ShowAfter(t.Context(), l, nil, 100*time.Millisecond, spinner.Messages{
+			Working: "working...",
 			Done:    "done",
 		}, func() error {
 			return nil
@@ -35,15 +35,15 @@ func TestNotifyIfSlow_FastCompletion(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_SlowCompletion(t *testing.T) {
+func TestShowAfterSlowCompletion(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		buf := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(buf))
 
-		err := util.NotifyIfSlow(t.Context(), l, nil, 50*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
+		err := spinner.ShowAfter(t.Context(), l, nil, 50*time.Millisecond, spinner.Messages{
+			Working: "working...",
 			Done:    "completed",
 		}, func() error {
 			time.Sleep(200 * time.Millisecond)
@@ -55,7 +55,7 @@ func TestNotifyIfSlow_SlowCompletion(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_ErrorPropagation(t *testing.T) {
+func TestShowAfterErrorPropagation(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -64,8 +64,8 @@ func TestNotifyIfSlow_ErrorPropagation(t *testing.T) {
 
 		expectedErr := errors.New("test error")
 
-		err := util.NotifyIfSlow(t.Context(), l, nil, 100*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
+		err := spinner.ShowAfter(t.Context(), l, nil, 100*time.Millisecond, spinner.Messages{
+			Working: "working...",
 			Done:    "done",
 		}, func() error {
 			return expectedErr
@@ -75,7 +75,7 @@ func TestNotifyIfSlow_ErrorPropagation(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_SlowError_NoDoneLog(t *testing.T) {
+func TestShowAfterSlowError_NoDoneLog(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -84,8 +84,8 @@ func TestNotifyIfSlow_SlowError_NoDoneLog(t *testing.T) {
 
 		expectedErr := errors.New("test error")
 
-		err := util.NotifyIfSlow(t.Context(), l, nil, 50*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
+		err := spinner.ShowAfter(t.Context(), l, nil, 50*time.Millisecond, spinner.Messages{
+			Working: "working...",
 			Done:    "should not appear",
 		}, func() error {
 			time.Sleep(200 * time.Millisecond)
@@ -97,7 +97,7 @@ func TestNotifyIfSlow_SlowError_NoDoneLog(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_ContextCancelledBeforeTimeout(t *testing.T) {
+func TestShowAfterContextCancelledBeforeTimeout(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -107,8 +107,8 @@ func TestNotifyIfSlow_ContextCancelledBeforeTimeout(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		err := util.NotifyIfSlow(ctx, l, nil, 50*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
+		err := spinner.ShowAfter(ctx, l, nil, 50*time.Millisecond, spinner.Messages{
+			Working: "working...",
 			Done:    "should not appear",
 		}, func() error {
 			time.Sleep(100 * time.Millisecond)
@@ -120,7 +120,7 @@ func TestNotifyIfSlow_ContextCancelledBeforeTimeout(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_ContextCancelledAfterTimeout(t *testing.T) {
+func TestShowAfterContextCancelledAfterTimeout(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -130,8 +130,8 @@ func TestNotifyIfSlow_ContextCancelledAfterTimeout(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(t.Context())
 
-		err := util.NotifyIfSlow(ctx, l, spinnerBuf, 50*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
+		err := spinner.ShowAfter(ctx, l, spinnerBuf, 50*time.Millisecond, spinner.Messages{
+			Working: "working...",
 			Done:    "should not appear",
 		}, func() error {
 			// Wait for spinner to start, then cancel context.
@@ -150,7 +150,7 @@ func TestNotifyIfSlow_ContextCancelledAfterTimeout(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_SpinnerThenLog(t *testing.T) {
+func TestShowAfterSpinnerThenLog(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -158,13 +158,13 @@ func TestNotifyIfSlow_SpinnerThenLog(t *testing.T) {
 		spinnerBuf := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(logBuf))
 
-		err := util.NotifyIfSlow(
+		err := spinner.ShowAfter(
 			t.Context(),
 			l,
 			spinnerBuf,
 			50*time.Millisecond,
-			util.SlowNotifyMsg{
-				Spinner: "creating worktree...",
+			spinner.Messages{
+				Working: "creating worktree...",
 				Done:    "created worktree",
 			},
 			func() error {
@@ -182,15 +182,15 @@ func TestNotifyIfSlow_SpinnerThenLog(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_ElapsedTimeShown(t *testing.T) {
+func TestShowAfterElapsedTimeShown(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		logBuf := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(logBuf))
 
-		err := util.NotifyIfSlow(t.Context(), l, nil, 50*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
+		err := spinner.ShowAfter(t.Context(), l, nil, 50*time.Millisecond, spinner.Messages{
+			Working: "working...",
 			Done:    "finished",
 		}, func() error {
 			time.Sleep(1200 * time.Millisecond)
@@ -204,15 +204,15 @@ func TestNotifyIfSlow_ElapsedTimeShown(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_NonInteractiveKeepalive(t *testing.T) {
+func TestShowAfterNonInteractiveKeepalive(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		logBuf := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(logBuf))
 
-		err := util.NotifyIfSlow(t.Context(), l, nil, 50*time.Millisecond, util.SlowNotifyMsg{
-			Spinner: "working...",
+		err := spinner.ShowAfter(t.Context(), l, nil, 50*time.Millisecond, spinner.Messages{
+			Working: "working...",
 			Done:    "finished",
 		}, func() error {
 			// Sleep long enough for the initial timeout + two keepalive ticks (30s each).
@@ -234,7 +234,7 @@ func TestNotifyIfSlow_NonInteractiveKeepalive(t *testing.T) {
 	})
 }
 
-func TestNotifyIfSlow_SpinnerNotShownWhenFast(t *testing.T) {
+func TestShowAfterSpinnerNotShownWhenFast(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -242,13 +242,13 @@ func TestNotifyIfSlow_SpinnerNotShownWhenFast(t *testing.T) {
 		spinnerBuf := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(logBuf))
 
-		err := util.NotifyIfSlow(
+		err := spinner.ShowAfter(
 			t.Context(),
 			l,
 			spinnerBuf,
 			100*time.Millisecond,
-			util.SlowNotifyMsg{
-				Spinner: "working...",
+			spinner.Messages{
+				Working: "working...",
 				Done:    "done",
 			},
 			func() error {

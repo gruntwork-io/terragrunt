@@ -20,8 +20,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -683,13 +683,13 @@ func createGitWorktrees(
 			ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit,
 			func(ctx context.Context) error {
 				if slowReporting {
-					return util.NotifyIfSlow(
+					return spinner.ShowAfter(
 						ctx,
 						l,
-						util.SpinnerWriter(v),
+						spinner.Writer(v),
 						time.Second,
-						util.SlowNotifyMsg{
-							Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
+						spinner.Messages{
+							Working: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
 							Done:    "Created Git worktree for reference " + ref,
 						},
 						func() error {

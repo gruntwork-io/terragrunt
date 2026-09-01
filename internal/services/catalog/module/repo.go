@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 
 	"github.com/gitsight/go-vcsurl"
 	"gopkg.in/ini.v1"
@@ -549,8 +549,8 @@ func (repo *Repo) performClone(
 	}
 
 	if repo.slowReporting {
-		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(v), time.Second, util.SlowNotifyMsg{
-			Spinner: "Cloning repository " + repo.cloneURL + "...",
+		err = spinner.ShowAfter(ctx, l, spinner.Writer(v), time.Second, spinner.Messages{
+			Working: "Cloning repository " + repo.cloneURL + "...",
 			Done:    "Cloned repository " + repo.cloneURL,
 		}, cloneFunc)
 	} else {

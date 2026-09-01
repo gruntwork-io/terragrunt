@@ -105,6 +105,10 @@ const (
 	// permitted for the client.
 	ErrorCodeInvalidScope ErrorCode = "invalid_scope"
 
+	// ErrorCodeFeatureNotEnabled reports a portal that will not serve the CLI.
+	// It is the portal's own code rather than one RFC 6749 §5.2 defines.
+	ErrorCodeFeatureNotEnabled ErrorCode = "feature_not_enabled"
+
 	// ErrorCodeSlowDown reports a rate limit. [Error.RetryAfter] carries how
 	// long the portal asked the caller to wait.
 	ErrorCodeSlowDown ErrorCode = "slow_down"
