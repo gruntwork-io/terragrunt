@@ -63,6 +63,33 @@ func TestContent_Store(t *testing.T) {
 			"a caller asking for an owner-only blob must not get a world-readable one")
 	})
 
+	t.Run("recovers from a stale read-only temp file", func(t *testing.T) {
+		t.Parallel()
+
+		v := venvtest.NewOSWithEmptyEnv()
+
+		storeDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		partitionDir := filepath.Join(storeDir, testHash[:2])
+		require.NoError(t, os.MkdirAll(partitionDir, 0o755))
+
+		// An interrupted run can leave a read-only temp file behind. Opening
+		// it for writing fails with EACCES, so Store must not reuse it.
+		storedPath := filepath.Join(partitionDir, testHash)
+		require.NoError(t, os.WriteFile(storedPath+".tmp", []byte("partial"), 0o400))
+
+		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
+
+		got, err := os.ReadFile(storedPath)
+		require.NoError(t, err)
+		assert.Equal(t, testData, got)
+	})
+
 	t.Run("ensure existing content", func(t *testing.T) {
 		t.Parallel()
 

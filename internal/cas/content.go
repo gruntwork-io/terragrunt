@@ -379,6 +379,10 @@ func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) (err 
 	// is the publish step.
 	tempPath := path + ".tmp"
 
+	if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+		return fmt.Errorf("remove stale temp file %s: %w", tempPath, rmErr)
+	}
+
 	f, err := v.FS.Create(tempPath)
 	if err != nil {
 		return fmt.Errorf("create file %s: %w", tempPath, err)
@@ -469,6 +473,10 @@ func (c *Content) writeContentToFile(
 
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
+
+	if err := v.FS.Remove(tempPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("remove stale temp file %s: %w", tempPath, err)
+	}
 
 	f, err := v.FS.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
 	if err != nil {
