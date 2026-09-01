@@ -473,7 +473,7 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd
+	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd // capacity hint: the fixed args plus two per module path
 	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
@@ -524,7 +524,7 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd
+	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd // capacity hint: the fixed args plus two per unit
 	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
@@ -749,9 +749,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 		require.NoError(t, os.Remove(filepath.Join(providerDir, provider.filename())))
 	}()
 
-	// I wouldn't ignore this lint, but I actually don't know what
-	// the number is there for.
-	err = file.Truncate(1e7) //nolint:mnd
+	err = file.Truncate(1e7) //nolint:mnd // TODO: work out what this size is for
 	require.NoError(t, err)
 
 	err = file.Sync()
@@ -821,7 +819,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			PostalCode:    []string{"94016"},
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().AddDate(10, 0, 0), //nolint:mnd
+		NotAfter:  time.Now().AddDate(10, 0, 0), //nolint:mnd // the test CA is valid for ten years
 		IsCA:      true,
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageClientAuth,
@@ -863,9 +861,9 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			StreetAddress: []string{"Golden Gate Bridge"},
 			PostalCode:    []string{"94016"},
 		},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback}, //nolint:mnd
+		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback}, //nolint:mnd // the loopback address
 		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(10, 0, 0), //nolint:mnd
+		NotAfter:     time.Now().AddDate(10, 0, 0), //nolint:mnd // the test cert is valid for ten years
 		SubjectKeyId: []byte{1, 2, 3, 4, 6},
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:     x509.KeyUsageDigitalSignature,

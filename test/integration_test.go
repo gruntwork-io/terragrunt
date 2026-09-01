@@ -503,7 +503,7 @@ func TestErrorMessageIncludeInOutput(t *testing.T) {
 	assert.Contains(t, err.Error(), "Custom error from script")
 }
 
-//nolint:paralleltest
+//nolint:paralleltest // it unsets TG_TF_PATH for the whole process
 func TestTfPath(t *testing.T) {
 	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
 	// t.Parallel()

@@ -24,7 +24,7 @@ func DeleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) 
 		}
 
 		t.Logf("Error deleting s3 bucket %s. Sleeping for 10 seconds before retrying.", bucketName)
-		time.Sleep(10 * time.Second) //nolint:mnd
+		time.Sleep(10 * time.Second) //nolint:mnd // back off ten seconds between delete attempts
 	}
 
 	t.Fatalf("Max retries attempting to delete s3 bucket %s in region %s", bucketName, awsRegion)

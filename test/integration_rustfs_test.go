@@ -22,7 +22,7 @@ const (
 	testFixtureStackDepsStackMockRustFS    = "fixtures/stacks/stack-deps-stack-mock-rustfs"
 )
 
-func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
+func TestRustFSOutputFromRemoteState(t *testing.T) {
 	rustfsAddr := setupRustFS(t)
 
 	// RustFS default credentials
@@ -105,7 +105,7 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 // map-typed mock_outputs resolves for such a unit, and that a unit is never dropped silently from
 // the aggregated stack outputs: neither when mock_outputs_allowed_terraform_commands rules its mocks
 // out for the current command, nor when mock_outputs can't be keyed by unit name at all.
-func TestRustFSStackDependencyMockOutputs(t *testing.T) { //nolint: paralleltest
+func TestRustFSStackDependencyMockOutputs(t *testing.T) {
 	rustfsAddr := setupRustFS(t)
 
 	// RustFS default credentials
