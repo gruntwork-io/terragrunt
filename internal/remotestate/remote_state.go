@@ -236,7 +236,7 @@ func (remote *RemoteState) pullState(
 	l log.Logger,
 	v *venv.Venv,
 	tfOpts *tf.TFOptions,
-) (string, error) {
+) (path string, err error) {
 	l.Debugf("Pulling state from %s backend", remote.BackendName)
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
@@ -254,7 +254,9 @@ func (remote *RemoteState) pullState(
 	}
 
 	defer func() {
-		file.Close() //nolint:errcheck // best-effort close of the temp state file
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
 	}()
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {

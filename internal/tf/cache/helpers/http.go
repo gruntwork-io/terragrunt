@@ -50,12 +50,17 @@ func Fetch(ctx context.Context, c vhttp.Client, req *http.Request, dst io.Writer
 }
 
 // FetchToFile downloads req's response through c into the file at dst.
-func FetchToFile(ctx context.Context, c vhttp.Client, fsys vfs.FS, req *http.Request, dst string) error {
+func FetchToFile(ctx context.Context, c vhttp.Client, fsys vfs.FS, req *http.Request, dst string) (err error) {
 	file, err := fsys.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer file.Close() //nolint:errcheck // best-effort close of the downloaded file
+
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	if err := Fetch(ctx, c, req, file); err != nil {
 		return err

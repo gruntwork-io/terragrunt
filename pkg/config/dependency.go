@@ -932,13 +932,16 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 			dependencyConfig.MockOutputs != nil {
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 
-			switch mockMergeStrategy { //nolint:exhaustive // the default branch handles the rest
+			switch mockMergeStrategy {
 			case NoMerge:
 				return outputVal, nil
 			case ShallowMerge:
 				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
 			case DeepMergeMapOnly:
 				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
+			case DeepMerge:
+				// Mock outputs merge maps only, so a full deep merge has no meaning here.
+				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
 			default:
 				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
 			}

@@ -397,28 +397,25 @@ func IsLocalSource(sourceURL *url.URL) bool {
 // rather than the path.
 func SplitSourceURL(l log.Logger, fsys vfs.FS, sourceURL *url.URL) (*url.URL, string, error) {
 	if sourceURL.Opaque != "" {
-		opaqueSplitOnDoubleSlash := strings.SplitN(sourceURL.Opaque, "//", 2) //nolint:mnd // 2: the source and the subdirectory after "//"
-		if len(opaqueSplitOnDoubleSlash) > 1 {
+		if root, subDir, found := strings.Cut(sourceURL.Opaque, "//"); found {
 			rootSourceURL := *sourceURL
-			rootSourceURL.Opaque = opaqueSplitOnDoubleSlash[0]
+			rootSourceURL.Opaque = root
 
-			return &rootSourceURL, opaqueSplitOnDoubleSlash[1], nil
+			return &rootSourceURL, subDir, nil
 		}
 
 		return sourceURL, "", nil
 	}
 
-	pathSplitOnDoubleSlash := strings.SplitN(sourceURL.Path, "//", 2) //nolint:mnd // 2: the path and the subdirectory after "//"
-
-	if len(pathSplitOnDoubleSlash) > 1 {
+	if root, subDir, found := strings.Cut(sourceURL.Path, "//"); found {
 		sourceURLModifiedPath, err := parseSourceURL(sourceURL.String())
 		if err != nil {
 			return nil, "", err
 		}
 
-		sourceURLModifiedPath.Path = pathSplitOnDoubleSlash[0]
+		sourceURLModifiedPath.Path = root
 
-		return sourceURLModifiedPath, pathSplitOnDoubleSlash[1], nil
+		return sourceURLModifiedPath, subDir, nil
 	}
 	// check if path is remote URL
 	if sourceURL.Scheme != "" {

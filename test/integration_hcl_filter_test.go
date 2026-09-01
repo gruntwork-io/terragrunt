@@ -340,7 +340,7 @@ func TestHCLFormatFilterIntegration(t *testing.T) {
 	err = json.Unmarshal([]byte(stdout), &components)
 	require.NoError(t, err)
 
-	for _, component := range components {
+	for i, component := range components {
 		basename := "terragrunt.hcl"
 		if component.Type == "stack" {
 			basename = "terragrunt.stack.hcl"
@@ -350,7 +350,7 @@ func TestHCLFormatFilterIntegration(t *testing.T) {
 		content, readErr := os.ReadFile(filename)
 		require.NoError(t, readErr)
 
-		component.Contents = content //nolint:govet // unusedwrite: the loop exists to assert every file reads; the copy is discarded
+		components[i].Contents = content
 	}
 
 	checkCmd := "terragrunt hcl format --filter './needs-formatting/**' --check --working-dir " + rootPath

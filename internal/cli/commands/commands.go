@@ -4,6 +4,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"net"
 	"path/filepath"
 	"runtime/debug"
 	"slices"
@@ -69,8 +70,16 @@ const (
 	ShortcutsCommandsCategoryName = "OpenTofu shortcuts"
 )
 
+// Command categories appear in help in the order declared here.
+const (
+	mainCommandsOrder = iota + 1
+	catalogCommandsOrder
+	discoveryCommandsOrder
+	configurationCommandsOrder
+	shortcutsCommandsOrder
+)
+
 // New returns the set of Terragrunt commands, grouped into categories.
-// Categories are ordered in increments of 10 for easy insertion of new categories.
 func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
 	mainCommands := clihelper.Commands{
 		runcmd.NewCommand(l, opts, v),  // run
@@ -80,7 +89,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
-			Order: 10, //nolint:mnd // help categories are ordered in steps of ten
+			Order: mainCommandsOrder,
 		},
 	)
 
@@ -90,7 +99,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
-			Order: 20, //nolint:mnd // help categories are ordered in steps of ten
+			Order: catalogCommandsOrder,
 		},
 	)
 
@@ -101,7 +110,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
-			Order: 30, //nolint:mnd // help categories are ordered in steps of ten
+			Order: discoveryCommandsOrder,
 		},
 	)
 
@@ -116,14 +125,14 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  ConfigurationCommandsCategoryName,
-			Order: 40, //nolint:mnd // help categories are ordered in steps of ten
+			Order: configurationCommandsOrder,
 		},
 	)
 
 	shortcutsCommands := NewShortcutsCommands(l, opts, v).SetCategory(
 		&clihelper.Category{
 			Name:  ShortcutsCommandsCategoryName,
-			Order: 50, //nolint:mnd // help categories are ordered in steps of ten
+			Order: shortcutsCommandsOrder,
 		},
 	)
 
@@ -210,6 +219,9 @@ func WrapWithTelemetry(
 	}
 }
 
+// probeDirPerms is the mode of the throwaway directory the symlink probe creates.
+const probeDirPerms = 0o755
+
 // GiveWindowsSymlinksTip warns Windows users that OpenTofu/Terraform may not create symlinks
 // for provider plugins installed in the local cache directory.
 //
@@ -259,7 +271,7 @@ func GiveWindowsSymlinksTip(
 	source := filepath.Join(tmp, "source")
 	target := filepath.Join(tmp, "target")
 
-	if err := fsys.Mkdir(source, 0755); err != nil { //nolint:mnd // 0755 is the usual directory mode
+	if err := fsys.Mkdir(source, probeDirPerms); err != nil {
 		l.Debugf("Failed to create source directory for testing symlink: %v", err)
 		return
 	}
@@ -346,7 +358,11 @@ func RunAction(
 		if err != nil {
 			return err
 		}
-		defer ln.Close() //nolint:errcheck // best-effort close of the cache server's listener
+		defer func() {
+			if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				l.Debugf("Failed to close the provider cache listener: %v", err)
+			}
+		}()
 
 		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
 

@@ -16,11 +16,13 @@ const (
 type DiagnosticSeverity hcl.DiagnosticSeverity
 
 func (severity DiagnosticSeverity) String() string {
-	switch hcl.DiagnosticSeverity(severity) { //nolint:exhaustive // the default branch handles the rest
+	switch hcl.DiagnosticSeverity(severity) {
 	case hcl.DiagError:
 		return DiagnosticSeverityError
 	case hcl.DiagWarning:
 		return DiagnosticSeverityWarning
+	case hcl.DiagInvalid:
+		return DiagnosticSeverityUnknown
 	default:
 		return DiagnosticSeverityUnknown
 	}

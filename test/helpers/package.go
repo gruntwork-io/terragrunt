@@ -84,6 +84,9 @@ const (
 
 	caKeyBits = 4096
 
+	// certValidityYears is how long the test CA and its leaf certificate stay valid.
+	certValidityYears = 10
+
 	semverPartsLen = 3
 
 	// cleanupTimeout caps the runtime of a cleanup helper invoked
@@ -819,7 +822,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			PostalCode:    []string{"94016"},
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().AddDate(10, 0, 0), //nolint:mnd // the test CA is valid for ten years
+		NotAfter:  time.Now().AddDate(certValidityYears, 0, 0),
 		IsCA:      true,
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageClientAuth,
@@ -861,9 +864,9 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			StreetAddress: []string{"Golden Gate Bridge"},
 			PostalCode:    []string{"94016"},
 		},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback}, //nolint:mnd // the loopback address
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.IPv6loopback},
 		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(10, 0, 0), //nolint:mnd // the test cert is valid for ten years
+		NotAfter:     time.Now().AddDate(certValidityYears, 0, 0),
 		SubjectKeyId: []byte{1, 2, 3, 4, 6},
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:     x509.KeyUsageDigitalSignature,

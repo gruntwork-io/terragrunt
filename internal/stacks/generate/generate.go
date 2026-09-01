@@ -31,6 +31,9 @@ import (
 // purpose: real stack trees stay far below it.
 const DefaultMaxLevel = 1024
 
+// worktreesPerPair is the number of worktrees in a comparison pair: the from worktree and the to worktree.
+const worktreesPerPair = 2
+
 // Generator owns the per-working-directory lock for in-process GenerateStacks calls.
 type Generator struct {
 	locks    *util.KeyLocks
@@ -634,8 +637,7 @@ func worktreeStacksToGenerate(
 	// can walk them for unit-level changes.
 
 	g, ctx := errgroup.WithContext(ctx)
-	// Allow up to 2 generation tasks per worktree pair (at least 1), capped by available CPUs.
-	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*2))) //nolint:mnd // two tasks per pair
+	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*worktreesPerPair)))
 
 	var (
 		mu              sync.Mutex
