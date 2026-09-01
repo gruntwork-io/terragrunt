@@ -393,6 +393,41 @@ func TestContent_Link(t *testing.T) {
 		assert.Equal(t, testData, got)
 	})
 
+	t.Run("default path replaces an occupied target with a hardlink", func(t *testing.T) {
+		t.Parallel()
+
+		v := venvtest.NewOSWithEmptyEnv()
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		require.NoError(t, content.Store(l, v, testHash, testData))
+
+		// The state a rerun finds: the previous materialization is still
+		// there, read-only, on a name no hard link can be made over.
+		targetPath := filepath.Join(targetDir, "test.txt")
+		require.NoError(t, os.WriteFile(targetPath, []byte("stale"), 0o444))
+
+		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o644))
+
+		got, err := os.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, testData, got)
+
+		sourceInfo, err := os.Stat(filepath.Join(storeDir, testHash[:2], testHash))
+		require.NoError(t, err)
+
+		info, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.True(t, os.SameFile(sourceInfo, info),
+			"an occupied target must still end up sharing the stored blob")
+	})
+
 	t.Run("copy path recovers from a stale read-only temp file", func(t *testing.T) {
 		t.Parallel()
 

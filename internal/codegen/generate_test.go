@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -679,6 +680,62 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	targetContent, err := os.ReadFile(targetPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(targetContent), ">= 1.3.0")
+}
+
+// createErrorFS refuses to create a file, standing in for a destination the
+// process may read but cannot write into.
+type createErrorFS struct {
+	vfs.FS
+	err error
+}
+
+func (f *createErrorFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	if flag&os.O_CREATE != 0 {
+		return nil, f.err
+	}
+
+	return f.FS.OpenFile(name, flag, perm)
+}
+
+// TestWriteToFileFailedWriteLeavesExistingFile covers a generation that cannot
+// get its contents onto disk. The file it was going to overwrite is the one the
+// module is still configured with, so a run that gets nowhere has to leave it.
+func TestWriteToFileFailedWriteLeavesExistingFile(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	existing := "terraform {\n  required_version = \">= 1.0.0\"\n}\n"
+
+	path := filepath.Join(helpers.TmpDirWOSymlinks(t), "versions.tf")
+
+	// Read-only is how a previous run leaves a file it materialized from the
+	// content store, so the surviving file is one this run could not have
+	// written over in place.
+	writeFileWithPerms(t, path, existing, 0444)
+
+	v := venvtest.NewOSWithEmptyEnv().
+		WithFS(&createErrorFS{FS: vfs.NewOSFS(), err: os.ErrPermission})
+
+	config := codegen.GenerateConfig{
+		Path:             path,
+		IfExists:         codegen.ExistsOverwrite,
+		DisableSignature: true,
+		Contents:         "terraform {\n  required_version = \">= 1.3.0\"\n}\n",
+	}
+
+	l := logger.CreateLogger()
+	require.ErrorIs(
+		t,
+		codegen.WriteToFile(t.Context(), l, v, "", &config),
+		os.ErrPermission,
+	)
+
+	contents, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, existing, string(contents))
 }
 
 // TestWriteToFileCreatesParentDirs covers a generate block whose path names a

@@ -139,7 +139,7 @@ func WriteToFile(
 		targetPath = filepath.Join(basePath, config.Path)
 	}
 
-	targetInfo, statErr := vfs.Lstat(v.FS, targetPath)
+	_, statErr := vfs.Lstat(v.FS, targetPath)
 	if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
 		return statErr
 	}
@@ -203,15 +203,6 @@ func WriteToFile(
 		contentsToWrite = hclwrite.Format(contentsToWrite)
 	}
 
-	// A surviving target may be a read-only hard link into the store, and even a
-	// writable one would block a fresh link and silently degrade it into a copy.
-	// A symlink must go too, or the write follows it to its destination.
-	if targetFileExists && !targetInfo.IsDir() {
-		if err := v.FS.Remove(targetPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-	}
-
 	if err := materialize(ctx, l, v, targetPath, contentsToWrite, config.Mutable, o.store); err != nil {
 		return err
 	}
@@ -222,7 +213,9 @@ func WriteToFile(
 }
 
 // materialize puts contents at targetPath, sharing one stored copy across
-// working directories unless the block opts into mutability.
+// working directories unless the block opts into mutability. Either route
+// publishes by rename, so a target already there is replaced whole and survives
+// untouched if the generation fails, whatever mode or link count it carries.
 func materialize(
 	ctx context.Context,
 	l log.Logger,

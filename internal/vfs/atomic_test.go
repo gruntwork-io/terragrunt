@@ -5,7 +5,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -151,4 +153,54 @@ func TestStreamFileAtomicConcurrentWithRacing(t *testing.T) {
 	contents, err := vfs.ReadFile(fsys, path)
 	require.NoError(t, err)
 	assert.Contains(t, bodies, string(contents), "the file is a mixture of writers")
+}
+
+// TestWriteFileAtomicNameAtComponentLimit covers a destination whose own name
+// fills the per-component limit, where a scratch name built from it untrimmed
+// would be too long for the directory that just accepted the destination.
+func TestWriteFileAtomicNameAtComponentLimit(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows caps the whole path, not the component, so a maximal name proves nothing here")
+	}
+
+	const nameMax = 255
+
+	testCases := []struct {
+		name string
+		base string
+	}{
+		{
+			name: "single-byte runes",
+			base: strings.Repeat("a", nameMax),
+		},
+		{
+			// The leading byte offsets the runes so the trim falls inside one
+			// of them, which is the cut macOS rejects the name for.
+			name: "multi-byte runes",
+			base: "a" + strings.Repeat("\u00e9", (nameMax-1)/2),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewOSFS()
+			dir := t.TempDir()
+			path := filepath.Join(dir, tc.base)
+
+			require.Len(t, tc.base, nameMax)
+			require.NoError(t, vfs.WriteFileAtomic(fsys, path, []byte("hello"), 0o600))
+
+			contents, err := vfs.ReadFile(fsys, path)
+			require.NoError(t, err)
+			assert.Equal(t, "hello", string(contents))
+
+			entries, err := os.ReadDir(dir)
+			require.NoError(t, err)
+			assert.Len(t, entries, 1, "the scratch file must not outlive the write")
+		})
+	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -102,12 +103,22 @@ func (c *Content) Link(
 				sourcePath,
 			); statErr == nil &&
 				info.Mode().Perm() == desired {
-				if err := vfs.Link(v.FS, sourcePath, targetPath); err == nil {
+				linkErr := vfs.Link(v.FS, sourcePath, targetPath)
+				if linkErr == nil {
 					return nil
 				}
-				// Fall through to copy on link failure. An existing
-				// targetPath is handled by the temp-file+rename below,
-				// which overwrites stale bytes atomically.
+
+				// A link refused only because the name is taken is worth a
+				// second attempt beside the target, which keeps the sharing
+				// that a copy would give up.
+				if errors.Is(linkErr, fs.ErrExist) {
+					if err := linkOver(v, sourcePath, targetPath); err == nil {
+						return nil
+					}
+				}
+				// Fall through to copy when neither link lands, on a
+				// filesystem that has no hard links or across a device
+				// boundary.
 			}
 		}
 
@@ -124,7 +135,7 @@ func (c *Content) Link(
 		// reopening that name fails with EACCES once a prior write (an
 		// interrupted run, or a concurrent Link to the same target) left it at
 		// the read-only `desired` mode.
-		tmp, err := vfs.CreateTemp(v.FS, targetDir, filepath.Base(targetPath)+".tmp")
+		tmp, err := vfs.CreateTemp(v.FS, targetDir, vfs.TempPattern(filepath.Base(targetPath)))
 		if err != nil {
 			return &WrappedError{
 				Op:   "write_target",
@@ -170,6 +181,38 @@ func (c *Content) Link(
 
 		return nil
 	})
+}
+
+// linkOver hardlinks sourcePath beside targetPath and renames the result onto
+// it. A hard link cannot be made over a name that already exists, and unlinking
+// the target first would drop it for as long as the link takes and lose it for
+// good if the link then fails.
+func linkOver(v *venv.Venv, sourcePath, targetPath string) error {
+	tmp, err := vfs.CreateTemp(
+		v.FS,
+		filepath.Dir(targetPath),
+		vfs.TempPattern(filepath.Base(targetPath)),
+	)
+	if err != nil {
+		return err
+	}
+
+	tempPath := tmp.Name()
+
+	// The scratch file exists only to reserve a name the link can have.
+	if err := errors.Join(tmp.Close(), v.FS.Remove(tempPath)); err != nil {
+		return err
+	}
+
+	if err := vfs.Link(v.FS, sourcePath, tempPath); err != nil {
+		return err
+	}
+
+	if err := v.FS.Rename(tempPath, targetPath); err != nil {
+		return errors.Join(err, v.FS.Remove(tempPath))
+	}
+
+	return nil
 }
 
 // Store stores a single content item. This is typically used for trees,
