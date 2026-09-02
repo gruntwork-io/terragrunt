@@ -93,6 +93,8 @@ const (
 	testFixtureStdout                         = "fixtures/download/stdout-test"
 	testFixtureTfTest                         = "fixtures/tftest/"
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
+	testFixtureExecCmdDependency              = "fixtures/exec-cmd-dependency"
+	testFixtureExecCmdSourceMap               = "fixtures/exec-cmd-source-map"
 	testFixtureExecCmdTfPath                  = "fixtures/exec-cmd-tf-path"
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"

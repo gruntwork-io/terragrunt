@@ -147,3 +147,96 @@ func TestTFExecCommandTfPath(t *testing.T) {
 		})
 	}
 }
+
+// TestTFExecCommandSourceMap proves that `exec` honors `--source-map`: the unit's source points at a
+// repository that does not exist, so the command only reaches the module when the map redirects it.
+func TestTFExecCommandSourceMap(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since `cat` is not available")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureExecCmdSourceMap)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmdSourceMap)
+
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExecCmdSourceMap, "unit")
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt exec --non-interactive --working-dir "+rootPath+
+			" --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git="+tmpEnvPath+
+			" --in-download-dir -- cat main.tf",
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "mapped_module_id")
+}
+
+// TestTFExecCommandNoAutoInit proves that `exec --in-download-dir` honors `--no-auto-init`: the
+// download directory is freshly populated, so init is needed, and the flag turns it into a warning.
+func TestTFExecCommandNoAutoInit(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since `cat` is not available")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureExecCmdSourceMap)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmdSourceMap)
+
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExecCmdSourceMap, "unit")
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt exec --non-interactive --working-dir "+rootPath+
+			" --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git="+tmpEnvPath+
+			" --in-download-dir --no-auto-init -- cat main.tf",
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "mapped_module_id")
+	assert.Contains(t, stderr, "Detected that init is needed, but Auto-Init is disabled")
+	assert.NotContains(t, stderr, "has been successfully initialized")
+}
+
+// TestTFExecCommandNoAutoInitDependency proves that `--no-auto-init` reaches dependency units even
+// without `--in-download-dir`, since `exec` initializes those while resolving their outputs.
+func TestTFExecCommandNoAutoInitDependency(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since `env` is not available")
+	}
+
+	testCases := []struct {
+		name           string
+		args           string
+		expectedStderr string
+	}{
+		{
+			name:           "auto-init initializes the dependency",
+			expectedStderr: "Initializing the backend",
+		},
+		{
+			name:           "no-auto-init warns instead",
+			args:           " --no-auto-init",
+			expectedStderr: "Detected that init is needed, but Auto-Init is disabled",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmdDependency)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureExecCmdDependency, "app")
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt exec --non-interactive --working-dir "+rootPath+tc.args+" -- env",
+			)
+			require.NoError(t, err)
+			assert.Contains(t, stdout, "TF_VAR_id=mock")
+			assert.Contains(t, stderr, tc.expectedStderr)
+		})
+	}
+}
