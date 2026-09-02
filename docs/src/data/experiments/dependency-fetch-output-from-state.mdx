@@ -15,7 +15,9 @@ By default, Terragrunt retrieves dependency outputs by running `tofu output` or 
 
 Azure state protected with `customer_provided_key`, and Azure configurations that rely on native-only authentication, `metadata_host`, or `timeout_seconds`, also use the normal method.
 
-GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths, service-account impersonation, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
+GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths, the `impersonate_service_account` setting, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
+
+Terragrunt reads `service_account`, `authorized_user`, and `external_account` (Workload Identity Federation) credential files directly. An `external_account` file is read directly only when its `credential_source` is a `url` or an absolute `file` path. Every other source uses the normal method. An `executable` source would run with Terragrunt's environment rather than the unit's, an AWS source would authenticate with Terragrunt's AWS credentials, and a relative `file` path would resolve against Terragrunt's working directory rather than the unit's.
 
 **Known Limitations:**
 
