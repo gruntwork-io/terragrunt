@@ -728,8 +728,8 @@ func appendRootAttributes(body *hclwrite.Body, cfg *TerragruntConfig, asCty cty.
 }
 
 // dependencyGroup is the decoded dependencies one written block produced. source is nil
-// for a block that declared no expansion, and for one whose text could not be recovered,
-// which leaves deps holding the elements alone.
+// for a block that declared no expansion, and for one decoded outside the expanding
+// decoder, which leaves deps holding a single dependency.
 type dependencyGroup struct {
 	source *hclparse.SourceBlock
 	deps   []*Dependency
@@ -771,8 +771,13 @@ func groupExpandedDependencies(deps Dependencies) []dependencyGroup {
 // [validateUniqueDependencies] warns about and, under its strict control, rejects.
 // Rendering them as configuration would produce a file that reads back as one dependency.
 func appendExpansionPreview(body *hclwrite.Body, group dependencyGroup) error {
+	text, err := group.source.Body()
+	if err != nil {
+		return err
+	}
+
 	source, diags := hclwrite.ParseConfig(
-		[]byte(group.source.Text),
+		[]byte(text),
 		group.source.Range.Filename,
 		group.source.Range.Start,
 	)

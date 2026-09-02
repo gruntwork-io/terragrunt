@@ -1,0 +1,15 @@
+{
+  "dependency": {
+    "aurora": {
+      "expansion": {"count": 2},
+      "config_path": "../aurora-${count.index}",
+      "skip_outputs": true
+    },
+    "vpc": [
+      {
+        "config_path": "../vpc",
+        "skip_outputs": true
+      }
+    ]
+  }
+}
