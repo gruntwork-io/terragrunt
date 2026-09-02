@@ -19,6 +19,7 @@ var terragruntOnlyConfigs = []string{
 	"skip_bucket_ssencryption",
 	"skip_bucket_accesslogging",
 	"skip_bucket_root_access",
+	"enable_bucket_root_access",
 	"skip_bucket_enforced_tls",
 	"skip_bucket_public_access_blocking",
 	"disable_bucket_update",
@@ -61,6 +62,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	DisableAWSClientChecksums                    bool                `mapstructure:"disable_aws_client_checksums"`
 	SkipBucketEnforcedTLS                        bool                `mapstructure:"skip_bucket_enforced_tls"`
 	SkipBucketRootAccess                         bool                `mapstructure:"skip_bucket_root_access"`
+	EnableBucketRootAccess                       bool                `mapstructure:"enable_bucket_root_access"`
 	SkipBucketPublicAccessBlocking               bool                `mapstructure:"skip_bucket_public_access_blocking"`
 	SkipAccessLoggingBucketACL                   bool                `mapstructure:"skip_accesslogging_bucket_acl"`
 	SkipAccessLoggingBucketEnforcedTLS           bool                `mapstructure:"skip_accesslogging_bucket_enforced_tls"`
