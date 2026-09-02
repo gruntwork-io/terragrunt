@@ -110,10 +110,9 @@ const (
 	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
 	// all dependency output resolution during a run.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
-	// TGLogin reserves the experiment flag for signing in to the Gruntwork
-	// Developer Portal from the CLI, so an admin can define a catalog in the
-	// portal instead of local HCL. Nothing is gated on it yet; the login
-	// command and the portal-defined catalog land in follow-up PRs.
+	// TGLogin gates `terragrunt login`, which signs the user in to the
+	// Gruntwork Developer Portal so an admin can define a catalog there for
+	// the CLI to read.
 	TGLogin = "tg-login"
 )
 

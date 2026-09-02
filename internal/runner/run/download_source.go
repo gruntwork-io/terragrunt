@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -384,13 +385,13 @@ func DownloadTerraformSourceIfNecessary(
 					fileURIScheme,
 				)
 
-				return util.NotifyIfSlow(
+				return spinner.ShowAfter(
 					childCtx,
 					l,
-					util.SpinnerWriter(v),
+					spinner.Writer(v),
 					time.Second,
-					util.SlowNotifyMsg{
-						Spinner: "Downloading source from " + sourceURL + "...",
+					spinner.Messages{
+						Working: "Downloading source from " + sourceURL + "...",
 						Done:    "Downloaded source from " + sourceURL,
 					},
 					func() error {
