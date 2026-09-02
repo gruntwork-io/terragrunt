@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -307,7 +306,7 @@ func TestDependencyStateMalformedDirectStateReturnsTypedError(t *testing.T) {
 			t.Parallel()
 
 			recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(testCase.state))
-			_, err := parseDependencyStateFixture(
+			cfg, err := parseDependencyStateFixture(
 				t,
 				recorder,
 				"gcs",
@@ -319,18 +318,9 @@ func TestDependencyStateMalformedDirectStateReturnsTypedError(t *testing.T) {
 				"",
 			)
 
-			require.Error(t, err)
-
-			var parseErr config.DependencyStateParseError
-			require.ErrorAs(t, err, &parseErr)
-			assert.Equal(t, "gs://state-bucket/environment/service/default.tfstate", parseErr.Location)
-			require.Error(t, parseErr.Err)
-
-			if testCase.cause != nil {
-				require.ErrorIs(t, err, testCase.cause)
-			}
-
-			assert.Empty(t, recorder.invocations(), "malformed direct state must not be retried through OpenTofu")
+			require.NoError(t, err, "a malformed direct read must fall back instead of aborting")
+			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+			assert.NotEmpty(t, recorder.invocations(), "malformed direct state must be retried through OpenTofu")
 			assert.Equal(t, 1, recorder.closeCount(), "a malformed state response body must be closed")
 		})
 	}
@@ -450,11 +440,8 @@ func TestDependencyStateTransportFailureIsNotReportedAsMalformedState(t *testing
 				"",
 			)
 
-			var readErr config.DependencyStateReadError
-			require.ErrorAs(t, err, &readErr)
-			assert.Equal(t, "s3://state-bucket/service.tfstate", readErr.Location)
-			require.ErrorIs(t, err, io.ErrClosedPipe)
-			assert.Empty(t, recorder.invocations(), "a failed direct read must not invoke OpenTofu")
+			require.NoError(t, err, "a transport failure must fall back instead of aborting")
+			assert.NotEmpty(t, recorder.invocations(), "a failed direct read must fall back to OpenTofu")
 			assert.Equal(t, 1, recorder.closeCount(), "a failed direct read must close the state body")
 		})
 	}
@@ -511,7 +498,7 @@ func TestDependencyStateAzureClientSetupFailureDoesNotUseMocks(t *testing.T) {
 		), headers)
 	}
 
-	_, err := parseDependencyStateFixture(
+	cfg, err := parseDependencyStateFixture(
 		t,
 		recorder,
 		"azurerm",
@@ -528,14 +515,10 @@ func TestDependencyStateAzureClientSetupFailureDoesNotUseMocks(t *testing.T) {
 		`mock_outputs = { producer_value = "from-mock" }`,
 	)
 
-	require.Error(t, err)
-
-	var setupErr *azurermbackend.StateClientSetupError
-	require.ErrorAs(t, err, &setupErr)
-
-	var coordinateErr *azurermbackend.StateClientCoordinatesError
-	require.ErrorAs(t, err, &coordinateErr)
-	assert.Empty(t, recorder.invocations(), "a client setup failure must not invoke OpenTofu")
+	require.NoError(t, err, "a client setup failure must fall back instead of aborting")
+	assert.Equal(t, "from-native-output", cfg.Inputs["result"],
+		"the mock must never be substituted for a client setup failure")
+	assert.NotEmpty(t, recorder.invocations(), "a client setup failure must fall back to OpenTofu")
 	requests := recorder.requestPaths()
 	assert.True(t, slices.ContainsFunc(requests, func(request string) bool {
 		return strings.Contains(request, "/listKeys")
@@ -754,4 +737,44 @@ func terraformOutput(value string) []byte {
 		`{"producer_value":{"sensitive":false,"type":"string","value":%q}}`,
 		value,
 	))
+}
+
+// TestDependencyStateReadFailureFallsBackToNativeOutput pins that a direct state
+// read is an optimization: when it fails for a reason other than absent state,
+// the run resolves outputs through OpenTofu instead of aborting.
+func TestDependencyStateReadFailureFallsBackToNativeOutput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		body   []byte
+		status int
+	}{
+		{name: "permission denied", status: http.StatusForbidden, body: []byte(`{"error":"forbidden"}`)},
+		{name: "malformed state", status: http.StatusOK, body: []byte(`{"version":4,"outputs":`)},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, testCase.status, testCase.body)
+
+			cfg, err := parseDependencyStateFixture(
+				t,
+				recorder,
+				"gcs",
+				`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+				map[string]string{},
+				false,
+				"",
+			)
+
+			require.NoError(t, err, "a failed direct read must not abort the run")
+			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+			assert.NotEmpty(t, recorder.invocations(), "the native output command must run")
+		})
+	}
 }
