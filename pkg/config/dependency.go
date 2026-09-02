@@ -1621,7 +1621,19 @@ func resolveOutputJSON(
 			workspace,
 		)
 
-		return out, "state", fetchErr
+		if fetchErr == nil || shouldFallBackToMockOutputs(pctx, fetchErr) {
+			return out, "state", fetchErr
+		}
+
+		// Reading state directly is an optimization, so any other failure retries through
+		// the routes below rather than ending the run.
+		l.Debugf(
+			"Could not read dependency state for %s directly (%v). Falling back to native output retrieval.",
+			pctx.TerragruntConfigPath,
+			fetchErr,
+		)
+
+		workspace = ""
 	}
 
 	if isInit {

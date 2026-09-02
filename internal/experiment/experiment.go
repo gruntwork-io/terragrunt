@@ -166,7 +166,8 @@ func NewExperiments() Experiments {
 			Name: IacEngine,
 		},
 		{
-			Name: DependencyFetchOutputFromState,
+			Name:   DependencyFetchOutputFromState,
+			Status: StatusCompleted,
 		},
 		{
 			Name: SlowTaskReporting,

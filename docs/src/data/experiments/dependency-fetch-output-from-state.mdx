@@ -1,11 +1,21 @@
 ---
 name: dependency-fetch-output-from-state
+completedSince: "1.2.0"
 ---
+
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Support for fetching dependency outputs directly from state files.
 
 ### `dependency-fetch-output-from-state` - What it does
 By default, Terragrunt retrieves dependency outputs by running `tofu output` or `terraform output` commands, which requires initializing the dependency unit and can be slow. When this experiment is enabled, Terragrunt will attempt to fetch dependency outputs directly from the remote state file, bypassing the need to initialize the dependency and significantly speeding up dependency processing.
+
+<Since version="1.2.0">
+This experiment flag is no longer needed, as fetching dependency outputs from state is now the default. Disable it with the `--no-dependency-fetch-output-from-state` flag.
+
+Reading state directly is an optimization and never decides whether a run succeeds. When a direct read fails for any reason other than the state not existing yet, Terragrunt retrieves the outputs through OpenTofu instead and the run continues. A dependency whose state does not exist yet still resolves to that dependency block's `mock_outputs`.
+</Since>
 
 **Current Backend Support:**
 
@@ -23,27 +33,34 @@ This experiment is **not compatible with OpenTofu state encryption**. When OpenT
 
 **Disabling the feature:**
 
-You can disable the dependency-fetch-output-from-state feature using the `--no-dependency-fetch-output-from-state` flag, even when the experiment is enabled:
+You can disable the dependency-fetch-output-from-state feature using the `--no-dependency-fetch-output-from-state` flag:
 
 ```bash
-terragrunt run --all --experiment-mode --no-dependency-fetch-output-from-state -- plan
+terragrunt run --all --no-dependency-fetch-output-from-state -- plan
 ```
 
 ### `dependency-fetch-output-from-state` - How to provide feedback
+
+<Before version="1.2.0">
 Provide your feedback in the dedicated [GitHub discussion](https://github.com/gruntwork-io/terragrunt/discussions/5200) page. When reporting issues or providing feedback, please include:
 
 - The backend type you're using
 - Any performance improvements you've observed
 - Any issues or edge cases you've encountered
+</Before>
+
+<Since version="1.2.0">
+Now that the `dependency-fetch-output-from-state` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+</Since>
 
 ### `dependency-fetch-output-from-state` - Criteria for stabilization
-To transition the `dependency-fetch-output-from-state` feature to a stable release, the following must be addressed, at a minimum:
+To transition the `dependency-fetch-output-from-state` feature to a stable release, the following were completed:
 
 - [x] Add support for additional backends (GCS and Azure Storage)
 - [x] Live direct-state-read integration coverage for S3, GCS, and Azure Storage
 - [ ] Comprehensive integration testing across backend authentication, encryption, workspace, and error scenarios
 - [ ] Performance benchmarking to validate speed improvements
-- [ ] Error handling and edge case testing
+- [x] Error handling and edge case testing
 - [x] Documentation of supported backends and limitations
 - [ ] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
 - [ ] Community feedback on real-world usage
