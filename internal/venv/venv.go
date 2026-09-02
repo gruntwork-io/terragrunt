@@ -105,19 +105,24 @@ var ErrVenvUserHomeDirUnset = errors.New("venv.Venv.Platform.UserHomeDir is requ
 // when UserCacheDir is nil.
 var ErrVenvUserCacheDirUnset = errors.New("venv.Venv.Platform.UserCacheDir is required but unset")
 
+// ErrVenvUserConfigDirUnset is the panic value [Venv.RequireUserConfigDir]
+// raises when UserConfigDir is nil.
+var ErrVenvUserConfigDirUnset = errors.New("venv.Venv.Platform.UserConfigDir is required but unset")
+
 // ErrVenvTempDirUnset is the panic value [Venv.RequireTempDir] raises when
 // TempDir is nil.
 var ErrVenvTempDirUnset = errors.New("venv.Venv.Platform.TempDir is required but unset")
 
 // Platform carries the operating-system handles used below the CLI boundary.
 type Platform struct {
-	UserHomeDir  func() (string, error)
-	UserCacheDir func() (string, error)
-	TempDir      func() string
-	Getwd        func() (string, error)
-	GetPID       func() int
-	GOOS         string
-	GOARCH       string
+	UserHomeDir   func() (string, error)
+	UserCacheDir  func() (string, error)
+	UserConfigDir func() (string, error)
+	TempDir       func() string
+	Getwd         func() (string, error)
+	GetPID        func() int
+	GOOS          string
+	GOARCH        string
 }
 
 // Terminal reports the console a run's output is adapting to: whether each
@@ -276,6 +281,19 @@ func (v *Venv) WithUserHomeDir(userHomeDir func() (string, error)) *Venv {
 
 	platform := *v.Platform
 	platform.UserHomeDir = userHomeDir
+
+	c := *v
+	c.Platform = &platform
+
+	return &c
+}
+
+// WithUserConfigDir returns a copy of v whose config-directory lookup is userConfigDir.
+func (v *Venv) WithUserConfigDir(userConfigDir func() (string, error)) *Venv {
+	v.RequirePlatform()
+
+	platform := *v.Platform
+	platform.UserConfigDir = userConfigDir
 
 	c := *v
 	c.Platform = &platform
@@ -456,6 +474,13 @@ func (v *Venv) RequireUserCacheDir() {
 	}
 }
 
+// RequireUserConfigDir panics with [ErrVenvUserConfigDirUnset] when UserConfigDir is nil.
+func (v *Venv) RequireUserConfigDir() {
+	if v.Platform == nil || v.Platform.UserConfigDir == nil {
+		panic(ErrVenvUserConfigDirUnset)
+	}
+}
+
 // RequireTempDir panics with [ErrVenvTempDirUnset] when TempDir is nil.
 func (v *Venv) RequireTempDir() {
 	if v.Platform == nil || v.Platform.TempDir == nil {
@@ -485,13 +510,14 @@ func OSVenv() *Venv {
 		Stdin:   os.Stdin,
 		Env:     ParseEnviron(os.Environ()),
 		Platform: &Platform{
-			UserHomeDir:  os.UserHomeDir,
-			UserCacheDir: os.UserCacheDir,
-			TempDir:      os.TempDir,
-			Getwd:        os.Getwd,
-			GetPID:       os.Getpid,
-			GOOS:         runtime.GOOS,
-			GOARCH:       runtime.GOARCH,
+			UserHomeDir:   os.UserHomeDir,
+			UserCacheDir:  os.UserCacheDir,
+			UserConfigDir: os.UserConfigDir,
+			TempDir:       os.TempDir,
+			Getwd:         os.Getwd,
+			GetPID:        os.Getpid,
+			GOOS:          runtime.GOOS,
+			GOARCH:        runtime.GOARCH,
 		},
 		Terminal: &Terminal{
 			StdinIsTTY:  func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
