@@ -52,7 +52,7 @@ func DiscoveryURL(ctx context.Context, c vhttp.Client, registryName string) (*Re
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer resp.Body.Close() //nolint:errcheck // best-effort close of the response body
 
 	switch resp.StatusCode {
 	case http.StatusNotFound, http.StatusInternalServerError:

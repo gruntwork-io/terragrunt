@@ -14,111 +14,111 @@ import (
 func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
-		name   string
+	testCases := []struct {
 		config s3backend.Config
 		check  func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3)
+		name   string
 	}{
 		{
-			"use-lockfile-string-true",
-			s3backend.Config{
+			name: "use-lockfile-string-true",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": "true",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
 		{
-			"use-lockfile-string-false",
-			s3backend.Config{
+			name: "use-lockfile-string-false",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": "false",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.False(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
 		{
-			"encrypt-string-true",
-			s3backend.Config{
+			name: "encrypt-string-true",
+			config: s3backend.Config{
 				"bucket":  "my-bucket",
 				"key":     "my-key",
 				"region":  "us-east-1",
 				"encrypt": "true",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.Encrypt)
 			},
 		},
 		{
-			"force-path-style-string-true",
-			s3backend.Config{
+			name: "force-path-style-string-true",
+			config: s3backend.Config{
 				"bucket":           "my-bucket",
 				"key":              "my-key",
 				"region":           "us-east-1",
 				"force_path_style": "true",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.S3ForcePathStyle)
 			},
 		},
 		{
-			"skip-bucket-versioning-string-true",
-			s3backend.Config{
+			name: "skip-bucket-versioning-string-true",
+			config: s3backend.Config{
 				"bucket":                 "my-bucket",
 				"key":                    "my-key",
 				"region":                 "us-east-1",
 				"skip_bucket_versioning": "true",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketVersioning)
 			},
 		},
 		{
-			"native-bool-still-works",
-			s3backend.Config{
+			name: "native-bool-still-works",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": true,
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
 		{
-			"empty-string-coerces-to-false",
-			s3backend.Config{
+			name: "empty-string-coerces-to-false",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": "",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.False(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
 		{
-			"numeric-one-coerces-to-true",
-			s3backend.Config{
+			name: "numeric-one-coerces-to-true",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": "1",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},

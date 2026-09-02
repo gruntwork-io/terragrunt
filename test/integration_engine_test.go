@@ -43,7 +43,7 @@ var (
 	)
 )
 
-//nolint:paralleltest
+//nolint:paralleltest // setupLocalEngine calls t.Setenv, which bars t.Parallel
 func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
@@ -61,7 +61,7 @@ func TestEngineLocalPlan(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
-//nolint:paralleltest
+//nolint:paralleltest // setupLocalEngine calls t.Setenv, which bars t.Parallel
 func TestEngineLocalApply(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
@@ -389,7 +389,6 @@ func TestEngineTelemetry(t *testing.T) {
 	helpers.ValidateHookTraceParent(t, "hook_print_traceparent", str)
 }
 
-//nolint:paralleltest
 func TestEngineDisabledByNoEngineFlag(t *testing.T) {
 	t.Skip("no-engine OpenTofu engine integration is not reliably exercised in CI")
 	t.Setenv(envVarExperimental, "1")
@@ -420,7 +419,7 @@ func TestEngineDisabledByNoEngineFlag(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
-//nolint:paralleltest
+//nolint:paralleltest // the engine tests each clean the fixture directory they share
 func TestEngineDisabledByNoEngineFlagWithExperiment(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
@@ -448,7 +447,6 @@ func TestEngineDisabledByNoEngineFlagWithExperiment(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
-//nolint:paralleltest
 func TestEngineDisabledByNoEngineFlagWithRunAll(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 

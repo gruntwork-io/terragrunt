@@ -1320,11 +1320,12 @@ func sopsDecryptFile(
 
 	pctx.FilesRead.Add(path)
 
-	return sopsDecryptFileImpl(ctx, pctx, l, path, format, pctx.Venv.Sops)
+	return SopsDecryptFileWithDecrypter(ctx, pctx, l, path, format, pctx.Venv.Sops)
 }
 
-// sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
-func sopsDecryptFileImpl(
+// SopsDecryptFileWithDecrypter decrypts the SOPS-encrypted file at `path` with `d`,
+// caching the plaintext for the rest of the run.
+func SopsDecryptFileWithDecrypter(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
@@ -1448,8 +1449,6 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 }
 
 // StartsWith Implementation of Terraform's StartsWith function
-//
-//nolint:dupl
 func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	if len(args) != stringCompParams {
 		return false, WrongNumberOfParamsError{
@@ -1463,8 +1462,6 @@ func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool,
 }
 
 // EndsWith Implementation of Terraform's EndsWith function
-//
-//nolint:dupl
 func EndsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	if len(args) != stringCompParams {
 		return false, WrongNumberOfParamsError{
@@ -1510,8 +1507,6 @@ func TimeCmp(
 }
 
 // StrContains Implementation of Terraform's StrContains function
-//
-//nolint:dupl
 func StrContains(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	if len(args) != stringCompParams {
 		return false, WrongNumberOfParamsError{
@@ -1726,12 +1721,15 @@ func parseMarkGlobBoundary(pctx *ParsingContext, args []string) (string, []strin
 
 	switch {
 	case args[0] == markGlobBoundaryFlag:
-		if len(args) < 2 { //nolint:mnd
+		// lenFlagWithValue counts the flag and the directory it takes.
+		const lenFlagWithValue = 2
+
+		if len(args) < lenFlagWithValue {
 			return "", nil, fmt.Errorf("%s requires a directory value", markGlobBoundaryFlag)
 		}
 
 		raw = args[1]
-		args = slices.Delete(args, 0, 2) //nolint:mnd
+		args = slices.Delete(args, 0, lenFlagWithValue)
 	case strings.HasPrefix(args[0], markGlobBoundaryFlag+"="):
 		raw = strings.TrimPrefix(args[0], markGlobBoundaryFlag+"=")
 		args = slices.Delete(args, 0, 1)

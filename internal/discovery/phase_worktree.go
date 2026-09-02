@@ -25,6 +25,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// fromToTasks is the number of tasks a worktree comparison splits into: one for the from side, one for the to side.
+const fromToTasks = 2
+
 // WorktreePhase discovers components in Git worktrees for Git-based filters.
 type WorktreePhase struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery.
@@ -436,12 +439,11 @@ func (p *WorktreePhase) walkChangedStack(
 	var fromComponents, toComponents component.Components
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
-	// Run at most 2 discovery tasks (from/to) in parallel, capped by available CPUs.
-	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
+	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), fromToTasks))
 
 	var (
 		mu   sync.Mutex
-		errs = make([]error, 0, 2) //nolint:mnd
+		errs = make([]error, 0, fromToTasks)
 	)
 
 	parentFilters := discovery.filters.ExcludingGitFilters()
@@ -537,8 +539,7 @@ func (p *WorktreePhase) walkChangedStack(
 		var fromSHA, toSHA string
 
 		shaGroup, _ := errgroup.WithContext(ctx)
-		// Hash from/to directories in parallel (at most 2), capped by available CPUs.
-		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
+		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), fromToTasks))
 
 		shaGroup.Go(func() error {
 			var localErr error

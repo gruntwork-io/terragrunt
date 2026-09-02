@@ -20,7 +20,7 @@ import (
 func TestConfig_CreateS3LoggingInput(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
+	testCases := []struct {
 		name          string
 		config        s3backend.Config
 		loggingInput  s3.PutBucketLoggingInput
@@ -130,25 +130,25 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 func TestConfig_ForcePathStyleClientSession(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
-		name     string
+	testCases := []struct {
 		config   s3backend.Config
+		name     string
 		expected bool
 	}{
 		{
-			"path-style-true",
-			s3backend.Config{"force_path_style": true},
-			true,
+			name:     "path-style-true",
+			config:   s3backend.Config{"force_path_style": true},
+			expected: true,
 		},
 		{
-			"path-style-false",
-			s3backend.Config{"force_path_style": false},
-			false,
+			name:     "path-style-false",
+			config:   s3backend.Config{"force_path_style": false},
+			expected: false,
 		},
 		{
-			"path-style-non-existent",
-			s3backend.Config{},
-			false,
+			name:     "path-style-non-existent",
+			config:   s3backend.Config{},
+			expected: false,
 		},
 	}
 
@@ -170,10 +170,10 @@ func TestConfig_ForcePathStyleClientSession(t *testing.T) {
 func TestConfig_CustomStateEndpoints(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
-		name     string
+	testCases := []struct {
 		config   s3backend.Config
 		expected *awshelper.AwsSessionConfig
+		name     string
 	}{
 		{
 			name:   "using pre 1.6.x settings only",
@@ -215,13 +215,13 @@ func TestConfig_CustomStateEndpoints(t *testing.T) {
 func TestConfig_GetAwsSessionConfig(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
-		name   string
+	testCases := []struct {
 		config s3backend.Config
+		name   string
 	}{
 		{
-			"all-values",
-			s3backend.Config{
+			name: "all-values",
+			config: s3backend.Config{
 				"region":                  "foo",
 				"endpoint":                "bar",
 				"profile":                 "baz",
@@ -231,12 +231,12 @@ func TestConfig_GetAwsSessionConfig(t *testing.T) {
 			},
 		},
 		{
-			"no-values",
-			s3backend.Config{},
+			name:   "no-values",
+			config: s3backend.Config{},
 		},
 		{
-			"extra-values",
-			s3backend.Config{
+			name: "extra-values",
+			config: s3backend.Config{
 				"something":               "unexpected",
 				"region":                  "foo",
 				"endpoint":                "bar",
@@ -276,13 +276,13 @@ func TestConfig_GetAwsSessionConfig(t *testing.T) {
 func TestConfig_GetAwsSessionConfigWithAssumeRole(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
-		name   string
+	testCases := []struct {
 		config s3backend.Config
+		name   string
 	}{
 		{
-			"all-values",
-			s3backend.Config{
+			name: "all-values",
+			config: s3backend.Config{
 				"role_arn":     "arn::it",
 				"external_id":  "123",
 				"session_name": "foobar",
@@ -290,8 +290,8 @@ func TestConfig_GetAwsSessionConfigWithAssumeRole(t *testing.T) {
 			},
 		},
 		{
-			"no-tags",
-			s3backend.Config{"role_arn": "arn::it", "external_id": "123", "session_name": "foobar"},
+			name:   "no-tags",
+			config: s3backend.Config{"role_arn": "arn::it", "external_id": "123", "session_name": "foobar"},
 		},
 	}
 

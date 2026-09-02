@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -1353,6 +1354,38 @@ terraform {
 		&srcErr,
 		"an unrelated source decode error must not be rebranded as a dependency reference error",
 	)
+}
+
+// TestPartialParseIncludeRejectsDeepMapOnly pins that deep_map_only, which applies to
+// dependency mock outputs rather than includes, is reported as unsupported.
+func TestPartialParseIncludeRejectsDeepMapOnly(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "root.hcl"), []byte(`
+feature "skip_ci" {
+  default = true
+}
+`), 0644))
+
+	childPath := filepath.Join(tmpDir, "child", config.DefaultTerragruntConfigPath)
+	require.NoError(t, vfs.WriteFile(v.FS, childPath, []byte(`
+include "root" {
+  path           = "../root.hcl"
+  merge_strategy = "deep_map_only"
+}
+`), 0644))
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, v, childPath)
+	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
+
+	_, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+
+	var strategyErr config.IncludeMergeStrategyNotSupportedError
+
+	require.ErrorAs(t, err, &strategyErr)
 }
 
 // TestPartialParseFeatureFlagDefaultsFromIncludes verifies included feature defaults are available during partial parsing.

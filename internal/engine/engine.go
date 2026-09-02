@@ -1065,7 +1065,7 @@ func invoke(
 		l.Debugf("Engine execution done in %v", runOptions.CacheDir)
 
 		if resultCode != 0 {
-			err = util.ProcessExecutionError{
+			err = &util.ProcessExecutionError{
 				Err:             fmt.Errorf("command failed with exit code %d", resultCode),
 				Output:          output,
 				WorkingDir:      runOptions.CacheDir,
@@ -1322,8 +1322,8 @@ func ReadEngineOutput(v *venv.Venv, forceStdErr bool, output outputFn) error {
 			}
 		}
 	}
-	// TODO: Why does this lint need to be ignored?
-	return nil //nolint:nilerr
+
+	return nil //nolint:nilerr // the loop breaks when the stream ends; only init and shutdown failures are errors
 }
 
 // ConvertMetaToProtobuf converts metadata map to protobuf map

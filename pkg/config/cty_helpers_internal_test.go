@@ -1,4 +1,4 @@
-package config //nolint:testpackage // needs access to unexported includeConfigAsCtyVal / includeBlockLabel
+package config // needs access to unexported includeConfigAsCtyVal / includeBlockLabel
 
 import (
 	"os"

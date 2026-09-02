@@ -28,7 +28,7 @@ const (
 // leave the lock file alone when that flag is set, whether it arrives on the command
 // line or through `TF_CLI_ARGS_init`, so init fails exactly as it does without the cache.
 //
-//nolint:paralleltest,tparallel // the env-var subtest relies on t.Setenv.
+//nolint:paralleltest // the env-var subtest relies on t.Setenv.
 func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 	lockfileName := ".terraform.lock.hcl"
 

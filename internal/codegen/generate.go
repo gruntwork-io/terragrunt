@@ -254,8 +254,7 @@ func shouldContinueWithFileExists(
 	path string,
 	ifExists GenerateConfigExists,
 ) (bool, error) {
-	// TODO: Make exhaustive
-	switch ifExists { //nolint:exhaustive
+	switch ifExists {
 	case ExistsError:
 		return false, GenerateFileExistsError{path: path}
 	case ExistsSkip:
@@ -294,8 +293,9 @@ func shouldContinueWithFileExists(
 			" \"overwrite_terragrunt\", regenerating file.", path)
 
 		return true, nil
+	case ExistsUnknown:
+		return false, UnknownGenerateIfExistsVal{""}
 	default:
-		// This shouldn't happen, but we add this case anyway for defensive coding.
 		return false, UnknownGenerateIfExistsVal{""}
 	}
 }
@@ -307,8 +307,7 @@ func shouldRemoveWithFileExists(
 	path string,
 	ifDisable GenerateConfigDisabled,
 ) (bool, error) {
-	// TODO: Make exhaustive
-	switch ifDisable { //nolint:exhaustive
+	switch ifDisable {
 	case DisabledSkip:
 		// Do nothing since skip was configured.
 		l.Debugf("The file path %s already exists and if_disabled for code"+
@@ -345,8 +344,9 @@ func shouldRemoveWithFileExists(
 			" to \"remove_terragrunt\", removing file.", path)
 
 		return true, nil
+	case DisabledUnknown:
+		return false, UnknownGenerateIfDisabledVal{""}
 	default:
-		// This shouldn't happen, but we add this case anyway for defensive coding.
 		return false, UnknownGenerateIfDisabledVal{""}
 	}
 }

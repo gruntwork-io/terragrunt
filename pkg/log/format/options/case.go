@@ -17,7 +17,7 @@ const (
 	CapitalizeCase
 )
 
-var caseList = NewMapValue(map[CaseValue]string{ //nolint:gochecknoglobals
+var caseList = NewMapValue(map[CaseValue]string{
 	UpperCase:      "upper",
 	LowerCase:      "lower",
 	CapitalizeCase: "capitalize",

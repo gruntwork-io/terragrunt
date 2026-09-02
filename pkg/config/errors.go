@@ -72,6 +72,20 @@ func (err InvalidMergeStrategyTypeError) Error() string {
 	)
 }
 
+// IncludeMergeStrategyNotSupportedError reports a merge strategy that parses but
+// applies only to dependency mock outputs, so an include block cannot use it.
+type IncludeMergeStrategyNotSupportedError string
+
+func (err IncludeMergeStrategyNotSupportedError) Error() string {
+	return fmt.Sprintf(
+		"Include merge strategy %s is not supported for include blocks. Valid strategies are: %s, %s, %s",
+		string(err),
+		NoMerge,
+		ShallowMerge,
+		DeepMerge,
+	)
+}
+
 type DependencyDirNotFoundError struct {
 	Dir []string
 }

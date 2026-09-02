@@ -15,8 +15,8 @@ import (
 
 	// The pinned go-getter/s3/v2 builds its S3 client on aws-sdk-go v1, so the
 	// dependency-contract tests below have to drive the deprecated v1 chain.
-	"github.com/aws/aws-sdk-go/aws"         //nolint:staticcheck
-	"github.com/aws/aws-sdk-go/aws/session" //nolint:staticcheck
+	"github.com/aws/aws-sdk-go/aws"         //nolint:staticcheck // deprecated v1 SDK, per the note above
+	"github.com/aws/aws-sdk-go/aws/session" //nolint:staticcheck // deprecated v1 SDK, per the note above
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"

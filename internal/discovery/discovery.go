@@ -471,34 +471,30 @@ func (d *Discovery) runGraphPhase(
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
 
-		var buildErrs []error
-
-		telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
+		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
-				buildErrs = d.buildDependencyGraph(childCtx, l, v, opts, allComponents)
-				return errors.Join(buildErrs...)
+				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents)...)
 			})
 
-		if len(buildErrs) > 0 && !d.suppressParseErrors {
+		if buildErr != nil && !d.suppressParseErrors {
 			return &PhaseResults{
 				Discovered: discovered,
 				Candidates: candidates,
-			}, errors.Join(buildErrs...)
+			}, buildErr
 		}
 	}
 
 	phase := NewGraphPhase(d.numWorkers, d.maxDependencyDepth)
 
-	var (
-		result *PhaseResults
-		err    error
-	)
+	var result *PhaseResults
 
-	telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
+	err := telemetry.TelemeterFromContext(ctx).Collect(
 		ctx, l, "discover_dependencies", map[string]any{},
 		func(childCtx context.Context, l log.Logger) error {
-			result, err = phase.Run(childCtx, l, v, &PhaseInput{
+			var runErr error
+
+			result, runErr = phase.Run(childCtx, l, v, &PhaseInput{
 				Opts:       opts,
 				Components: resultsToComponents(discovered),
 				Candidates: candidates,
@@ -506,7 +502,7 @@ func (d *Discovery) runGraphPhase(
 				Discovery:  d,
 			})
 
-			return err
+			return runErr
 		})
 
 	allDiscovered := discovered

@@ -91,7 +91,7 @@ func (phs Placeholders) Format(data *options.Data) (string, error) {
 //
 // e.g. "level(color=green, case=upper) some-text" returns the instance of the `level` placeholder
 // and "(color=green, case=upper) some-text" string.
-func (phs Placeholders) findPlaceholder(str string) (Placeholder, string) { //nolint:ireturn
+func (phs Placeholders) findPlaceholder(str string) (Placeholder, string) {
 	var (
 		placeholder Placeholder
 		optIndex    int
@@ -159,7 +159,7 @@ func Parse(str string) (Placeholders, error) {
 	}
 }
 
-func findPlaintextPlaceholder(str string) (Placeholder, string) { //nolint:ireturn
+func findPlaintextPlaceholder(str string) (Placeholder, string) {
 	if len(str) == 0 {
 		return nil, str
 	}

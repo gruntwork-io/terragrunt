@@ -558,7 +558,7 @@ func TestGcpNoPrefixBucket(t *testing.T) {
 func TestGcpParallelStateInit(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test") //nolint:usetesting
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test") //nolint:usetesting // TODO: check whether t.TempDir works here
 	if err != nil {
 		require.NoError(t, err)
 	}
@@ -611,7 +611,7 @@ func createTmpTerragruntGCSConfig(
 ) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test") //nolint:usetesting
+	tmpFolder, err := os.MkdirTemp("", "terragrunt-test") //nolint:usetesting // TODO: check whether t.TempDir works here
 	if err != nil {
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
 	}
