@@ -20,6 +20,18 @@ var ErrMalformedResponse = errors.New("malformed portal response")
 // an object.
 var ErrResponseNotObject = fmt.Errorf("%w: not a JSON object", ErrMalformedResponse)
 
+// ErrLoginDenied reports a login request the user refused at the portal.
+var ErrLoginDenied = errors.New("the login request was denied")
+
+// ErrLoginExpired reports a login request that ran out of time before the user
+// approved it.
+var ErrLoginExpired = errors.New("the login request expired before it was approved")
+
+// ErrPollLimit reports a poll loop that ran past the attempts its authorization
+// allows. An ordinary login ends on that deadline first, so this reports a bug
+// here rather than anything the portal did.
+var ErrPollLimit = errors.New("the login poll ran past the attempts its request allows")
+
 // MissingFieldError reports a response that left out a field the CLI needs. It
 // unwraps to [ErrMalformedResponse], so a caller that does not care which field
 // was missing can match the class instead.
@@ -56,6 +68,18 @@ const (
 
 	// ErrorCodeServerError reports an unexpected failure inside the portal.
 	ErrorCodeServerError ErrorCode = "server_error"
+
+	// ErrorCodeAuthorizationPending reports a login request the user has not
+	// answered yet. This is an expected sentinel error indicating
+	// that polling should continue at the same rate.
+	ErrorCodeAuthorizationPending ErrorCode = "authorization_pending"
+
+	// ErrorCodeAccessDenied reports a login request the user refused.
+	ErrorCodeAccessDenied ErrorCode = "access_denied"
+
+	// ErrorCodeExpiredToken reports a login request the portal discarded because
+	// nobody answered it in time.
+	ErrorCodeExpiredToken ErrorCode = "expired_token"
 )
 
 // Error reports a request the portal refused.
