@@ -149,7 +149,7 @@ linters:
         - pattern: ^filepath\.EvalSymlinks$
           pkg: ^path/filepath$
           msg: resolve links on the venv's vfs.FS via vfs.EvalSymlinks, or vfs.ResolveForCompare when the result is to be compared against another path
-        - pattern: ^(vfs\.NewOSFS|vexec\.NewOSExec|vhttp\.NewOSClient|vsops\.NewOSDecrypter)$
+        - pattern: ^(vfs\.NewOSFS|vexec\.NewOSExec|vhttp\.NewOSClient|vsops\.NewOSDecrypter|vbrowser\.NewOSOpener)$
           msg: take the handle from the venv already in scope rather than building a fresh OS-backed one
         - pattern: ^config\.LoadDefaultConfig$
           pkg: ^github.com/aws/aws-sdk-go-v2/config$
@@ -220,7 +220,7 @@ linters:
       # the real OS any more, so neither should be able to start.
       - linters:
           - forbidigo
-        path: ^internal/(vfs|vexec|vhttp|vsops|venv)/|^internal/os/exec/
+        path: ^internal/(vfs|vexec|vhttp|vsops|vbrowser|venv)/|^internal/os/exec/
       # A pty is the real terminal by definition, so the two callers that
       # decide whether to allocate one read the real descriptor to do it.
       # Both are reached only once the venv's Terminal has already reported
