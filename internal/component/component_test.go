@@ -1,6 +1,7 @@
 package component_test
 
 import (
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -271,4 +272,52 @@ func TestUnitGuardConfigParseWithRacing(t *testing.T) {
 
 	assert.Equal(t, int32(1), parses.Load(), "config should be parsed exactly once")
 	assert.NotNil(t, unit.Config(), "config should be populated after parsing")
+}
+
+func TestUnitDisplayPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		workingDir string
+		unitPath   string
+		expected   string
+	}{
+		{
+			name:       "nested unit is relative to the working dir",
+			workingDir: filepath.Join(string(filepath.Separator), "repo"),
+			unitPath: filepath.Join(
+				string(filepath.Separator), "repo",
+				"walmart-b2b", "test", "infra", "cloudarmor",
+			),
+			expected: filepath.Join("walmart-b2b", "test", "infra", "cloudarmor"),
+		},
+		{
+			name:       "no ./ prefix is added",
+			workingDir: filepath.Join(string(filepath.Separator), "base"),
+			unitPath:   filepath.Join(string(filepath.Separator), "base", "child"),
+			expected:   "child",
+		},
+		{
+			name:       "empty working dir falls back to the absolute path",
+			workingDir: "",
+			unitPath:   filepath.Join(string(filepath.Separator), "base", "child"),
+			expected:   filepath.Join(string(filepath.Separator), "base", "child"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			unit := component.NewUnit(tc.unitPath)
+			if tc.workingDir != "" {
+				unit = unit.WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: tc.workingDir,
+				})
+			}
+
+			assert.Equal(t, tc.expected, unit.DisplayPath())
+		})
+	}
 }

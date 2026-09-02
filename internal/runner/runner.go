@@ -464,10 +464,15 @@ func (rnr *Runner) Run(
 
 		unitPath := u.Path()
 		unitName := filepath.Base(unitPath)
+		// DisplayPath is the working-dir-relative path shown in log prefixes. It is
+		// emitted alongside the absolute unit_path because telemetry backends
+		// truncate long string attributes, hiding the part that identifies the unit.
+		unitPathRelative := u.DisplayPath()
 
 		return telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, unitLogger, "runner_pool_task", map[string]any{
 				"unit_path":              unitPath,
+				"unit_path_relative":     unitPathRelative,
 				"unit_name":              unitName,
 				"terraform_command":      unitOpts.TerraformCommand,
 				"terraform_cli_args":     unitOpts.TerraformCliArgs,
@@ -519,6 +524,7 @@ func (rnr *Runner) Run(
 				err = telemetry.TelemeterFromContext(childCtx).
 					Collect(childCtx, unitLogger, "unit_read_config", map[string]any{
 						"unit_path":              unitPath,
+						"unit_path_relative":     unitPathRelative,
 						"unit_name":              unitName,
 						"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 					}, func(readCtx context.Context, unitLogger log.Logger) error {
@@ -554,9 +560,10 @@ func (rnr *Runner) Run(
 
 				err = telemetry.TelemeterFromContext(childCtx).
 					Collect(childCtx, unitLogger, "unit_run", map[string]any{
-						"unit_path":         unitPath,
-						"unit_name":         unitName,
-						"terraform_command": unitOpts.TerraformCommand,
+						"unit_path":          unitPath,
+						"unit_path_relative": unitPathRelative,
+						"unit_name":          unitName,
+						"terraform_command":  unitOpts.TerraformCommand,
 					}, func(runCtx context.Context, unitLogger log.Logger) error {
 						return unitRunner.Run(
 							runCtx,
