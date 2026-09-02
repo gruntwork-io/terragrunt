@@ -53,6 +53,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/hashicorp/go-version"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Command category names.
@@ -206,7 +207,7 @@ func WrapWithTelemetry(
 			}
 
 			return nil
-		})
+		}, trace.WithSpanKind(opts.Telemetry.RootSpanKind()))
 	}
 }
 

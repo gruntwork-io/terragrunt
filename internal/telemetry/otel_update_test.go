@@ -223,3 +223,97 @@ func TestNewTelemeterNoExporters(t *testing.T) {
 	assert.True(t, called)
 	require.NoError(t, tlm.Shutdown(t.Context()))
 }
+
+func TestOptionsRootSpanKind(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		opts     *telemetry.Options
+		name     string
+		expected trace.SpanKind
+	}{
+		{name: "nil receiver", opts: nil, expected: trace.SpanKindInternal},
+		{name: "unset", opts: &telemetry.Options{}, expected: trace.SpanKindInternal},
+		{
+			name:     "server",
+			opts:     &telemetry.Options{TraceRootSpanKind: "server"},
+			expected: trace.SpanKindServer,
+		},
+		{
+			name:     "case and space insensitive",
+			opts:     &telemetry.Options{TraceRootSpanKind: "  SERVER "},
+			expected: trace.SpanKindServer,
+		},
+		{
+			name:     "consumer",
+			opts:     &telemetry.Options{TraceRootSpanKind: "consumer"},
+			expected: trace.SpanKindConsumer,
+		},
+		{
+			name:     "unrecognized value degrades to internal",
+			opts:     &telemetry.Options{TraceRootSpanKind: "garbage"},
+			expected: trace.SpanKindInternal,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, tc.opts.RootSpanKind())
+		})
+	}
+}
+
+func TestCollectHonorsSpanKind(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.Telemetry.TraceExporter = consoleExporter
+
+	tlm, err := telemetry.NewTelemeter(
+		t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tlm)
+
+	require.NoError(t, tlm.Collect(
+		t.Context(), nil, "entry_span", nil,
+		func(_ context.Context, _ log.Logger) error { return nil },
+		trace.WithSpanKind(trace.SpanKindServer),
+	))
+	require.NoError(t, tlm.Shutdown(t.Context()))
+
+	// SpanKindServer serializes as 2 in the console exporter's JSON.
+	assert.Contains(t, buf.String(), `"SpanKind":2`)
+}
+
+func TestCollectSetsErrorStatusOnFailure(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.Telemetry.TraceExporter = consoleExporter
+
+	tlm, err := telemetry.NewTelemeter(
+		t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false,
+	)
+	require.NoError(t, err)
+
+	errSentinel := errors.New("intentional failure")
+
+	gotErr := tlm.Collect(
+		t.Context(), nil, "failing_span", nil,
+		func(_ context.Context, _ log.Logger) error { return errSentinel },
+	)
+	require.ErrorIs(t, gotErr, errSentinel)
+	require.NoError(t, tlm.Shutdown(t.Context()))
+
+	// Backends derive an errored transaction from the span status, not from the
+	// recorded exception event, so both must be present.
+	assert.Contains(t, buf.String(), `"Code":"Error"`)
+	assert.Contains(t, buf.String(), errSentinel.Error())
+}

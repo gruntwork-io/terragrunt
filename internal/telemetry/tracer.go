@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -197,16 +198,19 @@ func NewTraceExporter(
 	}
 }
 
-// Trace collects traces for method execution.
+// Trace collects traces for method execution. Any spanOpts are forwarded to the
+// underlying tracer's Start call, so callers can set the span kind, extra
+// attributes or links without reaching for the OpenTelemetry SDK directly.
 func (tracer *Tracer) Trace(
 	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
+	spanOpts ...trace.SpanStartOption,
 ) error {
 	if tracer == nil || tracer.spanExporter == nil ||
 		tracer.provider == nil { // invoke function without tracing
 		return fn(ctx)
 	}
 
-	ctx, span := tracer.openSpan(ctx, name, attrs)
+	ctx, span := tracer.openSpan(ctx, name, attrs, spanOpts...)
 
 	if span == nil {
 		if tracer.l != nil {
@@ -223,8 +227,11 @@ func (tracer *Tracer) Trace(
 	defer span.End()
 
 	if err := fn(ctx); err != nil {
-		// record error in span
+		// Record both the exception event and the span status: backends derive an
+		// errored transaction from the status, not from the event.
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		return err
 	}
 
@@ -236,6 +243,7 @@ func (tracer *Tracer) openSpan(
 	ctx context.Context,
 	name string,
 	attrs map[string]any,
+	spanOpts ...trace.SpanStartOption,
 ) (context.Context, trace.Span) {
 	if tracer.provider == nil {
 		return ctx, nil
@@ -261,7 +269,7 @@ func (tracer *Tracer) openSpan(
 	// a useful lint, though. We should consider removing the suppression
 	// and fixing the lint.
 
-	ctx, span := tracer.Start(ctx, name) // nolint:spancheck
+	ctx, span := tracer.Start(ctx, name, spanOpts...) // nolint:spancheck
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
 

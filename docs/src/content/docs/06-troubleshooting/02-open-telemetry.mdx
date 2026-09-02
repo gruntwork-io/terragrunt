@@ -33,6 +33,9 @@ Tracing configuration:
 - `TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
 - `TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
 - `TRACEPARENT` - if set, the value will be used as a parent trace context, format `TRACEPARENT=00-<hex_trace_id>-<hex_span_id>-<trace_flags>`, example: `TRACEPARENT=00-xxx-yyy-01`
+- `TG_TELEMETRY_TRACE_ROOT_SPAN_KIND` - span kind of the root command span. Defaults to `internal`, which is what the OpenTelemetry specification prescribes for the local root span of a CLI process. Supported values are `internal`, `server`, `consumer`, `producer` and `client`; an unrecognized value falls back to `internal`.
+
+  Set this to `server` if your APM backend only builds a service-level transaction (throughput, response time, error rate) from entry spans whose kind is `server` or `consumer`. New Relic, Datadog and Elastic all use that heuristic, so without it a Terragrunt run produces spans but no transaction. The alternative is an OpenTelemetry Collector `transform` processor rewriting the kind, which needs a collector in the export path.
 
 Metrics configuration:
 

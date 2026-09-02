@@ -56,6 +56,7 @@ const (
 	TelemetryTraceExporterFlagName                  = "telemetry-trace-exporter"
 	TelemetryTraceExporterInsecureEndpointFlagName  = "telemetry-trace-exporter-insecure-endpoint"
 	TelemetryTraceExporterHTTPEndpointFlagName      = "telemetry-trace-exporter-http-endpoint"
+	TelemetryTraceRootSpanKindFlagName              = "telemetry-trace-root-span-kind"
 	TraceparentFlagName                             = "traceparent"
 	TelemetryMetricExporterFlagName                 = "telemetry-metric-exporter"
 	TelemetryMetricExporterInsecureEndpointFlagName = "telemetry-metric-exporter-insecure-endpoint"
@@ -393,6 +394,11 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 				opts.StrictControls,
 			),
 		),
+
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			EnvVars:     tgPrefix.EnvVars(TelemetryTraceRootSpanKindFlagName),
+			Destination: &opts.Telemetry.TraceRootSpanKind,
+		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			EnvVars:     flags.Prefix{}.EnvVars(TraceparentFlagName),
