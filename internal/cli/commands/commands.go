@@ -299,10 +299,25 @@ func RunAction(
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
+	// Install run-scoped caches on actionCtx so memoized helpers like
+	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] and
+	// the version probes below share state across the whole action.
+	actionCtx := cache.ContextWithCache(ctx)
+
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(ctx, l, opts, v); err != nil {
+		if err := setupAutoProviderCacheDir(actionCtx, l, opts, v); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
+		}
+	}
+
+	// The implementation decides which CLI config files the cache server reads, so resolve it before the tips and the server start; a run the probe leaves mismatched is warned about, and bypasses the cache, in the command hook.
+	if opts.ProviderCacheOptions.Enabled {
+		if err := PopulateTFImplementation(actionCtx, l, opts, v); err != nil {
+			l.Debugf(
+				"Failed to detect the OpenTofu/Terraform implementation; the provider cache server falls back to OpenTofu's CLI config file locations: %v",
+				err,
+			)
 		}
 	}
 
@@ -325,16 +340,12 @@ func RunAction(
 		l.Formatter().SetDisabledColors(true)
 	}
 
-	// Install run-scoped caches on actionCtx so memoized helpers like
-	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] share
-	// state across the whole action.
-	actionCtx := cache.ContextWithCache(ctx)
-
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
 		server, err := providercache.InitServer(
 			l,
 			v,
+			opts.TofuImplementation,
 			&opts.ProviderCacheOptions,
 			opts.RootWorkingDir,
 		)
@@ -374,6 +385,34 @@ func RunAction(
 	return errGroup.Wait()
 }
 
+// PopulateTFImplementation resolves which OpenTofu/Terraform implementation opts.TFPath names, so
+// callers like the provider cache server can follow that implementation's behavior. It reuses the
+// run version cache and returns without probing when both the implementation and version are known.
+func PopulateTFImplementation(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v *venv.Venv,
+) error {
+	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown && opts.TerraformVersion != nil {
+		return nil
+	}
+
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
+		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
+		WorkingDir:   opts.WorkingDir,
+		VersionFiles: opts.VersionManagerFileName,
+	})
+	if err != nil {
+		return err
+	}
+
+	opts.TerraformVersion = ver
+	opts.TofuImplementation = impl
+
+	return nil
+}
+
 const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 
 // setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
@@ -401,18 +440,8 @@ func setupAutoProviderCacheDir(
 		return nil
 	}
 
-	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-			TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
-			WorkingDir:   opts.WorkingDir,
-			VersionFiles: opts.VersionManagerFileName,
-		})
-		if err != nil {
-			return err
-		}
-
-		opts.TerraformVersion = ver
-		opts.TofuImplementation = impl
+	if err := PopulateTFImplementation(ctx, l, opts, v); err != nil {
+		return err
 	}
 
 	terraformVersion := opts.TerraformVersion

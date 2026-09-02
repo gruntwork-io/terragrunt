@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"uuid"
 
@@ -92,6 +93,10 @@ type ProviderCache struct {
 	opts            *pcoptions.ProviderCacheOptions
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
+	// implementation is the implementation whose CLI config files Init loaded.
+	implementation tfimpl.Type
+	// mismatchWarning ensures a mixed-implementation run warns once, not once per unit.
+	mismatchWarning sync.Once
 }
 
 // NewProviderCache creates an uninitialized ProviderCache; call
@@ -104,13 +109,16 @@ func NewProviderCache() *ProviderCache {
 // options. v supplies the filesystem and outbound HTTP client for all
 // cache-server traffic; there are no defaults, so a missed wiring fails
 // loudly instead of silently reaching the real network or filesystem.
+// impl selects which implementation's CLI config files the user config is read from.
 func (pc *ProviderCache) Init(
 	l log.Logger,
 	v *venv.Venv,
+	impl tfimpl.Type,
 	pcOpts *pcoptions.ProviderCacheOptions,
 	rootWorkingDir string,
 ) error {
 	pc.opts = pcOpts
+	pc.implementation = impl
 
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
@@ -137,12 +145,12 @@ func (pc *ProviderCache) Init(
 		pcOpts.Token = fmt.Sprintf("%s:%s", APIKeyAuth, pcOpts.Token)
 	}
 
-	cliCfg, err := cliconfig.LoadUserConfig(v)
+	cliCfg, err := cliconfig.LoadUserConfig(v, impl)
 	if err != nil {
 		return err
 	}
 
-	userProviderDir, err := cliconfig.UserProviderDir(v)
+	userProviderDir, err := cliconfig.UserProviderDir(v, impl)
 	if err != nil {
 		return err
 	}
@@ -211,11 +219,12 @@ func (pc *ProviderCache) Init(
 func InitServer(
 	l log.Logger,
 	v *venv.Venv,
+	impl tfimpl.Type,
 	pcOpts *pcoptions.ProviderCacheOptions,
 	rootWorkingDir string,
 ) (*ProviderCache, error) {
 	pc := NewProviderCache()
-	if err := pc.Init(l, v, pcOpts, rootWorkingDir); err != nil {
+	if err := pc.Init(l, v, impl, pcOpts, rootWorkingDir); err != nil {
 		return nil, err
 	}
 
@@ -259,6 +268,13 @@ func (pc *ProviderCache) TerraformCommandHook(
 		}
 	default:
 		// skip cache creation for all other commands
+		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
+	}
+
+	// A mismatched implementation must not consume the wrong CLI config, so run without the cache.
+	if warning := ImplementationMismatchWarning(pc.implementation, tfOpts.TofuImplementation); warning != "" {
+		pc.mismatchWarning.Do(func() { l.Warn(warning) })
+
 		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
 	}
 
@@ -868,6 +884,38 @@ func StripProxiedCredentials(
 	}
 
 	return out
+}
+
+// ImplementationMismatchWarning returns the warning to log when a run's implementation reads
+// different CLI config files than the ones the cache server loaded at startup, or "" when the
+// two agree. Anything but Terraform reads OpenTofu's file locations, so only crossing that
+// boundary warrants a warning; the hook then bypasses the cache for that run.
+func ImplementationMismatchWarning(serverImpl, runImpl tfimpl.Type) string {
+	if runImpl == "" || runImpl == tfimpl.Unknown {
+		return ""
+	}
+
+	if (serverImpl == tfimpl.Terraform) == (runImpl == tfimpl.Terraform) {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"The Terragrunt provider cache server loaded the CLI config files %s reads, but this run uses %s, "+
+			"so the run skips the provider cache and uses its own CLI configuration. "+
+			"To cache providers for %s, set --tf-path or TG_TF_PATH to that binary, or align terraform_binary in your unit configuration.",
+		implementationFileOrder(serverImpl),
+		runImpl,
+		runImpl,
+	)
+}
+
+// implementationFileOrder names the CLI-config file set an implementation reads, for log messages.
+func implementationFileOrder(impl tfimpl.Type) string {
+	if impl == tfimpl.Terraform {
+		return string(tfimpl.Terraform)
+	}
+
+	return string(tfimpl.OpenTofu)
 }
 
 // AppendCustomHostRegistries adds custom host names from user config to the registry list
