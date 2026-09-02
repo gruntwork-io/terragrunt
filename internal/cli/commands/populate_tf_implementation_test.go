@@ -1,6 +1,7 @@
 package commands_test
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"slices"
@@ -14,6 +15,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -72,7 +76,7 @@ func TestPopulateTFImplementation(t *testing.T) {
 
 // TestRunActionDetectsImplementationForProviderCache pins the RunAction wiring: with the
 // provider cache enabled, the implementation is resolved before the cache server starts,
-// and a failed probe degrades to OpenTofu's file locations with a warning.
+// and a failed probe degrades to OpenTofu's file locations without failing the run.
 func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +117,7 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 		assert.NotContains(t, output.String(), "falls back to OpenTofu's CLI config file locations")
 	})
 
-	t.Run("failed detection warns and falls back", func(t *testing.T) {
+	t.Run("failed detection falls back without failing the run", func(t *testing.T) {
 		t.Parallel()
 
 		v := venvtest.New().WithGOOS("linux")
@@ -121,7 +125,7 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 
 		opts := newOpts()
 
-		l, output := newTestLogger()
+		l, output := newDebugTestLogger()
 
 		require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, v, action))
 		assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
@@ -200,4 +204,13 @@ provider_installation {
 	require.NoError(t, err, "a matching implementation must go through the cache and generate its CLI config")
 	assert.NotContains(t, string(generated), mirror)
 	assert.Contains(t, string(generated), "registry.terraform.io")
+}
+
+// newDebugTestLogger returns a debug-level logger whose output the test can assert on;
+// a failed implementation probe is a debug detail, not a warning the user must act on.
+func newDebugTestLogger() (log.Logger, *bytes.Buffer) {
+	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
+	output := new(bytes.Buffer)
+
+	return log.New(log.WithOutput(output), log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)), output
 }

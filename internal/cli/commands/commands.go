@@ -311,10 +311,10 @@ func RunAction(
 		}
 	}
 
-	// The implementation decides which CLI config files the cache server reads, so resolve it before the tips and the server start.
+	// The implementation decides which CLI config files the cache server reads, so resolve it before the tips and the server start; a run the probe leaves mismatched is warned about, and bypasses the cache, in the command hook.
 	if opts.ProviderCacheOptions.Enabled {
 		if err := PopulateTFImplementation(actionCtx, l, opts, v); err != nil {
-			l.Warnf(
+			l.Debugf(
 				"Failed to detect the OpenTofu/Terraform implementation; the provider cache server falls back to OpenTofu's CLI config file locations: %v",
 				err,
 			)
