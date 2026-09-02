@@ -2,9 +2,8 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
 
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type contextKey byte
@@ -12,6 +11,7 @@ type contextKey byte
 const (
 	telemeterContextKey contextKey = iota
 	TraceParentEnv                 = "TRACEPARENT"
+	traceParentHeader              = "traceparent"
 )
 
 // ContextWithTelemeter returns a new context with the provided Telemeter attached.
@@ -31,27 +31,22 @@ func TelemeterFromContext(ctx context.Context) *Telemeter {
 	return new(Telemeter)
 }
 
-// TraceParentFromContext returns the W3C traceparent header value from
-// the context's span, or an error if not available.
+// TraceParentFromContext returns the W3C traceparent header value of the current
+// span, so that a child process joins this trace as its child. Falls back to the
+// remote parent this process inherited when there is no current span, and to an
+// empty string when there is neither.
 func TraceParentFromContext(ctx context.Context, telemetry *Options) string {
-	span := trace.SpanFromContext(ctx)
-	spanContext := span.SpanContext()
+	carrier := propagation.MapCarrier{}
 
-	if !spanContext.IsValid() {
-		return ""
+	propagation.TraceContext{}.Inject(ctx, carrier)
+
+	if traceParent := carrier.Get(traceParentHeader); traceParent != "" {
+		return traceParent
 	}
 
-	if telemetry != nil && len(telemetry.TraceParent) > 0 {
+	if telemetry != nil {
 		return telemetry.TraceParent
 	}
 
-	traceID := spanContext.TraceID().String()
-	spanID := spanContext.SpanID().String()
-	flags := "00"
-
-	if spanContext.TraceFlags().IsSampled() {
-		flags = "01"
-	}
-
-	return fmt.Sprintf("00-%s-%s-%s", traceID, spanID, flags)
+	return ""
 }
