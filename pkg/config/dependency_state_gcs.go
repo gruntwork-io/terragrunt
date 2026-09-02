@@ -21,6 +21,22 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// Credential file types the GCS backend resolves through the Google SDK.
+const (
+	gcsCredentialTypeServiceAccount  = "service_account"
+	gcsCredentialTypeAuthorizedUser  = "authorized_user"
+	gcsCredentialTypeExternalAccount = "external_account"
+)
+
+// gcsExternalAccountSource is the subject-token source of an external_account credentials file.
+type gcsExternalAccountSource struct {
+	EnvironmentID string          `json:"environment_id"`
+	File          string          `json:"file"`
+	URL           string          `json:"url"`
+	Certificate   json.RawMessage `json:"certificate"`
+	Executable    json.RawMessage `json:"executable"`
+}
+
 // gcsStringConfigKeys names the backend settings a direct read consumes as strings.
 var gcsStringConfigKeys = []string{
 	"access_token",
@@ -139,9 +155,7 @@ func gcsEncryptionKeyDirectStateReadSupported(value string) bool {
 	return filepath.IsAbs(value) && !strings.HasPrefix(value, "~")
 }
 
-// gcsCredentialFileDirectStateReadSupported retains credential files whose
-// authentication does not launch or configure an external subject-token
-// provider from the Terragrunt process environment.
+// gcsCredentialFileDirectStateReadSupported retains credential files the direct reader resolves the same way the native backend does.
 func gcsCredentialFileDirectStateReadSupported(pctx *ParsingContext, filename string) bool {
 	if filename == "" {
 		return true
@@ -153,7 +167,8 @@ func gcsCredentialFileDirectStateReadSupported(pctx *ParsingContext, filename st
 	}
 
 	var metadata struct {
-		Type string `json:"type"`
+		Type             string                   `json:"type"`
+		CredentialSource gcsExternalAccountSource `json:"credential_source"`
 	}
 
 	decoder := json.NewDecoder(file)
@@ -170,7 +185,14 @@ func gcsCredentialFileDirectStateReadSupported(pctx *ParsingContext, filename st
 		return false
 	}
 
-	return metadata.Type == "service_account" || metadata.Type == "authorized_user"
+	switch metadata.Type {
+	case gcsCredentialTypeServiceAccount, gcsCredentialTypeAuthorizedUser:
+		return true
+	case gcsCredentialTypeExternalAccount:
+		return metadata.CredentialSource.supported()
+	default:
+		return false
+	}
 }
 
 func gcsBackendConfigKeyKnown(key string) bool {
@@ -476,4 +498,21 @@ func gcsCredentialPrecedenceSupported(env map[string]string, settings gcsDirectS
 	}
 
 	return settings.credentials == "" || applicationCredentials == ""
+}
+
+// supported mirrors the SDK's subject-provider selection order and keeps only the sources that resolve to the same identity the native backend uses: an absolute file path, or a URL.
+func (source *gcsExternalAccountSource) supported() bool {
+	if len(source.Certificate) > 0 {
+		return false
+	}
+
+	if strings.HasPrefix(source.EnvironmentID, "aws") || len(source.Executable) > 0 {
+		return false
+	}
+
+	if source.File != "" {
+		return filepath.IsAbs(source.File)
+	}
+
+	return source.URL != ""
 }
