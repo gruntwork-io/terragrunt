@@ -1568,15 +1568,31 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
 func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }
 
-// TestIncludeInCopySymlinkedDirectory reproduces issue #6791: the contents of
-// a symlinked directory named in include_in_copy must land in the destination.
+// TestIncludeInCopySymlinkedDirectory reproduces issue #6791: with the
+// symlinks experiment on, the contents of a symlinked directory named in
+// include_in_copy must land in the destination; without it, the slow path
+// keeps the pre-experiment behavior.
 func TestIncludeInCopySymlinkedDirectory(t *testing.T) {
 	t.Parallel()
 
 	for _, mode := range []struct {
-		name     string
-		fastCopy bool
-	}{{"slow", false}, {"fast", true}} {
+		name            string
+		copyOpts        []util.CopyOption
+		contentExpected bool
+	}{
+		{name: "slow-default", contentExpected: false},
+		{
+			name:            "slow-symlinks-experiment",
+			copyOpts:        []util.CopyOption{util.WithSymlinkedGlobRoots()},
+			contentExpected: true,
+		},
+		// The fast-copy walk always follows symlinks, so the experiment is moot there.
+		{
+			name:            "fast",
+			copyOpts:        []util.CopyOption{util.WithFastCopy()},
+			contentExpected: true,
+		},
+	} {
 		t.Run(mode.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1598,10 +1614,10 @@ func TestIncludeInCopySymlinkedDirectory(t *testing.T) {
 
 			destination := filepath.Join(tempDir, "destination")
 
-			copyOpts := []util.CopyOption{util.WithIncludeInCopy(".important_stuff")}
-			if mode.fastCopy {
-				copyOpts = append(copyOpts, util.WithFastCopy())
-			}
+			copyOpts := append(
+				[]util.CopyOption{util.WithIncludeInCopy(".important_stuff")},
+				mode.copyOpts...,
+			)
 
 			require.NoError(
 				t,
@@ -1616,6 +1632,14 @@ func TestIncludeInCopySymlinkedDirectory(t *testing.T) {
 			)
 
 			assert.FileExists(t, filepath.Join(destination, "main.tf"))
+
+			if !mode.contentExpected {
+				assert.NoFileExists(t, filepath.Join(destination, ".important_stuff", "stuff1"))
+				assert.NoFileExists(t, filepath.Join(destination, ".important_stuff", "sub", "stuff2"))
+
+				return
+			}
+
 			assert.FileExists(t, filepath.Join(destination, ".important_stuff", "stuff1"))
 			assert.FileExists(t, filepath.Join(destination, ".important_stuff", "sub", "stuff2"))
 		})
@@ -1623,14 +1647,29 @@ func TestIncludeInCopySymlinkedDirectory(t *testing.T) {
 }
 
 // TestExcludeFromCopySymlinkedDirectory pins the exclude_from_copy half of
-// issue #6791: a glob rooted at a symlinked directory must exclude its matches.
+// issue #6791: with the symlinks experiment on, a glob rooted at a symlinked
+// directory must exclude its matches; without it, the slow path keeps the
+// pre-experiment behavior of excluding nothing.
 func TestExcludeFromCopySymlinkedDirectory(t *testing.T) {
 	t.Parallel()
 
 	for _, mode := range []struct {
-		name     string
-		fastCopy bool
-	}{{"slow", false}, {"fast", true}} {
+		name            string
+		copyOpts        []util.CopyOption
+		excludeExpected bool
+	}{
+		{name: "slow-default", excludeExpected: false},
+		{
+			name:            "slow-symlinks-experiment",
+			copyOpts:        []util.CopyOption{util.WithSymlinkedGlobRoots()},
+			excludeExpected: true,
+		},
+		{
+			name:            "fast",
+			copyOpts:        []util.CopyOption{util.WithFastCopy()},
+			excludeExpected: true,
+		},
+	} {
 		t.Run(mode.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1652,10 +1691,10 @@ func TestExcludeFromCopySymlinkedDirectory(t *testing.T) {
 
 			destination := filepath.Join(tempDir, "destination")
 
-			copyOpts := []util.CopyOption{util.WithExcludeFromCopy("linked_stuff/*.txt")}
-			if mode.fastCopy {
-				copyOpts = append(copyOpts, util.WithFastCopy())
-			}
+			copyOpts := append(
+				[]util.CopyOption{util.WithExcludeFromCopy("linked_stuff/*.txt")},
+				mode.copyOpts...,
+			)
 
 			require.NoError(
 				t,
@@ -1671,7 +1710,14 @@ func TestExcludeFromCopySymlinkedDirectory(t *testing.T) {
 
 			assert.FileExists(t, filepath.Join(destination, "main.tf"))
 			assert.FileExists(t, filepath.Join(destination, "linked_stuff", "b.md"))
-			assert.NoFileExists(t, filepath.Join(destination, "linked_stuff", "a.txt"))
+
+			if mode.excludeExpected {
+				assert.NoFileExists(t, filepath.Join(destination, "linked_stuff", "a.txt"))
+
+				return
+			}
+
+			assert.FileExists(t, filepath.Join(destination, "linked_stuff", "a.txt"))
 		})
 	}
 }

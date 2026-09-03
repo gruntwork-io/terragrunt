@@ -170,6 +170,22 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 	return matches, nil
 }
 
+// LegacyExpandOption configures a [LegacyExpand] call.
+type LegacyExpandOption func(*legacyExpandOptions)
+
+type legacyExpandOptions struct {
+	symlinkedRoots bool
+}
+
+// WithSymlinkedRoots makes [LegacyExpand] resolve a walk root that is itself a
+// symbolic link and expand through it, the way zglob's own walk does. Enabled
+// behind the symlinks experiment (issue #6791).
+func WithSymlinkedRoots() LegacyExpandOption {
+	return func(o *legacyExpandOptions) {
+		o.symlinkedRoots = true
+	}
+}
+
 // LegacyExpand returns the paths on fsys that match pattern using zglob
 // semantics. Prefer [Expand] for new code. LegacyExpand exists only for call
 // sites that interpret patterns written by users in configuration surface
@@ -178,11 +194,16 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 // zglob offers no way to walk anything but the real filesystem, so the walk is
 // reproduced here over fsys. Deciding whether a path matches is still zglob's
 // own matcher, built from the pattern by [zglob.New], which keeps the grammar
-// identical; fsys supplies only the directory entries and the resolution of a
-// symlinked walk root.
+// identical; fsys supplies only the directory entries and, under
+// [WithSymlinkedRoots], the resolution of a symlinked walk root.
 // TestLegacyExpandMatchesZglob pins the two against each other over a corpus
 // of patterns.
-func LegacyExpand(fsys vfs.FS, pattern string) ([]string, error) {
+func LegacyExpand(fsys vfs.FS, pattern string, opts ...LegacyExpandOption) ([]string, error) {
+	var o legacyExpandOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	root, hasMeta := legacyRoot(pattern)
 
 	// A pattern with no metacharacters names one path, and zglob reports a
@@ -208,10 +229,12 @@ func LegacyExpand(fsys vfs.FS, pattern string) ([]string, error) {
 	// below, which probes the same root and surfaces the same error.
 	walkRoot := root
 
-	if info, lstatErr := vfs.Lstat(fsys, root); lstatErr == nil && info.Mode()&fs.ModeSymlink != 0 {
-		walkRoot, err = vfs.EvalSymlinks(fsys, root)
-		if err != nil {
-			return nil, err
+	if o.symlinkedRoots {
+		if info, lstatErr := vfs.Lstat(fsys, root); lstatErr == nil && info.Mode()&fs.ModeSymlink != 0 {
+			walkRoot, err = vfs.EvalSymlinks(fsys, root)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 

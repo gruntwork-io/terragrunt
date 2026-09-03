@@ -252,10 +252,14 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 }
 
 // Takes apbsolute glob path and returns an array of expanded relative paths
-func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, error) {
+func expandGlobPath(
+	fsys vfs.FS,
+	source, absoluteGlobPath string,
+	globOpts ...glob.LegacyExpandOption,
+) ([]string, error) {
 	includeExpandedGlobs := []string{}
 
-	absoluteExpandGlob, err := glob.LegacyExpand(fsys, absoluteGlobPath)
+	absoluteExpandGlob, err := glob.LegacyExpand(fsys, absoluteGlobPath, globOpts...)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, err
@@ -282,7 +286,7 @@ func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, err
 		)
 
 		if vfs.IsDir(fsys, absoluteExpandGlobPath) {
-			dirExpandGlob, err := expandGlobPath(fsys, source, absoluteExpandGlobPath+"/*")
+			dirExpandGlob, err := expandGlobPath(fsys, source, absoluteExpandGlobPath+"/*", globOpts...)
 			if err != nil {
 				return nil, err
 			}
@@ -298,9 +302,10 @@ func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, err
 type CopyOption func(*copyConfig)
 
 type copyConfig struct {
-	includeInCopy   []string
-	excludeFromCopy []string
-	fastCopy        bool
+	includeInCopy      []string
+	excludeFromCopy    []string
+	fastCopy           bool
+	symlinkedGlobRoots bool
 }
 
 // WithIncludeInCopy adds glob patterns that must be copied even when
@@ -326,6 +331,16 @@ func WithExcludeFromCopy(patterns ...string) CopyOption {
 func WithFastCopy() CopyOption {
 	return func(c *copyConfig) {
 		c.fastCopy = true
+	}
+}
+
+// WithSymlinkedGlobRoots makes include/exclude globs rooted at a symlinked
+// directory expand through the link, so its contents are matched (issue
+// #6791). Enabled behind the symlinks experiment; the fast-copy path always
+// follows symlinks and ignores this option.
+func WithSymlinkedGlobRoots() CopyOption {
+	return func(c *copyConfig) {
+		c.symlinkedGlobRoots = true
 	}
 }
 
@@ -377,7 +392,7 @@ func CopyFolderContents(
 		)
 	}
 
-	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy, cfg.symlinkedGlobRoots)
 	if err != nil {
 		return err
 	}
@@ -407,7 +422,7 @@ func NewCopyFilter(l log.Logger, fsys vfs.FS, source string, opts ...CopyOption)
 		return newFastCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
 	}
 
-	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy, cfg.symlinkedGlobRoots)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +441,13 @@ func newLegacyCopyFilter(
 	fsys vfs.FS,
 	source string,
 	includeInCopy, excludeFromCopy []string,
+	symlinkedGlobRoots bool,
 ) (func(absolutePath string) bool, error) {
+	var globOpts []glob.LegacyExpandOption
+	if symlinkedGlobRoots {
+		globOpts = append(globOpts, glob.WithSymlinkedRoots())
+	}
+
 	// Expand all the includeInCopy glob paths, converting the globbed results
 	// to relative paths so that they work in the copy filter.
 	includeExpandedGlobs := []string{}
@@ -434,7 +455,7 @@ func newLegacyCopyFilter(
 	for _, includeGlob := range includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
 
-		expandGlob, err := expandGlobPath(fsys, source, globPath)
+		expandGlob, err := expandGlobPath(fsys, source, globPath, globOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -447,7 +468,7 @@ func newLegacyCopyFilter(
 	for _, excludeGlob := range excludeFromCopy {
 		globPath := filepath.Join(source, excludeGlob)
 
-		expandGlob, err := expandGlobPath(fsys, source, globPath)
+		expandGlob, err := expandGlobPath(fsys, source, globPath, globOpts...)
 		if err != nil {
 			return nil, err
 		}

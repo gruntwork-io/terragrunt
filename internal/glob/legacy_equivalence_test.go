@@ -164,9 +164,10 @@ var symlinkedRootPatterns = []string{
 	"linked-rel/**/*.tf",
 }
 
-// TestLegacyExpandMatchesZglobOnSymlinkedRoot pins that a pattern rooted at a
-// symlinked directory expands through the link exactly as zglob does, since
-// zglob stats its walk root through symlinks (issue #6791).
+// TestLegacyExpandMatchesZglobOnSymlinkedRoot pins that, under
+// [glob.WithSymlinkedRoots], a pattern rooted at a symlinked directory expands
+// through the link exactly as zglob does, since zglob stats its walk root
+// through symlinks (issue #6791).
 func TestLegacyExpandMatchesZglobOnSymlinkedRoot(t *testing.T) {
 	t.Parallel()
 
@@ -197,14 +198,15 @@ func TestLegacyExpandMatchesZglobOnSymlinkedRoot(t *testing.T) {
 		want, wantErr := zglob.Glob(absolute)
 		require.NoError(t, wantErr, "pattern %q", pattern)
 
-		got, gotErr := glob.LegacyExpand(fsys, absolute)
+		got, gotErr := glob.LegacyExpand(fsys, absolute, glob.WithSymlinkedRoots())
 		require.NoError(t, gotErr, "pattern %q", pattern)
 		assert.ElementsMatch(t, want, got, "pattern %q", pattern)
 	}
 }
 
 // TestLegacyExpandExpandsThroughSymlinkedRoot pins the same symlinked-root
-// expansion on the in-memory filesystem, where symlinks live in a side table.
+// expansion on the in-memory filesystem, where symlinks live in a side table,
+// and that without [glob.WithSymlinkedRoots] the link stays opaque.
 func TestLegacyExpandExpandsThroughSymlinkedRoot(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +217,10 @@ func TestLegacyExpandExpandsThroughSymlinkedRoot(t *testing.T) {
 	require.NoError(t, vfs.Symlink(fsys, "/target", "/src/.important_stuff"))
 
 	got, err := glob.LegacyExpand(fsys, "/src/.important_stuff/*")
+	require.NoError(t, err)
+	assert.Empty(t, got, "without the option the symlinked root must not expand")
+
+	got, err = glob.LegacyExpand(fsys, "/src/.important_stuff/*", glob.WithSymlinkedRoots())
 	require.NoError(t, err)
 
 	// Matches are reported under the link's own spelling, not the target's.
@@ -245,7 +251,7 @@ func TestLegacyExpandDanglingSymlinkRootMatchesZglob(t *testing.T) {
 	_, wantErr := zglob.Glob(pattern)
 	require.ErrorIs(t, wantErr, fs.ErrNotExist)
 
-	_, gotErr := glob.LegacyExpand(vfs.NewOSFS(), pattern)
+	_, gotErr := glob.LegacyExpand(vfs.NewOSFS(), pattern, glob.WithSymlinkedRoots())
 	require.ErrorIs(t, gotErr, fs.ErrNotExist)
 }
 
@@ -258,8 +264,13 @@ func TestLegacyExpandDanglingSymlinkRootOnMemFS(t *testing.T) {
 	require.NoError(t, fsys.MkdirAll("/src", 0o755))
 	require.NoError(t, vfs.Symlink(fsys, "/missing", "/src/dangling"))
 
-	_, err := glob.LegacyExpand(fsys, "/src/dangling/*")
+	_, err := glob.LegacyExpand(fsys, "/src/dangling/*", glob.WithSymlinkedRoots())
 	require.ErrorIs(t, err, fs.ErrNotExist)
+
+	// Without the option the dangling link is opaque: no matches, no error.
+	got, err := glob.LegacyExpand(fsys, "/src/dangling/*")
+	require.NoError(t, err)
+	assert.Empty(t, got)
 }
 
 // TestLegacyExpandSymlinkToFileRootMatchesZglob pins that a pattern rooted at
@@ -285,7 +296,7 @@ func TestLegacyExpandSymlinkToFileRootMatchesZglob(t *testing.T) {
 	want, wantErr := zglob.Glob(pattern)
 	require.NoError(t, wantErr)
 
-	got, gotErr := glob.LegacyExpand(vfs.NewOSFS(), pattern)
+	got, gotErr := glob.LegacyExpand(vfs.NewOSFS(), pattern, glob.WithSymlinkedRoots())
 	require.NoError(t, gotErr)
 	assert.ElementsMatch(t, want, got)
 }

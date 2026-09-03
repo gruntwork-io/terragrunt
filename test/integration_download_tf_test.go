@@ -180,7 +180,7 @@ func TestTFLocalDownloadWithSymlinkedIncludeInCopy(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt apply -auto-approve --non-interactive --working-dir %s/live",
+			"terragrunt apply -auto-approve --experiment symlinks --non-interactive --working-dir %s/live",
 			rootPath,
 		),
 	)
@@ -189,7 +189,7 @@ func TestTFLocalDownloadWithSymlinkedIncludeInCopy(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt apply -auto-approve --non-interactive --working-dir %s/live",
+			"terragrunt apply -auto-approve --experiment symlinks --non-interactive --working-dir %s/live",
 			rootPath,
 		),
 	)
@@ -202,7 +202,7 @@ func TestTFLocalDownloadWithSymlinkedIncludeInCopy(t *testing.T) {
 	err := helpers.RunTerragruntCommand(
 		t,
 		fmt.Sprintf(
-			"terragrunt output -raw text --non-interactive --working-dir %s/live",
+			"terragrunt output -raw text --experiment symlinks --non-interactive --working-dir %s/live",
 			rootPath,
 		),
 		&stdout,

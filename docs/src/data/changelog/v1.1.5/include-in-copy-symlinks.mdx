@@ -1,10 +1,10 @@
 ---
 version: "v1.1.5"
-category: "bug-fixes"
+category: "experiments-updated"
 ---
 
-#### `include_in_copy` copies the contents of symlinked directories again
+#### `symlinks` experiment: `include_in_copy` copies the contents of symlinked directories again
 
-In v1.1.4, a directory named in `include_in_copy` that was a symbolic link no longer had its contents copied into the OpenTofu/Terraform working directory, so files behind the link were missing from `.terragrunt-cache`.
+In v1.1.4, a directory named in `include_in_copy` that was a symbolic link no longer had its contents copied into the OpenTofu/Terraform working directory, so files behind the link were missing from `.terragrunt-cache`. The same defect made `exclude_from_copy` patterns reaching through a symlinked directory exclude nothing.
 
-Glob patterns rooted at a symlinked directory now expand through the link again, matching the behavior of v1.1.3 and earlier. The same applies to `exclude_from_copy`.
+Enabling the [`symlinks` experiment](/reference/experiments/active#symlinks) (`--experiment symlinks` or `TG_EXPERIMENT=symlinks`) now makes glob patterns rooted at a symlinked directory expand through the link again, matching the behavior of v1.1.3 and earlier for both `include_in_copy` and `exclude_from_copy`. Without the experiment, the v1.1.4 behavior is unchanged.
