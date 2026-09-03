@@ -8,6 +8,8 @@ Support symlink resolution for Terragrunt units.
 
 By default, Terragrunt will ignore symlinks when determining which units it should run. By enabling this experiment, Terragrunt will resolve symlinks and add them to the list of units being run.
 
+It also makes `include_in_copy` and `exclude_from_copy` glob patterns rooted at a symlinked directory expand through the link, so the contents of a linked directory are copied into (or excluded from) the OpenTofu/Terraform working directory.
+
 ### `symlinks` - How to provide feedback
 
 Provide your feedback on the [Experiment: Symlinks](https://github.com/gruntwork-io/terragrunt/discussions/3671) discussion.
