@@ -274,18 +274,10 @@ func (cmd *Command) flagSetParse(
 		}
 
 		// cut off the args
-		var notFoundMatch bool
-
-		for i, arg := range args {
-			// `--var=input=from_env` trims to `var`
-			trimmed, _, _ := strings.Cut(strings.Trim(arg, "-"), "=")
-			if trimmed == undefArg {
-				undefArgs = append(undefArgs, arg)
-				notFoundMatch = true
-				args = args[i+1:]
-
-				break
-			}
+		flagArg, rest, found := cutAtUndefinedFlag(args, undefArg)
+		if found {
+			undefArgs = append(undefArgs, flagArg)
+			args = rest
 		}
 
 		if !cmd.DisabledErrorOnUndefinedFlag && !ctx.shellComplete {
@@ -294,7 +286,7 @@ func (cmd *Command) flagSetParse(
 
 		// This should be an impossible to reach code path, but in case the arg
 		// splitting failed to happen, this will prevent infinite loops
-		if !notFoundMatch {
+		if !found {
 			return nil, err
 		}
 	}
@@ -302,6 +294,30 @@ func (cmd *Command) flagSetParse(
 	undefArgs = append(undefArgs, flagSet.Args()...)
 
 	return undefArgs, err
+}
+
+// cutAtUndefinedFlag finds the arg that spells `undefArg` and returns it along with the args
+// that follow it, so that the next parse round starts past the flag that was rejected.
+//
+// Only a dash-prefixed arg is considered, because that is the only shape
+// `flag.FlagSet.Parse` reports as undefined. A *value* spelled like the undefined flag would
+// otherwise match first, since it comes earlier in the args, and the cut would land a token
+// early: the value is taken for the flag and the flag itself is left to be re-parsed as a
+// positional argument.
+func cutAtUndefinedFlag(args Args, undefArg string) (string, Args, bool) {
+	for i, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			continue
+		}
+
+		// `--var=input=from_env` trims to `var`
+		trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0] //nolint:mnd
+		if trimmed == undefArg {
+			return arg, args[i+1:], true
+		}
+	}
+
+	return "", args, false
 }
 
 func (cmd *Command) WrapAction(
