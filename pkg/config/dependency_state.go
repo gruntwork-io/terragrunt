@@ -27,7 +27,10 @@ func readDependencyStateOutputs(
 ) ([]byte, error) {
 	l.Debugf("Fetching outputs directly from %s", location)
 
-	var jsonOutputs []byte
+	var (
+		jsonOutputs []byte
+		encrypted   error
+	)
 
 	err := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, metric, attrs, func(ctx context.Context, l log.Logger) error {
@@ -44,14 +47,30 @@ func readDependencyStateOutputs(
 
 			jsonOutputs, err = stateOutputsJSON(reader, location)
 
+			// An encrypted state is an expected fallback rather than a failed read, so it is
+			// carried out of the callback to keep it off this metric's error counter.
+			if errors.Is(err, ErrDependencyStateEncrypted) {
+				encrypted = err
+
+				return nil
+			}
+
 			return err
 		})
 	if err != nil {
 		return nil, err
 	}
 
+	if encrypted != nil {
+		return nil, encrypted
+	}
+
 	return jsonOutputs, nil
 }
+
+// encryptedStateKey is the top-level key OpenTofu writes when client-side state
+// encryption is on, in place of the plaintext document the outputs live in.
+const encryptedStateKey = "encrypted_data"
 
 // stateOutputsJSON returns the state's top-level outputs object, reading only as far
 // as it must. OpenTofu and Terraform write outputs ahead of resources, so a large
@@ -59,8 +78,8 @@ func readDependencyStateOutputs(
 func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
 	body := &stateBodyReader{r: r}
 	// jsontext rejects duplicate names and invalid UTF-8 by default, and the v1 decoder
-	// this replaced accepted both. A state that reads today would start failing with an
-	// error whose guidance points at client-side encryption.
+	// this replaced accepted both. A state that reads today would start failing as
+	// malformed.
 	d := jsontext.NewDecoder(
 		body,
 		jsontext.AllowDuplicateNames(true),
@@ -87,7 +106,13 @@ func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
 			return nil, stateReadError(body, location, err)
 		}
 
-		if name.String() != "outputs" {
+		key := name.String()
+
+		if key == encryptedStateKey {
+			return nil, DependencyStateEncryptedError{Location: location}
+		}
+
+		if key != "outputs" {
 			if err := d.SkipValue(); err != nil {
 				return nil, stateReadError(body, location, err)
 			}
@@ -108,8 +133,7 @@ func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
 }
 
 // stateBodyReader records the last transport failure so a dropped connection is not
-// reported as malformed state. The docs point users at a JSON parse error to tell
-// them client-side state encryption is on, so that message has to stay specific.
+// reported as malformed state.
 type stateBodyReader struct {
 	r   io.Reader
 	err error

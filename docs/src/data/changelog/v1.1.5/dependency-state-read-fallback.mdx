@@ -1,0 +1,12 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Dependency state read failures fall back
+
+With the [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment enabled, network, permissions, and parsing failures from a direct dependency state read could end a run that worked through native output retrieval.
+
+Outside `render` and `render-json`, Terragrunt now retries failed direct reads with `tofu output` or `terraform output`. If native output retrieval succeeds, the run continues and only the direct-read speedup is lost. Missing state and the two render commands retain their existing mock-output behavior.
+
+This fallback also covers OpenTofu client-side state encryption. Terragrunt recognizes the encrypted envelope and retries output retrieval through the configured binary instead of treating the dependency as having no outputs. If that binary can decrypt the state and native output retrieval succeeds, only the speedup is lost. `render` and `render-json` still require `--no-dependency-fetch-output-from-state` when they must resolve real outputs from encrypted state.

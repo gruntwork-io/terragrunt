@@ -1029,6 +1029,10 @@ func getTerragruntOutput(
 			return nil, true, err
 		}
 
+		if dependencyConfig.MockOutputs == nil || !dependencyConfig.shouldReturnMockOutputs(pctx) {
+			return nil, true, nil
+		}
+
 		l.Warnf(
 			"Failed to read outputs from %s referenced in %s as %s, fallback to mock outputs. Error: %v",
 			targetConfigPath,
@@ -1463,6 +1467,8 @@ func resolveOutputJSON(
 		return nil, "", err
 	}
 
+	callerIsRenderCommand := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
+
 	// Set dependency-specific fields
 	pctx.ForwardTFStdout = false
 	pctx.CheckDependentUnits = false
@@ -1621,7 +1627,18 @@ func resolveOutputJSON(
 			workspace,
 		)
 
-		return out, "state", fetchErr
+		if fetchErr == nil || isRemoteStateMissing(fetchErr) || callerIsRenderCommand {
+			return out, "state", fetchErr
+		}
+
+		// Direct reading is an optimization. Errors not handled by mock-output paths retry below.
+		l.Debugf(
+			"Could not read dependency state for %s directly (%v). Falling back to native output retrieval.",
+			pctx.TerragruntConfigPath,
+			fetchErr,
+		)
+
+		workspace = ""
 	}
 
 	if isInit {
@@ -1837,15 +1854,7 @@ func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, 
 		return workspace, nil
 	}
 
-	dataDir := tf.DefaultTFDataDir
-	if configured := pctx.Venv.Env["TF_DATA_DIR"]; configured != "" {
-		dataDir = configured
-	}
-
-	if !filepath.IsAbs(dataDir) {
-		dataDir = filepath.Join(workingDir, dataDir)
-	}
-
+	dataDir := dependencyStateDataDir(pctx, workingDir)
 	workspaceFile := filepath.Join(dataDir, "environment")
 
 	exists, err := vfs.FileExists(pctx.Venv.FS, workspaceFile)
@@ -1868,6 +1877,19 @@ func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, 
 	}
 
 	return workspace, nil
+}
+
+func dependencyStateDataDir(pctx *ParsingContext, workingDir string) string {
+	dataDir := tf.DefaultTFDataDir
+	if configured := pctx.Venv.Env["TF_DATA_DIR"]; configured != "" {
+		dataDir = configured
+	}
+
+	if filepath.IsAbs(dataDir) {
+		return dataDir
+	}
+
+	return filepath.Join(workingDir, dataDir)
 }
 
 // applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into pctx.Venv.Env
@@ -1962,11 +1984,11 @@ func terragruntAlreadyInit(
 	}
 	// We're only interested in the computed working dir.
 	workingDir := terraformSource.WorkingDir
-	// Terragrunt is already init-ed if the terraform state dir (.terraform) exists in the working dir.
+	// Terragrunt is already init-ed if its configured data directory exists in the working dir.
 	// NOTE: if the ref changes, the workingDir would be different as the download dir includes a base64 encoded hash of
 	// the source URL with ref. This would ensure that this routine would not return true if the new ref is not already
 	// init-ed.
-	return vfs.Exists(pctx.Venv.FS, filepath.Join(workingDir, ".terraform")), workingDir, nil
+	return vfs.Exists(pctx.Venv.FS, dependencyStateDataDir(pctx, workingDir)), workingDir, nil
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
