@@ -1029,6 +1029,10 @@ func getTerragruntOutput(
 			return nil, true, err
 		}
 
+		if dependencyConfig.MockOutputs == nil || !dependencyConfig.shouldReturnMockOutputs(pctx) {
+			return nil, true, nil
+		}
+
 		l.Warnf(
 			"Failed to read outputs from %s referenced in %s as %s, fallback to mock outputs. Error: %v",
 			targetConfigPath,
@@ -1463,6 +1467,8 @@ func resolveOutputJSON(
 		return nil, "", err
 	}
 
+	callerIsRenderCommand := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
+
 	// Set dependency-specific fields
 	pctx.ForwardTFStdout = false
 	pctx.CheckDependentUnits = false
@@ -1621,7 +1627,7 @@ func resolveOutputJSON(
 			workspace,
 		)
 
-		if fetchErr == nil || shouldFallBackToMockOutputs(pctx, fetchErr) {
+		if fetchErr == nil || isRemoteStateMissing(fetchErr) || callerIsRenderCommand {
 			return out, "state", fetchErr
 		}
 

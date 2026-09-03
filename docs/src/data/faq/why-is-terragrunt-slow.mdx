@@ -52,7 +52,7 @@ OpenTofu client-side state encryption can make the direct reader resolve no outp
 </Before>
 
 <Since version="1.1.5">
-Outside `render` and `render-json`, direct-read failures and OpenTofu client-side state encryption fall back to `tofu output` or `terraform output`. If native output retrieval succeeds, only the speedup is lost. For missing outputs, configured `mock_outputs` are used when outputs are unavailable, while `skip_outputs` forces mocks. The render commands keep that same behavior. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) for details.
+Outside `render` and `render-json`, direct-read failures other than a missing state object fall back to `tofu output` or `terraform output`; this includes OpenTofu client-side state encryption. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) for details.
 </Since>
 
 ## Cache repository clones

@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -478,6 +479,53 @@ func TestDependencyStateMissingDirectStateUsesMockOutputs(t *testing.T) {
 	assert.Equal(t, 1, recorder.closeCount(), "a missing-state response body must be closed")
 }
 
+func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name            string
+		dependencyExtra string
+	}{
+		{
+			name: "no mock outputs",
+		},
+		{
+			name: "mock outputs are not allowed",
+			dependencyExtra: `mock_outputs = { producer_value = "from-mock" }
+        mock_outputs_allowed_terraform_commands = ["validate"]`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, http.StatusNotFound, []byte(`{"error":{"code":404,"message":"missing"}}`))
+			ctx, pctx, configPath := prepareDependencyStateFixture(
+				t,
+				recorder,
+				"gcs",
+				`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+				map[string]string{},
+				false,
+				testCase.dependencyExtra,
+			)
+			pctx.OriginalTerraformCommand = "plan"
+			pctx.TerraformCliArgs = iacargs.New("plan")
+
+			_, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+
+			require.Error(t, err)
+
+			var noOutputs config.TerragruntOutputTargetNoOutputs
+			require.ErrorAs(t, err, &noOutputs)
+			assert.Empty(t, recorder.outputInvocations(), "missing direct state must not invoke OpenTofu")
+		})
+	}
+}
+
 func TestDependencyStateAzureClientSetupFailureFallsBackWithoutMocks(t *testing.T) {
 	t.Parallel()
 
@@ -574,6 +622,53 @@ func TestDependencyStateEncryptedDirectStateFallsBackToNativeOutput(t *testing.T
 			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
 			assert.Len(t, recorder.outputInvocations(), 1, "encrypted direct state must invoke OpenTofu once")
 			assert.Equal(t, 1, recorder.closeCount(), "an encrypted state response body must be closed")
+		})
+	}
+}
+
+func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		command string
+		state   string
+	}{
+		{
+			name:    "render encrypted state",
+			command: "render",
+			state:   `{"encrypted_data":"Y2lwaGVydGV4dA==","encryption_version":"v0"}`,
+		},
+		{
+			name:    "render-json malformed state",
+			command: "render-json",
+			state:   `not-json`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(testCase.state))
+			ctx, pctx, configPath := prepareDependencyStateFixture(
+				t,
+				recorder,
+				"gcs",
+				`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+				map[string]string{},
+				false,
+				`mock_outputs = { producer_value = "from-mock" }`,
+			)
+			pctx.TerraformCliArgs = iacargs.New(testCase.command)
+
+			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+
+			require.NoError(t, err)
+			assert.Equal(t, "from-mock", cfg.Inputs["result"])
+			assert.Empty(t, recorder.outputInvocations(), "render must not invoke OpenTofu after a direct-read failure")
 		})
 	}
 }

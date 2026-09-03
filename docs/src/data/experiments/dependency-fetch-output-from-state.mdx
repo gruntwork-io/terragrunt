@@ -27,7 +27,7 @@ Outside `render` and `render-json`, a network, permissions, or parsing failure f
 </Before>
 
 <Since version="1.1.5">
-Reading state directly is an optimization. Outside `render` and `render-json`, Terragrunt retries a failed direct read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the speedup is lost. For missing outputs, configured `mock_outputs` are used when outputs are unavailable, while `skip_outputs` forces mocks. The render commands keep that same behavior.
+Reading state directly is an optimization. Outside `render` and `render-json`, Terragrunt retries a failed direct read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list.
 </Since>
 
 **OpenTofu state encryption:**
@@ -37,7 +37,7 @@ This experiment is **not compatible with OpenTofu state encryption**. When OpenT
 </Before>
 
 <Since version="1.1.5">
-The direct reader cannot decrypt state protected by OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) because it does not evaluate OpenTofu's encryption configuration or key providers from the `remote_state.encryption` map. Outside `render` and `render-json`, Terragrunt recognizes the encrypted envelope and retries with `tofu output` or `terraform output`, where the configured OpenTofu/Terraform binary performs decryption. If native output retrieval succeeds, only the speedup is lost. For missing outputs, configured `mock_outputs` are used when outputs are unavailable, while `skip_outputs` forces mocks. The render commands keep that same behavior. Disable the experiment when a render command must resolve real outputs from encrypted state.
+The direct reader cannot decrypt state protected by OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) because it does not evaluate OpenTofu's encryption configuration or key providers from the `remote_state.encryption` map. Outside `render` and `render-json`, Terragrunt recognizes the encrypted envelope and retries with `tofu output` or `terraform output`, allowing the configured binary to decrypt the state when it supports that encryption. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list. Disable the experiment when a render command must resolve real outputs from encrypted state.
 </Since>
 
 **Disabling the feature:**
