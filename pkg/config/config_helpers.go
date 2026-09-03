@@ -181,10 +181,10 @@ func createTerragruntEvalContext(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) (*hcl.EvalContext, error) {
 	tfscope := tflang.Scope{
-		BaseDir: filepath.Dir(configPath),
+		BaseDir: filepath.Dir(cfgPath),
 	}
 
 	terragruntFunctions := map[string]function.Function{
@@ -404,7 +404,7 @@ func createTerragruntEvalContext(
 		if err != nil && len(pctx.PartialParseDecodeList) == 0 {
 			return nil, fmt.Errorf(
 				"could not resolve exposed includes for eval context in %s: %w",
-				configPath,
+				cfgPath,
 				err,
 			)
 		}
@@ -416,7 +416,7 @@ func createTerragruntEvalContext(
 			// and the system will fall back to full parsing when needed.
 			l.Debugf(
 				"Could not resolve exposed includes for eval context in %s (partial parse): %v",
-				configPath,
+				cfgPath,
 				err,
 			)
 		}
@@ -942,7 +942,7 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 	}
 
-	terragruntConfig, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
+	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -951,7 +951,7 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 		pctx.Source,
 		pctx.SourceMap,
 		pctx.OriginalTerragruntConfigPath,
-		terragruntConfig,
+		cfg,
 	)
 	if err != nil {
 		return "", err
@@ -964,7 +964,14 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 	// source resolves to a different cache directory.
 	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
-	source, err := tf.NewSource(l, pctx.Venv.FS, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
+	source, err := tf.NewSource(
+		l,
+		pctx.Venv.FS,
+		sourceURL,
+		pctx.DownloadDir,
+		pctx.WorkingDir,
+		walkWithSymlinks,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -1057,13 +1064,13 @@ func ParseTerragruntConfig(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 	defaultVal *cty.Value,
 ) (cty.Value, error) {
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(pctx.Venv.FS, configPath, pctx.TerragruntConfigPath)
+	targetConfig := getCleanedTargetConfigPath(pctx.Venv.FS, cfgPath, pctx.TerragruntConfigPath)
 
 	targetConfigFileExists := vfs.Exists(pctx.Venv.FS, targetConfig)
 
@@ -1202,10 +1209,10 @@ func readTerragruntConfigAsFuncImpl(
 // Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
 // paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
 // path is a directory.
-func getCleanedTargetConfigPath(fsys vfs.FS, configPath string, workingPath string) string {
+func getCleanedTargetConfigPath(fsys vfs.FS, cfgPath string, workingPath string) string {
 	cwd := filepath.Dir(workingPath)
 
-	targetConfig := configPath
+	targetConfig := cfgPath
 	if !filepath.IsAbs(targetConfig) {
 		targetConfig = filepath.Join(cwd, targetConfig)
 	}
