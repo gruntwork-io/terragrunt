@@ -48,6 +48,11 @@ const (
 
 	// DefaultProviderFilesLimit is the maximum number of files in a provider archive
 	DefaultProviderFilesLimit = 100
+
+	// maxProviderMetadataBytes bounds the checksum document and the signature
+	// that authenticate an archive. Both are read into memory, and both run to
+	// a few kilobytes.
+	maxProviderMetadataBytes = 1 << 20
 )
 
 type ProviderCaches []*ProviderCache
@@ -287,7 +292,7 @@ func (cache *ProviderCache) setDocumentSHA256Sums(ctx context.Context) ([]byte, 
 		return nil, err
 	}
 
-	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, documentSHA256Sums); err != nil {
+	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, documentSHA256Sums, maxProviderMetadataBytes); err != nil {
 		return nil, fmt.Errorf(
 			"failed to retrieve authentication checksums for provider %q: %w",
 			cache.Provider,
@@ -322,7 +327,7 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, signature); err != nil {
+	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, signature, maxProviderMetadataBytes); err != nil {
 		return nil, fmt.Errorf(
 			"failed to retrieve authentication signature for provider %q: %w",
 			cache.Provider,
@@ -409,13 +414,25 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 					return err
 				}
 
-				return helpers.FetchToFile(ctx, cache.HTTPClient(), cache.ProviderService.FS(), req, cache.archivePath)
+				return helpers.FetchToFile(
+					ctx,
+					cache.HTTPClient(),
+					cache.ProviderService.FS(),
+					req,
+					cache.archivePath,
+					DefaultProviderFileSizeLimit,
+				)
 			},
 		); err != nil {
 			return err
 		}
 
 		cache.archiveCached = true
+	}
+
+	auth, err := cache.AuthenticatePackage(ctx)
+	if err != nil {
+		return err
 	}
 
 	cache.logger.Debugf("Unpack provider archive %s", cache.archivePath)
@@ -430,11 +447,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		cache.archivePath,
 		unzipFileMode,
 	); err != nil {
-		return err
-	}
-
-	auth, err := cache.AuthenticatePackage(ctx)
-	if err != nil {
 		return err
 	}
 
