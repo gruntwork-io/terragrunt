@@ -1,12 +1,45 @@
 package config
 
 import (
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStateOutputsJSONTypedErrors(t *testing.T) {
+	t.Parallel()
+
+	const location = "gs://state-bucket/service.tfstate"
+
+	t.Run("malformed state yields a parse error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := stateOutputsJSON(strings.NewReader(`{"version":`), location)
+		require.Error(t, err)
+
+		var parseErr DependencyStateParseError
+		require.ErrorAs(t, err, &parseErr)
+		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		assert.Equal(t, location, parseErr.Location)
+	})
+
+	t.Run("transport failure yields a read error", func(t *testing.T) {
+		t.Parallel()
+
+		reader := iotest.TimeoutReader(strings.NewReader(`{"version":4,"outputs":`))
+		_, err := stateOutputsJSON(reader, location)
+		require.Error(t, err)
+
+		var readErr DependencyStateReadError
+		require.ErrorAs(t, err, &readErr)
+		require.ErrorIs(t, err, iotest.ErrTimeout)
+		assert.Equal(t, location, readErr.Location)
+	})
+}
 
 // TestStateOutputsJSONEncryptedState verifies that OpenTofu client-side state encryption is
 // reported as its own error rather than as malformed state or as an absent outputs object.

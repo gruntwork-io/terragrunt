@@ -47,7 +47,13 @@ This only applies to S3 backends.
 This applies to S3 and GCS backends. Azure Storage (`azurerm`) also supports it when the `azure-backend` experiment is enabled.
 </Since>
 
-It fails outright with OpenTofu client-side state encryption, since Terragrunt cannot parse an encrypted state file. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) before turning it on.
+<Before version="1.1.5">
+OpenTofu client-side state encryption can make the direct reader resolve no outputs. Disable the experiment with `--no-dependency-fetch-output-from-state` when using encrypted state.
+</Before>
+
+<Since version="1.1.5">
+Outside `render` and `render-json`, direct-read failures and OpenTofu client-side state encryption fall back to `tofu output` or `terraform output`. If native output retrieval succeeds, only the speedup is lost. The render commands retain their existing mock-output behavior. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) for details.
+</Since>
 
 ## Cache repository clones
 

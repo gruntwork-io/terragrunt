@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -285,22 +284,28 @@ func TestDependencyStateGCSCustomerEncryptionKey(t *testing.T) {
 	assert.Equal(t, encryptionKey, headers[0].Get("X-Goog-Encryption-Key"))
 }
 
-func TestDependencyStateMalformedDirectStateReturnsTypedError(t *testing.T) {
+func TestDependencyStateDirectReadFailureFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		cause error
-		name  string
-		state string
+		name   string
+		state  string
+		status int
 	}{
 		{
-			cause: io.ErrUnexpectedEOF,
-			name:  "truncated JSON",
-			state: `{"version":`,
+			name:   "permission denied",
+			state:  `{"error":"forbidden"}`,
+			status: http.StatusForbidden,
 		},
 		{
-			name:  "non-object JSON",
-			state: `[]`,
+			name:   "truncated JSON",
+			state:  `{"version":`,
+			status: http.StatusOK,
+		},
+		{
+			name:   "non-object JSON",
+			state:  `[]`,
+			status: http.StatusOK,
 		},
 	}
 
@@ -308,8 +313,8 @@ func TestDependencyStateMalformedDirectStateReturnsTypedError(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(testCase.state))
-			_, err := parseDependencyStateFixture(
+			recorder := newDependencyStateRecorder(t, testCase.status, []byte(testCase.state))
+			cfg, err := parseDependencyStateFixture(
 				t,
 				recorder,
 				"gcs",
@@ -321,19 +326,10 @@ func TestDependencyStateMalformedDirectStateReturnsTypedError(t *testing.T) {
 				"",
 			)
 
-			require.Error(t, err)
-
-			var parseErr config.DependencyStateParseError
-			require.ErrorAs(t, err, &parseErr)
-			assert.Equal(t, "gs://state-bucket/environment/service/default.tfstate", parseErr.Location)
-			require.Error(t, parseErr.Err)
-
-			if testCase.cause != nil {
-				require.ErrorIs(t, err, testCase.cause)
-			}
-
-			assert.Empty(t, recorder.invocations(), "malformed direct state must not be retried through OpenTofu")
-			assert.Equal(t, 1, recorder.closeCount(), "a malformed state response body must be closed")
+			require.NoError(t, err, "a direct state read failure must fall back instead of aborting")
+			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+			assert.Len(t, recorder.outputInvocations(), 1, "a direct state read failure must invoke OpenTofu once")
+			assert.Equal(t, 1, recorder.closeCount(), "a failed state response body must be closed")
 		})
 	}
 }
@@ -402,7 +398,7 @@ func TestDependencyStateReadsOutputsAfterResources(t *testing.T) {
 	assert.Equal(t, 1, recorder.closeCount(), "a direct state read must close the state body")
 }
 
-func TestDependencyStateTransportFailureIsNotReportedAsMalformedState(t *testing.T) {
+func TestDependencyStateTransportFailureFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -434,7 +430,7 @@ func TestDependencyStateTransportFailureIsNotReportedAsMalformedState(t *testing
 				return resp
 			}
 
-			_, err := parseDependencyStateFixture(
+			cfg, err := parseDependencyStateFixture(
 				t,
 				recorder,
 				"s3",
@@ -452,11 +448,9 @@ func TestDependencyStateTransportFailureIsNotReportedAsMalformedState(t *testing
 				"",
 			)
 
-			var readErr config.DependencyStateReadError
-			require.ErrorAs(t, err, &readErr)
-			assert.Equal(t, "s3://state-bucket/service.tfstate", readErr.Location)
-			require.ErrorIs(t, err, io.ErrClosedPipe)
-			assert.Empty(t, recorder.invocations(), "a failed direct read must not invoke OpenTofu")
+			require.NoError(t, err, "a transport failure must fall back instead of aborting")
+			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+			assert.Len(t, recorder.outputInvocations(), 1, "a transport failure must invoke OpenTofu once")
 			assert.Equal(t, 1, recorder.closeCount(), "a failed direct read must close the state body")
 		})
 	}
@@ -484,7 +478,7 @@ func TestDependencyStateMissingDirectStateUsesMockOutputs(t *testing.T) {
 	assert.Equal(t, 1, recorder.closeCount(), "a missing-state response body must be closed")
 }
 
-func TestDependencyStateAzureClientSetupFailureDoesNotUseMocks(t *testing.T) {
+func TestDependencyStateAzureClientSetupFailureFallsBackWithoutMocks(t *testing.T) {
 	t.Parallel()
 
 	recorder := newDependencyStateRecorder(t, http.StatusOK, nil)
@@ -513,7 +507,7 @@ func TestDependencyStateAzureClientSetupFailureDoesNotUseMocks(t *testing.T) {
 		), headers)
 	}
 
-	_, err := parseDependencyStateFixture(
+	cfg, err := parseDependencyStateFixture(
 		t,
 		recorder,
 		"azurerm",
@@ -530,14 +524,9 @@ func TestDependencyStateAzureClientSetupFailureDoesNotUseMocks(t *testing.T) {
 		`mock_outputs = { producer_value = "from-mock" }`,
 	)
 
-	require.Error(t, err)
-
-	var setupErr *azurermbackend.StateClientSetupError
-	require.ErrorAs(t, err, &setupErr)
-
-	var coordinateErr *azurermbackend.StateClientCoordinatesError
-	require.ErrorAs(t, err, &coordinateErr)
-	assert.Empty(t, recorder.invocations(), "a client setup failure must not invoke OpenTofu")
+	require.NoError(t, err, "a client setup failure must fall back instead of aborting")
+	assert.Equal(t, "from-native-output", cfg.Inputs["result"], "the fallback must not substitute mock outputs")
+	assert.Len(t, recorder.outputInvocations(), 1, "a client setup failure must invoke OpenTofu once")
 	requests := recorder.requestPaths()
 	assert.True(t, slices.ContainsFunc(requests, func(request string) bool {
 		return strings.Contains(request, "/listKeys")
@@ -578,18 +567,18 @@ func TestDependencyStateEncryptedDirectStateFallsBackToNativeOutput(t *testing.T
         prefix       = "environment/service"`,
 				map[string]string{},
 				false,
-				"",
+				`mock_outputs = { producer_value = "from-mock" }`,
 			)
 
 			require.NoError(t, err)
 			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
-			assert.NotEmpty(t, recorder.invocations(), "encrypted direct state must fall back to OpenTofu")
+			assert.Len(t, recorder.outputInvocations(), 1, "encrypted direct state must invoke OpenTofu once")
 			assert.Equal(t, 1, recorder.closeCount(), "an encrypted state response body must be closed")
 		})
 	}
 }
 
-func TestDependencyStateEncryptedFallbackUsesInitFolder(t *testing.T) {
+func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testing.T) {
 	t.Parallel()
 
 	recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(
@@ -602,16 +591,14 @@ func TestDependencyStateEncryptedFallbackUsesInitFolder(t *testing.T) {
 		`access_token = "test-token"
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
-		map[string]string{},
+		map[string]string{"TF_DATA_DIR": ".tf_data"},
 		false,
 		"",
 	)
 
 	l := logger.CreateLogger()
 
-	// A workspace selected through .terraform/environment lives in the unit's init folder,
-	// and only OpenTofu running there sees it. Resolve that folder the way the dependency
-	// code does, so the fixture puts the marker where an init-ed unit would have it.
+	// The fallback must run in the initialized unit so a relative TF_DATA_DIR retains its workspace.
 	producerDir := "/repo/producer"
 	source, err := tf.NewSource(
 		l,
@@ -623,7 +610,7 @@ func TestDependencyStateEncryptedFallbackUsesInitFolder(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	dataDir := filepath.Join(source.WorkingDir, ".terraform")
+	dataDir := filepath.Join(source.WorkingDir, ".tf_data")
 	require.NoError(t, pctx.Venv.FS.MkdirAll(dataDir, 0o700))
 	require.NoError(
 		t,
@@ -639,24 +626,14 @@ func TestDependencyStateEncryptedFallbackUsesInitFolder(t *testing.T) {
 		return strings.Contains(request, "production.tfstate")
 	}), "the direct read must target the selected workspace")
 
-	outputs := 0
-
-	for _, invocation := range recorder.invocations() {
-		if !slices.Contains(invocation.Args, "output") {
-			continue
-		}
-
-		outputs++
-
-		assert.Equal(
-			t,
-			source.WorkingDir,
-			invocation.Dir,
-			"the encrypted-state fallback must run output in the init folder so OpenTofu selects the workspace",
-		)
-	}
-
-	assert.Positive(t, outputs, "the encrypted state must fall back to an OpenTofu output run")
+	outputs := recorder.outputInvocations()
+	require.Len(t, outputs, 1, "the encrypted state must invoke OpenTofu output once")
+	assert.Equal(
+		t,
+		source.WorkingDir,
+		outputs[0].Dir,
+		"the encrypted-state fallback must run output in the init folder so OpenTofu selects the workspace",
+	)
 }
 
 type dependencyStateRecorder struct {
@@ -727,6 +704,14 @@ func (r *dependencyStateRecorder) invocations() []vexec.Invocation {
 	defer r.mu.Unlock()
 
 	return slices.Clone(r.execs)
+}
+
+func (r *dependencyStateRecorder) outputInvocations() []vexec.Invocation {
+	invocations := r.invocations()
+
+	return slices.DeleteFunc(invocations, func(invocation vexec.Invocation) bool {
+		return !slices.Contains(invocation.Args, "output")
+	})
 }
 
 func (r *dependencyStateRecorder) requestHeaders() []http.Header {

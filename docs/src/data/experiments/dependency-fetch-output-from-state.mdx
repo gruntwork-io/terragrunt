@@ -20,14 +20,24 @@ Azure state protected with `customer_provided_key`, and Azure configurations tha
 
 GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths, service-account impersonation, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
 
-**Known Limitations:**
+**Failure handling:**
 
 <Before version="1.1.5">
-This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the state file is encrypted before upload. Since this experiment reads the raw state object directly through the backend's cloud storage API, it cannot decrypt the state, and the encrypted envelope carries no `outputs` object. Dependency outputs resolve empty and the run fails later with an unrelated `Unsupported attribute` error. If you are using OpenTofu state encryption, you must disable this experiment using the `--no-dependency-fetch-output-from-state` flag.
+Outside `render` and `render-json`, a network, permissions, or parsing failure from a direct state read ends the run instead of retrying through OpenTofu/Terraform. A missing state object still follows the dependency block's `mock_outputs` behavior.
 </Before>
 
 <Since version="1.1.5">
-A direct state read cannot decrypt state protected by OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/), because the encryption keys live in OpenTofu's configuration rather than in the backend. When Terragrunt reads an encrypted state object, it falls back to the normal method (`tofu/terraform output`) for that dependency, so the outputs are still resolved correctly and only the speedup is lost. You do not need to set `--no-dependency-fetch-output-from-state` for encrypted state.
+Reading state directly is an optimization. Outside `render` and `render-json`, Terragrunt retries a failed direct read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the speedup is lost. Missing state and the two render commands retain their existing mock-output behavior.
+</Since>
+
+**OpenTofu state encryption:**
+
+<Before version="1.1.5">
+This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the encrypted envelope carries no plaintext `outputs` object. Terragrunt treats the dependency as having no outputs. Referencing a missing output can then fail with `Unsupported attribute`, while configured mock-output merging can supply a mock value instead. Disable this experiment using `--no-dependency-fetch-output-from-state` to force native output retrieval.
+</Before>
+
+<Since version="1.1.5">
+The direct reader cannot decrypt state protected by OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) because it does not evaluate OpenTofu's encryption configuration or key providers. Outside `render` and `render-json`, Terragrunt recognizes the encrypted envelope and retries with `tofu output` or `terraform output`. If the configured binary can decrypt the state and native output retrieval succeeds, only the speedup is lost. The render commands retain their existing mock-output behavior. Disable the experiment when a render command must resolve real outputs from encrypted state.
 </Since>
 
 **Disabling the feature:**
@@ -50,8 +60,8 @@ To transition the `dependency-fetch-output-from-state` feature to a stable relea
 
 - [x] Add support for additional backends (GCS and Azure Storage)
 - [x] Live direct-state-read integration coverage for S3, GCS, and Azure Storage
-- [x] Comprehensive integration testing across backend authentication, encryption, workspace, and error scenarios
-- [x] Performance benchmarking to validate speed improvements
+- [ ] Comprehensive integration testing across backend authentication, encryption, workspace, and error scenarios
+- [ ] Performance benchmarking to validate speed improvements
 - [x] Error handling and edge case testing
 - [x] Documentation of supported backends and limitations
 - [x] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
