@@ -649,7 +649,7 @@ func (c *CAS) storeRootTreeFrom(
 			fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
 	}
 
-	return treeContent.Store(l, v, hash, data)
+	return treeContent.Store(l, v, hash, data, StoredFilePerms)
 }
 
 // storeTreeRecursive stores a tree fetched from git ls-tree -r. The tree
@@ -676,7 +676,7 @@ func (c *CAS) storeTreeRecursive(
 	}
 
 	treeContent := NewContent(c.treeStore)
-	if err := treeContent.EnsureWithWait(l, v, hash, tree.Data()); err != nil {
+	if err := treeContent.EnsureWithWait(l, v, hash, tree.Data(), StoredFilePerms); err != nil {
 		return err
 	}
 

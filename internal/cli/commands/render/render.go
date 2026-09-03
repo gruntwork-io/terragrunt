@@ -2,11 +2,10 @@
 package render
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
+	"io"
 	"path/filepath"
 
 	"errors"
@@ -115,14 +114,11 @@ func runRender(l log.Logger, v *venv.Venv, opts *Options, cfg *config.Terragrunt
 
 func renderHCL(l log.Logger, v *venv.Venv, opts *Options, cfg *config.TerragruntConfig) error {
 	if opts.Write {
-		buf := new(bytes.Buffer)
+		return writeRendered(l, v.FS, opts, func(w io.Writer) error {
+			_, err := cfg.WriteTo(w)
 
-		_, err := cfg.WriteTo(buf)
-		if err != nil {
 			return err
-		}
-
-		return writeRendered(l, v.FS, opts, buf.Bytes())
+		})
 	}
 
 	l.Debugf("Rendering config %s", opts.TerragruntConfigPath)
@@ -160,7 +156,11 @@ func renderJSON(l log.Logger, v *venv.Venv, opts *Options, cfg *config.Terragrun
 	}
 
 	if opts.Write {
-		return writeRendered(l, v.FS, opts, jsonBytes)
+		return writeRendered(l, v.FS, opts, func(w io.Writer) error {
+			_, err := w.Write(jsonBytes)
+
+			return err
+		})
 	}
 
 	l.Debugf("Rendering config %s", opts.TerragruntConfigPath)
@@ -173,7 +173,12 @@ func renderJSON(l log.Logger, v *venv.Venv, opts *Options, cfg *config.Terragrun
 	return nil
 }
 
-func writeRendered(l log.Logger, fsys vfs.FS, opts *Options, data []byte) error {
+func writeRendered(
+	l log.Logger,
+	fsys vfs.FS,
+	opts *Options,
+	render func(w io.Writer) error,
+) error {
 	outPath := opts.OutputPath
 	if !filepath.IsAbs(outPath) {
 		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
@@ -186,17 +191,9 @@ func writeRendered(l log.Logger, fsys vfs.FS, opts *Options, data []byte) error 
 
 	l.Debugf("Rendering config %s to %s", opts.TerragruntConfigPath, outPath)
 
-	if err := fsys.Remove(outPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-
 	const ownerReadWritePerms = 0o600
 
-	if err := vfs.WriteFile(fsys, outPath, data, ownerReadWritePerms); err != nil {
-		return err
-	}
-
-	return nil
+	return vfs.StreamFileAtomic(fsys, outPath, ownerReadWritePerms, render)
 }
 
 // marshalCtyValueJSONWithoutType marshals the given cty.Value object into a JSON object that does not have the type.

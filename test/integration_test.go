@@ -612,8 +612,9 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 }
 
 // TestTerragruntMutableGenerateBlock verifies that units generating identical
-// contents share one read-only file, and that a block asking to stay mutable
-// gets its own writable copy.
+// contents share one read-only file, that a block asking to stay mutable gets
+// its own writable copy, and that content the store is already holding is
+// shared on the permissions it was stored under.
 func TestTerragruntMutableGenerateBlock(t *testing.T) {
 	t.Parallel()
 
@@ -621,34 +622,110 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 		t.Skip("read-only permission bits are not meaningfully observable on Windows")
 	}
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "mutable-generate")
-
-	generated := map[string]os.FileInfo{}
-
-	for _, unit := range []string{"unit-a", "unit-b", "unit-mutable"} {
-		unitPath := filepath.Join(fixtureRoot, unit)
-		helpers.CleanupTerraformFolder(t, unitPath)
-		helpers.CleanupTerragruntFolder(t, unitPath)
-
-		_, _, err := helpers.RunTerragruntCommandWithOutput(
-			t,
-			"terragrunt exec --experiment mutable-generate --working-dir "+unitPath+" -- true",
-		)
-		require.NoError(t, err)
-
-		generated[unit] = statGeneratedFile(t, unitPath, "provider.tf")
+	testCases := []struct {
+		name       string
+		storedPerm os.FileMode
+		wantPerm   os.FileMode
+	}{
+		{
+			name:     "content the store has not seen",
+			wantPerm: 0400,
+		},
+		{
+			name:       "content an earlier version stored world-readable",
+			storedPerm: 0444,
+			wantPerm:   0444,
+		},
 	}
 
-	assert.True(t, os.SameFile(generated["unit-a"], generated["unit-b"]),
-		"units generating identical contents must share one file")
-	assert.Equal(t, os.FileMode(0444), generated["unit-a"].Mode().Perm(),
-		"deduplicated files must be read-only so an edit cannot reach the shared store")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.False(t, os.SameFile(generated["unit-a"], generated["unit-mutable"]),
-		"a mutable generate block must get its own file")
-	assert.NotZero(t, generated["unit-mutable"].Mode().Perm()&0200,
-		"a mutable generate block must stay writable")
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+			fixtureRoot := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "mutable-generate")
+
+			units := []string{"unit-a", "unit-b", "unit-mutable"}
+
+			// The store is the one on the machine running the suite, so the
+			// generated contents have to be unique to this run for the case
+			// starting without them to mean anything.
+			for _, unit := range units {
+				markGeneratedContents(t, filepath.Join(fixtureRoot, unit), tmpEnvPath)
+			}
+
+			if tc.storedPerm != 0 {
+				seedStoredContent(t, filepath.Join(fixtureRoot, "unit-a"), tc.storedPerm)
+			}
+
+			generated := map[string]os.FileInfo{}
+
+			for _, unit := range units {
+				unitPath := filepath.Join(fixtureRoot, unit)
+				runMutableGenerateUnit(t, unitPath)
+				generated[unit] = statGeneratedFile(t, unitPath, "provider.tf")
+			}
+
+			assert.True(t, os.SameFile(generated["unit-a"], generated["unit-b"]),
+				"units generating identical contents must share one file")
+			assert.Equal(t, tc.wantPerm, generated["unit-a"].Mode().Perm(),
+				"the shared file takes the mode the store holds the content under")
+
+			assert.False(t, os.SameFile(generated["unit-a"], generated["unit-mutable"]),
+				"a mutable generate block must get its own file")
+			assert.NotZero(t, generated["unit-mutable"].Mode().Perm()&0200,
+				"a mutable generate block must stay writable")
+		})
+	}
+}
+
+// markGeneratedContents rewrites a unit's generate block so what it produces is
+// unique to marker, keeping whatever the machine's store already holds from
+// deciding which path the test takes.
+func markGeneratedContents(t *testing.T, unitPath, marker string) {
+	t.Helper()
+
+	path := filepath.Join(unitPath, "terragrunt.hcl")
+
+	body, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	const placeholder = "provider \"null\" {\n}"
+
+	marked := strings.Replace(
+		string(body),
+		placeholder,
+		"provider \"null\" {\n  # "+marker+"\n}",
+		1,
+	)
+	require.NotEqual(t, string(body), marked, "fixture no longer holds %q", placeholder)
+
+	require.NoError(t, os.WriteFile(path, []byte(marked), 0644))
+}
+
+// seedStoredContent leaves the store holding a unit's generated contents at
+// perm, standing in for a store filled before Terragrunt asked for a narrower
+// mode. The generated file shares the stored blob's inode, so widening it
+// through the link widens what every later unit links to.
+func seedStoredContent(t *testing.T, unitPath string, perm os.FileMode) {
+	t.Helper()
+
+	runMutableGenerateUnit(t, unitPath)
+
+	require.NoError(t, os.Chmod(generatedFilePath(t, unitPath, "provider.tf"), perm))
+}
+
+func runMutableGenerateUnit(t *testing.T, unitPath string) {
+	t.Helper()
+
+	helpers.CleanupTerraformFolder(t, unitPath)
+	helpers.CleanupTerragruntFolder(t, unitPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt exec --experiment mutable-generate --working-dir "+unitPath+" -- true",
+	)
+	require.NoError(t, err)
 }
 
 // statGeneratedFile locates a generated file inside the unit's cache dir, which
@@ -656,7 +733,19 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 func statGeneratedFile(t *testing.T, unitPath, name string) os.FileInfo {
 	t.Helper()
 
-	var found os.FileInfo
+	info, err := os.Stat(generatedFilePath(t, unitPath, name))
+	require.NoError(t, err)
+
+	return info
+}
+
+// generatedFilePath finds the file a generate block wrote under a unit's cache
+// directory, whose intermediate directory names are hashes the test cannot
+// predict.
+func generatedFilePath(t *testing.T, unitPath, name string) string {
+	t.Helper()
+
+	var found string
 
 	require.NoError(t, filepath.WalkDir(
 		filepath.Join(unitPath, util.TerragruntCacheDir),
@@ -669,17 +758,12 @@ func statGeneratedFile(t *testing.T, unitPath, name string) os.FileInfo {
 				return nil
 			}
 
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-
-			found = info
+			found = path
 
 			return nil
 		},
 	))
-	require.NotNil(t, found, "expected %s to be generated under %s", name, unitPath)
+	require.NotEmpty(t, found, "expected %s to be generated under %s", name, unitPath)
 
 	return found
 }

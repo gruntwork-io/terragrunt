@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // unixPermMask isolates the user/group/other rwx bits from a git tree mode.
@@ -44,6 +45,7 @@ func WithForceCopy() LinkTreeOption {
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
 func LinkTree(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	blobStore *Store,
 	treeStore *Store,
@@ -56,7 +58,7 @@ func LinkTree(
 		opt(&o)
 	}
 
-	return linkTree(ctx, v, blobStore, treeStore, t, targetDir, targetDir, &o)
+	return linkTree(ctx, l, v, blobStore, treeStore, t, targetDir, targetDir, &o)
 }
 
 // linkTree is the recursive implementation behind LinkTree. rootDir is the
@@ -66,6 +68,7 @@ func LinkTree(
 // resolve outside the original tree even when the link sits in a subdirectory.
 func linkTree(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	blobStore *Store,
 	treeStore *Store,
@@ -157,6 +160,7 @@ func linkTree(
 			case "link":
 				err := blobContent.Link(
 					ctx,
+					l,
 					v,
 					work.entry.Hash,
 					work.path,
@@ -197,7 +201,7 @@ func linkTree(
 					return fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 				}
 
-				err = linkTree(ctx, v, blobStore, treeStore, subTree, rootDir, work.path, o)
+				err = linkTree(ctx, l, v, blobStore, treeStore, subTree, rootDir, work.path, o)
 				if err != nil {
 					return fmt.Errorf("link subtree %s: %w", work.path, err)
 				}
@@ -225,7 +229,7 @@ func linkTree(
 					return fmt.Errorf("parse submodule tree %s: %w", work.entry.Hash, err)
 				}
 
-				err = linkTree(ctx, v, blobStore, treeStore, subTree, rootDir, work.path, o)
+				err = linkTree(ctx, l, v, blobStore, treeStore, subTree, rootDir, work.path, o)
 				if err != nil {
 					return fmt.Errorf("link submodule %s: %w", work.path, err)
 				}

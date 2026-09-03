@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -681,6 +682,137 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	assert.Contains(t, string(targetContent), ">= 1.3.0")
 }
 
+// createErrorFS refuses to create a file, standing in for a destination the
+// process may read but cannot write into.
+type createErrorFS struct {
+	vfs.FS
+	err error
+}
+
+func (f *createErrorFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	if flag&os.O_CREATE != 0 {
+		return nil, f.err
+	}
+
+	return f.FS.OpenFile(name, flag, perm)
+}
+
+// TestWriteToFileKeepsGeneratedFilePrivate covers the mode a generate block's
+// output lands with. A generate block is where backend and provider credentials
+// get written, so no other user on the machine may read it, whatever umask the
+// run happened to inherit.
+func TestWriteToFileKeepsGeneratedFilePrivate(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	path := filepath.Join(helpers.TmpDirWOSymlinks(t), "backend.tf")
+
+	config := codegen.GenerateConfig{
+		Path:             path,
+		IfExists:         codegen.ExistsOverwrite,
+		DisableSignature: true,
+		Contents:         "terraform {\n  required_version = \">= 1.0.0\"\n}\n",
+	}
+
+	l := logger.CreateLogger()
+	require.NoError(
+		t,
+		codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+	)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
+// TestWriteToFileFailedWriteLeavesExistingFile covers a generation that cannot
+// get its contents onto disk. The file it was going to overwrite is the one the
+// module is still configured with, so a run that gets nowhere has to leave it.
+func TestWriteToFileFailedWriteLeavesExistingFile(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	existing := "terraform {\n  required_version = \">= 1.0.0\"\n}\n"
+
+	path := filepath.Join(helpers.TmpDirWOSymlinks(t), "versions.tf")
+
+	// Read-only is how a previous run leaves a file it materialized from the
+	// content store, so the surviving file is one this run could not have
+	// written over in place.
+	writeFileWithPerms(t, path, existing, 0444)
+
+	v := venvtest.NewOSWithEmptyEnv().
+		WithFS(&createErrorFS{FS: vfs.NewOSFS(), err: os.ErrPermission})
+
+	config := codegen.GenerateConfig{
+		Path:             path,
+		IfExists:         codegen.ExistsOverwrite,
+		DisableSignature: true,
+		Contents:         "terraform {\n  required_version = \">= 1.3.0\"\n}\n",
+	}
+
+	l := logger.CreateLogger()
+	require.ErrorIs(
+		t,
+		codegen.WriteToFile(t.Context(), l, v, "", &config),
+		os.ErrPermission,
+	)
+
+	contents, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, existing, string(contents))
+}
+
+// TestWriteToFileCreatesParentDirs covers a generate block whose path names a
+// subdirectory the module does not have, such as a "generated" directory that a
+// prior run created and the user then deleted.
+func TestWriteToFileCreatesParentDirs(t *testing.T) {
+	t.Parallel()
+
+	contents := "terraform {\n  required_version = \">= 1.0\"\n}\n"
+
+	for _, tc := range []struct {
+		name      string
+		withStore bool
+	}{
+		{name: "without a content store"},
+		{name: "with a content store", withStore: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			testDir := helpers.TmpDirWOSymlinks(t)
+
+			config := codegen.GenerateConfig{
+				Path:             filepath.Join("generated", "provider.tf"),
+				IfExists:         codegen.ExistsOverwrite,
+				DisableSignature: true,
+				Contents:         contents,
+			}
+
+			var opts []codegen.WriteOption
+			if tc.withStore {
+				opts = append(opts, codegen.WithContentStore(newTestContentStore(t, testDir)))
+			}
+
+			l := logger.CreateLogger()
+			require.NoError(t, codegen.WriteToFile(
+				t.Context(), l, venvtest.NewOSWithEmptyEnv(), testDir, &config, opts...,
+			))
+
+			written, err := os.ReadFile(filepath.Join(testDir, "generated", "provider.tf"))
+			require.NoError(t, err)
+			assert.Equal(t, contents, string(written))
+		})
+	}
+}
+
 // TestWriteToFileTargetIsDirectory verifies that a directory at the target
 // path still produces an error instead of being removed.
 func TestWriteToFileTargetIsDirectory(t *testing.T) {
@@ -895,7 +1027,7 @@ func TestWriteToFileWithContentStoreDeduplicates(t *testing.T) {
 
 	assert.True(t, os.SameFile(firstInfo, secondInfo),
 		"identical generated contents must share one inode")
-	assert.Equal(t, os.FileMode(0444), firstInfo.Mode().Perm(),
+	assert.Equal(t, os.FileMode(0400), firstInfo.Mode().Perm(),
 		"deduplicated files must be read-only so an edit cannot reach the store")
 
 	firstContents, err := os.ReadFile(first)
