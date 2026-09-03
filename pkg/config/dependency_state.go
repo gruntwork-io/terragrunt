@@ -56,6 +56,9 @@ func readDependencyStateOutputs(
 // stateOutputsJSON returns the state's top-level outputs object, reading only as far
 // as it must. OpenTofu and Terraform write outputs ahead of resources, so a large
 // state normally costs one buffered read instead of a full download.
+// encryptedStateMarker is the payload key OpenTofu writes when client-side state encryption is enabled.
+const encryptedStateMarker = "encrypted_data"
+
 func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
 	body := &stateBodyReader{r: r}
 	// jsontext rejects duplicate names and invalid UTF-8 by default, and the v1 decoder
@@ -85,6 +88,12 @@ func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
 		name, err := d.ReadToken()
 		if err != nil {
 			return nil, stateReadError(body, location, err)
+		}
+
+		// An encrypted envelope is valid JSON carrying no outputs, so it must be
+		// reported rather than resolved as an empty set.
+		if name.String() == encryptedStateMarker {
+			return nil, DependencyStateEncryptedError{Location: location}
 		}
 
 		if name.String() != "outputs" {

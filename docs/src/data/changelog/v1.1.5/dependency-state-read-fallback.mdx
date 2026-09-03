@@ -1,0 +1,14 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### A failed direct state read no longer fails the run
+
+With the [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment enabled, any failure while reading a dependency's state object ended the run. A transient network error, a permissions problem on the state object, or state Terragrunt could not parse would stop a run that worked without the experiment.
+
+Reading state directly is an optimization, so it no longer decides whether a run succeeds. When a direct read fails, Terragrunt retrieves the outputs through `tofu output` or `terraform output` and the run continues, losing only the speedup. Turning the experiment on can no longer make a working configuration fail.
+
+This also covers OpenTofu client-side state encryption. An encrypted state file is valid JSON that carries no `outputs`, so dependency outputs used to resolve to nothing and the run failed later with an unrelated `Unsupported attribute` error. Terragrunt now recognizes the encrypted envelope and retrieves the outputs through OpenTofu. Documentation previously told you to disable the experiment when using state encryption; that is no longer necessary.
+
+A dependency whose state does not exist yet still resolves to that dependency block's `mock_outputs`, unchanged.

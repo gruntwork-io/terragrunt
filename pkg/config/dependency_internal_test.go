@@ -2,7 +2,9 @@ package config
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -308,4 +310,34 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			assert.Equal(t, tc.want, pctx.Venv.Env)
 		})
 	}
+}
+
+// TestStateOutputsJSONTypedErrors pins that the reader still classifies failures
+// precisely, since the fallback now consumes those errors instead of surfacing them.
+func TestStateOutputsJSONTypedErrors(t *testing.T) {
+	t.Parallel()
+
+	const location = "gs://state-bucket/service.tfstate"
+
+	t.Run("malformed state yields a parse error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := stateOutputsJSON(strings.NewReader(`{"version":`), location)
+		require.Error(t, err)
+
+		var parseErr DependencyStateParseError
+		require.ErrorAs(t, err, &parseErr)
+		assert.Equal(t, location, parseErr.Location)
+	})
+
+	t.Run("transport failure yields a read error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := stateOutputsJSON(iotest.TimeoutReader(strings.NewReader(`{"version":4,"outputs":`)), location)
+		require.Error(t, err)
+
+		var readErr DependencyStateReadError
+		require.ErrorAs(t, err, &readErr)
+		assert.Equal(t, location, readErr.Location)
+	})
 }

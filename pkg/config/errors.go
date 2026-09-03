@@ -307,6 +307,16 @@ func (err DependencyStateReadError) Unwrap() error {
 	return err.Err
 }
 
+// DependencyStateEncryptedError reports state protected by OpenTofu client-side encryption, which a direct read cannot decrypt.
+type DependencyStateEncryptedError struct {
+	// Location identifies the remote state object that is encrypted.
+	Location string
+}
+
+func (err DependencyStateEncryptedError) Error() string {
+	return "dependency state at " + err.Location + " is encrypted with OpenTofu client-side state encryption"
+}
+
 // DependencyStateParseError reports malformed dependency remote state JSON.
 type DependencyStateParseError struct {
 	// Err is the underlying JSON parsing failure.
