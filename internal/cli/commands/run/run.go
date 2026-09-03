@@ -96,10 +96,18 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
-	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	var cfg *config.TerragruntConfig
 
-	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
-	if err != nil {
+	// A fresh ParsingContext resets parser state; failed results are never cached, so a retry re-evaluates them.
+	if err := opts.RunWithParseRetry(ctx, l, func() error {
+		parseCtx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+
+		var parseErr error
+
+		cfg, parseErr = config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
+
+		return parseErr
+	}); err != nil {
 		return err
 	}
 
@@ -262,19 +270,30 @@ func getTerragruntConfig(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*config.TerragruntConfig, error) {
-	ctx, configCtx := configbridge.NewParsingContext(ctx, l, v, opts)
-	configCtx = configCtx.WithDecodeList(
-		config.TerragruntVersionConstraints,
-		config.FeatureFlagsBlock,
-	)
+	var cfg *config.TerragruntConfig
 
-	return config.PartialParseConfigFile(
-		ctx,
-		configCtx,
-		l,
-		opts.TerragruntConfigPath,
-		nil,
-	)
+	// A fresh ParsingContext resets parser state; failed results are never cached, so a retry re-evaluates them.
+	err := opts.RunWithParseRetry(ctx, l, func() error {
+		parseCtx, configCtx := configbridge.NewParsingContext(ctx, l, v, opts)
+		configCtx = configCtx.WithDecodeList(
+			config.TerragruntVersionConstraints,
+			config.FeatureFlagsBlock,
+		)
+
+		var parseErr error
+
+		cfg, parseErr = config.PartialParseConfigFile(
+			parseCtx,
+			configCtx,
+			l,
+			opts.TerragruntConfigPath,
+			nil,
+		)
+
+		return parseErr
+	})
+
+	return cfg, err
 }
 
 // confirmActionWithDependentUnits - Show warning with list of dependent modules from current module before destroy

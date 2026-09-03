@@ -1718,6 +1718,16 @@ Parameters:
 
   e.g. `10` seconds.
 
+Retry rules apply to post-parse operations such as hooks, IAM-role credential fetching, source fetching, and OpenTofu/Terraform invocations.
+
+<Since version="1.1.5">
+
+<Aside type="tip" title="Experimental">
+  Retrying transient failures raised during configuration parsing itself (e.g. `sops_decrypt_file` timing out against a KMS endpoint in a `locals` block) is gated behind the `retry-parse-errors` experiment. Enable it with `--experiment retry-parse-errors` (or `TG_EXPERIMENT=retry-parse-errors`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#retry-parse-errors).
+</Aside>
+
+</Since>
+
 ### Ignore Configuration
 
 The `ignore` block within the `errors` block defines rules for ignoring specific errors. This is useful when certain

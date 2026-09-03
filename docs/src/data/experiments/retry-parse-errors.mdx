@@ -1,0 +1,50 @@
+---
+name: retry-parse-errors
+since: "1.1.5"
+---
+
+Extending the `errors.retry` engine to configuration parsing, so transient failures raised while evaluating HCL (like `sops_decrypt_file` timing out against a KMS or OIDC endpoint) are retried instead of failing the run on the first attempt.
+
+### `retry-parse-errors` - What it does
+
+Without the experiment, the rules in the [errors block](/reference/hcl/blocks#errors) only apply to post-parse operations such as hooks, IAM-role credential fetching, source fetching, and OpenTofu/Terraform invocations. (`--auth-provider-cmd` runs before any retry rules are available, so its failures are never retried.) A transient network failure during configuration parsing (for example, `sops_decrypt_file` in a `locals` block hitting an `i/o timeout` against GCP KMS) aborts the run immediately, and with `--fail-fast` a single blip can kill an entire `run --all`.
+
+With the experiment enabled, a failed configuration parse is passed through the same retry engine:
+
+- During `run --all`, discovery has already parsed each unit's `errors` block, so a unit's own `retry` rules (including a catch-all like `retryable_errors = [".*"]`) govern retries of its full configuration parse.
+- Parses that happen before the unit's `errors` block has been read (discovery itself, a single-unit run, or the root parse of `run --graph`) are retried using the [default retryable errors](/reference/hcl/functions#get_default_retryable_errors), which include the transient network failures `sops_decrypt_file` can raise.
+
+`--no-auto-retry` disables parse retries the same way it disables run-phase retries. `ignore` rules are not applied at parse time: a parse that produced no configuration cannot be meaningfully ignored, only retried or surfaced.
+
+### `retry-parse-errors` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt run --all --experiment retry-parse-errors -- apply
+
+# Via environment variable
+export TG_EXPERIMENT=retry-parse-errors
+terragrunt run --all -- apply
+```
+
+### `retry-parse-errors` - How to provide feedback
+
+Track and discuss this experiment in [gruntwork-io/terragrunt#6755](https://github.com/gruntwork-io/terragrunt/issues/6755). When reporting issues or providing feedback, please include:
+
+- The command you ran (`run --all`, `run --graph`, or a single-unit run) and which parse failed.
+- The KMS/OIDC provider involved and the exact error text of the transient failure.
+- Whether your own `errors.retry` rules or the default retryable errors were expected to match.
+- The retry attempts you observed, and whether the run eventually succeeded.
+- Whether you would want `ignore` rules to apply at parse time (for example, to skip a unit whose parse failed).
+
+### `retry-parse-errors` - Criteria for stabilization
+
+To transition the `retry-parse-errors` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Transient `sops_decrypt_file` failures during `run --all` are retried using the unit's own `errors.retry` rules.
+- [ ] Parse retries respect `--no-auto-retry`, retry budgets, and sleep intervals.
+- [ ] Retried parses do not replay cached failures (failed `sops_decrypt_file` and `run_cmd` results are never cached, so a retry re-evaluates them).
+- [ ] Feedback is collected on whether `ignore` rules need parse-phase semantics (for example, skipping a unit whose parse failed).
+- [ ] Feedback is collected on retry budgets stacking across phases (a unit parsed during discovery and again at run time gets a fresh budget for each parse).
+- [ ] Test coverage for parse retries across discovery, `run --all`, and single-unit runs.
+- [ ] Documentation for the parse-phase behavior of the `errors` block.

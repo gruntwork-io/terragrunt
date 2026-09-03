@@ -378,42 +378,57 @@ func parseComponent(
 				}
 			}
 
-			ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseV, parseOpts)
-			parsingCtx = parsingCtx.WithDecodeList(
-				config.TerraformSource,
-				config.DependenciesBlock,
-				config.DependencyBlock,
-				config.TerragruntFlags,
-				config.FeatureFlagsBlock,
-				config.ExcludeBlock,
-				config.ErrorsBlock,
-				config.RemoteStateBlock,
-				config.TerragruntVersionConstraints,
-			).WithSkipOutputsResolution()
-
-			if len(discovery.parserOptions) > 0 {
-				parsingCtx = parsingCtx.WithParseOption(discovery.parserOptions)
-			}
-
-			if discovery.suppressParseErrors {
-				parserOpts := parsingCtx.ParserOptions
-				parserOpts = append(parserOpts, hclparse.WithDiagnosticsHandler(func(
-					file *hcl.File,
-					hclDiags hcl.Diagnostics,
-				) (hcl.Diagnostics, error) {
-					l.Debugf("Suppressed parsing errors %v", hclDiags)
-					return nil, nil
-				}))
-				parsingCtx = parsingCtx.WithParseOption(parserOpts)
-			}
-
-			cfg, err := config.PartialParseConfigFile(
-				ctx,
-				parsingCtx,
-				l,
-				parseOpts.TerragruntConfigPath,
-				nil,
+			var (
+				cfg        *config.TerragruntConfig
+				parsingCtx *config.ParsingContext
 			)
+
+			// A fresh ParsingContext resets parser state (failed results are never cached, so a retry
+			// re-evaluates them); the closure runs at least once and publishes its context to parsingCtx.
+			err := parseOpts.RunWithParseRetry(ctx, l, func() error {
+				parseCtx, pctx := configbridge.NewParsingContext(ctx, l, parseV, parseOpts)
+				pctx = pctx.WithDecodeList(
+					config.TerraformSource,
+					config.DependenciesBlock,
+					config.DependencyBlock,
+					config.TerragruntFlags,
+					config.FeatureFlagsBlock,
+					config.ExcludeBlock,
+					config.ErrorsBlock,
+					config.RemoteStateBlock,
+					config.TerragruntVersionConstraints,
+				).WithSkipOutputsResolution()
+
+				if len(discovery.parserOptions) > 0 {
+					pctx = pctx.WithParseOption(discovery.parserOptions)
+				}
+
+				if discovery.suppressParseErrors {
+					parserOpts := pctx.ParserOptions
+					parserOpts = append(parserOpts, hclparse.WithDiagnosticsHandler(func(
+						file *hcl.File,
+						hclDiags hcl.Diagnostics,
+					) (hcl.Diagnostics, error) {
+						l.Debugf("Suppressed parsing errors %v", hclDiags)
+						return nil, nil
+					}))
+					pctx = pctx.WithParseOption(parserOpts)
+				}
+
+				parsingCtx = pctx
+
+				var parseErr error
+
+				cfg, parseErr = config.PartialParseConfigFile(
+					parseCtx,
+					pctx,
+					l,
+					parseOpts.TerragruntConfigPath,
+					nil,
+				)
+
+				return parseErr
+			})
 			if err != nil {
 				if discovery.suppressParseErrors {
 					if _, ok := errors.AsType[config.TerragruntConfigNotFoundError](err); ok {
