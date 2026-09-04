@@ -85,6 +85,45 @@ func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 			},
 		},
 		{
+			"skip-object-ownership-string-true",
+			s3backend.Config{
+				"bucket":                "my-bucket",
+				"key":                   "my-key",
+				"region":                "us-east-1",
+				"skip_object_ownership": "true",
+			},
+			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.True(t, cfg.SkipObjectOwnership)
+			},
+		},
+		{
+			"skip-location-constraint-string-true",
+			s3backend.Config{
+				"bucket":                   "my-bucket",
+				"key":                      "my-key",
+				"region":                   "us-east-1",
+				"skip_location_constraint": "true",
+			},
+			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.True(t, cfg.SkipLocationConstraint)
+			},
+		},
+		{
+			"skip-bucket-tagging-string-true",
+			s3backend.Config{
+				"bucket":              "my-bucket",
+				"key":                 "my-key",
+				"region":              "us-east-1",
+				"skip_bucket_tagging": "true",
+			},
+			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.True(t, cfg.SkipBucketTagging)
+			},
+		},
+		{
 			"native-bool-still-works",
 			s3backend.Config{
 				"bucket":       "my-bucket",
