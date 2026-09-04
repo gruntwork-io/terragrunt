@@ -3,11 +3,19 @@ version: "v1.2.0"
 category: "experiments-updated"
 ---
 
+import { Aside } from '@astrojs/starlight/components'
+
 #### `tg-login` — Signing in to the Gruntwork Developer Portal
 
 The `tg-login` experiment now enables `terragrunt login`, which signs you in to the Gruntwork Developer Portal.
 
 Running it prints a one-time code and opens your browser to the page that asks for it. Confirm the code there and the CLI receives a token scoped to your organization and files it under your user configuration directory (`~/.config/terragrunt/tokens.json` on Linux). On a machine with no browser, or over SSH, the code and the URL are still on screen and the CLI keeps waiting, so you can approve from another device.
+
+Once you are signed in, `terragrunt catalog` adds the repositories your organization selected in the portal to the ones a `catalog` block in your configuration already names. Browsing, READMEs, and scaffolding work the same for either. The portal supplies repository URLs and nothing else, so settings that live in the `catalog` block, such as `no_shell` and `default_template`, still come from your configuration.
+
+<Aside type="note" title="Private beta">
+The Gruntwork Developer Portal is the only web portal supported for registering catalog entries, and registering them there is in private beta right now. If your organization uses the Gruntwork.io GitHub App and you want access to catalog management, request it from [Gruntwork support](https://gruntwork.io/support) while the beta is in progress.
+</Aside>
 
 ```bash
 terragrunt --experiment tg-login login

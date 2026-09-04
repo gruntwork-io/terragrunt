@@ -4,6 +4,15 @@ import (
 	"fmt"
 )
 
+// SourceAccessHint closes each full rendering of a source-load failure: the
+// welcome error screen, the post-exit notice, and the error a non-interactive
+// run returns. A source that fails is nearly always one the user's git cannot
+// reach, and neither the clone error nor the summary above it says what to do
+// about that.
+const SourceAccessHint = "Check that git can clone each repository listed above.\n" +
+	"A private repository needs a credential git can find on its own; the\n" +
+	"catalog cannot answer a prompt for one."
+
 // SourceFailure records a single catalog source that failed to load during
 // multi-repo discovery, together with the cause.
 type SourceFailure struct {

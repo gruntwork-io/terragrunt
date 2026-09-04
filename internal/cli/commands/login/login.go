@@ -32,13 +32,13 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 
 	w := v.Writers.Writer
 
-	current, err := portal.LoadTokens(l, v, opts.BaseURL)
+	credentials, err := portal.LoadCredentials(l, v, opts.BaseURL)
 	if err != nil {
 		return err
 	}
 
-	if len(current) > 0 && !opts.Force {
-		return reportCurrentLogins(w, current, Command(opts.Experiments))
+	if len(credentials.Valid) > 0 && !opts.Force {
+		return reportCurrentLogins(w, credentials.Valid, Command(opts.Experiments))
 	}
 
 	auth, err := portal.AuthorizeDevice(ctx, l, v.HTTP, opts.BaseURL)

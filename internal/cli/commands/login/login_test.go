@@ -150,10 +150,10 @@ func TestRunSignsInAndKeepsTheCredential(t *testing.T) {
 		assert.Contains(t, out.String(), userCode)
 		assert.Contains(t, out.String(), "Signed in as "+accountEmail+" — "+organizationName)
 
-		tokens, err := portal.LoadTokens(logger.CreateLogger(), v, portalBaseURL)
+		credentials, err := portal.LoadCredentials(logger.CreateLogger(), v, portalBaseURL)
 		require.NoError(t, err)
-		require.Len(t, tokens, 1)
-		assert.Equal(t, "fake-access-token", tokens[organizationID].AccessToken.Reveal())
+		require.Len(t, credentials.Valid, 1)
+		assert.Equal(t, "fake-access-token", credentials.Valid[organizationID].AccessToken.Reveal())
 	})
 }
 
@@ -308,10 +308,10 @@ func TestRunForceReplacesAnUnexpiredCredential(t *testing.T) {
 
 		assert.Contains(t, out.String(), "Signed in as "+accountEmail+" — "+organizationName)
 
-		tokens, err := portal.LoadTokens(logger.CreateLogger(), v, portalBaseURL)
+		credentials, err := portal.LoadCredentials(logger.CreateLogger(), v, portalBaseURL)
 		require.NoError(t, err)
-		require.Len(t, tokens, 1)
-		assert.Equal(t, "fresh-access-token", tokens[organizationID].AccessToken.Reveal())
+		require.Len(t, credentials.Valid, 1)
+		assert.Equal(t, "fresh-access-token", credentials.Valid[organizationID].AccessToken.Reveal())
 	})
 }
 
@@ -441,8 +441,8 @@ func TestRunKeepsNothingWhenTheUserDeclines(t *testing.T) {
 		err := run(t, v)
 		require.ErrorIs(t, err, portal.ErrLoginDenied)
 
-		tokens, err := portal.LoadTokens(logger.CreateLogger(), v, portalBaseURL)
+		credentials, err := portal.LoadCredentials(logger.CreateLogger(), v, portalBaseURL)
 		require.NoError(t, err)
-		assert.Empty(t, tokens)
+		assert.Empty(t, credentials.Valid)
 	})
 }

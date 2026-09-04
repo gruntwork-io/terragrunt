@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
+	"github.com/gruntwork-io/terragrunt/internal/portal"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -32,14 +33,17 @@ var ErrFormatRequiresExperiment = errors.New(
 type Options struct {
 	*options.TerragruntOptions
 
-	Format string
+	Format        string
+	PortalBaseURL string
 }
 
-// NewOptions returns catalog options defaulting to the terminal user interface.
+// NewOptions returns catalog options defaulting to the terminal user interface
+// and to the production Gruntwork Developer Portal.
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
 		Format:            FormatTUI,
+		PortalBaseURL:     portal.DefaultBaseURL,
 	}
 }
 

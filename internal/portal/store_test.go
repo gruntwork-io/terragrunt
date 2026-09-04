@@ -46,10 +46,10 @@ func saveToken(t *testing.T, v *venv.Venv, baseURL string, token *portal.Token) 
 func loadTokens(t *testing.T, v *venv.Venv, baseURL string) map[string]portal.StoredToken {
 	t.Helper()
 
-	tokens, err := portal.LoadTokens(logger.CreateLogger(), v, baseURL)
+	credentials, err := portal.LoadCredentials(logger.CreateLogger(), v, baseURL)
 	require.NoError(t, err)
 
-	return tokens
+	return credentials.Valid
 }
 
 func storePath(t *testing.T, v *venv.Venv) string {
@@ -166,10 +166,10 @@ func TestSaveTokenKeepsTheTokensForOtherPortals(t *testing.T) {
 	assert.Empty(t, loadTokens(t, v, "https://third.portal.example.com"))
 }
 
-// TestLoadTokensKeepsTheSchemesApart pins that a token issued over https is not
+// TestLoadCredentialsKeepsTheSchemesApart pins that a token issued over https is not
 // handed back for a plaintext address naming the same machine. Handing it back
 // would put the credential in an Authorization header travelling in the clear.
-func TestLoadTokensKeepsTheSchemesApart(t *testing.T) {
+func TestLoadCredentialsKeepsTheSchemesApart(t *testing.T) {
 	t.Parallel()
 
 	v := venvtest.New()
@@ -180,10 +180,10 @@ func TestLoadTokensKeepsTheSchemesApart(t *testing.T) {
 	assert.Len(t, loadTokens(t, v, "https://portal.example.com"), 1)
 }
 
-// TestLoadTokensReadsOnePortalWrittenSeveralWays pins that the port a scheme
+// TestLoadCredentialsReadsOnePortalWrittenSeveralWays pins that the port a scheme
 // implies, a host in another case, and a path after the host all reach the
 // entry the login wrote, rather than reporting the user as logged out.
-func TestLoadTokensReadsOnePortalWrittenSeveralWays(t *testing.T) {
+func TestLoadCredentialsReadsOnePortalWrittenSeveralWays(t *testing.T) {
 	t.Parallel()
 
 	v := venvtest.New()
@@ -217,10 +217,10 @@ func TestSaveTokenRefreshesTheOrgName(t *testing.T) {
 	assert.Equal(t, "Acme Holdings", tokens["org_fake"].Org.Name)
 }
 
-// TestLoadTokensLeavesOutAnExpiredToken pins that a token past its lifetime
+// TestLoadCredentialsLeavesOutAnExpiredToken pins that a token past its lifetime
 // reads as no token at all. The portal issues no way to renew one, so the only
 // answer is another login.
-func TestLoadTokensLeavesOutAnExpiredToken(t *testing.T) {
+func TestLoadCredentialsLeavesOutAnExpiredToken(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -232,6 +232,28 @@ func TestLoadTokensLeavesOutAnExpiredToken(t *testing.T) {
 		time.Sleep(tokenLifetime + time.Hour)
 
 		assert.Empty(t, loadTokens(t, v, portalBaseURL))
+	})
+}
+
+// TestLoadCredentialsReportsAnOrgWhoseTokenRanOut pins that a credential past
+// its lifetime is named rather than dropped. A caller that cannot tell it from
+// no credential at all has nothing to tell a user whose catalog quietly got
+// shorter.
+func TestLoadCredentialsReportsAnOrgWhoseTokenRanOut(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		v := venvtest.New()
+
+		saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme"))
+
+		time.Sleep(tokenLifetime + time.Hour)
+
+		credentials, err := portal.LoadCredentials(logger.CreateLogger(), v, portalBaseURL)
+		require.NoError(t, err)
+
+		assert.Empty(t, credentials.Valid)
+		assert.Equal(t, []portal.Org{{ID: "org_fake", Name: "Acme"}}, credentials.Expired)
 	})
 }
 
@@ -360,11 +382,11 @@ func TestSaveTokenWritesAnOwnerOnlyStoreOnDisk(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o700), dir.Mode().Perm())
 }
 
-// TestLoadTokensIgnoresAStoreItCannotRead pins that a file the CLI cannot make
+// TestLoadCredentialsIgnoresAStoreItCannotRead pins that a file the CLI cannot make
 // sense of is treated as no tokens rather than as a failure. Nothing in it can
 // be recovered, and another login costs the user less than hunting down a file
 // every command refuses to run without.
-func TestLoadTokensIgnoresAStoreItCannotRead(t *testing.T) {
+func TestLoadCredentialsIgnoresAStoreItCannotRead(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
@@ -468,7 +490,7 @@ func TestSaveTokenRejectsUnusableBaseURL(t *testing.T) {
 			require.ErrorIs(t, err, tt.want)
 			require.ErrorIs(t, err, portal.ErrUnusablePortalURL)
 
-			_, err = portal.LoadTokens(logger.CreateLogger(), v, tt.baseURL)
+			_, err = portal.LoadCredentials(logger.CreateLogger(), v, tt.baseURL)
 			require.ErrorIs(t, err, tt.want)
 		})
 	}
