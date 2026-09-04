@@ -691,6 +691,15 @@ func (rnr *Runner) Run(
 							report.WithReason(report.ReasonAncestorError),
 							report.WithCauseAncestorExit(failedAncestor),
 						}
+					} else if run.Cause == nil {
+						// Units that fail before OpenTofu/Terraform runs (config parsing,
+						// dependency output resolution) never reach the unit runner's EndRun,
+						// which is where the cause is normally recorded. Recover the error
+						// the controller captured for this unit so the report carries the
+						// failure text instead of an empty cause.
+						if unitErr := controller.UnitErr(entry.Component.Path()); unitErr != nil {
+							endOpts = append(endOpts, report.WithCauseRunError(unitErr.Error()))
+						}
 					}
 
 					if endErr := r.EndRun(l, run.Path, endOpts...); endErr != nil {
