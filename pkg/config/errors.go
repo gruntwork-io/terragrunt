@@ -571,6 +571,24 @@ func (err MutableGenerateRequiresExperimentError) Error() string {
 	)
 }
 
+// IfExistsRequiresExperimentError is returned when an if_exists attribute is set to a value
+// that is still gated behind an experiment that has not been enabled.
+type IfExistsRequiresExperimentError struct {
+	ConfigPath string
+	Value      string
+	Experiment string
+}
+
+func (err IfExistsRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"%s sets if_exists to %q, which requires the '%s' experiment; enable it with --experiment %s",
+		err.ConfigPath,
+		err.Value,
+		err.Experiment,
+		err.Experiment,
+	)
+}
+
 // VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
 // version attribute but its source is not a tfr:// registry URL, where a version
 // constraint has no meaning.
