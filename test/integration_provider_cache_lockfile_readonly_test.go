@@ -27,12 +27,14 @@ const (
 // dependency check and silently defeated `-lockfile=readonly`. The cache must now
 // leave the lock file alone when that flag is set, whether it arrives on the command
 // line or through `TF_CLI_ARGS_init`, so init fails exactly as it does without the cache.
-//
-//nolint:paralleltest // the env-var subtest relies on t.Setenv.
 func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
+	t.Parallel()
+
 	lockfileName := ".terraform.lock.hcl"
 
 	t.Run("cache writes lock file without readonly", func(t *testing.T) {
+		t.Parallel()
+
 		appPath := copyProviderCacheLockfileReadonlyFixture(t)
 		providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
@@ -47,6 +49,8 @@ func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 	})
 
 	t.Run("readonly via flag is enforced", func(t *testing.T) {
+		t.Parallel()
+
 		appPath := copyProviderCacheLockfileReadonlyFixture(t)
 		providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
@@ -64,6 +68,8 @@ func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 	})
 
 	t.Run("readonly is logged at debug level", func(t *testing.T) {
+		t.Parallel()
+
 		appPath := copyProviderCacheLockfileReadonlyFixture(t)
 		providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
@@ -79,15 +85,15 @@ func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 	})
 
 	t.Run("readonly via TF_CLI_ARGS_init is enforced", func(t *testing.T) {
-		t.Setenv(
-			tf.EnvNameTFCLIArgsInit,
-			fmt.Sprintf("%s=%s", tf.FlagNameLockfile, tf.LockfileModeReadonly),
-		)
+		t.Parallel()
+
+		env := helpers.RunEnv(t)
+		env[tf.EnvNameTFCLIArgsInit] = fmt.Sprintf("%s=%s", tf.FlagNameLockfile, tf.LockfileModeReadonly)
 
 		appPath := copyProviderCacheLockfileReadonlyFixture(t)
 		providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
+		_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, helpers.ContextWithEnv(t.Context(), env), fmt.Sprintf(
 			"terragrunt run --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s -- init",
 			providerCacheDir,
 			appPath,
