@@ -209,6 +209,16 @@ func IsExperimentMode(t *testing.T) bool {
 	return strings.EqualFold(val, "true")
 }
 
+// SkipInExperimentMode skips a test that pins what happens with the named experiment
+// disabled, since TG_EXPERIMENT_MODE forces every experiment on.
+func SkipInExperimentMode(t *testing.T, name string) {
+	t.Helper()
+
+	if IsExperimentMode(t) {
+		t.Skipf("TG_EXPERIMENT_MODE forces the %s experiment on, so its disabled-state behavior cannot be verified", name)
+	}
+}
+
 // ExecWithTestLogger executes a command and logs the output to the test logger.
 func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 	t.Helper()

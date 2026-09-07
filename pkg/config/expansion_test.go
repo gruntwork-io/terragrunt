@@ -76,7 +76,7 @@ const unitWithExpansionJSON = `{
 func TestValidateBlockIterationGatesExpansion(t *testing.T) {
 	t.Parallel()
 
-	skipInExperimentMode(t)
+	helpers.SkipInExperimentMode(t, experiment.BlockIteration)
 
 	testCases := []struct {
 		name          string
@@ -236,7 +236,7 @@ func TestValidateBlockIterationGateClearsWhenOn(t *testing.T) {
 func TestParseConfigStringExpansionRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	skipInExperimentMode(t)
+	helpers.SkipInExperimentMode(t, experiment.BlockIteration)
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
@@ -261,7 +261,7 @@ func TestParseConfigStringExpansionRequiresExperiment(t *testing.T) {
 func TestReadStackConfigStringExpansionRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	skipInExperimentMode(t)
+	helpers.SkipInExperimentMode(t, experiment.BlockIteration)
 
 	testCases := []struct {
 		name          string
@@ -309,7 +309,7 @@ func TestReadStackConfigStringExpansionRequiresExperiment(t *testing.T) {
 func TestReadStackConfigFileExpansionInIncludeRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	skipInExperimentMode(t)
+	helpers.SkipInExperimentMode(t, experiment.BlockIteration)
 
 	const dir = "/stack"
 
@@ -625,7 +625,7 @@ func TestJSONConfigExpandsDependencies(t *testing.T) {
 func TestJSONExpansionRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	skipInExperimentMode(t)
+	helpers.SkipInExperimentMode(t, experiment.BlockIteration)
 
 	ctx, pctx := newTestParsingContext(t, venvtest.New(), jsonConfigPath)
 
@@ -1586,16 +1586,4 @@ func parseHCLString(tb testing.TB, cfg, configPath string) *hclparse.File {
 	require.NoError(tb, err)
 
 	return file
-}
-
-// skipInExperimentMode skips a test that asserts disabled-experiment behavior, since
-// TG_EXPERIMENT_MODE forces every experiment on.
-func skipInExperimentMode(t *testing.T) {
-	t.Helper()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces the block-iteration experiment on, so its disabled-state error can't be verified",
-		)
-	}
 }
