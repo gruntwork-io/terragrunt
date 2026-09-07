@@ -96,7 +96,7 @@ const (
 	OptionalHooks = "optional-hooks"
 
 	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
-	// configuration from claiming the same address.
+	// configuration from addressing the same dependency, by label or by config_path.
 	DuplicateDependencyLabels = "duplicate-dependency-labels"
 )
 
@@ -240,11 +240,11 @@ func New() strict.Controls {
 
 		&Control{
 			Name:        DuplicateDependencyLabels,
-			Description: "Prevents two `dependency` blocks in one configuration from claiming the same address.",
+			Description: "Prevents two `dependency` blocks in one configuration from addressing the same dependency, whether by sharing a label or a `config_path`.",
 			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
-				"Two `dependency` blocks address the same dependency. Give each block a label of its own.",
+				"Two `dependency` blocks address the same dependency, by sharing a label or a `config_path`. Declare each dependency once.",
 			),
-			Warning: "Two `dependency` blocks address the same dependency, so only the last of them can be referenced and the rest are unreachable. Give each block a label of its own. In a future version of Terragrunt, this will result in an error.",
+			Warning: "Two `dependency` blocks address the same dependency, by sharing a label or a `config_path`. Only the last block with a given label can be referenced, and two blocks for one `config_path` declare the same unit twice. Declare each dependency once. In a future version of Terragrunt, this will result in an error.",
 		},
 
 		&Control{
