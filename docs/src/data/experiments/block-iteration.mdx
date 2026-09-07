@@ -3,33 +3,41 @@ name: block-iteration
 since: "1.1.3"
 ---
 
-Reserves the `expansion` block, which will iterate a `dependency`, `unit`, or `stack` block over a `count` or `for_each`.
+The `expansion` block, which iterates a `dependency`, `unit`, or `stack` block over a `count` or `for_each`, and the `enabled` attribute on `unit` and `stack` blocks.
 
 ### `block-iteration` - What it does
 
 Terragrunt has no way to declare one block and have several components come out of it. Running the same unit in three environments means writing the `unit` block three times in `terragrunt.stack.hcl`, and depending on one unit per region means writing one `dependency` block per region.
 
-This experiment gates an `expansion` block that will carry `count` and `for_each`, along with an `enabled` attribute on `unit` and `stack` blocks:
+This experiment enables an `expansion` block on `dependency`, `unit`, and `stack` blocks. It declares either a `count` or a `for_each`, and Terragrunt reads the block it sits in once per element:
 
 ```hcl
 # terragrunt.stack.hcl
-unit "app" {
+unit "aurora" {
   expansion {
     for_each = toset(["web", "api"])
   }
 
-  source = "./modules/app"
-  path   = "app"
+  source = "../units/app"
+  path   = "aurora/${each.key}"
+
+  values = {
+    role = each.key
+  }
 }
 ```
 
-The flag is reserved, and enabling it has no behavioral effect yet. An `expansion` block inside a `unit` or `stack` block is ignored during stack generation, one inside a `dependency` block is rejected by the HCL decoder as an unsupported block type, and the `enabled` attribute is ignored. The iteration behavior itself is still being built, so nothing here is safe to depend on.
+That generates two units, at `.terragrunt-stack/aurora/web` and `.terragrunt-stack/aurora/api`. You address each element by its key. An expanded `dependency` is read as `dependency.aurora["web"].outputs.id`, and `terragrunt stack output 'aurora["web"].role'` reaches one element of an expanded unit.
 
-Without the experiment, an `expansion` block in any of those three block types is an error that names the flag, so a configuration written for the finished feature fails instead of quietly doing nothing:
+The experiment also enables an `enabled` attribute on `unit` and `stack` blocks. Setting it to `false` drops the component from stack generation and leaves every other address alone. `dependency` blocks accept `enabled` without the experiment.
+
+Without the experiment, an `expansion` block on any of the three block types, or an `enabled` attribute on a `unit` or `stack`, is an error that names the flag:
 
 ```text
 the unit "app" block in /path/to/terragrunt.stack.hcl uses an expansion block, which requires the 'block-iteration' experiment; enable it with --experiment block-iteration
 ```
+
+See the [`expansion` block reference](/reference/hcl/blocks#expansion) for the full set of rules, the addressing scheme, and what changing an expansion does to existing state.
 
 ### `block-iteration` - How to enable it
 
@@ -50,10 +58,8 @@ Track and discuss this experiment in [gruntwork-io/terragrunt#4504](https://gith
 
 To transition the `block-iteration` feature to a stable release, the following must be addressed:
 
-- [ ] `count` and `for_each` expansion implemented for `dependency`, `unit`, and `stack` blocks.
-- [ ] The `enabled` attribute implemented for `unit` and `stack` blocks.
-- [ ] Naming rules for expanded components settled, so generated paths and the addresses that reference them stay predictable as an iteration source changes.
-- [ ] A cap on how many components one block may expand into, so a mistaken expression cannot generate an unusable estate.
-- [ ] References to an expanded `dependency` from `inputs` resolve the way users expect.
-- [ ] Parity checks against the same configuration written out by hand, covering `terragrunt stack generate` and the run queue.
+- [ ] The lifecycle matrix holds for every block type: adding, growing, shrinking, and removing an expansion on `dependency`, `unit`, and `stack` blocks behaves as documented.
+- [ ] Keyed addressing works in `inputs` and in `stack output`, including keys containing characters such as dots and quotes.
+- [ ] The `render` preview of an expanded configuration reads clearly enough for users to tell what a block expanded into.
+- [ ] Cleaning up state orphaned by a shrunk expansion works as documented with Git-based `--filter` expressions, and its limits are documented.
 - [ ] Positive feedback from users replacing repeated blocks with iteration.

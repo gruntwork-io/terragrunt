@@ -1282,6 +1282,12 @@ The `dependency` block supports the following arguments:
 - `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
   as a dependency in this configuration.
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
+- `expansion` (block, optional): Iterates the `dependency` block, producing one dependency per element of a `count` or `for_each`. Each instance is referenced by key, as in `dependency.aurora["web"].outputs.id`. See [`expansion`](#expansion).
+
+  <Aside type="tip" title="Experimental">
+    The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
+  </Aside>
+
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
   `mock_outputs` is configured, set `outputs` to the value of `mock_outputs`. Otherwise, `outputs` will be set to an
   empty map. Put another way, setting `skip_outputs` means "use mocks all the time if `mock_outputs` are set."
@@ -1848,6 +1854,17 @@ The `unit` block supports the following arguments:
 - `values` (attribute, optional): A map of values that will be passed to the unit as inputs.
 - `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the unit **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
 - `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the unit's configuration. When set to `true`, Terragrunt will skip validation checks for this unit.
+- `enabled` (attribute, optional): When `false`, the unit is skipped during stack generation and omitted from `terragrunt stack output`. Defaults to `true`. Toggling it leaves the unit's address and generated path unchanged. See [`enabled` vs `expansion`](#enabled-vs-expansion).
+
+  <Aside type="tip" title="Experimental">
+    The `enabled` attribute is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
+  </Aside>
+
+- `expansion` (block, optional): Iterates the `unit` block, generating one unit per element of a `count` or `for_each`. Each instance needs its own `path`. See [`expansion`](#expansion).
+
+  <Aside type="tip" title="Experimental">
+    The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
+  </Aside>
 
 Example:
 
@@ -1975,6 +1992,17 @@ The `stack` block supports the following arguments:
 - `values` (attribute, optional): A map of custom values that can be passed to the stack. These values can be referenced within the stack's configuration files, allowing for customization without modifying the stack source.
 - `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the stack **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
 - `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the stack's configuration. When set to `true`, Terragrunt will skip validation checks for this stack.
+- `enabled` (attribute, optional): When `false`, the stack is skipped during stack generation and omitted from `terragrunt stack output`. Defaults to `true`. Toggling it leaves the stack's address and generated path unchanged. See [`enabled` vs `expansion`](#enabled-vs-expansion).
+
+  <Aside type="tip" title="Experimental">
+    The `enabled` attribute is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
+  </Aside>
+
+- `expansion` (block, optional): Iterates the `stack` block, generating one stack per element of a `count` or `for_each`. Each instance needs its own `path`. See [`expansion`](#expansion).
+
+  <Aside type="tip" title="Experimental">
+    The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
+  </Aside>
 
 Example:
 
@@ -2010,6 +2038,213 @@ Terragrunt will recursively generate a stack using the contents of the `.terragr
 - The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
 - A pre-created `terragrunt.values.hcl` file can be provided in the stack source (sibling to the `terragrunt.stack.hcl` file used as the source of the stack). If present, this file will be used as the default values for the stack. However, if the values attribute is defined in the stack block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
+
+## expansion
+
+<Aside type="tip" title="Experimental">
+  The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
+</Aside>
+
+The `expansion` block iterates a `dependency`, `unit`, or `stack` block, producing one instance of it per element of a collection.
+
+The `expansion` block supports the following arguments:
+
+- `for_each` (attribute): A set, map, or object to iterate over. Each element produces one instance. Within the block body, `each.key` is the element's key and `each.value` is its value.
+- `count` (attribute): A non-negative whole number of instances to produce. Within the block body, `count.index` is the zero-based position of the instance.
+
+Set exactly one of the two. Setting both is an error, and so is setting neither. A block may have at most one `expansion` block.
+
+### Expanding a unit
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  source = "../units/app"
+  path   = "aurora/${each.key}"
+
+  values = {
+    role = each.key
+  }
+}
+```
+
+This generates two units, at `.terragrunt-stack/aurora/web` and `.terragrunt-stack/aurora/api`.
+
+Each instance needs its own `path`. Terragrunt validates unit and stack paths after expansion, so a `path` that does not vary with `each.key` or `count.index` fails with a duplicate path error.
+
+### Expanding a dependency
+
+```hcl
+# terragrunt.hcl
+
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path = "../aurora-${each.key}"
+}
+
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../shard-${count.index}"
+}
+
+inputs = {
+  web_id      = dependency.aurora["web"].outputs.id
+  api_id      = dependency.aurora["api"].outputs.id
+  shard_first = dependency.shard["0"].outputs.id
+}
+```
+
+You reach an expanded `dependency` by key. `dependency.aurora` is a map of instances, and each value under it is the object an unexpanded dependency exposes, `outputs` included. Reading `dependency.aurora.outputs` without a key fails, because `aurora` has no `outputs` attribute of its own.
+
+Keys are strings. A `for_each` over a set of numbers stringifies each element, and `count` keys are the stringified indices, so the `shard` block above is reached as `dependency.shard["0"]` and `dependency.shard["1"]`.
+
+A configuration that declares both an expanded and an unexpanded `dependency` under the same label is an error, since the unexpanded block would claim the name the instances are keyed under.
+
+### Addressing expanded units in `stack output`
+
+`terragrunt stack output` nests each element of an expanded unit under its key:
+
+```bash
+terragrunt stack output 'aurora["web"].role' --experiment block-iteration
+terragrunt stack output 'shard[0].role' --experiment block-iteration
+```
+
+Terragrunt parses an output address as an HCL traversal, so an iteration key containing a dot stays in one piece. Index keys are converted to strings, so `shard[0]` and `shard["0"]` reach the same element. A unit that declares no `expansion` is addressed by its bare name.
+
+### `enabled` vs `expansion`
+
+<Aside type="tip" title="Experimental">
+  The `enabled` attribute on `unit` and `stack` blocks is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. The `enabled` attribute on `dependency` blocks predates the experiment and is not gated. See the [experiment documentation](/reference/experiments/active#block-iteration).
+</Aside>
+
+`enabled` decides whether a component exists at all. `expansion` decides how many of them exist.
+
+```hcl
+# terragrunt.stack.hcl
+
+locals {
+  deploy_canary = false
+}
+
+unit "canary" {
+  enabled = local.deploy_canary
+
+  source = "../units/app"
+  path   = "canary"
+}
+```
+
+Omitting `enabled` keeps the component, so only an explicit `false` drops it. A disabled `unit` or `stack` is skipped during stack generation and does not appear in `terragrunt stack output`.
+
+Toggling `enabled` leaves the component's address and generated path unchanged. Adding an `expansion` block changes the address: `unit "aurora"` becomes `aurora["web"]` and `aurora["api"]`, and the one generated directory becomes one directory per element.
+
+The two compose. `enabled` is evaluated once per element, so `each.key` and `count.index` are available to it and a single block can expand into a collection with some elements dropped:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "shard" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  enabled = each.key != "api"
+
+  source = "../units/app"
+  path   = "shard/${each.key}"
+}
+```
+
+That generates `shard/web` and skips `shard/api`. The elements that survive keep the keys they would have had, so dropping one does not renumber the rest.
+
+### Rules and limits
+
+- `for_each` accepts a set, map, or object. Lists and tuples are rejected. Wrap a list in `toset()` to iterate it.
+- Element keys must be strings or numbers. Numbers are stringified, so `for_each = toset([1, 2])` gives you the keys `"1"` and `"2"`.
+- `count` must be a non-negative whole number.
+- `for_each` and `count` expressions have to resolve to known, non-null values while the configuration is being parsed. An expression that depends on a dependency output is not known that early.
+- Attributes other than `count` and `for_each` are rejected inside an `expansion` block.
+- A single block expands into at most 1,000,000 instances.
+- Unit and stack names must be unique after expansion, and so must their generated paths.
+
+An `expansion` block whose collection is empty produces no instances, and `count = 0` does the same. A stack file whose blocks all resolve to nothing stays valid: Terragrunt logs that there is nothing to generate and moves on. Only a stack file that declares no `unit` or `stack` block at all is an error.
+
+### Prefer `for_each` over `count`
+
+`count` addresses instances by position, so removing an element shifts every element after it. Deleting the middle entry of a three-element `count` renames the third instance from `2` to `1`, and the state that instance managed no longer matches the configuration at that address. Keys under `for_each` come from the collection itself, so the elements you left alone keep the addresses they had.
+
+Use `count` when the instances are interchangeable and you only ever add to or remove from the end of the set.
+
+### Lifecycle
+
+Adding an `expansion` block to a block that did not have one changes that block's address, and shrinking a `for_each` or lowering a `count` removes addresses. There is no `moved` equivalent in Terragrunt, so unlike OpenTofu there is nothing that records the rename for you. Every transition is manual:
+
+1. References to the block have to be rewritten to their keyed form, in `inputs` and anywhere else the address appears.
+2. Scripts that read `terragrunt stack output` have to be updated to the nested address.
+3. State that belonged to a component whose address no longer exists has to be destroyed deliberately.
+
+For the third, we recommend Git-based `--filter` expressions. Terragrunt evaluates a Git expression by building a worktree for each reference and discovering units in both, then runs the units that exist only on the "from" side with `-destroy` appended:
+
+```bash
+terragrunt run --all apply --filter '[main...HEAD]' --experiment block-iteration
+```
+
+`run --all destroy --filter` is rejected. The worktree phase accepts `plan` and `apply`, along with argument-free discovery commands such as `find` and `list`, and it appends `-destroy` to the "from" side itself. See [Git Expressions](/features/filter/git) for how the worktrees are built.
+
+Orphan discovery reads the Git diff between the two references. It finds an orphan only when `terragrunt.stack.hcl` itself, or a file the stack file reads, appears in that diff. Whether the generated `.terragrunt-stack` tree is committed makes no difference, and we recommend leaving it out of Git. An expansion that shrinks for a reason the diff does not show still orphans the component, but Terragrunt has no way to find it. A `get_env` value that changed in the environment, or a values file kept outside the repository, leaves nothing behind for the diff to report. Destroy those components yourself.
+
+Do not pair the Git expression with a selecting filter. An orphan lives at a path the current configuration no longer mentions, so a second filter that narrows by path or type drops it: `--filter '[HEAD~1...HEAD]' --filter './live | type=stack'` keeps the stack but loses the orphaned element under it, and naming the orphan's own generated path selects nothing, because that path is absent from the "to" side. Run the Git expression on its own and let it discover both sides.
+
+Keyed addresses like `aurora["web"]` are display strings. You cannot write them as `--filter` terms, because `[` opens a Git expression in the filter syntax. Select an individual element with a [path expression](/features/filter/path) naming the directory its `path` attribute produced:
+
+```bash
+terragrunt run --all apply --filter './.terragrunt-stack/aurora/web'
+```
+
+Regenerating a stack does not delete directories for components it no longer produces. `terragrunt stack clean` removes generated stack directories outright, and passing `--source-update` to `terragrunt stack generate` or `terragrunt run --all` clears them before regenerating.
+
+### `render` output is a preview
+
+`terragrunt render` shows an expanded block as it was written, followed by the elements it expanded into, commented out and with their bodies resolved:
+
+```bash
+$ terragrunt render --experiment block-iteration
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path = "../aurora-${each.key}"
+}
+
+# Expands to:
+#
+# dependency "aurora" {
+#   config_path = "../aurora-api"
+# }
+#
+# dependency "aurora" {
+#   config_path = "../aurora-web"
+# }
+```
+
+The elements stay commented out because they all repeat the block's label, which a Terragrunt configuration cannot do. Terragrunt acts on the block above them.
+
+Two cases behave differently:
+
+- A JSON configuration (`terragrunt.hcl.json`) has no HCL text to quote back, so `render` emits one block per element, all under the same label. That output is a preview only. Reading it back gives you a single dependency, and under the `duplicate-dependency-labels` strict control it is an error.
+- `terragrunt render --format json` keys dependencies by their bare label and knows nothing about expansion, so every element of an expanded block collapses onto the last one and the `expansion` block disappears. Use the default HCL output to inspect an expanded configuration.
 
 ## autoinclude
 
