@@ -18,6 +18,7 @@ const (
 	configAssumeRoleKey                = "assume_role"
 	configAssumeRoleWithWebIdentityKey = "assume_role_with_web_identity"
 	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
+	configSkipBucketRootAccessKey      = "skip_bucket_root_access"
 
 	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 

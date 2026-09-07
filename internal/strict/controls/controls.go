@@ -43,6 +43,9 @@ const (
 	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
 	RequireExplicitBootstrap = "require-explicit-bootstrap"
 
+	// SkipBucketRootAccess is the control that prevents the use of the deprecated `skip_bucket_root_access` config attribute.
+	SkipBucketRootAccess = "skip-bucket-root-access"
+
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
 
@@ -135,6 +138,15 @@ func New() strict.Controls {
 		Status:  strict.CompletedStatus,
 	}
 
+	skipBucketRootAccessControl := &Control{
+		Name:        SkipBucketRootAccess,
+		Description: "Prevents the use of the deprecated `skip_bucket_root_access` config attribute. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so the attribute has nothing left to skip.",
+		Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			"The `skip_bucket_root_access` config attribute is no longer supported. Terragrunt does not grant the AWS account root user access to S3 state buckets. Use `enable_bucket_root_access` to grant that access.",
+		),
+		Warning: "The `skip_bucket_root_access` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so this attribute has no effect. Use `enable_bucket_root_access` to grant that access.",
+	}
+
 	controls := strict.Controls{
 		&Control{
 			Name:        DeprecatedCommands,
@@ -154,10 +166,12 @@ func New() strict.Controls {
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
 				requireExplicitBootstrapControl,
+				skipBucketRootAccessControl,
 			},
 		},
 		skipDependenciesInputsControl,
 		requireExplicitBootstrapControl,
+		skipBucketRootAccessControl,
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",

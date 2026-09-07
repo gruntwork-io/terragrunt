@@ -228,6 +228,7 @@ func (o *Options) remoteStateOpts(env map[string]string) *remotestate.Options {
 	return &remotestate.Options{
 		Experiments:                  o.Experiments,
 		IAMRoleOptions:               o.IAMRoleOptions,
+		StrictControls:               o.StrictControls,
 		NonInteractive:               o.NonInteractive,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		TFRunOpts:                    o.tfRunOptions(env),

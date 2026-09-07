@@ -257,10 +257,42 @@ remote_state {
 }
 ```
 
+#### Root user access to the state bucket
+
+Terragrunt used to attach a bucket policy statement with the `Sid` `RootAccess` to every state bucket it bootstrapped, granting `s3:*` on the bucket and its objects to `arn:aws:iam::<account-id>:root`. A resource policy naming that ARN grants access to the AWS account as a whole, not only to its root user. That statement has been removed. The account already owns the bucket, so the statement gave the account no reach it did not have, and state files often contain secrets that belong behind least-privilege access.
+
+If your setup depends on that statement, set `enable_bucket_root_access` to add it back:
+
+```hcl
+# root.hcl
+remote_state {
+  # ... other args omitted for brevity ...
+  config = {
+    # ... other config omitted for brevity ...
+    enable_bucket_root_access = true
+  }
+}
+```
+
+Terragrunt does not strip the statement from buckets that already have it. To drop it, fetch the current policy, delete the statement whose `Sid` is `RootAccess`, and put the policy back:
+
+```bash
+aws s3api get-bucket-policy --bucket my-tofu-state --query Policy --output text \
+  | jq '.Statement |= map(select(.Sid != "RootAccess"))' > policy.json
+
+aws s3api put-bucket-policy --bucket my-tofu-state --policy file://policy.json
+```
+
+Before you apply this, confirm that the principals you expect can still reach the bucket through their own IAM policies.
+
 #### Advanced configuration
 
 <Aside type="caution" title="DEPRECATED">
 The `skip_bucket_accesslogging` option, which previously disabled access logging on the state bucket, is now deprecated. Use `accesslogging_bucket_name` instead to explicitly configure the target logging bucket.
+</Aside>
+
+<Aside type="caution" title="DEPRECATED">
+The `skip_bucket_root_access` option no longer has any effect and is now deprecated. Terragrunt does not grant the AWS account root user access to the state bucket, so there is nothing left to skip. Use `enable_bucket_root_access` if you need that access granted. Terragrunt warns about the option when it bootstraps the backend; enable the [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control to turn that warning into an error.
 </Aside>
 
 For the `s3` backend, the following additional config options can be used for S3-compatible object stores, as necessary:
@@ -273,7 +305,6 @@ remote_state {
   config = {
     skip_bucket_versioning         = true
     skip_bucket_ssencryption       = true
-    skip_bucket_root_access        = true
     skip_bucket_enforced_tls       = true
     skip_credentials_validation    = true
     enable_lock_table_ssencryption = true
@@ -288,7 +319,6 @@ remote_state {
 
 - `skip_bucket_versioning` — Skip versioning on the state bucket. Use only if the object store does not support versioning.
 - `skip_bucket_ssencryption` — Skip server-side encryption on the state bucket. Use only if non-encrypted state is required or the object store does not support server-side encryption.
-- `skip_bucket_root_access` — Skip granting the AWS account root user access to the state bucket.
 - `skip_bucket_enforced_tls` — Skip enforcing TLS on the state bucket. Use only if you need to access the S3 bucket without TLS being enforced.
 - `skip_credentials_validation` — Skip validation of AWS credentials. Useful when using S3-compatible object stores other than AWS.
 - `enable_lock_table_ssencryption` — Enable server-side encryption on the DynamoDB lock table.
@@ -308,6 +338,7 @@ The following config options are only valid for the `s3` backend and are used by
 - `skip_bucket_versioning`
 - `skip_bucket_ssencryption`
 - `skip_bucket_root_access`
+- `enable_bucket_root_access`
 - `skip_bucket_enforced_tls`
 - `skip_bucket_public_access_blocking`
 - `accesslogging_bucket_name`

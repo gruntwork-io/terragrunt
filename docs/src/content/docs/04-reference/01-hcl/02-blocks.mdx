@@ -476,7 +476,8 @@ For the `s3` backend, the following additional properties are supported in the `
 - `skip_bucket_versioning`: When `true`, the S3 bucket that is created to store the state will not be versioned.
 - `skip_bucket_ssencryption`: When `true`, the S3 bucket that is created to store the state will not be configured with server-side encryption.
 - `skip_bucket_accesslogging`: *DEPRECATED* If provided, will be ignored. A log warning will be issued in the console output to notify the user.
-- `skip_bucket_root_access`: When `true`, the S3 bucket that is created will not be configured with bucket policies that allow access to the root AWS user.
+- `skip_bucket_root_access`: *DEPRECATED* If provided, will be ignored. A log warning will be issued in the console output when Terragrunt bootstraps the backend. Enable the [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control to turn that warning into an error.
+- `enable_bucket_root_access`: When `true`, Terragrunt adds a bucket policy statement granting `s3:*` on the bucket and its objects to `arn:aws:iam::<account-id>:root`. Despite that ARN's name, a resource policy naming it grants access to the AWS account as a whole, not only to its root user. Terragrunt does not add this statement by default, and adds it to buckets that already exist as well as to ones it creates.
 - `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `skip_bucket_public_access_blocking`: When `true`, the S3 bucket that is created will not have public access blocking enabled.
 - `disable_bucket_update`: When `true`, disable update S3 bucket if not equal configured in config block
