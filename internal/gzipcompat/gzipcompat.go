@@ -1,5 +1,5 @@
-// Package legacygzip reproduces the base64gzip() output of Terragrunt v1.1.3 and earlier.
-package legacygzip
+// Package gzipcompat reproduces the base64gzip() output of Terragrunt v1.1.3 and earlier.
+package gzipcompat
 
 import (
 	"bytes"

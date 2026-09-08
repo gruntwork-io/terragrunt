@@ -33,7 +33,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
-	"github.com/gruntwork-io/terragrunt/internal/legacygzip"
+	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -373,7 +373,7 @@ func createTerragruntEvalContext(
 	}
 
 	if ctrl := pctx.StrictControls.Find(controls.LegacyBase64Gzip); ctrl == nil || !ctrl.GetEnabled() {
-		terragruntFunctions[FuncNameBase64Gzip] = legacygzip.Func(func() error {
+		terragruntFunctions[FuncNameBase64Gzip] = gzipcompat.Func(func() error {
 			if ctrl == nil {
 				return nil
 			}

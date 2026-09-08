@@ -1,4 +1,4 @@
-package legacygzip
+package gzipcompat
 
 import (
 	"cmp"

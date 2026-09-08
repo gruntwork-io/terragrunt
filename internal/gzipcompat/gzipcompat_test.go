@@ -1,4 +1,4 @@
-package legacygzip_test
+package gzipcompat_test
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/legacygzip"
+	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -92,7 +92,7 @@ func TestEncodeMatchesV113(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := legacygzip.Encode(tc.input)
+			actual, err := gzipcompat.Encode(tc.input)
 			require.NoError(t, err)
 
 			if tc.expected != "" {
