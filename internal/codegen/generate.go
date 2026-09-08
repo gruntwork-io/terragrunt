@@ -32,7 +32,10 @@ const (
 	// The default prefix to use for comments in the generated file
 	DefaultCommentPrefix = "# "
 
-	generatedFilePerms = 0644
+	// generatedFilePerms is the mode a generated file is written under. The
+	// store clears the write bits from it for the copy it shares between
+	// working directories.
+	generatedFilePerms = 0o600
 )
 
 // GenerateConfigExists is an enum to represent valid values for if_exists.
@@ -139,7 +142,7 @@ func WriteToFile(
 		targetPath = filepath.Join(basePath, config.Path)
 	}
 
-	targetInfo, statErr := vfs.Lstat(v.FS, targetPath)
+	_, statErr := vfs.Lstat(v.FS, targetPath)
 	if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
 		return statErr
 	}
@@ -203,15 +206,6 @@ func WriteToFile(
 		contentsToWrite = hclwrite.Format(contentsToWrite)
 	}
 
-	// A surviving target may be a read-only hard link into the store, and even a
-	// writable one would block a fresh link and silently degrade it into a copy.
-	// A symlink must go too, or the write follows it to its destination.
-	if targetFileExists && !targetInfo.IsDir() {
-		if err := v.FS.Remove(targetPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-	}
-
 	if err := materialize(ctx, l, v, targetPath, contentsToWrite, config.Mutable, o.store); err != nil {
 		return err
 	}
@@ -222,7 +216,9 @@ func WriteToFile(
 }
 
 // materialize puts contents at targetPath, sharing one stored copy across
-// working directories unless the block opts into mutability.
+// working directories unless the block opts into mutability. Either route
+// publishes by rename, so a target already there is replaced whole and survives
+// untouched if the generation fails, whatever mode or link count it carries.
 func materialize(
 	ctx context.Context,
 	l log.Logger,
@@ -233,17 +229,25 @@ func materialize(
 	store *cas.Content,
 ) error {
 	if store == nil || (mutable != nil && *mutable) {
-		return vfs.WriteFile(v.FS, targetPath, contents, generatedFilePerms)
+		return vfs.WriteFileAtomic(v.FS, targetPath, contents, generatedFilePerms)
 	}
 
-	// Matches how the blob store keys files ingested from local sources, so a
-	// generated file also dedupes against an identical file from a module.
+	// Keyed the way the blob store keys files ingested from local sources, so
+	// every working directory generating these contents lands on one blob.
 	hash := cas.HashSHA256.Sum(contents)
-	if err := store.Ensure(l, v, hash, contents); err != nil {
+	if err := store.Ensure(l, v, hash, contents, generatedFilePerms); err != nil {
 		return err
 	}
 
-	return store.Link(ctx, v, hash, targetPath, generatedFilePerms)
+	return store.Link(
+		ctx,
+		l,
+		v,
+		hash,
+		targetPath,
+		generatedFilePerms,
+		cas.WithLinkStoredPerm(),
+	)
 }
 
 // Whether or not file generation should continue if the file path already exists. The answer depends on the
