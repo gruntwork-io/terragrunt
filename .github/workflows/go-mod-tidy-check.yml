@@ -24,13 +24,5 @@ jobs:
       - name: Restore Go caches
         uses: $/.github/actions/go-cache-restore
 
-      - name: Run go mod tidy
-        run: go mod tidy
-
-      - name: Check for changes
-        run: |
-          if ! git diff --exit-code go.mod go.sum; then
-            echo "::error::go.mod or go.sum are not tidy. Please run 'go mod tidy' locally and commit the changes."
-            exit 1
-          fi
-          echo "go.mod and go.sum are tidy"
+      - name: Check go mod tidy
+        run: ./.github/scripts/ci/check-go-mod-tidy.sh
