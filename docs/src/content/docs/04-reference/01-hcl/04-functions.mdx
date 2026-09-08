@@ -870,6 +870,9 @@ inputs = local.config
 result into a map that can be used to reference the values of the parsed config. This function will expose all blocks
 and attributes of a terragrunt config.
 
+A relative `config_path` resolves against the directory of the configuration file containing the call, which for a
+configuration pulled in by an `include` block is that file's own directory.
+
 For example, suppose you had a config file called `common.hcl` that contains common input variables:
 
 ```hcl
@@ -953,6 +956,9 @@ BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault, Hashicorp Va
 
 This allows static secrets to be stored encrypted within your Terragrunt repository.
 
+A relative `file_path` resolves against the directory of the configuration file containing the call, which for a
+configuration pulled in by an `include` block is that file's own directory.
+
 For example, suppose you have some static secrets required to bootstrap your
 infrastructure in `secrets.yaml`, you can decrypt and merge them into the inputs
 by using `sops_decrypt_file`:
@@ -1004,6 +1010,9 @@ Some example use cases are:
 ## read_tfvars_file
 
 `read_tfvars_file(file_path)` reads a `.tfvars` or `.tfvars.json` file and returns a map of the variables defined in it.
+
+A relative `file_path` resolves against the directory of the configuration file containing the call, which for a
+configuration pulled in by an `include` block is that file's own directory.
 
 This is useful for reading variables from a `.tfvars` file, merging them into the inputs, or using them in a `locals` block:
 
@@ -1072,7 +1081,18 @@ any `run --all` run where the flag `--queue-include-units-reading file-read-by-t
 
 The same technique can be used to mark a file as read when a file is read using code in `run_cmd`.
 
-**NOTE**: Due to the way that Terragrunt enqueues files we require an absolute path for mark_as_read to avoid multiple inclusions.
+A relative path is resolved against the directory of the configuration file containing the call, the same directory
+`file` reads it from. When the call lives in a configuration pulled in by an `include` block, that is the included
+file's own directory, not the directory of the unit doing the including:
+
+```hcl
+# common/included.hcl, pulled in by an include block
+
+locals {
+  # Resolves to common/settings.json, the file that `file` reads.
+  settings = jsondecode(file(mark_as_read("settings.json")))
+}
+```
 
 **NOTE**: Due to the way that Terragrunt parses configurations during a `run --all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
@@ -1094,7 +1114,7 @@ block is not evaluated until *after* the queue has been populated with units to 
 
 Pattern syntax follows [`gobwas/glob`](https://github.com/gobwas/glob), the same matcher used elsewhere in Terragrunt. `/` is the path separator, `*` matches within a single segment, `**` matches any sequence of characters including separators, `?` matches any single non-separator character, `[abc]` matches a character class, and `{a,b}` matches any of the listed alternatives. A backslash escapes the following metacharacter.
 
-Relative patterns are resolved against the current working directory, the same way `mark_as_read` resolves a relative file path.
+Relative patterns are resolved against the directory of the configuration file containing the call, the same way `mark_as_read` resolves a relative file path.
 
 <Aside type="caution">
 Glob patterns must use forward slashes (`/`) as the path separator, even on Windows. The matcher treats `\` as an escape character, not a path separator, so a backslash-separated pattern will not match any files.
@@ -1130,7 +1150,7 @@ If the pattern matches nothing, the function returns an empty list without error
 
 This keeps a pattern that resolves higher than intended from walking a large portion of the filesystem. A pattern interpolated from an empty value is the common case: `"${local.dir}/{*.yaml}"` becomes `/{*.yaml}` when `local.dir` is `""`.
 
-Pass a leading `--terragrunt-boundary` argument to set the boundary explicitly. Use it to scope the walk to a subdirectory, or to widen it when a scan outside the repository root is intended. A relative value resolves against the working directory.
+Pass a leading `--terragrunt-boundary` argument to set the boundary explicitly. Use it to scope the walk to a subdirectory, or to widen it when a scan outside the repository root is intended. A relative value resolves against the directory of the configuration file containing the call.
 
 ```hcl
 locals {

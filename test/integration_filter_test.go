@@ -14,14 +14,15 @@ import (
 )
 
 const (
-	testFixtureFilterBasic            = "fixtures/find/basic"
-	testFixtureFilterDAG              = "fixtures/find/dag"
-	testFixtureFilterList             = "fixtures/list/basic"
-	testFixtureFilterSource           = "fixtures/filter-source"
-	testFixtureMinimizeParsing        = "fixtures/filter/minimize-parsing"
-	testFixtureMinimizeParsingDestroy = "fixtures/filter/minimize-parsing-destroy"
-	testFixtureExcludeByDefault       = "fixtures/exclude-by-default"
-	testFixtureFilterMarkAsRead       = "fixtures/filter/mark-as-read"
+	testFixtureFilterBasic             = "fixtures/find/basic"
+	testFixtureFilterDAG               = "fixtures/find/dag"
+	testFixtureFilterList              = "fixtures/list/basic"
+	testFixtureFilterSource            = "fixtures/filter-source"
+	testFixtureMinimizeParsing         = "fixtures/filter/minimize-parsing"
+	testFixtureMinimizeParsingDestroy  = "fixtures/filter/minimize-parsing-destroy"
+	testFixtureExcludeByDefault        = "fixtures/exclude-by-default"
+	testFixtureFilterMarkAsRead        = "fixtures/filter/mark-as-read"
+	testFixtureFilterMarkAsReadInclude = "fixtures/filter/mark-as-read-include"
 )
 
 // createTestUnit creates a unit directory with terragrunt.hcl and main.tf files.
@@ -1395,6 +1396,63 @@ func TestFilterFlagWithMarkAsRead(t *testing.T) {
 				t,
 				tc.expectedUnits,
 				results,
+				"Output mismatch for filter query: %s",
+				tc.filterQuery,
+			)
+		})
+	}
+}
+
+// TestFilterFlagWithMarkAsReadInIncludedConfig covers a relative path passed to mark_as_read from an
+// included configuration. Such a path names a file relative to the include's own directory, the same
+// way file() reads it, so a unit pulling in the include must be selected by a reading filter naming
+// the file at that location rather than under the unit's directory.
+func TestFilterFlagWithMarkAsReadInIncludedConfig(t *testing.T) {
+	t.Parallel()
+
+	workingDir, err := filepath.Abs(testFixtureFilterMarkAsReadInclude)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name          string
+		filterQuery   string
+		expectedUnits []string
+	}{
+		{
+			name:          "relative path resolves against the included config's directory",
+			filterQuery:   "reading=common/foo.txt",
+			expectedUnits: []string{"unit-include"},
+		},
+		{
+			name:          "the including unit's directory does not absorb the path",
+			filterQuery:   "reading=unit-include/foo.txt",
+			expectedUnits: []string{},
+		},
+		{
+			name:          "a call outside an include still resolves against its own unit",
+			filterQuery:   "reading=unit-plain/bar.txt",
+			expectedUnits: []string{"unit-plain"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(
+				t,
+				err,
+				"Unexpected error for filter query: %s\nstderr: %s",
+				tc.filterQuery,
+				stderr,
+			)
+
+			assert.ElementsMatch(
+				t,
+				tc.expectedUnits,
+				strings.Fields(stdout),
 				"Output mismatch for filter query: %s",
 				tc.filterQuery,
 			)
