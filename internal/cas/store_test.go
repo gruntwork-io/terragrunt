@@ -2,11 +2,13 @@ package cas_test
 
 import (
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -71,112 +73,89 @@ func TestStore_NeedsWrite(t *testing.T) {
 	}
 }
 
-func TestStore_AcquireLock(t *testing.T) {
+// TestStore_LockSerializesSameHash pins that a second holder of one hash
+// waits for the first to release, and that a different hash does not.
+func TestStore_LockSerializesSameHash(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
-	storePath := defaultStorePath
-	store := cas.NewStore(storePath)
-	testHash := "abcdef1234567890abcdef1234567890abcdef12"
+	store := cas.NewStore(filepath.Join(t.TempDir(), "store"))
 
-	// Test successful lock acquisition
-	lock, err := store.AcquireLock(v, testHash)
-	require.NoError(t, err)
-	assert.NotNil(t, lock)
+	const (
+		testHash  = "abcdef1234567890abcdef1234567890abcdef12"
+		otherHash = "fedcba0987654321fedcba0987654321fedcba09"
+	)
 
-	// Verify partition directory was created
-	partitionDir := filepath.Join(storePath, testHash[:2])
-	_, err = v.FS.Stat(partitionDir)
-	require.NoError(t, err)
+	unlock := store.Lock(testHash)
 
-	// Clean up
-	err = lock.Unlock()
-	require.NoError(t, err)
-}
+	otherUnlock := store.Lock(otherHash)
+	otherUnlock()
 
-func TestStore_TryAcquireLock(t *testing.T) {
-	t.Parallel()
+	acquired := make(chan struct{})
 
-	v := venvtest.New()
-	storePath := defaultStorePath
-	store := cas.NewStore(storePath)
-	testHash := "abcdef1234567890abcdef1234567890abcdef12"
-
-	// Test successful lock acquisition
-	lock1, acquired, err := store.TryAcquireLock(v, testHash)
-	require.NoError(t, err)
-	assert.True(t, acquired)
-	assert.NotNil(t, lock1)
-
-	// Test lock contention - should fail to acquire
-	lock2, acquired, err := store.TryAcquireLock(v, testHash)
-	require.NoError(t, err)
-	assert.False(t, acquired)
-	assert.Nil(t, lock2)
-
-	// Clean up first lock
-	err = lock1.Unlock()
-	require.NoError(t, err)
-
-	// Now should be able to acquire again
-	lock3, acquired, err := store.TryAcquireLock(v, testHash)
-	require.NoError(t, err)
-	assert.True(t, acquired)
-	assert.NotNil(t, lock3)
-
-	// Clean up
-	err = lock3.Unlock()
-	assert.NoError(t, err)
-}
-
-func TestStore_LockConcurrency(t *testing.T) {
-	t.Parallel()
-
-	v := venvtest.New()
-	storePath := defaultStorePath
-	store := cas.NewStore(storePath)
-	testHash := "abcdef1234567890abcdef1234567890abcdef12"
-
-	// Test that multiple goroutines can't acquire the same lock
-	done := make(chan bool, 2)
-	acquired := make(chan bool, 2)
-
-	// First goroutine acquires lock and holds it briefly
 	go func() {
-		lock, err := store.AcquireLock(v, testHash)
-		assert.NoError(t, err)
+		secondUnlock := store.Lock(testHash)
 
-		acquired <- true
-
-		time.Sleep(100 * time.Millisecond) // Hold lock briefly
-
-		err = lock.Unlock()
-		assert.NoError(t, err)
-
-		done <- true
+		close(acquired)
+		secondUnlock()
 	}()
 
-	// Second goroutine tries to acquire the same lock
-	go func() {
-		<-acquired // Wait for first goroutine to acquire lock
+	select {
+	case <-acquired:
+		t.Fatal("second holder acquired the hash while the first still held it")
+	case <-time.After(50 * time.Millisecond):
+	}
 
-		// Should block until first lock is released
-		start := time.Now()
-		lock, err := store.AcquireLock(v, testHash)
-		elapsed := time.Since(start)
+	unlock()
 
-		assert.NoError(t, err)
-		assert.Greater(t, elapsed, 50*time.Millisecond, "Second lock should have been blocked")
+	select {
+	case <-acquired:
+	case <-time.After(5 * time.Second):
+		t.Fatal("second holder never acquired the hash after release")
+	}
+}
 
-		err = lock.Unlock()
-		assert.NoError(t, err)
+// TestStore_LockSharedAcrossInstancesWithRacing pins that separate Store
+// values rooted at one path share the lock, as separate CAS instances
+// in one process do, so their writers of one hash never overlap.
+func TestStore_LockSharedAcrossInstancesWithRacing(t *testing.T) {
+	t.Parallel()
 
-		done <- true
-	}()
+	storePath := filepath.Join(t.TempDir(), "store")
 
-	// Wait for both goroutines to complete
-	<-done
-	<-done
+	const (
+		testHash = "abcdef1234567890abcdef1234567890abcdef12"
+		holders  = 8
+		rounds   = 50
+	)
+
+	var (
+		inside   atomic.Int32
+		overlaps atomic.Int32
+	)
+
+	var g errgroup.Group
+
+	for range holders {
+		store := cas.NewStore(storePath)
+
+		g.Go(func() error {
+			for range rounds {
+				unlock := store.Lock(testHash)
+
+				if inside.Add(1) != 1 {
+					overlaps.Add(1)
+				}
+
+				inside.Add(-1)
+				unlock()
+			}
+
+			return nil
+		})
+	}
+
+	require.NoError(t, g.Wait())
+	assert.Zero(t, overlaps.Load(), "two holders were inside the critical section at once")
 }
 
 func TestStore_EnsureWithWait(t *testing.T) {
@@ -200,10 +179,9 @@ func TestStore_EnsureWithWait(t *testing.T) {
 		require.NoError(t, err)
 
 		// EnsureWithWait should return false (no write needed)
-		needsWrite, lock, err := store.EnsureWithWait(v, testHash)
-		require.NoError(t, err)
+		needsWrite, unlock := store.EnsureWithWait(v, testHash)
+		unlock()
 		assert.False(t, needsWrite)
-		assert.Nil(t, lock)
 	})
 
 	t.Run("content doesn't exist, no contention", func(t *testing.T) {
@@ -211,14 +189,56 @@ func TestStore_EnsureWithWait(t *testing.T) {
 
 		testHashNew := "fedcba0987654321fedcba0987654321fedcba09"
 
-		// EnsureWithWait should return true (write needed) and provide lock
-		needsWrite, lock, err := store.EnsureWithWait(v, testHashNew)
-		require.NoError(t, err)
+		// EnsureWithWait should return true (write needed) and hold the lock
+		needsWrite, unlock := store.EnsureWithWait(v, testHashNew)
 		assert.True(t, needsWrite)
-		assert.NotNil(t, lock)
 
-		// Clean up
-		err = lock.Unlock()
-		assert.NoError(t, err)
+		unlock()
+	})
+
+	t.Run("written while waiting", func(t *testing.T) {
+		t.Parallel()
+
+		waitedHash := "0123456789abcdef0123456789abcdef01234567"
+
+		writerUnlock := store.Lock(waitedHash)
+
+		answers := make(chan bool, 1)
+		started := make(chan struct{})
+
+		go func() {
+			close(started)
+
+			needsWrite, unlock := store.EnsureWithWait(v, waitedHash)
+			unlock()
+
+			answers <- needsWrite
+		}()
+
+		<-started
+
+		// Nothing is stored yet, so the waiter cannot have answered: it
+		// saw the object missing and queued behind the lock held above.
+		// An answer arriving here would mean two holders were inside.
+		select {
+		case <-answers:
+			t.Fatal("waiter answered while another holder still held the hash")
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		// Publishing before the release is what forces the waiter's
+		// re-check to find the content in place.
+		partitionDir := filepath.Join(storePath, waitedHash[:2])
+		require.NoError(t, v.FS.MkdirAll(partitionDir, 0755))
+		require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(partitionDir, waitedHash), []byte("written"), 0644))
+
+		writerUnlock()
+
+		select {
+		case needsWrite := <-answers:
+			assert.False(t, needsWrite, "waiter must not be told to rewrite content published while it waited")
+		case <-time.After(5 * time.Second):
+			t.Fatal("waiter never returned")
+		}
 	})
 }

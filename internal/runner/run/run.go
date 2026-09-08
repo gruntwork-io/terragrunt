@@ -252,7 +252,7 @@ func GenerateConfig(
 }
 
 // generateWriteOptions decides whether generated files are deduplicated through
-// the CAS store.
+// the CAS store, and how a deduplicated file reaches its working directory.
 //
 // A CAS that cannot be initialized is not fatal: generation falls back to direct
 // writes, matching how source downloads degrade.
@@ -268,7 +268,9 @@ func generateWriteOptions(l log.Logger, v *venv.Venv, opts *Options) []codegen.W
 		return nil
 	}
 
-	return []codegen.WriteOption{codegen.WithContentStore(cas.NewContent(c.BlobStore()))}
+	return []codegen.WriteOption{
+		codegen.WithContentStore(cas.NewContent(c.BlobStore()), cas.WithFileLinkMode(c.LinkMode())),
+	}
 }
 
 // Runs tofu/terraform with the given options and CLI args.

@@ -8,13 +8,14 @@ package cas
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"errors"
@@ -31,11 +32,18 @@ import (
 // DefaultCASCloneDepth is the default shallow clone depth for CAS (git clone --depth).
 const DefaultCASCloneDepth = 1
 
+// gitScheme is the [SourceRequest.Scheme] the git ingest path travels under.
+const gitScheme = "git"
+
 // Option configures the behavior of CAS.
 type Option func(*CAS)
 
 // CloneOptions configures the behavior of a specific clone operation.
 type CloneOptions struct {
+	// LinkMode overrides the mode the CAS instance materializes trees in
+	// for this clone alone. Nil leaves the instance's own mode in place.
+	LinkMode *LinkMode
+
 	// Dir specifies the target directory for the clone.
 	// If empty, uses the repository name.
 	Dir string
@@ -44,8 +52,12 @@ type CloneOptions struct {
 	// If empty, uses HEAD.
 	Branch string
 
-	// IncludedGitFiles specifies the files to preserve from the .git directory.
-	// If empty, does not preserve any files.
+	// IncludedGitFiles names files from the source repository's git
+	// directory to write under .git in the target directory. If empty,
+	// no .git directory is written. The stored tree never carries these
+	// entries; each is recorded separately against the commit so callers
+	// asking for different lists share one tree and each receive only the
+	// files they named.
 	IncludedGitFiles []string
 
 	// Depth limits the clone history to the given number of commits passed to git clone --depth.
@@ -97,17 +109,26 @@ func WithMutable(mutable bool) CloneOption {
 	return func(o *CloneOptions) { o.Mutable = mutable }
 }
 
+// WithCloneLinkMode materializes this clone in mode rather than in the mode
+// the CAS instance carries. It serves a caller whose target directory has to
+// hold files of a particular shape, such as one CAS itself reads back.
+func WithCloneLinkMode(mode LinkMode) CloneOption {
+	return func(o *CloneOptions) { o.LinkMode = &mode }
+}
+
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
 	blobStore         *Store
 	treeStore         *Store
 	synthStore        *Store
+	gitFileStore      *Store
 	gitStore          *GitStore
 	probeCache        *ProbeCache
 	storePath         string
 	cloneDepth        int
 	probeTTL          time.Duration
 	probeMode         ProbeMode
+	linkMode          LinkMode
 	probeCacheEnabled bool
 }
 
@@ -181,9 +202,17 @@ func WithProbeTTL(ttl time.Duration) Option {
 	}
 }
 
+// WithLinkMode sets how materialized trees reach their target directories.
+// Without it, CAS uses [DefaultLinkMode].
+func WithLinkMode(mode LinkMode) Option {
+	return func(c *CAS) {
+		c.linkMode = mode
+	}
+}
+
 // New creates a new CAS instance with the given options.
 func New(v *venv.Venv, opts ...Option) (*CAS, error) {
-	c := &CAS{}
+	c := &CAS{linkMode: DefaultLinkMode}
 
 	for _, opt := range opts {
 		opt(c)
@@ -201,6 +230,7 @@ func New(v *venv.Venv, opts ...Option) (*CAS, error) {
 	c.blobStore = NewStore(filepath.Join(c.storePath, "blobs"))
 	c.treeStore = NewStore(filepath.Join(c.storePath, "trees"))
 	c.synthStore = NewStore(filepath.Join(c.storePath, "synth", "trees"))
+	c.gitFileStore = NewStore(filepath.Join(c.storePath, "gitfiles"))
 	c.gitStore = NewGitStore(filepath.Join(c.storePath, "git"))
 	c.probeCache = NewProbeCache(filepath.Join(c.storePath, probeCacheDirName))
 
@@ -216,8 +246,24 @@ func (c *CAS) TreeStore() *Store { return c.treeStore }
 // SynthStore returns the store for synthetic tree content.
 func (c *CAS) SynthStore() *Store { return c.synthStore }
 
+// GitFileStore returns the store holding one record per (commit, git
+// file name) pair for the files [CloneOptions.IncludedGitFiles] can
+// name. Each record is a single tree line pointing at the file's blob;
+// [GitFileKey] derives the record key.
+func (c *CAS) GitFileStore() *Store { return c.gitFileStore }
+
 // StorePath returns the root directory containing every CAS store.
 func (c *CAS) StorePath() string { return c.storePath }
+
+// LinkMode returns the mode this instance materializes trees in.
+func (c *CAS) LinkMode() LinkMode { return c.linkMode }
+
+// linkTreeOptions returns the options every tree this instance materializes
+// is linked with: its own mode, plus the caller's own options, which come
+// last so a caller that names a mode overrides the instance's.
+func (c *CAS) linkTreeOptions(opts []LinkTreeOption) []LinkTreeOption {
+	return append([]LinkTreeOption{WithTreeLinkMode(c.linkMode)}, opts...)
+}
 
 // ensureStorePaths creates the store directory hierarchy on v.FS. Callers
 // invoke this from any top-level entry point that may write to a store, so
@@ -231,7 +277,7 @@ func (c *CAS) ensureStorePaths(v *venv.Venv) error {
 		return fmt.Errorf("create CAS store path: %w", err)
 	}
 
-	for _, s := range []*Store{c.blobStore, c.treeStore, c.synthStore} {
+	for _, s := range []*Store{c.blobStore, c.treeStore, c.synthStore, c.gitFileStore} {
 		if err := v.FS.MkdirAll(s.Path(), DefaultDirPerms); err != nil {
 			return fmt.Errorf("create CAS store subdirectory %s: %w", s.Path(), err)
 		}
@@ -277,7 +323,7 @@ type probeResult struct {
 }
 
 // Scheme returns "git".
-func (r *GitResolver) Scheme() string { return "git" }
+func (r *GitResolver) Scheme() string { return gitScheme }
 
 // Pinned always reports false. Git decides immutability after probing,
 // from the ref ls-remote matched rather than the ref that was asked for
@@ -488,7 +534,7 @@ func (c *CAS) Clone(
 	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, url)
 
 	return c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
-		Scheme:       "git",
+		Scheme:       gitScheme,
 		URL:          url,
 		Resolver:     c.newGitResolver(l, v, opts.Branch),
 		Fetch:        c.gitFetcher(url, &opts),
@@ -510,20 +556,12 @@ func (c *CAS) EnsureBlob(
 ) (err error) {
 	v.RequireGOOS()
 
-	needsWrite, lock, err := c.blobStore.EnsureWithWait(v, hash)
-	if err != nil {
-		return err
-	}
+	needsWrite, unlock := c.blobStore.EnsureWithWait(v, hash)
+	defer unlock()
 
 	if !needsWrite {
 		return nil
 	}
-
-	defer func() {
-		if unlockErr := lock.Unlock(); unlockErr != nil {
-			err = errors.Join(err, unlockErr)
-		}
-	}()
 
 	content := NewContent(c.blobStore)
 
@@ -544,10 +582,6 @@ func (c *CAS) EnsureBlob(
 		return err
 	}
 
-	if err = v.FS.Rename(tmpPath, content.getPath(hash)); err != nil {
-		return err
-	}
-
 	// Symlink entries (git mode 120000) have no permission bits, but the blob
 	// stores the link target string and must stay readable so linkTree can
 	// resolve the symlink at materialization time.
@@ -556,8 +590,34 @@ func (c *CAS) EnsureBlob(
 		storedPerm = StoredFilePerms
 	}
 
-	if err = v.FS.Chmod(content.getPath(hash), storedPerm); err != nil {
+	// The mode is set before the rename so a reader never sees the object at
+	// the temp file's mode between the two steps.
+	if err = v.FS.Chmod(tmpPath, storedPerm); err != nil {
 		return err
+	}
+
+	return content.publish(v, tmpPath, hash)
+}
+
+// streamBlob reads the blob named by hash from batch into tmpHandle and
+// closes the handle whatever the outcome. The caller removes or renames
+// the file next, and Windows refuses both while a handle is open.
+func streamBlob(
+	v *venv.Venv,
+	batch *git.CatFileBatch,
+	hash string,
+	tmpHandle vfs.File,
+) (err error) {
+	defer func() {
+		err = errors.Join(err, tmpHandle.Close())
+	}()
+
+	if err := batch.ReadBlob(hash, tmpHandle); err != nil {
+		return err
+	}
+
+	if v.Platform.GOOS == WindowsOS {
+		return tmpHandle.Sync()
 	}
 
 	return nil
@@ -588,10 +648,10 @@ func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
 }
 
 // populateTreeFromRef returns the canonical commit hash for ref, ingesting
-// its tree when the store lacks it. Concurrent ingests of the same ref
-// anywhere in the process share one flight; the flight runs with the
-// first caller's logger, venv, and clone options, and later callers only
-// wait for its tree.
+// its tree and opts.IncludedGitFiles when the store lacks either.
+// Concurrent ingests of the same ref and list anywhere in the process
+// share one flight; the flight runs with the first caller's logger, venv,
+// and clone options, and later callers only wait for what it stores.
 //
 // Under [IngestRepair] the store hit is passed over, so the tree is
 // ingested again and the objects it names are written back.
@@ -603,7 +663,7 @@ func (c *CAS) populateTreeFromRef(
 	ref resolvedRef,
 	mode IngestMode,
 ) (string, error) {
-	if hash := ref.knownHash(); mode.trustsStoreHits() && hash != "" && !c.treeStore.NeedsWrite(v, hash) {
+	if hash := ref.knownHash(); mode.trustsStoreHits() && hash != "" && !c.needsIngest(v, hash, opts) {
 		return hash, nil
 	}
 
@@ -613,28 +673,32 @@ func (c *CAS) populateTreeFromRef(
 		return "", &OfflineMissError{Source: RedactURL(url), Ref: probeRefName(requested)}
 	}
 
-	return flights.ingest.do(ctx, c.ingestFlightKey(ref, mode), func(ctx context.Context) (string, error) {
+	return flights.ingest.do(ctx, c.ingestFlightKey(ref, mode, opts), func(ctx context.Context) (string, error) {
 		return c.ingestRef(ctx, l, v, opts, ref, mode)
 	})
 }
 
-// ingestFlightKey identifies the tree an ingest writes into this store:
-// the commit hash when it is already known, otherwise the (URL, ref) pair
-// that will resolve to it.
+// ingestFlightKey identifies what an ingest writes into this store: the
+// tree for the commit hash when it is already known, otherwise for the
+// (URL, ref) pair that will resolve to it, plus the records for
+// opts.IncludedGitFiles. The list is part of the key because a caller
+// joining a flight only waits for it, so a flight run with another
+// caller's list would leave the joiner's .git files unrecorded.
 //
 // The mode is part of the key because a repair that joined a cached
 // ingest would get back an ingest that trusted the store hit the repair
 // was started to correct.
-func (c *CAS) ingestFlightKey(ref resolvedRef, mode IngestMode) string {
+func (c *CAS) ingestFlightKey(ref resolvedRef, mode IngestMode, opts *CloneOptions) string {
 	scope := c.storePath + "\x00" + strconv.Itoa(int(mode))
+	files := "\x00files\x00" + strings.Join(opts.IncludedGitFiles, "\x00")
 
 	if hash := ref.knownHash(); hash != "" {
-		return scope + "\x00commit\x00" + hash
+		return scope + "\x00commit\x00" + hash + files
 	}
 
 	url, requested := ref.origin()
 
-	return scope + "\x00ref\x00" + url + "\x00" + requested
+	return scope + "\x00ref\x00" + url + "\x00" + requested + files
 }
 
 // ingestRef dispatches by ref kind to the populate that fills the store.
@@ -715,9 +779,9 @@ func (c *CAS) populateTreeFromSymbolicRef(
 }
 
 // populateTreeFromCommitRef resolves ref via [GitStore.EnsureCommit]
-// (full-depth fetch on a cache miss) and stores its tree in the CAS.
-// Returns the canonical commit hash. Falls back to a temporary bare
-// clone if the central [GitStore] is unavailable.
+// (a cache miss fetches through [fetchPinnedCommit]) and stores its tree
+// in the CAS. Returns the canonical commit hash. Falls back to a
+// temporary bare clone if the central [GitStore] is unavailable.
 func (c *CAS) populateTreeFromCommitRef(
 	ctx context.Context,
 	l log.Logger,
@@ -735,7 +799,7 @@ func (c *CAS) populateTreeFromCommitRef(
 	if err == nil {
 		defer repo.Release(l)
 
-		if mode.trustsStoreHits() && !c.treeStore.NeedsWrite(v, repo.Hash) {
+		if mode.trustsStoreHits() && !c.needsIngest(v, repo.Hash, opts) {
 			return repo.Hash, nil
 		}
 
@@ -785,7 +849,7 @@ func (c *CAS) populateTreeFromCommitRef(
 		return "", err
 	}
 
-	if mode.trustsStoreHits() && !c.treeStore.NeedsWrite(v, canonicalHash) {
+	if mode.trustsStoreHits() && !c.needsIngest(v, canonicalHash, opts) {
 		return canonicalHash, nil
 	}
 
@@ -869,8 +933,8 @@ func (r *symbolicRef) knownHash() string { return r.Hash }
 func (r *symbolicRef) origin() (string, string) { return r.URL, r.Branch }
 
 // commitRef carries a ref ls-remote did not canonicalize. The central git
-// store resolves it later via rev-parse and a full-history fetch on a
-// cache miss.
+// store resolves it later via rev-parse, fetching through
+// [fetchPinnedCommit] on a cache miss.
 type commitRef struct {
 	// URL is the remote repository URL.
 	URL string
@@ -942,8 +1006,9 @@ func looksLikeFullSHA(s string) bool {
 
 // storeRootTreeFrom reads the recursive tree at hash from the supplied
 // runner's working repository and stores its tree and reachable blobs in
-// the CAS. The runner must already have its WorkDir pointed at a bare repo
-// (or worktree) that contains the requested object. url is the remote the
+// the CAS, then records each of opts.IncludedGitFiles against hash. The
+// runner must already have its WorkDir pointed at a bare repo (or
+// worktree) that contains the requested object. url is the remote the
 // repository came from; submodule ingestion resolves relative .gitmodules
 // URLs against it.
 func (c *CAS) storeRootTreeFrom(
@@ -964,45 +1029,87 @@ func (c *CAS) storeRootTreeFrom(
 		return err
 	}
 
-	if len(opts.IncludedGitFiles) == 0 {
-		return nil
+	return c.storeIncludedGitFiles(l, v, runner.WorkDir, hash, opts.IncludedGitFiles)
+}
+
+// needsIngest reports whether the store lacks the tree at hash or a
+// record for any of opts.IncludedGitFiles against it. Checking the tree
+// alone would let an earlier ingest with a shorter list short-circuit a
+// later caller out of the .git files it asked for.
+func (c *CAS) needsIngest(v *venv.Venv, hash string, opts *CloneOptions) bool {
+	if c.treeStore.NeedsWrite(v, hash) {
+		return true
 	}
 
-	treeContent := NewContent(c.treeStore)
-
-	data := slices.Clone(tree.Data())
-
-	for _, file := range opts.IncludedGitFiles {
-		stat, err := v.FS.Stat(filepath.Join(runner.WorkDir, file))
-		if err != nil {
-			return err
+	for _, name := range opts.IncludedGitFiles {
+		if c.gitFileStore.NeedsWrite(v, GitFileKey(hash, name)) {
+			return true
 		}
+	}
 
-		if stat.IsDir() {
+	return false
+}
+
+// storeIncludedGitFiles copies each named file from the git directory
+// at repoDir into the blob store and records it against hash. Names
+// already recorded are skipped, so a later caller with a longer list
+// only adds the files the earlier ingest did not cover. The record is
+// written after the blob so a record hit implies the blob is present.
+func (c *CAS) storeIncludedGitFiles(
+	l log.Logger,
+	v *venv.Venv,
+	repoDir, hash string,
+	names []string,
+) error {
+	blobContent := NewContent(c.blobStore)
+	recordContent := NewContent(c.gitFileStore)
+
+	for _, name := range names {
+		key := GitFileKey(hash, name)
+		if !c.gitFileStore.NeedsWrite(v, key) {
 			continue
 		}
 
-		workDirPath := filepath.Join(runner.WorkDir, file)
+		srcPath := filepath.Join(repoDir, name)
 
-		includedHash, err := hashFile(v.FS, workDirPath)
+		info, err := v.FS.Stat(srcPath)
 		if err != nil {
 			return err
 		}
 
-		blobContent := NewContent(c.blobStore)
+		if info.IsDir() {
+			return &WrappedError{Op: "store_git_file", Path: srcPath, Err: ErrIncludedGitFileIsDir}
+		}
 
-		if err := blobContent.EnsureCopy(l, v, includedHash, workDirPath); err != nil {
+		blobHash, err := hashFile(v.FS, srcPath)
+		if err != nil {
 			return err
 		}
 
-		path := filepath.Join(".git", file)
+		if err := blobContent.EnsureCopy(l, v, blobHash, srcPath); err != nil {
+			return err
+		}
 
-		data = append(
-			data,
-			fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
+		record := fmt.Appendf(nil, "%06o blob %s\t%s\n", info.Mode().Perm(), blobHash, name)
+
+		if err := recordContent.EnsureWithWait(l, v, key, record, StoredFilePerms); err != nil {
+			return err
+		}
 	}
 
-	return treeContent.Store(l, v, hash, data, StoredFilePerms)
+	return nil
+}
+
+// GitFileKey returns the [CAS.GitFileStore] key for the git directory
+// file name recorded against the commit at hash.
+func GitFileKey(hash, name string) string {
+	h := sha256.New()
+	h.Write([]byte("gitfile\x00"))
+	h.Write([]byte(hash))
+	h.Write([]byte{0})
+	h.Write([]byte(name))
+
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // storeTreeRecursive stores a tree fetched from git ls-tree -r. The tree
@@ -1222,30 +1329,6 @@ func submoduleURLs(
 	}
 
 	return nil, nil
-}
-
-// streamBlob reads the blob named by hash from batch into tmpHandle and
-// closes the handle whatever the outcome. The caller removes or renames
-// the file next, and Windows refuses both while a handle is open.
-func streamBlob(
-	v *venv.Venv,
-	batch *git.CatFileBatch,
-	hash string,
-	tmpHandle vfs.File,
-) (err error) {
-	defer func() {
-		err = errors.Join(err, tmpHandle.Close())
-	}()
-
-	if err := batch.ReadBlob(hash, tmpHandle); err != nil {
-		return err
-	}
-
-	if v.Platform.GOOS == WindowsOS {
-		return tmpHandle.Sync()
-	}
-
-	return nil
 }
 
 func hashFile(fsys vfs.FS, path string) (string, error) {

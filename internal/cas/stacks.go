@@ -132,8 +132,13 @@ func (c *CAS) ProcessStackComponent(
 
 	cloneDir := filepath.Join(tempDir, "repo")
 
+	// This clone is scratch: processDirectory reads it back into the store and
+	// the directory is copied out and deleted. Hard links give it no disk
+	// usage of its own, where a copy would duplicate the whole source for a
+	// directory that is about to go away.
 	if err := c.Clone(ctx, l, v, cleanURL, WithDir(cloneDir),
 		WithBranch(ref),
+		WithCloneLinkMode(LinkModeHardlink),
 		WithDepth(c.cloneDepth)); err != nil {
 		cleanup()
 

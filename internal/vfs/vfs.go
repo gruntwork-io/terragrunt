@@ -1051,6 +1051,39 @@ func (fsys *memMapFS) removeSymlink(name string) bool {
 	return true
 }
 
+// Rename moves the file or symlink at oldname to newname, replacing whatever
+// newname holds. Symlinks live in a side table that the embedded
+// afero.MemMapFs does not see, so a link is moved here, and a link newname
+// already holds is dropped, before delegating to the underlying filesystem.
+func (fsys *memMapFS) Rename(oldname, newname string) error {
+	// Resolved before the write lock, since resolving takes the read lock.
+	oldResolved := fsys.resolveParent(oldname)
+	newResolved := fsys.resolveParent(newname)
+
+	fsys.symlinksMu.Lock()
+	defer fsys.symlinksMu.Unlock()
+
+	target, isLink := fsys.symlinks[oldResolved]
+	if !isLink {
+		if err := fsys.Fs.Rename(oldResolved, newResolved); err != nil {
+			return err
+		}
+
+		delete(fsys.symlinks, newResolved)
+
+		return nil
+	}
+
+	if err := fsys.Fs.Remove(newResolved); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	delete(fsys.symlinks, oldResolved)
+	fsys.symlinks[newResolved] = target
+
+	return nil
+}
+
 // symlinkFileInfo reports symlink metadata for links stored in memMapFS's side table.
 type symlinkFileInfo struct {
 	name string

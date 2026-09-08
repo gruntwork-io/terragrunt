@@ -1,6 +1,7 @@
 package cas
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
+	"path/filepath"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -140,7 +143,11 @@ type SourceRequest struct {
 // [OfflineRepairError] instead of asking the remote the flag forbids.
 //
 // opts.Dir is the destination. opts.Mutable selects copy vs hardlink
-// for the final link, matching the git path.
+// for the final link, matching the git path. opts.IncludedGitFiles are
+// served from the records the git ingest leaves in [CAS.GitFileStore];
+// a probe hit requires every named file to be recorded, and a fetcher
+// that records none must be called with an empty list or the link step
+// fails with [ErrGitFileNotStored].
 //
 // Requires v.FS for store I/O. v.Exec is only consulted by fetchers that
 // shell out to git (e.g. the closure built by [CAS.Clone]); other
@@ -231,10 +238,10 @@ func (c *CAS) fetchAndLink(
 	suggestedKey string,
 	mode IngestMode,
 ) error {
-	if mode.trustsStoreHits() && suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {
+	if mode.trustsStoreHits() && suggestedKey != "" && !c.needsIngest(v, suggestedKey, opts) {
 		recordFetchOutcome(ctx, true)
 
-		return c.linkStoredTree(ctx, l, v, opts, suggestedKey)
+		return c.linkStoredTree(ctx, l, v, opts, src.Scheme, suggestedKey)
 	}
 
 	recordFetchOutcome(ctx, false)
@@ -244,7 +251,7 @@ func (c *CAS) fetchAndLink(
 		return fmt.Errorf("fetch %s: %w", RedactURL(src.URL), err)
 	}
 
-	return c.linkStoredTree(ctx, l, v, opts, treeKey)
+	return c.linkStoredTree(ctx, l, v, opts, src.Scheme, treeKey)
 }
 
 // ContentKey derives a cache key for a probe token that is a content
@@ -565,13 +572,16 @@ func (s *probeOriginSink) stamp(ctx context.Context) {
 	span.SetAttributes(attribute.String("probe_origin", string(s.origin)))
 }
 
-// linkStoredTree materializes the tree at key into opts.Dir.
+// linkStoredTree materializes the tree at key into opts.Dir, then the
+// files opts.IncludedGitFiles names into opts.Dir/.git. A tree ingested
+// under [gitScheme] is read back through [dropGitDirEntries], which is
+// where a .git entry is residue rather than content.
 func (c *CAS) linkStoredTree(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *CloneOptions,
-	key string,
+	scheme, key string,
 ) error {
 	treeContent := NewContent(c.treeStore)
 
@@ -580,17 +590,122 @@ func (c *CAS) linkStoredTree(
 		return fmt.Errorf("read cached tree %s: %w", key, err)
 	}
 
+	if scheme == gitScheme {
+		treeData = dropGitDirEntries(treeData)
+	}
+
 	tree, err := git.ParseTree(treeData, opts.Dir)
 	if err != nil {
 		return fmt.Errorf("parse cached tree %s: %w", key, err)
 	}
 
 	var linkOpts []LinkTreeOption
+
+	if opts.LinkMode != nil {
+		linkOpts = append(linkOpts, WithTreeLinkMode(*opts.LinkMode))
+	}
+
 	if opts.Mutable {
 		linkOpts = append(linkOpts, WithForceCopy())
 	}
 
-	return LinkTree(ctx, l, v, c.blobStore, c.treeStore, tree, opts.Dir, linkOpts...)
+	linkOpts = c.linkTreeOptions(linkOpts)
+
+	if err := LinkTree(ctx, l, v, c.blobStore, c.treeStore, tree, opts.Dir, linkOpts...); err != nil {
+		return err
+	}
+
+	return c.linkIncludedGitFiles(ctx, l, v, opts, key, linkOpts)
+}
+
+// gitDirEntryPrefix is the tab that opens a tree line's path field
+// followed by the directory a git repository keeps its own state in.
+var gitDirEntryPrefix = []byte("\t.git/")
+
+// dropGitDirEntries returns data without the lines naming a path under
+// .git. Git refuses to record such a path, so the only way one reaches a
+// tree ingested from a repository is a store written before the files
+// [CloneOptions.IncludedGitFiles] names moved to records of their own:
+// those releases folded the list one caller asked for into the commit's
+// tree, where every later caller against the same store inherits it.
+// Dropping the lines on read serves each caller its own list without
+// discarding the cached commit.
+func dropGitDirEntries(data []byte) []byte {
+	if !bytes.Contains(data, gitDirEntryPrefix) {
+		return data
+	}
+
+	kept := make([]byte, 0, len(data))
+
+	for line := range bytes.SplitSeq(data, []byte{'\n'}) {
+		if len(line) == 0 {
+			continue
+		}
+
+		if tab := bytes.IndexByte(line, '\t'); tab >= 0 &&
+			bytes.HasPrefix(line[tab:], gitDirEntryPrefix) {
+			continue
+		}
+
+		kept = append(kept, line...)
+		kept = append(kept, '\n')
+	}
+
+	return kept
+}
+
+// linkIncludedGitFiles assembles the records for opts.IncludedGitFiles
+// against key into one tree and links it into opts.Dir/.git. A missing
+// record surfaces as [ErrGitFileNotStored]: the caller asked for a file
+// the ingest never recorded, and writing a partial .git directory would
+// hide that.
+func (c *CAS) linkIncludedGitFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *CloneOptions,
+	key string,
+	linkOpts []LinkTreeOption,
+) error {
+	if len(opts.IncludedGitFiles) == 0 {
+		return nil
+	}
+
+	recordContent := NewContent(c.gitFileStore)
+
+	var treeData []byte
+
+	for _, name := range opts.IncludedGitFiles {
+		record, err := recordContent.Read(v, GitFileKey(key, name))
+		if err != nil {
+			// Content.Read reports a missing record as a
+			// [MissingObjectError], the miss the repair path re-ingests
+			// for. A record is different: it is the ingest's own bookkeeping,
+			// and its absence means the fetcher never wrote it, so it
+			// surfaces as [ErrGitFileNotStored] and no repair runs.
+			if errors.Is(err, fs.ErrNotExist) {
+				err = errors.Join(ErrGitFileNotStored, fs.ErrNotExist)
+			}
+
+			return &WrappedError{
+				Op:      "link_git_file",
+				Path:    name,
+				Context: key,
+				Err:     err,
+			}
+		}
+
+		treeData = append(treeData, record...)
+	}
+
+	gitDir := filepath.Join(opts.Dir, util.GitDir)
+
+	tree, err := git.ParseTree(treeData, gitDir)
+	if err != nil {
+		return fmt.Errorf("parse git file records for %s: %w", key, err)
+	}
+
+	return LinkTree(ctx, l, v, c.blobStore, c.treeStore, tree, gitDir, linkOpts...)
 }
 
 // storeFetchedContent stores every blob referenced by the tree, then

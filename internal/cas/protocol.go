@@ -165,7 +165,7 @@ func (c *CAS) MaterializeTree(
 		return fmt.Errorf("failed to parse CAS tree %s: %w", hash, err)
 	}
 
-	return LinkTree(ctx, l, v, c.blobStore, treeStoreUsed, tree, dest, opts...)
+	return LinkTree(ctx, l, v, c.blobStore, treeStoreUsed, tree, dest, c.linkTreeOptions(opts)...)
 }
 
 // isValidHexDigest reports whether s is a lowercase hex digest of the length

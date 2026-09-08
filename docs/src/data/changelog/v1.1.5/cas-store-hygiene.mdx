@@ -1,0 +1,23 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### CAS store improvements
+
+The CAS no longer writes a lock file beside each object it stores. A store used to carry one lock file for every file and every directory listing it had cached, so `~/.cache/terragrunt/cas` held roughly twice as many entries as the cached content needed. Lock files already written stay where they are; deleting the store while no Terragrunt process is running against it reclaims them, and the store rebuilds without them.
+
+Terragrunt preserves a couple of files from a repository's `.git` directory when it materializes a Git source, and which files those are depends on the command. Those files used to be folded into the stored entry for the commit, so the first command to fetch a commit decided what every later command received from it: a commit first cached by `stack generate`, which asks for none of those files, left a later run against the same commit without them. Each file is now recorded against the commit on its own, and a command receives exactly the files it asked for whether the commit was already cached or not.
+
+A source pinned to a full commit SHA now asks the remote for that commit alone, one commit deep, instead of fetching every branch and tag with full history. Remotes that will not serve a commit by name, such as an older or locked-down server, still get the full fetch, so pinning keeps working everywhere; where the cheap path is available, the first fetch of a large repository transfers the pinned commit and nothing else.
+
+The numbers below come from [micro-benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/cas/hygiene_benchmark_test.go) run against a git server on the same machine. The store fixture is a repository of 1,000 files; the pinned-commit fixture is a 500-commit history whose pinned commit sits 100 commits behind the tip.
+
+| Measurement | Before | After | Change |
+| --- | --- | --- | --- |
+| Files in the store after caching the repository | 2,002 | 1,001 | half as many |
+| Git objects kept after fetching the pinned commit | 543 | 43 | 92% fewer |
+| Time to fetch the pinned commit | 575ms | 482ms | 16% faster |
+| Time to clone and cache the repository | 10.1s | 10.0s | unchanged |
+
+Clone and cache time is unchanged; what changed is what the store keeps afterwards and what a pinned fetch asks the remote for. Against a real remote the pinned fetch saves more than the table shows, since the objects it no longer asks for would also have to cross the network.

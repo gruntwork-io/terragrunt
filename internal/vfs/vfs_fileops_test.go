@@ -2,6 +2,7 @@ package vfs_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -574,6 +575,68 @@ func TestMemMapFSRemove(t *testing.T) {
 	})
 }
 
+func TestMemMapFSRename(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a renamed symlink keeps its target", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/root/target.txt", []byte("target"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "/root/target.txt", "/root/tmp.txt"))
+
+		require.NoError(t, fsys.Rename("/root/tmp.txt", "/root/link.txt"))
+
+		target, err := vfs.Readlink(fsys, "/root/link.txt")
+		require.NoError(t, err)
+		assert.Equal(t, "/root/target.txt", target)
+
+		_, err = vfs.Readlink(fsys, "/root/tmp.txt")
+		require.Error(t, err)
+	})
+
+	t.Run("a symlink replaces the file it is renamed onto", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/root/target.txt", []byte("target"), 0o644))
+		require.NoError(t, vfs.WriteFile(fsys, "/root/link.txt", []byte("stale"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "/root/target.txt", "/root/tmp.txt"))
+
+		require.NoError(t, fsys.Rename("/root/tmp.txt", "/root/link.txt"))
+
+		target, err := vfs.Readlink(fsys, "/root/link.txt")
+		require.NoError(t, err)
+		assert.Equal(t, "/root/target.txt", target)
+
+		// Stat follows the link to its target, so a file left beneath the
+		// link only shows once the link itself is removed.
+		require.NoError(t, fsys.Remove("/root/link.txt"))
+
+		exists, err := vfs.FileExists(fsys, "/root/link.txt")
+		require.NoError(t, err)
+		assert.False(t, exists, "the file the link was renamed onto must be gone")
+	})
+
+	t.Run("a file replaces the symlink it is renamed onto", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/root/target.txt", []byte("target"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "/root/target.txt", "/root/link.txt"))
+		require.NoError(t, vfs.WriteFile(fsys, "/root/tmp.txt", []byte("fresh"), 0o644))
+
+		require.NoError(t, fsys.Rename("/root/tmp.txt", "/root/link.txt"))
+
+		_, err := vfs.Readlink(fsys, "/root/link.txt")
+		require.Error(t, err)
+
+		got, err := vfs.ReadFile(fsys, "/root/link.txt")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("fresh"), got)
+	})
+}
+
 func TestNoSymlinkFS(t *testing.T) {
 	t.Parallel()
 
@@ -739,4 +802,47 @@ func (file *trackedFile) Close() error {
 	file.closed.Store(true)
 
 	return file.File.Close()
+}
+
+// TestMemMapFSSymlinkTableWithRacing pins that the side table holding the
+// in-memory filesystem's symlinks survives concurrent use. Rename reaches it
+// on every materialized blob, so an unguarded table crashes the process with
+// a concurrent map write rather than failing a call.
+func TestMemMapFSSymlinkTableWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const workers = 16
+
+	fsys := vfs.NewMemMapFS()
+
+	for i := range workers {
+		require.NoError(t, vfs.WriteFile(fsys, fmt.Sprintf("/src%d", i), []byte("x"), 0o644))
+	}
+
+	var wg sync.WaitGroup
+
+	for i := range workers {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			link := fmt.Sprintf("/link%d", i)
+			assert.NoError(t, vfs.Symlink(fsys, "/target", link))
+
+			target, err := vfs.Readlink(fsys, link)
+			assert.NoError(t, err)
+			assert.Equal(t, "/target", target)
+
+			assert.NoError(t, fsys.Rename(fmt.Sprintf("/src%d", i), fmt.Sprintf("/dst%d", i)))
+			assert.NoError(t, fsys.Remove(link))
+		}()
+	}
+
+	wg.Wait()
+
+	for i := range workers {
+		_, err := fsys.Stat(fmt.Sprintf("/dst%d", i))
+		require.NoError(t, err)
+	}
 }

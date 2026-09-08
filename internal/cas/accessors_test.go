@@ -21,6 +21,7 @@ func TestCASStoreAccessors(t *testing.T) {
 	assert.Equal(t, storePath, c.StorePath())
 	assert.Equal(t, filepath.Join(storePath, "blobs"), c.BlobStore().Path())
 	assert.Equal(t, filepath.Join(storePath, "synth", "trees"), c.SynthStore().Path())
+	assert.Equal(t, filepath.Join(storePath, "gitfiles"), c.GitFileStore().Path())
 }
 
 func TestGitStoreRootPath(t *testing.T) {

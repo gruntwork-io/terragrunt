@@ -105,15 +105,20 @@ type GenerateConfig struct {
 type WriteOption func(*writeOpts)
 
 type writeOpts struct {
-	store *cas.Content
+	store    *cas.Content
+	linkOpts []cas.LinkOption
 }
 
 // WithContentStore deduplicates generated files that do not opt into
-// mutability: identical contents are written once into store and hard-linked
-// read-only into each working directory. Without it every generated file is
-// written directly and stays writable, and [GenerateConfig.Mutable] has no effect.
-func WithContentStore(store *cas.Content) WriteOption {
-	return func(o *writeOpts) { o.store = store }
+// mutability: identical contents are written once into store and materialized
+// into each working directory under linkOpts, which default to a read-only
+// hard link. Without it every generated file is written directly and stays
+// writable, and [GenerateConfig.Mutable] has no effect.
+func WithContentStore(store *cas.Content, linkOpts ...cas.LinkOption) WriteOption {
+	return func(o *writeOpts) {
+		o.store = store
+		o.linkOpts = linkOpts
+	}
 }
 
 // WriteToFile will generate a new file at the given target path with the given contents. If a file already exists at
@@ -206,7 +211,7 @@ func WriteToFile(
 		contentsToWrite = hclwrite.Format(contentsToWrite)
 	}
 
-	if err := materialize(ctx, l, v, targetPath, contentsToWrite, config.Mutable, o.store); err != nil {
+	if err := materialize(l, v, targetPath, contentsToWrite, config.Mutable, o.store, o.linkOpts); err != nil {
 		return err
 	}
 
@@ -220,13 +225,13 @@ func WriteToFile(
 // publishes by rename, so a target already there is replaced whole and survives
 // untouched if the generation fails, whatever mode or link count it carries.
 func materialize(
-	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	targetPath string,
 	contents []byte,
 	mutable *bool,
 	store *cas.Content,
+	linkOpts []cas.LinkOption,
 ) error {
 	if store == nil || (mutable != nil && *mutable) {
 		return vfs.WriteFileAtomic(v.FS, targetPath, contents, generatedFilePerms)
@@ -239,15 +244,16 @@ func materialize(
 		return err
 	}
 
-	return store.Link(
-		ctx,
-		l,
-		v,
-		hash,
-		targetPath,
-		generatedFilePerms,
-		cas.WithLinkStoredPerm(),
-	)
+	// The stored blob keeps the permissions it was first written under, which
+	// a caller generating the same contents under another mode shares rather
+	// than forking a private copy of.
+	opts := append([]cas.LinkOption{cas.WithLinkStoredPerm()}, linkOpts...)
+
+	if _, err := store.Link(l, v, hash, targetPath, generatedFilePerms, opts...); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Whether or not file generation should continue if the file path already exists. The answer depends on the

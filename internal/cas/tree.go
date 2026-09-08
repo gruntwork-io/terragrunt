@@ -7,10 +7,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync/atomic"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -31,20 +35,59 @@ const (
 	gitTypeSymlink = uint64(0o120000)
 )
 
+// LinkFallback classifies why a tree could not be materialized in the mode it
+// was asked for. It travels as the fallback attribute on the cas_link_tree
+// span.
+type LinkFallback string
+
+const (
+	// LinkFallbackNone reports that the requested mode served the whole tree.
+	LinkFallbackNone LinkFallback = ""
+
+	// LinkFallbackCloneUnsupported reports that the filesystem holding the
+	// target has no copy-on-write clone, so the tree was hard linked or
+	// copied instead.
+	LinkFallbackCloneUnsupported LinkFallback = "clone_unsupported"
+
+	// LinkFallbackHardlinkUnsupported reports that the target could not be
+	// given a second name for every stored blob, because it sits on another
+	// filesystem or a blob does not carry the permissions git recorded, so
+	// the tree was copied instead.
+	LinkFallbackHardlinkUnsupported LinkFallback = "hardlink_unsupported"
+)
+
+// linkFallbackByMode names the fallback a tree reports when the mode it was
+// asked for did not serve every file in it. [LinkModeCopy] has no entry: it
+// is the mode every other one degrades to.
+var linkFallbackByMode = map[LinkMode]LinkFallback{
+	LinkModeHardlink: LinkFallbackHardlinkUnsupported,
+	LinkModeClone:    LinkFallbackCloneUnsupported,
+}
+
 // LinkTreeOption configures a LinkTree call.
 type LinkTreeOption func(*linkTreeOpts)
 
 type linkTreeOpts struct {
 	maxDepth  int
+	mode      LinkMode
 	forceCopy bool
 	fsWorkers int
 }
 
-// WithForceCopy makes LinkTree copy blobs from the CAS store into the target
-// directory instead of hardlinking them. The destination tree becomes safe to
-// mutate without affecting the shared store, at the cost of extra I/O.
+// WithForceCopy tells LinkTree the target directory is going to be edited, so
+// blobs must not be materialized as the CAS store's own files. The
+// destination tree becomes safe to mutate. A tree asked for in
+// [LinkModeHardlink] is cloned instead, so the extra I/O is a copy per file
+// only where the filesystem has no copy-on-write clone.
 func WithForceCopy() LinkTreeOption {
 	return func(o *linkTreeOpts) { o.forceCopy = true }
+}
+
+// WithTreeLinkMode selects how blobs reach the target directory. Without it
+// LinkTree uses [DefaultLinkMode]; the CAS entry points pass the mode their
+// instance was built with.
+func WithTreeLinkMode(mode LinkMode) LinkTreeOption {
+	return func(o *linkTreeOpts) { o.mode = mode }
 }
 
 // WithMaxTreeDepth sets how deep a tree is followed before materialization
@@ -84,6 +127,10 @@ type treeWork struct {
 
 // LinkTree writes the tree to a target directory.
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
+//
+// The whole tree, subtrees included, is reported as one cas_link_tree span
+// carrying the mode that served it and what it cost, so a tree of thousands
+// of files stays one span rather than thousands.
 func LinkTree(
 	ctx context.Context,
 	l log.Logger,
@@ -94,7 +141,7 @@ func LinkTree(
 	targetDir string,
 	opts ...LinkTreeOption,
 ) error {
-	var o linkTreeOpts
+	o := linkTreeOpts{mode: DefaultLinkMode}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -103,25 +150,33 @@ func LinkTree(
 	// probe cost on every subtree.
 	o.fsWorkers = vfs.FSWorkersFor(v.FS, targetDir)
 
+	mode := resolveLinkMode(o.mode, o.forceCopy)
+
 	linker := &treeLinker{
 		blobContent: NewContent(blobStore),
 		treeContent: NewContent(treeStore),
 		treeStore:   treeStore,
 		rootDir:     targetDir,
 		maxDepth:    o.maxTreeDepth(),
+		mode:        mode,
+		forceCopy:   o.forceCopy,
 	}
 
-	if o.forceCopy {
-		linker.linkOpts = append(linker.linkOpts, WithLinkForceCopy())
-	}
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, "cas_link_tree", map[string]any{
+		"path": targetDir,
+		"mode": mode.String(),
+	}, func(childCtx context.Context, _ log.Logger) error {
+		err := linkTree(l, v, linker, t, targetDir, o.fsWorkers)
 
-	return linkTree(ctx, l, v, linker, t, targetDir, o.fsWorkers)
+		linker.report(childCtx)
+
+		return err
+	})
 }
 
 // linkTree materializes t and everything nested below it, one level of the
 // tree at a time.
 func linkTree(
-	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	linker *treeLinker,
@@ -135,15 +190,23 @@ func linkTree(
 	}
 
 	for len(level) > 0 {
+		if idx := linker.probeIndex(level); idx >= 0 {
+			if err := linker.link(l, v, &level[idx]); err != nil {
+				return err
+			}
+
+			level = slices.Delete(level, idx, idx+1)
+		}
+
 		opened := make([][]treeWork, len(level))
 
-		g, gCtx := errgroup.WithContext(ctx)
+		var g errgroup.Group
 
 		g.SetLimit(fsWorkers)
 
 		for i := range level {
 			g.Go(func() error {
-				children, err := linker.materialize(gCtx, l, v, &level[i])
+				children, err := linker.materialize(l, v, &level[i])
 				if err != nil {
 					return err
 				}
@@ -225,27 +288,29 @@ func treeEntryKindOf(entry git.TreeEntry) (treeEntryKind, bool) {
 }
 
 // treeLinker is the state one [LinkTree] call shares across every entry it
-// materializes.
+// materializes. Its counters are shared across the workers every level runs,
+// so LinkTree can report the tree as a single span.
 type treeLinker struct {
-	blobContent *Content
-	treeContent *Content
-	treeStore   *Store
-	rootDir     string
-	linkOpts    []LinkOption
-	maxDepth    int
+	blobContent      *Content
+	treeContent      *Content
+	treeStore        *Store
+	rootDir          string
+	maxDepth         int
+	linked           atomic.Int64
+	cloned           atomic.Int64
+	copied           atomic.Int64
+	bytesCopied      atomic.Int64
+	mode             LinkMode
+	cloneUnsupported atomic.Bool
+	forceCopy        bool
 }
 
 // materialize writes work to disk. For a subtree or submodule it opens the
 // tree the entry stands for and returns the work its own entries represent.
-func (tl *treeLinker) materialize(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	work *treeWork,
-) ([]treeWork, error) {
+func (tl *treeLinker) materialize(l log.Logger, v *venv.Venv, work *treeWork) ([]treeWork, error) {
 	switch work.kind {
 	case entryLink:
-		return nil, tl.link(ctx, l, v, work)
+		return nil, tl.link(l, v, work)
 	case entrySymlink:
 		return nil, tl.symlink(v, work)
 	case entrySubtree:
@@ -257,18 +322,24 @@ func (tl *treeLinker) materialize(
 	return nil, nil
 }
 
-func (tl *treeLinker) link(ctx context.Context, l log.Logger, v *venv.Venv, work *treeWork) error {
-	err := tl.blobContent.Link(
-		ctx,
+// link materializes one blob entry and counts how it arrived.
+func (tl *treeLinker) link(l log.Logger, v *venv.Venv, work *treeWork) error {
+	outcome, err := tl.blobContent.Link(
 		l,
 		v,
 		work.entry.Hash,
 		work.path,
 		gitFilePerm(work.entry.Mode),
-		tl.linkOpts...)
+		tl.linkOptions()...)
 	if err != nil {
 		return fmt.Errorf("link blob %s: %w", work.path, err)
 	}
+
+	if tl.mode == LinkModeClone && outcome.Mode != LinkModeClone {
+		tl.cloneUnsupported.Store(true)
+	}
+
+	tl.record(outcome)
 
 	return nil
 }
@@ -358,6 +429,89 @@ func (tl *treeLinker) submodule(v *venv.Venv, work *treeWork) ([]treeWork, error
 	}
 
 	return children, nil
+}
+
+// probeIndex returns the blob in level to materialize ahead of the others, or
+// -1 when nothing is to be learned from doing so. Only a clone has an answer
+// worth settling: every other mode either serves every file or is already
+// what a clone degrades to.
+func (tl *treeLinker) probeIndex(level []treeWork) int {
+	if tl.mode != LinkModeClone || tl.cloneUnsupported.Load() {
+		return -1
+	}
+
+	return slices.IndexFunc(level, func(work treeWork) bool {
+		return work.kind == entryLink
+	})
+}
+
+// linkOptions returns the options one blob is materialized with.
+//
+// Once a clone has come back as something else, which is how a filesystem
+// with no copy-on-write clone answers, the rest of the tree takes the same
+// fallback without asking again. A single entry the filesystem cannot clone
+// where others clone fine, such as one reached across a mount point, still
+// falls back on its own inside [Content.Link].
+func (tl *treeLinker) linkOptions() []LinkOption {
+	opts := []LinkOption{WithFileLinkMode(tl.mode)}
+
+	if tl.forceCopy {
+		opts = append(opts, WithLinkForceCopy())
+	}
+
+	if tl.cloneUnsupported.Load() {
+		opts = append(opts, WithoutCloneAttempt())
+	}
+
+	return opts
+}
+
+// record counts one materialized blob.
+func (tl *treeLinker) record(outcome LinkOutcome) {
+	switch outcome.Mode {
+	case LinkModeHardlink:
+		tl.linked.Add(1)
+	case LinkModeClone:
+		tl.cloned.Add(1)
+	case LinkModeCopy:
+		tl.copied.Add(1)
+		tl.bytesCopied.Add(outcome.BytesCopied)
+	}
+}
+
+// report stamps what the tree cost onto the span ctx carries. A file that
+// arrived in a mode other than the one asked for met a filesystem that could
+// not serve the request, which is worth reporting even though every file is
+// in place.
+func (tl *treeLinker) report(ctx context.Context) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	counts := map[LinkMode]int64{
+		LinkModeHardlink: tl.linked.Load(),
+		LinkModeClone:    tl.cloned.Load(),
+		LinkModeCopy:     tl.copied.Load(),
+	}
+
+	var total int64
+	for _, n := range counts {
+		total += n
+	}
+
+	fallback := LinkFallbackNone
+	if counts[tl.mode] < total {
+		fallback = linkFallbackByMode[tl.mode]
+	}
+
+	span.SetAttributes(
+		attribute.Int64("files_linked", counts[LinkModeHardlink]),
+		attribute.Int64("files_cloned", counts[LinkModeClone]),
+		attribute.Int64("files_copied", counts[LinkModeCopy]),
+		attribute.Int64("bytes_copied", tl.bytesCopied.Load()),
+		attribute.String("fallback", string(fallback)),
+	)
 }
 
 // gitFilePerm extracts the unix permission bits from a git tree entry mode

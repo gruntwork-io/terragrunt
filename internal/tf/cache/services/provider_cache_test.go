@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -71,7 +70,7 @@ func TestRemoveStaleSymlink(t *testing.T) {
 					t,
 					fsys.MkdirAll("/cache/registry.terraform.io/hashicorp/aws/5.31.0", 0o755),
 				)
-				require.NoError(t, afero.WriteFile(fsys, path, []byte("user content"), 0o644))
+				require.NoError(t, vfs.WriteFile(fsys, path, []byte("user content"), 0o644))
 			},
 			assertErr: func(t *testing.T, err error) {
 				t.Helper()
