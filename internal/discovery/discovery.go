@@ -91,7 +91,11 @@ func (d *Discovery) Discover(
 
 	logPhaseComplete(l, "filesystem", results, err)
 
-	if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
+	// A conflicting-selections error is a configuration problem the user must
+	// see, so it surfaces even where parse errors are suppressed (find/list).
+	if err != nil && (!d.suppressParseErrors ||
+		errors.As(err, new(CoexistenceError)) ||
+		errors.As(err, new(ConflictingGitSelectionsError))) {
 		return nil, err
 	}
 

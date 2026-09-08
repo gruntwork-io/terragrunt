@@ -958,6 +958,13 @@ func detectConflictingSelections(
 		dCtx := c.DiscoveryContext()
 
 		switch {
+		case dCtx != nil && slices.Contains(dCtx.Args, "-destroy"):
+			rel, ok := worktreeRel(w, c.Path())
+			if !ok {
+				continue
+			}
+
+			selections[rel] |= destroyPlan
 		case c.Path() == d.workingDir ||
 			strings.HasPrefix(c.Path(), d.workingDir+string(filepath.Separator)):
 			rel, err := filepath.Rel(d.workingDir, c.Path())
@@ -966,13 +973,6 @@ func detectConflictingSelections(
 			}
 
 			selections[rel] |= normalRun
-		case dCtx != nil && slices.Contains(dCtx.Args, "-destroy"):
-			rel, ok := worktreeRel(w, c.Path())
-			if !ok {
-				continue
-			}
-
-			selections[rel] |= destroyPlan
 		}
 	}
 

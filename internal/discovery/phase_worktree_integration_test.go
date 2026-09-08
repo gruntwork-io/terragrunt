@@ -3617,9 +3617,10 @@ unit "app" {
 
 // canonicalDiscoveryTestOpts configures runCanonicalWorktreeDiscovery.
 type canonicalDiscoveryTestOpts struct {
-	cmd             string
-	configFilenames []string
-	enableCanonical bool
+	cmd                 string
+	configFilenames     []string
+	enableCanonical     bool
+	suppressParseErrors bool
 }
 
 // runCanonicalWorktreeDiscoveryErr drives a full Discover for the given filter
@@ -3675,6 +3676,10 @@ func runCanonicalWorktreeDiscoveryErr(
 
 	if len(testOpts.configFilenames) > 0 {
 		d = d.WithConfigFilenames(testOpts.configFilenames)
+	}
+
+	if testOpts.suppressParseErrors {
+		d = d.WithSuppressParseErrors()
 	}
 
 	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
@@ -4129,6 +4134,21 @@ func TestWorktreePhase_Integration_CanonicalWorktreePathsSharedRefWorktrees(t *t
 	var conflictErr discovery.ConflictingGitSelectionsError
 	require.ErrorAs(t, err, &conflictErr)
 	assert.Contains(t, conflictErr.Units, filepath.Join("live", "app"))
+
+	// find/list suppress parse errors, but a selection conflict is a
+	// configuration problem the user must see, so it surfaces there too
+	// instead of silently dropping the git-selected units.
+	_, _, err = runCanonicalWorktreeDiscoveryErr(
+		t,
+		tmpDir,
+		[]string{"[HEAD~2...HEAD~1]", "[HEAD~1...HEAD]"},
+		canonicalDiscoveryTestOpts{
+			enableCanonical:     true,
+			cmd:                 "plan",
+			suppressParseErrors: true,
+		},
+	)
+	require.ErrorAs(t, err, &conflictErr)
 }
 
 // TestWorktreePhase_Integration_CanonicalWorktreePathsConfigRename pins that
