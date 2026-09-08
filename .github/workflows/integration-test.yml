@@ -25,6 +25,9 @@ jobs:
             run: "^TestTF"
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
+          # Suites bundled onto one runner because none of them needs a
+          # dedicated toolchain and each is far cheaper to run than the ~3
+          # minutes of runner setup and Go compilation a separate job costs.
           - name: Independent Integration Tests
             os: ubuntu
             target: ./...
@@ -33,32 +36,47 @@ jobs:
               - .github/scripts/setup/sops.sh
               - .github/scripts/setup/engine.sh
               - .github/scripts/setup/generate-mocks.sh
-            tags: "ssh,sops,deprecated,mocks,engine"
-            run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine)"
-            secrets: [GHA_DEPLOY_KEY]
-          - name: Tflint
-            os: ubuntu
-            target: ./...
-            tags: tflint
-            run: "^TestTflint"
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
-            setup_scripts:
               - .github/scripts/setup/tflint.sh
-          - name: GCP
+            tags: "ssh,sops,deprecated,mocks,engine,parse,http,exec,tflint"
+            run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine|TestParse|TestHTTP|TestExec|TestTflint)"
+            secrets: [GHA_DEPLOY_KEY]
+          # Bundled for the same reason, plus these suites spend most of their
+          # time waiting on cloud APIs, so sharing a runner costs little wall
+          # clock. The AWS suites stay separate: they are the longest jobs in
+          # the matrix, and their toolchain setup scripts uninstall each other.
+          - name: Cloud
             os: ubuntu
             target: ./...
+            tags: "gcp,awsgcp,azure,ocilive"
+            run: "^(TestGcp|TestAwsGcp|TestAzure|TestOCILive)"
+            test_args: "-count=1"
             setup_scripts:
               - .github/scripts/setup/gcp.sh
-            tags: gcp
-            run: "^TestGcp"
+              - .github/scripts/setup/ecr-credential-helper.sh
             secrets:
               [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
                 GCLOUD_SERVICE_KEY,
+                GCLOUD_SERVICE_KEY_IMPERSONATOR,
                 GOOGLE_CLOUD_PROJECT,
                 GOOGLE_COMPUTE_ZONE,
                 GOOGLE_IDENTITY_EMAIL,
                 GOOGLE_PROJECT_ID,
-                GCLOUD_SERVICE_KEY_IMPERSONATOR,
+                AZURE_CLIENT_ID,
+                AZURE_CLIENT_SECRET,
+                AZURE_TENANT_ID,
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+                TG_AZURE_TEST_RESOURCE_GROUP,
+                ARM_CLIENT_ID,
+                ARM_CLIENT_SECRET,
+                ARM_TENANT_ID,
+                ARM_SUBSCRIPTION_ID,
+                TG_OCI_TEST_ECR_REPOSITORY,
+                TG_OCI_TEST_GHCR_REPOSITORY,
+                TG_OCI_TEST_GHCR_USERNAME,
+                TG_OCI_TEST_GHCR_TOKEN,
               ]
           - name: AWS Tofu
             os: ubuntu
@@ -86,83 +104,20 @@ jobs:
               ]
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
-          - name: AWSGCP
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/gcp.sh
-            tags: awsgcp
-            run: "^TestAwsGcp"
-            secrets:
-              [
-                AWS_ACCESS_KEY_ID,
-                AWS_SECRET_ACCESS_KEY,
-                GCLOUD_SERVICE_KEY,
-                GOOGLE_CLOUD_PROJECT,
-                GOOGLE_COMPUTE_ZONE,
-                GOOGLE_IDENTITY_EMAIL,
-                GOOGLE_PROJECT_ID,
-              ]
-          - name: Azure
-            os: ubuntu
-            target: ./internal/azurehelper/...
-            tags: azure
-            secrets:
-              [
-                AZURE_CLIENT_ID,
-                AZURE_CLIENT_SECRET,
-                AZURE_TENANT_ID,
-                TG_AZURE_TEST_STORAGE_ACCOUNT,
-                TG_AZURE_TEST_SUBSCRIPTION_ID,
-                ARM_CLIENT_ID,
-                ARM_CLIENT_SECRET,
-                ARM_TENANT_ID,
-                ARM_SUBSCRIPTION_ID,
-              ]
-          - name: Azure Integration
-            os: ubuntu
-            target: ./test
-            tags: azure
-            run: ^TestAzure
-            secrets:
-              [
-                TG_AZURE_TEST_STORAGE_ACCOUNT,
-                TG_AZURE_TEST_SUBSCRIPTION_ID,
-                TG_AZURE_TEST_RESOURCE_GROUP,
-                ARM_CLIENT_ID,
-                ARM_CLIENT_SECRET,
-                ARM_TENANT_ID,
-                ARM_SUBSCRIPTION_ID,
-              ]
-          - name: OCI Registries
-            os: ubuntu
-            target: ./test
-            tags: ocilive
-            run: "^TestOCILive"
-            test_args: "-count=1"
-            skip: false
-            setup_scripts:
-              - .github/scripts/setup/ecr-credential-helper.sh
-            secrets:
-              [
-                AWS_ACCESS_KEY_ID,
-                AWS_SECRET_ACCESS_KEY,
-                TG_OCI_TEST_ECR_REPOSITORY,
-                TG_OCI_TEST_GHCR_REPOSITORY,
-                TG_OCI_TEST_GHCR_USERNAME,
-                TG_OCI_TEST_GHCR_TOKEN,
-              ]
           - name: Windows
             os: windows
             target: ./...
             setup_scripts:
               - .github/scripts/setup/windows-setup.ps1
-            tags: windows
-            run: "^TestWindows"
+            tags: "windows,exec"
+            run: "^(TestWindows|TestExec)"
+          # The provider cache server only changes how OpenTofu and Terraform
+          # fetch providers, so these run the suites that drive a real binary.
           - name: Provider Cache Server with Latest Terraform
             os: ubuntu
             target: ./test
             tags: tf
+            run: "^TestTF"
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/terraform-switch-latest.sh
@@ -170,6 +125,7 @@ jobs:
             os: ubuntu
             target: ./test
             tags: "tofu,tf"
+            run: "^(TestTF|TestTofu)"
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/tofu-switch.sh
@@ -179,37 +135,12 @@ jobs:
             tags: tf
             run: ".*WithRacing"
             test_args: "-race"
-          - name: Parse
-            os: ubuntu
-            target: ./...
-            tags: parse
-            run: "^TestParse"
           - name: Experiment mode
             os: ubuntu
             target: ./...
             tags: tf
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
-          - name: OpenTofu Unit Tests
-            os: ubuntu
-            target: ./internal/...
-            tags: tofu
-            run: "^TestTofu"
-          - name: Exec
-            os: ubuntu
-            target: ./...
-            tags: exec
-            run: "^TestExec"
-          - name: Exec Windows
-            os: windows
-            target: ./...
-            tags: exec
-            run: "^TestExec"
-          - name: HTTP
-            os: ubuntu
-            target: ./...
-            tags: http
-            run: "^TestHTTP"
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6

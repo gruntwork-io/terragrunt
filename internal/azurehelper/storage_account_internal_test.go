@@ -1,5 +1,3 @@
-//go:build azure
-
 package azurehelper
 
 import (
