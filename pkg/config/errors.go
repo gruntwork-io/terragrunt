@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 // Custom error types
@@ -618,6 +619,30 @@ func (err ExpansionRequiresExperimentError) Error() string {
 		err.ConfigPath,
 		experiment.BlockIteration,
 		experiment.BlockIteration,
+	)
+}
+
+// MisspelledExpansionBlockError is returned when a dependency, unit, or stack block nests a
+// block whose name is a near miss of expansion.
+type MisspelledExpansionBlockError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+	BlockName  string
+}
+
+func (err MisspelledExpansionBlockError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s declares a %q block, which Terragrunt does not recognize; did you mean %q?",
+		block,
+		err.ConfigPath,
+		err.BlockName,
+		hclparse.ExpansionBlockName,
 	)
 }
 

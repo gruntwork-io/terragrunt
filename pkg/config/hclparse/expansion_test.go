@@ -821,3 +821,121 @@ func keysOf(instances []hclparse.Instance) []string {
 
 	return keys
 }
+
+// TestExpandBlocksReportsOneDiagnosticPerMistake pins that a mistake in the body of an
+// expanded block is reported once, not once per element. The block below expands to five
+// instances, every one of which fails to decode the same way.
+func TestExpandBlocksReportsOneDiagnosticPerMistake(t *testing.T) {
+	t.Parallel()
+
+	_, err := expandDependencies(t, `
+dependency "a" {
+  expansion {
+    count = 5
+  }
+
+  path  = "../x"
+  bogus = "nope"
+}
+`, nil)
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+	assert.Len(t, diags, 1)
+}
+
+// TestExpandBlocksDecodesPastAFailingElement pins that expansion decodes every element even
+// after one has failed, so a mistake only one element's each.value reaches is still
+// reported. Both elements below fail, each in its own way.
+func TestExpandBlocksDecodesPastAFailingElement(t *testing.T) {
+	t.Parallel()
+
+	const cfg = `
+dependency "a" {
+  expansion {
+    for_each = local.shapes
+  }
+
+  path = "../${each.value.name}"
+}
+`
+
+	shapes := func(elements map[string]cty.Value) *hcl.EvalContext {
+		return &hcl.EvalContext{
+			Variables: map[string]cty.Value{
+				"local": cty.ObjectVal(map[string]cty.Value{
+					"shapes": cty.ObjectVal(elements),
+				}),
+			},
+		}
+	}
+
+	// Objects sort their keys, so "b" is decoded first.
+	noName := cty.ObjectVal(map[string]cty.Value{"other": cty.StringVal("x")})
+	notAnObject := cty.StringVal("plain")
+
+	_, err := expandDependencies(t, cfg, shapes(map[string]cty.Value{"b": noName}))
+
+	var first hcl.Diagnostics
+	require.ErrorAs(t, err, &first)
+
+	_, err = expandDependencies(t, cfg, shapes(map[string]cty.Value{
+		"b": noName,
+		"c": notAnObject,
+	}))
+
+	var both hcl.Diagnostics
+	require.ErrorAs(t, err, &both)
+
+	assert.Greater(t, len(both), len(first))
+}
+
+// TestExpandBlocksKeepsParsingPastABrokenExpansion covers the best-effort parsing find, list
+// and the LSP depend on. A block whose elements cannot decode is dropped when the handler
+// forgives its diagnostics, and the rest of the file still comes back.
+func TestExpandBlocksKeepsParsingPastABrokenExpansion(t *testing.T) {
+	t.Parallel()
+
+	parser := hclparse.NewParser(
+		hclparse.WithDiagnosticsHandler(
+			func(_ *hcl.File, _ hcl.Diagnostics) (hcl.Diagnostics, error) {
+				return nil, nil
+			},
+		),
+	)
+
+	file, err := parser.ParseFromString(`
+dependency "broken" {
+  expansion {
+    count = 2
+  }
+
+  path  = "../${count.index}"
+  bogus = "nope"
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+
+	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
+}
+
+func expandDependencies(
+	tb testing.TB,
+	cfg string,
+	ctx *hcl.EvalContext,
+) ([]hclparse.Instance, error) {
+	tb.Helper()
+
+	file, err := hclparse.NewParser().ParseFromString(cfg, "terragrunt.hcl")
+	require.NoError(tb, err)
+
+	return file.ExpandBlocks("dependency", new(testBlock), ctx)
+}
