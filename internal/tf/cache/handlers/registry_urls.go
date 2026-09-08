@@ -16,6 +16,10 @@ import (
 const (
 	// well-known address for discovery URLs
 	wellKnownURL = ".well-known/terraform.json"
+
+	// maxDiscoveryResponseBytes bounds the discovery document. It names two
+	// service paths and runs to a few hundred bytes.
+	maxDiscoveryResponseBytes = 1 << 20
 )
 
 var (
@@ -62,7 +66,7 @@ func DiscoveryURL(ctx context.Context, c vhttp.Client, registryName string) (*Re
 		return nil, fmt.Errorf("%s returned %s", url, resp.Status)
 	}
 
-	content, err := io.ReadAll(resp.Body)
+	content, err := io.ReadAll(io.LimitReader(resp.Body, maxDiscoveryResponseBytes))
 	if err != nil {
 		return nil, err
 	}

@@ -111,6 +111,20 @@ func (e *GitStoreObjectMissingError) Error() string {
 	)
 }
 
+// TreeDepthExceededError is returned when materializing a tree hits the
+// nesting bound. Only a repository built to exhaust the stack reaches it.
+type TreeDepthExceededError struct {
+	Path     string
+	MaxDepth int
+}
+
+func (e *TreeDepthExceededError) Error() string {
+	return fmt.Sprintf(
+		"tree nesting at %s exceeds the maximum depth of %d",
+		e.Path, e.MaxDepth,
+	)
+}
+
 func (e *UpdateSourceWithCASRequiresCASError) Error() string {
 	subject := e.BlockType
 	if e.Name != "" {

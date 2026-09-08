@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 )
 
@@ -61,7 +62,7 @@ func (m Model) listView() string {
 	// height math in the WindowSizeMsg handler stays unchanged.
 	notice := ""
 	if m.loadErr != nil {
-		notice = loadNoticeStyle.Render("⚠ " + m.loadErr.Error())
+		notice = loadNoticeStyle.Render("⚠ " + viewtui.SanitizeLabel(m.loadErr.Error()))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, bar, notice, active.View())
