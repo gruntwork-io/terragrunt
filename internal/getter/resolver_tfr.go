@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -76,6 +77,23 @@ func (r *TFRResolver) WithTofuImplementation(impl tfimpl.Type) *TFRResolver {
 
 // Scheme returns "tfr".
 func (r *TFRResolver) Scheme() string { return SchemeTFR }
+
+// Pinned reports whether rawURL names one exact module version, which a
+// registry publishes once. A constraint can start matching a newer
+// release.
+func (r *TFRResolver) Pinned(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	versions, ok := u.Query()[versionQueryKey]
+	if !ok || len(versions) != 1 {
+		return false
+	}
+
+	return semver.IsExact(versions[0])
+}
 
 // resolverAuth returns r.Auth carrying the resolver's implementation, so credential
 // lookup reads the same implementation's CLI config files as registry-domain selection.

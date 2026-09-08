@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"errors"
 
@@ -96,12 +97,16 @@ func WithMutable(mutable bool) CloneOption {
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
-	blobStore  *Store
-	treeStore  *Store
-	synthStore *Store
-	gitStore   *GitStore
-	storePath  string
-	cloneDepth int
+	blobStore         *Store
+	treeStore         *Store
+	synthStore        *Store
+	gitStore          *GitStore
+	probeCache        *ProbeCache
+	storePath         string
+	cloneDepth        int
+	probeTTL          time.Duration
+	probeMode         ProbeMode
+	probeCacheEnabled bool
 }
 
 // WithStorePath specifies a custom path for the content store.
@@ -120,6 +125,57 @@ func WithStorePath(path string) Option {
 func WithCloneDepth(depth int) Option {
 	return func(c *CAS) {
 		c.cloneDepth = depth
+	}
+}
+
+// WithProbeCache records every probe answer in the store and serves one
+// back while it is fresh, so a later process can resolve a source without
+// asking its remote again. Without it nothing is written to or read from
+// `probes/` and every process probes every source, which is what a run
+// gets until the offline-cas experiment is enabled.
+//
+// [WithProbeTTL] sets how long an answer for a source that can change
+// upstream is served; a pinned source keeps [DefaultImmutableProbeTTL]
+// regardless. [WithOffline] and [WithProbeRefresh] act on this cache and
+// enable it themselves, having nothing to do without one.
+func WithProbeCache() Option {
+	return func(c *CAS) {
+		c.probeCacheEnabled = true
+	}
+}
+
+// WithOffline forbids every call to a remote. Probes answer from the local
+// git store and the persisted probe cache regardless of TTL, and content
+// the store lacks fails with [OfflineMissError] instead of being fetched.
+// A source with no cheap probe, such as an SMB share, has no answer to
+// serve and is still fetched.
+// Passing this together with [WithProbeRefresh] is a caller bug that the
+// CLI rejects at flag validation; here the later option wins.
+func WithOffline() Option {
+	return func(c *CAS) {
+		c.probeMode = ProbeModeOffline
+		c.probeCacheEnabled = true
+	}
+}
+
+// WithProbeRefresh ignores the persisted probe cache for this process, so
+// every probe reaches the network unless it joins one already in flight.
+// Answers are still recorded for later runs.
+func WithProbeRefresh() Option {
+	return func(c *CAS) {
+		c.probeMode = ProbeModeRefresh
+		c.probeCacheEnabled = true
+	}
+}
+
+// WithProbeTTL sets how long a persisted probe of a source that can change
+// upstream is served without asking the remote again. Zero, the default,
+// re-probes in every process so a push followed by a run sees the new
+// revision. A pinned source keeps [DefaultImmutableProbeTTL] regardless.
+// Has no effect without [WithProbeCache].
+func WithProbeTTL(ttl time.Duration) Option {
+	return func(c *CAS) {
+		c.probeTTL = ttl
 	}
 }
 
@@ -144,6 +200,7 @@ func New(v *venv.Venv, opts ...Option) (*CAS, error) {
 	c.treeStore = NewStore(filepath.Join(c.storePath, "trees"))
 	c.synthStore = NewStore(filepath.Join(c.storePath, "synth", "trees"))
 	c.gitStore = NewGitStore(filepath.Join(c.storePath, "git"))
+	c.probeCache = NewProbeCache(filepath.Join(c.storePath, probeCacheDirName))
 
 	return c, nil
 }
@@ -190,16 +247,41 @@ func (c *CAS) ensureStorePaths(v *venv.Venv) error {
 type GitResolver struct {
 	// Venv supplies the executor Probe derives its git runner from. Required.
 	Venv *venv.Venv
-	// Store enables an offline fast path: a full-length SHA in
+	// Logger receives probe-cache diagnostics. Required when Cache is set.
+	Logger log.Logger
+	// Store enables an offline fast path: a commit-form
 	// [GitResolver.Branch] is checked against the local store before
-	// reaching ls-remote. When nil, every Probe runs ls-remote.
+	// reaching ls-remote, in the shapes [GitResolver.storeProbe]
+	// accepts. When nil, every Probe runs ls-remote.
 	Store *GitStore
+	// Cache persists ls-remote answers across processes. When nil no
+	// answer is recorded or served; the in-process flight still applies.
+	Cache *ProbeCache
 	// Branch is the ref to query. Empty means HEAD.
 	Branch string
+	// MutableTTL is how long a persisted probe for a branch, HEAD, or a
+	// tag that is not a version is served without ls-remote. Zero means
+	// every process re-probes. See [ProbeTTL].
+	MutableTTL time.Duration
+	// Mode selects between the network and the persisted cache.
+	Mode ProbeMode
+}
+
+// probeResult is what one probe flight delivers to every caller that
+// joined it.
+type probeResult struct {
+	key    string
+	origin probeOrigin
 }
 
 // Scheme returns "git".
 func (r *GitResolver) Scheme() string { return "git" }
+
+// Pinned always reports false. Git decides immutability after probing,
+// from the ref ls-remote matched rather than the ref that was asked for
+// (see [GitResolver.recordProbe]), so it has no pre-probe answer to give.
+// Nothing consults it: [CAS.Clone] asks for [ProbeCachedByResolver].
+func (r *GitResolver) Pinned(_ string) bool { return false }
 
 // Probe returns the commit SHA for r.Branch (HEAD when empty). The
 // returned SHA is the cache key verbatim and doubles as the git
@@ -208,34 +290,171 @@ func (r *GitResolver) Scheme() string { return "git" }
 // `git ls-remote` is authoritative; ls-remote misses (the caller
 // supplied a commit-form ref directly) surface as
 // [ErrNoVersionMetadata] so the fetcher canonicalizes via rev-parse.
-// When [GitResolver.Store] is set, a full-length SHA in r.Branch
-// short-circuits ls-remote on a local cache hit.
+// When [GitResolver.Store] is set, a commit r.Branch names that the
+// store already holds short-circuits ls-remote (see
+// [GitResolver.storeProbe]). Concurrent probes of the same (URL, ref)
+// anywhere in the process share one ls-remote, and a persisted answer
+// within its TTL (see [ProbeTTL]) skips ls-remote entirely.
 func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	if r.Store != nil && looksLikeFullSHA(r.Branch) {
-		if hash, ok := r.Store.ProbeCachedCommit(ctx, r.Venv, rawURL, r.Branch); ok {
-			return hash, nil
-		}
+	if hash, ok := r.storeProbe(ctx, rawURL); ok {
+		recordProbeOrigin(ctx, probeOriginGitStore)
+
+		return hash, nil
+	}
+
+	res, err := flights.probe.do(ctx, r.flightKey(rawURL), func(ctx context.Context) (probeResult, error) {
+		return r.probeUncoalesced(ctx, rawURL)
+	})
+	if err != nil {
+		return "", err
+	}
+
+	recordProbeOrigin(ctx, res.origin)
+
+	return res.key, nil
+}
+
+// storeProbe answers from the local bare repository when it already
+// holds the commit r.Branch names.
+//
+// Online only a full-length SHA is offered to the store, so a hex-named
+// branch keeps tracking its remote tip instead of freezing at the first
+// commit its name prefixed. Offline there is no tip to track and the
+// only other outcome is [OfflineMissError], so an abbreviated SHA is
+// offered too; [GitStore.ProbeCachedCommit] rejects a name that resolved
+// through ref lookup on its own.
+func (r *GitResolver) storeProbe(ctx context.Context, rawURL string) (string, bool) {
+	if r.Store == nil {
+		return "", false
+	}
+
+	if !looksLikeFullSHA(r.Branch) && r.Mode != ProbeModeOffline {
+		return "", false
+	}
+
+	return r.Store.ProbeCachedCommit(ctx, r.Venv, rawURL, r.Branch)
+}
+
+// flightKey identifies the probe of rawURL for r.Branch within the
+// process. See [probeFlightKey] for how the key is built.
+func (r *GitResolver) flightKey(rawURL string) string {
+	root := ""
+	if r.Cache != nil {
+		root = r.Cache.RootPath()
+	}
+
+	return probeFlightKey(root, rawURL, r.Branch)
+}
+
+// probeFlightKey identifies the probe of url for ref within the process.
+// It carries the cache root because the flight records its answer there,
+// and probes over different stores must each record their own. The URL is
+// redacted so the flights line up with the partition
+// [ProbeCache.EntryPath] records under: two units reaching one source
+// through different credentials share an answer here for the same reason
+// they share the persisted one.
+func probeFlightKey(cacheRoot, url, ref string) string {
+	return cacheRoot + "\x00" + RedactURL(url) + "\x00" + ref
+}
+
+// probeUncoalesced answers one probe from the persisted cache or, when
+// the mode allows it, from ls-remote, recording a fresh network answer
+// for later processes.
+func (r *GitResolver) probeUncoalesced(ctx context.Context, rawURL string) (probeResult, error) {
+	if entry, ok := r.cachedProbe(rawURL); ok {
+		return probeResult{key: entry.Key, origin: probeOriginProbeCache}, nil
+	}
+
+	if r.Mode == ProbeModeOffline {
+		return probeResult{}, &OfflineMissError{Source: RedactURL(rawURL), Ref: probeRefName(r.Branch)}
 	}
 
 	runner, err := git.NewGitRunner(r.Venv)
 	if err != nil {
-		return "", err
+		return probeResult{}, err
 	}
 
 	results, err := runner.LsRemote(ctx, rawURL, r.Branch)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMatchingReference) {
-			return "", ErrNoVersionMetadata
+			return probeResult{}, ErrNoVersionMetadata
 		}
 
-		return "", err
+		return probeResult{}, err
 	}
 
 	if len(results) == 0 {
-		return "", ErrNoVersionMetadata
+		return probeResult{}, ErrNoVersionMetadata
 	}
 
-	return results[0].Hash, nil
+	r.recordProbe(rawURL, results[0])
+
+	return probeResult{key: results[0].Hash, origin: probeOriginLsRemote}, nil
+}
+
+// cachedProbe returns the persisted answer for rawURL when the mode and
+// TTL allow serving it.
+func (r *GitResolver) cachedProbe(rawURL string) (ProbeEntry, bool) {
+	if r.Cache == nil || r.Mode == ProbeModeRefresh {
+		return ProbeEntry{}, false
+	}
+
+	entry, ok := r.Cache.Lookup(r.Venv.FS, rawURL, r.Branch)
+	if !ok || !looksLikeFullSHA(entry.Key) {
+		return ProbeEntry{}, false
+	}
+
+	if r.Mode == ProbeModeOffline {
+		return entry, true
+	}
+
+	ttl := ProbeTTL(&entry, r.MutableTTL)
+	if ttl <= 0 || time.Since(entry.ProbedAt) >= ttl {
+		return ProbeEntry{}, false
+	}
+
+	return entry, true
+}
+
+// recordProbe persists a network answer. A failed write costs only the
+// next process a probe, so it is logged rather than failing a probe that
+// already succeeded.
+func (r *GitResolver) recordProbe(rawURL string, res git.LsRemoteResult) {
+	if r.Cache == nil {
+		return
+	}
+
+	// Immutability follows the ref ls-remote matched, not the name asked
+	// for: a branch named v1.2.3 shadows a tag of that name in ls-remote's
+	// output and must keep re-probing like any other branch.
+	entry := ProbeEntry{
+		ProbedAt:  time.Now(),
+		Key:       res.Hash,
+		Immutable: IsSemverTag(res.Ref),
+	}
+
+	if err := r.Cache.Store(r.Venv.FS, rawURL, r.Branch, &entry); err != nil {
+		r.Logger.Debugf("cas: probe cache write for %s failed: %v", RedactURL(rawURL), err)
+	}
+}
+
+// newGitResolver builds the [GitResolver] for branch with this CAS's
+// stores, probe cache, and mode.
+func (c *CAS) newGitResolver(l log.Logger, v *venv.Venv, branch string) *GitResolver {
+	cache := c.probeCache
+	if !c.probeCacheEnabled {
+		cache = nil
+	}
+
+	return &GitResolver{
+		Venv:       v,
+		Logger:     l,
+		Store:      c.gitStore,
+		Cache:      cache,
+		Branch:     branch,
+		MutableTTL: c.probeTTL,
+		Mode:       c.probeMode,
+	}
 }
 
 // Clone fetches url into the target directory through the CAS, using a
@@ -267,11 +486,12 @@ func (c *CAS) Clone(
 	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, url)
 
 	return c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
-		Scheme:   "git",
-		URL:      url,
-		Resolver: &GitResolver{Venv: v, Store: c.gitStore, Branch: opts.Branch},
-		Fetch:    c.gitFetcher(url, &opts),
-		Attrs:    map[string]any{"branch": opts.Branch},
+		Scheme:       "git",
+		URL:          url,
+		Resolver:     c.newGitResolver(l, v, opts.Branch),
+		Fetch:        c.gitFetcher(url, &opts),
+		Attrs:        map[string]any{"branch": opts.Branch},
+		ProbeCaching: ProbeCachedByResolver,
 	})
 }
 
@@ -359,10 +579,49 @@ func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
 	}
 }
 
-// populateTreeFromRef dispatches by ref kind, short-circuiting on a
-// cached [symbolicRef] and otherwise calling the kind-specific
-// populate. Returns the canonical commit hash.
+// populateTreeFromRef returns the canonical commit hash for ref, ingesting
+// its tree when the store lacks it. Concurrent ingests of the same ref
+// anywhere in the process share one flight; the flight runs with the
+// first caller's logger, venv, and clone options, and later callers only
+// wait for its tree.
 func (c *CAS) populateTreeFromRef(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *CloneOptions,
+	ref resolvedRef,
+) (string, error) {
+	if hash := ref.knownHash(); hash != "" && !c.treeStore.NeedsWrite(v, hash) {
+		return hash, nil
+	}
+
+	if c.probeMode == ProbeModeOffline {
+		url, requested := ref.origin()
+
+		return "", &OfflineMissError{Source: RedactURL(url), Ref: probeRefName(requested)}
+	}
+
+	return flights.ingest.do(ctx, c.ingestFlightKey(ref), func(ctx context.Context) (string, error) {
+		return c.ingestRef(ctx, l, v, opts, ref)
+	})
+}
+
+// ingestFlightKey identifies the tree an ingest writes into this store:
+// the commit hash when it is already known, otherwise the (URL, ref) pair
+// that will resolve to it.
+func (c *CAS) ingestFlightKey(ref resolvedRef) string {
+	if hash := ref.knownHash(); hash != "" {
+		return c.storePath + "\x00commit\x00" + hash
+	}
+
+	url, requested := ref.origin()
+
+	return c.storePath + "\x00ref\x00" + url + "\x00" + requested
+}
+
+// ingestRef dispatches by ref kind to the populate that fills the store.
+// Returns the canonical commit hash.
+func (c *CAS) ingestRef(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -371,10 +630,6 @@ func (c *CAS) populateTreeFromRef(
 ) (string, error) {
 	switch ref := ref.(type) {
 	case *symbolicRef:
-		if !c.treeStore.NeedsWrite(v, ref.Hash) {
-			return ref.Hash, nil
-		}
-
 		if err := c.populateTreeFromSymbolicRef(ctx, l, v, opts, ref); err != nil {
 			return "", err
 		}
@@ -382,10 +637,6 @@ func (c *CAS) populateTreeFromRef(
 		return ref.Hash, nil
 
 	case *commitRef:
-		if ref.Hash != "" && !c.treeStore.NeedsWrite(v, ref.Hash) {
-			return ref.Hash, nil
-		}
-
 		return c.populateTreeFromCommitRef(ctx, l, v, opts, ref)
 
 	default:
@@ -575,6 +826,11 @@ func (c *CAS) prepareTargetDirectory(dir, url string) string {
 // otherwise.
 type resolvedRef interface {
 	CommitHash() string
+	// knownHash returns the canonical commit hash when resolution already
+	// produced one, and "" when only a fetch can produce it.
+	knownHash() string
+	// origin returns the remote URL and the ref the caller asked for.
+	origin() (url, ref string)
 }
 
 // symbolicRef carries an ls-remote-resolved branch, tag, or HEAD.
@@ -586,6 +842,10 @@ type symbolicRef struct {
 
 // CommitHash returns the canonical commit hash ls-remote resolved.
 func (r *symbolicRef) CommitHash() string { return r.Hash }
+
+func (r *symbolicRef) knownHash() string { return r.Hash }
+
+func (r *symbolicRef) origin() (string, string) { return r.URL, r.Branch }
 
 // commitRef carries a ref ls-remote did not canonicalize. The central git
 // store resolves it later via rev-parse and a full-history fetch on a
@@ -607,27 +867,33 @@ type commitRef struct {
 // git store happened to have the commit cached.
 func (r *commitRef) CommitHash() string { return r.RawRef }
 
+func (r *commitRef) knownHash() string { return r.Hash }
+
+func (r *commitRef) origin() (string, string) { return r.URL, r.RawRef }
+
 // resolveReference resolves branch into a [resolvedRef] via [GitResolver].
 //
 // Full-length SHAs (40 or 64 hex chars) are checked against the local git
-// store first so previously-cloned commits resolve offline; abbreviated
-// SHAs skip the probe to avoid mistaking a hex-named branch tip for the
-// SHA prefix and freezing the branch at its first-fetched tip (see
-// [looksLikeFullSHA]).
+// store first so previously-cloned commits resolve offline; online an
+// abbreviated SHA skips that check to avoid mistaking a hex-named branch
+// tip for the SHA prefix and freezing the branch at its first-fetched tip
+// (see [looksLikeFullSHA]). Offline there is no moving tip to track and
+// the alternative is a failed run, so the store answers an abbreviated
+// SHA too, still as a [commitRef] so the stack key stays the ref the user
+// wrote.
 func (c *CAS) resolveReference(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	url, branch string,
 ) (resolvedRef, error) {
-	if looksLikeFullSHA(branch) {
+	if looksLikeFullSHA(branch) || c.probeMode == ProbeModeOffline {
 		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, v, url, branch); ok {
 			return &commitRef{URL: url, RawRef: branch, Hash: hash}, nil
 		}
 	}
 
-	r := &GitResolver{Venv: v, Store: c.gitStore, Branch: branch}
-
-	key, err := r.Probe(ctx, url)
+	key, err := c.newGitResolver(l, v, branch).Probe(ctx, url)
 	if err != nil {
 		if errors.Is(err, ErrNoVersionMetadata) {
 			return &commitRef{URL: url, RawRef: branch}, nil

@@ -15,9 +15,9 @@ import (
 	"strings"
 	"unicode"
 
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -243,12 +243,12 @@ func shouldUpdateConstraints(
 		"",
 	)
 
-	currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+	currentConstraints, err := semver.ParseConstraint(currentConstraintsValue)
 	if err != nil {
 		return true
 	}
 
-	newVersion, err := version.NewVersion(providerVersion)
+	newVersion, err := semver.Parse(providerVersion)
 	if err != nil {
 		return true
 	}
@@ -360,7 +360,7 @@ func UpdateLockfileConstraints(
 			"",
 		)
 
-		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+		currentConstraints, err := semver.ParseConstraint(currentConstraintsValue)
 		if err != nil {
 			providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
 
@@ -372,7 +372,7 @@ func UpdateLockfileConstraints(
 		versionAttr := providerBlock.Body().GetAttribute("version")
 		if versionAttr != nil {
 			versionVal := getAttributeValueAsUnquotedString(versionAttr)
-			if v, err := version.NewVersion(versionVal); err == nil && currentConstraints.Check(v) {
+			if v, err := semver.Parse(versionVal); err == nil && currentConstraints.Check(v) {
 				continue
 			}
 		}

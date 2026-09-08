@@ -43,6 +43,19 @@ Two special cases bypass or extend the probe:
 - **Pinned commit SHA already cached.** If you pin to a full commit SHA and that commit is already in the local store, Terragrunt answers from the store and skips `ls-remote` entirely, so the resolution stays offline. This is especially useful if you plan to use Terragrunt in an air-gapped environment.
 - **Commit SHA.** `ls-remote` only lists named refs. If it returns no match (you supplied a commit SHA directly), Terragrunt defers resolution to the fetch step, which canonicalizes the ref with `git rev-parse` against the local store after a full-history fetch.
 
+<Since version="1.1.5">
+
+**Shared probes and reads.** Units in one run that resolve the same URL and ref at the same time share a single `ls-remote`, and units that need the same commit share a single read of it into the store. The first unit to ask does the work and the others wait for its answer. A unit that starts after that answer has arrived probes again unless a recorded answer covers it (see the probe cache below), so a `run --all` over hundreds of units that point at one branch costs one probe for each group of units that start together, and at most one fetch. A unit that is cancelled while waiting stops waiting; the shared work carries on for the units still depending on it.
+
+**The probe cache.** With the [`offline-cas`](/reference/experiments/active#offline-cas) experiment enabled, each `ls-remote` answer is recorded under `probes/` in the store, keyed by URL and ref. [Recorded probes](/features/caching/cas#recorded-probes) covers the rules every source follows and the flags that change them; two things are specific to Git:
+
+- A **semantic version tag** (`v1.2.3` or `1.2.3`, with an optional pre-release or build suffix) is the pinned case, trusted for 24 hours. Only a tag qualifies. `ls-remote` lists a branch of a given name ahead of the tag, so a branch named like a version resolves as a branch and keeps being probed.
+- Under [`--cas-offline`](/reference/cli/commands/run#cas-offline), a pinned commit SHA is looked up in the local bare repository before the recorded answers are consulted, so a commit already fetched resolves without either.
+
+Entries are filed under the repository with credentials stripped, so a token rotated between runs still finds the answer recorded for the repository it addresses.
+
+</Since>
+
 ## Cache key & deduplication
 
 The cache key for the root tree is the commit hash itself, content-addressed by Git's native scheme. Both SHA-1 and SHA-256 repositories are supported, with the algorithm detected per repository. Because the commit hash is content-addressed, the same commit reached through two repositories or two refs resolves to the same stored tree, and identical file blobs are shared across every repository that contains them.
@@ -63,6 +76,12 @@ Git is unique among the getters in that a cache miss is not always all-or-nothin
 
 When the commit hash is already keyed in the store, Terragrunt reads the tree and hard links its blobs into the target without fetching again from the remote. For a pinned commit SHA that is already cached, even the ref-resolution step stays offline.
 
+<Since version="1.1.5">
+
+With the [`offline-cas`](/reference/experiments/active#offline-cas) experiment enabled, a semantic version tag probed within the last 24 hours also skips the remote, since its recorded answer is served instead of a fresh `ls-remote`. See [Recorded probes](/features/caching/cas#recorded-probes) for which sources are cached and for how long.
+
+</Since>
+
 ## Submodules
 
 A submodule is recorded in the parent repository as a pointer to a commit in another repository. During a fetch, Terragrunt reads the submodule URL from `.gitmodules`, fetches the pinned commit from that URL into the same central store layout, and materializes the submodule contents in place. Nested submodules are handled the same way, and relative URLs (such as `../sibling.git`) are resolved against the parent repository URL.
@@ -73,4 +92,4 @@ A committed submodule path with no `.gitmodules` entry (typically an accidentall
 
 ## Fallback behavior
 
-Concurrent units that target the same remote URL share one Git fetch instead of cloning in parallel. If that shared fetch through the central repository hangs or fails, Terragrunt logs a warning and falls back to a plain clone in a temporary directory. If the host cannot hard link from the store (for example across a filesystem boundary), Terragrunt copies the content instead.
+Units in one run that need the same commit share one read of it into the store; the rest wait for the first to finish. Separate Terragrunt processes coordinate through a per-URL lock on the central repository: a process that takes the lock after another has already fetched the commit finds it present and does not fetch it again. If the central repository cannot be used, because the lock is held for more than five minutes or the fetch fails, Terragrunt logs a warning and falls back to a plain clone in a temporary directory. With `--cas-offline`, a commit the store lacks is an error and no clone is attempted. If the host cannot hard link from the store (for example across a filesystem boundary), Terragrunt copies the content instead.

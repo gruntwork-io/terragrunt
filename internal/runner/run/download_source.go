@@ -584,7 +584,8 @@ func downloadSource(
 // is recoverable (CAS init failure, CAS-getter download failure). Caller
 // should fall through to the standard getter.
 // Returns (false, err) for fatal misconfiguration the user must fix
-// (e.g. an invalid CASCloneDepth). Caller must propagate the error.
+// (e.g. an invalid CASCloneDepth) and for any failure the caller must not
+// recover from (see [casFailureIsFatal]). Caller must propagate the error.
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
@@ -612,8 +613,26 @@ func tryCASDownload(
 		return false, err
 	}
 
-	c, err := cas.New(v, cas.WithCloneDepth(opts.CASCloneDepth))
+	casOpts := []cas.Option{cas.WithCloneDepth(opts.CASCloneDepth), cas.WithProbeTTL(opts.CASProbeTTL)}
+
+	if opts.Experiments.Evaluate(experiment.OfflineCAS) {
+		casOpts = append(casOpts, cas.WithProbeCache())
+	}
+
+	if opts.CASOffline {
+		casOpts = append(casOpts, cas.WithOffline())
+	}
+
+	if opts.CASRefresh {
+		casOpts = append(casOpts, cas.WithProbeRefresh())
+	}
+
+	c, err := cas.New(v, casOpts...)
 	if err != nil {
+		if casFailureIsFatal(opts, err) {
+			return false, err
+		}
+
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
@@ -626,6 +645,10 @@ func tryCASDownload(
 	}
 
 	if _, err := git.NewGitRunner(v); err != nil {
+		if casFailureIsFatal(opts, err) {
+			return false, err
+		}
+
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
@@ -679,6 +702,10 @@ func tryCASDownload(
 		Dst: src.DownloadDir,
 		Pwd: opts.CacheDir,
 	}); err != nil {
+		if casFailureIsFatal(opts, err) {
+			return false, err
+		}
+
 		l.Warnf("CAS download failed: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
@@ -700,6 +727,19 @@ func tryCASDownload(
 	l.Debugf("Successfully downloaded source using CAS: %s", canonicalSourceURL)
 
 	return true, nil
+}
+
+// casFailureIsFatal reports whether err ends the run instead of sending
+// the source through the standard getter. An offline miss says so
+// outright, and while --cas-offline is set no source reaching here has a
+// fallback left: a local path never gets this far, so every route the
+// standard getter has is to the remote the flag forbids.
+func casFailureIsFatal(opts *Options, err error) bool {
+	if errors.Is(err, cas.ErrCASOffline) {
+		return true
+	}
+
+	return opts.CASOffline
 }
 
 // BuildDownloadClient constructs the go-getter client used for the standard

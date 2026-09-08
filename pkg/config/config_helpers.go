@@ -18,8 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
@@ -1843,15 +1843,5 @@ func ConstraintCheck(ctx context.Context, pctx *ParsingContext, args []string) (
 		}
 	}
 
-	v, err := version.NewSemver(args[0])
-	if err != nil {
-		return false, fmt.Errorf("invalid version %s: %w", args[0], err)
-	}
-
-	c, err := version.NewConstraint(args[1])
-	if err != nil {
-		return false, fmt.Errorf("invalid constraint %s: %w", args[1], err)
-	}
-
-	return c.Check(v), nil
+	return semver.CheckConstraint(args[0], args[1])
 }

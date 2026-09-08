@@ -296,6 +296,8 @@ type movingTagResolver struct {
 
 func (r *movingTagResolver) Scheme() string { return getter.SchemeOCI }
 
+func (r *movingTagResolver) Pinned(string) bool { return false }
+
 func (r *movingTagResolver) Probe(ctx context.Context, rawURL string) (string, error) {
 	digestValue, err := r.ResolveDigest(ctx, rawURL)
 	if err != nil {
@@ -376,6 +378,8 @@ type probeOnlyResolver struct {
 }
 
 func (r *probeOnlyResolver) Scheme() string { return getter.SchemeOCI }
+
+func (r *probeOnlyResolver) Pinned(string) bool { return false }
 
 func (r *probeOnlyResolver) Probe(context.Context, string) (string, error) {
 	return r.key, nil

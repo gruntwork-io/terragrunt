@@ -6,13 +6,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -116,7 +116,7 @@ func testCheckTerraformVersionMeetsConstraint(
 ) {
 	t.Helper()
 
-	current, err := version.NewVersion(currentVersion)
+	current, err := semver.Parse(currentVersion)
 	if err != nil {
 		t.Fatalf("Invalid current version specified in test: %v", err)
 	}
@@ -144,7 +144,7 @@ func testParseTerraformVersion(
 	actualVersion, actualErr := run.ParseTerraformVersion(versionString)
 
 	if expectedErr == nil {
-		expected, err := version.NewVersion(expectedVersion)
+		expected, err := semver.Parse(expectedVersion)
 		if err != nil {
 			t.Fatalf("Invalid expected version specified in test: %v", err)
 		}
@@ -274,7 +274,7 @@ func testCheckTerragruntVersionMeetsConstraint(
 ) {
 	t.Helper()
 
-	current, err := version.NewVersion(currentVersion)
+	current, err := semver.Parse(currentVersion)
 	if err != nil {
 		t.Fatalf("Invalid current version specified in test: %v", err)
 	}

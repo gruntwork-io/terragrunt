@@ -2328,7 +2328,31 @@ func runTerragruntOutputJSON(
 
 	runCfg := cfg.ToRunConfig(l, pctx.Venv.FS)
 
-	// Build run.Options directly from ParsingContext fields.
+	err = run.Run(ctx, l, pctx.Venv, RunOptionsFromParsingContext(pctx), report.NewReport(), runCfg, credentialGetter)
+	if err != nil {
+		return nil, err
+	}
+
+	err = stdoutBufferWriter.Flush()
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := strings.TrimSpace(stdoutBuffer.String())
+	jsonBytes := []byte(jsonString)
+
+	l.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
+
+	return jsonBytes, nil
+}
+
+// RunOptionsFromParsingContext builds the [run.Options] for the run that
+// reads a dependency's outputs. It is the ParsingContext-sourced twin of
+// the TerragruntOptions-sourced constructor in internal/configbridge: the
+// dependency run is a full run of the target unit, so a flag missing here
+// is a flag that stops applying as soon as a unit is reached through a
+// `dependency` block.
+func RunOptionsFromParsingContext(pctx *ParsingContext) *run.Options {
 	runOpts := run.NewOptions()
 	runOpts.LogShowAbsPaths = pctx.LogShowAbsPaths
 	runOpts.LogDisableErrorSummary = pctx.LogDisableErrorSummary
@@ -2358,24 +2382,13 @@ func runTerragruntOutputJSON(
 	runOpts.BackendBootstrap = pctx.BackendBootstrap
 	runOpts.Telemetry = pctx.Telemetry
 	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
+	runOpts.NoCAS = pctx.NoCAS
 	runOpts.CASCloneDepth = pctx.CASCloneDepth
+	runOpts.CASOffline = pctx.CASOffline
+	runOpts.CASRefresh = pctx.CASRefresh
+	runOpts.CASProbeTTL = pctx.CASProbeTTL
 
-	err = run.Run(ctx, l, pctx.Venv, runOpts, report.NewReport(), runCfg, credentialGetter)
-	if err != nil {
-		return nil, err
-	}
-
-	err = stdoutBufferWriter.Flush()
-	if err != nil {
-		return nil, err
-	}
-
-	jsonString := strings.TrimSpace(stdoutBuffer.String())
-	jsonBytes := []byte(jsonString)
-
-	l.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
-
-	return jsonBytes, nil
+	return runOpts
 }
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.

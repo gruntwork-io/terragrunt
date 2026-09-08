@@ -77,7 +77,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		)
 
 		// Drop the test server: a cached clone must not need it.
-		repoEntry := cas.EntryPathForURL(filepath.Join(storePath, "git"), repoURL)
+		repoEntry := cas.EntryPathForURL(filepath.Join(storePath, "git"), repoURL, cas.HashSHA256)
 		_, err = os.Stat(filepath.Join(repoEntry, "repo"))
 		require.NoError(t, err)
 
@@ -554,7 +554,7 @@ func TestCAS_CommitRefFallbackWhenGitStoreFails(t *testing.T) {
 	gitStoreRoot := filepath.Join(storePath, "git")
 	require.NoError(t, os.MkdirAll(gitStoreRoot, 0o755))
 
-	blocker := cas.EntryPathForURL(gitStoreRoot, repoURL)
+	blocker := cas.EntryPathForURL(gitStoreRoot, repoURL, cas.HashSHA256)
 	require.NoError(t, os.WriteFile(blocker, []byte("not a directory"), 0o644))
 
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))

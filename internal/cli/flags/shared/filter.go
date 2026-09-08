@@ -113,7 +113,8 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
 				Name:        DiscoveryBoundaryFlagName,
 				EnvVars:     tgPrefix.EnvVars(DiscoveryBoundaryFlagName),
 				Destination: &opts.DiscoveryBoundary,
-				Usage:       "Bound --filter discovery to a directory, not git root. Requires the 'bounded-discovery' experiment.",
+				Usage: flags.ExperimentUsage(opts.Experiments, experiment.BoundedDiscovery,
+					"Bound --filter discovery to a directory, not git root."),
 				Action: func(_ context.Context, _ *clihelper.Context, value string) error {
 					if value == "" {
 						return nil

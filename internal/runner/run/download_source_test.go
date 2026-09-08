@@ -1264,6 +1264,188 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	assert.FileExists(t, expectedFilePath)
 }
 
+// TestDownloadSourceWithCASOfflineDamagedStoreFails pins the same rule for a
+// store that answers the probe but cannot produce the content: the recorded
+// probe and the tree survive, the file content behind them does not, and the
+// run fails instead of quietly cloning from the remote.
+func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	cacheDir := filepath.Join(tmpDir, "cache")
+
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download/hello-world")
+
+	sourceURL := parseURL(t, srv.SourceURL("test/fixtures/download/hello-world", ""))
+
+	newSource := func(name string) *tf.Source {
+		dir := filepath.Join(tmpDir, name)
+
+		return &tf.Source{
+			CanonicalSourceURL: sourceURL,
+			DownloadDir:        dir,
+			WorkingDir:         dir,
+			VersionFile:        filepath.Join(dir, "version-file.txt"),
+		}
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OfflineCAS))
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	// The store is this test's own, so the online run below is what fills it.
+	v := venvtest.NewOSWithEmptyEnv()
+	platform := *v.Platform
+	platform.UserCacheDir = func() (string, error) { return cacheDir, nil }
+	v.Platform = &platform
+
+	online := newSource("online")
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(), l, v, online, configbridge.NewRunOptions(opts), cfg, report.NewReport(),
+	)
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(online.DownloadDir, "main.tf"))
+
+	require.NoError(t, v.FS.RemoveAll(filepath.Join(cacheDir, "terragrunt", "cas", "store", "blobs")))
+
+	opts.CASOffline = true
+
+	offline := newSource("offline")
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(), l, v, offline, configbridge.NewRunOptions(opts), cfg, report.NewReport(),
+	)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, cas.ErrCASOffline, "the probe is answered; the store fails on the content behind it")
+
+	assert.NoFileExists(t, filepath.Join(offline.DownloadDir, "main.tf"), "the standard getter must not have fetched the source")
+}
+
+// TestDownloadSourceWithCASOfflineMissFails pins that --cas-offline turns a
+// source the store lacks into the run's error rather than a fallback to the
+// standard getter, which would clone over the network the flag forbids.
+func TestDownloadSourceWithCASOfflineMissFails(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	downloadDir := filepath.Join(tmpDir, "download")
+
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download/hello-world")
+
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, srv.SourceURL("test/fixtures/download/hello-world", "")),
+		DownloadDir:        downloadDir,
+		WorkingDir:         downloadDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OfflineCAS))
+	opts.CASOffline = true
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	// The store must be empty for the miss, so the CAS is pointed at a
+	// cache directory of this test's own rather than the machine's.
+	v := venvtest.NewOSWithEmptyEnv()
+	platform := *v.Platform
+	platform.UserCacheDir = func() (string, error) { return filepath.Join(tmpDir, "cache"), nil }
+	v.Platform = &platform
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		l,
+		v,
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.ErrorIs(t, err, cas.ErrCASOffline)
+
+	assert.NoFileExists(t, filepath.Join(downloadDir, "main.tf"), "the standard getter must not have fetched the source")
+}
+
+// TestDownloadSourceWithCASOfflineInitFailureFails pins that --cas-offline
+// keeps a Git source out of the standard getter even when the CAS cannot be
+// built at all. Falling back would clone from the remote the flag forbids,
+// so the setup failure is the run's error.
+func TestDownloadSourceWithCASOfflineInitFailureFails(t *testing.T) {
+	t.Parallel()
+
+	errNoCacheDir := errors.New("no cache dir")
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	downloadDir := filepath.Join(tmpDir, "download")
+
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download/hello-world")
+
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, srv.SourceURL("test/fixtures/download/hello-world", "")),
+		DownloadDir:        downloadDir,
+		WorkingDir:         downloadDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OfflineCAS))
+	opts.CASOffline = true
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	// A cache directory that cannot be resolved is what makes cas.New fail.
+	v := venvtest.NewOSWithEmptyEnv()
+	platform := *v.Platform
+	platform.UserCacheDir = func() (string, error) { return "", errNoCacheDir }
+	v.Platform = &platform
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		l,
+		v,
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.ErrorIs(t, err, errNoCacheDir)
+
+	assert.NoFileExists(t, filepath.Join(downloadDir, "main.tf"), "the standard getter must not have fetched the source")
+}
+
 // TestDownloadSourceCASInitializationFailure tests the fallback behavior when CAS initialization fails
 func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	t.Parallel()

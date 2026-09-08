@@ -1,0 +1,26 @@
+---
+name: cas-offline
+description: When using CAS, never contact a remote; resolve every source from the local store and fail on anything missing.
+type: bool
+env:
+  - TG_CAS_OFFLINE
+since: "v1.1.5"
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment. Enable it with `--experiment=offline-cas` or `TG_EXPERIMENT=offline-cas`; otherwise setting `--cas-offline` returns an error.
+</Aside>
+
+Forbids the CAS from contacting any remote. Each source is resolved locally instead: a source pinned to a specific revision that the store already holds is looked up there, and everything else is answered from the most recent probe the [probe cache](/features/caching/cas#recorded-probes) recorded for it, however old that result is. The content is then linked from the store as usual.
+
+A source with no recorded answer, or whose content is not in the store, fails with an error naming it instead of being fetched. Run once without this flag to populate the store, then rerun with it.
+
+Any other CAS failure on a source, such as a store file that cannot be read, also fails the run. Without this flag Terragrunt falls back to the standard downloader, which fetches from the remote.
+
+```bash
+terragrunt run --all --cas-offline -- plan
+```
+
+Every source the CAS resolves through a cheap probe is covered: Git, HTTP and HTTPS, S3, GCS, OCI, the OpenTofu/Terraform registry, and Mercurial. A source with no cheap probe, such as an SMB share, has nothing recorded and is still fetched. Local paths are copied as usual. The flag has no effect when the CAS is disabled with `--no-cas`, and it cannot be combined with `--cas-refresh`.
