@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -137,13 +138,31 @@ func TestBase64GzipStrictControl(t *testing.T) {
 	terraformExpected, err := tffuncs.Base64Gzip(cty.StringVal(input))
 	require.NoError(t, err)
 
-	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip", input, false), "legacy bytes by default")
-	assert.Equal(t, terraformExpected.AsString(), parseBase64Gzip(t, "base64gzip", input, true), "current encoder with the control")
-	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip_compat", input, false), "compat function without the control")
-	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip_compat", input, true), "compat function with the control")
+	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip", input, false, false), "legacy bytes by default")
+	assert.Equal(t, terraformExpected.AsString(), parseBase64Gzip(t, "base64gzip", input, true, false), "current encoder with the control")
+	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip_compat", input, false, true), "compat function without the control")
+	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip_compat", input, true, true), "compat function with the control")
 }
 
-func parseBase64Gzip(t *testing.T, funcName, input string, enableControl bool) any {
+func TestBase64GzipCompatRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	dir := t.TempDir()
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(dir, config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
+
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venvtest.New(), opts)
+
+	funcs, err := config.EarlyStackParseFunctions(ctx, l, dir, pctx)
+	require.NoError(t, err)
+
+	_, err = funcs[config.FuncNameBase64GzipCompat].Call([]cty.Value{cty.StringVal("some text")})
+	require.ErrorAs(t, err, &config.Base64GzipCompatRequiresExperimentError{})
+}
+
+func parseBase64Gzip(t *testing.T, funcName, input string, enableControl, enableExperiment bool) any {
 	t.Helper()
 
 	l := logger.CreateLogger()
@@ -154,6 +173,10 @@ func parseBase64Gzip(t *testing.T, funcName, input string, enableControl bool) a
 
 	if enableControl {
 		require.NoError(t, opts.StrictControls.EnableControl(controls.LegacyBase64Gzip))
+	}
+
+	if enableExperiment {
+		require.NoError(t, opts.Experiments.EnableExperiment(experiment.Base64GzipCompat))
 	}
 
 	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venvtest.New(), opts)

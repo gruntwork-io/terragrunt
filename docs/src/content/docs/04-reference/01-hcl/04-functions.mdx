@@ -1198,7 +1198,9 @@ The `base64gzip_compat` function ships with v1.1.5.
 
 <Since version="v1.1.5">
 
-`base64gzip_compat(str)` returns the value `base64gzip(str)` returned in Terragrunt v1.1.3 and earlier, and keeps returning it after `base64gzip()` moves to the current Go encoder.
+`base64gzip_compat(str)` returns the value `base64gzip(str)` returned in Terragrunt v1.1.3 and earlier, and keeps returning it after Terragrunt 1.2 switches `base64gzip()` to the current Go encoder.
+
+`base64gzip_compat` requires the [`base64gzip-compat`](/reference/experiments/active#base64gzip-compat) experiment. Calling it without the experiment enabled returns an error. The name may still change to match OpenTofu.
 
 Terragrunt v1.1.4 was built with Go 1.27, which changed the compressed bytes its gzip encoder produces. The bytes still decompress to the same content, but a resource that compares the encoded value, such as an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`, sees a change and plans a replacement. Use this function where the encoded value must stay stable across Terragrunt upgrades:
 
@@ -1208,6 +1210,6 @@ inputs = {
 }
 ```
 
-`base64gzip()` itself returns the same bytes until a future version switches it to the current encoder; see the [`legacy-base64gzip`](/reference/strict-controls/active#legacy-base64gzip) strict control.
+By default, `base64gzip()` returns the same bytes. Enable the [`legacy-base64gzip`](/reference/strict-controls/active#legacy-base64gzip) strict control to use the current encoder before Terragrunt 1.2 makes that behavior the default.
 
 </Since>

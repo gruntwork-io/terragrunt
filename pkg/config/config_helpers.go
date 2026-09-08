@@ -363,8 +363,14 @@ func createTerragruntEvalContext(
 			pctx,
 			ConstraintCheck,
 		),
-		FuncNameDeepMerge:        deepMergeMapValuesAsFuncImpl(pctx),
-		FuncNameBase64GzipCompat: gzipcompat.Func(nil),
+		FuncNameDeepMerge: deepMergeMapValuesAsFuncImpl(pctx),
+		FuncNameBase64GzipCompat: gzipcompat.Func(func() error {
+			if pctx.Experiments.Evaluate(experiment.Base64GzipCompat) {
+				return nil
+			}
+
+			return Base64GzipCompatRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath}
+		}),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22

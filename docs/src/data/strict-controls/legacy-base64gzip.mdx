@@ -12,7 +12,7 @@ Terragrunt v1.1.4 was built with Go 1.27, which changed the compressed bytes its
 
 Since v1.1.5, `base64gzip()` returns the v1.1.3 bytes again, so upgrading from v1.1.3 or earlier plans no change. If you applied the v1.1.4 output, every plan shows the encoded value changing back until you apply it or enable this control, and a resource that replaces on user data changes is replaced by that apply.
 
-Where the encoded value must stay stable after that default changes, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat) instead of `base64gzip()`.
+Where the encoded value must stay stable after that default changes, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat) instead of `base64gzip()`. It requires the [`base64gzip-compat`](/reference/experiments/active#base64gzip-compat) experiment.
 
 Enable this control to keep the current Go encoder's output instead:
 
@@ -20,4 +20,4 @@ Enable this control to keep the current Go encoder's output instead:
 terragrunt run plan --strict-control legacy-base64gzip
 ```
 
-The current encoder will become the default in a future version of Terragrunt.
+The current encoder becomes the default in Terragrunt 1.2.
