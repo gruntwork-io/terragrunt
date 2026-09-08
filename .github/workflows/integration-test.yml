@@ -25,9 +25,6 @@ jobs:
             run: "^TestTF"
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
-          # Suites bundled onto one runner because none of them needs a
-          # dedicated toolchain and each is far cheaper to run than the ~3
-          # minutes of runner setup and Go compilation a separate job costs.
           - name: Independent Integration Tests
             os: ubuntu
             target: ./...
@@ -40,10 +37,6 @@ jobs:
             tags: "ssh,sops,deprecated,mocks,engine,parse,http,exec,tflint"
             run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine|TestParse|TestHTTP|TestExec|TestTflint)"
             secrets: [GHA_DEPLOY_KEY]
-          # Bundled for the same reason, plus these suites spend most of their
-          # time waiting on cloud APIs, so sharing a runner costs little wall
-          # clock. The AWS suites stay separate: they are the longest jobs in
-          # the matrix, and their toolchain setup scripts uninstall each other.
           - name: Cloud
             os: ubuntu
             target: ./...
@@ -78,6 +71,8 @@ jobs:
                 TG_OCI_TEST_GHCR_USERNAME,
                 TG_OCI_TEST_GHCR_TOKEN,
               ]
+          # tofu-switch.sh and terraform-switch.sh uninstall each other, so
+          # these two cannot share a runner.
           - name: AWS Tofu
             os: ubuntu
             target: ./...
@@ -111,8 +106,8 @@ jobs:
               - .github/scripts/setup/windows-setup.ps1
             tags: "windows,exec"
             run: "^(TestWindows|TestExec)"
-          # The provider cache server only changes how OpenTofu and Terraform
-          # fetch providers, so these run the suites that drive a real binary.
+          # The provider cache server only changes how tofu fetches providers,
+          # so only the suites that drive a real binary are worth re-running.
           - name: Provider Cache Server with Latest Terraform
             os: ubuntu
             target: ./test
@@ -154,11 +149,7 @@ jobs:
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          sudo docker builder prune -a
-          df -h
+        run: ./.github/scripts/ci/free-disk-space.sh
 
       # install dependencies for the integration tests
       - name: Use mise to install dependencies
@@ -220,9 +211,7 @@ jobs:
           SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
 
       - id: go-cache-paths
-        run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        run: ./.github/scripts/ci/go-cache-paths.sh
         shell: bash
 
       - name: Go Build Cache
@@ -245,21 +234,7 @@ jobs:
             ${{ runner.os }}-terragrunt-provider-cache-
 
       - name: Run Tests
-        run: |
-          if [ "$SKIP" != "true" ]; then
-            source "${GITHUB_WORKSPACE}/.env.secrets"
-            # print command arguments
-            set -x
-            if [[ "$HAS_DOCKER" == "true" ]]; then
-              TAGS="${TAGS:+$TAGS,docker}"
-              TAGS="${TAGS:=docker}"
-            fi
-            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
-            # Generate XML report from test output
-            go-junit-report < test_output.log > result.xml
-          else
-            echo "Skipping tests for $NAME as the skip flag is true."
-          fi
+        run: ./.github/scripts/ci/run-integration-tests.sh
         shell: bash
         env:
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -267,7 +242,6 @@ jobs:
           TARGET: ${{ matrix.integration.target }}
           TAGS: ${{ matrix.integration.tags }}
           RUN: ${{ matrix.integration.run }}
-          SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
           HAS_DOCKER: ${{ runner.os == 'Linux' }}
@@ -292,20 +266,7 @@ jobs:
 
       - name: Print Failed Tests (${{ matrix.integration.name }})
         if: always()
-        run: |
-          echo "Failed Tests in ${{ matrix.integration.name }}"
-          if [[ -f test_output.log ]]; then
-            # Count only test failure lines in a way that is safe with -e -o pipefail
-            failed_count=$(grep -E -c '^--- FAIL:' test_output.log || echo 0)
-            echo "Failed tests count: $failed_count"
-            if [[ "${failed_count}" -gt 0 ]]; then
-              echo "Failed test names:"
-              grep -E '^--- FAIL:' test_output.log | sed 's/.*FAIL:[[:space:]]*//'
-            else
-              echo "No failed tests found"
-            fi
-          else
-            echo "No test output found"
-          fi
-          echo ""
+        run: ./.github/scripts/ci/print-failed-tests.sh
         shell: bash
+        env:
+          NAME: ${{ matrix.integration.name }}

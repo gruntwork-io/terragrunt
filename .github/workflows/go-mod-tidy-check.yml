@@ -20,13 +20,20 @@ jobs:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run go mod tidy
-        run: go mod tidy
+      - id: go-cache-paths
+        run: ./.github/scripts/ci/go-cache-paths.sh
+        shell: bash
 
-      - name: Check for changes
-        run: |
-          if ! git diff --exit-code go.mod go.sum; then
-            echo "::error::go.mod or go.sum are not tidy. Please run 'go mod tidy' locally and commit the changes."
-            exit 1
-          fi
-          echo "go.mod and go.sum are tidy"
+      # Shares one key with the other Go jobs: the repo is already over the 10GB
+      # cache limit, and a cold module cache refetches the whole graph from
+      # proxy.golang.org, where one transient error blocks base_tests behind it.
+      - name: Go Mod Cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      - name: Check go mod tidy
+        run: ./.github/scripts/ci/check-go-mod-tidy.sh

@@ -10,6 +10,17 @@ get_all_binaries() {
 	jq -r '.platforms[].binary' "$RELEASE_CONFIG_FILE"
 }
 
+# Get "<os> <arch> <binary>" for every platform, one per line
+get_platform_targets() {
+	jq -r '.platforms[] | "\(.os) \(.arch) \(.binary)"' "$RELEASE_CONFIG_FILE"
+}
+
+# Get the binary filenames for one GOOS
+get_binaries_for_os() {
+	local -r target_os="$1"
+	jq -r --arg os "$target_os" '.platforms[] | select(.os == $os) | .binary' "$RELEASE_CONFIG_FILE"
+}
+
 # Get total binary count (computed from platforms array)
 get_binary_count() {
 	jq -r '.platforms | length' "$RELEASE_CONFIG_FILE"
