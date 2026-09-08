@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 // Custom error types
@@ -69,6 +70,20 @@ func (err InvalidMergeStrategyTypeError) Error() string {
 		ShallowMerge,
 		DeepMerge,
 		DeepMergeMapOnly,
+	)
+}
+
+// IncludeMergeStrategyNotSupportedError reports a merge strategy that parses but
+// applies only to dependency mock outputs, so an include block cannot use it.
+type IncludeMergeStrategyNotSupportedError string
+
+func (err IncludeMergeStrategyNotSupportedError) Error() string {
+	return fmt.Sprintf(
+		"Include merge strategy %s is not supported for include blocks. Valid strategies are: %s, %s, %s",
+		string(err),
+		NoMerge,
+		ShallowMerge,
+		DeepMerge,
 	)
 }
 
@@ -323,6 +338,25 @@ func (err DependencyStateParseError) Unwrap() error {
 	return err.Err
 }
 
+// ErrDependencyStateEncrypted reports state that OpenTofu encrypted client-side, which a
+// direct backend read has no key material to decrypt.
+var ErrDependencyStateEncrypted = errors.New("dependency state is encrypted")
+
+// DependencyStateEncryptedError reports a dependency state protected by OpenTofu's
+// client-side state encryption, so its outputs have to come from OpenTofu itself.
+type DependencyStateEncryptedError struct {
+	// Location identifies the encrypted remote state object.
+	Location string
+}
+
+func (err DependencyStateEncryptedError) Error() string {
+	return ErrDependencyStateEncrypted.Error() + ": " + err.Location
+}
+
+func (err DependencyStateEncryptedError) Unwrap() error {
+	return ErrDependencyStateEncrypted
+}
+
 type TerragruntOutputParsingError struct {
 	Err  error
 	Path string
@@ -415,6 +449,25 @@ func (err DuplicateDependencyError) Error() string {
 		"%s: dependency %s is declared more than once; every dependency needs an address of its own",
 		err.ConfigPath,
 		err.Address,
+	)
+}
+
+// DuplicateDependencyConfigPathError is returned when two dependency blocks in one config
+// point at the same config_path under different addresses.
+type DuplicateDependencyConfigPathError struct {
+	ConfigPath     string
+	DependencyPath string
+	FirstAddress   string
+	SecondAddress  string
+}
+
+func (err DuplicateDependencyConfigPathError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependencies %s and %s both point at %s; declare that dependency once and reference it under one name",
+		err.ConfigPath,
+		err.FirstAddress,
+		err.SecondAddress,
+		err.DependencyPath,
 	)
 }
 
@@ -618,6 +671,30 @@ func (err ExpansionRequiresExperimentError) Error() string {
 		err.ConfigPath,
 		experiment.BlockIteration,
 		experiment.BlockIteration,
+	)
+}
+
+// MisspelledExpansionBlockError is returned when a dependency, unit, or stack block nests a
+// block whose name is a near miss of expansion.
+type MisspelledExpansionBlockError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+	BlockName  string
+}
+
+func (err MisspelledExpansionBlockError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s declares a %q block, which Terragrunt does not recognize; did you mean %q?",
+		block,
+		err.ConfigPath,
+		err.BlockName,
+		hclparse.ExpansionBlockName,
 	)
 }
 

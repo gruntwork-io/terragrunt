@@ -248,10 +248,10 @@ func TestUnitAndStackDecodeEnabled(t *testing.T) {
 	assert.True(t, *stackCfg.Stacks[0].Enabled)
 }
 
-// TestValidateBlockIterationExperimentGatesEnabled pins which block types reject a bare
+// TestValidateBlockIterationGatesEnabled pins which block types reject a bare
 // enabled attribute while the experiment is off. The dependency row expects no error,
 // since that block has always accepted enabled.
-func TestValidateBlockIterationExperimentGatesEnabled(t *testing.T) {
+func TestValidateBlockIterationGatesEnabled(t *testing.T) {
 	t.Parallel()
 
 	skipInExperimentMode(t)
@@ -316,7 +316,7 @@ unit "app" {
 
 			file := parseHCLString(t, tc.cfg, tc.configPath)
 
-			err := config.ValidateBlockIterationExperiment(experiment.NewExperiments(), file)
+			err := config.ValidateBlockIteration(experiment.NewExperiments(), file)
 
 			if !tc.wantErr {
 				require.NoError(t, err)

@@ -25,7 +25,7 @@ const (
 	maxDashesInFlag = 2
 )
 
-var DefaultComplete = defaultComplete //nolint:gochecknoglobals
+var DefaultComplete = defaultComplete
 
 // AutocompleteInstaller is an interface to be implemented to perform the
 // autocomplete installation and uninstallation with a CLI.

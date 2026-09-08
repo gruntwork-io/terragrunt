@@ -89,6 +89,35 @@ dependency "a" {
 	assert.ElementsMatch(t, []string{"../web/frontend", "../api/backend"}, paths)
 }
 
+// TestExpandBlockForEachObject pins that an object expands like a map. An inline
+// for_each literal parses as an object, and object values need not share a type.
+func TestExpandBlockForEachObject(t *testing.T) {
+	t.Parallel()
+
+	instances, err := expand(t, `
+dependency "a" {
+  expansion {
+    for_each = {
+      web = 1
+      api = "backend"
+    }
+  }
+
+  path = "../${each.key}-${each.value}"
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, instances, 2)
+
+	paths := make([]string, 0, len(instances))
+	for _, inst := range instances {
+		paths = append(paths, inst.Value.(*testBlock).Path)
+	}
+
+	assert.ElementsMatch(t, []string{"api", "web"}, keysOf(instances))
+	assert.ElementsMatch(t, []string{"../web-1", "../api-backend"}, paths)
+}
+
 // TestExpandBlockForEachMapNullValue pins that the concreteness check on element keys
 // leaves values alone: a map key is concrete no matter what it maps to, so a null
 // value only fails the body that dereferences it.
@@ -251,6 +280,21 @@ dependency "a" {
 dependency "a" {
   expansion {
     for_each = local.not_a_collection
+  }
+
+  path = "../x"
+}
+`,
+			target: new(hclparse.UnsupportedForEachTypeError),
+		},
+		{
+			// A bracketed literal parses as a tuple, which is ordered rather than
+			// keyed, so nothing in it can name an instance.
+			name: "for_each is a tuple",
+			cfg: `
+dependency "a" {
+  expansion {
+    for_each = ["web", "api"]
   }
 
   path = "../x"
@@ -468,7 +512,7 @@ func TestExpansionLimitExceededErrorGuidesTheUser(t *testing.T) {
 }
 
 // TestExpandBlockNumericForEachKeys pins how a numeric each.key renders into an
-// address, since OSS-3971 builds the dependency cty map from the same string.
+// address, since a dependency address embeds the same string.
 func TestExpandBlockNumericForEachKeys(t *testing.T) {
 	t.Parallel()
 
@@ -551,7 +595,11 @@ dependency "a" {
   path = "../x"
 }
 `)
-			require.Error(t, err)
+
+			// Swallowing the attribute would fail too, as a missing meta-arg, so a
+			// bare error assertion would not tell the two apart.
+			var diags hcl.Diagnostics
+			require.ErrorAs(t, err, &diags)
 		})
 	}
 }
@@ -820,4 +868,122 @@ func keysOf(instances []hclparse.Instance) []string {
 	}
 
 	return keys
+}
+
+// TestExpandBlocksReportsOneDiagnosticPerMistake pins that a mistake in the body of an
+// expanded block is reported once, not once per element. The block below expands to five
+// instances, every one of which fails to decode the same way.
+func TestExpandBlocksReportsOneDiagnosticPerMistake(t *testing.T) {
+	t.Parallel()
+
+	_, err := expandDependencies(t, `
+dependency "a" {
+  expansion {
+    count = 5
+  }
+
+  path  = "../x"
+  bogus = "nope"
+}
+`, nil)
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+	assert.Len(t, diags, 1)
+}
+
+// TestExpandBlocksDecodesPastAFailingElement pins that expansion decodes every element even
+// after one has failed, so a mistake only one element's each.value reaches is still
+// reported. Both elements below fail, each in its own way.
+func TestExpandBlocksDecodesPastAFailingElement(t *testing.T) {
+	t.Parallel()
+
+	const cfg = `
+dependency "a" {
+  expansion {
+    for_each = local.shapes
+  }
+
+  path = "../${each.value.name}"
+}
+`
+
+	shapes := func(elements map[string]cty.Value) *hcl.EvalContext {
+		return &hcl.EvalContext{
+			Variables: map[string]cty.Value{
+				"local": cty.ObjectVal(map[string]cty.Value{
+					"shapes": cty.ObjectVal(elements),
+				}),
+			},
+		}
+	}
+
+	// Objects sort their keys, so "b" is decoded first.
+	noName := cty.ObjectVal(map[string]cty.Value{"other": cty.StringVal("x")})
+	notAnObject := cty.StringVal("plain")
+
+	_, err := expandDependencies(t, cfg, shapes(map[string]cty.Value{"b": noName}))
+
+	var first hcl.Diagnostics
+	require.ErrorAs(t, err, &first)
+
+	_, err = expandDependencies(t, cfg, shapes(map[string]cty.Value{
+		"b": noName,
+		"c": notAnObject,
+	}))
+
+	var both hcl.Diagnostics
+	require.ErrorAs(t, err, &both)
+
+	assert.Greater(t, len(both), len(first))
+}
+
+// TestExpandBlocksKeepsParsingPastABrokenExpansion covers the best-effort parsing find, list
+// and the LSP depend on. A block whose elements cannot decode is dropped when the handler
+// forgives its diagnostics, and the rest of the file still comes back.
+func TestExpandBlocksKeepsParsingPastABrokenExpansion(t *testing.T) {
+	t.Parallel()
+
+	parser := hclparse.NewParser(
+		hclparse.WithDiagnosticsHandler(
+			func(_ *hcl.File, _ hcl.Diagnostics) (hcl.Diagnostics, error) {
+				return nil, nil
+			},
+		),
+	)
+
+	file, err := parser.ParseFromString(`
+dependency "broken" {
+  expansion {
+    count = 2
+  }
+
+  path  = "../${count.index}"
+  bogus = "nope"
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+
+	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
+}
+
+func expandDependencies(
+	tb testing.TB,
+	cfg string,
+	ctx *hcl.EvalContext,
+) ([]hclparse.Instance, error) {
+	tb.Helper()
+
+	file, err := hclparse.NewParser().ParseFromString(cfg, "terragrunt.hcl")
+	require.NoError(tb, err)
+
+	return file.ExpandBlocks("dependency", new(testBlock), ctx)
 }

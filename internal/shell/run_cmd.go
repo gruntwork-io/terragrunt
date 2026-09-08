@@ -352,7 +352,7 @@ func runCommand(
 
 	//nolint:contextcheck // context already passed to exec.Command
 	if err := cmd.Start(l); err != nil {
-		err = util.ProcessExecutionError{
+		err = &util.ProcessExecutionError{
 			Err:             err,
 			Args:            cmdOpts.Args,
 			Command:         cmdOpts.Command,
@@ -369,7 +369,7 @@ func runCommand(
 	defer cancelShutdown()
 
 	if err := cmd.Wait(); err != nil {
-		err = util.ProcessExecutionError{
+		err = &util.ProcessExecutionError{
 			Err:             err,
 			Args:            cmdOpts.Args,
 			Command:         cmdOpts.Command,

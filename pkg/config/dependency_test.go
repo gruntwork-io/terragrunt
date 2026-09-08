@@ -462,3 +462,100 @@ dependency "foo" {
 	require.ErrorAs(t, err, &typed)
 	assert.Equal(t, "foo[a]", typed.Address)
 }
+
+const duplicateDependencyConfigPaths = `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "../vpc"
+}
+`
+
+// TestDuplicateDependencyConfigPathsWarnByDefault pins that two blocks pointing at one
+// config_path still parse, since such configs have always run.
+func TestDuplicateDependencyConfigPathsWarnByDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyString(t, duplicateDependencyConfigPaths)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 2)
+}
+
+// TestDuplicateDependencyConfigPathsRejectedWhenStrict pins that the strict control turns a
+// shared config_path into a parse failure naming both addresses and the path.
+func TestDuplicateDependencyConfigPathsRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, duplicateDependencyConfigPaths)
+
+	var typed config.DuplicateDependencyConfigPathError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "vpc", typed.FirstAddress)
+	assert.Equal(t, "network", typed.SecondAddress)
+	assert.Equal(t, "../vpc", typed.DependencyPath)
+	assert.Equal(t, config.DefaultTerragruntConfigPath, typed.ConfigPath)
+}
+
+// TestDuplicateDependencyConfigPathsCompareResolvedPaths pins that two spellings of one
+// directory are read as the same config_path.
+func TestDuplicateDependencyConfigPathsCompareResolvedPaths(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "./../vpc/"
+}
+`)
+
+	var typed config.DuplicateDependencyConfigPathError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "./../vpc/", typed.DependencyPath)
+}
+
+// TestDuplicateDependencyConfigPathsIgnoreDisabled pins that a disabled block does not
+// collide, since it reads nothing.
+func TestDuplicateDependencyConfigPathsIgnoreDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyStringStrict(t, `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "../vpc"
+  enabled     = false
+}
+`)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 2)
+}
+
+// TestExpandedDependencyConfigPathCollisionRejectedWhenStrict pins that the elements of one
+// expanded block collide when their config_path does not vary with the key.
+func TestExpandedDependencyConfigPathCollisionRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, `
+dependency "vpc" {
+  expansion {
+    for_each = toset(["a", "b"])
+  }
+
+  config_path = "../vpc"
+}
+`)
+
+	var typed config.DuplicateDependencyConfigPathError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "vpc[a]", typed.FirstAddress)
+	assert.Equal(t, "vpc[b]", typed.SecondAddress)
+}

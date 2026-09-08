@@ -152,15 +152,33 @@ The experiment supports S3 and GCS backends. Azure Storage (`azurerm`) is suppor
 
 </Card>
 
-<Card title="State file schemas may change" icon="warning">
+<Card title="Direct read failures" icon="warning">
 
-There is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform.
+<Before version="1.1.5">
+Outside `render` and `render-json`, a network, permissions, or parsing failure from a direct state read ends the run instead of retrying through OpenTofu/Terraform. A missing state object still follows the dependency block's `mock_outputs` behavior.
+</Before>
+
+<Since version="1.1.5">
+Outside `render` and `render-json`, Terragrunt retries a failed direct state read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the direct-read speedup is lost. Missing state and the two render commands retain their existing mock-output behavior.
+</Since>
 
 </Card>
 
-<Card title="Incompatible with OpenTofu state encryption" icon="error">
+<Card title="State file schemas may change" icon="warning">
 
-When client-side state encryption is enabled, the state file is encrypted before upload and cannot be parsed directly by Terragrunt, resulting in a hard failure. If you encounter JSON parsing errors when using this experiment, check whether you have OpenTofu state encryption enabled and disable the experiment with `--no-dependency-fetch-output-from-state` if so.
+OpenTofu/Terraform may change the state schema. A compatible-looking schema change could affect direct-read results. Pin the OpenTofu/Terraform version when using this experiment.
+
+</Card>
+
+<Card title="OpenTofu state encryption" icon="warning">
+
+<Before version="1.1.5">
+When client-side state encryption is enabled, the encrypted envelope carries no plaintext `outputs` object. Terragrunt treats the dependency as having no outputs. Referencing a missing output can then fail with `Unsupported attribute`, while configured mock-output merging can supply a mock value instead. Disable the experiment with `--no-dependency-fetch-output-from-state` to force native output retrieval.
+</Before>
+
+<Since version="1.1.5">
+The direct reader does not evaluate OpenTofu's encryption configuration or key providers. Outside `render` and `render-json`, Terragrunt recognizes the encrypted envelope and retries with `tofu output` or `terraform output`. If the configured binary can decrypt the state and native output retrieval succeeds, only the speedup is lost. The render commands retain their existing mock-output behavior. Disable the experiment when a render command must resolve real outputs from encrypted state.
+</Since>
 
 </Card>
 

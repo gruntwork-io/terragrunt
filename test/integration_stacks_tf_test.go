@@ -1649,9 +1649,8 @@ func TestTFStackFindInParentFolders(t *testing.T) {
 }
 
 // TestTFStackVersionConstraints verifies that version constraints are respected in stack runs.
-// This test cannot be parallelized as it changes the global version.Version.
 //
-//nolint:paralleltest
+//nolint:paralleltest // it overrides the global version.Version
 func TestTFStackVersionConstraints(t *testing.T) {
 	helpers.CleanupTerragruntFolder(t, testFixtureStackVersionConstraints)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackVersionConstraints)

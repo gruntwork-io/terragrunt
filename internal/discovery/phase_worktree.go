@@ -25,6 +25,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// fromToTasks is the number of tasks a worktree comparison splits into: one for the from side, one for the to side.
+const fromToTasks = 2
+
 // WorktreePhase discovers components in Git worktrees for Git-based filters.
 type WorktreePhase struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery.
@@ -247,13 +250,7 @@ func (p *WorktreePhase) discoverInWorktree(
 		WithDiscoveryContext(discoveryContext).
 		WithNumWorkers(p.numWorkers)
 
-	if discovery.suppressParseErrors {
-		subDiscovery = subDiscovery.WithSuppressParseErrors()
-	}
-
-	if len(discovery.parserOptions) > 0 {
-		subDiscovery = subDiscovery.WithParserOptions(discovery.parserOptions)
-	}
+	subDiscovery = subDiscovery.withParseSettingsFrom(discovery)
 
 	components, err := subDiscovery.Discover(ctx, l, v, input.Opts)
 	if err != nil {
@@ -261,6 +258,21 @@ func (p *WorktreePhase) discoverInWorktree(
 	}
 
 	return components, nil
+}
+
+// withParseSettingsFrom carries a parent discovery's parse settings onto a worktree
+// sub-discovery. A sub-discovery that parses more strictly than the parent turns a parse
+// error the parent would tolerate into an aborted worktree phase.
+func (d *Discovery) withParseSettingsFrom(parent *Discovery) *Discovery {
+	if parent.suppressParseErrors {
+		d = d.WithSuppressParseErrors()
+	}
+
+	if len(parent.parserOptions) > 0 {
+		d = d.WithParserOptions(parent.parserOptions)
+	}
+
+	return d
 }
 
 // deletedReadingComponentsToFilters discovers, in the from worktree, the units that read files
@@ -436,12 +448,11 @@ func (p *WorktreePhase) walkChangedStack(
 	var fromComponents, toComponents component.Components
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
-	// Run at most 2 discovery tasks (from/to) in parallel, capped by available CPUs.
-	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
+	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), fromToTasks))
 
 	var (
 		mu   sync.Mutex
-		errs = make([]error, 0, 2) //nolint:mnd
+		errs = make([]error, 0, fromToTasks)
 	)
 
 	parentFilters := discovery.filters.ExcludingGitFilters()
@@ -450,7 +461,8 @@ func (p *WorktreePhase) walkChangedStack(
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
 			WithFilters(parentFilters).
-			WithNumWorkers(p.numWorkers)
+			WithNumWorkers(p.numWorkers).
+			withParseSettingsFrom(discovery)
 
 		var fromDiscoveryErr error
 
@@ -478,7 +490,8 @@ func (p *WorktreePhase) walkChangedStack(
 		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
 			WithFilters(parentFilters).
-			WithNumWorkers(p.numWorkers)
+			WithNumWorkers(p.numWorkers).
+			withParseSettingsFrom(discovery)
 
 		var toDiscoveryErr error
 
@@ -537,8 +550,7 @@ func (p *WorktreePhase) walkChangedStack(
 		var fromSHA, toSHA string
 
 		shaGroup, _ := errgroup.WithContext(ctx)
-		// Hash from/to directories in parallel (at most 2), capped by available CPUs.
-		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
+		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), fromToTasks))
 
 		shaGroup.Go(func() error {
 			var localErr error

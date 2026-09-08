@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -384,6 +385,7 @@ func TestProviderCacheHomeless(t *testing.T) {
 	_, err := providercache.InitServer(
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
+		tfimpl.OpenTofu,
 		&pcoptions.ProviderCacheOptions{
 			Dir: cacheDir,
 		},
@@ -408,6 +410,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		err := server.Init(
 			logger.CreateLogger(),
 			venvtest.New().WithFS(memFs),
+			tfimpl.OpenTofu,
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},
@@ -431,6 +434,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		err := server.Init(
 			logger.CreateLogger(),
 			venvtest.New().WithFS(memFs),
+			tfimpl.OpenTofu,
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},

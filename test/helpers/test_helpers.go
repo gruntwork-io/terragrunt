@@ -290,7 +290,7 @@ func (tl *testLogger) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	//nolint:nilerr
+	//nolint:nilerr // a partial line left in the buffer isn't a write failure
 	return n, nil
 }
 
