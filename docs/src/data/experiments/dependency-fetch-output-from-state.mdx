@@ -17,7 +17,13 @@ Azure state protected with `customer_provided_key`, and Azure configurations tha
 
 GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths, the `impersonate_service_account` setting, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
 
-Terragrunt reads `service_account`, `authorized_user`, and `external_account` (Workload Identity Federation) credential files directly. An `external_account` file is read directly only when its `credential_source` is a `url` or an absolute `file` path. Every other source uses the normal method. An `executable` source would run with Terragrunt's environment rather than the unit's, an AWS source would authenticate with Terragrunt's AWS credentials, and a relative `file` path would resolve against Terragrunt's working directory rather than the unit's.
+The `credentials` backend setting is a local path to a Google Cloud credentials file in JSON format. `GOOGLE_APPLICATION_CREDENTIALS` points to the same kind of file. Neither is the same thing as `access_token`, which is a temporary OAuth 2.0 access token used as-is rather than a file.
+
+Terragrunt reads credentials files of type `service_account`, `authorized_user`, and `external_account` (Workload Identity Federation) directly. An `external_account` file is read directly only when its `credential_source` is a `url` or a `file` with an absolute path. Any other source uses the normal method, because a direct read would resolve it with Terragrunt's own environment and working directory rather than the unit's:
+
+- `executable` would run the command with Terragrunt's environment.
+- AWS (an `environment_id` such as `aws1`) would use Terragrunt's AWS credentials.
+- `file` with a relative path would resolve against Terragrunt's working directory.
 
 **Known Limitations:**
 
