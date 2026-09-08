@@ -89,6 +89,35 @@ dependency "a" {
 	assert.ElementsMatch(t, []string{"../web/frontend", "../api/backend"}, paths)
 }
 
+// TestExpandBlockForEachObject pins that an object expands like a map. An inline
+// for_each literal parses as an object, and object values need not share a type.
+func TestExpandBlockForEachObject(t *testing.T) {
+	t.Parallel()
+
+	instances, err := expand(t, `
+dependency "a" {
+  expansion {
+    for_each = {
+      web = 1
+      api = "backend"
+    }
+  }
+
+  path = "../${each.key}-${each.value}"
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, instances, 2)
+
+	paths := make([]string, 0, len(instances))
+	for _, inst := range instances {
+		paths = append(paths, inst.Value.(*testBlock).Path)
+	}
+
+	assert.ElementsMatch(t, []string{"api", "web"}, keysOf(instances))
+	assert.ElementsMatch(t, []string{"../web-1", "../api-backend"}, paths)
+}
+
 // TestExpandBlockForEachMapNullValue pins that the concreteness check on element keys
 // leaves values alone: a map key is concrete no matter what it maps to, so a null
 // value only fails the body that dereferences it.
@@ -251,6 +280,21 @@ dependency "a" {
 dependency "a" {
   expansion {
     for_each = local.not_a_collection
+  }
+
+  path = "../x"
+}
+`,
+			target: new(hclparse.UnsupportedForEachTypeError),
+		},
+		{
+			// A bracketed literal parses as a tuple, which is ordered rather than
+			// keyed, so nothing in it can name an instance.
+			name: "for_each is a tuple",
+			cfg: `
+dependency "a" {
+  expansion {
+    for_each = ["web", "api"]
   }
 
   path = "../x"
@@ -468,7 +512,7 @@ func TestExpansionLimitExceededErrorGuidesTheUser(t *testing.T) {
 }
 
 // TestExpandBlockNumericForEachKeys pins how a numeric each.key renders into an
-// address, since OSS-3971 builds the dependency cty map from the same string.
+// address, since a dependency address embeds the same string.
 func TestExpandBlockNumericForEachKeys(t *testing.T) {
 	t.Parallel()
 
@@ -551,7 +595,11 @@ dependency "a" {
   path = "../x"
 }
 `)
-			require.Error(t, err)
+
+			// Swallowing the attribute would fail too, as a missing meta-arg, so a
+			// bare error assertion would not tell the two apart.
+			var diags hcl.Diagnostics
+			require.ErrorAs(t, err, &diags)
 		})
 	}
 }
