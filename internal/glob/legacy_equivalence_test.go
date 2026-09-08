@@ -294,3 +294,26 @@ func TestLegacyExpandSymlinkToFileRootMatchesZglob(t *testing.T) {
 	require.NoError(t, gotErr)
 	assert.ElementsMatch(t, want, got)
 }
+
+// TestLegacyExpandSymlinkedRootEscapesToAncestor pins that a pattern rooted at
+// a link pointing back at one of its own ancestors is refused with
+// [glob.ErrSymlinkedRootEscapes] under [glob.WithSymlinkedRoots], since
+// walking the target would walk back through the link, and stays opaque
+// without the option.
+func TestLegacyExpandSymlinkedRootEscapesToAncestor(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("x"), 0o644))
+	require.NoError(t, vfs.Symlink(fsys, "/src", "/src/.loop"))
+	require.NoError(t, vfs.Symlink(fsys, "/", "/src/.up"))
+
+	for _, pattern := range []string{"/src/.loop/*", "/src/.loop/**/*.tf", "/src/.up/*"} {
+		_, err := glob.LegacyExpand(fsys, pattern, glob.WithSymlinkedRoots())
+		require.ErrorIs(t, err, glob.ErrSymlinkedRootEscapes, "pattern %q", pattern)
+
+		got, err := glob.LegacyExpand(fsys, pattern)
+		require.NoError(t, err, "pattern %q", pattern)
+		assert.Empty(t, got, "pattern %q", pattern)
+	}
+}

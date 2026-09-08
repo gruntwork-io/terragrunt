@@ -1720,34 +1720,50 @@ func TestExcludeFromCopySymlinkedDirectory(t *testing.T) {
 
 // TestIncludeInCopySymlinkLoop pins that, with the symlinks experiment on, an
 // include_in_copy entry that links back at a directory already being copied
-// is copied as an empty directory instead of being followed again and again
-// (issue #6791).
+// is not followed again (issue #6791): naming the link copies it as an empty
+// directory, and a pattern rooted at the link matches nothing.
 func TestIncludeInCopySymlinkLoop(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name string
+		name    string
+		pattern string
 		// link creates the loop under source, using outside for a hop outside source.
 		link func(t *testing.T, source, outside string)
-		// nested is the destination path that must not exist once the loop is cut.
-		nested []string
+		// absent is the destination path that must not exist once the loop is cut.
+		absent []string
+		// wantLinkDir is whether the link itself lands in the destination as a directory.
+		wantLinkDir bool
 	}{
 		{
-			name: "link to the source itself",
+			name:    "link to the source itself",
+			pattern: ".loop",
 			link: func(t *testing.T, source, _ string) {
 				t.Helper()
 				require.NoError(t, os.Symlink(source, filepath.Join(source, ".loop")))
 			},
-			nested: []string{".loop", "main.tf"},
+			absent:      []string{".loop", "main.tf"},
+			wantLinkDir: true,
 		},
 		{
-			name: "link back through a directory outside the source",
+			name:    "pattern rooted at a link to the source itself",
+			pattern: ".loop/*",
+			link: func(t *testing.T, source, _ string) {
+				t.Helper()
+				require.NoError(t, os.Symlink(source, filepath.Join(source, ".loop")))
+			},
+			absent: []string{".loop"},
+		},
+		{
+			name:    "link back through a directory outside the source",
+			pattern: ".loop",
 			link: func(t *testing.T, source, outside string) {
 				t.Helper()
 				require.NoError(t, os.Symlink(source, filepath.Join(outside, "back")))
 				require.NoError(t, os.Symlink(outside, filepath.Join(source, ".loop")))
 			},
-			nested: []string{".loop", "back", "main.tf"},
+			absent:      []string{".loop", "back", "main.tf"},
+			wantLinkDir: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1774,14 +1790,21 @@ func TestIncludeInCopySymlinkLoop(t *testing.T) {
 					source,
 					destination,
 					".terragrunt-test",
-					util.WithIncludeInCopy(".loop"),
+					util.WithIncludeInCopy(tc.pattern),
 					util.WithSymlinkedGlobRoots(),
 				),
 			)
 
 			assert.FileExists(t, filepath.Join(destination, "main.tf"))
+			assert.NoFileExists(t, filepath.Join(append([]string{destination}, tc.absent...)...))
+
+			if !tc.wantLinkDir {
+				assert.NoDirExists(t, filepath.Join(destination, ".loop"))
+
+				return
+			}
+
 			assert.DirExists(t, filepath.Join(destination, ".loop"))
-			assert.NoFileExists(t, filepath.Join(append([]string{destination}, tc.nested...)...))
 		})
 	}
 }

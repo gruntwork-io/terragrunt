@@ -271,6 +271,12 @@ func expandGlobPath(
 	includeExpandedGlobs := []string{}
 
 	absoluteExpandGlob, err := glob.LegacyExpand(fsys, absoluteGlobPath, globOpts...)
+	if errors.Is(err, glob.ErrSymlinkedRootEscapes) {
+		l.Warnf("Skipping copy pattern %s: %v. Drop the link or narrow the pattern.", absoluteGlobPath, err)
+
+		return includeExpandedGlobs, nil
+	}
+
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, err
@@ -304,6 +310,10 @@ func expandGlobPath(
 
 		if symlinkedGlobRoots {
 			resolved, err := vfs.EvalSymlinks(fsys, absoluteExpandGlobPath)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+
 			if err != nil {
 				return nil, fmt.Errorf("resolve glob match %q: %w", absoluteExpandGlobPath, err)
 			}

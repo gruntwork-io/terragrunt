@@ -68,6 +68,11 @@ func Compile(pattern string) (Matcher, error) {
 // boundary supplied to [WithBoundary].
 var ErrOutsideBoundary = errors.New("glob pattern resolves outside the configured boundary")
 
+// ErrSymlinkedRootEscapes reports that a symlinked walk root, resolved under
+// [WithSymlinkedRoots], points at one of its own ancestors, so walking the
+// target would walk back through the link.
+var ErrSymlinkedRootEscapes = errors.New("symlinked glob root resolves to its own ancestor")
+
 // ExpandOption configures the behavior of [Expand]. See [WithFilesOnly] and
 // [WithBoundary].
 type ExpandOption func(*expandOptions)
@@ -178,8 +183,10 @@ type legacyExpandOptions struct {
 }
 
 // WithSymlinkedRoots makes [LegacyExpand] resolve a walk root that is itself a
-// symbolic link and expand through it, the way zglob's own walk does. Enabled
-// behind the symlinks experiment (issue #6791).
+// symbolic link and expand through it, the way zglob's own walk does. A root
+// that resolves to one of its own ancestors returns [ErrSymlinkedRootEscapes]
+// instead of walking back through itself. Enabled behind the symlinks
+// experiment (issue #6791).
 func WithSymlinkedRoots() LegacyExpandOption {
 	return func(o *legacyExpandOptions) {
 		o.symlinkedRoots = true
@@ -234,6 +241,10 @@ func LegacyExpand(fsys vfs.FS, pattern string, opts ...LegacyExpandOption) ([]st
 			walkRoot, err = vfs.EvalSymlinks(fsys, root)
 			if err != nil {
 				return nil, err
+			}
+
+			if vfs.Within(fsys, walkRoot, filepath.Dir(root)) {
+				return nil, fmt.Errorf("%w: %q resolves to %q", ErrSymlinkedRootEscapes, root, walkRoot)
 			}
 		}
 	}

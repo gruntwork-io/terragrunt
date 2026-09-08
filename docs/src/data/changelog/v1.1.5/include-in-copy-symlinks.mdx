@@ -9,4 +9,4 @@ In v1.1.4, a directory named in `include_in_copy` that was a symbolic link no lo
 
 Enabling the [`symlinks` experiment](/reference/experiments/active#symlinks) (`--experiment symlinks` or `TG_EXPERIMENT=symlinks`) now makes glob patterns rooted at a symlinked directory expand through the link again, matching the behavior of v1.1.3 and earlier for both `include_in_copy` and `exclude_from_copy`. Without the experiment, the v1.1.4 behavior is unchanged.
 
-A link that points back at a directory already being copied, such as a link to the unit directory itself, is copied as an empty directory rather than being followed over and over. Terragrunt logs a warning naming the link when that happens.
+A link that points back at a directory already being copied, such as a link to the unit directory itself, is not followed. Terragrunt logs a warning naming the link when that happens.
