@@ -638,9 +638,13 @@ func TestWorktreePhaseCanonicalWorktreePathsOnMemFS(t *testing.T) {
 			filepath.Join(repoDir, "live", "gonestack", "unit-a", "terragrunt.hcl"): "# unit-a repo",
 			filepath.Join(wtHead, "live", "changed", "terragrunt.hcl"):              "# changed head",
 			filepath.Join(wtHead, "live", "stackdir", "terragrunt.stack.hcl"):       "",
+			filepath.Join(wtHead, "live", "gonestack", "unit-a", "terragrunt.hcl"):  "# unit-a head",
 			filepath.Join(wtFrom, "live", "removed", "terragrunt.hcl"):              "# removed from",
-			filepath.Join(wtFrom, "live", "gonestack", "terragrunt.stack.hcl"):      "",
-			filepath.Join(wtFrom, "live", "gonestack", "unit-a", "terragrunt.hcl"):  "# unit-a from",
+			// An untracked replacement of the removed unit: absent from the to
+			// worktree, so it must never resurrect the unit as a normal run.
+			filepath.Join(repoDir, "live", "removed", "terragrunt.hcl"):            "# untracked replacement",
+			filepath.Join(wtFrom, "live", "gonestack", "terragrunt.stack.hcl"):     "",
+			filepath.Join(wtFrom, "live", "gonestack", "unit-a", "terragrunt.hcl"): "# unit-a from",
 		}
 		for path, content := range files {
 			require.NoError(t, vfs.WriteFile(v.FS, path, []byte(content), 0o644))
@@ -714,8 +718,10 @@ func TestWorktreePhaseCanonicalWorktreePathsOnMemFS(t *testing.T) {
 		assert.Contains(t, paths, filepath.Join(repoDir, "live", "changed"))
 		assert.Contains(t, paths, filepath.Join(repoDir, "live", "stackdir"))
 		assert.Contains(t, paths, filepath.Join(repoDir, "live", "gonestack", "unit-a"))
-		// The removed unit's config exists only in the worktree, so it must keep that path.
+		// The removed unit is absent from the to worktree, so it must keep its
+		// worktree path even though an untracked replacement exists on disk.
 		assert.Contains(t, paths, filepath.Join(wtFrom, "live", "removed"))
+		assert.NotContains(t, paths, filepath.Join(repoDir, "live", "removed"))
 		assert.NotContains(t, paths, filepath.Join(wtHead, "live", "changed"))
 
 		for _, r := range results.Discovered {

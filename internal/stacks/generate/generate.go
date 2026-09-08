@@ -655,7 +655,7 @@ func worktreeStacksToGenerate(
 		}
 	}
 
-	recordReadingAffected := func(fromStack, toStack *component.Stack, rel string) {
+	recordReadingAffected := func(pair worktrees.WorktreePair, fromStack, toStack *component.Stack, rel string) {
 		key := filepath.Clean(rel)
 
 		mu.Lock()
@@ -668,6 +668,7 @@ func worktreeStacksToGenerate(
 		recordedDirs[key] = struct{}{}
 
 		readingAffected = append(readingAffected, worktrees.StackDiffChangedPair{
+			Pair:      pair,
 			FromStack: fromStack,
 			ToStack:   toStack,
 		})
@@ -753,7 +754,7 @@ func worktreeStacksToGenerate(
 					continue
 				}
 
-				recordReadingAffected(fromStack, toStack, rel)
+				recordReadingAffected(pair, fromStack, toStack, rel)
 			}
 
 			matchedFromStacks, err := stacksReadingFiles(l, deletedReadFilters, allFromStacks)
@@ -775,7 +776,7 @@ func worktreeStacksToGenerate(
 					continue
 				}
 
-				recordReadingAffected(fromStack, toStack, rel)
+				recordReadingAffected(pair, fromStack, toStack, rel)
 			}
 
 			return nil

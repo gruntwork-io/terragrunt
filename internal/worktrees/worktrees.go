@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
-	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -65,51 +65,6 @@ type WorktreeOpts struct {
 	WorkingDir     string
 	GitExpressions filter.GitExpressions
 	Experiments    experiment.Experiments
-}
-
-// WorkingDir returns the path within a worktree that corresponds to the user's
-// original working directory. This is used for display purposes after discovery completes.
-func (w *Worktrees) WorkingDir(ctx context.Context, worktreePath string) string {
-	if w.gitRunner == nil {
-		return worktreePath
-	}
-
-	repoRoot, err := w.gitRunner.GetRepoRoot(ctx)
-	if err != nil {
-		return worktreePath
-	}
-
-	relPath, err := filepath.Rel(repoRoot, w.OriginalWorkingDir)
-	if err != nil || relPath == "." {
-		return worktreePath
-	}
-
-	return filepath.Join(worktreePath, relPath)
-}
-
-// DisplayPath translates a worktree path to the equivalent path in the original repository
-// for user-facing output. This is useful for logging and reporting where users expect to see
-// paths relative to their working directory, not temporary worktree paths.
-// If the path is not within a worktree, it returns the path unchanged.
-func (w *Worktrees) DisplayPath(worktreePath string) string {
-	for _, pair := range w.WorktreePairs {
-		for _, wt := range []Worktree{pair.FromWorktree, pair.ToWorktree} {
-			// Use boundary-aware check to avoid false matches (e.g., "/tmp/work" vs "/tmp/work-other")
-			if worktreePath == wt.Path ||
-				strings.HasPrefix(worktreePath, wt.Path+string(os.PathSeparator)) {
-				// Get the relative path within the worktree
-				relPath, err := filepath.Rel(wt.Path, worktreePath)
-				if err != nil {
-					return worktreePath
-				}
-
-				// Join with original working dir
-				return filepath.Join(w.OriginalWorkingDir, relPath)
-			}
-		}
-	}
-
-	return worktreePath
 }
 
 // Cleanup removes all created Git worktrees and their temporary directories.
@@ -200,6 +155,9 @@ type StackDiff struct {
 type StackDiffChangedPair struct {
 	FromStack *component.Stack
 	ToStack   *component.Stack
+	// Pair identifies the worktree pair whose diff produced this entry, so
+	// consumers can anchor provenance decisions on its to worktree.
+	Pair WorktreePair
 }
 
 // Stacks returns a slice of stacks that can be found in the diffs found in worktrees.
@@ -265,6 +223,7 @@ func (w *Worktrees) Stacks() StackDiff {
 			stackDiff.Changed = append(
 				stackDiff.Changed,
 				StackDiffChangedPair{
+					Pair: pair,
 					FromStack: component.NewStack(filepath.Join(fromWorktree, dir)).
 						WithDiscoveryContext(
 							&component.DiscoveryContext{
@@ -291,28 +250,33 @@ func (w *Worktrees) Stacks() StackDiff {
 
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
 // expressions based on the provided diffs for the worktree pair.
-func (wp *WorktreePair) Expand(fsys vfs.FS) (filter.Filters, filter.Filters, error) {
+func (wp *WorktreePair) Expand(
+	fsys vfs.FS,
+	unitConfigFilenames ...string,
+) (filter.Filters, filter.Filters, error) {
 	diffs := wp.Diffs
 
 	toPath := wp.ToWorktree.Path
+
+	unitNames := unitFilenamesOrDefault(unitConfigFilenames)
 
 	fromExpressions := make(filter.Expressions, 0, len(diffs.Removed))
 	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
 
 	// Build simple expressions that can be determined simply from the diffs.
-	if err := expandDiffPaths(fsys, diffs.Removed, toPath, &fromExpressions, &toExpressions); err != nil {
+	if err := expandDiffPaths(fsys, diffs.Removed, toPath, &fromExpressions, &toExpressions, unitNames); err != nil {
 		return nil, nil, err
 	}
 
-	if err := expandDiffPaths(fsys, diffs.Added, toPath, &toExpressions, &toExpressions); err != nil {
+	if err := expandDiffPaths(fsys, diffs.Added, toPath, &toExpressions, &toExpressions, unitNames); err != nil {
 		return nil, nil, err
 	}
 
 	for _, path := range diffs.Changed {
 		dir := filepath.Dir(path)
 
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
+		switch {
+		case slices.Contains(unitNames, filepath.Base(path)):
 			expr, err := filter.NewPathFilter(dir)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -322,9 +286,7 @@ func (wp *WorktreePair) Expand(fsys vfs.FS) (filter.Filters, filter.Filters, err
 		default:
 			// Check to see if the changed file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.
-			if _, err := fsys.Stat(
-				filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath),
-			); err == nil {
+			if unitConfigExistsIn(fsys, filepath.Join(toPath, dir), unitNames) {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -564,19 +526,20 @@ func expandDiffPaths(
 	paths []string,
 	toPath string,
 	primaryExprs, fallbackExprs *filter.Expressions,
+	unitNames []string,
 ) error {
 	for _, path := range paths {
 		dir := filepath.Dir(path)
 
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
+		switch base := filepath.Base(path); {
+		case slices.Contains(unitNames, base):
 			expr, err := filter.NewPathFilter(dir)
 			if err != nil {
 				return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
 			}
 
 			*primaryExprs = append(*primaryExprs, expr)
-		case config.DefaultStackFile:
+		case base == config.DefaultStackFile:
 			dirExpr, err := filter.NewPathFilter(dir)
 			if err != nil {
 				return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -589,9 +552,7 @@ func expandDiffPaths(
 
 			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
 		default:
-			if _, err := fsys.Stat(
-				filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath),
-			); err == nil {
+			if unitConfigExistsIn(fsys, filepath.Join(toPath, dir), unitNames) {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
 					return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -742,4 +703,53 @@ func sanitizeRef(ref string) string {
 	}
 
 	return result.String()
+}
+
+// IsWorkingDirRepoRoot reports whether the original working directory is the
+// repository root, comparing symlink-resolved spellings so a linked spelling of
+// the root still counts. Without a git runner (hand-built worktrees in tests)
+// the answer is true; a failed root lookup reports false, so callers deciding
+// path canonicalization fail closed when root-ness cannot be established.
+func (w *Worktrees) IsWorkingDirRepoRoot(ctx context.Context, fsys vfs.FS) bool {
+	if w.gitRunner == nil {
+		return true
+	}
+
+	repoRoot, err := w.gitRunner.GetRepoRoot(ctx)
+	if err != nil {
+		return false
+	}
+
+	return vfs.ResolveForCompare(fsys, repoRoot) ==
+		vfs.ResolveForCompare(fsys, w.OriginalWorkingDir)
+}
+
+// unitFilenamesOrDefault returns the unit config filenames to classify diff
+// entries with, dropping the stack filename and defaulting to terragrunt.hcl.
+func unitFilenamesOrDefault(configFilenames []string) []string {
+	unitNames := make([]string, 0, len(configFilenames))
+
+	for _, fname := range configFilenames {
+		if fname != config.DefaultStackFile {
+			unitNames = append(unitNames, fname)
+		}
+	}
+
+	if len(unitNames) == 0 {
+		return []string{config.DefaultTerragruntConfigPath}
+	}
+
+	return unitNames
+}
+
+// unitConfigExistsIn reports whether dir holds a unit config under any of the
+// given filenames.
+func unitConfigExistsIn(fsys vfs.FS, dir string, unitNames []string) bool {
+	for _, fname := range unitNames {
+		if _, err := fsys.Stat(filepath.Join(dir, fname)); err == nil {
+			return true
+		}
+	}
+
+	return false
 }

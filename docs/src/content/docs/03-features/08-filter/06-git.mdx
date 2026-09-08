@@ -57,7 +57,7 @@ In the example above, the `modified-unit` will be discovered in a "to" temporary
 
 This is important to recognize, as it's how destroys will be possible despite the unit no longer being present in the current working directory. As a consequence, however, you may find that paths don't behave how you expect, as you will be performing runs in the temporary directories created for the relevant worktrees.
 
-With the [`canonical-worktree-paths` experiment](/reference/experiments/active#canonical-worktree-paths) enabled, a unit discovered in a worktree whose configuration still exists in your working directory is instead selected, parsed, and run at its working-directory path. Removed units keep their worktree paths so destroys keep working.
+With the [`canonical-worktree-paths` experiment](/reference/experiments/active#canonical-worktree-paths) enabled, a unit discovered in a worktree that still exists at the compared "to" reference and in your working directory is instead selected, parsed, and run at its working-directory path. Removed units keep their worktree paths so destroys keep working, even when an untracked file occupies the removed unit's directory.
 
 <Aside type="caution" title="Remote State Recommended">
 

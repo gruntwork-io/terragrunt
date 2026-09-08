@@ -91,13 +91,14 @@ func (p *WorktreePhase) Run(
 	canonicalPaths := input.Opts != nil &&
 		input.Opts.Experiments.Evaluate(experiment.CanonicalWorktreePaths)
 
-	// DisplayPath joins worktree-root-relative paths onto the working directory,
-	// which only corresponds when that directory is the repository root; from a
-	// subdirectory the mapping would rebase onto unrelated paths, so
-	// canonicalization is declined there.
-	if canonicalPaths && !worktreeRootMatchesWorkingDir(ctx, v.FS, w) {
+	// Canonical paths join worktree-root-relative paths onto the working
+	// directory, which only corresponds when that directory is the repository
+	// root; from a subdirectory the mapping would rebase onto unrelated paths,
+	// so canonicalization is declined there.
+	if canonicalPaths && !w.IsWorkingDirRepoRoot(ctx, v.FS) {
 		l.Debugf(
-			"canonical-worktree-paths: working directory is not the repository root, keeping worktree paths",
+			"canonical-worktree-paths: working directory is not the repository root " +
+				"or the root could not be determined, keeping worktree paths",
 		)
 
 		canonicalPaths = false
@@ -108,7 +109,7 @@ func (p *WorktreePhase) Run(
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters, err := pair.Expand(v.FS)
+			fromFilters, toFilters, err := pair.Expand(v.FS, discovery.configFilenames...)
 			if err != nil {
 				return err
 			}
@@ -129,7 +130,7 @@ func (p *WorktreePhase) Run(
 						return err
 					}
 
-					components = canonicalizeWorktreeComponents(v.FS, discovery, w, components, canonicalPaths)
+					components = canonicalizeWorktreeComponents(v.FS, discovery, &pair, components, canonicalPaths)
 
 					for _, c := range components {
 						discoveredComponents.EnsureComponent(v.FS, c)
@@ -171,7 +172,7 @@ func (p *WorktreePhase) Run(
 						return err
 					}
 
-					components = canonicalizeWorktreeComponents(v.FS, discovery, w, components, canonicalPaths)
+					components = canonicalizeWorktreeComponents(v.FS, discovery, &pair, components, canonicalPaths)
 
 					for _, c := range components {
 						discoveredComponents.EnsureComponent(v.FS, c)
@@ -186,12 +187,10 @@ func (p *WorktreePhase) Run(
 	}
 
 	discoveryGroup.Go(func() error {
-		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, v, input, w)
+		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, v, input, w, canonicalPaths)
 		if err != nil {
 			return err
 		}
-
-		components = canonicalizeWorktreeComponents(v.FS, discovery, w, components, canonicalPaths)
 
 		for _, c := range components {
 			discoveredComponents.EnsureComponent(v.FS, c)
@@ -280,6 +279,12 @@ func (p *WorktreePhase) discoverInWorktree(
 		subDiscovery = subDiscovery.WithParserOptions(discovery.parserOptions)
 	}
 
+	// Custom config filenames must carry into the worktree walk, or a repo
+	// using them discovers nothing through git expressions.
+	if len(discovery.configFilenames) > 0 {
+		subDiscovery = subDiscovery.WithConfigFilenames(discovery.configFilenames)
+	}
+
 	components, err := subDiscovery.Discover(ctx, l, v, input.Opts)
 	if err != nil {
 		return components, err
@@ -354,6 +359,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	v *venv.Venv,
 	input *PhaseInput,
 	w *worktrees.Worktrees,
+	canonicalPaths bool,
 ) (component.Components, error) {
 	discoveredComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
 
@@ -403,6 +409,10 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 				return err
 			}
+
+			components = canonicalizeWorktreeComponents(
+				v.FS, input.Discovery, &changed.Pair, components, canonicalPaths,
+			)
 
 			for _, c := range components {
 				discoveredComponents.EnsureComponent(v.FS, c)
@@ -471,57 +481,58 @@ func (p *WorktreePhase) walkChangedStack(
 
 	parentFilters := discovery.filters.ExcludingGitFilters()
 
-	discoveryGroup.Go(func() error {
-		fromDiscovery := NewDiscovery(fromStack.Path()).
-			WithDiscoveryContext(fromDiscoveryContext).
+	// walkStackSide discovers one side of the stack pair and stamps the
+	// results with the worktree-discovery origin under the stack's own dir.
+	walkStackSide := func(stack *component.Stack, dCtx *component.DiscoveryContext) (component.Components, error) {
+		sideDiscovery := NewDiscovery(stack.Path()).
+			WithDiscoveryContext(dCtx).
 			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
 
+		// Custom config filenames must carry into the stack walks too.
+		if len(discovery.configFilenames) > 0 {
+			sideDiscovery = sideDiscovery.WithConfigFilenames(discovery.configFilenames)
+		}
+
+		components, discoverErr := sideDiscovery.Discover(discoveryCtx, l, v, input.Opts)
+		if discoverErr != nil {
+			return nil, discoverErr
+		}
+
+		for _, c := range components {
+			dc := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
+			dc.WorkingDir = stack.DiscoveryContext().WorkingDir
+			c.SetDiscoveryContext(dc)
+		}
+
+		return components, nil
+	}
+
+	discoveryGroup.Go(func() error {
 		var fromDiscoveryErr error
 
-		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, v, input.Opts)
+		fromComponents, fromDiscoveryErr = walkStackSide(fromStack, fromDiscoveryContext)
 		if fromDiscoveryErr != nil {
 			mu.Lock()
 
 			errs = append(errs, fromDiscoveryErr)
 
 			mu.Unlock()
-
-			return nil
-		}
-
-		for _, c := range fromComponents {
-			dc := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
-			dc.WorkingDir = fromStack.DiscoveryContext().WorkingDir
-			c.SetDiscoveryContext(dc)
 		}
 
 		return nil
 	})
 
 	discoveryGroup.Go(func() error {
-		toDiscovery := NewDiscovery(toStack.Path()).
-			WithDiscoveryContext(toDiscoveryContext).
-			WithFilters(parentFilters).
-			WithNumWorkers(p.numWorkers)
-
 		var toDiscoveryErr error
 
-		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, v, input.Opts)
+		toComponents, toDiscoveryErr = walkStackSide(toStack, toDiscoveryContext)
 		if toDiscoveryErr != nil {
 			mu.Lock()
 
 			errs = append(errs, toDiscoveryErr)
 
 			mu.Unlock()
-
-			return nil
-		}
-
-		for _, c := range toComponents {
-			dc := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
-			dc.WorkingDir = toStack.DiscoveryContext().WorkingDir
-			c.SetDiscoveryContext(dc)
 		}
 
 		return nil
@@ -762,10 +773,13 @@ func GenerateDirSHA256(fsys vfs.FS, rootDir string) (string, error) {
 
 // canonicalizeWorktreeComponents rebases each component onto the user's
 // working directory when the canonical-worktree-paths experiment is enabled.
+// The pair that discovered the components anchors removal provenance: refs
+// share physical worktrees across expressions, so the owning pair must be
+// named by the caller rather than guessed from the path.
 func canonicalizeWorktreeComponents(
 	fsys vfs.FS,
 	d *Discovery,
-	w *worktrees.Worktrees,
+	pair *worktrees.WorktreePair,
 	components component.Components,
 	enabled bool,
 ) component.Components {
@@ -776,7 +790,7 @@ func canonicalizeWorktreeComponents(
 	canonical := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		canonical = append(canonical, canonicalizeWorktreeComponent(fsys, d, w, c))
+		canonical = append(canonical, canonicalizeWorktreeComponent(fsys, d, pair, c))
 	}
 
 	return canonical
@@ -784,25 +798,31 @@ func canonicalizeWorktreeComponents(
 
 // canonicalizeWorktreeComponent maps a component discovered in a temporary git
 // worktree onto its equivalent path under the user's working directory, so the
-// repo unit and its worktree twin become one component (issue #6778). A
-// component whose config does not exist there (a removed unit) keeps its
-// worktree path, since only the worktree copy holds its configuration.
+// repo unit and its worktree twin become one component (issue #6778). Removal
+// provenance is decided against the committed to-ref state: a component whose
+// config is absent from the pair's to-worktree was removed there and keeps its
+// worktree path, so an untracked or restored file in the dirty working tree
+// can never turn its destroy plan into an ordinary run.
 func canonicalizeWorktreeComponent(
 	fsys vfs.FS,
 	d *Discovery,
-	w *worktrees.Worktrees,
+	pair *worktrees.WorktreePair,
 	c component.Component,
 ) component.Component {
-	repoPath := w.DisplayPath(c.Path())
-	if repoPath == c.Path() {
+	rel, ok := pairRelPath(pair, c.Path())
+	if !ok {
 		return c
 	}
+
+	repoPath := filepath.Join(d.workingDir, rel)
+	toPath := filepath.Join(pair.ToWorktree.Path, rel)
 
 	dCtx := canonicalDiscoveryContext(c.DiscoveryContext(), d.workingDir)
 
 	switch cc := c.(type) {
 	case *component.Stack:
-		if !vfs.IsFile(fsys, filepath.Join(repoPath, config.DefaultStackFile)) {
+		if !vfs.IsFile(fsys, filepath.Join(toPath, config.DefaultStackFile)) ||
+			!vfs.IsFile(fsys, filepath.Join(repoPath, config.DefaultStackFile)) {
 			return c
 		}
 
@@ -811,7 +831,7 @@ func canonicalizeWorktreeComponent(
 
 		return canonical
 	case *component.Unit:
-		fname := canonicalUnitConfigFilename(fsys, repoPath, cc.ConfigFile(), d.configFilenames)
+		fname := canonicalUnitConfigFilename(fsys, toPath, repoPath, cc.ConfigFile(), d.configFilenames)
 		if fname == "" {
 			return c
 		}
@@ -826,15 +846,45 @@ func canonicalizeWorktreeComponent(
 	return c
 }
 
-// canonicalUnitConfigFilename returns the unit config filename present at
-// repoPath, or "" when none is there, meaning the unit no longer exists.
+// pairRelPath returns path's location relative to whichever of the pair's
+// worktree roots holds it.
+func pairRelPath(pair *worktrees.WorktreePair, path string) (string, bool) {
+	for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+		if wt.Path == "" {
+			continue
+		}
+
+		if path != wt.Path && !strings.HasPrefix(path, wt.Path+string(filepath.Separator)) {
+			continue
+		}
+
+		rel, err := filepath.Rel(wt.Path, path)
+		if err != nil {
+			return "", false
+		}
+
+		return rel, true
+	}
+
+	return "", false
+}
+
+// canonicalUnitConfigFilename returns the unit config filename present at both
+// the pair's to-worktree location and the working-directory location, or ""
+// when either misses it, meaning the unit does not live at the to ref or is
+// not materialized under the working directory.
 func canonicalUnitConfigFilename(
 	fsys vfs.FS,
-	repoPath, discovered string,
+	toPath, repoPath, discovered string,
 	configFilenames []string,
 ) string {
+	exists := func(fname string) bool {
+		return vfs.IsFile(fsys, filepath.Join(toPath, fname)) &&
+			vfs.IsFile(fsys, filepath.Join(repoPath, fname))
+	}
+
 	if discovered != "" {
-		if vfs.IsFile(fsys, filepath.Join(repoPath, discovered)) {
+		if exists(discovered) {
 			return discovered
 		}
 
@@ -850,7 +900,7 @@ func canonicalUnitConfigFilename(
 			continue
 		}
 
-		if vfs.IsFile(fsys, filepath.Join(repoPath, fname)) {
+		if exists(fname) {
 			return fname
 		}
 	}
@@ -878,26 +928,4 @@ func canonicalDiscoveryContext(
 	})
 
 	return copied
-}
-
-// worktreeRootMatchesWorkingDir reports whether the user's working directory
-// corresponds to the worktree root, meaning it is the repository root. Both
-// sides are compared symlink-resolved so a symlinked spelling of the same
-// location does not falsely decline canonicalization. When the repository
-// root cannot be determined, [worktrees.Worktrees.WorkingDir] reports the
-// worktree path itself, which reads as a match here; that fail-open is
-// accepted, since worktree creation has just exercised the same repository.
-func worktreeRootMatchesWorkingDir(
-	ctx context.Context,
-	fsys vfs.FS,
-	w *worktrees.Worktrees,
-) bool {
-	for _, pair := range w.WorktreePairs {
-		wtRoot := pair.ToWorktree.Path
-
-		return vfs.ResolveForCompare(fsys, w.WorkingDir(ctx, wtRoot)) ==
-			vfs.ResolveForCompare(fsys, wtRoot)
-	}
-
-	return true
 }
