@@ -3614,3 +3614,234 @@ unit "app" {
 		componentPaths,
 	)
 }
+
+// runCanonicalWorktreeDiscovery drives a full Discover for the given filter
+// queries, optionally enabling the canonical-worktree-paths experiment.
+func runCanonicalWorktreeDiscovery(
+	t *testing.T,
+	tmpDir string,
+	queries []string,
+	enableCanonical bool,
+) component.Components {
+	t.Helper()
+
+	l := logger.CreateLogger()
+
+	filters, err := filter.ParseFilterQueries(l, queries)
+	require.NoError(t, err)
+
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: filters.UniqueGitFilters(),
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	if enableCanonical {
+		require.NoError(t, opts.Experiments.EnableExperiment(experiment.CanonicalWorktreePaths))
+	}
+
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w).
+		WithFilters(filters)
+
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	return components
+}
+
+// TestWorktreePhase_Integration_CanonicalWorktreePaths pins issue #6778: with
+// the canonical-worktree-paths experiment, components discovered through a
+// temporary worktree report at their working-directory paths, so a dependent
+// selected by a graph expression survives an intersected path filter and a
+// shared dependency is parsed at its repo path. Without the experiment, the
+// worktree-path behavior is unchanged.
+func TestWorktreePhase_Integration_CanonicalWorktreePaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dependent survives intersected path filter", func(t *testing.T) {
+		t.Parallel()
+
+		setup := func(t *testing.T) string {
+			t.Helper()
+
+			tmpDir, runner := setupGitRepo(t)
+
+			createUnit(t, tmpDir, filepath.Join("live", "hub"), `# Hub unit`)
+			createUnit(t, tmpDir, filepath.Join("live", "consumer"), `
+dependency "hub" {
+  config_path = "../hub"
+}
+`)
+			commitChanges(t, runner, "Initial commit")
+
+			err := os.WriteFile(
+				filepath.Join(tmpDir, "live", "hub", "terragrunt.hcl"),
+				[]byte(`# Hub unit modified`),
+				0o644,
+			)
+			require.NoError(t, err)
+
+			commitChanges(t, runner, "Modify hub")
+
+			return tmpDir
+		}
+
+		queries := []string{"...[HEAD~1...HEAD]... | ./live/**"}
+
+		t.Run("experiment on", func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := setup(t)
+			components := runCanonicalWorktreeDiscovery(t, tmpDir, queries, true)
+
+			units := components.Filter(component.UnitKind)
+
+			assert.ElementsMatch(
+				t,
+				[]string{
+					filepath.Join(tmpDir, "live", "hub"),
+					filepath.Join(tmpDir, "live", "consumer"),
+				},
+				units.Paths(),
+				"the changed unit and its dependent must be selected at working-directory paths",
+			)
+
+			consumerPath := filepath.Join(tmpDir, "live", "consumer")
+			foundConsumer := false
+
+			for _, c := range units {
+				if c.Path() != consumerPath {
+					continue
+				}
+
+				foundConsumer = true
+
+				unit, ok := c.(*component.Unit)
+				require.True(t, ok)
+				assert.NotNil(t, unit.Config(), "the dependent must reach the caller parsed")
+			}
+
+			require.True(t, foundConsumer, "the dependent must be in the result set")
+		})
+
+		t.Run("experiment off", func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := setup(t)
+			components := runCanonicalWorktreeDiscovery(t, tmpDir, queries, false)
+
+			unitPaths := components.Filter(component.UnitKind).Paths()
+
+			// Without the experiment the dependent is discovered at its worktree
+			// path, which the intersected path filter rejects (issue #6778).
+			assert.NotContains(t, unitPaths, filepath.Join(tmpDir, "live", "consumer"))
+			assert.NotContains(t, unitPaths, filepath.Join(tmpDir, "live", "hub"))
+		})
+	})
+
+	t.Run("shared dependency keeps repo path and config", func(t *testing.T) {
+		t.Parallel()
+
+		setup := func(t *testing.T) string {
+			t.Helper()
+
+			tmpDir, runner := setupGitRepo(t)
+
+			createUnit(t, tmpDir, filepath.Join("live", "hub"), `# Hub unit`)
+
+			consumerConfig := `
+dependency "hub" {
+  config_path = "../hub"
+}
+`
+			createUnit(t, tmpDir, filepath.Join("live", "consumer1"), consumerConfig)
+			createUnit(t, tmpDir, filepath.Join("live", "consumer2"), consumerConfig)
+			commitChanges(t, runner, "Initial commit")
+
+			for _, name := range []string{"consumer1", "consumer2"} {
+				err := os.WriteFile(
+					filepath.Join(tmpDir, "live", name, "terragrunt.hcl"),
+					[]byte(consumerConfig+"\n# modified"),
+					0o644,
+				)
+				require.NoError(t, err)
+			}
+
+			commitChanges(t, runner, "Modify consumers")
+
+			return tmpDir
+		}
+
+		queries := []string{"...[HEAD~1...HEAD]..."}
+
+		t.Run("experiment on", func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := setup(t)
+			components := runCanonicalWorktreeDiscovery(t, tmpDir, queries, true)
+
+			units := components.Filter(component.UnitKind)
+
+			assert.ElementsMatch(
+				t,
+				[]string{
+					filepath.Join(tmpDir, "live", "hub"),
+					filepath.Join(tmpDir, "live", "consumer1"),
+					filepath.Join(tmpDir, "live", "consumer2"),
+				},
+				units.Paths(),
+				"all selected units must report working-directory paths",
+			)
+
+			hubPath := filepath.Join(tmpDir, "live", "hub")
+			foundHub := false
+
+			for _, c := range units {
+				if c.Path() != hubPath {
+					continue
+				}
+
+				foundHub = true
+
+				unit, ok := c.(*component.Unit)
+				require.True(t, ok)
+				assert.NotNil(
+					t,
+					unit.Config(),
+					"the shared dependency must reach the caller parsed",
+				)
+			}
+
+			require.True(t, foundHub, "the shared dependency must be in the result set")
+		})
+
+		t.Run("experiment off", func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := setup(t)
+			components := runCanonicalWorktreeDiscovery(t, tmpDir, queries, false)
+
+			unitPaths := components.Filter(component.UnitKind).Paths()
+
+			// Without the experiment the shared dependency keeps its
+			// worktree path (issue #6778).
+			assert.NotContains(t, unitPaths, filepath.Join(tmpDir, "live", "hub"))
+		})
+	})
+}

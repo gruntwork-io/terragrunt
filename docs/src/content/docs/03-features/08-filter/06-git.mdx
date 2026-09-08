@@ -57,6 +57,8 @@ In the example above, the `modified-unit` will be discovered in a "to" temporary
 
 This is important to recognize, as it's how destroys will be possible despite the unit no longer being present in the current working directory. As a consequence, however, you may find that paths don't behave how you expect, as you will be performing runs in the temporary directories created for the relevant worktrees.
 
+With the [`canonical-worktree-paths` experiment](/reference/experiments/active#canonical-worktree-paths) enabled, a unit discovered in a worktree whose configuration still exists in your working directory is instead selected, parsed, and run at its working-directory path. Removed units keep their worktree paths so destroys keep working.
+
 <Aside type="caution" title="Remote State Recommended">
 
 When using Git-based filter expressions (e.g. `[HEAD~1...HEAD]`), it is **strongly recommended** to use remote state configurations. Units discovered using Git-based filter expressions may not properly detect dependency outputs when using local state, which can lead to unexpected outcomes such as mock outputs being used instead of actual dependency outputs.

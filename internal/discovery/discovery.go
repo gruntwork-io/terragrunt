@@ -9,6 +9,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -411,6 +412,14 @@ func (d *Discovery) runFilesystemPhase(
 
 	if err := validateNoCoexistence(allCandidates); err != nil {
 		return nil, err
+	}
+
+	// A canonicalized worktree twin and its filesystem twin share a path, and
+	// only the worktree twin carries the Ref that git expressions match on, so
+	// the Ref-less twin must not shadow it in the first-wins dedupe below or in
+	// any later phase (issue #6778).
+	if opts.Experiments.Evaluate(experiment.CanonicalWorktreePaths) {
+		allDiscovered, allCandidates = dropShadowedWorktreeTwins(v.FS, allDiscovered, allCandidates)
 	}
 
 	allDiscovered = deduplicateResults(allDiscovered)

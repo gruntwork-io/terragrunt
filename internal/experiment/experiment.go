@@ -67,6 +67,11 @@ const (
 	AzureBackend = "azure-backend"
 	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
+	// CanonicalWorktreePaths makes components discovered through the temporary
+	// git worktrees of a `[ref...ref]` filter expression report at their
+	// equivalent paths under the user's working directory, so a repo unit and
+	// its worktree twin are one component. See issue #6778.
+	CanonicalWorktreePaths = "canonical-worktree-paths"
 	// OptOutAuth names the now-stable flags that opt out of running
 	// --auth-provider-cmd in specific phases. The
 	// --no-discovery-auth-provider-cmd flag is enabled by default.
@@ -192,6 +197,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: DeepMerge,
+		},
+		{
+			Name: CanonicalWorktreePaths,
 		},
 		{
 			Name:   OptOutAuth,

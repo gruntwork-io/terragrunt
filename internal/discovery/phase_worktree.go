@@ -17,10 +17,12 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
 )
@@ -84,6 +86,23 @@ func (p *WorktreePhase) Run(
 
 	discoveredComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
 
+	// Behind the canonical-worktree-paths experiment, worktree discoveries are
+	// rebased onto the user's working directory before publication (issue #6778).
+	canonicalPaths := input.Opts != nil &&
+		input.Opts.Experiments.Evaluate(experiment.CanonicalWorktreePaths)
+
+	// DisplayPath joins worktree-root-relative paths onto the working directory,
+	// which only corresponds when that directory is the repository root; from a
+	// subdirectory the mapping would rebase onto unrelated paths, so
+	// canonicalization is declined there.
+	if canonicalPaths && !worktreeRootMatchesWorkingDir(ctx, v.FS, w) {
+		l.Debugf(
+			"canonical-worktree-paths: working directory is not the repository root, keeping worktree paths",
+		)
+
+		canonicalPaths = false
+	}
+
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	discoveryGroup.SetLimit(p.numWorkers)
 
@@ -109,6 +128,8 @@ func (p *WorktreePhase) Run(
 					if err != nil {
 						return err
 					}
+
+					components = canonicalizeWorktreeComponents(v.FS, discovery, w, components, canonicalPaths)
 
 					for _, c := range components {
 						discoveredComponents.EnsureComponent(v.FS, c)
@@ -150,6 +171,8 @@ func (p *WorktreePhase) Run(
 						return err
 					}
 
+					components = canonicalizeWorktreeComponents(v.FS, discovery, w, components, canonicalPaths)
+
 					for _, c := range components {
 						discoveredComponents.EnsureComponent(v.FS, c)
 					}
@@ -167,6 +190,8 @@ func (p *WorktreePhase) Run(
 		if err != nil {
 			return err
 		}
+
+		components = canonicalizeWorktreeComponents(v.FS, discovery, w, components, canonicalPaths)
 
 		for _, c := range components {
 			discoveredComponents.EnsureComponent(v.FS, c)
@@ -733,4 +758,146 @@ func GenerateDirSHA256(fsys vfs.FS, rootDir string) (string, error) {
 	}
 
 	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// canonicalizeWorktreeComponents rebases each component onto the user's
+// working directory when the canonical-worktree-paths experiment is enabled.
+func canonicalizeWorktreeComponents(
+	fsys vfs.FS,
+	d *Discovery,
+	w *worktrees.Worktrees,
+	components component.Components,
+	enabled bool,
+) component.Components {
+	if !enabled {
+		return components
+	}
+
+	canonical := make(component.Components, 0, len(components))
+
+	for _, c := range components {
+		canonical = append(canonical, canonicalizeWorktreeComponent(fsys, d, w, c))
+	}
+
+	return canonical
+}
+
+// canonicalizeWorktreeComponent maps a component discovered in a temporary git
+// worktree onto its equivalent path under the user's working directory, so the
+// repo unit and its worktree twin become one component (issue #6778). A
+// component whose config does not exist there (a removed unit) keeps its
+// worktree path, since only the worktree copy holds its configuration.
+func canonicalizeWorktreeComponent(
+	fsys vfs.FS,
+	d *Discovery,
+	w *worktrees.Worktrees,
+	c component.Component,
+) component.Component {
+	repoPath := w.DisplayPath(c.Path())
+	if repoPath == c.Path() {
+		return c
+	}
+
+	dCtx := canonicalDiscoveryContext(c.DiscoveryContext(), d.workingDir)
+
+	switch cc := c.(type) {
+	case *component.Stack:
+		if !vfs.IsFile(fsys, filepath.Join(repoPath, config.DefaultStackFile)) {
+			return c
+		}
+
+		canonical := component.NewStack(repoPath)
+		canonical.SetDiscoveryContext(dCtx)
+
+		return canonical
+	case *component.Unit:
+		fname := canonicalUnitConfigFilename(fsys, repoPath, cc.ConfigFile(), d.configFilenames)
+		if fname == "" {
+			return c
+		}
+
+		canonical := component.NewUnit(repoPath)
+		canonical.SetConfigFile(fname)
+		canonical.SetDiscoveryContext(dCtx)
+
+		return canonical
+	}
+
+	return c
+}
+
+// canonicalUnitConfigFilename returns the unit config filename present at
+// repoPath, or "" when none is there, meaning the unit no longer exists.
+func canonicalUnitConfigFilename(
+	fsys vfs.FS,
+	repoPath, discovered string,
+	configFilenames []string,
+) string {
+	if discovered != "" {
+		if vfs.IsFile(fsys, filepath.Join(repoPath, discovered)) {
+			return discovered
+		}
+
+		return ""
+	}
+
+	if len(configFilenames) == 0 {
+		configFilenames = DefaultConfigFilenames
+	}
+
+	for _, fname := range configFilenames {
+		if fname == config.DefaultStackFile {
+			continue
+		}
+
+		if vfs.IsFile(fsys, filepath.Join(repoPath, fname)) {
+			return fname
+		}
+	}
+
+	return ""
+}
+
+// canonicalDiscoveryContext rebases the worktree discovery context onto the
+// working directory, keeping Ref (git-expression matching) intact. The
+// from-side -destroy argument is stripped: a component whose config exists at
+// the canonical path is by definition not removed, and a from-side twin must
+// never race a to-side twin into planning a destroy of a live unit.
+func canonicalDiscoveryContext(
+	dCtx *component.DiscoveryContext,
+	workingDir string,
+) *component.DiscoveryContext {
+	if dCtx == nil {
+		return &component.DiscoveryContext{WorkingDir: workingDir}
+	}
+
+	copied := dCtx.Copy()
+	copied.WorkingDir = workingDir
+	copied.Args = slices.DeleteFunc(copied.Args, func(arg string) bool {
+		return arg == "-destroy"
+	})
+
+	return copied
+}
+
+// worktreeRootMatchesWorkingDir reports whether the user's working directory
+// corresponds to the worktree root, meaning it is the repository root. Both
+// sides are compared symlink-resolved so a symlinked spelling of the same
+// location does not falsely decline canonicalization. When the repository
+// root cannot be determined, [worktrees.Worktrees.WorkingDir] reports the
+// worktree path itself, which reads as a match here; that fail-open is
+// accepted, since worktree creation has just exercised the same repository.
+func worktreeRootMatchesWorkingDir(
+	ctx context.Context,
+	fsys vfs.FS,
+	w *worktrees.Worktrees,
+) bool {
+	for _, pair := range w.WorktreePairs {
+		wtRoot := pair.ToWorktree.Path
+
+		return vfs.ResolveForCompare(fsys, w.WorkingDir(ctx, wtRoot)) ==
+			vfs.ResolveForCompare(fsys, wtRoot)
+	}
+
+	return true
 }

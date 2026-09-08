@@ -8,7 +8,16 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -602,4 +611,143 @@ func getRelativePath(c component.Component) string {
 	}
 
 	return filepath.Clean(rel)
+}
+
+// TestWorktreePhaseCanonicalWorktreePathsOnMemFS pins the canonical-worktree-paths
+// experiment at the phase level on an in-memory filesystem: a discovery whose
+// config still exists under the working directory is rebased onto it with its
+// Ref intact, while a removed unit, whose config only the worktree holds,
+// keeps its worktree path (issue #6778).
+func TestWorktreePhaseCanonicalWorktreePathsOnMemFS(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repoDir = "/repo"
+		wtFrom  = "/wt-main"
+		wtHead  = "/wt-head"
+	)
+
+	newVenv := func(t *testing.T) *venv.Venv {
+		t.Helper()
+
+		v := venvtest.New()
+
+		files := map[string]string{
+			filepath.Join(repoDir, "live", "changed", "terragrunt.hcl"):             "# changed repo",
+			filepath.Join(repoDir, "live", "stackdir", "terragrunt.stack.hcl"):      "",
+			filepath.Join(repoDir, "live", "gonestack", "unit-a", "terragrunt.hcl"): "# unit-a repo",
+			filepath.Join(wtHead, "live", "changed", "terragrunt.hcl"):              "# changed head",
+			filepath.Join(wtHead, "live", "stackdir", "terragrunt.stack.hcl"):       "",
+			filepath.Join(wtFrom, "live", "removed", "terragrunt.hcl"):              "# removed from",
+			filepath.Join(wtFrom, "live", "gonestack", "terragrunt.stack.hcl"):      "",
+			filepath.Join(wtFrom, "live", "gonestack", "unit-a", "terragrunt.hcl"):  "# unit-a from",
+		}
+		for path, content := range files {
+			require.NoError(t, vfs.WriteFile(v.FS, path, []byte(content), 0o644))
+		}
+
+		return v
+	}
+
+	newInput := func(t *testing.T, enableCanonical bool) (*discovery.WorktreePhase, *discovery.PhaseInput) {
+		t.Helper()
+
+		gitExpr := filter.NewGitExpression("main", "HEAD")
+
+		w := &worktrees.Worktrees{
+			OriginalWorkingDir: repoDir,
+			WorktreePairs: map[string]worktrees.WorktreePair{
+				gitExpr.String(): {
+					GitExpression: gitExpr,
+					Diffs: &git.Diffs{
+						Changed: []string{filepath.Join("live", "changed", "terragrunt.hcl")},
+						Added:   []string{filepath.Join("live", "stackdir", "terragrunt.stack.hcl")},
+						Removed: []string{
+							filepath.Join("live", "removed", "terragrunt.hcl"),
+							filepath.Join("live", "gonestack", "terragrunt.stack.hcl"),
+						},
+					},
+					FromWorktree: worktrees.Worktree{Ref: "main", Path: wtFrom},
+					ToWorktree:   worktrees.Worktree{Ref: "HEAD", Path: wtHead},
+				},
+			},
+		}
+
+		opts := options.NewTerragruntOptions(vexec.NewNoSpawnExec())
+		opts.WorkingDir = repoDir
+
+		if enableCanonical {
+			require.NoError(t, opts.Experiments.EnableExperiment(experiment.CanonicalWorktreePaths))
+		}
+
+		d := discovery.NewDiscovery(repoDir).
+			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repoDir, Cmd: "plan"}).
+			WithWorktrees(w).
+			WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())})
+
+		return discovery.NewWorktreePhase(filter.GitExpressions{gitExpr}, 1), &discovery.PhaseInput{
+			Opts:      opts,
+			Discovery: d,
+		}
+	}
+
+	pathsOf := func(results *discovery.PhaseResults) []string {
+		paths := make([]string, 0, len(results.Discovered))
+		for _, r := range results.Discovered {
+			paths = append(paths, r.Component.Path())
+		}
+
+		return paths
+	}
+
+	t.Run("experiment on", func(t *testing.T) {
+		t.Parallel()
+
+		v := newVenv(t)
+		phase, input := newInput(t, true)
+
+		results, err := phase.Run(t.Context(), logger.CreateLogger(), v, input)
+		require.NoError(t, err)
+
+		paths := pathsOf(results)
+
+		assert.Contains(t, paths, filepath.Join(repoDir, "live", "changed"))
+		assert.Contains(t, paths, filepath.Join(repoDir, "live", "stackdir"))
+		assert.Contains(t, paths, filepath.Join(repoDir, "live", "gonestack", "unit-a"))
+		// The removed unit's config exists only in the worktree, so it must keep that path.
+		assert.Contains(t, paths, filepath.Join(wtFrom, "live", "removed"))
+		assert.NotContains(t, paths, filepath.Join(wtHead, "live", "changed"))
+
+		for _, r := range results.Discovered {
+			dCtx := r.Component.DiscoveryContext()
+			require.NotNil(t, dCtx)
+
+			switch r.Component.Path() {
+			case filepath.Join(repoDir, "live", "changed"):
+				assert.Equal(t, "HEAD", dCtx.Ref, "the git ref must survive canonicalization")
+				assert.Equal(t, repoDir, dCtx.WorkingDir, "the working dir must be rebased")
+			case filepath.Join(repoDir, "live", "gonestack", "unit-a"):
+				// A canonicalized from-side unit still exists, so it must never carry -destroy.
+				assert.NotContains(t, dCtx.Args, "-destroy")
+				assert.Equal(t, "main", dCtx.Ref)
+			case filepath.Join(wtFrom, "live", "removed"):
+				assert.Contains(t, dCtx.Args, "-destroy", "a removed unit keeps its destroy translation")
+			}
+		}
+	})
+
+	t.Run("experiment off", func(t *testing.T) {
+		t.Parallel()
+
+		v := newVenv(t)
+		phase, input := newInput(t, false)
+
+		results, err := phase.Run(t.Context(), logger.CreateLogger(), v, input)
+		require.NoError(t, err)
+
+		paths := pathsOf(results)
+
+		assert.Contains(t, paths, filepath.Join(wtHead, "live", "changed"))
+		assert.NotContains(t, paths, filepath.Join(repoDir, "live", "changed"))
+	})
 }

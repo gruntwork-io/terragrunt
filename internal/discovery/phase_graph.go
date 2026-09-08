@@ -711,10 +711,45 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	unit, ok := candidate.(*component.Unit)
+	candidateUnit, ok := candidate.(*component.Unit)
 	if !ok {
 		return nil
 	}
+
+	if dCtx := state.target.DiscoveryContext(); dCtx != nil {
+		copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+		copiedCtx.Ref = ""
+		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+			return arg == "-destroy"
+		})
+
+		candidate.SetDiscoveryContext(copiedCtx)
+	}
+
+	// Read before publication: once EnsureComponent may have published this
+	// very object as the shared canonical unit, an unlocked field read would
+	// race a concurrent EnsureConfigFile write from another graph target.
+	candidateConfigFile := candidateUnit.ConfigFile()
+
+	// Publish before parsing so the parse lands on the canonical object every
+	// later phase sees, not on a fresh twin whose config would be discarded
+	// (issue #6778). ensureParsed serializes and caches per unit, so a
+	// candidate revisited on another walk level costs no second parse.
+	canonicalCandidate, _ := state.graphTraversalState.threadSafeComponents.EnsureComponent(
+		v.FS,
+		candidate,
+	)
+
+	canonicalUnit, ok := canonicalCandidate.(*component.Unit)
+	if !ok {
+		return nil
+	}
+
+	// A dependency-created placeholder carries only the constructor-default
+	// config filename; the walked candidate carries the one found on disk, so
+	// hand it over before parsing.
+	canonicalUnit.EnsureConfigFile(candidateConfigFile)
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
 	graphState := state.graphTraversalState
@@ -723,7 +758,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 		ctx,
 		l,
 		v,
-		candidate,
+		canonicalCandidate,
 		graphState.opts,
 		graphState.discovery,
 	); err != nil {
@@ -738,9 +773,9 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	cfg := unit.Config()
+	cfg := canonicalUnit.Config()
 
-	deps, err := extractDependencyPaths(v.FS, cfg, candidate)
+	deps, err := extractDependencyPaths(v.FS, cfg, canonicalCandidate)
 	if err != nil {
 		state.errMu.Lock()
 
@@ -761,22 +796,6 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 		return nil
 	}
-
-	if dCtx := state.target.DiscoveryContext(); dCtx != nil {
-		copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-		copiedCtx.Ref = ""
-		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-			return arg == "-destroy"
-		})
-
-		candidate.SetDiscoveryContext(copiedCtx)
-	}
-
-	canonicalCandidate, _ := state.graphTraversalState.threadSafeComponents.EnsureComponent(
-		v.FS,
-		candidate,
-	)
 
 	dependsOnTarget := false
 

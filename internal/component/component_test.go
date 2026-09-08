@@ -272,3 +272,43 @@ func TestUnitGuardConfigParseWithRacing(t *testing.T) {
 	assert.Equal(t, int32(1), parses.Load(), "config should be parsed exactly once")
 	assert.NotNil(t, unit.Config(), "config should be populated after parsing")
 }
+
+// TestUnitEnsureConfigFile pins the handoff of the on-disk config filename to
+// a unit that has not been parsed yet, including over the constructor default
+// a dependency-created placeholder carries (issue #6778).
+func TestUnitEnsureConfigFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("overrides constructor default while unparsed", func(t *testing.T) {
+		t.Parallel()
+
+		unit := component.NewUnit("/repo/app")
+		require.Equal(t, config.DefaultTerragruntConfigPath, unit.ConfigFile())
+
+		unit.EnsureConfigFile("custom.hcl")
+
+		assert.Equal(t, "custom.hcl", unit.ConfigFile())
+	})
+
+	t.Run("keeps filename once parsed", func(t *testing.T) {
+		t.Parallel()
+
+		unit := component.NewUnit("/repo/app")
+		unit.SetConfigFile("discovered.hcl")
+		unit.StoreConfig(&config.TerragruntConfig{})
+
+		unit.EnsureConfigFile("other.hcl")
+
+		assert.Equal(t, "discovered.hcl", unit.ConfigFile())
+	})
+
+	t.Run("ignores empty filename", func(t *testing.T) {
+		t.Parallel()
+
+		unit := component.NewUnit("/repo/app")
+
+		unit.EnsureConfigFile("")
+
+		assert.Equal(t, config.DefaultTerragruntConfigPath, unit.ConfigFile())
+	})
+}

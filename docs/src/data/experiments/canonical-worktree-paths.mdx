@@ -1,0 +1,33 @@
+---
+name: canonical-worktree-paths
+since: "1.1.5"
+---
+
+Report and run units discovered through Git-based filters at their working-directory paths.
+
+### `canonical-worktree-paths` - What it does
+
+When evaluating a Git-based filter expression like `[main...HEAD]`, Terragrunt discovers changed units inside temporary Git worktrees. By default, those units keep their temporary worktree paths, so a unit selected through a Git filter can be reported and run from a path like `/tmp/terragrunt-worktree-HEAD-.../live/unit` instead of the equivalent path in your working directory.
+
+By enabling this experiment, a unit discovered through a worktree whose configuration still exists under your working directory is treated as one component with the unit there: it is selected, parsed, and run at its working-directory path. This makes `find`, `list`, and `run --all` agree on the selected unit set for the same filter, lets intersected path filters (e.g. `...[main...HEAD]... | ./live/**`) match dependents discovered through the worktree, and ensures shared dependencies reach the runner parsed. A removed unit, whose configuration only exists in the worktree for the old reference, keeps its worktree path so destroy planning keeps working.
+
+Current limitations:
+
+- Canonicalization only applies when Terragrunt runs from the repository root; from a subdirectory, worktree paths are kept as before.
+- Units generated inside a worktree's stacks keep their worktree paths unless the same stack is generated under the working directory.
+- When several Git expressions select the same unit, the surviving component carries one Git reference, so a union of ranges can select fewer units than evaluating each range separately.
+
+### `canonical-worktree-paths` - How to provide feedback
+
+Provide your feedback on issue [#6778](https://github.com/gruntwork-io/terragrunt/issues/6778).
+
+### `canonical-worktree-paths` - Criteria for stabilization
+
+To stabilize this feature, the following need to be resolved, at a minimum:
+
+- [ ] Confirm that `find`, `list`, and `run --all` report the same unit set for the same Git-based filter on large repositories. See [#6778](https://github.com/gruntwork-io/terragrunt/issues/6778).
+- [ ] Confirm that destroy planning for removed units keeps working with canonicalized paths. See [#6610](https://github.com/gruntwork-io/terragrunt/issues/6610).
+- [ ] Confirm that `--out-dir` keys match between filesystem and Git-filter discovery. See [#6602](https://github.com/gruntwork-io/terragrunt/issues/6602).
+- [ ] Support canonicalization when running from a subdirectory of the repository root.
+- [ ] Canonicalize units generated inside worktree stacks.
+- [ ] Preserve matching for every Git expression when multiple ranges select the same unit.

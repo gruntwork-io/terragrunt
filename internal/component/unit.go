@@ -107,6 +107,24 @@ func (u *Unit) SetConfigFile(filename string) {
 	u.configFile = filename
 }
 
+// EnsureConfigFile records the config filename found on disk for this unit
+// while it is still unparsed, under the same lock that guards config parsing,
+// so a concurrent parse never reads the field mid-write. A parsed unit keeps
+// its filename; a dependency-created placeholder loses its constructor default
+// in favor of the file actually discovered.
+func (u *Unit) EnsureConfigFile(filename string) {
+	if filename == "" {
+		return
+	}
+
+	u.parseMu.Lock()
+	defer u.parseMu.Unlock()
+
+	if u.Config() == nil {
+		u.configFile = filename
+	}
+}
+
 // Kind returns the kind of component (always Unit for Unit).
 func (u *Unit) Kind() Kind {
 	return UnitKind

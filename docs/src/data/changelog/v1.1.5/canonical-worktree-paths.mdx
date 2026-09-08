@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "experiments-added"
+---
+
+#### New `canonical-worktree-paths` experiment: Git-filter discoveries run at working-directory paths
+
+With a Git-based filter like `--filter '...[main...HEAD]...'`, units discovered through the temporary worktrees Terragrunt creates kept their temporary paths. As a result, a unit selected by `terragrunt find` could be silently skipped by `run --all` when the filter intersected a path (e.g. `| ./live/**`), a shared dependency could reach the runner unparsed, and reports could list `/tmp/terragrunt-worktree-...` paths.
+
+Enabling the [`canonical-worktree-paths` experiment](/reference/experiments/active#canonical-worktree-paths) (`--experiment canonical-worktree-paths` or `TG_EXPERIMENT=canonical-worktree-paths`) maps each worktree discovery onto its equivalent path under the working directory when its configuration still exists there, so the repo unit and its worktree twin are one component: selected once, parsed once, and run from your working directory. Removed units keep their worktree paths so destroy planning is unaffected. Without the experiment, behavior is unchanged.

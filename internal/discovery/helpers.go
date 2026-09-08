@@ -568,3 +568,59 @@ func resolveDiscoveryBoundary(
 
 	return resolved, nil
 }
+
+// dropShadowedWorktreeTwins removes results whose component shares a path with
+// a worktree-discovered (Ref-carrying) result, so the canonicalized twin is the
+// one component every later phase sees (issue #6778). Paths are compared in
+// their symlink-resolved form, matching [component.ThreadSafeComponents].
+func dropShadowedWorktreeTwins(
+	fsys vfs.FS,
+	discovered, candidates []DiscoveryResult,
+) ([]DiscoveryResult, []DiscoveryResult) {
+	refPaths := make(map[string]struct{})
+	resolved := make(map[string]string, len(discovered)+len(candidates))
+
+	resolve := func(path string) string {
+		if r, ok := resolved[path]; ok {
+			return r
+		}
+
+		r := vfs.ResolveForCompare(fsys, path)
+		resolved[path] = r
+
+		return r
+	}
+
+	collect := func(results []DiscoveryResult) {
+		for _, r := range results {
+			if dCtx := r.Component.DiscoveryContext(); dCtx != nil && dCtx.Ref != "" {
+				refPaths[resolve(r.Component.Path())] = struct{}{}
+			}
+		}
+	}
+
+	collect(discovered)
+	collect(candidates)
+
+	if len(refPaths) == 0 {
+		return discovered, candidates
+	}
+
+	keep := func(results []DiscoveryResult) []DiscoveryResult {
+		out := make([]DiscoveryResult, 0, len(results))
+
+		for _, r := range results {
+			dCtx := r.Component.DiscoveryContext()
+			if _, shadowed := refPaths[resolve(r.Component.Path())]; shadowed &&
+				(dCtx == nil || dCtx.Ref == "") {
+				continue
+			}
+
+			out = append(out, r)
+		}
+
+		return out
+	}
+
+	return keep(discovered), keep(candidates)
+}
