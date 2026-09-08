@@ -98,7 +98,7 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"credentials": `"credentials.json"`}),
 		},
 		{
-			name:          "GCS external account credential file falls back",
+			name:          "GCS external account credential file without a credential source falls back",
 			backend:       "gcs",
 			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"credentials": `"/credentials/external.json"`}),
 			files:         map[string]string{"/credentials/external.json": `{"type":"external_account"}`},
