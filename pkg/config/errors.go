@@ -419,6 +419,25 @@ func (err DuplicateDependencyError) Error() string {
 	)
 }
 
+// DuplicateDependencyConfigPathError is returned when two dependency blocks in one config
+// point at the same config_path under different addresses.
+type DuplicateDependencyConfigPathError struct {
+	ConfigPath     string
+	DependencyPath string
+	FirstAddress   string
+	SecondAddress  string
+}
+
+func (err DuplicateDependencyConfigPathError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependencies %s and %s both point at %s; declare that dependency once and reference it under one name",
+		err.ConfigPath,
+		err.FirstAddress,
+		err.SecondAddress,
+		err.DependencyPath,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string
