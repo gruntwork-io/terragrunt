@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -474,31 +473,6 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 	}
 
 	return tree, nil
-}
-
-// CatFile writes the contents of a git object
-// to a given writer.
-func (g *GitRunner) CatFile(ctx context.Context, hash string, w io.Writer) error {
-	if err := g.RequiresWorkDir(); err != nil {
-		return err
-	}
-
-	var stderr bytes.Buffer
-
-	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
-
-	cmd.SetStdout(w)
-	cmd.SetStderr(&stderr)
-
-	if err := cmd.Run(); err != nil {
-		return &WrappedError{
-			Op:      "git_cat_file",
-			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
-		}
-	}
-
-	return nil
 }
 
 // CreateDetachedWorktree creates a new detached worktree for a given reference
