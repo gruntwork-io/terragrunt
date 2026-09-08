@@ -203,6 +203,12 @@ func (p *WorktreePhase) Run(
 		return nil, err
 	}
 
+	if canonicalPaths {
+		if err := detectConflictingSelections(discovery, w, discoveredComponents.ToComponents()); err != nil {
+			return nil, err
+		}
+	}
+
 	for _, c := range discoveredComponents.ToComponents() {
 		status, reason, graphIdx := filter.StatusReadyForFilter, filter.CandidacyReasonNone, -1
 
@@ -869,10 +875,13 @@ func pairRelPath(pair *worktrees.WorktreePair, path string) (string, bool) {
 	return "", false
 }
 
-// canonicalUnitConfigFilename returns the unit config filename present at both
+// canonicalUnitConfigFilename returns a unit config filename present at both
 // the pair's to-worktree location and the working-directory location, or ""
-// when either misses it, meaning the unit does not live at the to ref or is
-// not materialized under the working directory.
+// when none is, meaning the unit does not live at the to ref or is not
+// materialized under the working directory. Any allowed filename counts, so a
+// unit whose config file was renamed between the refs is one unit rather than
+// a destroy of the old name racing a run of the new one; the discovered
+// filename is only tried first.
 func canonicalUnitConfigFilename(
 	fsys vfs.FS,
 	toPath, repoPath, discovered string,
@@ -883,12 +892,8 @@ func canonicalUnitConfigFilename(
 			vfs.IsFile(fsys, filepath.Join(repoPath, fname))
 	}
 
-	if discovered != "" {
-		if exists(discovered) {
-			return discovered
-		}
-
-		return ""
+	if discovered != "" && exists(discovered) {
+		return discovered
 	}
 
 	if len(configFilenames) == 0 {
@@ -896,7 +901,7 @@ func canonicalUnitConfigFilename(
 	}
 
 	for _, fname := range configFilenames {
-		if fname == config.DefaultStackFile {
+		if fname == config.DefaultStackFile || fname == discovered {
 			continue
 		}
 
@@ -928,4 +933,74 @@ func canonicalDiscoveryContext(
 	})
 
 	return copied
+}
+
+// detectConflictingSelections fails when one Git expression kept a unit's
+// worktree copy for a destroy plan while another canonicalized the same unit
+// for a normal run; executing both against one state is never safe.
+func detectConflictingSelections(
+	d *Discovery,
+	w *worktrees.Worktrees,
+	components component.Components,
+) error {
+	const (
+		normalRun   = 1
+		destroyPlan = 2
+	)
+
+	selections := make(map[string]int, len(components))
+
+	for _, c := range components {
+		if _, ok := c.(*component.Unit); !ok {
+			continue
+		}
+
+		dCtx := c.DiscoveryContext()
+
+		switch {
+		case c.Path() == d.workingDir ||
+			strings.HasPrefix(c.Path(), d.workingDir+string(filepath.Separator)):
+			rel, err := filepath.Rel(d.workingDir, c.Path())
+			if err != nil {
+				continue
+			}
+
+			selections[rel] |= normalRun
+		case dCtx != nil && slices.Contains(dCtx.Args, "-destroy"):
+			rel, ok := worktreeRel(w, c.Path())
+			if !ok {
+				continue
+			}
+
+			selections[rel] |= destroyPlan
+		}
+	}
+
+	conflicted := make([]string, 0, len(selections))
+
+	for rel, flags := range selections {
+		if flags == normalRun|destroyPlan {
+			conflicted = append(conflicted, rel)
+		}
+	}
+
+	if len(conflicted) == 0 {
+		return nil
+	}
+
+	sort.Strings(conflicted)
+
+	return NewConflictingGitSelectionsError(conflicted)
+}
+
+// worktreeRel returns path's location relative to whichever worktree root
+// holds it; refs share physical worktrees, so the answer is pair-independent.
+func worktreeRel(w *worktrees.Worktrees, path string) (string, bool) {
+	for _, pair := range w.WorktreePairs {
+		if rel, ok := pairRelPath(&pair, path); ok {
+			return rel, true
+		}
+	}
+
+	return "", false
 }

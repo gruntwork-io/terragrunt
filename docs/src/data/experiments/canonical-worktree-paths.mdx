@@ -15,7 +15,7 @@ Current limitations:
 
 - Canonicalization only applies when Terragrunt runs from the repository root; from a subdirectory, worktree paths are kept as before.
 - Units generated inside a worktree's stacks keep their worktree paths unless the same stack is generated under the working directory.
-- When several Git expressions select the same unit, the surviving component carries one Git reference, so a union of ranges can select fewer units than evaluating each range separately.
+- When several Git expressions select the same unit, the surviving component carries one Git reference, so a union of ranges can select fewer units than evaluating each range separately. Ranges that select one unit both for a destroy plan and for a normal run fail with an error instead of executing both.
 - Stack generation classifies changed files against the default config filenames, so custom-named unit configs inside stacks are still routed through full generation.
 
 ### `canonical-worktree-paths` - How to provide feedback

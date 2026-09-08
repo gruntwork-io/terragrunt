@@ -220,3 +220,25 @@ func (e EmptyQueueConstructAsError) Error() string {
 func NewEmptyQueueConstructAsError(value string) error {
 	return EmptyQueueConstructAsError{Value: value}
 }
+
+// ConflictingGitSelectionsError indicates that, with canonical worktree paths,
+// one Git filter expression selected a unit for a destroy plan while another
+// selected the same unit for a normal run, which must not execute together.
+type ConflictingGitSelectionsError struct {
+	Units []string
+}
+
+func (e ConflictingGitSelectionsError) Error() string {
+	return fmt.Sprintf(
+		"git filter expressions select the following units both for a destroy plan and for a normal run: %s. "+
+			"Use a single range covering both comparisons (e.g. '[oldest...newest]') "+
+			"or run the conflicting filters separately.",
+		strings.Join(e.Units, ", "),
+	)
+}
+
+// NewConflictingGitSelectionsError creates a new ConflictingGitSelectionsError
+// for the given unit paths.
+func NewConflictingGitSelectionsError(units []string) ConflictingGitSelectionsError {
+	return ConflictingGitSelectionsError{Units: units}
+}

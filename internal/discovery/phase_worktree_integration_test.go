@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -3623,14 +3622,15 @@ type canonicalDiscoveryTestOpts struct {
 	enableCanonical bool
 }
 
-// runCanonicalWorktreeDiscovery drives a full Discover for the given filter
-// queries, optionally enabling the canonical-worktree-paths experiment.
-func runCanonicalWorktreeDiscovery(
+// runCanonicalWorktreeDiscoveryErr drives a full Discover for the given filter
+// queries, optionally enabling the canonical-worktree-paths experiment, and
+// returns the discovery error for tests that expect one.
+func runCanonicalWorktreeDiscoveryErr(
 	t *testing.T,
 	workingDir string,
 	queries []string,
 	testOpts canonicalDiscoveryTestOpts,
-) (component.Components, *worktrees.Worktrees) {
+) (component.Components, *worktrees.Worktrees, error) {
 	t.Helper()
 
 	l := logger.CreateLogger()
@@ -3678,6 +3678,21 @@ func runCanonicalWorktreeDiscovery(
 	}
 
 	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+
+	return components, w, err
+}
+
+// runCanonicalWorktreeDiscovery is runCanonicalWorktreeDiscoveryErr for tests
+// that expect discovery to succeed.
+func runCanonicalWorktreeDiscovery(
+	t *testing.T,
+	workingDir string,
+	queries []string,
+	testOpts canonicalDiscoveryTestOpts,
+) (component.Components, *worktrees.Worktrees) {
+	t.Helper()
+
+	components, w, err := runCanonicalWorktreeDiscoveryErr(t, workingDir, queries, testOpts)
 	require.NoError(t, err)
 
 	return components, w
@@ -3776,17 +3791,25 @@ dependency "hub" {
 			assert.NotContains(t, unitPaths, filepath.Join(tmpDir, "live", "hub"))
 
 			// The legacy result set must stay under the worktrees, not vanish.
+			// The dependent's presence is scheduling-dependent on the legacy
+			// path, so the assertion bounds the allowed set instead of pinning
+			// an exact one.
 			pair := w.WorktreePairs["[HEAD~1...HEAD]"]
 			require.NotEmpty(t, pair.ToWorktree.Path)
 			require.NotEmpty(t, unitPaths)
 			assert.Contains(t, unitPaths, filepath.Join(pair.ToWorktree.Path, "live", "hub"))
 
+			allowed := []string{
+				filepath.Join(pair.ToWorktree.Path, "live", "hub"),
+				filepath.Join(pair.ToWorktree.Path, "live", "consumer"),
+			}
+
 			for _, up := range unitPaths {
-				assert.True(
+				assert.Contains(
 					t,
-					strings.HasPrefix(up, pair.ToWorktree.Path+string(filepath.Separator)) ||
-						strings.HasPrefix(up, pair.FromWorktree.Path+string(filepath.Separator)),
-					"unit %s must stay under a worktree without the experiment",
+					allowed,
+					up,
+					"unit %s is not part of the legacy result set",
 					up,
 				)
 			}
@@ -3885,12 +3908,19 @@ dependency "hub" {
 			// worktree path (issue #6778).
 			assert.NotContains(t, unitPaths, filepath.Join(tmpDir, "live", "hub"))
 
-			// The legacy selection itself must survive: both changed consumers
-			// stay in the result set at their worktree paths.
+			// The legacy selection itself must survive exactly: both changed
+			// consumers and the shared dependency at their worktree paths.
 			pair := w.WorktreePairs["[HEAD~1...HEAD]"]
 			require.NotEmpty(t, pair.ToWorktree.Path)
-			assert.Contains(t, unitPaths, filepath.Join(pair.ToWorktree.Path, "live", "consumer1"))
-			assert.Contains(t, unitPaths, filepath.Join(pair.ToWorktree.Path, "live", "consumer2"))
+			assert.ElementsMatch(
+				t,
+				[]string{
+					filepath.Join(pair.ToWorktree.Path, "live", "hub"),
+					filepath.Join(pair.ToWorktree.Path, "live", "consumer1"),
+					filepath.Join(pair.ToWorktree.Path, "live", "consumer2"),
+				},
+				unitPaths,
+			)
 		})
 	})
 }
@@ -4076,7 +4106,7 @@ func TestWorktreePhase_Integration_CanonicalWorktreePathsSharedRefWorktrees(t *t
 	// An untracked replacement on disk must not flip the removal into a run.
 	createUnit(t, tmpDir, filepath.Join("live", "app"), `# Untracked replacement`)
 
-	components, w := runCanonicalWorktreeDiscovery(
+	_, w, err := runCanonicalWorktreeDiscoveryErr(
 		t,
 		tmpDir,
 		[]string{"[HEAD~2...HEAD~1]", "[HEAD~1...HEAD]"},
@@ -4093,20 +4123,102 @@ func TestWorktreePhase_Integration_CanonicalWorktreePathsSharedRefWorktrees(t *t
 		removalPair.FromWorktree.Path,
 	)
 
-	removedPath := filepath.Join(removalPair.FromWorktree.Path, "live", "app")
-	foundRemoved := false
+	// One range selects the unit for a normal run, the other for a destroy
+	// plan; executing both against one state is never safe, so discovery must
+	// fail closed with the conflict spelled out.
+	var conflictErr discovery.ConflictingGitSelectionsError
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Contains(t, conflictErr.Units, filepath.Join("live", "app"))
+}
 
-	for _, c := range components.Filter(component.UnitKind) {
-		if c.Path() != removedPath {
-			continue
-		}
+// TestWorktreePhase_Integration_CanonicalWorktreePathsConfigRename pins that
+// renaming a unit's config file between the compared refs yields one normal
+// run of the unit, not a destroy of the old name racing a run of the new one.
+func TestWorktreePhase_Integration_CanonicalWorktreePathsConfigRename(t *testing.T) {
+	t.Parallel()
 
-		foundRemoved = true
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, filepath.Join("live", "app"), `# App unit`)
+	commitChanges(t, runner, "Add app")
+
+	appDir := filepath.Join(tmpDir, "live", "app")
+	require.NoError(t, os.Rename(
+		filepath.Join(appDir, "terragrunt.hcl"),
+		filepath.Join(appDir, "custom.hcl"),
+	))
+	commitChanges(t, runner, "Rename config to custom.hcl")
+
+	components, _ := runCanonicalWorktreeDiscovery(
+		t,
+		tmpDir,
+		[]string{"[HEAD~1...HEAD]"},
+		canonicalDiscoveryTestOpts{
+			enableCanonical: true,
+			cmd:             "plan",
+			configFilenames: []string{"custom.hcl", "terragrunt.hcl", "terragrunt.stack.hcl"},
+		},
+	)
+
+	units := components.Filter(component.UnitKind)
+
+	assert.ElementsMatch(
+		t,
+		[]string{appDir},
+		units.Paths(),
+		"a renamed config must stay one unit at its working-directory path",
+	)
+
+	for _, c := range units {
+		unit, ok := c.(*component.Unit)
+		require.True(t, ok)
+		assert.Equal(t, "custom.hcl", unit.ConfigFile())
 
 		dCtx := c.DiscoveryContext()
 		require.NotNil(t, dCtx)
-		assert.Contains(t, dCtx.Args, "-destroy", "the removed unit must keep its destroy plan")
+		assert.NotContains(t, dCtx.Args, "-destroy")
 	}
+}
 
-	require.True(t, foundRemoved, "the removed unit must stay at its from-worktree path")
+// TestWorktreePhase_Integration_CanonicalWorktreePathsFromSubdirectory pins
+// that the experiment declines canonicalization when Terragrunt runs from a
+// repository subdirectory, keeping worktree paths and never rebasing onto a
+// doubled subdirectory path.
+func TestWorktreePhase_Integration_CanonicalWorktreePathsFromSubdirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, filepath.Join("live", "app"), `# App unit`)
+	commitChanges(t, runner, "Add app")
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "live", "app", "terragrunt.hcl"),
+		[]byte(`# App unit modified`),
+		0o644,
+	))
+	commitChanges(t, runner, "Modify app")
+
+	subDir := filepath.Join(tmpDir, "live")
+
+	components, w := runCanonicalWorktreeDiscovery(
+		t,
+		subDir,
+		[]string{"[HEAD~1...HEAD]"},
+		canonicalDiscoveryTestOpts{enableCanonical: true},
+	)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair.ToWorktree.Path)
+
+	unitPaths := components.Filter(component.UnitKind).Paths()
+
+	assert.ElementsMatch(
+		t,
+		[]string{filepath.Join(pair.ToWorktree.Path, "live", "app")},
+		unitPaths,
+		"a subdirectory run must keep worktree paths",
+	)
+	assert.NotContains(t, unitPaths, filepath.Join(subDir, "app"))
+	assert.NotContains(t, unitPaths, filepath.Join(subDir, "live", "app"))
 }
