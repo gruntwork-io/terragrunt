@@ -185,3 +185,43 @@ func TestRenderJSONFormatKeepsExpandedDependenciesWhole(t *testing.T) {
 	assert.Equal(t, "../vpc", rendered.Dependency["vpc"]["config_path"])
 	assert.Equal(t, true, rendered.Dependency["vpc"]["skip"])
 }
+
+// TestRenderJSONFormatWithMetadataKeepsExpandedDependenciesWhole pins the same grouping in the
+// metadata output. It keys dependencies by label as well, so serializing every element there
+// would keep only the last one.
+func TestRenderJSONFormatWithMetadataKeepsExpandedDependenciesWhole(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureRenderExpansion)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderExpansion)
+	appPath := filepath.Join(tmpEnvPath, testFixtureRenderExpansion, "app")
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt render --format json --with-metadata --experiment block-iteration"+
+			" --non-interactive --working-dir "+appPath,
+	)
+	require.NoError(t, err)
+
+	var rendered struct {
+		Dependency map[string]struct {
+			Value map[string]any `json:"value"`
+		} `json:"dependency"`
+	}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &rendered))
+
+	assert.Equal(t, map[string]any{
+		"config_path":  "../shard-${count.index}",
+		"expansion":    map[string]any{"count": float64(2)},
+		"skip_outputs": true,
+	}, rendered.Dependency["shard"].Value)
+
+	assert.Equal(t, map[string]any{
+		"config_path":  "../aurora-${each.key}",
+		"expansion":    map[string]any{"for_each": `${toset(["web", "api"])}`},
+		"skip_outputs": true,
+	}, rendered.Dependency["aurora"].Value)
+
+	assert.Equal(t, "../vpc", rendered.Dependency["vpc"].Value["config_path"])
+}

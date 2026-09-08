@@ -293,31 +293,44 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	if config.TerragruntDependencies != nil {
 		var dependenciesMap = map[string]cty.Value{}
 
-		for _, block := range config.TerragruntDependencies {
-			ctyValue, err := GoTypeToCty(block)
-			if err != nil {
+		for _, group := range groupExpandedDependencies(config.TerragruntDependencies) {
+			// This map is keyed by label too, so serialize the block that produced the
+			// elements rather than the elements themselves.
+			if group.source != nil {
+				blockCty, err := group.source.BodyAsCty()
+				if err != nil {
+					return cty.NilVal, err
+				}
+
+				name := group.deps[0].Name
+
+				value, err := dependencyWithMetadata(config, name, blockCty)
+				if err != nil {
+					continue
+				}
+
+				dependenciesMap[name] = value
+
 				continue
 			}
 
-			if ctyValue == cty.NilVal {
-				continue
+			for _, dep := range group.deps {
+				ctyValue, err := GoTypeToCty(*dep)
+				if err != nil {
+					continue
+				}
+
+				if ctyValue == cty.NilVal {
+					continue
+				}
+
+				value, err := dependencyWithMetadata(config, dep.Name, ctyValue)
+				if err != nil {
+					continue
+				}
+
+				dependenciesMap[dep.Name] = value
 			}
-
-			var content = ValueWithMetadata{
-
-				Value: ctyValue}
-
-			metadata, found := config.GetMapFieldMetadata(MetadataDependency, block.Name)
-			if found {
-				content.Metadata = metadata
-			}
-
-			value, err := GoTypeToCty(content)
-			if err != nil {
-				continue
-			}
-
-			dependenciesMap[block.Name] = value
 		}
 
 		if len(dependenciesMap) > 0 {
@@ -677,6 +690,21 @@ func RemoteStateAsCty(remote *remotestate.RemoteState) (cty.Value, error) {
 	output["encryption"] = ctyJSONVal
 
 	return ConvertValuesMapToCtyVal(output)
+}
+
+// dependencyWithMetadata wraps a serialized dependency in the metadata recorded for its label.
+func dependencyWithMetadata(
+	config *TerragruntConfig,
+	name string,
+	value cty.Value,
+) (cty.Value, error) {
+	content := ValueWithMetadata{Value: value}
+
+	if metadata, found := config.GetMapFieldMetadata(MetadataDependency, name); found {
+		content.Metadata = metadata
+	}
+
+	return GoTypeToCty(content)
 }
 
 // Serialize the list of dependency blocks to a cty Value as a map that maps the block names to the cty representation.
