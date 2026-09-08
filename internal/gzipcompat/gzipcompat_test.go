@@ -86,6 +86,16 @@ func TestEncodeMatchesV113(t *testing.T) {
 			input:        pseudoRandomASCII(65536),
 			expectedHash: "d8affe2115a42410a460461494ae6c899eede3581eaac40b37eb88630c8f5800",
 		},
+		{
+			name:         "window shift",
+			input:        repeatedPhrases(131072),
+			expectedHash: "d465ced9d312fe0859ff290a4c7bad548d2e46cafcd7b217679c1da1339f5d77",
+		},
+		{
+			name:         "hash offset renormalization",
+			input:        repeatedPhrases(17 * 1024 * 1024),
+			expectedHash: "c6d7bb171e0e16a4e3a5d24bdfaa56704010bc96feb9b9c70ea64192410669da",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -172,4 +182,19 @@ func pseudoRandomASCII(size int) string {
 	}
 
 	return string(data)
+}
+
+// repeatedPhrases builds a compressible input whose matches span window shifts.
+func repeatedPhrases(size int) string {
+	phrases := []string{"terragrunt ", "user_data ", "base64gzip ", "compat ", "window ", "\n"}
+
+	var b strings.Builder
+
+	state := uint32(0x9e3779b9)
+	for b.Len() < size {
+		state = state*1664525 + 1013904223
+		b.WriteString(phrases[int(state>>24)%len(phrases)])
+	}
+
+	return b.String()[:size]
 }
