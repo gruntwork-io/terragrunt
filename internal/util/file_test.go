@@ -1608,9 +1608,7 @@ func TestIncludeInCopySymlinkedDirectory(t *testing.T) {
 			require.NoError(t, os.MkdirAll(source, os.ModePerm))
 			require.NoError(t, os.WriteFile(filepath.Join(source, "main.tf"), []byte("# main"), 0o644))
 
-			if err := os.Symlink(target, filepath.Join(source, ".important_stuff")); err != nil {
-				t.Skipf("symlinks are not available: %v", err)
-			}
+			require.NoError(t, os.Symlink(target, filepath.Join(source, ".important_stuff")))
 
 			destination := filepath.Join(tempDir, "destination")
 
@@ -1685,9 +1683,7 @@ func TestExcludeFromCopySymlinkedDirectory(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(source, "main.tf"), []byte("# main"), 0o644))
 
 			// A visible symlinked directory is copied by default, so only the exclusion is under test.
-			if err := os.Symlink(target, filepath.Join(source, "linked_stuff")); err != nil {
-				t.Skipf("symlinks are not available: %v", err)
-			}
+			require.NoError(t, os.Symlink(target, filepath.Join(source, "linked_stuff")))
 
 			destination := filepath.Join(tempDir, "destination")
 
@@ -1718,6 +1714,74 @@ func TestExcludeFromCopySymlinkedDirectory(t *testing.T) {
 			}
 
 			assert.FileExists(t, filepath.Join(destination, "linked_stuff", "a.txt"))
+		})
+	}
+}
+
+// TestIncludeInCopySymlinkLoop pins that, with the symlinks experiment on, an
+// include_in_copy entry that links back at a directory already being copied
+// is copied as an empty directory instead of being followed again and again
+// (issue #6791).
+func TestIncludeInCopySymlinkLoop(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		// link creates the loop under source, using outside for a hop outside source.
+		link func(t *testing.T, source, outside string)
+		// nested is the destination path that must not exist once the loop is cut.
+		nested []string
+	}{
+		{
+			name: "link to the source itself",
+			link: func(t *testing.T, source, _ string) {
+				t.Helper()
+				require.NoError(t, os.Symlink(source, filepath.Join(source, ".loop")))
+			},
+			nested: []string{".loop", "main.tf"},
+		},
+		{
+			name: "link back through a directory outside the source",
+			link: func(t *testing.T, source, outside string) {
+				t.Helper()
+				require.NoError(t, os.Symlink(source, filepath.Join(outside, "back")))
+				require.NoError(t, os.Symlink(outside, filepath.Join(source, ".loop")))
+			},
+			nested: []string{".loop", "back", "main.tf"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir := helpers.TmpDirWOSymlinks(t)
+
+			source := filepath.Join(tempDir, "source")
+			require.NoError(t, os.MkdirAll(source, os.ModePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(source, "main.tf"), []byte("# main"), 0o644))
+
+			outside := filepath.Join(tempDir, "outside")
+			require.NoError(t, os.MkdirAll(outside, os.ModePerm))
+
+			tc.link(t, source, outside)
+
+			destination := filepath.Join(tempDir, "destination")
+
+			require.NoError(
+				t,
+				util.CopyFolderContents(
+					logger.CreateLogger(),
+					vfs.NewOSFS(),
+					source,
+					destination,
+					".terragrunt-test",
+					util.WithIncludeInCopy(".loop"),
+					util.WithSymlinkedGlobRoots(),
+				),
+			)
+
+			assert.FileExists(t, filepath.Join(destination, "main.tf"))
+			assert.DirExists(t, filepath.Join(destination, ".loop"))
+			assert.NoFileExists(t, filepath.Join(append([]string{destination}, tc.nested...)...))
 		})
 	}
 }

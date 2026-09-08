@@ -251,12 +251,23 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 	return false
 }
 
-// Takes apbsolute glob path and returns an array of expanded relative paths
+// expandGlobPath expands absoluteGlobPath under source into paths relative to
+// source, descending into every matched directory. chain holds the resolved
+// directories already being descended when symlinkedGlobRoots is on; a matched
+// directory that resolves to one of them, or to an ancestor of one, is a link
+// back up the tree and is listed without being descended again (issue #6791).
 func expandGlobPath(
+	l log.Logger,
 	fsys vfs.FS,
 	source, absoluteGlobPath string,
-	globOpts ...glob.LegacyExpandOption,
+	symlinkedGlobRoots bool,
+	chain []string,
 ) ([]string, error) {
+	var globOpts []glob.LegacyExpandOption
+	if symlinkedGlobRoots {
+		globOpts = append(globOpts, glob.WithSymlinkedRoots())
+	}
+
 	includeExpandedGlobs := []string{}
 
 	absoluteExpandGlob, err := glob.LegacyExpand(fsys, absoluteGlobPath, globOpts...)
@@ -285,14 +296,37 @@ func expandGlobPath(
 			filepath.ToSlash(relativeExpandGlobPath),
 		)
 
-		if vfs.IsDir(fsys, absoluteExpandGlobPath) {
-			dirExpandGlob, err := expandGlobPath(fsys, source, absoluteExpandGlobPath+"/*", globOpts...)
+		if !vfs.IsDir(fsys, absoluteExpandGlobPath) {
+			continue
+		}
+
+		next := chain
+
+		if symlinkedGlobRoots {
+			resolved, err := vfs.EvalSymlinks(fsys, absoluteExpandGlobPath)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("resolve glob match %q: %w", absoluteExpandGlobPath, err)
 			}
 
-			includeExpandedGlobs = append(includeExpandedGlobs, dirExpandGlob...)
+			if linksBackIntoChain(resolved, chain) {
+				l.Warnf(
+					"Not descending into %s while expanding copy patterns: it links back to %s, which is already being copied. Drop the link or narrow the pattern.",
+					absoluteExpandGlobPath,
+					resolved,
+				)
+
+				continue
+			}
+
+			next = append(slices.Clone(chain), resolved)
 		}
+
+		dirExpandGlob, err := expandGlobPath(l, fsys, source, absoluteExpandGlobPath+"/*", symlinkedGlobRoots, next)
+		if err != nil {
+			return nil, err
+		}
+
+		includeExpandedGlobs = append(includeExpandedGlobs, dirExpandGlob...)
 	}
 
 	return includeExpandedGlobs, nil
@@ -443,9 +477,15 @@ func newLegacyCopyFilter(
 	includeInCopy, excludeFromCopy []string,
 	symlinkedGlobRoots bool,
 ) (func(absolutePath string) bool, error) {
-	var globOpts []glob.LegacyExpandOption
+	var chain []string
+
 	if symlinkedGlobRoots {
-		globOpts = append(globOpts, glob.WithSymlinkedRoots())
+		resolvedSource, err := vfs.EvalSymlinks(fsys, source)
+		if err != nil {
+			return nil, fmt.Errorf("resolve copy source %q: %w", source, err)
+		}
+
+		chain = []string{resolvedSource}
 	}
 
 	// Expand all the includeInCopy glob paths, converting the globbed results
@@ -455,7 +495,7 @@ func newLegacyCopyFilter(
 	for _, includeGlob := range includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
 
-		expandGlob, err := expandGlobPath(fsys, source, globPath, globOpts...)
+		expandGlob, err := expandGlobPath(l, fsys, source, globPath, symlinkedGlobRoots, chain)
 		if err != nil {
 			return nil, err
 		}
@@ -468,7 +508,7 @@ func newLegacyCopyFilter(
 	for _, excludeGlob := range excludeFromCopy {
 		globPath := filepath.Join(source, excludeGlob)
 
-		expandGlob, err := expandGlobPath(fsys, source, globPath, globOpts...)
+		expandGlob, err := expandGlobPath(l, fsys, source, globPath, symlinkedGlobRoots, chain)
 		if err != nil {
 			return nil, err
 		}
@@ -2151,4 +2191,20 @@ func relPathInsideRoot(rootDir, target string) (string, bool) {
 	}
 
 	return cleanRootRelPath(rel)
+}
+
+// linksBackIntoChain reports whether dir equals or contains a directory in
+// chain, so descending into it would revisit a tree already being expanded.
+func linksBackIntoChain(dir string, chain []string) bool {
+	for _, ancestor := range chain {
+		if filepath.Clean(ancestor) == filepath.Clean(dir) {
+			return true
+		}
+
+		if _, inside := relPathInsideRoot(dir, ancestor); inside {
+			return true
+		}
+	}
+
+	return false
 }

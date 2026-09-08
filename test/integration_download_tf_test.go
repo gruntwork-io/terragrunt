@@ -170,12 +170,10 @@ func TestTFLocalDownloadWithSymlinkedIncludeInCopy(t *testing.T) {
 		os.WriteFile(filepath.Join(targetDir, "stuff1"), []byte("Hello world\n"), 0o600),
 	)
 
-	if err := os.Symlink(
+	require.NoError(t, os.Symlink(
 		targetDir,
 		filepath.Join(rootPath, "modules", ".important_stuff"),
-	); err != nil {
-		t.Skipf("symlinks are not available: %v", err)
-	}
+	))
 
 	helpers.RunTerragrunt(
 		t,
@@ -185,7 +183,12 @@ func TestTFLocalDownloadWithSymlinkedIncludeInCopy(t *testing.T) {
 		),
 	)
 
-	// Run a second time to make sure the already-materialized copy can be refreshed without errors
+	// Change the linked file and run again, so a stale copy of the link target cannot pass.
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(targetDir, "stuff1"), []byte("Hello again\n"), 0o600),
+	)
+
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
@@ -211,7 +214,7 @@ func TestTFLocalDownloadWithSymlinkedIncludeInCopy(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "output stderr")
 	require.NoError(t, err)
-	assert.Equal(t, "Hello world", stdout.String())
+	assert.Equal(t, "Hello again", stdout.String())
 }
 
 func TestTFLocalDownloadWithRelativePath(t *testing.T) {

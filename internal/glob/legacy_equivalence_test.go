@@ -183,9 +183,7 @@ func TestLegacyExpandMatchesZglobOnSymlinkedRoot(t *testing.T) {
 		require.NoError(t, os.WriteFile(full, []byte(rel), 0o600))
 	}
 
-	if err := os.Symlink(target, filepath.Join(root, "linked")); err != nil {
-		t.Skipf("symlinks are not available: %v", err)
-	}
+	require.NoError(t, os.Symlink(target, filepath.Join(root, "linked")))
 
 	// A link with a relative target must resolve against the link's own directory.
 	require.NoError(t, os.Symlink("target", filepath.Join(root, "linked-rel")))
@@ -242,9 +240,7 @@ func TestLegacyExpandDanglingSymlinkRootMatchesZglob(t *testing.T) {
 	root, err := filepath.EvalSymlinks(root)
 	require.NoError(t, err)
 
-	if err := os.Symlink(filepath.Join(root, "missing"), filepath.Join(root, "dangling")); err != nil {
-		t.Skipf("symlinks are not available: %v", err)
-	}
+	require.NoError(t, os.Symlink(filepath.Join(root, "missing"), filepath.Join(root, "dangling")))
 
 	pattern := filepath.ToSlash(filepath.Join(root, "dangling", "*"))
 
@@ -287,9 +283,7 @@ func TestLegacyExpandSymlinkToFileRootMatchesZglob(t *testing.T) {
 	file := filepath.Join(root, "plain.txt")
 	require.NoError(t, os.WriteFile(file, []byte("plain"), 0o600))
 
-	if err := os.Symlink(file, filepath.Join(root, "linkfile")); err != nil {
-		t.Skipf("symlinks are not available: %v", err)
-	}
+	require.NoError(t, os.Symlink(file, filepath.Join(root, "linkfile")))
 
 	pattern := filepath.ToSlash(filepath.Join(root, "linkfile", "*"))
 
