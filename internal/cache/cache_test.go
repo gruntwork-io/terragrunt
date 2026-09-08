@@ -100,10 +100,11 @@ func TestContextCache(t *testing.T) {
 
 	ctx := t.Context()
 
-	// Missing entry returns a fresh detached instance.
-	c := cache.ContextCache[int](ctx, "not-installed")
-	require.NotNil(t, c)
-	c.Put(ctx, "k", 7)
+	// A missing entry is a wiring mistake, not a state to recover from. Handing back a detached
+	// instance would let a caller prime a cache nothing else can read.
+	assert.Panics(t, func() {
+		cache.ContextCache[int](ctx, "not-installed")
+	})
 
 	// Installed entry round-trips.
 	installed := cache.NewCache[int]("installed")

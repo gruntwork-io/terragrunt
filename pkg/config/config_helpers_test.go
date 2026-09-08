@@ -1084,7 +1084,7 @@ func newTestParsingContext(
 
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(
-		tb.Context(),
+		config.WithConfigValues(tb.Context()),
 		l,
 		v,
 		config.WithStrictControls(controls.New()),

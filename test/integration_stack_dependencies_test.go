@@ -1921,7 +1921,14 @@ func newStackDepsParsingContext(
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
 	opts.TerragruntConfigPath = configPath
 
-	return configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), opts)
+	// The caches the parse path reads are installed once per run, by the CLI. A test entering
+	// below that has to install them itself.
+	return configbridge.NewParsingContext(
+		config.WithConfigValues(t.Context()),
+		l,
+		venv.OSVenv(),
+		opts,
+	)
 }
 
 // partialParseDiscovery partial parses a unit config the way discovery does, with the
