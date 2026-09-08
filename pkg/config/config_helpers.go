@@ -33,6 +33,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
+	"github.com/gruntwork-io/terragrunt/internal/legacygzip"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -108,6 +109,7 @@ const (
 	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
 	FuncNameDeepMerge                               = "deep_merge"
+	FuncNameBase64Gzip                              = "base64gzip"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -368,6 +370,16 @@ func createTerragruntEvalContext(
 		FuncNameEndsWith:    wrapStringSliceToBoolAsFuncImpl(ctx, pctx, EndsWith),
 		FuncNameStrContains: wrapStringSliceToBoolAsFuncImpl(ctx, pctx, StrContains),
 		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, pctx, l, TimeCmp),
+	}
+
+	if ctrl := pctx.StrictControls.Find(controls.LegacyBase64Gzip); ctrl == nil || !ctrl.GetEnabled() {
+		terragruntFunctions[FuncNameBase64Gzip] = legacygzip.Func(func() error {
+			if ctrl == nil {
+				return nil
+			}
+
+			return ctrl.Evaluate(log.ContextWithLogger(ctx, l))
+		})
 	}
 
 	functions := map[string]function.Function{}

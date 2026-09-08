@@ -1,0 +1,16 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### `base64gzip()` returns the v1.1.3 bytes again
+
+Terragrunt v1.1.4 was built with Go 1.27, which changed the compressed bytes produced by `base64gzip()`. The bytes decompress to the same content, but a resource that compares the encoded value, such as an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`, planned a replacement after the upgrade.
+
+`base64gzip()` now returns the bytes it returned in v1.1.3 and earlier, so upgrading plans no change. Terragrunt warns once per run that this is legacy behavior. If you already applied the v1.1.4 output, the first plan shows the value changing back once.
+
+To keep the current Go encoder's output and silence the warning, enable the new [`legacy-base64gzip`](/reference/strict-controls/active#legacy-base64gzip) strict control:
+
+```bash
+terragrunt run plan --strict-control legacy-base64gzip
+```

@@ -1,0 +1,21 @@
+---
+name: legacy-base64gzip
+status: active
+since: "1.1.5"
+---
+
+Stops `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. The v1.1.3 bytes are restored by default with a deprecation warning. Enable this control to use the current Go encoder and silence the warning.
+
+### `legacy-base64gzip` - Reason
+
+Terragrunt v1.1.4 was built with Go 1.27, which changed the compressed bytes its gzip encoder produces. The bytes still decompress to the same content, but `base64gzip()` returned a different string for the same input, and a resource that compares the encoded value, such as an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`, planned a replacement.
+
+Since v1.1.5, `base64gzip()` returns the v1.1.3 bytes again, so upgrading from v1.1.3 or earlier plans no change. If you applied the v1.1.4 output, the first plan after upgrading shows the value changing back once.
+
+Enable this control to keep the current Go encoder's output instead:
+
+```bash
+terragrunt run plan --strict-control legacy-base64gzip
+```
+
+The current encoder will become the default in a future version of Terragrunt.
