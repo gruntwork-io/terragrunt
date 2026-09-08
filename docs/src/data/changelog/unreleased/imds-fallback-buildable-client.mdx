@@ -1,0 +1,10 @@
+---
+version: "unreleased"
+category: "bug-fixes"
+---
+
+#### AWS IMDS credential fallback restored for container environments
+
+Terragrunt v1.1.4 introduced a regression where AWS credential resolution failed on EC2 instances running Terragrunt inside a container when the IMDSv2 token endpoint was unreachable (metadata hop limit of 1). The SDK's IMDSv1 fallback relies on fail-fast timeouts that are applied only when the HTTP client is the SDK's own `BuildableClient`; the venv HTTP plumbing passed a plain `*http.Client`, which silently disabled those timeouts and caused the token request to consume the entire IMDS operation budget before the fallback could run.
+
+When the venv carries a standard OS transport, Terragrunt now clones it into an `*awshttp.BuildableClient` so the IMDS credential provider applies its 250 ms dial and 500 ms response-header timeouts and falls back to IMDSv1 exactly as it did in v1.1.3 and earlier. In-memory test transports pass through unchanged, preserving hermetic test behavior.
