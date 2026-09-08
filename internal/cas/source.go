@@ -117,7 +117,7 @@ func (c *CAS) FetchSource(
 			if suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {
 				recordFetchOutcome(childCtx, true)
 
-				return c.linkStoredTree(childCtx, v, opts, suggestedKey)
+				return c.linkStoredTree(childCtx, l, v, opts, suggestedKey)
 			}
 
 			recordFetchOutcome(childCtx, false)
@@ -127,7 +127,7 @@ func (c *CAS) FetchSource(
 				return fmt.Errorf("fetch %s: %w", src.URL, err)
 			}
 
-			return c.linkStoredTree(childCtx, v, opts, treeKey)
+			return c.linkStoredTree(childCtx, l, v, opts, treeKey)
 		},
 	)
 }
@@ -267,6 +267,7 @@ func recordFetchOutcome(ctx context.Context, cacheHit bool) {
 // linkStoredTree materializes the tree at key into opts.Dir.
 func (c *CAS) linkStoredTree(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	opts *CloneOptions,
 	key string,
@@ -288,7 +289,7 @@ func (c *CAS) linkStoredTree(
 		linkOpts = append(linkOpts, WithForceCopy())
 	}
 
-	return LinkTree(ctx, v, c.blobStore, c.treeStore, tree, opts.Dir, linkOpts...)
+	return LinkTree(ctx, l, v, c.blobStore, c.treeStore, tree, opts.Dir, linkOpts...)
 }
 
 // storeFetchedContent stores every blob referenced by the tree, then
@@ -344,7 +345,7 @@ func (c *CAS) storeFetchedContent(
 				return fmt.Errorf("read symlink %s: %w", path, err)
 			}
 
-			if err := blobContent.Ensure(l, v, blobHash, []byte(target)); err != nil {
+			if err := blobContent.Ensure(l, v, blobHash, []byte(target), StoredFilePerms); err != nil {
 				return fmt.Errorf("store symlink blob %s: %w", path, err)
 			}
 		default:
@@ -360,7 +361,7 @@ func (c *CAS) storeFetchedContent(
 	}
 
 	treeContent := NewContent(c.treeStore)
-	if err := treeContent.EnsureWithWait(l, v, treeKey, treeData); err != nil {
+	if err := treeContent.EnsureWithWait(l, v, treeKey, treeData, StoredFilePerms); err != nil {
 		return fmt.Errorf("store tree %s: %w", treeKey, err)
 	}
 

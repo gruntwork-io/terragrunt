@@ -212,7 +212,7 @@ func (p *ParsePhase) Run(
 
 				errMu.Unlock()
 				// Return nil to continue processing other components
-				return nil //nolint:nilerr
+				return nil
 			}
 
 			if result == nil {

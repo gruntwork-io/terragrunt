@@ -98,7 +98,7 @@ func BenchmarkContent(b *testing.B) {
 
 			b.StartTimer()
 
-			require.NoError(b, content.Store(l, v, hash, testData))
+			require.NoError(b, content.Store(l, v, hash, testData, cas.StoredFilePerms))
 		}
 	})
 
@@ -124,7 +124,7 @@ func BenchmarkContent(b *testing.B) {
 
 				mu.Unlock()
 
-				if err := content.Store(l, v, hash, testData); err != nil {
+				if err := content.Store(l, v, hash, testData, cas.StoredFilePerms); err != nil {
 					b.Fatal(err)
 				}
 

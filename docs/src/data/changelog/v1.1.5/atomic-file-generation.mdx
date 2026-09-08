@@ -1,0 +1,17 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### More generated files are written atomically
+
+Terragrunt used to generate most files by opening the destination and writing into it, so the file spent time on disk half-written, and a run that failed partway through left a truncated one behind.
+
+These now go to a temporary file that replaces the destination once it is complete:
+
+- Files from [`generate`](/reference/hcl/blocks#generate) blocks
+- The config from [`render --write`](/reference/cli/commands/render#write)
+- Run reports from [`--report-file`](/reference/cli/commands/run#report-file)
+- The debug file from [`--debug`](/reference/cli/commands/run#debug)
+- `.terraform.lock.hcl`
+- The CLI config Terragrunt generates for OpenTofu/Terraform when the [Provider Cache Server](/features/caching/provider-cache-server) is enabled

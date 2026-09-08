@@ -12,7 +12,7 @@ const (
 	JSONEscape
 )
 
-var escapeList = NewMapValue(map[EscapeValue]string{ //nolint:gochecknoglobals
+var escapeList = NewMapValue(map[EscapeValue]string{
 	JSONEscape: "json",
 })
 

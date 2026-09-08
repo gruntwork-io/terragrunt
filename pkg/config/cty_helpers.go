@@ -1,4 +1,4 @@
-//nolint:dupl
+//nolint:dupl // the wrapStringSliceTo* helpers differ only in the cty type they return
 package config
 
 import (

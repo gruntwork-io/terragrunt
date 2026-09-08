@@ -2,6 +2,7 @@
 package cliconfig
 
 import (
+	"io"
 	"maps"
 	"slices"
 
@@ -215,16 +216,17 @@ func (cfg *Config) Save(configPath string) error {
 	gohcl.EncodeIntoBody(cfg, file.Body())
 
 	const ownerReadWritePerms = 0o600
-	if err := vfs.WriteFile(
+
+	return vfs.StreamFileAtomic(
 		cfg.FS(),
 		configPath,
-		file.Bytes(),
 		ownerReadWritePerms,
-	); err != nil {
-		return err
-	}
+		func(w io.Writer) error {
+			_, err := file.WriteTo(w)
 
-	return nil
+			return err
+		},
+	)
 }
 
 // CredentialsSource creates and returns a service credentials source whose behavior depends on which "credentials" if are present in the receiving config.

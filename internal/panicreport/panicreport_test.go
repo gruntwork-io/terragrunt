@@ -353,7 +353,7 @@ func TestIsPanic(t *testing.T) {
 
 			var arr []int
 
-			_ = arr[5] //nolint:staticcheck // intentional out-of-bounds to obtain a runtime.Error
+			_ = arr[5] // intentional out-of-bounds to obtain a runtime.Error
 		}()
 
 		assert.NotNil(t, rerr, "test setup: expected runtime panic")

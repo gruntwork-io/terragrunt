@@ -89,7 +89,7 @@ func (c *CAS) StoreLocalDirectory(
 		return fmt.Errorf("failed to parse local tree: %w", err)
 	}
 
-	return LinkTree(ctx, v, c.blobStore, c.treeStore, tree, targetDir, opts...)
+	return LinkTree(ctx, l, v, c.blobStore, c.treeStore, tree, targetDir, opts...)
 }
 
 // ComputeLocalRootHash walks dir in deterministic (lexical) order and produces a

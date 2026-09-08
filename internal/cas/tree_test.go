@@ -215,10 +215,10 @@ func TestLinkTreeSymlinks(t *testing.T) {
 						target = tt.wantLinks[entry.Path]
 					}
 
-					require.NoError(t, content.Store(l, v, entry.Hash, []byte(target)))
+					require.NoError(t, content.Store(l, v, entry.Hash, []byte(target), cas.StoredFilePerms))
 				default:
 					if data, ok := tt.wantBlobs[entry.Path]; ok {
-						require.NoError(t, content.Store(l, v, entry.Hash, data))
+						require.NoError(t, content.Store(l, v, entry.Hash, data, cas.StoredFilePerms))
 					}
 				}
 			}
@@ -226,7 +226,7 @@ func TestLinkTreeSymlinks(t *testing.T) {
 			targetDir := "/target"
 			require.NoError(t, v.FS.MkdirAll(targetDir, 0o755))
 
-			err = cas.LinkTree(t.Context(), v, store, store, tree, targetDir)
+			err = cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -292,13 +292,13 @@ func TestLinkTree(t *testing.T) {
 				// Create test content
 				testData := []byte("test content")
 				testHash := "a1b2c3d4"
-				err := content.Store(l, v, testHash, testData)
+				err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 				require.NoError(t, err)
 
 				// Create and store the src directory tree data
 				srcTreeData := `100644 blob a1b2c3d4 README.md`
 				srcTreeHash := "i9j0k1l2"
-				err = content.Store(l, v, srcTreeHash, []byte(srcTreeData))
+				err = content.Store(l, v, srcTreeHash, []byte(srcTreeData), cas.StoredFilePerms)
 				require.NoError(t, err)
 
 				return store, testHash
@@ -389,7 +389,7 @@ func TestLinkTree(t *testing.T) {
 			require.NoError(t, v.FS.MkdirAll(targetDir, 0755))
 
 			// Link the tree
-			err = cas.LinkTree(t.Context(), v, store, store, tree, targetDir)
+			err = cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

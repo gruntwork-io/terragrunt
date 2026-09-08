@@ -54,7 +54,7 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer resp.Body.Close() //nolint:errcheck // best-effort close of the response body
 
 	bodyBytes, err := decodeResponse(resp)
 	if err != nil {
