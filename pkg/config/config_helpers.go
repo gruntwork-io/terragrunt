@@ -110,6 +110,7 @@ const (
 	FuncNameConstraintCheck                         = "constraint_check"
 	FuncNameDeepMerge                               = "deep_merge"
 	FuncNameBase64Gzip                              = "base64gzip"
+	FuncNameBase64GzipCompat                        = "base64gzip_compat"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -362,7 +363,8 @@ func createTerragruntEvalContext(
 			pctx,
 			ConstraintCheck,
 		),
-		FuncNameDeepMerge: deepMergeMapValuesAsFuncImpl(pctx),
+		FuncNameDeepMerge:        deepMergeMapValuesAsFuncImpl(pctx),
+		FuncNameBase64GzipCompat: gzipcompat.Func(nil),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22

@@ -137,11 +137,13 @@ func TestBase64GzipStrictControl(t *testing.T) {
 	terraformExpected, err := tffuncs.Base64Gzip(cty.StringVal(input))
 	require.NoError(t, err)
 
-	assert.Equal(t, legacyExpected, parseBase64Gzip(t, input, false), "legacy bytes by default")
-	assert.Equal(t, terraformExpected.AsString(), parseBase64Gzip(t, input, true), "current encoder with the control")
+	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip", input, false), "legacy bytes by default")
+	assert.Equal(t, terraformExpected.AsString(), parseBase64Gzip(t, "base64gzip", input, true), "current encoder with the control")
+	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip_compat", input, false), "compat function without the control")
+	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip_compat", input, true), "compat function with the control")
 }
 
-func parseBase64Gzip(t *testing.T, input string, enableControl bool) any {
+func parseBase64Gzip(t *testing.T, funcName, input string, enableControl bool) any {
 	t.Helper()
 
 	l := logger.CreateLogger()
@@ -161,7 +163,7 @@ func parseBase64Gzip(t *testing.T, input string, enableControl bool) any {
 		pctx,
 		l,
 		cfgPath,
-		fmt.Sprintf("inputs = { test = base64gzip(%s) }", strconv.Quote(input)),
+		fmt.Sprintf("inputs = { test = %s(%s) }", funcName, strconv.Quote(input)),
 		nil,
 	)
 	require.NoError(t, err)

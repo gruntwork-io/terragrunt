@@ -62,6 +62,7 @@ var terragruntFuncNames = []string{
 	config.FuncNameMarkGlobAsRead,
 	config.FuncNameConstraintCheck,
 	config.FuncNameDeepMerge,
+	config.FuncNameBase64GzipCompat,
 }
 
 // newStackParsePctx builds a minimal ParsingContext sufficient for
