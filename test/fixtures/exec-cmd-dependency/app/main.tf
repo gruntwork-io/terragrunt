@@ -1,3 +1,0 @@
-variable "id" {
-  type = string
-}

@@ -13,23 +13,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNewFlagsRegistersSourceMapAndNoAutoInit pins the two flags issue 4200 reported missing on `exec`.
-func TestNewFlagsRegistersSourceMapAndNoAutoInit(t *testing.T) {
+// TestNewFlagsRegistersSourceAndAutoInitFlags pins the flags issue 4200 reported missing on `exec`.
+func TestNewFlagsRegistersSourceAndAutoInitFlags(t *testing.T) {
 	t.Parallel()
 
 	flags := newExecFlags(t)
 
-	for _, name := range []string{shared.SourceMapFlagName, shared.NoAutoInitFlagName} {
+	for _, name := range []string{shared.SourceFlagName, shared.SourceMapFlagName, shared.NoAutoInitFlagName} {
 		assert.NotNil(t, flags.Get(name), name)
 	}
 }
 
-// TestNewFlagsParsesSourceMapAndNoAutoInit covers both flags across CLI values, env vars and deprecated env vars.
-func TestNewFlagsParsesSourceMapAndNoAutoInit(t *testing.T) {
+// TestNewFlagsParsesSourceAndAutoInitFlags covers the three flags across CLI values, env vars and deprecated env vars.
+func TestNewFlagsParsesSourceAndAutoInitFlags(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name              string
+		expectedSource    string
 		env               map[string]string
 		expectedSourceMap map[string]string
 		args              clihelper.Args
@@ -37,6 +38,27 @@ func TestNewFlagsParsesSourceMapAndNoAutoInit(t *testing.T) {
 	}{
 		{
 			name:              "defaults leave auto-init on and the source map empty",
+			expectedSourceMap: map[string]string{},
+			expectedAutoInit:  true,
+		},
+		{
+			name:              "source flag",
+			args:              clihelper.Args{"--source", "/local/vpc"},
+			expectedSource:    "/local/vpc",
+			expectedSourceMap: map[string]string{},
+			expectedAutoInit:  true,
+		},
+		{
+			name:              "source env var",
+			env:               map[string]string{"TG_SOURCE": "/local/vpc"},
+			expectedSource:    "/local/vpc",
+			expectedSourceMap: map[string]string{},
+			expectedAutoInit:  true,
+		},
+		{
+			name:              "deprecated source env var",
+			env:               map[string]string{"TERRAGRUNT_SOURCE": "/local/vpc"},
+			expectedSource:    "/local/vpc",
 			expectedSourceMap: map[string]string{},
 			expectedAutoInit:  true,
 		},
@@ -128,11 +150,13 @@ func TestNewFlagsParsesSourceMapAndNoAutoInit(t *testing.T) {
 			expectedAutoInit:  true,
 		},
 		{
-			name: "both flags together",
+			name: "all flags together",
 			args: clihelper.Args{
+				"--source=/local/root",
 				"--source-map=git::ssh://git@github.com/acme/vpc.git=/local/vpc",
 				"--no-auto-init",
 			},
+			expectedSource: "/local/root",
 			expectedSourceMap: map[string]string{
 				"git::ssh://git@github.com/acme/vpc.git": "/local/vpc",
 			},
@@ -153,6 +177,7 @@ func TestNewFlagsParsesSourceMapAndNoAutoInit(t *testing.T) {
 
 			require.NoError(t, flags.Parse(tc.args, env))
 			require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
+			assert.Equal(t, tc.expectedSource, opts.Source)
 			assert.Equal(t, tc.expectedSourceMap, opts.SourceMap)
 			assert.Equal(t, tc.expectedAutoInit, opts.AutoInit)
 		})

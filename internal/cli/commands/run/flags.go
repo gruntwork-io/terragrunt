@@ -38,7 +38,6 @@ const (
 	NoDestroyDependenciesCheckFlagName = "no-destroy-dependencies-check"
 	DestroyDependenciesCheckFlagName   = "destroy-dependencies-check"
 
-	SourceFlagName       = "source"
 	SourceUpdateFlagName = "source-update"
 
 	NoStackGenerate = "no-stack-generate"
@@ -79,6 +78,7 @@ const (
 
 	// Source and auto-init flags - use shared package constants
 	NoAutoInitFlagName = shared.NoAutoInitFlagName
+	SourceFlagName     = shared.SourceFlagName
 	SourceMapFlagName  = shared.SourceMapFlagName
 
 	// Auth and IAM flags - use shared package constants
@@ -223,13 +223,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 
 		shared.NewDownloadDirFlag(opts, prefix),
 
-		flags.NewFlag(&clihelper.GenericFlag[string]{
-			Name:        SourceFlagName,
-			EnvVars:     tgPrefix.EnvVars(SourceFlagName),
-			Destination: &opts.Source,
-			Usage:       "Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source"), opts.StrictControls)),
+		shared.NewSourceFlag(opts, prefix),
 
 		flags.NewFlag(
 			&clihelper.BoolFlag{

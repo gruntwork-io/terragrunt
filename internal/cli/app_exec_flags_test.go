@@ -16,13 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestExecAcceptsSourceMapAndNoAutoInit drives the real app so that a missing flag registration
+// TestExecAcceptsSourceAndAutoInitFlags drives the real app so that a missing flag registration
 // fails the same way it does for a user, with an undefined-flag error from the `exec` command.
-func TestExecAcceptsSourceMapAndNoAutoInit(t *testing.T) {
+func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name              string
+		expectedSource    string
 		env               map[string]string
 		expectedSourceMap map[string]string
 		args              []string
@@ -31,6 +32,13 @@ func TestExecAcceptsSourceMapAndNoAutoInit(t *testing.T) {
 		{
 			name:              "no flags",
 			args:              []string{exec.CommandName, "--", "echo", "hi"},
+			expectedSourceMap: map[string]string{},
+			expectedAutoInit:  true,
+		},
+		{
+			name:              "source flag",
+			args:              []string{exec.CommandName, doubleDashed(run.SourceFlagName), "/local/vpc", "--", "echo", "hi"},
+			expectedSource:    "/local/vpc",
 			expectedSourceMap: map[string]string{},
 			expectedAutoInit:  true,
 		},
@@ -95,6 +103,7 @@ func TestExecAcceptsSourceMapAndNoAutoInit(t *testing.T) {
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 			require.NoError(t, runExecAppTest(t, opts, tc.env, tc.args))
+			assert.Equal(t, tc.expectedSource, opts.Source)
 			assert.Equal(t, tc.expectedSourceMap, opts.SourceMap)
 			assert.Equal(t, tc.expectedAutoInit, opts.AutoInit)
 		})
