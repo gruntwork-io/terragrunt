@@ -1105,7 +1105,7 @@ func newMemTestDir(tb testing.TB) (*venv.Venv, string) {
 func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
-	ctx := tb.Context()
+	ctx := config.WithConfigValues(tb.Context())
 	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 
 	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(configPath)

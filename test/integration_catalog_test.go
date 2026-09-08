@@ -58,7 +58,7 @@ const (
 func TestCatalogGitRepoUpdate(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithConfigValues(t.Context())
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
@@ -89,7 +89,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 func TestScaffoldGitRepo(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithConfigValues(t.Context())
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
@@ -113,7 +113,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 func TestScaffoldGitModule(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithConfigValues(t.Context())
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
@@ -202,9 +202,10 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 
 	l := logger.CreateLogger()
 	v := venv.OSVenv()
+	ctx := config.WithConfigValues(t.Context())
 	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
-		t.Context(),
+		ctx,
 		l,
 		v,
 		pctx,
