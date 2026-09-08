@@ -67,6 +67,18 @@ type ContextLocker interface {
 	LockContext(ctx context.Context, name string) (Unlocker, error)
 }
 
+// FSWorkers bounds how many goroutines may run filesystem metadata
+// operations at once.
+//
+// Measurement on APFS (the default for macOS) puts the ceiling at four
+// before performance starts to degrade. Until we have more granular
+// concurrency controls than `--parallelism`, we should use this as the
+// ceiling for filesystem workers.
+//
+// Callers that fan out over per-file work should cap their errgroup here
+// rather than at GOMAXPROCS.
+const FSWorkers = 4
+
 const maxSymlinkEvaluations = 255
 
 // NewOSFS returns a filesystem backed by the real operating system filesystem.

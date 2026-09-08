@@ -1,0 +1,22 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### Faster first-time source downloads
+
+The first time Terragrunt stores a repository in the [Content Addressable Store (CAS)](/features/caching/cas), it copies the content of every file out of the clone. It used to launch a separate `git` process for each one, and on repositories with many files those launches dominated the time.
+
+Terragrunt now reads a repository's content through a single long-lived `git` process, and stores several files at a time.
+
+In [benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/cas/cold_ingest_benchmark_test.go) on an Apple M3 Max:
+
+| files | before | after | change |
+| --- | --- | --- | --- |
+| 200 | 2.16s | 0.38s | -83% |
+| 1,000 | 10.41s | 0.74s | -93% |
+| 3,000 | 34.25s | 1.69s | -95% |
+
+The saving grows with the number of files.
+
+This applies when the CAS does not already hold the content, such as the first use of a new module version or a run against an empty store. Downloads that the CAS can already serve skipped this work before and are unchanged.

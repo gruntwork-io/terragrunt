@@ -57,4 +57,20 @@ var (
 	ErrReadTree            = errors.New("failed to read tree")
 	ErrNoWorkDir           = errors.New("working directory not set")
 	ErrUnknownRevision     = errors.New("unknown revision")
+
+	// ErrCatFileMissing reports that `git cat-file --batch` knows no object by
+	// the requested name.
+	ErrCatFileMissing = errors.New("object not found")
+	// ErrCatFileAmbiguous reports that the requested name abbreviates more
+	// than one object known to `git cat-file --batch`.
+	ErrCatFileAmbiguous = errors.New("object name is ambiguous")
+	// ErrCatFileNotBlob reports that the requested object exists but is not a
+	// blob.
+	ErrCatFileNotBlob = errors.New("object is not a blob")
+	// ErrCatFileFraming reports a `git cat-file --batch` response that does not
+	// follow the framing git-cat-file(1) documents.
+	ErrCatFileFraming = errors.New("malformed git cat-file --batch response")
+	// ErrCatFileShortRead reports a `git cat-file --batch` stream that ended
+	// before the requested object was delivered in full.
+	ErrCatFileShortRead = errors.New("git cat-file --batch ended before delivering the object")
 )
