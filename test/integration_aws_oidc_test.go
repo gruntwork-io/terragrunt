@@ -268,8 +268,8 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T)
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	defer func() {
-		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint: usetesting
-		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint: usetesting
+		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint:usetesting // the bucket cleanup below needs the real creds back before t.Cleanup runs
+		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint:usetesting // as above
 
 		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	}()

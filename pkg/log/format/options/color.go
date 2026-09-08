@@ -44,7 +44,7 @@ const (
 )
 
 var (
-	colorList = NewColorList(map[ColorValue]string{ //nolint:gochecknoglobals
+	colorList = NewColorList(map[ColorValue]string{
 		PresetColor:   "preset",
 		GradientColor: "gradient",
 		DisableColor:  "disable",
@@ -68,7 +68,7 @@ var (
 		LightWhiteColor:   "light-white",
 	})
 
-	colorScheme = ColorScheme{ //nolint:gochecknoglobals
+	colorScheme = ColorScheme{
 		BlackColor:        "black",
 		RedColor:          "red",
 		WhiteColor:        "white",
@@ -157,7 +157,7 @@ const (
 
 // ansiBaseColors maps the historical color names accepted by this package to
 // their corresponding ANSI palette index.
-var ansiBaseColors = map[string]int{ //nolint:gochecknoglobals
+var ansiBaseColors = map[string]int{
 	"black":   ansiBlack,
 	"red":     ansiRed,
 	"green":   ansiGreen,
@@ -321,7 +321,7 @@ var (
 	// sequentially to each unique text in a rotating order
 	// https://user-images.githubusercontent.com/995050/47952855-ecb12480-df75-11e8-89d4-ac26c50e80b9.png
 	// https://www.hackitu.de/termcolor256/
-	defaultAutoColorValues = []ColorValue{ //nolint:gochecknoglobals
+	defaultAutoColorValues = []ColorValue{
 		66,
 		67,
 		95,

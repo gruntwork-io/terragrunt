@@ -126,7 +126,7 @@ func validateOutputsMap(t *testing.T, rootPath string, expected map[string]any) 
 
 	// Validate outputs against expected values
 	for key, expected := range expected {
-		assert.EqualValues(t, expected, outputs[key].Value) //nolint:testifylint
+		assert.EqualValues(t, expected, outputs[key].Value)
 	}
 }
 

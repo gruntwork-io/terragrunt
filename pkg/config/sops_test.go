@@ -1,6 +1,6 @@
 //go:build sops
 
-package config //nolint:testpackage // needs access to sopsDecryptFileImpl
+package config_test
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
@@ -70,13 +72,13 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) {
 		t.Parallel()
 
 		l := logger.CreateLogger()
-		ctx := WithConfigValues(t.Context())
+		ctx := config.WithConfigValues(t.Context())
 		v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "fresh-token"})
 
-		_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+		_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
 
-		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
+		result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
 		require.NoError(t, err, "decrypt must succeed with credentials from the venv")
 		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 	})
@@ -85,13 +87,13 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) {
 		t.Parallel()
 
 		l := logger.CreateLogger()
-		ctx := WithConfigValues(t.Context())
+		ctx := config.WithConfigValues(t.Context())
 		v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
-		_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+		_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
 
-		_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
+		_, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
 		require.Error(t, err,
 			"decrypt must fail without auth credentials, reproducing original issue #5515")
 	})
@@ -99,7 +101,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) {
 
 // TestSOPSDecryptLeavesProcessEnvAlone pins that a credential the run was
 // started with outlives a decrypt that carried its own value for the same name.
-func TestSOPSDecryptLeavesProcessEnvAlone(t *testing.T) { //nolint:paralleltest // t.Setenv
+func TestSOPSDecryptLeavesProcessEnvAlone(t *testing.T) { // t.Setenv bars t.Parallel
 	const authKey = "SOPS_TEST_UNTOUCHED_CRED"
 
 	t.Setenv(authKey, "real-ci-token")
@@ -111,13 +113,13 @@ func TestSOPSDecryptLeavesProcessEnvAlone(t *testing.T) { //nolint:paralleltest 
 	})
 
 	l := logger.CreateLogger()
-	ctx := WithConfigValues(t.Context())
+	ctx := config.WithConfigValues(t.Context())
 	v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "venv-token"})
 
-	_, pctx := NewParsingContext(ctx, l, v, WithStrictControls(controls.New()))
+	_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
 	pctx.WorkingDir = filepath.Dir(secretFile)
 
-	_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", d)
+	_, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", d)
 	require.NoError(t, err)
 
 	assert.Equal(t, "real-ci-token", os.Getenv(authKey))

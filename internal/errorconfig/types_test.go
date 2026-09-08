@@ -18,7 +18,7 @@ func TestExtractErrorMessage_ExcludesCommandFlags(t *testing.T) {
 	var stderr bytes.Buffer
 	stderr.WriteString("flag provided but not defined: -abc")
 
-	err := util.ProcessExecutionError{
+	err := &util.ProcessExecutionError{
 		Err:        errors.New("exit status 1"),
 		Command:    "tofu",
 		Args:       []string{"plan", "-lock-timeout=120m", "-input=false"},
@@ -45,7 +45,7 @@ func TestExtractErrorMessage_DoesNotFalselyMatchTimeout(t *testing.T) {
 	var stderr bytes.Buffer
 	stderr.WriteString("flag provided but not defined: -abc")
 
-	err := util.ProcessExecutionError{
+	err := &util.ProcessExecutionError{
 		Err:        errors.New("exit status 1"),
 		Command:    "tofu",
 		Args:       []string{"plan", "-lock-timeout=120m", "-input=false", "-fes"},
@@ -78,7 +78,7 @@ func TestExtractErrorMessage_StillMatchesRealTimeout(t *testing.T) {
 	var stderr bytes.Buffer
 	stderr.WriteString("Error: timeout waiting for resource to become available")
 
-	err := util.ProcessExecutionError{
+	err := &util.ProcessExecutionError{
 		Err:        errors.New("exit status 1"),
 		Command:    "tofu",
 		Args:       []string{"apply", "-auto-approve"},
@@ -109,7 +109,7 @@ func TestExtractErrorMessage_StillMatchesTimeoutInStderrWithFlags(t *testing.T) 
 	var stderr bytes.Buffer
 	stderr.WriteString("Error: timeout waiting for state lock")
 
-	err := util.ProcessExecutionError{
+	err := &util.ProcessExecutionError{
 		Err:        errors.New("exit status 1"),
 		Command:    "tofu",
 		Args:       []string{"plan", "-lock-timeout=120m", "-input=false"},

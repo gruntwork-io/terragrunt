@@ -22,7 +22,7 @@ const (
 	DirectoryPath
 )
 
-var pathFormatList = NewMapValue(map[PathFormatValue]string{ //nolint:gochecknoglobals
+var pathFormatList = NewMapValue(map[PathFormatValue]string{
 	RelativePath:      "relative",
 	ShortRelativePath: "short-relative",
 	ShortPath:         "short",

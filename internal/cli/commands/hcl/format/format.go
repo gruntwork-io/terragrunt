@@ -217,7 +217,7 @@ func formatFromStdin(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions
 	needsFormatting := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && needsFormatting {
-		if _, err := v.Writers.Writer.Write(bytesDiff(contents, newContents, stdinPath)); err != nil {
+		if _, err := v.Writers.Writer.Write(BytesDiff(contents, newContents, stdinPath)); err != nil {
 			l.Errorf("Failed to print diff for stdin")
 
 			return err
@@ -282,7 +282,7 @@ func formatTgHCL(
 	fileUpdated := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && fileUpdated {
-		if _, err := v.Writers.Writer.Write(bytesDiff(contents, newContents, tgHclFile)); err != nil {
+		if _, err := v.Writers.Writer.Write(BytesDiff(contents, newContents, tgHclFile)); err != nil {
 			l.Errorf("Failed to print diff for %s", tgHclFile)
 			return err
 		}
@@ -320,8 +320,8 @@ func checkErrors(l log.Logger, v *venv.Venv, contents []byte, tgHclFile string) 
 	return nil
 }
 
-// bytesDiff returns a unified diff between the original and formatted HCL contents.
-func bytesDiff(b1, b2 []byte, name string) []byte {
+// BytesDiff returns a unified diff between the original and formatted HCL contents.
+func BytesDiff(b1, b2 []byte, name string) []byte {
 	// Diff labels are slash separated on every platform, so that consumers of the diff don't have to
 	// handle a Windows-specific spelling of the same label.
 	name = filepath.ToSlash(name)

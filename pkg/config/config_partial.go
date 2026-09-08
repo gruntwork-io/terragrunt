@@ -340,7 +340,7 @@ func mergeFeatureFlagConfig(
 			return nil, err
 		}
 	case DeepMergeMapOnly:
-		return nil, InvalidMergeStrategyTypeError(mergeStrategy)
+		return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 	default:
 		return nil, fmt.Errorf(
 			"you reached an impossible condition. "+
