@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -203,7 +204,8 @@ func ociTofuConfigSources(l log.Logger, v *venv.Venv) ([]string, error) {
 
 // ociTofuConfigFragments returns the config directory's *.tfrc and *.tfrc.json files, in filename order.
 func ociTofuConfigFragments(l log.Logger, v *venv.Venv) ([]string, error) {
-	dir, err := cliconfig.UserConfigDir(v)
+	// OCI provider mirrors are an OpenTofu-only feature, so tofu's file locations always apply.
+	dir, err := cliconfig.UserConfigDir(v, tfimpl.OpenTofu)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +267,8 @@ func ociTofuConfigPath(l log.Logger, v *venv.Venv) (string, error) {
 		return override, nil
 	}
 
-	for _, candidate := range cliconfig.UserConfigCandidates(v) {
+	// OCI provider mirrors are an OpenTofu-only feature, so tofu's file locations always apply.
+	for _, candidate := range cliconfig.UserConfigCandidates(v, tfimpl.OpenTofu) {
 		exists, err := vfs.FileExists(v.FS, candidate)
 		if err != nil {
 			return "", ociTofuConfigError(candidate, err)
