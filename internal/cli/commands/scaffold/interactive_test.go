@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -43,7 +44,7 @@ func prepare(t *testing.T, source string) *scaffold.Plan {
 	v := venv.OSVenv()
 
 	plan, err := scaffold.Prepare(
-		t.Context(), logger.CreateLogger(), v, opts, source, "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, source, "",
 	)
 	require.NoError(t, err)
 
@@ -121,7 +122,7 @@ func TestRunInteractiveNonInteractiveSkipsTheForm(t *testing.T) {
 	opts.NonInteractive = true
 
 	require.NoError(t, scaffold.RunInteractive(
-		t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, source, "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), venv.OSVenv(), opts, source, "",
 	))
 
 	values := readFile(t, filepath.Join(outputDir, "terragrunt.values.hcl"))
@@ -153,7 +154,7 @@ func TestRunInteractiveWithoutTerminalSkipsTheForm(t *testing.T) {
 	opts.WorkingDir = outputDir
 
 	require.NoError(t, scaffold.RunInteractive(
-		t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, source, "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), venv.OSVenv(), opts, source, "",
 	))
 
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))

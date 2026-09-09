@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -59,7 +60,7 @@ dependency "db" {
 		WithGraphTarget(vpcDir)
 
 	configs, err := d.Discover(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
 		opts,
@@ -114,14 +115,14 @@ dependency "db" {
 	configsA, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithFilters(filters).
-		Discover(t.Context(), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
-		Discover(t.Context(), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(
@@ -159,7 +160,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 		WithGraphTarget(vpcDir)
 
 	configs, err := d.Discover(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
 		opts,
@@ -204,7 +205,7 @@ dependency "vpc" {
 		WithOptions(graphTargetOpt)
 
 	configs, err := d.Discover(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
 		opts,

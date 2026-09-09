@@ -66,7 +66,7 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 		barrier = make(chan struct{})
 	)
 
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 
 	for i, f := range files {
 		wg.Add(1)
@@ -129,7 +129,7 @@ func TestSOPSDecryptDistinctPathsOverlapWithRacing(t *testing.T) {
 			return os.ReadFile(path)
 		})
 
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 
 	var wg sync.WaitGroup
 
@@ -187,7 +187,7 @@ func TestSOPSDecryptDeduplicatesSamePathWithRacing(t *testing.T) {
 		barrier = make(chan struct{})
 	)
 
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 
 	for range numGoroutines {
 		wg.Go(func() {

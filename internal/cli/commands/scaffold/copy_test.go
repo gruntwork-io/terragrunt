@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -142,7 +143,8 @@ func TestScaffoldRefusesToOverwriteWhenCopying(t *testing.T) {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
-	err = scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, "")
+	ctx := config.WithCaches(t.Context())
+	err = scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, "")
 	require.Error(t, err)
 
 	assert.NoFileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
@@ -176,9 +178,11 @@ func runScaffold(t *testing.T, source string) string {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
+	ctx := config.WithCaches(t.Context())
+
 	require.NoError(
 		t,
-		scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, ""),
+		scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, ""),
 	)
 
 	return outputDir

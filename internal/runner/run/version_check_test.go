@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/go-version"
@@ -216,7 +217,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	}
 	e := vexec.NewMemExec(handler)
 
-	ctx := run.WithRunVersionCache(t.Context())
+	ctx := config.WithCaches(t.Context())
 	l := logger.CreateLogger()
 
 	tfOpts := func(binary string) *tf.TFOptions {

@@ -1135,11 +1135,8 @@ func getTerragruntOutput(
 }
 
 // CollectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
-//
-// Every element of an expanded unit carries its block's label, so keying by name alone would
-// keep only the last one, each element having read a different generated directory. An expanded
-// unit nests its elements under their iteration key instead, reaching one as
-// dependency.<stack>.outputs.<unit>["<key>"], the address `terragrunt stack output` gives it.
+// An expanded unit nests its elements under their iteration key, reaching one as
+// dependency.<stack>.outputs.<unit>["<key>"].
 func CollectStackUnitOutputs(
 	ctx context.Context,
 	pctx *ParsingContext,

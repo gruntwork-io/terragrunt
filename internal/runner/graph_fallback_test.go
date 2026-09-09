@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -24,7 +25,7 @@ import (
 func TestTFGraphFallbackMatchesFilterExperiment(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	l := thlogger.CreateLogger()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)

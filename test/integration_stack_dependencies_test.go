@@ -362,7 +362,9 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx, pctx := configbridge.NewParsingContext(
+		config.WithCaches(t.Context()), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()),
+	)
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -405,7 +407,9 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx, pctx := configbridge.NewParsingContext(
+		config.WithCaches(t.Context()), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()),
+	)
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -431,7 +435,9 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx, pctx := configbridge.NewParsingContext(
+		config.WithCaches(t.Context()), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()),
+	)
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		vfs.NewOSFS(),
@@ -1921,7 +1927,12 @@ func newStackDepsParsingContext(
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
 	opts.TerragruntConfigPath = configPath
 
-	return configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), opts)
+	return configbridge.NewParsingContext(
+		config.WithCaches(t.Context()),
+		l,
+		venv.OSVenv(),
+		opts,
+	)
 }
 
 // partialParseDiscovery partial parses a unit config the way discovery does, with the

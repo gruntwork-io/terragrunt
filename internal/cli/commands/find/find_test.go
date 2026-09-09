@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -519,7 +520,7 @@ locals {
 			r, w, err := os.Pipe()
 			require.NoError(t, err)
 
-			err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+			err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
@@ -581,7 +582,7 @@ dependency "target" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())
@@ -696,7 +697,7 @@ exclude {
 	var buf strings.Builder
 
 	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	var found find.FoundComponents
 
@@ -735,7 +736,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			opts.Format = tc.format
 
 			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
-			require.ErrorIs(t, find.Run(t.Context(), newTestLogger(t), v, opts), errWriteFailed)
+			require.ErrorIs(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts), errWriteFailed)
 		})
 	}
 }
@@ -780,7 +781,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
 
-			require.Error(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+			require.Error(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Empty(t, buf.String())
 		})
 	}

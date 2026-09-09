@@ -1061,7 +1061,9 @@ func runAppTest(
 	}
 	app.ExitErrHandler = cli.ExitErrHandler
 
-	err := app.Run(append([]string{"--"}, args...))
+	ctx := config.WithCaches(context.Background())
+
+	err := app.RunContext(ctx, append([]string{"--"}, args...))
 
 	return opts, err
 }

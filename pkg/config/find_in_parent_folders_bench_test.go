@@ -29,7 +29,7 @@ func BenchmarkFindInParentFolders(b *testing.B) {
 				for b.Loop() {
 					// A fresh cache per iteration: caches are per run, so a run
 					// never starts warm.
-					ctx := config.WithConfigValues(baseCtx)
+					ctx := config.WithCaches(baseCtx)
 
 					for _, configPath := range configPaths {
 						pctx.TerragruntConfigPath = configPath

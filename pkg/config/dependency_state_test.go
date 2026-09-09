@@ -925,7 +925,7 @@ inputs = {
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
 	ctx, pctx := newTestParsingContext(t, v, consumerPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState))
 

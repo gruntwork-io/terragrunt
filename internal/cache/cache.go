@@ -120,11 +120,12 @@ func (c *ExpiringCache[V]) Put(ctx context.Context, key string, value V, expirat
 	c.Cache[key] = ExpiringItem[V]{Value: value, Expiration: expiration}
 }
 
-// ContextCache returns cache from the context. If the cache is nil, it creates a new instance.
+// ContextCache returns the cache installed on ctx under key. It panics when no cache is
+// installed there.
 func ContextCache[T any](ctx context.Context, key any) *Cache[T] {
 	cacheInstance, ok := ctx.Value(key).(*Cache[T])
 	if !ok || cacheInstance == nil {
-		cacheInstance = NewCache[T](fmt.Sprintf("%v", key))
+		panic(fmt.Sprintf("cache %T(%v) is not installed on the context", key, key))
 	}
 
 	return cacheInstance

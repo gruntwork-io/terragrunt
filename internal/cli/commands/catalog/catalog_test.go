@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -36,7 +37,7 @@ func TestRunOnEmptyWorkspaceWritesNothing(t *testing.T) {
 	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
 	)
 
 	require.NoError(t, err)
@@ -90,7 +91,7 @@ func TestRunReportsEveryUnreachableSource(t *testing.T) {
 			}
 
 			err := catalog.Run(
-				t.Context(), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
+				config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
 			)
 
 			var loadErr *tui.SourceLoadError
@@ -128,7 +129,7 @@ func TestRunLoadsARepoNamedTwiceOnce(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
 	var loadErr *tui.SourceLoadError
@@ -166,7 +167,7 @@ func TestRunWritesComponentsFromTheCatalogBlock(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
 	require.NoError(t, err)
@@ -191,7 +192,7 @@ func TestRunToleratesAnUnparseableCatalogConfig(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
 	require.NoError(t, err)
@@ -210,7 +211,7 @@ func TestRunWithAnExplicitRepoURLSkipsDiscovery(t *testing.T) {
 	writeUnit(t, v, filepath.Join(workDir, "vpc"), "github.com/acme/discovered//modules/x")
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v,
+		config.WithCaches(t.Context()), logger.CreateLogger(), v,
 		newOptions(t, workDir, catalog.FormatJSONL), "github.com/acme/explicit",
 	)
 
@@ -225,7 +226,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 	t.Parallel()
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), venvtest.New(),
+		config.WithCaches(t.Context()), logger.CreateLogger(), venvtest.New(),
 		newOptions(t, "/catalog-unknown-format", "yaml"), "github.com/acme/vpc",
 	)
 

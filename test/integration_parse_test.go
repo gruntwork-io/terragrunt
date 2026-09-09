@@ -84,7 +84,7 @@ func TestParseAllFixtureFiles(t *testing.T) {
 			l := logger.CreateLogger()
 
 			ctx, pctx := configbridge.NewParsingContext(
-				context.TODO(), // Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
+				config.WithCaches(context.TODO()), // Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
 				l,
 				venv.OSVenv(),
 				opts,

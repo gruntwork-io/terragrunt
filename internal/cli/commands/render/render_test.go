@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -31,7 +32,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	opts.Write = false
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
 		opts,
@@ -59,7 +60,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	opts.Write = false
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
 		opts,
@@ -86,7 +87,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	opts.OutputPath = outputPath
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
 		opts,
@@ -149,7 +150,7 @@ func TestRenderWriteWithoutOutputPath(t *testing.T) {
 			opts.Write = true
 
 			err := render.Run(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
 				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
 				opts,
@@ -227,7 +228,7 @@ func renderToFilePerm(t *testing.T, format, outputPath string) os.FileMode {
 	opts.OutputPath = outputPath
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
 		opts,
@@ -247,7 +248,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	opts.Format = "invalid"
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
 		opts,
@@ -265,7 +266,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	var renderedBuffer bytes.Buffer
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer),
 		opts,
@@ -287,7 +288,7 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 	opts.Write = false
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
 		opts,

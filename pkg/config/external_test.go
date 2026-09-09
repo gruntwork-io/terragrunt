@@ -433,7 +433,7 @@ inputs = {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -468,7 +468,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	v := cty.ObjectVal(map[string]cty.Value{})
@@ -510,7 +510,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	sc, err := config.ReadStackConfigString(
@@ -550,7 +550,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	v := cty.ObjectVal(map[string]cty.Value{
@@ -594,7 +594,7 @@ region   = "us-west-2"
 		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
 	)
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	// Read values from the file on disk.
@@ -640,7 +640,7 @@ region = "eu-west-1"
 		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
 	)
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
 
 	// Use a configPath inside the temp dir so ParseConfig discovers the

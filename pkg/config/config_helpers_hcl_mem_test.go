@@ -28,7 +28,7 @@ func TestHCLGetRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/synthetic/repo/root/unit/terragrunt.hcl")
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -57,7 +57,7 @@ func TestHCLGetPathFromRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/repo/services/api/terragrunt.hcl")
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.WorkingDir = "/repo/services/api"
 
 	const hcl = `locals {
@@ -81,7 +81,7 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/repo/services/api/terragrunt.hcl")
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.WorkingDir = "/repo/services/api"
 
 	const hcl = `locals {
@@ -105,7 +105,7 @@ func TestHCLGetRepoRootPropagatesGitError(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/not/a/repo/terragrunt.hcl")
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -130,7 +130,7 @@ func TestHCLRunCmd(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), t.TempDir()+"/terragrunt.hcl")
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   account = run_cmd("--terragrunt-quiet", "describe", "--account", "prod")
