@@ -3,10 +3,12 @@ package git_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -254,7 +256,10 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
 				return runner.CreateDetachedWorktree(ctx, "/worktree", "HEAD")
 			},
-			args: []string{"worktree", "add", "--detach", "/worktree", "HEAD"},
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.FSWorkers),
+				"worktree", "add", "--detach", "/worktree", "HEAD",
+			},
 		},
 		{
 			name: "remove",

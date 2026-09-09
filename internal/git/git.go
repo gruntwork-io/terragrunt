@@ -441,7 +441,11 @@ func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string)
 		return err
 	}
 
-	cmd := g.prepareCommand(ctx, "worktree", "add", "--detach", dir, ref)
+	cmd := g.prepareCommand(
+		ctx,
+		"-c", "checkout.workers="+strconv.Itoa(vfs.FSWorkers),
+		"worktree", "add", "--detach", dir, ref,
+	)
 
 	var stdout, stderr bytes.Buffer
 

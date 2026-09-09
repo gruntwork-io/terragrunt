@@ -29,6 +29,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// worktreesPerPair is the number of worktrees in a comparison pair: the from worktree and the to worktree.
+const worktreesPerPair = 2
+
 // Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
 // The key is the string representation of the GitExpression that generated the worktree pair.
 type Worktrees struct {
@@ -105,16 +108,16 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) erro
 		len(w.WorktreePairs),
 		repoRemote,
 		func(ctx context.Context) error {
-			seen := make(map[string]struct{})
+			toRemove := w.worktreesToRemove()
+			if len(toRemove) == 0 {
+				return nil
+			}
 
-			for _, pair := range w.WorktreePairs {
-				for _, worktree := range []Worktree{pair.FromWorktree, pair.ToWorktree} {
-					if _, ok := seen[worktree.Path]; ok {
-						continue
-					}
+			g, groupCtx := errgroup.WithContext(ctx)
+			g.SetLimit(min(vfs.FSWorkers, len(toRemove)))
 
-					seen[worktree.Path] = struct{}{}
-
+			for _, worktree := range toRemove {
+				g.Go(func() error {
 					// Skip removal if the worktree path doesn't exist (may have been cleaned up already)
 					if _, err := fsys.Stat(worktree.Path); errors.Is(err, fs.ErrNotExist) {
 						l.Debugf(
@@ -122,11 +125,11 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) erro
 							worktree.Path,
 						)
 
-						continue
+						return nil
 					}
 
 					err := filter.TraceGitWorktreeRemove(
-						ctx,
+						groupCtx,
 						worktree.Ref,
 						worktree.Path,
 						func(ctx context.Context) error {
@@ -146,7 +149,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) erro
 								err,
 							)
 
-							continue
+							return nil
 						}
 
 						return fmt.Errorf(
@@ -156,12 +159,40 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) erro
 							err,
 						)
 					}
-				}
+
+					return nil
+				})
 			}
 
-			return nil
+			return g.Wait()
 		},
 	)
+}
+
+// worktreesToRemove returns the worktrees Cleanup has to delete, one entry per
+// path. A reference that failed to materialize is left out: it carries no path,
+// and the pair it belongs to was recorded all the same.
+func (w *Worktrees) worktreesToRemove() []Worktree {
+	seen := make(map[string]struct{}, len(w.WorktreePairs)*worktreesPerPair)
+	toRemove := make([]Worktree, 0, len(w.WorktreePairs)*worktreesPerPair)
+
+	for _, pair := range w.WorktreePairs {
+		for _, worktree := range []Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if worktree.Path == "" {
+				continue
+			}
+
+			if _, ok := seen[worktree.Path]; ok {
+				continue
+			}
+
+			seen[worktree.Path] = struct{}{}
+
+			toRemove = append(toRemove, worktree)
+		}
+	}
+
+	return toRemove
 }
 
 type StackDiff struct {
