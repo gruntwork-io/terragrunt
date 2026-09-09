@@ -1,0 +1,12 @@
+---
+version: "v1.1.5"
+category: "experiments-updated"
+---
+
+#### `symlinks` experiment: `include_in_copy` copies the contents of symlinked directories again
+
+In v1.1.4, files behind a symlinked directory named in `include_in_copy` were not copied into the OpenTofu/Terraform working directory, so they were missing from `.terragrunt-cache`. `exclude_from_copy` patterns reaching through a symlinked directory also excluded nothing.
+
+With the [`symlinks` experiment](/reference/experiments/active#symlinks) enabled (`--experiment symlinks` or `TG_EXPERIMENT=symlinks`), patterns rooted at a symlinked directory expand through the link again, for both `include_in_copy` and `exclude_from_copy`, as in v1.1.3 and earlier. Without the experiment, the v1.1.4 behavior is unchanged.
+
+A link that points back at a directory already being copied, or at a parent of one, such as a link to the unit directory itself, is skipped. Terragrunt logs a warning naming the link when that happens.
