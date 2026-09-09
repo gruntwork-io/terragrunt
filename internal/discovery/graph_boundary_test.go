@@ -367,7 +367,7 @@ locals {
 				d = d.WithDiscoveryBoundary(tc.boundary)
 			}
 
-			configs, err := d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+			configs, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 
 			switch {
 			case tc.errAs != nil:

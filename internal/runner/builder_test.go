@@ -347,7 +347,7 @@ func TestNew_EngineSkipsVersionProbe(t *testing.T) {
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.IacEngine))
 
-	rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+	rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 	assert.Len(t, rnr.GetStack().Units, 2)
 }
@@ -360,7 +360,7 @@ func TestNew_DependencyCycle(t *testing.T) {
 	writeUnit(t, v, memRoot, "app", dependencyBlock("../vpc"))
 
 	rnr, err := runner.New(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		v,
 		newStackOpts(t, memRoot, tf.CommandNamePlan),
@@ -380,7 +380,7 @@ func TestNew_UnparsableUnitSource(t *testing.T) {
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 	opts.Source = "/local/modules"
 
-	rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+	rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
 
 	var target config.ParsingModulePathError
 
@@ -400,7 +400,7 @@ func TestCheckUnitVersionConstraints_UnparsableConfig(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(config.WithCaches(t.Context()), l, v, unitOpts, unitLogger, unit)
 
 	var diags hcl.Diagnostics
 
@@ -423,7 +423,7 @@ func TestCheckUnitVersionConstraints_InvalidEngineMeta(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(config.WithCaches(t.Context()), l, v, unitOpts, unitLogger, unit)
 
 	var target ctyhelper.NumberOutOfRangeError
 

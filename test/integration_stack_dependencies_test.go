@@ -381,7 +381,7 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venv.OSVenv()
 	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 
@@ -427,7 +427,7 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venv.OSVenv()
 	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 
@@ -456,7 +456,7 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venv.OSVenv()
 	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 

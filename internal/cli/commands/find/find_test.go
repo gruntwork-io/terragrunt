@@ -840,7 +840,7 @@ exclude {
 	var buf strings.Builder
 
 	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
 }

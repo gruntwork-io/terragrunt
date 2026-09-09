@@ -469,7 +469,7 @@ func TestRunnerPool_FailFastSkipsEntriesCancelledBeforeDispatch(t *testing.T) {
 			runner.WithMaxConcurrency(1),
 		)
 
-		err = dagRunner.Run(t.Context(), logger.CreateLogger())
+		err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 		require.ErrorIs(t, err, errA)
 
 		var earlyExit runner.UnitEarlyExitError
@@ -508,7 +508,7 @@ func TestRunnerPool_ReportsEntryFailedBeforeRun(t *testing.T) {
 		runner.WithMaxConcurrency(1),
 	)
 
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 
 	var failed runner.UnitFailedError
 
@@ -528,7 +528,7 @@ func TestRunnerPool_RecordsOutcomeCountsOnSpan(t *testing.T) {
 	errB := errors.New("unit B failed")
 
 	buf, tlm := newConsoleTelemeter(t)
-	ctx := telemetry.ContextWithTelemeter(t.Context(), tlm)
+	ctx := telemetry.ContextWithTelemeter(config.WithCaches(t.Context()), tlm)
 
 	dagRunner := runner.NewController(
 		q,

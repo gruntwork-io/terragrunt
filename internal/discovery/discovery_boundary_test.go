@@ -788,7 +788,7 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			opts.WorkingDir = tc.workDir
 			opts.RootWorkingDir = tc.workDir
 
-			components, err := d.Discover(t.Context(), l, v, opts)
+			components, err := d.Discover(config.WithCaches(t.Context()), l, v, opts)
 			require.NoError(t, err)
 
 			stacks := components.Filter(component.StackKind).Paths()

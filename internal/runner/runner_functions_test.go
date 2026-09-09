@@ -551,7 +551,7 @@ func TestNewFromComponents_DependencyCycle(t *testing.T) {
 	b.AddDependency(a)
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{a, b},
@@ -572,7 +572,7 @@ func TestNewFromComponents_FilterAllowDestroyWithoutDiscoveryContext(t *testing.
 	opts.TerraformCommand = "plan"
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},

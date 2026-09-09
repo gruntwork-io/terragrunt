@@ -230,7 +230,7 @@ func TestWorktreePhase_Integration_RemovedUnitDependencyIsNotDestroyed(t *testin
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir, Cmd: "apply"}).
 		WithWorktrees(w).
 		WithFilters(filters).
-		Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+		Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	fromWorktree := w.WorktreePairs["[HEAD~1...HEAD]"].FromWorktree.Path
@@ -1101,7 +1101,7 @@ func TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits(t *testing.T) 
 			opts.Filters = parsedFilters
 			opts.Experiments = experiment.NewExperiments()
 
-			err = generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
+			err = generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 			require.NoError(t, err)
 
 			pair := w.WorktreePairs["[HEAD~1...HEAD]"]
@@ -1121,7 +1121,7 @@ func TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits(t *testing.T) 
 				WithWorktrees(w).
 				WithFilters(parsedFilters)
 
-			components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+			components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 			require.NoError(t, err)
 
 			unitPaths := components.Filter(component.UnitKind).Paths()
@@ -1197,7 +1197,7 @@ func TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits(t *testing.T
 	opts.Filters = parsedFilters
 	opts.Experiments = experiment.NewExperiments()
 
-	err = generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
+	err = generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts, w)
 	require.NoError(t, err)
 
 	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
@@ -1220,7 +1220,7 @@ func TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits(t *testing.T
 		WithWorktrees(w).
 		WithFilters(parsedFilters)
 
-	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	units := components.Filter(component.UnitKind)
@@ -1314,7 +1314,7 @@ unit "app" {
 	opts.Filters = parsedFilters
 	opts.Experiments = experiment.NewExperiments()
 
-	require.NoError(t, generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w))
+	require.NoError(t, generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts, w))
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
 
@@ -1415,7 +1415,7 @@ unit "app" {
 	opts.Filters = parsedFilters
 	opts.Experiments = experiment.NewExperiments()
 
-	require.NoError(t, generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w))
+	require.NoError(t, generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts, w))
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
 
@@ -1514,7 +1514,7 @@ unit "app" {
 		opts.Filters = parsedFilters
 		opts.Experiments = experiment.NewExperiments()
 
-		require.NoError(t, generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w))
+		require.NoError(t, generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts, w))
 
 		readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
 

@@ -308,7 +308,7 @@ dependencies:
 	l := logger.CreateLogger()
 
 	plan, err := scaffold.Prepare(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		v,
 		opts,
@@ -319,7 +319,7 @@ dependencies:
 
 	t.Cleanup(func() { plan.Cleanup(v.FS) })
 
-	require.NoError(t, plan.Generate(t.Context(), l, v, opts, nil))
+	require.NoError(t, plan.Generate(config.WithCaches(t.Context()), l, v, opts, nil))
 
 	got := plan.GeneratedFiles()
 	assert.Contains(t, got, "terragrunt.hcl")
@@ -349,12 +349,12 @@ func TestGeneratedFilesEmptyAfterCopyingUnit(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 	l := logger.CreateLogger()
 
-	plan, err := scaffold.Prepare(t.Context(), l, v, opts, source, "")
+	plan, err := scaffold.Prepare(config.WithCaches(t.Context()), l, v, opts, source, "")
 	require.NoError(t, err)
 
 	t.Cleanup(func() { plan.Cleanup(v.FS) })
 
-	require.NoError(t, plan.Generate(t.Context(), l, v, opts, nil))
+	require.NoError(t, plan.Generate(config.WithCaches(t.Context()), l, v, opts, nil))
 
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(outputDir, "extra.hcl"))

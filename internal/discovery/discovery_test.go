@@ -731,7 +731,7 @@ func TestDiscovery_TracksReadsOnlyWhenRequested(t *testing.T) {
 			d := tc.configure(discovery.NewDiscovery(tmpDir))
 
 			components, err := d.Discover(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
 				venvtest.NewOSWithEmptyEnv(),
 				opts,

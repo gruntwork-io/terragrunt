@@ -182,7 +182,7 @@ func TestRunReportsASourceWhoseGitCommandsFail(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
 	var loadErr *tui.SourceLoadError
