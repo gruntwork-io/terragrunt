@@ -580,10 +580,10 @@ unit "test" {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	_, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackHclPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackHclPath)
 	pctx.WorkingDir = tempDir
 
-	stackConfig, err := config.ReadStackConfigFile(t.Context(), l, pctx, stackHclPath, nil)
+	stackConfig, err := config.ReadStackConfigFile(ctx, l, pctx, stackHclPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stackConfig)
 
@@ -608,7 +608,7 @@ func TestFindInParentFoldersSharedRunContext(t *testing.T) {
 
 	l := logger.CreateLogger()
 	baseCtx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), first)
-	ctx := config.WithConfigValues(baseCtx)
+	ctx := config.WithCaches(baseCtx)
 
 	firstPath, err := config.FindInParentFolders(ctx, pctx, l, []string{"root.hcl"})
 	require.NoError(t, err)
@@ -628,7 +628,7 @@ func TestFindInParentFoldersSharedRunContext(t *testing.T) {
 	require.NoError(t, os.WriteFile(nearerPath, nil, 0644))
 
 	nextRunPath, err := config.FindInParentFolders(
-		config.WithConfigValues(baseCtx),
+		config.WithCaches(baseCtx),
 		pctx,
 		l,
 		[]string{"root.hcl"},
@@ -657,7 +657,7 @@ func TestFindInParentFoldersSharedRunContextWithRacing(t *testing.T) {
 
 	l := logger.CreateLogger()
 	baseCtx, basePctx := newTestParsingContext(t, venvtest.NewWithOSFS(), configPaths[0])
-	ctx := config.WithConfigValues(baseCtx)
+	ctx := config.WithCaches(baseCtx)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
@@ -1084,7 +1084,7 @@ func newTestParsingContext(
 
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(
-		config.WithConfigValues(tb.Context()),
+		config.WithCaches(tb.Context()),
 		l,
 		v,
 		config.WithStrictControls(controls.New()),

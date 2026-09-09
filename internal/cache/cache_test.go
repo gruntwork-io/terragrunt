@@ -100,8 +100,6 @@ func TestContextCache(t *testing.T) {
 
 	ctx := t.Context()
 
-	// A missing entry is a wiring mistake, not a state to recover from. Handing back a detached
-	// instance would let a caller prime a cache nothing else can read.
 	assert.Panics(t, func() {
 		cache.ContextCache[int](ctx, "not-installed")
 	})

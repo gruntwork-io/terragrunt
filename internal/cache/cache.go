@@ -120,16 +120,12 @@ func (c *ExpiringCache[V]) Put(ctx context.Context, key string, value V, expirat
 	c.Cache[key] = ExpiringItem[V]{Value: value, Expiration: expiration}
 }
 
-// ContextCache returns the cache installed on ctx under key.
-//
-// Every command installs the caches it reads before running, so a missing one is a wiring
-// mistake rather than a state to recover from. Returning a detached cache instead would keep
-// working while silently caching nothing, turning the mistake into a slow run that no test
-// fails on, and leaving a caller that primes the cache to find its entries gone.
+// ContextCache returns the cache installed on ctx under key. It panics when no cache is
+// installed there.
 func ContextCache[T any](ctx context.Context, key any) *Cache[T] {
 	cacheInstance, ok := ctx.Value(key).(*Cache[T])
 	if !ok || cacheInstance == nil {
-		panic(fmt.Sprintf("cache %v is not installed on the context", key))
+		panic(fmt.Sprintf("cache %T(%v) is not installed on the context", key, key))
 	}
 
 	return cacheInstance

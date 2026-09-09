@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -57,7 +58,7 @@ func TestDiscoverySymlinksExperiment(t *testing.T) {
 		}
 
 		components, err := discovery.NewDiscovery(root).
-			Discover(t.Context(), logger.CreateLogger(), v, opts)
+			Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 
 		return components.Filter(component.UnitKind).Paths()

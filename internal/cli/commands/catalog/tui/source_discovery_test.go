@@ -127,7 +127,7 @@ inputs = {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), config.WithStrictControls(controls.New()))
+	ctx, pctx := config.NewParsingContext(config.WithCaches(t.Context()), l, venvtest.NewWithOSFS(), config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
@@ -145,7 +145,7 @@ func TestDiscoverSourceURLs_EmptyDir(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), config.WithStrictControls(controls.New()))
+	ctx, pctx := config.NewParsingContext(config.WithCaches(t.Context()), l, venvtest.NewWithOSFS(), config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)

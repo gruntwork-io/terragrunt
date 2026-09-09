@@ -51,23 +51,7 @@ func TestCollectStackUnitOutputsNestsExpandedElements(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, v, filepath.Join(stackUnitOutputsRoot, "terragrunt.hcl"))
 
-	// The caches the fetch path reads live on the context, and only WithConfigValues puts
-	// them there. Without it every lookup below builds a throwaway cache and misses.
-	ctx = config.WithConfigValues(ctx)
-
-	// Priming the fetch cache is what keeps this off a real tofu binary: the venv's exec is
-	// fail-closed, so a cache miss would surface as an error rather than a shell-out.
 	jsonCache := cache.ContextCache[[]byte](ctx, config.JSONOutputCacheContextKey)
-
-	// ContextCache hands back a detached instance when the key is absent, so dropping the call
-	// above would leave every Put below invisible to the fetch path and quietly send this test
-	// looking for a real tofu binary. Two lookups agreeing on one pointer prove it is installed.
-	require.Same(
-		t,
-		jsonCache,
-		cache.ContextCache[[]byte](ctx, config.JSONOutputCacheContextKey),
-		"the output cache is not on the context, so priming it below would do nothing",
-	)
 
 	for unitPath, out := range outputs {
 		jsonCache.Put(ctx, filepath.Join(
@@ -95,8 +79,6 @@ func TestCollectStackUnitOutputsNestsExpandedElements(t *testing.T) {
 
 	aurora := collected["aurora"]
 
-	// Asserted before reading an element, so a collapse reports the shape it collapsed to
-	// rather than panicking on a missing attribute.
 	for _, key := range []string{"web", "api"} {
 		require.Truef(
 			t,
@@ -110,7 +92,6 @@ func TestCollectStackUnitOutputsNestsExpandedElements(t *testing.T) {
 	assert.Equal(t, "web", role(aurora.GetAttr("web")))
 	assert.Equal(t, "api", role(aurora.GetAttr("api")))
 
-	// A unit with no expansion keeps the flat address it always had.
 	require.Contains(t, collected, "vpc")
 	assert.Equal(t, "vpc", role(collected["vpc"]))
 }

@@ -72,7 +72,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) {
 		t.Parallel()
 
 		l := logger.CreateLogger()
-		ctx := config.WithConfigValues(t.Context())
+		ctx := config.WithCaches(t.Context())
 		v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "fresh-token"})
 
 		_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
@@ -87,7 +87,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) {
 		t.Parallel()
 
 		l := logger.CreateLogger()
-		ctx := config.WithConfigValues(t.Context())
+		ctx := config.WithCaches(t.Context())
 		v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
 		_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
@@ -113,7 +113,7 @@ func TestSOPSDecryptLeavesProcessEnvAlone(t *testing.T) { // t.Setenv bars t.Par
 	})
 
 	l := logger.CreateLogger()
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "venv-token"})
 
 	_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))

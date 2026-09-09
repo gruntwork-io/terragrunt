@@ -1921,10 +1921,8 @@ func newStackDepsParsingContext(
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
 	opts.TerragruntConfigPath = configPath
 
-	// The caches the parse path reads are installed once per run, by the CLI. A test entering
-	// below that has to install them itself.
 	return configbridge.NewParsingContext(
-		config.WithConfigValues(t.Context()),
+		config.WithCaches(t.Context()),
 		l,
 		venv.OSVenv(),
 		opts,

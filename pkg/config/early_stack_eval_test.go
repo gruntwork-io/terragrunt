@@ -123,7 +123,7 @@ func TestEarlyStackParseFunctions_GetEnvReadsPctxEnv(t *testing.T) {
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.Venv.Env = map[string]string{"PLAN_KEY": "plan_value"}
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
+	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), baseDir, pctx)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetEnv].Call([]cty.Value{cty.StringVal("PLAN_KEY")})
@@ -208,7 +208,7 @@ func TestEarlyStackParseFunctions_GetTerraformCommandReadsPctx(t *testing.T) {
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.TerraformCommand = "plan"
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
+	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), baseDir, pctx)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerraformCommand].Call(nil)
@@ -224,7 +224,7 @@ func TestEarlyStackParseFunctions_GetTerraformCLIArgsReadsPctx(t *testing.T) {
 	pctx.TerraformCliArgs = iacargs.New()
 	pctx.TerraformCliArgs.InsertArguments(0, "-auto-approve")
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
+	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), baseDir, pctx)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerraformCLIArgs].Call(nil)
@@ -240,7 +240,7 @@ func TestEarlyStackParseFunctions_MarkAsReadAppendsToPctxFilesRead(t *testing.T)
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.FilesRead = config.NewFilesRead()
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
+	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), baseDir, pctx)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameMarkAsRead].Call([]cty.Value{cty.StringVal("inputs.yaml")})
@@ -289,7 +289,7 @@ unit "vpc" {
 
 	pctx := newStackParsePctx(t, stackDir)
 	funcsFor := func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
+		return config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), dir, pctx)
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
@@ -332,7 +332,7 @@ unit "vpc" {
 	)
 
 	funcsFor := func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
+		return config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), dir, pctx)
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(

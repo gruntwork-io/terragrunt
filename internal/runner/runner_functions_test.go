@@ -128,7 +128,7 @@ func TestNewFromComponents_Empty(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{},
@@ -170,7 +170,7 @@ func TestNewFromComponents_WithPreventDestroy(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, app},
@@ -213,7 +213,7 @@ func TestNewFromComponents_FilterAllowDestroy(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc},
@@ -306,7 +306,7 @@ func TestNewFromComponents_PreventDestroyExcludesDependencies(t *testing.T) {
 	opts.TerraformCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc, app},
@@ -329,7 +329,7 @@ func TestNewFromComponents_DestroyWithoutProtectedUnits(t *testing.T) {
 	opts.TerraformCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
@@ -355,7 +355,7 @@ func TestNewFromComponents_FilterAllowDestroyKeepsUnit(t *testing.T) {
 	opts.FilterAllowDestroy = true
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
@@ -371,7 +371,7 @@ func TestNewFromComponents_UnitWithoutParsedConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{component.NewUnit("/tmp/test/vpc")},
@@ -466,7 +466,7 @@ func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
 			opts.TerraformCommand = tf.CommandNameDestroy
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				thlogger.CreateLogger(),
 				opts,
 				tc.components(),
@@ -519,7 +519,7 @@ func TestNewFromComponents_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	opts.TerraformCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		components,
@@ -590,7 +590,7 @@ func TestNewFromComponents_WithGitRefsAndStateBackends(t *testing.T) {
 			require.NoError(t, err)
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				thlogger.CreateLogger(),
 				opts,
 				component.Components{unit},
@@ -613,7 +613,7 @@ func TestNewFromComponents_IgnoresStackComponents(t *testing.T) {
 	}
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		discovered,
@@ -677,7 +677,7 @@ func buildTestRunnerFromUnits(
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, components)
 	require.NoError(t, err)
 
 	return rnr
