@@ -1134,8 +1134,13 @@ func getTerragruntOutput(
 	return &convertedOutput, isEmpty, err
 }
 
-// collectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
-func collectStackUnitOutputs(
+// CollectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
+//
+// Every element of an expanded unit carries its block's label, so keying by name alone would
+// keep only the last one, each element having read a different generated directory. An expanded
+// unit nests its elements under their iteration key instead, reaching one as
+// dependency.<stack>.outputs.<unit>["<key>"], the address `terragrunt stack output` gives it.
+func CollectStackUnitOutputs(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
@@ -1144,6 +1149,22 @@ func collectStackUnitOutputs(
 	dependencyConfig *Dependency,
 ) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
+	instances := map[string]map[string]cty.Value{}
+
+	record := func(unit *Unit, value cty.Value) {
+		key, expanded := unit.InstanceKey()
+		if !expanded {
+			unitOutputs[unit.Name] = value
+
+			return
+		}
+
+		if instances[unit.Name] == nil {
+			instances[unit.Name] = map[string]cty.Value{}
+		}
+
+		instances[unit.Name][key] = value
+	}
 
 	for _, unit := range units {
 		if !unit.IsEnabled() {
@@ -1172,7 +1193,7 @@ func collectStackUnitOutputs(
 			}
 
 			if ok {
-				unitOutputs[unit.Name] = mock
+				record(unit, mock)
 				continue
 			}
 
@@ -1199,8 +1220,12 @@ func collectStackUnitOutputs(
 				return nil, fmt.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
 			}
 
-			unitOutputs[unit.Name] = convertedOutput
+			record(unit, convertedOutput)
 		}
+	}
+
+	for name, byKey := range instances {
+		unitOutputs[name] = cty.ObjectVal(byKey)
 	}
 
 	return unitOutputs, nil
@@ -1281,7 +1306,7 @@ func tryGetStackOutput(
 		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs, err := collectStackUnitOutputs(
+	unitOutputs, err := CollectStackUnitOutputs(
 		ctx,
 		pctx,
 		l,
