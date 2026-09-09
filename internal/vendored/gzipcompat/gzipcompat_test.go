@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/gzipcompat"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
