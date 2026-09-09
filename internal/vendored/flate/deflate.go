@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package gzipcompat
+// Package flate implements the DEFLATE compressor that gzipcompat encodes with.
+package flate
 
 import (
 	"cmp"
@@ -340,6 +341,24 @@ func (d *compressor) syncFlush() error {
 	d.sync = false
 
 	return d.err
+}
+
+// Compress writes the DEFLATE stream for data to w, matching the Write, Flush
+// and Close sequence the upstream Writer performs at the default level.
+func Compress(w io.Writer, data []byte) error {
+	var d compressor
+
+	d.init(w)
+
+	if _, err := d.write(data); err != nil {
+		return err
+	}
+
+	if err := d.syncFlush(); err != nil {
+		return err
+	}
+
+	return d.close()
 }
 
 func (d *compressor) init(w io.Writer) {

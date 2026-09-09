@@ -1,8 +1,5 @@
-// Copyright 2009 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 // Package gzipcompat reproduces the base64gzip() output of Terragrunt v1.1.3 and earlier.
+// It writes the RFC 1952 gzip framing itself and delegates compression to internal/vendored/flate.
 package gzipcompat
 
 import (
@@ -10,6 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"hash/crc32"
+
+	"github.com/gruntwork-io/terragrunt/internal/vendored/flate"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -22,19 +21,7 @@ func Encode(input string) (string, error) {
 	data := []byte(input)
 	output := bytes.NewBufferString(gzipHeader)
 
-	var d compressor
-
-	d.init(output)
-
-	if _, err := d.write(data); err != nil {
-		return "", err
-	}
-
-	if err := d.syncFlush(); err != nil {
-		return "", err
-	}
-
-	if err := d.close(); err != nil {
+	if err := flate.Compress(output, data); err != nil {
 		return "", err
 	}
 
