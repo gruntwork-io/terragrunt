@@ -41,7 +41,8 @@ func Encode(input string) (string, error) {
 	return base64.StdEncoding.EncodeToString(out), nil
 }
 
-// Func returns Encode as an HCL function of one string; onUse, when set, runs before each encoding.
+// Func returns Encode as an HCL function of one string. onUse runs before each
+// encoding and must not be nil; returning an error from it fails the call.
 func Func(onUse func() error) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -52,10 +53,8 @@ func Func(onUse func() error) function.Function {
 		},
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-			if onUse != nil {
-				if err := onUse(); err != nil {
-					return cty.UnknownVal(cty.String), err
-				}
+			if err := onUse(); err != nil {
+				return cty.UnknownVal(cty.String), err
 			}
 
 			encoded, err := Encode(args[0].AsString())
