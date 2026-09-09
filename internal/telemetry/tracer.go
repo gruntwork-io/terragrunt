@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"reflect"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -223,12 +226,26 @@ func (tracer *Tracer) Trace(
 	defer span.End()
 
 	if err := fn(ctx); err != nil {
-		// record error in span
+		// record error in span, set span status and error.type per the
+		// OpenTelemetry recording-errors convention so backends that
+		// classify errors by span status (not by exception events) see them.
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.SetAttributes(attribute.String("error.type", errorTypeName(err)))
 		return err
 	}
 
 	return nil
+}
+
+// errorTypeName returns the canonical Go type name of an error, used as a
+// low-cardinality value for the OpenTelemetry `error.type` attribute.
+func errorTypeName(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	return reflect.TypeOf(err).String()
 }
 
 // openSpan creates a new span with attributes.
