@@ -12,7 +12,7 @@ By default, Terragrunt will ignore symlinks when determining which units it shou
 
 <Since version="1.1.5">
 
-It also makes `include_in_copy` and `exclude_from_copy` glob patterns rooted at a symlinked directory expand through the link, so the contents of a linked directory are copied into (or excluded from) the OpenTofu/Terraform working directory. A link that points back at a directory already being copied is not followed again.
+It also makes `include_in_copy` and `exclude_from_copy` glob patterns rooted at a symlinked directory expand through the link, so the contents of a linked directory are copied into (or excluded from) the OpenTofu/Terraform working directory. A link that points back at a directory already being copied, or at a parent of one, is skipped with a warning.
 
 </Since>
 

@@ -255,7 +255,7 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 // source, descending into every matched directory. chain holds the resolved
 // directories already being descended when symlinkedGlobRoots is on; a matched
 // directory that resolves to one of them, or to an ancestor of one, is a link
-// back up the tree and is listed without being descended again (issue #6791).
+// back up the tree and is skipped (issue #6791).
 func expandGlobPath(
 	l log.Logger,
 	fsys vfs.FS,
@@ -287,6 +287,32 @@ func expandGlobPath(
 			continue
 		}
 
+		isDir := vfs.IsDir(fsys, absoluteExpandGlobPath)
+		next := chain
+
+		if isDir && symlinkedGlobRoots {
+			resolved, err := vfs.EvalSymlinks(fsys, absoluteExpandGlobPath)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("resolve glob match %q: %w", absoluteExpandGlobPath, err)
+			}
+
+			if linksBackIntoChain(resolved, chain) {
+				l.Warnf(
+					"Skipping %s while expanding copy patterns: it links back to %s, which is already being copied. Drop the link or narrow the pattern.",
+					absoluteExpandGlobPath,
+					resolved,
+				)
+
+				continue
+			}
+
+			next = append(slices.Clone(chain), resolved)
+		}
+
 		relativeExpandGlobPath, err := filepath.Rel(source, absoluteExpandGlobPath)
 		if err != nil {
 			return nil, fmt.Errorf(
@@ -302,33 +328,8 @@ func expandGlobPath(
 			filepath.ToSlash(relativeExpandGlobPath),
 		)
 
-		if !vfs.IsDir(fsys, absoluteExpandGlobPath) {
+		if !isDir {
 			continue
-		}
-
-		next := chain
-
-		if symlinkedGlobRoots {
-			resolved, err := vfs.EvalSymlinks(fsys, absoluteExpandGlobPath)
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-
-			if err != nil {
-				return nil, fmt.Errorf("resolve glob match %q: %w", absoluteExpandGlobPath, err)
-			}
-
-			if linksBackIntoChain(resolved, chain) {
-				l.Warnf(
-					"Not descending into %s while expanding copy patterns: it links back to %s, which is already being copied. Drop the link or narrow the pattern.",
-					absoluteExpandGlobPath,
-					resolved,
-				)
-
-				continue
-			}
-
-			next = append(slices.Clone(chain), resolved)
 		}
 
 		dirExpandGlob, err := expandGlobPath(l, fsys, source, absoluteExpandGlobPath+"/*", symlinkedGlobRoots, next)

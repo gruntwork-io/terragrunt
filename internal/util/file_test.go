@@ -1720,8 +1720,7 @@ func TestExcludeFromCopySymlinkedDirectory(t *testing.T) {
 
 // TestIncludeInCopySymlinkLoop pins that, with the symlinks experiment on, an
 // include_in_copy entry that links back at a directory already being copied
-// is not followed again (issue #6791): naming the link copies it as an empty
-// directory, and a pattern rooted at the link matches nothing.
+// is skipped with a warning instead of being followed again (issue #6791).
 func TestIncludeInCopySymlinkLoop(t *testing.T) {
 	t.Parallel()
 
@@ -1730,10 +1729,10 @@ func TestIncludeInCopySymlinkLoop(t *testing.T) {
 		pattern string
 		// link creates the loop under source, using outside for a hop outside source.
 		link func(t *testing.T, source, outside string)
-		// absent is the destination path that must not exist once the loop is cut.
-		absent []string
-		// wantLinkDir is whether the link itself lands in the destination as a directory.
-		wantLinkDir bool
+		// wantWarning is the warning the copy must log for the skipped link.
+		wantWarning string
+		// absent is the destination path, relative to it, that the skipped link must not produce.
+		absent string
 	}{
 		{
 			name:    "link to the source itself",
@@ -1742,8 +1741,8 @@ func TestIncludeInCopySymlinkLoop(t *testing.T) {
 				t.Helper()
 				require.NoError(t, os.Symlink(source, filepath.Join(source, ".loop")))
 			},
-			absent:      []string{".loop", "main.tf"},
-			wantLinkDir: true,
+			wantWarning: "links back to",
+			absent:      ".loop",
 		},
 		{
 			name:    "pattern rooted at a link to the source itself",
@@ -1752,7 +1751,8 @@ func TestIncludeInCopySymlinkLoop(t *testing.T) {
 				t.Helper()
 				require.NoError(t, os.Symlink(source, filepath.Join(source, ".loop")))
 			},
-			absent: []string{".loop"},
+			wantWarning: "Skipping copy pattern",
+			absent:      ".loop",
 		},
 		{
 			name:    "link back through a directory outside the source",
@@ -1762,8 +1762,8 @@ func TestIncludeInCopySymlinkLoop(t *testing.T) {
 				require.NoError(t, os.Symlink(source, filepath.Join(outside, "back")))
 				require.NoError(t, os.Symlink(outside, filepath.Join(source, ".loop")))
 			},
-			absent:      []string{".loop", "back", "main.tf"},
-			wantLinkDir: true,
+			wantWarning: "links back to",
+			absent:      filepath.Join(".loop", "back"),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1781,11 +1781,12 @@ func TestIncludeInCopySymlinkLoop(t *testing.T) {
 			tc.link(t, source, outside)
 
 			destination := filepath.Join(tempDir, "destination")
+			l, logs := createBufferedLogger()
 
 			require.NoError(
 				t,
 				util.CopyFolderContents(
-					logger.CreateLogger(),
+					l,
 					vfs.NewOSFS(),
 					source,
 					destination,
@@ -1796,15 +1797,8 @@ func TestIncludeInCopySymlinkLoop(t *testing.T) {
 			)
 
 			assert.FileExists(t, filepath.Join(destination, "main.tf"))
-			assert.NoFileExists(t, filepath.Join(append([]string{destination}, tc.absent...)...))
-
-			if !tc.wantLinkDir {
-				assert.NoDirExists(t, filepath.Join(destination, ".loop"))
-
-				return
-			}
-
-			assert.DirExists(t, filepath.Join(destination, ".loop"))
+			assert.NoDirExists(t, filepath.Join(destination, tc.absent))
+			assert.Contains(t, logs.String(), tc.wantWarning)
 		})
 	}
 }

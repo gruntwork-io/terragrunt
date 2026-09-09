@@ -317,3 +317,22 @@ func TestLegacyExpandSymlinkedRootEscapesToAncestor(t *testing.T) {
 		assert.Empty(t, got, "pattern %q", pattern)
 	}
 }
+
+// TestLegacyExpandCyclicSymlinkRootMatchesNothing pins that a pattern rooted
+// at a link that cannot be resolved because it points at itself matches
+// nothing without an error under [glob.WithSymlinkedRoots], the same as the
+// walk without the option. zglob reports the OS's too-many-links error here;
+// a broken link is treated like a dangling one instead of failing the copy.
+func TestLegacyExpandCyclicSymlinkRootMatchesNothing(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll("/src", 0o755))
+	require.NoError(t, vfs.Symlink(fsys, "/src/.loop", "/src/.loop"))
+
+	for _, opts := range [][]glob.LegacyExpandOption{nil, {glob.WithSymlinkedRoots()}} {
+		got, err := glob.LegacyExpand(fsys, "/src/.loop/*", opts...)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	}
+}

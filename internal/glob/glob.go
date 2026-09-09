@@ -233,19 +233,16 @@ func LegacyExpand(fsys vfs.FS, pattern string, opts ...LegacyExpandOption) ([]st
 	// symlinked directory expands through the link. Walking the link target
 	// while reporting entries under the root's own spelling keeps that
 	// behavior (issue #6791). A failed Lstat is deliberately left to the walk
-	// below, which probes the same root and surfaces the same error.
+	// below, which probes the same root and surfaces the same error. A
+	// dangling link reports not-exist as zglob does; a link that cannot be
+	// resolved for any other reason, such as a cycle, stays opaque and matches
+	// nothing rather than failing the caller.
 	walkRoot := root
 
 	if o.symlinkedRoots {
-		if info, lstatErr := vfs.Lstat(fsys, root); lstatErr == nil && info.Mode()&fs.ModeSymlink != 0 {
-			walkRoot, err = vfs.EvalSymlinks(fsys, root)
-			if err != nil {
-				return nil, err
-			}
-
-			if vfs.Within(fsys, walkRoot, filepath.Dir(root)) {
-				return nil, fmt.Errorf("%w: %q resolves to %q", ErrSymlinkedRootEscapes, root, walkRoot)
-			}
+		walkRoot, err = resolveSymlinkedRoot(fsys, root)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -356,4 +353,32 @@ func (o expandOptions) checkBoundary(fsys vfs.FS, root string) error {
 	}
 
 	return nil
+}
+
+// resolveSymlinkedRoot returns the directory to walk for root: the resolved
+// target when root is a symbolic link, root itself otherwise or when the link
+// cannot be resolved. A dangling link returns [fs.ErrNotExist]; a link that
+// resolves to one of its own ancestors returns [ErrSymlinkedRootEscapes].
+func resolveSymlinkedRoot(fsys vfs.FS, root string) (string, error) {
+	info, err := vfs.Lstat(fsys, root)
+
+	isLink := err == nil && info.Mode()&fs.ModeSymlink != 0
+	if !isLink {
+		return root, nil
+	}
+
+	resolved, err := vfs.EvalSymlinks(fsys, root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+
+	if err != nil {
+		return root, nil //nolint:nilerr // an unresolvable link, such as a cycle, is opaque and matches nothing
+	}
+
+	if vfs.Within(fsys, resolved, filepath.Dir(root)) {
+		return "", fmt.Errorf("%w: %q resolves to %q", ErrSymlinkedRootEscapes, root, resolved)
+	}
+
+	return resolved, nil
 }

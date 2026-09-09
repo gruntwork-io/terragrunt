@@ -92,7 +92,7 @@ The `terraform` block supports the following arguments:
 
   <Since version="1.1.5">
 
-  - With the [`symlinks` experiment](/reference/experiments/active#symlinks) enabled, a pattern may name a symlinked directory, and the contents of the link target are copied into the working directory. A link that points back at a directory already being copied is not followed, and Terragrunt logs a warning naming it.
+  - With the [`symlinks` experiment](/reference/experiments/active#symlinks) enabled, a pattern may name a symlinked directory, and the contents of the link target are copied into the working directory. A link that points back at a directory already being copied, or at a parent of one, is skipped, and Terragrunt logs a warning naming it.
 
   </Since>
 
