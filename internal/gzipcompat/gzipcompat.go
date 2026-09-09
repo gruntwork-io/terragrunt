@@ -16,14 +16,11 @@ const gzipHeader = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff"
 // Encode returns the gzip stream Terragrunt v1.1.3 produced for input, base64 encoded.
 func Encode(input string) (string, error) {
 	data := []byte(input)
-
-	var output bytes.Buffer
-
-	_, _ = output.WriteString(gzipHeader)
+	output := bytes.NewBufferString(gzipHeader)
 
 	var d compressor
 
-	d.init(&output)
+	d.init(output)
 
 	if _, err := d.write(data); err != nil {
 		return "", err
@@ -37,13 +34,11 @@ func Encode(input string) (string, error) {
 		return "", err
 	}
 
-	var trailer [8]byte
+	out := output.Bytes()
+	out = binary.LittleEndian.AppendUint32(out, crc32.ChecksumIEEE(data))
+	out = binary.LittleEndian.AppendUint32(out, uint32(len(data)))
 
-	binary.LittleEndian.PutUint32(trailer[0:4], crc32.ChecksumIEEE(data))
-	binary.LittleEndian.PutUint32(trailer[4:8], uint32(len(data)))
-	_, _ = output.Write(trailer[:])
-
-	return base64.StdEncoding.EncodeToString(output.Bytes()), nil
+	return base64.StdEncoding.EncodeToString(out), nil
 }
 
 // Func returns Encode as an HCL function of one string; onUse, when set, runs before each encoding.
