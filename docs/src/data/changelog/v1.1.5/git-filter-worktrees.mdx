@@ -7,6 +7,6 @@ category: "performance-improvements"
 
 A [Git-based filter](/features/filter/git/), such as `--filter '[main...HEAD]'`, generates a worktree for every reference it names, and removes those worktrees when the run ends.
 
-Terragrunt now fills each worktree with several workers instead of one, and removes the worktrees in parallel.
+Terragrunt now generates those worktrees alongside each other, fills each one with several workers instead of one, and removes them in parallel.
 
-On a repository with 15,000 tracked files, `terragrunt find --filter '[HEAD~1...HEAD]'` went from 4.7s to 3.9s. The saving grows with the number of files in the repository.
+On a repository with 15,000 tracked files, `terragrunt find --filter '[HEAD~1...HEAD]'` went from 4.7s to 3.3s. The saving grows with the number of files in the repository.

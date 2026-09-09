@@ -5,11 +5,13 @@ package worktrees
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -114,7 +116,9 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) erro
 			}
 
 			g, groupCtx := errgroup.WithContext(ctx)
-			g.SetLimit(min(vfs.FSWorkers, len(toRemove)))
+			// Every worktree was created under the same temporary directory, so
+			// the first one's filesystem sizes removal for all of them.
+			g.SetLimit(min(vfs.FSWorkersFor(fsys, toRemove[0].Path), len(toRemove)))
 
 			for _, worktree := range toRemove {
 				g.Go(func() error {
@@ -173,7 +177,6 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) erro
 // path. A reference that failed to materialize is left out: it carries no path,
 // and the pair it belongs to was recorded all the same.
 func (w *Worktrees) worktreesToRemove() []Worktree {
-	seen := make(map[string]struct{}, len(w.WorktreePairs)*worktreesPerPair)
 	toRemove := make([]Worktree, 0, len(w.WorktreePairs)*worktreesPerPair)
 
 	for _, pair := range w.WorktreePairs {
@@ -182,17 +185,17 @@ func (w *Worktrees) worktreesToRemove() []Worktree {
 				continue
 			}
 
-			if _, ok := seen[worktree.Path]; ok {
-				continue
-			}
-
-			seen[worktree.Path] = struct{}{}
-
 			toRemove = append(toRemove, worktree)
 		}
 	}
 
-	return toRemove
+	slices.SortFunc(toRemove, func(a, b Worktree) int {
+		return strings.Compare(a.Path, b.Path)
+	})
+
+	return slices.CompactFunc(toRemove, func(a, b Worktree) bool {
+		return a.Path == b.Path
+	})
 }
 
 type StackDiff struct {
@@ -655,9 +658,12 @@ func recordDiffTelemetry(ctx context.Context, diffs *git.Diffs) {
 
 // createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.
 // The worktrees are created in temporary directories and tracked in refsToPaths.
-// Worktrees are created sequentially because git worktree operations on the same repository
-// are not thread-safe - concurrent calls to `git worktree add` can cause race conditions
-// accessing the `.git/worktrees/` directory.
+//
+// A reference whose files can come from `git archive` is registered as a
+// worktree without a checkout and filled from that archive, which reads the
+// tree once and writes it with several workers. References are materialized
+// concurrently, apart from the `git worktree add` that registers each one,
+// since concurrent calls race on the repository's `.git/worktrees/` directory.
 func createGitWorktrees(
 	ctx context.Context,
 	l log.Logger,
@@ -667,82 +673,67 @@ func createGitWorktrees(
 	repoRemote, repoBranch, repoCommit string,
 	experiments experiment.Experiments,
 ) (map[string]string, error) {
-	var errs []error
+	var (
+		mu          sync.Mutex
+		registerMu  sync.Mutex
+		errs        []error
+		refsToPaths = make(map[string]string, len(gitRefs))
+	)
 
-	slowReporting := experiments.Evaluate(experiment.SlowTaskReporting)
+	// Every reference materializing at once shares the filesystem worker
+	// ceiling, so refs do not multiply into disk contention.
+	writers := max(1, vfs.FSWorkersFor(v.FS, v.Platform.TempDir())/len(gitRefs))
 
-	refsToPaths := make(map[string]string, len(gitRefs))
+	create := func() error {
+		g, groupCtx := errgroup.WithContext(ctx)
+		g.SetLimit(min(runtime.GOMAXPROCS(0), len(gitRefs)))
 
-	for _, ref := range gitRefs {
-		tmpDir, err := vfs.MkdirTemp(
-			v.FS,
-			v.Platform.TempDir(),
-			"terragrunt-worktree-"+sanitizeRef(ref)+"-",
-		)
-		if err != nil {
-			errs = append(
-				errs,
-				fmt.Errorf("failed to create temporary directory for worktree: %w", err),
-			)
+		for _, ref := range gitRefs {
+			g.Go(func() error {
+				dir, err := createGitWorktree(
+					groupCtx, l, v, gitRunner, &registerMu,
+					worktreeOpts{
+						ref:        ref,
+						writers:    writers,
+						repoRemote: repoRemote,
+						repoBranch: repoBranch,
+						repoCommit: repoCommit,
+					},
+				)
 
-			continue
-		}
+				mu.Lock()
+				defer mu.Unlock()
 
-		// macOS will create the temporary directory with symlinks, so we need to evaluate them.
-		origTmpDir := tmpDir
+				if err != nil {
+					errs = append(errs, err)
 
-		tmpDir, err = vfs.EvalSymlinks(v.FS, tmpDir)
-		if err != nil {
-			if cleanErr := v.FS.RemoveAll(origTmpDir); cleanErr != nil {
-				l.Warnf("failed to clean worktree directory %s: %v", origTmpDir, cleanErr)
-			}
-
-			errs = append(
-				errs,
-				fmt.Errorf("failed to evaluate symlinks for temporary directory: %w", err),
-			)
-
-			continue
-		}
-
-		// Wrap individual worktree creation with telemetry including repo info
-		err = filter.TraceGitWorktreeCreate(
-			ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit,
-			func(ctx context.Context) error {
-				if slowReporting {
-					return util.NotifyIfSlow(
-						ctx,
-						l,
-						util.SpinnerWriter(v),
-						time.Second,
-						util.SlowNotifyMsg{
-							Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
-							Done:    "Created Git worktree for reference " + ref,
-						},
-						func() error {
-							return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
-						},
-					)
+					return nil
 				}
 
-				return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
+				refsToPaths[ref] = dir
+
+				l.Debugf("Created Git worktree for reference %s at %s", ref, dir)
+
+				return nil
 			})
-		if err != nil {
-			if cleanErr := v.FS.RemoveAll(tmpDir); cleanErr != nil {
-				l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)
-			}
-
-			errs = append(
-				errs,
-				fmt.Errorf("failed to create Git worktree for reference %s: %w", ref, err),
-			)
-
-			continue
 		}
 
-		refsToPaths[ref] = tmpDir
+		return g.Wait()
+	}
 
-		l.Debugf("Created Git worktree for reference %s at %s", ref, tmpDir)
+	if experiments.Evaluate(experiment.SlowTaskReporting) {
+		if err := util.NotifyIfSlow(
+			ctx,
+			l,
+			util.SpinnerWriter(v),
+			time.Second,
+			slowWorktreeMsg(gitRefs),
+			create,
+		); err != nil {
+			errs = append(errs, err)
+		}
+	} else if err := create(); err != nil {
+		errs = append(errs, err)
 	}
 
 	if len(errs) > 0 {
@@ -750,6 +741,166 @@ func createGitWorktrees(
 	}
 
 	return refsToPaths, nil
+}
+
+// slowWorktreeMsg returns the progress messages shown while worktrees are being
+// created for gitRefs.
+func slowWorktreeMsg(gitRefs []string) util.SlowNotifyMsg {
+	if len(gitRefs) == 1 {
+		return util.SlowNotifyMsg{
+			Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", gitRefs[0]),
+			Done:    "Created Git worktree for reference " + gitRefs[0],
+		}
+	}
+
+	return util.SlowNotifyMsg{
+		Spinner: fmt.Sprintf("Creating Git worktrees for %d references...", len(gitRefs)),
+		Done:    fmt.Sprintf("Created Git worktrees for %d references", len(gitRefs)),
+	}
+}
+
+// worktreeOpts carries the per-reference parameters of a worktree creation.
+type worktreeOpts struct {
+	ref        string
+	repoRemote string
+	repoBranch string
+	repoCommit string
+	writers    int
+}
+
+// createGitWorktree materializes a single reference in a new temporary
+// directory and returns the path to it. The directory is removed again if the
+// reference cannot be materialized.
+func createGitWorktree(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	gitRunner *git.GitRunner,
+	registerMu *sync.Mutex,
+	opts worktreeOpts,
+) (string, error) {
+	tmpDir, err := vfs.MkdirTemp(
+		v.FS,
+		v.Platform.TempDir(),
+		"terragrunt-worktree-"+sanitizeRef(opts.ref)+"-",
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary directory for worktree: %w", err)
+	}
+
+	// macOS will create the temporary directory with symlinks, so we need to evaluate them.
+	origTmpDir := tmpDir
+
+	tmpDir, err = vfs.EvalSymlinks(v.FS, tmpDir)
+	if err != nil {
+		if cleanErr := v.FS.RemoveAll(origTmpDir); cleanErr != nil {
+			l.Warnf("failed to clean worktree directory %s: %v", origTmpDir, cleanErr)
+		}
+
+		return "", fmt.Errorf("failed to evaluate symlinks for temporary directory: %w", err)
+	}
+
+	err = filter.TraceGitWorktreeCreate(
+		ctx, opts.ref, tmpDir, opts.repoRemote, opts.repoBranch, opts.repoCommit,
+		func(ctx context.Context) error {
+			return materializeGitWorktree(ctx, v, gitRunner, registerMu, tmpDir, opts)
+		})
+	if err != nil {
+		if cleanErr := v.FS.RemoveAll(tmpDir); cleanErr != nil {
+			l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)
+		}
+
+		return "", fmt.Errorf("failed to create Git worktree for reference %s: %w", opts.ref, err)
+	}
+
+	return tmpDir, nil
+}
+
+// materializeGitWorktree registers dir as a worktree for the reference and puts
+// the reference's files in it.
+func materializeGitWorktree(
+	ctx context.Context,
+	v *venv.Venv,
+	gitRunner *git.GitRunner,
+	registerMu *sync.Mutex,
+	dir string,
+	opts worktreeOpts,
+) error {
+	altering, err := gitRunner.HasArchiveAlteringAttributes(ctx, v, opts.ref)
+	if err != nil {
+		return err
+	}
+
+	checkout := git.SkipCheckout
+	if altering {
+		checkout = git.CheckoutFiles
+	}
+
+	if err := registerWorktree(ctx, v, gitRunner, registerMu, dir, opts.ref, checkout); err != nil {
+		return err
+	}
+
+	if altering {
+		return nil
+	}
+
+	if err := extractGitWorktree(ctx, v, gitRunner, dir, opts.ref, opts.writers); err != nil {
+		return err
+	}
+
+	// The worktree was registered without a checkout, which leaves its index
+	// empty. Filling the index from the reference makes the files that were
+	// just written read as committed content rather than as deletions.
+	return gitRunner.WithWorkDir(dir).ReadTree(ctx, "HEAD")
+}
+
+// registerWorktree runs the `git worktree add` that registers dir in the
+// repository. The adds are serialized because concurrent ones race on the
+// repository's `.git/worktrees/` directory.
+func registerWorktree(
+	ctx context.Context,
+	v *venv.Venv,
+	gitRunner *git.GitRunner,
+	registerMu *sync.Mutex,
+	dir, ref string,
+	checkout git.WorktreeCheckout,
+) error {
+	registerMu.Lock()
+	defer registerMu.Unlock()
+
+	return gitRunner.CreateDetachedWorktree(ctx, v, dir, ref, checkout)
+}
+
+// extractGitWorktree streams the archive of ref into dir. Git writes the
+// archive as it is read, so the two run together.
+func extractGitWorktree(
+	ctx context.Context,
+	v *venv.Venv,
+	gitRunner *git.GitRunner,
+	dir, ref string,
+	writers int,
+) error {
+	pr, pw := io.Pipe()
+
+	g, groupCtx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		err := gitRunner.ArchiveTree(groupCtx, v, ref, pw)
+
+		// Closing carries the outcome to the reader, which would otherwise wait
+		// on content that is not coming.
+		return errors.Join(err, pw.CloseWithError(err))
+	})
+
+	g.Go(func() error {
+		err := git.ExtractArchive(groupCtx, v, pr, dir, writers)
+
+		// Closing unblocks git if extraction stopped early, so the archive is
+		// not left writing into a pipe nothing reads.
+		return errors.Join(err, pr.CloseWithError(err))
+	})
+
+	return g.Wait()
 }
 
 // sanitizeRef sanitizes a Git reference string for use in file paths.

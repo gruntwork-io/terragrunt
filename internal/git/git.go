@@ -434,18 +434,42 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 	return tree, nil
 }
 
+// WorktreeCheckout selects whether [GitRunner.CreateDetachedWorktree] fills the
+// worktree it creates.
+type WorktreeCheckout int
+
+const (
+	// CheckoutFiles has git write the files of the reference into the worktree.
+	CheckoutFiles WorktreeCheckout = iota
+	// SkipCheckout leaves the worktree empty, for a caller that fills it
+	// itself. The index is left empty too, so a caller that writes the files
+	// should follow with [GitRunner.ReadTree].
+	SkipCheckout
+)
+
 // CreateDetachedWorktree creates a new detached worktree for a given reference
 // as a given directory
-func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string) error {
+func (g *GitRunner) CreateDetachedWorktree(
+	ctx context.Context,
+	v *venv.Venv,
+	dir, ref string,
+	checkout WorktreeCheckout,
+) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
 
-	cmd := g.prepareCommand(
-		ctx,
-		"-c", "checkout.workers="+strconv.Itoa(vfs.FSWorkers),
-		"worktree", "add", "--detach", dir, ref,
-	)
+	args := []string{
+		"-c", "checkout.workers=" + strconv.Itoa(vfs.FSWorkersFor(v.FS, dir)),
+		"worktree", "add", "--detach",
+	}
+	if checkout == SkipCheckout {
+		args = append(args, "--no-checkout")
+	}
+
+	args = append(args, dir, ref)
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
 
 	var stdout, stderr bytes.Buffer
 

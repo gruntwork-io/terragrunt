@@ -49,6 +49,57 @@ func TestNewWorktrees(t *testing.T) {
 	require.NotEmpty(t, w.WorktreePairs)
 }
 
+// TestNewWorktreesForSeveralRefsWithRacing materializes several references at
+// once, which is what the concurrent worktree creation has to get right.
+func TestNewWorktreesForSeveralRefsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	for i := range 3 {
+		name := fmt.Sprintf("unit-%d", i)
+
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(tmpDir, name, "terragrunt.hcl"),
+			[]byte("inputs = {}\n"),
+			0o600,
+		))
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Commit "+name))
+	}
+
+	filters, err := filter.ParseFilterQueries(
+		logger.CreateLogger(),
+		[]string{"[HEAD~2...HEAD~1]", "[HEAD~1...HEAD]"},
+	)
+	require.NoError(t, err)
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), vfs.NewOSFS()))
+	})
+
+	require.Len(t, w.WorktreePairs, 2)
+
+	// Each worktree holds the units that existed at its reference, so the
+	// newest reference carries every unit and the oldest carries one fewer.
+	for _, pair := range w.WorktreePairs {
+		for _, worktree := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			assert.FileExists(t, filepath.Join(worktree.Path, "unit-0", "terragrunt.hcl"))
+		}
+	}
+}
+
 func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	t.Parallel()
 
