@@ -1,0 +1,8 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### CAS skips generated `.terragrunt-stack` output in local sources
+
+Following up on the `.terraform` / `.terragrunt-cache` exclusion, CAS now also leaves `.terragrunt-stack` out when hashing and copying local sources. A local source like `../..//stacks/foo` hashes the repository's whole working tree, so a stack run inside the catalog repository itself (an example or smoke-test consumer) leaves generated output inside the source. Generated units embed the previous run's `cas::` refs, so hashing that output changed the CAS key of an unchanged source on every regeneration and broke subsequent runs against fresh snapshots without initialized providers. A source root named `.terragrunt-stack` itself is still copied.
