@@ -46,7 +46,7 @@ func Encode(input string) (string, error) {
 	return base64.StdEncoding.EncodeToString(output.Bytes()), nil
 }
 
-// Func returns Encode as an HCL function of one string; onUse, when set, runs first on every call.
+// Func returns Encode as an HCL function of one string; onUse, when set, runs before each encoding.
 func Func(onUse func() error) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{

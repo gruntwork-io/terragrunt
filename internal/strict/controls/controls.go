@@ -111,6 +111,7 @@ const LegacyGCSDeprecationWarning = "Plain `https://www.googleapis.com/storage/.
 	"silence this warning, or enable the `legacy-gcs-public-prefix` strict control to download anonymously instead." +
 	" This will be the default behavior of Terragrunt in the future."
 
+// LegacyBase64GzipWarning is the warning text emitted when base64gzip() returns the v1.1.3 bytes.
 const LegacyBase64GzipWarning = "`base64gzip()` returns the gzip bytes produced by Terragrunt v1.1.3 and earlier (Go 1.26) for " +
 	"backward compatibility. Terragrunt 1.2 will switch it to the current Go encoder. Use `base64gzip_compat()` " +
 	"(experiment `base64gzip-compat`) to keep these bytes, or enable the `legacy-base64gzip` strict control to use " +

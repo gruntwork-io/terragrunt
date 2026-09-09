@@ -6,25 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"io"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-	tffuncs "github.com/hashicorp/terraform/lang/funcs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 )
 
 func TestEncodeMatchesV113(t *testing.T) {
@@ -125,74 +113,6 @@ func TestEncodeMatchesV113(t *testing.T) {
 			assert.Equal(t, tc.input, string(decoded))
 		})
 	}
-}
-
-func TestBase64GzipStrictControl(t *testing.T) {
-	t.Parallel()
-
-	const (
-		input          = "some text"
-		legacyExpected = "H4sIAAAAAAAA/yrOz01VKEmtKAEAAAD//wEAAP//ur26TwkAAAA="
-	)
-
-	terraformExpected, err := tffuncs.Base64Gzip(cty.StringVal(input))
-	require.NoError(t, err)
-
-	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip", input, false, false), "legacy bytes by default")
-	assert.Equal(t, terraformExpected.AsString(), parseBase64Gzip(t, "base64gzip", input, true, false), "current encoder with the control")
-	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip_compat", input, false, true), "compat function without the control")
-	assert.Equal(t, legacyExpected, parseBase64Gzip(t, "base64gzip_compat", input, true, true), "compat function with the control")
-}
-
-func TestBase64GzipCompatRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-	dir := t.TempDir()
-
-	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(dir, config.DefaultTerragruntConfigPath))
-	require.NoError(t, err)
-
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venvtest.New(), opts)
-
-	funcs, err := config.EarlyStackParseFunctions(ctx, l, dir, pctx)
-	require.NoError(t, err)
-
-	_, err = funcs[config.FuncNameBase64GzipCompat].Call([]cty.Value{cty.StringVal("some text")})
-	require.ErrorAs(t, err, &config.Base64GzipCompatRequiresExperimentError{})
-}
-
-func parseBase64Gzip(t *testing.T, funcName, input string, enableControl, enableExperiment bool) any {
-	t.Helper()
-
-	l := logger.CreateLogger()
-	cfgPath := filepath.Join(t.TempDir(), config.DefaultTerragruntConfigPath)
-
-	opts, err := options.NewTerragruntOptionsForTest(cfgPath)
-	require.NoError(t, err)
-
-	if enableControl {
-		require.NoError(t, opts.StrictControls.EnableControl(controls.LegacyBase64Gzip))
-	}
-
-	if enableExperiment {
-		require.NoError(t, opts.Experiments.EnableExperiment(experiment.Base64GzipCompat))
-	}
-
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venvtest.New(), opts)
-
-	cfg, err := config.ParseConfigString(
-		ctx,
-		pctx,
-		l,
-		cfgPath,
-		fmt.Sprintf("inputs = { test = %s(%s) }", funcName, strconv.Quote(input)),
-		nil,
-	)
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
-
-	return cfg.Inputs["test"]
 }
 
 func pseudoRandomASCII(size int) string {

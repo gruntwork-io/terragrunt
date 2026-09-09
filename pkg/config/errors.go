@@ -604,7 +604,7 @@ type Base64GzipCompatRequiresExperimentError struct {
 
 func (err Base64GzipCompatRequiresExperimentError) Error() string {
 	return fmt.Sprintf(
-		"base64gzip_compat in %s requires the 'base64gzip-compat' experiment to be enabled",
+		"base64gzip_compat in %s requires the 'base64gzip-compat' experiment; enable it with --experiment base64gzip-compat",
 		err.ConfigPath,
 	)
 }

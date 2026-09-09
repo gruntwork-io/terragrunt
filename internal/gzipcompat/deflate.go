@@ -18,7 +18,6 @@ const (
 	minMatchLength  = 4
 	maxMatchLength  = 258
 	baseMatchOffset = 1
-	maxMatchOffset  = 1 << 15
 
 	maxFlateBlockTokens = 1 << 14
 	maxStoreBlockSize   = 65535
@@ -538,7 +537,7 @@ func (w *huffmanBitWriter) writeBytes(bytes []byte) {
 
 	n := w.nbytes
 	if w.nbits&7 != 0 {
-		w.err = errors.New("writeBytes with unfinished bits")
+		w.err = errUnfinishedBits
 		return
 	}
 
@@ -1150,13 +1149,20 @@ const (
 	matchType   = 1 << 30
 )
 
+var errUnfinishedBits = errors.New("write of stored block with unfinished bits")
+
 const codeTableSize = 256
 
 func codeTable(base []uint32, extraBits []int8) [codeTableSize]uint32 {
 	var table [codeTableSize]uint32
 
 	for code, start := range base {
-		for i := start; i < start+1<<extraBits[code] && i < codeTableSize; i++ {
+		end := min(start+1<<extraBits[code], codeTableSize)
+		if code+1 < len(base) {
+			end = min(end, base[code+1])
+		}
+
+		for i := start; i < end; i++ {
 			table[i] = uint32(code)
 		}
 	}
