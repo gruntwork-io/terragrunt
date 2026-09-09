@@ -494,10 +494,10 @@ func WithFollowSymlinks() WalkDirParallelOption {
 // [fastwalk.Walk]. On any other FS, including [NewMemMapFS], it falls
 // back to the sequential [WalkDir].
 //
-// The parallel walk calls fn concurrently from multiple goroutines and
-// gives no ordering guarantee across directories. Callers that depend
-// on deterministic order, or that write to shared state from fn, must
-// use [WalkDir] or serialize access themselves.
+// The parallel walk calls fn concurrently from up to [FSWorkers]
+// goroutines and gives no ordering guarantee across directories.
+// Callers that depend on deterministic order, or that write to shared
+// state from fn, must use [WalkDir] or serialize access themselves.
 func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirParallelOption) error {
 	if _, ok := fsys.(*osFS); !ok {
 		return WalkDir(fsys, root, fn)
@@ -508,9 +508,11 @@ func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirPar
 		opt(&cfg)
 	}
 
-	var fwCfg *fastwalk.Config
-	if cfg.followSymlinks {
-		fwCfg = &fastwalk.Config{Follow: true}
+	// fastwalk's own default scales with GOMAXPROCS, which overshoots
+	// what the filesystem can absorb once fn does per-file work.
+	fwCfg := &fastwalk.Config{
+		Follow:     cfg.followSymlinks,
+		NumWorkers: FSWorkers,
 	}
 
 	err := fastwalk.Walk(fwCfg, root, fn)
