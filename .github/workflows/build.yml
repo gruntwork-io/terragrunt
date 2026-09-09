@@ -4,20 +4,20 @@ on:
   workflow_call:
     inputs:
       version:
-        description: 'Version string for ldflags (defaults to github.ref_name)'
+        description: "Version string for ldflags (defaults to github.ref_name)"
         required: false
         type: string
-        default: ''
+        default: ""
       is_release:
-        description: 'Whether this is a release build (enables signing)'
+        description: "Whether this is a release build (enables signing)"
         required: false
         type: boolean
         default: false
       ref:
-        description: 'Git ref to checkout (defaults to triggering ref)'
+        description: "Git ref to checkout (defaults to triggering ref)"
         required: false
         type: string
-        default: ''
+        default: ""
 
 jobs:
   detect_release:
@@ -26,6 +26,12 @@ jobs:
     outputs:
       is_release: ${{ steps.check.outputs.is_release }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          ref: ${{ inputs.ref || '' }}
+          sparse-checkout: .github/scripts/build
+
       - name: Check if release build
         id: check
         env:
