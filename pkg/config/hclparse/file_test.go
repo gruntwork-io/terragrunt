@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
@@ -195,6 +196,92 @@ func TestRebindPanicsOnNilParser(t *testing.T) {
 	assert.PanicsWithValue(t, "hclparse: Rebind called with nil parser", func() {
 		file.Rebind(nil)
 	})
+}
+
+// hclWithBareInclude carries the unlabelled include block that WithFileUpdate rewrites, so a
+// parse that ran the update handler would hold different content from one that did not.
+const hclWithBareInclude = `
+include {
+  path = "../root.hcl"
+}
+
+foo = "bar"
+`
+
+// includeAndFoo decodes the whole of hclWithBareInclude.
+type includeAndFoo struct {
+	Foo      string `hcl:"foo"`
+	Includes []struct {
+		Path string `hcl:"path"`
+	} `hcl:"include,block"`
+}
+
+// TestParserOptionsDoNotChangeASuccessfulParse pins what lets pkg/config key one cached AST on
+// the file alone: whatever options a caller parses under, a parse that raises no diagnostics
+// produces the same AST. The options in use decide only what becomes of the diagnostics.
+func TestParserOptionsDoNotChangeASuccessfulParse(t *testing.T) {
+	t.Parallel()
+
+	optionSets := map[string][]hclparse.Option{
+		"no options": nil,
+		"logger":     {hclparse.WithLogger(logger.CreateLogger())},
+		"diagnostics writer": {
+			hclparse.WithDiagnosticsWriter(venvtest.New(), io.Discard, true),
+		},
+		"file update": {
+			hclparse.WithFileUpdate(func(*hclparse.File) error { return nil }),
+		},
+		"diagnostics handler": {
+			hclparse.WithDiagnosticsHandler(
+				func(_ *hcl.File, _ hcl.Diagnostics) (hcl.Diagnostics, error) { return nil, nil },
+			),
+		},
+		"halt on error only for blocks": {
+			hclparse.WithHaltOnErrorOnlyForBlocks([]string{"catalog"}),
+		},
+	}
+
+	for name, options := range optionSets {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			file, err := hclparse.NewParser(options...).ParseFromString(hclWithBareInclude, fixturePath)
+			require.NoError(t, err)
+
+			assert.Equal(t, hclWithBareInclude, file.Content())
+			assert.False(t, file.HasDiagnostics())
+
+			blocks, err := file.Blocks("include", true)
+			require.NoError(t, err, "the include block must still be the unlabelled one that was parsed")
+			require.Len(t, blocks, 1)
+			assert.Empty(t, blocks[0].Labels)
+		})
+	}
+}
+
+// TestFileUpdateRunsAtDecodeRatherThanParse pins the half of the option contract that would
+// otherwise change an AST: the handler that rewrites a bare `include {}` into a labelled one
+// leaves the parse alone and runs when the file is decoded.
+func TestFileUpdateRunsAtDecodeRatherThanParse(t *testing.T) {
+	t.Parallel()
+
+	updates := 0
+
+	parser := hclparse.NewParser(hclparse.WithFileUpdate(func(*hclparse.File) error {
+		updates++
+
+		return nil
+	}))
+
+	file, err := parser.ParseFromString(hclWithBareInclude, fixturePath)
+	require.NoError(t, err)
+	assert.Zero(t, updates, "parsing must not run the file update handler")
+
+	var out includeAndFoo
+
+	require.NoError(t, file.Decode(&out, nil))
+	assert.Equal(t, 1, updates, "decoding must run the file update handler")
+	assert.Equal(t, "bar", out.Foo)
 }
 
 // evalContextMissingDependency returns an EvalContext with a non-empty Variables

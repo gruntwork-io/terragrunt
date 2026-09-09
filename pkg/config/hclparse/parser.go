@@ -80,6 +80,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 		Parser:     parser,
 		File:       hclFile,
 		ConfigPath: configPath,
+		diags:      diags,
 	}
 
 	if err := parser.handleDiagnostics(file, diags); err != nil {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 type configKey byte
@@ -38,7 +37,7 @@ const (
 
 // WithConfigValues add to context default values for configuration.
 func WithConfigValues(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File](hclCacheName))
+	ctx = context.WithValue(ctx, HclCacheContextKey, NewHCLFileCache(hclCacheName))
 	ctx = context.WithValue(
 		ctx,
 		TerragruntConfigCacheContextKey,

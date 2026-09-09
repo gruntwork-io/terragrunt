@@ -507,18 +507,14 @@ inputs = {
 	var wg sync.WaitGroup
 
 	for i, unit := range units {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			_, pctx := newTestParsingContext(t, v, unit)
 
 			cfg, err := config.ParseConfigFile(ctx, pctx, l, unit, nil)
 			assert.NoError(t, err, unit)
 
 			configs[i] = cfg
-		}()
+		})
 	}
 
 	wg.Wait()

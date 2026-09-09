@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"path/filepath"
 	"slices"
 
@@ -504,21 +503,13 @@ func PartialParseConfigFile(
 	configPath string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
-
-	fileInfo, err := pctx.Venv.FS.Stat(configPath)
+	content, err := readConfigFile(pctx.Venv.FS, configPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, TerragruntConfigNotFoundError{Path: configPath}
-		}
-
 		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
-
-	// Check cache hit status before tracing
-	_, cacheHit := hclCache.Get(ctx, cacheKey)
+	lookup := lookupHCLFile(ctx, configPath, content, hclparse.NewParser(pctx.ParserOptions...))
+	cacheHit := lookup.cached != nil
 
 	var config *TerragruntConfig
 
@@ -532,27 +523,14 @@ func PartialParseConfigFile(
 		include,
 		cacheHit,
 		func(ctx context.Context, l log.Logger) error {
-			var file *hclparse.File
-
-			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
-			} else {
-				var parseErr error
-
-				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
-					ParseFromFile(pctx.Venv.FS, configPath)
-				if parseErr != nil {
-					return parseErr
-				}
-
-				hclCache.Put(ctx, cacheKey, file)
+			file, err := lookup.resolve(ctx)
+			if err != nil {
+				return err
 			}
 
-			var parseErr error
+			config, err = TerragruntConfigFromPartialConfig(ctx, pctx, l, file, include)
 
-			config, parseErr = TerragruntConfigFromPartialConfig(ctx, pctx, l, file, include)
-
-			return parseErr
+			return err
 		})
 
 	return config, err

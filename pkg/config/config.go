@@ -1516,38 +1516,13 @@ func ParseConfigFile(
 
 	var config *TerragruntConfig
 
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
-
-	// Build cache key components before tracing to determine cache hit status
-	childKey := "nil"
-	if includeFromChild != nil {
-		childKey = includeFromChild.String()
-	}
-
-	decodeListKey := "nil"
-	if pctx.PartialParseDecodeList != nil {
-		decodeListKey = fmt.Sprintf("%v", pctx.PartialParseDecodeList)
-	}
-
-	fileInfo, err := pctx.Venv.FS.Stat(configPath)
+	content, err := readConfigFile(pctx.Venv.FS, configPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, TerragruntConfigNotFoundError{Path: configPath}
-		}
-
-		return nil, fmt.Errorf("failed to get file info: %w", err)
+		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
-		configPath,
-		pctx.WorkingDir,
-		childKey,
-		decodeListKey,
-		fileInfo.ModTime().UnixMicro(),
-	)
-
-	// Check cache hit status before tracing
-	_, cacheHit := hclCache.Get(ctx, cacheKey)
+	lookup := lookupHCLFile(ctx, configPath, content, hclparse.NewParser(pctx.ParserOptions...))
+	cacheHit := lookup.cached != nil
 
 	isPartial := len(pctx.PartialParseDecodeList) > 0
 
@@ -1561,31 +1536,14 @@ func ParseConfigFile(
 		includeFromChild,
 		cacheHit,
 		func(childCtx context.Context, l log.Logger) error {
-			var file *hclparse.File
-
-			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
-				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
-			} else {
-				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-				var parseErr error
-
-				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
-					ParseFromFile(pctx.Venv.FS, configPath)
-				if parseErr != nil {
-					return parseErr
-				}
-
-				hclCache.Put(childCtx, cacheKey, file)
+			file, err := lookup.resolve(childCtx)
+			if err != nil {
+				return err
 			}
 
-			var parseErr error
+			config, err = ParseConfig(childCtx, pctx, l, file, includeFromChild)
 
-			config, parseErr = ParseConfig(childCtx, pctx, l, file, includeFromChild)
-			if parseErr != nil {
-				return parseErr
-			}
-
-			return nil
+			return err
 		})
 	if err != nil {
 		return config, err
