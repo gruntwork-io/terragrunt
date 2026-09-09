@@ -1,3 +1,0 @@
-inputs = {
-  role = values.role
-}

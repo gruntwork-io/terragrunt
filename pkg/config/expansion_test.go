@@ -1414,7 +1414,7 @@ unit "app" {
 func TestValidateBlockIterationRejectsMisspelledExpansionWithTheExperimentOff(t *testing.T) {
 	t.Parallel()
 
-	skipInExperimentMode(t)
+	helpers.SkipInExperimentMode(t, experiment.BlockIteration)
 
 	file := parseHCLString(t, `
 unit "app" {

@@ -6,13 +6,61 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
+
+const (
+	testFixtureBlockIterationUnits = "fixtures/block-iteration-lifecycle/units"
+
+	generatedStackDir = ".terragrunt-stack"
+
+	// sweepOrphans deletes the generated tree before regenerating it, the same sweep
+	// `terragrunt stack clean` performs.
+	sweepOrphans = "--source-update"
+)
+
+// copyBlockIterationFixture copies fixture and returns the copy's root. Every variant in the
+// tree sits at the same depth, so a config moved between them keeps resolving its sources.
+func copyBlockIterationFixture(t *testing.T, fixture string) string {
+	t.Helper()
+
+	helpers.CleanupTerraformFolder(t, fixture)
+
+	return filepath.Join(helpers.CopyEnvironment(t, fixture), fixture)
+}
+
+// switchStackConfig overwrites live's stack config with variant's, standing in for the edit a
+// user makes when a block goes static to dynamic or back.
+func switchStackConfig(t *testing.T, root, live, variant string) {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(root, variant, config.DefaultStackFile))
+	require.NoError(t, err)
+
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(root, live, config.DefaultStackFile), content, 0o644),
+	)
+}
+
+func generateStack(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	helpers.RunTerragrunt(
+		t,
+		strings.Join(append(
+			[]string{"terragrunt stack generate --experiment block-iteration --working-dir", dir},
+			args...,
+		), " "),
+	)
+}
 
 func applyStack(t *testing.T, dir string) {
 	t.Helper()
@@ -95,9 +143,8 @@ func TestTFBlockIterationUnitStaticToDynamicStrandsState(t *testing.T) {
 	assert.Equal(t, "web", appliedRole(t, live, filepath.Join("aurora", "web")))
 }
 
-// TestTFBlockIterationOrphanedUnitKeepsRunning pins what a stranded unit costs. A run walks
-// the generated tree rather than the config, so the orphan is applied again alongside its
-// replacements even though nothing addresses it anymore.
+// TestTFBlockIterationOrphanedUnitKeepsRunning pins that a run walks the generated tree,
+// so an orphan is applied again alongside its replacements even though nothing addresses it.
 func TestTFBlockIterationOrphanedUnitKeepsRunning(t *testing.T) {
 	t.Parallel()
 
@@ -164,4 +211,38 @@ func TestTFBlockIterationSweepingOrphansLeavesOnlyDeclaredUnits(t *testing.T) {
 			"web": map[string]any{"role": "web"},
 		},
 	}, stackOutputs(t, live))
+}
+
+// TestTFBlockIterationCountShiftAdoptsStateAtTheWrongAddress pins the hazard that makes the
+// docs recommend for_each. Dropping the middle element of a count renames every later
+// instance, so the state one element applied is silently taken over by the next one along.
+// Nothing reports the handover, and there is no `moved` equivalent to record it.
+func TestTFBlockIterationCountShiftAdoptsStateAtTheWrongAddress(t *testing.T) {
+	t.Parallel()
+
+	root := copyBlockIterationFixture(t, testFixtureBlockIterationUnits)
+	live := filepath.Join(root, "count")
+
+	applyStack(t, live)
+	assert.Equal(t, map[string]any{
+		"aurora": map[string]any{
+			"0": map[string]any{"role": "alpha"},
+			"1": map[string]any{"role": "beta"},
+			"2": map[string]any{"role": "gamma"},
+		},
+	}, stackOutputs(t, live))
+
+	switchStackConfig(t, root, "count", "count-shrunk")
+	generateStack(t, live)
+
+	// Regeneration has already rewritten aurora/1 to say gamma, while the state sitting in that
+	// directory is the state beta applied.
+	assert.Equal(t, "beta", appliedRole(t, live, filepath.Join("aurora", "1")))
+
+	applyStack(t, live)
+
+	// The apply adopts it. What beta created is now managed as gamma, and the orphaned tail
+	// index holds a second copy of gamma that the configuration no longer addresses.
+	assert.Equal(t, "gamma", appliedRole(t, live, filepath.Join("aurora", "1")))
+	assert.Equal(t, "gamma", appliedRole(t, live, filepath.Join("aurora", "2")))
 }
