@@ -107,6 +107,14 @@ func (parser *Parser) GetDiagnosticsWriter(
 	return hcl.NewDiagnosticTextWriter(writer, parser.Files(), uint(v.Terminal.Width()), termColor)
 }
 
+// HasDiagnosticsHandler reports whether an option installed a diagnostics handler on this
+// parser. A handler decides which diagnostics reach the caller as errors and may drop one
+// outright, so a decode that runs under one can report success where the same decode without
+// it reports the file's error.
+func (parser *Parser) HasDiagnosticsHandler() bool {
+	return parser.handleDiagnosticsFunc != nil
+}
+
 func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {
 	if len(diags) == 0 {
 		return nil

@@ -23,8 +23,10 @@ const (
 	SopsLocksContextKey              configKey = iota
 	AutoIncludeSuffixCacheContextKey configKey = iota
 	ParentFileProbeCacheContextKey   configKey = iota
+	BaseBlocksCacheContextKey        configKey = iota
 
 	hclCacheName               = "hclCache"
+	baseBlocksCacheName        = "baseBlocksCache"
 	configCacheName            = "configCache"
 	runCmdCacheName            = "runCmdCache"
 	dependencyOutputCacheName  = "dependencyOutputCache"
@@ -70,6 +72,11 @@ func WithConfigValues(ctx context.Context) context.Context {
 		ctx,
 		ParentFileProbeCacheContextKey,
 		cache.NewCache[bool](parentFileProbeCacheName),
+	)
+	ctx = context.WithValue(
+		ctx,
+		BaseBlocksCacheContextKey,
+		NewBaseBlocksCache(baseBlocksCacheName),
 	)
 
 	return ctx
