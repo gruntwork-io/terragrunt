@@ -1,5 +1,5 @@
 // Package gzipcompat reproduces the base64gzip() output of Terragrunt v1.1.3 and earlier.
-// It writes the RFC 1952 gzip framing itself and delegates compression to internal/vendored/flate.
+// It writes the RFC 1952 gzip framing itself and delegates compression to internal/vendored/compress/flate.
 package gzipcompat
 
 import (
@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"hash/crc32"
 
-	"github.com/gruntwork-io/terragrunt/internal/vendored/flate"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/compress/flate"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
