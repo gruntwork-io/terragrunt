@@ -93,6 +93,9 @@ const (
 	// access.
 	LegacyGCSPublicPrefix = "legacy-gcs-public-prefix"
 
+	// LegacyBase64Gzip is the control that switches base64gzip() from the Go 1.26 gzip bytes to the current encoder.
+	LegacyBase64Gzip = "legacy-base64gzip"
+
 	OptionalHooks = "optional-hooks"
 
 	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
@@ -107,6 +110,12 @@ const LegacyGCSDeprecationWarning = "Plain `https://www.googleapis.com/storage/.
 	"credentials for backward compatibility. Add the `gcs::` prefix explicitly to keep using GCS credentials and " +
 	"silence this warning, or enable the `legacy-gcs-public-prefix` strict control to download anonymously instead." +
 	" This will be the default behavior of Terragrunt in the future."
+
+// LegacyBase64GzipWarning is the warning text emitted when base64gzip() returns the v1.1.3 bytes.
+const LegacyBase64GzipWarning = "`base64gzip()` returns the gzip bytes produced by Terragrunt v1.1.3 and earlier (Go 1.26) for " +
+	"backward compatibility. Terragrunt 1.2 will switch it to the current Go encoder. Use `base64gzip_compat()` " +
+	"(experiment `base64gzip-compat`) to keep these bytes, or enable the `legacy-base64gzip` strict control to use " +
+	"the current Go encoder now and silence this warning."
 
 // IsFastCopyEnabled reports whether the `fast-copy` strict control is enabled.
 func IsFastCopyEnabled(strictControls strict.Controls) bool {
@@ -327,6 +336,11 @@ func New() strict.Controls {
 			Name:        LegacyGCSPublicPrefix,
 			Description: "Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.5 Terragrunt routed those URLs through the credentialed gcs getter; v1.0.5+ routes them through the http getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.",
 			Warning:     LegacyGCSDeprecationWarning,
+		},
+		&Control{
+			Name:        LegacyBase64Gzip,
+			Description: "Stops `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. The v1.1.3 bytes are restored by default with a deprecation warning, and `base64gzip_compat()` (experiment `base64gzip-compat`) returns them permanently. Enable this control to use the current Go encoder, which becomes the default in Terragrunt 1.2, and silence the warning.",
+			Warning:     LegacyBase64GzipWarning,
 		},
 		&Control{
 			Name:        OptionalHooks,

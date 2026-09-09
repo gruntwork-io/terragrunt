@@ -1,0 +1,29 @@
+---
+name: base64gzip-compat
+since: "1.1.5"
+---
+
+Support for the `base64gzip_compat` HCL function.
+
+This experiment is ongoing and disabled by default. The `base64gzip_compat` function is not generally available while the experiment runs, and calling it without the experiment enabled returns an error. It becomes generally available once every item in the stabilization criteria below is met.
+
+### `base64gzip-compat` - What it does
+
+When enabled, Terragrunt exposes a `base64gzip_compat(str)` HCL function that returns the value `base64gzip(str)` returned in Terragrunt v1.1.3 and earlier, and keeps returning it after Terragrunt 1.2 switches `base64gzip()` to the current Go encoder.
+
+Use it where the encoded value must stay stable across upgrades, such as an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`.
+
+```bash
+terragrunt run --all --experiment base64gzip-compat -- plan
+```
+
+### `base64gzip-compat` - How to provide feedback
+
+Open a [GitHub issue](https://github.com/gruntwork-io/terragrunt/issues) describing where you need stable `base64gzip()` output.
+
+### `base64gzip-compat` - Criteria for stabilization
+
+To transition the `base64gzip-compat` feature to a stable release, the following must be addressed:
+
+- [ ] Agree on the function name with OpenTofu so both tools expose the same compatibility function.
+- [ ] Confirm the output stays byte-identical across Terragrunt and Go releases.

@@ -596,6 +596,19 @@ func (err DeepMergeRequiresExperimentError) Error() string {
 	)
 }
 
+// Base64GzipCompatRequiresExperimentError is returned when the base64gzip_compat HCL function
+// is called without the base64gzip-compat experiment enabled.
+type Base64GzipCompatRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err Base64GzipCompatRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"base64gzip_compat in %s requires the 'base64gzip-compat' experiment; enable it with --experiment base64gzip-compat",
+		err.ConfigPath,
+	)
+}
+
 // VersionAttributeRequiresExperimentError is returned when the terraform block sets the
 // version attribute without the version-attribute experiment enabled.
 type VersionAttributeRequiresExperimentError struct {

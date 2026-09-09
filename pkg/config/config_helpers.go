@@ -33,6 +33,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
+	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -108,6 +109,8 @@ const (
 	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
 	FuncNameDeepMerge                               = "deep_merge"
+	FuncNameBase64Gzip                              = "base64gzip"
+	FuncNameBase64GzipCompat                        = "base64gzip_compat"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -361,6 +364,13 @@ func createTerragruntEvalContext(
 			ConstraintCheck,
 		),
 		FuncNameDeepMerge: deepMergeMapValuesAsFuncImpl(pctx),
+		FuncNameBase64GzipCompat: gzipcompat.Func(func() error {
+			if pctx.Experiments.Evaluate(experiment.Base64GzipCompat) {
+				return nil
+			}
+
+			return Base64GzipCompatRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath}
+		}),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
@@ -368,6 +378,16 @@ func createTerragruntEvalContext(
 		FuncNameEndsWith:    wrapStringSliceToBoolAsFuncImpl(ctx, pctx, EndsWith),
 		FuncNameStrContains: wrapStringSliceToBoolAsFuncImpl(ctx, pctx, StrContains),
 		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, pctx, l, TimeCmp),
+	}
+
+	if ctrl := pctx.StrictControls.Find(controls.LegacyBase64Gzip); ctrl == nil || !ctrl.GetEnabled() {
+		terragruntFunctions[FuncNameBase64Gzip] = gzipcompat.Func(func() error {
+			if ctrl == nil {
+				return nil
+			}
+
+			return ctrl.Evaluate(log.ContextWithLogger(ctx, l))
+		})
 	}
 
 	functions := map[string]function.Function{}
