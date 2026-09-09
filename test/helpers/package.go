@@ -84,6 +84,9 @@ const (
 
 	caKeyBits = 4096
 
+	// argsPerModulePath is the flag and value each module path adds to a command line.
+	argsPerModulePath = 2
+
 	// fakeProviderBinarySize is the size of the dummy binary FakeProvider packs into its archive.
 	fakeProviderBinarySize = 1e7
 
@@ -479,13 +482,15 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd // capacity hint: the fixed args plus two per module path
-	cmdParts = append(cmdParts,
+	fixedArgs := []string{
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", rootModulePath,
-	)
+	}
+
+	cmdParts := make([]string, 0, len(fixedArgs)+argsPerModulePath*len(includeModulePaths))
+	cmdParts = append(cmdParts, fixedArgs...)
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
@@ -530,13 +535,15 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd // capacity hint: the fixed args plus two per unit
-	cmdParts = append(cmdParts,
+	fixedArgs := []string{
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", workDir,
-	)
+	}
+
+	cmdParts := make([]string, 0, len(fixedArgs)+argsPerModulePath*len(units))
+	cmdParts = append(cmdParts, fixedArgs...)
 
 	for _, unit := range units {
 		cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'{%s}...'", unit))

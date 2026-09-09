@@ -2,11 +2,19 @@
 name: symlinks
 ---
 
+import Since from '@components/Since.astro';
+
 Support symlink resolution for Terragrunt units.
 
 ### `symlinks` - What it does
 
 By default, Terragrunt will ignore symlinks when determining which units it should run. By enabling this experiment, Terragrunt will resolve symlinks and add them to the list of units being run.
+
+<Since version="1.1.5">
+
+It also makes `include_in_copy` and `exclude_from_copy` glob patterns rooted at a symlinked directory expand through the link, so the contents of a linked directory are copied into (or excluded from) the OpenTofu/Terraform working directory. A link that points back at a directory already being copied, or at a parent of one, is skipped with a warning.
+
+</Since>
 
 ### `symlinks` - How to provide feedback
 

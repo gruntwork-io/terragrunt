@@ -1,0 +1,18 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### EC2 instance role credentials work again from inside a container
+
+Since v1.1.4, Terragrunt running in a container on an EC2 instance could fail to use the instance's IAM role when the instance metadata service has a hop limit of 1. Runs failed with:
+
+```text
+error assuming role: operation error STS: AssumeRole, get identity: get credentials:
+failed to refresh cached credentials, no EC2 IMDS role found,
+operation error ec2imds: GetMetadata, canceled, context deadline exceeded
+```
+
+In that setup the IMDSv2 token request never gets an answer. Terragrunt v1.1.4 waited on it until the whole credential lookup timed out, so the IMDSv1 fallback that v1.1.3 and earlier relied on never ran.
+
+Terragrunt now gives up on the IMDSv2 token request quickly and falls back to IMDSv1, as it did before v1.1.4. No configuration change is needed.

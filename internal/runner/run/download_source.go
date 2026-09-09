@@ -218,6 +218,10 @@ func moduleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
 		copyOpts = append(copyOpts, util.WithFastCopy())
 	}
 
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		copyOpts = append(copyOpts, util.WithSymlinkedGlobRoots())
+	}
+
 	return copyOpts
 }
 
@@ -722,7 +726,8 @@ func BuildDownloadClient(
 			WithLogger(l).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
-			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
+			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls)).
+			WithSymlinkedGlobRoots(opts.Experiments.Evaluate(experiment.Symlinks))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}

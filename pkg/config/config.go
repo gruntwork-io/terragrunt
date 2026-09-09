@@ -61,6 +61,10 @@ const (
 
 	logMsgSeparator = "\n"
 
+	// defaultParserOptionCount is what DefaultParserOptions can return: the
+	// diagnostics writer, the logger, and the bare-include file update.
+	defaultParserOptionCount = 3
+
 	DefaultEngineType                   = "rpc"
 	MetadataTerraform                   = "terraform"
 	MetadataTerraformBinary             = "terraform_binary"
@@ -106,7 +110,7 @@ var (
 			writer.WithMsgSeparator(logMsgSeparator),
 		)
 
-		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd // capacity hint for the options appended below
+		parseOpts := make([]hclparse.Option, 0, defaultParserOptionCount)
 		parseOpts = append(parseOpts,
 			hclparse.WithDiagnosticsWriter(v, writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),

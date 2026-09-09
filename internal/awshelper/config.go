@@ -4,14 +4,15 @@ package awshelper
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"errors"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	awsiam "github.com/aws/aws-sdk-go-v2/service/iam"
@@ -22,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -121,7 +123,7 @@ func (b *AWSConfigBuilder) Build(
 	configOptions = append(
 		configOptions,
 		config.WithAppID("terragrunt/"+version.GetVersion()),
-		config.WithHTTPClient(v.HTTP),
+		config.WithHTTPClient(AWSBuildableClient(v.HTTP)),
 	)
 
 	envCreds := createCredentialsFromEnv(v.Env)
@@ -215,7 +217,7 @@ func (b *AWSConfigBuilder) BuildS3Client(
 		return s3.NewFromConfig(cfg), nil
 	}
 
-	customFN := make([]func(*s3.Options), 0, 2) //nolint:mnd // at most two S3 option overrides are appended below
+	var customFN []func(*s3.Options)
 
 	if b.sessionConfig.CustomS3Endpoint != "" {
 		customFN = append(customFN, func(o *s3.Options) {
@@ -230,6 +232,35 @@ func (b *AWSConfigBuilder) BuildS3Client(
 	}
 
 	return s3.NewFromConfig(cfg, customFN...), nil
+}
+
+// AWSBuildableClient returns an AWS-SDK-compatible HTTP client that preserves the venv's transport
+// behavior while enabling the SDK's IMDS fail-fast timeouts for container environments where IMDSv2
+// is unreachable (hop-limit 1). When the venv carries a standard *http.Transport (production) or a
+// nil transport (stdlib default), the transport is cloned into an *awshttp.BuildableClient so the
+// IMDS provider can apply its 250ms dial and 500ms response-header caps. When the transport is
+// something else (in-memory test mock, no-network sentinel), the original client is returned as-is
+// to preserve hermetic test behavior.
+func AWSBuildableClient(c vhttp.Client) aws.HTTPClient {
+	src, _ := c.Transport.(*http.Transport)
+
+	// A nil Transport is the stdlib's documented default: use http.DefaultTransport.
+	if src == nil && c.Transport != nil {
+		return c
+	}
+
+	bc := awshttp.NewBuildableClient()
+	if src != nil {
+		bc = bc.WithTransportOptions(func(tr *http.Transport) {
+			*tr = *src.Clone()
+		})
+	}
+
+	if c.Timeout > 0 {
+		bc = bc.WithTimeout(c.Timeout)
+	}
+
+	return bc
 }
 
 // getRegionFromEnv extracts region from environment variables.
@@ -284,7 +315,7 @@ func AssumeIamRole(
 		ctx,
 		config.WithRegion(region),
 		config.WithAppID("terragrunt/"+version.GetVersion()),
-		config.WithHTTPClient(v.HTTP),
+		config.WithHTTPClient(AWSBuildableClient(v.HTTP)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error loading AWS config: %w", err)
