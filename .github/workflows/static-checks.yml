@@ -1,4 +1,4 @@
-name: License Check
+name: Static Checks
 
 on:
   workflow_call:
@@ -7,10 +7,10 @@ permissions:
   contents: read
 
 jobs:
-  license-check:
-    name: License Check
-    runs-on: ubuntu-slim
-    timeout-minutes: 15
+  static-checks:
+    name: Static Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -21,20 +21,22 @@ jobs:
         with:
           version: 2026.5.12
         env:
-          # Required for GitHub-hosted tool downloads defined in mise.toml.
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: go-cache-paths
-        run: |
-          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        run: ./.github/scripts/ci/go-cache-paths.sh
+        shell: bash
 
+      # go fix loads every package, so a cold module cache refetches the whole
+      # dependency graph and fails outright when proxy.golang.org hiccups.
       - name: Go Mod Cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-license-check-go-mod-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-license-check-go-mod-
+            ${{ runner.os }}-go-mod-
 
       # `licensei cache` queries GitHub's API for every dep; cache the result.
       - name: Licensei Cache
@@ -45,10 +47,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-licensei-
 
+      # Every check runs even after an earlier one fails, so one failure does
+      # not hide the checks behind it.
+      - name: Run codespell
+        if: ${{ !cancelled() }}
+        run: codespell
+
+      - name: Run markdownlint
+        if: ${{ !cancelled() }}
+        uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23.2.0
+        with:
+          globs: |
+            docs/**/*.md
+
+      - name: Run go fix
+        if: ${{ !cancelled() }}
+        run: ./.github/scripts/ci/check-go-fix.sh
+
       - name: Run License Check
-        run: |
-          set -o pipefail
-          make license-check | tee license-check.log
+        if: ${{ !cancelled() }}
+        run: ./.github/scripts/ci/run-license-check.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

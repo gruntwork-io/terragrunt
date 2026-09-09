@@ -4,13 +4,15 @@ on:
   workflow_call:
 
 jobs:
+  # Linux only: every darwin build constraint in the tree is `linux || darwin`,
+  # so a macOS run type-checks an identical set of files.
   lint:
     name: Lint (${{ matrix.os }})
     runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos]
+        os: [ubuntu]
     env:
       # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
       GOGC: "400"
@@ -29,25 +31,7 @@ jobs:
 
     - id: go-cache-paths
       shell: bash
-      run: |
-        echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-        echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-
-        if [ "$RUNNER_OS" == "macOS" ]; then
-          echo "golangci-lint-cache=$HOME/Library/Caches/golangci-lint" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
-        echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
-
-    # Ensure Go cache parent directories exist before cache restore.
-    # On macOS runners ~/Library/Caches may not exist on a fresh image,
-    # causing actions/cache tar extraction or subsequent mkdir -p to fail.
-    - name: Ensure cache directories (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        mkdir -p "$(go env GOCACHE)"
-        mkdir -p "$HOME/Library/Caches/golangci-lint"
+      run: ./.github/scripts/ci/go-cache-paths.sh
 
     - name: Go Build Cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
@@ -76,58 +60,16 @@ jobs:
           ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
           ${{ runner.os }}-golangci-lint-
 
-    # A corrupted cache entry may restore go-build or its parent as a
-    # regular file instead of a directory. Remove any such files and
-    # recreate them as directories so the Go toolchain can use the cache.
-    - name: Fix Go build cache dir (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        cache_dir="$(go env GOCACHE)"
-        for p in "$(dirname "$cache_dir")" "$cache_dir"; do
-          if [ -f "$p" ]; then rm -f "$p"; fi
-        done
-        mkdir -p "$cache_dir"
-
     # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately.
     # Use refspec main:main to create a local branch (required for git merge-base main HEAD).
     - name: Fetch main branch
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
       run: git fetch origin main:main
 
-    # macOS runners have ~14GB RAM. GOGC=400 lets the Go heap grow to ~31GB (measured), causing
-    # heavy swap and lint timeout. Cap heap to keep golangci-lint within available physical memory.
-    - name: Set memory limits (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        echo "GOGC=100" >> "$GITHUB_ENV"
-        echo "GOMEMLIMIT=10GiB" >> "$GITHUB_ENV"
-
-    # Linux runners have ~28GB RAM but GOGC=400 still causes the heap to grow beyond available
-    # physical memory when linting with many build tags, triggering runner shutdown signals.
-    # Cap the heap to keep golangci-lint stable on Linux.
-    - name: Set memory limits (Linux)
-      if: runner.os == 'Linux'
-      run: |
-        echo "GOGC=100" >> "$GITHUB_ENV"
-        echo "GOMEMLIMIT=20GiB" >> "$GITHUB_ENV"
-
-    - name: Check for lint config changes
-      id: lint-config
-      if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
-      run: |
-        if git diff --name-only origin/main...HEAD | grep -q '^\.golangci\.yml$'; then
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "changed=false" >> "$GITHUB_OUTPUT"
-        fi
+    - name: Set memory limits
+      run: ./.github/scripts/ci/set-go-memory-limits.sh
 
     - name: Lint
-      run: |
-        # Full lint on main, tags, or when lint config changed
-        if [[ "${{ github.ref }}" != refs/heads/* ]] || \
-           [[ "${{ github.ref }}" == "refs/heads/main" ]] || \
-           [[ "${{ steps.lint-config.outputs.changed }}" == "true" ]]; then
-          make run-lint
-        else
-          make run-lint-incremental
-        fi
+      run: ./.github/scripts/ci/run-lint.sh
+      env:
+        GITHUB_REF: ${{ github.ref }}

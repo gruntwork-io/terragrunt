@@ -4,20 +4,20 @@ on:
   workflow_call:
     inputs:
       version:
-        description: 'Version string for ldflags (defaults to github.ref_name)'
+        description: "Version string for ldflags (defaults to github.ref_name)"
         required: false
         type: string
-        default: ''
+        default: ""
       is_release:
-        description: 'Whether this is a release build (enables signing)'
+        description: "Whether this is a release build (enables signing)"
         required: false
         type: boolean
         default: false
       ref:
-        description: 'Git ref to checkout (defaults to triggering ref)'
+        description: "Git ref to checkout (defaults to triggering ref)"
         required: false
         type: string
-        default: ''
+        default: ""
 
 jobs:
   detect_release:
@@ -26,40 +26,27 @@ jobs:
     outputs:
       is_release: ${{ steps.check.outputs.is_release }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          ref: ${{ inputs.ref || '' }}
+          sparse-checkout: .github/scripts/build
+
       - name: Check if release build
         id: check
         env:
           IS_RELEASE_INPUT: ${{ inputs.is_release }}
-        run: |
-          if [[ "$IS_RELEASE_INPUT" == "true" ]]; then
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
-            echo "This is a RELEASE build (from caller input) - signing will be enabled"
-          else
-            echo "is_release=false" >> "$GITHUB_OUTPUT"
-            echo "This is NOT a release build - signing will be skipped"
-          fi
+        run: ./.github/scripts/build/detect-release.sh
 
+  # One job for all seven targets: seven wrote a 1-2GB build cache apiece, which
+  # alone exceeded the repo's 10GB cache budget.
+  #
+  # Each platform keeps its own artifact name, which sign-macos, sign-windows
+  # and upload-tip-build select by pattern.
   build:
-    name: Build (${{ matrix.os }}/${{ matrix.arch }})
+    name: Build
     needs: detect_release
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - os: darwin
-            arch: amd64
-          - os: darwin
-            arch: arm64
-          - os: linux
-            arch: "386"
-          - os: linux
-            arch: amd64
-          - os: linux
-            arch: arm64
-          - os: windows
-            arch: "386"
-          - os: windows
-            arch: amd64
 
     steps:
       - name: Checkout code
@@ -75,15 +62,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: go-cache-paths
-        run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        run: ./.github/scripts/ci/go-cache-paths.sh
+        shell: bash
 
       - name: Go Build Cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-crossbuild
           restore-keys: |
             ${{ runner.os }}-go-build-
 
@@ -96,36 +82,51 @@ jobs:
             ${{ runner.os }}-go-mod-
 
       - name: Build Terragrunt
+        run: ./.github/scripts/build/release-binaries.sh
         env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
-          CGO_ENABLED: 0
           BUILD_VERSION: ${{ inputs.version || github.ref_name }}
-        run: |
-          OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
-          if [[ "${GOOS}" == "windows" ]]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          go build -o "${OUTPUT}" \
-            -ldflags "-s -w -X github.com/gruntwork-io/terragrunt/internal/version.Version=${BUILD_VERSION}" \
-            .
 
-      - name: Verify Static Linking
-        env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
-        run: |
-          OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
-          if [[ "${GOOS}" == "windows" ]]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          .github/scripts/release/verify-static-binary.sh "${OUTPUT}" "${GOOS}" "${GOARCH}"
-
-      - name: Upload Build Artifact
+      - name: Upload darwin/amd64
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
-          path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
+          name: terragrunt_darwin_amd64
+          path: bin/terragrunt_darwin_amd64*
+
+      - name: Upload darwin/arm64
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: terragrunt_darwin_arm64
+          path: bin/terragrunt_darwin_arm64*
+
+      - name: Upload linux/386
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: terragrunt_linux_386
+          path: bin/terragrunt_linux_386*
+
+      - name: Upload linux/amd64
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: terragrunt_linux_amd64
+          path: bin/terragrunt_linux_amd64*
+
+      - name: Upload linux/arm64
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: terragrunt_linux_arm64
+          path: bin/terragrunt_linux_arm64*
+
+      - name: Upload windows/386
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: terragrunt_windows_386
+          path: bin/terragrunt_windows_386*
+
+      - name: Upload windows/amd64
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: terragrunt_windows_amd64
+          path: bin/terragrunt_windows_amd64*
 
   sign_macos:
     name: Sign MacOS Binaries
@@ -160,46 +161,7 @@ jobs:
           path: bin/
 
       - name: Verify macOS binaries after download
-        run: |
-          # Get list of expected macOS binaries from config
-          macos_binaries=$(jq -r '.platforms[] | select(.os == "darwin") | .binary' .github/assets/release-assets-config.json)
-
-          echo "Expected macOS binaries from config:"
-          echo "$macos_binaries"
-          echo ""
-
-          echo "Listing expected files in bin/:"
-          for binary in $macos_binaries; do
-            if [[ -f "bin/$binary" ]]; then
-              ls -lh "bin/$binary"
-            fi
-            if [[ -f "bin/$binary.zip" ]]; then
-              ls -lh "bin/$binary.zip"
-            fi
-          done
-          echo ""
-
-          echo "Verifying macOS binaries:"
-          for binary in $macos_binaries; do
-            echo "Checking bin/$binary:"
-
-            [[ -f "bin/$binary" ]] || {
-              echo "  ERROR: Binary bin/$binary is missing from downloaded artifact"
-              exit 1
-            }
-
-            echo "  OK: bin/$binary"
-            file "bin/$binary"
-
-            # Check for ZIP file
-            if [[ -f "bin/$binary.zip" ]]; then
-              echo "  OK: bin/$binary.zip"
-              ls -lh "bin/$binary.zip"
-            else
-              echo "  NOTICE: bin/$binary.zip (not present, will be created in merge)"
-            fi
-            echo ""
-          done
+        run: ./.github/scripts/release/verify-macos-artifacts.sh
 
       - name: Download Windows signed binaries
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -215,9 +177,7 @@ jobs:
           merge-multiple: true
 
       - name: List all binaries
-        run: |
-          echo "All binaries ready for release:"
-          ls -lahrt bin/*
+        run: ./.github/scripts/release/list-binaries.sh
 
       - name: Upload All Signed Binaries
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

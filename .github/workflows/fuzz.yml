@@ -1,7 +1,13 @@
 name: Fuzz
 
+# Per-push runs still cover regressions: go test replays each target's seed
+# corpus as an ordinary unit test in base_tests. Only new-input discovery
+# happens here.
 on:
-  workflow_call:
+  schedule:
+    # Every day at 07:00 UTC
+    - cron: '0 7 * * *'
+  workflow_dispatch:
 
 jobs:
   fuzz:
@@ -22,9 +28,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: go-cache-paths
-        run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        run: ./.github/scripts/ci/go-cache-paths.sh
         shell: bash
 
       - name: Go Build Cache
