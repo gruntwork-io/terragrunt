@@ -267,7 +267,6 @@ terraform {
 	b.Run("default_runner", func(b *testing.B) {
 		// Warmups (not measured)
 		warmupApplies(b, tmpDir, false, 2)
-		b.ResetTimer()
 
 		for b.Loop() {
 			helpers.Apply(b, tmpDir)
@@ -277,7 +276,6 @@ terraform {
 	b.Run("runner_pool", func(b *testing.B) {
 		// Warmups (not measured)
 		warmupApplies(b, tmpDir, true, 2)
-		b.ResetTimer()
 
 		for b.Loop() {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
@@ -337,7 +335,6 @@ terraform {
 	b.Run("default_runner", func(b *testing.B) {
 		// Warmups (not measured)
 		warmupApplies(b, tmpDir, false, 2)
-		b.ResetTimer()
 
 		for b.Loop() {
 			helpers.Apply(b, tmpDir)
@@ -347,7 +344,6 @@ terraform {
 	b.Run("runner_pool", func(b *testing.B) {
 		// Warmups (not measured)
 		warmupApplies(b, tmpDir, true, 2)
-		b.ResetTimer()
 
 		for b.Loop() {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
@@ -432,7 +428,6 @@ dependencies {
 	b.Run("default_runner", func(b *testing.B) {
 		// Warmups (not measured)
 		warmupApplies(b, tmpDir, false, 2)
-		b.ResetTimer()
 
 		for b.Loop() {
 			helpers.Apply(b, tmpDir)
@@ -442,7 +437,6 @@ dependencies {
 	b.Run("runner_pool", func(b *testing.B) {
 		// Warmups (not measured)
 		warmupApplies(b, tmpDir, true, 2)
-		b.ResetTimer()
 
 		for b.Loop() {
 			helpers.ApplyWithRunnerPool(b, tmpDir)
@@ -553,7 +547,6 @@ terraform {
 			b.Run("configstack", func(b *testing.B) {
 				// Warmups (not measured)
 				warmupApplies(b, dir, false, 2)
-				b.ResetTimer()
 
 				for b.Loop() {
 					helpers.Apply(b, dir)
@@ -563,7 +556,6 @@ terraform {
 			b.Run("runner_pool", func(b *testing.B) {
 				// Warmups (not measured)
 				warmupApplies(b, dir, true, 2)
-				b.ResetTimer()
 
 				for b.Loop() {
 					helpers.ApplyWithRunnerPool(b, dir)

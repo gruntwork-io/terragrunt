@@ -147,6 +147,12 @@ linters:
         - pattern: ^filepath\.(Walk|WalkDir|Glob)$
           pkg: ^path/filepath$
           msg: walk the venv's vfs.FS via vfs.WalkDir or vfs.WalkDirParallel instead of the real filesystem
+        - pattern: ^unix\.(Statfs|Fstatfs)$
+          pkg: ^golang.org/x/sys/unix$
+          msg: ask vfs.DetectFSKind, which describes the vfs.FS in hand rather than whatever the real disk holds at that path
+        - pattern: ^windows\.(GetVolumeInformation|GetVolumeInformationByHandle|GetVolumePathName)$
+          pkg: ^golang.org/x/sys/windows$
+          msg: ask vfs.DetectFSKind, which describes the vfs.FS in hand rather than whatever the real disk holds at that path
         - pattern: ^filepath\.EvalSymlinks$
           pkg: ^path/filepath$
           msg: resolve links on the venv's vfs.FS via vfs.EvalSymlinks, or vfs.ResolveForCompare when the result is to be compared against another path

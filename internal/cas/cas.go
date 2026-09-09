@@ -758,9 +758,9 @@ func (c *CAS) storeTreeRecursive(
 // `git cat-file --batch` process, started only when there is something to
 // read.
 //
-// The pending blobs are split across [vfs.FSWorkers] shards, which
-// overlaps the store's own writes. Shards never outnumber the blobs they
-// serve, so a small tree still starts a single git process.
+// The pending blobs are split across [BlobShards] shards, which overlaps
+// the store's own writes. Shards never outnumber the blobs they serve,
+// so a small tree still starts a single git process.
 func (c *CAS) storeBlobs(
 	ctx context.Context,
 	v *venv.Venv,
@@ -772,7 +772,7 @@ func (c *CAS) storeBlobs(
 		return nil
 	}
 
-	shards := min(vfs.FSWorkers, len(pending))
+	shards := BlobShards(v.FS, c.storePath, len(pending))
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(shards)
@@ -784,6 +784,28 @@ func (c *CAS) storeBlobs(
 	}
 
 	return g.Wait()
+}
+
+// overlayIngestShards is what ingest peaks at on overlayfs, well under
+// the sixteen concurrent writers that filesystem absorbs for a walk.
+//
+// ext4 runs this same subprocess-per-shard workload fastest
+// at 16 shards on 2, 4, 8 and 16 cores, and overlayfs stays at
+// four across the same range.
+const overlayIngestShards = 4
+
+// BlobShards reports how many shards ingest should split pending blobs
+// across when the store lives at storePath on fsys, never more than
+// there are blobs to serve.
+func BlobShards(fsys vfs.FS, storePath string, pending int) int {
+	kind := vfs.DetectFSKind(fsys, storePath)
+
+	shards := vfs.FSWorkersForKind(kind)
+	if kind == vfs.FSOverlay {
+		shards = overlayIngestShards
+	}
+
+	return min(shards, pending)
 }
 
 // storeBlobShard stores the pending blobs at every index congruent to

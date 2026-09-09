@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 
 	"golang.org/x/sync/errgroup"
@@ -38,6 +37,7 @@ type LinkTreeOption func(*linkTreeOpts)
 type linkTreeOpts struct {
 	maxDepth  int
 	forceCopy bool
+	fsWorkers int
 }
 
 // WithForceCopy makes LinkTree copy blobs from the CAS store into the target
@@ -79,6 +79,10 @@ func LinkTree(
 	for _, opt := range opts {
 		opt(&o)
 	}
+
+	// Probed once here rather than per subtree to avoid paying the
+	// probe cost on every subtree.
+	o.fsWorkers = vfs.FSWorkersFor(v.FS, targetDir)
 
 	return linkTree(ctx, l, v, blobStore, treeStore, t, targetDir, targetDir, 0, &o)
 }
@@ -176,10 +180,7 @@ func linkTree(
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	// Use half the available CPUs (at least 1) to avoid saturating I/O during tree materialization.
-	scalingFactor := 2
-	maxWorkers := max(1, runtime.GOMAXPROCS(0)/scalingFactor)
-	g.SetLimit(maxWorkers)
+	g.SetLimit(o.fsWorkers)
 
 	for _, work := range workItems {
 		g.Go(func() error {

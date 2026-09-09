@@ -28,18 +28,15 @@ func BenchmarkClone(b *testing.B) {
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
 
-		b.ResetTimer()
+		i := 0
 
-		for i := 0; b.Loop(); i++ {
-			b.StopTimer()
-
+		for b.Loop() {
 			storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
+			i++
 
 			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(b, err)
-
-			b.StartTimer()
 
 			require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
 				cas.WithDepth(-1)))
@@ -60,17 +57,14 @@ func BenchmarkClone(b *testing.B) {
 				cas.WithDepth(-1)),
 		)
 
-		b.ResetTimer()
+		i := 0
 
-		for i := 0; b.Loop(); i++ {
-			b.StopTimer()
-
+		for b.Loop() {
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
+			i++
 
 			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(b, err)
-
-			b.StartTimer()
 
 			require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
 				cas.WithDepth(-1)))
@@ -91,12 +85,11 @@ func BenchmarkContent(b *testing.B) {
 	v := venvtest.NewOSWithEmptyEnv()
 
 	b.Run("store", func(b *testing.B) {
-		for i := 0; b.Loop(); i++ {
-			b.StopTimer()
+		i := 0
 
+		for b.Loop() {
 			hash := "benchmark" + strconv.Itoa(i)
-
-			b.StartTimer()
+			i++
 
 			require.NoError(b, content.Store(l, v, hash, testData, cas.StoredFilePerms))
 		}

@@ -42,7 +42,7 @@ func BenchmarkFormat(b *testing.B) {
 
 			tgOptions.WorkingDir = tmpBase
 			tgOptions.HclExclude = excludeList
-			v := venvtest.New()
+			v := venvtest.NewWithOSFS()
 
 			formatter := logformat.NewFormatter(logformat.NewKeyValueFormatPlaceholders())
 			formatter.SetDisabledColors(true)
@@ -52,8 +52,6 @@ func BenchmarkFormat(b *testing.B) {
 				log.WithFormatter(formatter),
 			)
 			ctx := context.Background()
-
-			b.ResetTimer()
 
 			for b.Loop() {
 				b.StopTimer()

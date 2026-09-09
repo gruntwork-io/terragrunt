@@ -65,8 +65,6 @@ func benchmarkPathExpression(b *testing.B, n int) {
 
 	v := venvtest.NewOSWithEmptyEnv()
 
-	b.ResetTimer()
-
 	for b.Loop() {
 		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
@@ -94,8 +92,6 @@ func benchmarkGraphExpression(b *testing.B, n int) {
 	require.NoError(b, err)
 
 	v := venvtest.NewOSWithEmptyEnv()
-
-	b.ResetTimer()
 
 	for b.Loop() {
 		d := discovery.NewDiscovery(tmpDir).
@@ -127,8 +123,6 @@ func benchmarkPathAndGraphExpression(b *testing.B, n int) {
 	require.NoError(b, err)
 
 	v := venvtest.NewOSWithEmptyEnv()
-
-	b.ResetTimer()
 
 	for b.Loop() {
 		d := discovery.NewDiscovery(tmpDir).
