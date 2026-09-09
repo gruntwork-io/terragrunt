@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -27,13 +28,16 @@ const gitSymlinkMode = "120000"
 const DefaultLocalHashAlgorithm = HashSHA256
 
 // ignoredSourceDirs names directories left out of every tree CAS builds by
-// walking a source directory. Both hold working state rather than source:
+// walking a source directory. All hold working state rather than source:
 // OpenTofu/Terraform puts provider plugins in .terraform, which a provider
-// cache fills with links into a shared cache outside the source tree, and
-// .terragrunt-cache holds Terragrunt's own working copies. Taking either in
+// cache fills with links into a shared cache outside the source tree,
+// .terragrunt-cache holds Terragrunt's own working copies, and
+// .terragrunt-stack holds generated stack output. Taking any of them in
 // would tie the content hash to state that changes on every init and store
-// links resolving outside the tree they are materialized into.
-var ignoredSourceDirs = []string{util.TerraformCacheDir, util.TerragruntCacheDir}
+// links resolving outside the tree they are materialized into. Generated
+// stack output also embeds the previous generation's cas:: refs, so hashing
+// it makes the hash of an unchanged source change on every regeneration.
+var ignoredSourceDirs = []string{util.TerraformCacheDir, util.TerragruntCacheDir, hclparse.StackDir}
 
 // ignoredSourceEntry reports whether the entry at path, reached by a walk rooted
 // at root, is one of [ignoredSourceDirs]. The root is exempt, because a
