@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -260,7 +261,7 @@ func TestDiscovery_SimpleFilesystem(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Test: discover all components
 	d := discovery.NewDiscovery(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
@@ -295,7 +296,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Test: filter to apps/* only
 	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*"})
@@ -335,7 +336,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Test: exclude ./bar
 	filters, err := filter.ParseFilterQueries(l, []string{"!./bar"})
@@ -380,7 +381,7 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Test: ./apps/* but not ./apps/baz
 	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*", "!./apps/baz"})
@@ -506,7 +507,7 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Discover components with ReadFiles enabled to populate Reading field
 	d := discovery.NewDiscovery(tmpDir).
@@ -564,7 +565,7 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	_, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	_, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.Error(t, err)
 
 	var coexistErr discovery.CoexistenceError
@@ -595,7 +596,7 @@ func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 1)
 	assert.Equal(t, component.UnitKind, components[0].Kind())
@@ -640,7 +641,7 @@ unit "app" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithParseStackConfigs()
 
-	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	stacks := make(map[string]*component.Stack)

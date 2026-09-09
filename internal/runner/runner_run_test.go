@@ -52,7 +52,7 @@ func TestRunnerRun_ExcludedUnitsAreReported(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, app},
@@ -61,7 +61,7 @@ func TestRunnerRun_ExcludedUnitsAreReported(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.NoError(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
 
 	for _, unit := range []*component.Unit{vpc, app} {
 		run, err := r.GetRun(unit.Path())
@@ -92,7 +92,7 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, db, app},
@@ -101,7 +101,7 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
 
 	vpcRun, err := r.GetRun(vpc.Path())
 	require.NoError(t, err)
@@ -138,12 +138,12 @@ func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc, app})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc, app})
 	require.NoError(t, err)
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
 
 	appRun, err := r.GetRun(app.Path())
 	require.NoError(t, err)
@@ -164,10 +164,10 @@ func TestRunnerRun_WithoutReport(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, nil))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
 	assert.Contains(
 		t,
 		opts.TerraformCliArgs.Slice(),
@@ -197,10 +197,10 @@ func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitRunFailsWithoutBinary pins the error a parsed unit hits when no binary may be spawned.
@@ -214,10 +214,10 @@ func TestRunnerRun_UnitRunFailsWithoutBinary(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitTerraformBinaryOverride pins that the unit run spawns a unit's terraform_binary.
@@ -231,9 +231,9 @@ func TestRunnerRun_UnitTerraformBinaryOverride(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
-	require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
 
 	plan := commandInvocation(t, invocations(), tf.CommandNamePlan)
 	assert.Equal(t, "custom-tofu", plan.Name, "the plan runs the unit's terraform_binary")
@@ -248,12 +248,12 @@ func TestRunnerRun_EmptyStack(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{})
 	require.NoError(t, err)
 
 	require.NoError(
 		t,
-		rnr.Run(t.Context(), l, v, opts, report.NewReport().WithWorkingDir(memRoot)),
+		rnr.Run(config.WithCaches(t.Context()), l, v, opts, report.NewReport().WithWorkingDir(memRoot)),
 	)
 }
 
@@ -350,13 +350,13 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 			l := thlogger.CreateLogger()
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				l,
 				opts,
 				component.Components{vpc},
 			)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
 
 			if tc.jsonOutput {
 				exists, err := vfs.FileExists(v.FS, vpc.OutputJSONFile(memRoot, opts.JSONOutputFolder))
@@ -438,9 +438,9 @@ func TestRunnerRun_PlanWithRemoteStateErrors(t *testing.T) {
 
 			l := thlogger.CreateLogger()
 
-			rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, components)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
 		})
 	}
 }

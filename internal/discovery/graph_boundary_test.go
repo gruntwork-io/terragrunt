@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -91,7 +92,7 @@ func (f *graphBoundaryFixture) discover(
 
 	configs, err := discovery.NewDiscovery(f.stagingDir).
 		WithFilters(filters).
-		Discover(t.Context(), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	return configs
@@ -178,7 +179,7 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 
 			_, err = discovery.NewDiscovery(f.stagingDir).
 				WithFilters(filters).
-				Discover(t.Context(), logger.CreateLogger(), v, opts)
+				Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 			require.ErrorAs(t, err, tc.errAs)
 		})
 	}
@@ -220,7 +221,7 @@ dependency "vpc" {
 
 		configs, err := discovery.NewDiscovery(repoRoot).
 			WithFilters(filters).
-			Discover(t.Context(), logger.CreateLogger(), v, opts)
+			Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 
 		return configs

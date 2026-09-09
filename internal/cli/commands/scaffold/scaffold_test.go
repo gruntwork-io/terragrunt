@@ -115,9 +115,10 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	require.NoError(t, err)
 
 	v := venvtest.NewWithOSFS()
+	ctx := config.WithCaches(t.Context())
 	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
-		t.Context(),
+		ctx,
 		l,
 		v,
 		pctx,
@@ -223,9 +224,10 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	require.NoError(t, err)
 
 	v := venvtest.NewWithOSFS()
+	ctx := config.WithCaches(t.Context())
 	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
-		t.Context(),
+		ctx,
 		l,
 		v,
 		pctx,
@@ -460,7 +462,7 @@ catalog {
 			// First, verify catalog config parsing
 			v := venvtest.NewWithOSFS()
 			catalogPctx := configbridge.NewParsingContext(opts)
-			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
+			catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(context.Background()), l, v, catalogPctx)
 			require.NoError(t, err)
 			require.NotNil(t, catalogCfg, tc.description)
 
@@ -555,7 +557,7 @@ catalog {
 	// Parse the configuration
 	v := venvtest.NewWithOSFS()
 	catalogPctx := configbridge.NewParsingContext(opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
+	catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(context.Background()), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -595,7 +597,7 @@ catalog {
 	// Parse the configuration
 	v := venvtest.NewWithOSFS()
 	catalogPctx := configbridge.NewParsingContext(opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
+	catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(context.Background()), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 

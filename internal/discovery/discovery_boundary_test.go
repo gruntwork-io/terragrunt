@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -99,7 +100,7 @@ func (f *boundaryFixture) discover(
 		d = d.WithDiscoveryBoundary(boundary)
 	}
 
-	return d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+	return d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 }
 
 // Test that a dependent found by the upstream walk is returned when the
@@ -372,7 +373,7 @@ func TestDiscoveryBoundary_SurvivesFilterEvaluationWithRelationships(t *testing.
 				d = d.WithDiscoveryBoundary(tc.boundary)
 			}
 
-			configs, err := d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+			configs, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, paths, configs.Filter(component.UnitKind).Paths())
 		})
@@ -435,7 +436,7 @@ func TestDiscoveryBoundary_WithholdingAcrossFilterShapes(t *testing.T) {
 				WithFilters(filters).
 				WithRelationships().
 				WithDiscoveryBoundary(".").
-				Discover(t.Context(), logger.CreateLogger(), v, opts)
+				Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, paths, configs.Filter(component.UnitKind).Paths())
@@ -506,7 +507,7 @@ func TestDiscoveryBoundary_UnfilteredRunWithholdsOnlyWhatTraversalReached(t *tes
 	configs, err := discovery.NewDiscovery(f.stagingDir).
 		WithRelationships().
 		WithDiscoveryBoundary(".").
-		Discover(t.Context(), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	// production/external is edge's dependency, reached across the boundary.
@@ -594,7 +595,7 @@ func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 				WithFilters(filters).
 				WithRelationships().
 				WithDiscoveryBoundary(tc.boundary).
-				Discover(t.Context(), logger.CreateLogger(), v, opts)
+				Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, expected, configs.Filter(component.UnitKind).Paths())

@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -76,7 +77,7 @@ func TestBasicDiscovery(t *testing.T) {
 
 	l.Formatter().SetDisabledColors(true)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(writer), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(writer), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -153,7 +154,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -228,7 +229,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -303,7 +304,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -417,7 +418,7 @@ dependency "C" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -557,7 +558,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -617,7 +618,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -690,7 +691,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -768,7 +769,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -839,7 +840,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -906,7 +907,7 @@ exclude {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -988,7 +989,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -1060,7 +1061,7 @@ dependency "zulu" {
 
 			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
 
-			require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Equal(t, tc.wantOutput, buf.String())
 		})
 	}
@@ -1120,7 +1121,7 @@ dependency "zulu" {
 
 			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
 
-			require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Equal(t, tc.wantLabels, treeLabels(buf.String()))
 		})
 	}
@@ -1147,7 +1148,7 @@ func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
 
 	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
 
-	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	wantPaths := []string{
 		filepath.Join(widePathPrefix, "one"),
@@ -1198,7 +1199,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
 
-			require.Error(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			require.Error(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Empty(t, buf.String())
 		})
 	}
@@ -1233,7 +1234,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			opts.Format = tc.format
 
 			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
-			require.ErrorIs(t, list.Run(t.Context(), newTestLogger(t), v, opts), errWriteFailed)
+			require.ErrorIs(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts), errWriteFailed)
 		})
 	}
 }

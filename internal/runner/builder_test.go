@@ -39,7 +39,7 @@ func TestNew(t *testing.T) {
 		require.NoError(t, v.FS.MkdirAll(memRoot, 0o755))
 
 		rnr, err := runner.New(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
@@ -56,7 +56,7 @@ func TestNew(t *testing.T) {
 		writeUnit(t, v, memRoot, "app", dependencyBlock("../vpc"))
 
 		rnr, err := runner.New(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
@@ -84,7 +84,7 @@ func TestNew(t *testing.T) {
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.WorkingDir = filepath.Join(memRoot, "app")
 
-		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 		assert.Len(
 			t,
@@ -105,7 +105,7 @@ func TestNew(t *testing.T) {
 		opts.RootWorkingDir = ""
 		opts.WorkingDir = filepath.Join(memRoot, "app")
 
-		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
@@ -127,7 +127,7 @@ func TestNew(t *testing.T) {
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.TerragruntConfigPath = filepath.Join(memRoot, "custom.hcl")
 
-		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
@@ -155,7 +155,7 @@ func TestNew(t *testing.T) {
 		opts.DiscoveryBoundary = memRoot
 
 		rnr, err := runner.New(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			l,
 			v,
 			opts,
@@ -175,7 +175,7 @@ func TestNew(t *testing.T) {
 		writeUnit(t, v, memRoot, "vpc", invalidHCL)
 
 		_, err := runner.New(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
@@ -193,7 +193,7 @@ func TestNew(t *testing.T) {
 		opts.WorkingDir = filepath.Join(memRoot, "does-not-exist")
 		opts.RootWorkingDir = opts.WorkingDir
 
-		_, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+		_, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
 		require.Error(t, err)
 	})
 }
@@ -259,7 +259,7 @@ func TestNew_VersionConstraints(t *testing.T) {
 			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 			opts.TerragruntVersion = semver.MustParse("0.1.0")
 
-			rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+			rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
 
 			if tc.assertErr != nil {
 				tc.assertErr(t, err)
@@ -293,7 +293,7 @@ func TestCheckUnitVersionConstraints_UnitLeftUnparsed(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(config.WithCaches(t.Context()), l, v, unitOpts, unitLogger, unit)
 
 	var target run.InvalidTerragruntVersion
 
@@ -321,7 +321,7 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 	writeUnit(t, v, memRoot, "vpc", `terraform_binary = "custom-tofu"`)
 
 	_, err := runner.New(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		v,
 		newStackOpts(t, memRoot, tf.CommandNamePlan),
