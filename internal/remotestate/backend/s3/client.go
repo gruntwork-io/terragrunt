@@ -155,6 +155,10 @@ func (client *Client) CreateS3BucketIfNecessary(
 		return backend.BucketCreationNotAllowed(bucketName)
 	}
 
+	if _, err := BucketNamespace(bucketName, client.awsConfig.Region); err != nil {
+		return err
+	}
+
 	prompt := fmt.Sprintf(
 		"Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?",
 		bucketName,
@@ -731,6 +735,10 @@ func (client *Client) CreateLogsS3BucketIfNecessary(
 		return backend.BucketCreationNotAllowed(logsBucketName)
 	}
 
+	if _, err := BucketNamespace(logsBucketName, client.awsConfig.Region); err != nil {
+		return err
+	}
+
 	prompt := fmt.Sprintf(
 		"Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?",
 		logsBucketName,
@@ -901,14 +909,21 @@ func (client *Client) CreateS3Bucket(
 
 	l.Debugf("Creating S3 bucket %s", bucket)
 
+	region := client.awsConfig.Region
+
+	namespace, err := BucketNamespace(bucket, region)
+	if err != nil {
+		return err
+	}
+
 	input := &s3.CreateBucketInput{
 		Bucket:          aws.String(bucket),
+		BucketNamespace: namespace,
 		ObjectOwnership: types.ObjectOwnershipObjectWriter,
 	}
 
 	// For regions other than us-east-1, we need to specify the location constraint
 	// to avoid IllegalLocationConstraintException
-	region := client.awsConfig.Region
 	if region != "us-east-1" && region != "" {
 		l.Debugf("Creating S3 bucket %s in region %s", bucket, region)
 		input.CreateBucketConfiguration = &types.CreateBucketConfiguration{
@@ -928,8 +943,7 @@ func (client *Client) CreateS3Bucket(
 		input.CreateBucketConfiguration.Tags = sdkTags
 	}
 
-	_, err := client.s3Client.CreateBucket(ctx, input)
-	if err != nil {
+	if _, err := client.s3Client.CreateBucket(ctx, input); err != nil {
 		return err
 	}
 

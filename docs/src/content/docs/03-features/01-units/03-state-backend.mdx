@@ -216,6 +216,26 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 - **Access logging bucket**: If you specify an `accesslogging_bucket_name` in `remote_state.config` and that bucket doesn't already exist, Terragrunt will create it automatically. You can tag the access logging bucket with custom tags using `remote_state.config.accesslogging_bucket_tags`, and control the log object prefix using `accesslogging_target_prefix`.
 
+<Since version="1.2.0">
+
+Terragrunt creates a bucket in your [account regional namespace](https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html) when you name it using a name that's reserved for the account regional namespace. That namespace is a reserved subdivision of the S3 namespace that only your account can create buckets in, and its names end with your account ID, the region, and `-an`:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "my-terraform-state-111122223333-us-east-1-an"
+    key    = "${path_relative_to_include()}/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+`accesslogging_bucket_name` follows the same rule. A name that fits the convention but names a region other than the one you are deploying to is refused before Terragrunt offers to create the bucket.
+
+</Since>
+
 <Aside type="tip" title="Using profiles">
 
 If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket, DynamoDB table, or access logging bucket.
