@@ -11,7 +11,7 @@ const zfsSuperMagic = 0x2fc12fc1
 // fsMagicKinds maps the statfs f_type magic to a kind. The magic numbers
 // are kernel ABI, so a missing entry means a filesystem terragrunt has
 // no measurement for, not a stale table.
-var fsMagicKinds = map[int64]FSKind{
+var fsMagicKinds = map[uint32]FSKind{
 	unix.EXT4_SUPER_MAGIC:      FSExt4,
 	unix.XFS_SUPER_MAGIC:       FSXFS,
 	unix.BTRFS_SUPER_MAGIC:     FSBtrfs,
@@ -35,5 +35,5 @@ func detectFSKind(path string) FSKind {
 
 	// A magic with no entry is a real filesystem this package has not
 	// measured, which is [FSUnknown] rather than a failure to look.
-	return fsMagicKinds[int64(st.Type)]
+	return fsMagicKinds[uint32(st.Type)]
 }
