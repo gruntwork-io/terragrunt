@@ -288,17 +288,6 @@ func ParseS3FetchURL(u *url.URL) (S3FetchTarget, error) {
 	return target, nil
 }
 
-// s3EndpointScheme normalizes the URL scheme to a transport the HTTP client
-// supports. The upstream s3 getter claims `s3://` URLs without rewriting the
-// scheme, so the raw value may be "s3" rather than "http" or "https".
-func s3EndpointScheme(scheme string) string {
-	if scheme == SchemeHTTP {
-		return SchemeHTTP
-	}
-
-	return SchemeHTTPS
-}
-
 // S3Region resolves the region for u. An AWS host encodes it in the first
 // label; any other host belongs to an S3-compatible service, which carries it
 // in the query instead.
@@ -368,4 +357,15 @@ func S3ClientForTarget(
 	}
 
 	return b.BuildS3Client(ctx, l, v)
+}
+
+// s3EndpointScheme normalizes the URL scheme to a transport the HTTP client
+// supports. The upstream s3 getter claims `s3://` URLs without rewriting the
+// scheme, so the raw value may be "s3" rather than "http" or "https".
+func s3EndpointScheme(scheme string) string {
+	if scheme == SchemeHTTP {
+		return SchemeHTTP
+	}
+
+	return SchemeHTTPS
 }
