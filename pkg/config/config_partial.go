@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"path/filepath"
 	"slices"
 
@@ -178,6 +177,10 @@ type terragruntEngine struct {
 // - locals
 // - features
 // - include
+//
+// A file whose base blocks cannot depend on the unit being parsed is decoded once per run and served from
+// [BaseBlocksCache] after that, which is what keeps a parent shared by many units from being evaluated once per unit.
+// See [baseBlocksCacheKey] for what makes a file eligible.
 func DecodeBaseBlocks(
 	ctx context.Context,
 	pctx *ParsingContext,
@@ -186,6 +189,15 @@ func DecodeBaseBlocks(
 	includeFromChild *IncludeConfig,
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
+
+	baseBlocksCache := ContextBaseBlocksCache(ctx)
+
+	cacheKey, cacheable := baseBlocksCacheKey(pctx, file)
+	if cacheable {
+		if entry, found := baseBlocksCache.get(ctx, cacheKey); found {
+			return decodedBaseBlocksFromCache(pctx, file, includeFromChild, entry)
+		}
+	}
 
 	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
@@ -266,11 +278,50 @@ func DecodeBaseBlocks(
 		return nil, err
 	}
 
-	return &DecodedBaseBlocks{
+	decoded := &DecodedBaseBlocks{
 		TrackInclude: trackInclude,
 		Locals:       &localsAsCtyVal,
 		FeatureFlags: &flagsAsCtyVal,
-	}, errors.Join(errs...)
+	}
+
+	// A partial result from a failed decode is never stored, or every later unit would be
+	// handed that failure as if it were an answer.
+	if err := errors.Join(errs...); err != nil {
+		return decoded, err
+	}
+
+	if cacheable {
+		baseBlocksCache.put(ctx, cacheKey, &baseBlocksCacheEntry{
+			Locals:       decoded.Locals,
+			FeatureFlags: decoded.FeatureFlags,
+		})
+	}
+
+	return decoded, nil
+}
+
+// decodedBaseBlocksFromCache rebuilds the result of [DecodeBaseBlocks] around a cached entry.
+// Only a file with no include block is cached, so its TrackInclude carries nothing but the
+// child's own include and the sibling autoinclude, both of which are rebuilt here rather
+// than held in the entry.
+func decodedBaseBlocksFromCache(
+	pctx *ParsingContext,
+	file *hclparse.File,
+	includeFromChild *IncludeConfig,
+	entry *baseBlocksCacheEntry,
+) (*DecodedBaseBlocks, error) {
+	trackInclude, err := getTrackInclude(pctx, nil, includeFromChild)
+	if err != nil {
+		return nil, err
+	}
+
+	registerSiblingAutoInclude(pctx, file.ConfigPath, trackInclude)
+
+	return &DecodedBaseBlocks{
+		TrackInclude: trackInclude,
+		Locals:       entry.Locals,
+		FeatureFlags: entry.FeatureFlags,
+	}, nil
 }
 
 // mergeIncludedFeatureFlags merges feature defaults from included configs into the current parse.
@@ -452,21 +503,13 @@ func PartialParseConfigFile(
 	configPath string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
-
-	fileInfo, err := pctx.Venv.FS.Stat(configPath)
+	content, err := readConfigFile(pctx.Venv.FS, configPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, TerragruntConfigNotFoundError{Path: configPath}
-		}
-
 		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
-
-	// Check cache hit status before tracing
-	_, cacheHit := hclCache.Get(ctx, cacheKey)
+	lookup := lookupHCLFile(ctx, configPath, content, hclparse.NewParser(pctx.ParserOptions...))
+	cacheHit := lookup.cached != nil
 
 	var config *TerragruntConfig
 
@@ -480,27 +523,14 @@ func PartialParseConfigFile(
 		include,
 		cacheHit,
 		func(ctx context.Context, l log.Logger) error {
-			var file *hclparse.File
-
-			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
-			} else {
-				var parseErr error
-
-				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
-					ParseFromFile(pctx.Venv.FS, configPath)
-				if parseErr != nil {
-					return parseErr
-				}
-
-				hclCache.Put(ctx, cacheKey, file)
+			file, err := lookup.resolve(ctx)
+			if err != nil {
+				return err
 			}
 
-			var parseErr error
+			config, err = TerragruntConfigFromPartialConfig(ctx, pctx, l, file, include)
 
-			config, parseErr = TerragruntConfigFromPartialConfig(ctx, pctx, l, file, include)
-
-			return parseErr
+			return err
 		})
 
 	return config, err

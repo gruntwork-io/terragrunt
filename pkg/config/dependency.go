@@ -2553,34 +2553,24 @@ func foldSiblingAutoIncludeDeps(
 	return mergeDependencyBlocks(deps, autoDeps), nil
 }
 
-// parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
+// parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file
+// cache, so repeated dependency-output decodes reuse one parse and each caller gets the shared
+// AST bound to a parser of its own. The key is the one the config entry points use
+// ([HCLFileCacheKey]), so a file read as an autoinclude here and as a config elsewhere is
+// parsed once between them.
 func parseAutoIncludeFileCached(
 	ctx context.Context,
 	pctx *ParsingContext,
 	autoIncludePath string,
 ) (*hclparse.File, error) {
-	fileInfo, err := pctx.Venv.FS.Stat(autoIncludePath)
+	content, err := vfs.ReadFile(pctx.Venv.FS, autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
 
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
-	// Prefix the key so it cannot collide with the unit-config keys ParseConfigFile stores.
-	cacheKey := fmt.Sprintf("autoinclude-%v-%v", autoIncludePath, fileInfo.ModTime().UnixMicro())
+	parser := hclparse.NewParser(pctx.ParserOptions...)
 
-	if cached, found := hclCache.Get(ctx, cacheKey); found {
-		return cached.Rebind(hclparse.NewParser(pctx.ParserOptions...)), nil
-	}
-
-	file, err := hclparse.NewParser(pctx.ParserOptions...).
-		ParseFromFile(pctx.Venv.FS, autoIncludePath)
-	if err != nil {
-		return nil, err
-	}
-
-	hclCache.Put(ctx, cacheKey, file)
-
-	return file, nil
+	return lookupHCLFile(ctx, autoIncludePath, content, parser).resolve(ctx)
 }
 
 // decodeDependencyBlocksWithAutoIncludeOverrides decodes the file's dependency blocks, leaving

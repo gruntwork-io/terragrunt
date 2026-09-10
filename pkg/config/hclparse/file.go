@@ -17,10 +17,21 @@ type File struct {
 	*Parser
 	*hcl.File
 	ConfigPath string
+	diags      hcl.Diagnostics
 }
 
 func (file *File) Content() string {
 	return string(file.Bytes)
+}
+
+// HasDiagnostics reports whether the parse this file came out of raised any diagnostics.
+//
+// A parse that raises none is the parse any parser would have made of the same content. One
+// that raises some returned a file only because a diagnostics handler let it through, so what
+// it holds is whatever the parser recovered rather than what the file says. Callers that hand a
+// file to a reader who did not ask for that handler check this first.
+func (file *File) HasDiagnostics() bool {
+	return len(file.diags) > 0
 }
 
 // Update reparses the file with the new `content`.
@@ -46,6 +57,7 @@ func (file *File) Update(content []byte) error {
 	}
 
 	file.File = updatedFile.File
+	file.diags = updatedFile.diags
 
 	return nil
 }
@@ -149,5 +161,6 @@ func (file *File) Rebind(parser *Parser) *File {
 		Parser:     parser,
 		File:       file.File,
 		ConfigPath: file.ConfigPath,
+		diags:      file.diags,
 	}
 }

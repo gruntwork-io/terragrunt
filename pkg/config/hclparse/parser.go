@@ -80,6 +80,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 		Parser:     parser,
 		File:       hclFile,
 		ConfigPath: configPath,
+		diags:      diags,
 	}
 
 	if err := parser.handleDiagnostics(file, diags); err != nil {
@@ -105,6 +106,14 @@ func (parser *Parser) GetDiagnosticsWriter(
 	termColor := !disableColor && v.Terminal.StderrIsTTY()
 
 	return hcl.NewDiagnosticTextWriter(writer, parser.Files(), uint(v.Terminal.Width()), termColor)
+}
+
+// HasDiagnosticsHandler reports whether an option installed a diagnostics handler on this
+// parser. A handler decides which diagnostics reach the caller as errors and may drop one
+// outright, so a decode that runs under one can report success where the same decode without
+// it reports the file's error.
+func (parser *Parser) HasDiagnosticsHandler() bool {
+	return parser.handleDiagnosticsFunc != nil
 }
 
 func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {
