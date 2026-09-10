@@ -2,10 +2,9 @@ package config
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
-	"testing/iotest"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -312,32 +311,104 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 	}
 }
 
-// TestStateOutputsJSONTypedErrors pins that the reader still classifies failures
-// precisely, since the fallback now consumes those errors instead of surfacing them.
-func TestStateOutputsJSONTypedErrors(t *testing.T) {
+// TestGCSCredentialFileDirectStateReadSupported covers every credential file shape the gate decides on, including the external_account sources of issue #6810.
+func TestGCSCredentialFileDirectStateReadSupported(t *testing.T) {
 	t.Parallel()
 
-	const location = "gs://state-bucket/service.tfstate"
+	const credentialPath = "/config/credentials.json"
 
-	t.Run("malformed state yields a parse error", func(t *testing.T) {
-		t.Parallel()
+	testCases := []struct {
+		name     string
+		contents string
+		want     bool
+	}{
+		{name: "service account", contents: `{"type":"service_account"}`, want: true},
+		{name: "authorized user", contents: `{"type":"authorized_user"}`, want: true},
+		{
+			name:     "external account with a file source",
+			contents: `{"type":"external_account","credential_source":{"file":"/var/run/token"}}`,
+			want:     true,
+		},
+		{
+			name:     "external account with a relative file source",
+			contents: `{"type":"external_account","credential_source":{"file":"token.json"}}`,
+		},
+		{
+			name:     "external account with a tilde file source",
+			contents: `{"type":"external_account","credential_source":{"file":"~/token"}}`,
+		},
+		{
+			name:     "external account with a kubernetes token file and format",
+			contents: `{"type":"external_account","credential_source":{"file":"/var/run/service-account/token","format":{"type":"text"}}}`,
+			want:     true,
+		},
+		{
+			name:     "external account with a url source and headers",
+			contents: `{"type":"external_account","credential_source":{"url":"https://sts.example.com/token","headers":{"Authorization":"Bearer x"},"format":{"type":"json","subject_token_field_name":"value"}}}`,
+			want:     true,
+		},
+		{
+			name:     "external account with a url source",
+			contents: `{"type":"external_account","credential_source":{"url":"https://sts.example.com/token"}}`,
+			want:     true,
+		},
+		{
+			name:     "external account with an aws source",
+			contents: `{"type":"external_account","credential_source":{"environment_id":"aws1","region_url":"http://169.254.169.254/latest/meta-data/placement/availability-zone","url":"http://169.254.169.254/latest/meta-data/iam/security-credentials","regional_cred_verification_url":"https://sts.{region}.amazonaws.com"}}`,
+		},
+		{
+			name:     "external account with a certificate source",
+			contents: `{"type":"external_account","credential_source":{"certificate":{"use_default_certificate_config":true}}}`,
+		},
+		{
+			name:     "external account with an executable alongside a url",
+			contents: `{"type":"external_account","credential_source":{"url":"https://sts.example.com/token","executable":{"command":"/usr/bin/token"}}}`,
+		},
+		{
+			name:     "external account with an executable source",
+			contents: `{"type":"external_account","credential_source":{"executable":{"command":"/usr/bin/token"}}}`,
+		},
+		{
+			name:     "external account with no source",
+			contents: `{"type":"external_account"}`,
+		},
+		{
+			name:     "external account with an unrecognized source",
+			contents: `{"type":"external_account","credential_source":{"future":"kind"}}`,
+		},
+		{
+			name:     "external account with a null credential source",
+			contents: `{"type":"external_account","credential_source":null}`,
+		},
+		{name: "external account authorized user", contents: `{"type":"external_account_authorized_user"}`},
+		{name: "impersonated service account", contents: `{"type":"impersonated_service_account"}`},
+		{name: "missing type", contents: `{}`},
+		{name: "empty object", contents: `{"type":""}`},
+		{name: "malformed json", contents: `{"type":`},
+		{name: "trailing content", contents: `{"type":"service_account"}{"extra":true}`},
+		{name: "not an object", contents: `"service_account"`},
+	}
 
-		_, err := stateOutputsJSON(strings.NewReader(`{"version":`), location)
-		require.Error(t, err)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-		var parseErr DependencyStateParseError
-		require.ErrorAs(t, err, &parseErr)
-		assert.Equal(t, location, parseErr.Location)
-	})
+			v := venvtest.New()
+			require.NoError(t, vfs.WriteFile(v.FS, credentialPath, []byte(testCase.contents), 0o600))
 
-	t.Run("transport failure yields a read error", func(t *testing.T) {
-		t.Parallel()
+			pctx := &ParsingContext{Venv: v}
 
-		_, err := stateOutputsJSON(iotest.TimeoutReader(strings.NewReader(`{"version":4,"outputs":`)), location)
-		require.Error(t, err)
+			assert.Equal(t, testCase.want, gcsCredentialFileDirectStateReadSupported(pctx, credentialPath))
+		})
+	}
+}
 
-		var readErr DependencyStateReadError
-		require.ErrorAs(t, err, &readErr)
-		assert.Equal(t, location, readErr.Location)
-	})
+// TestGCSCredentialFileDirectStateReadSupportedMissingFile pins that an unreadable credential file falls back instead of reading state as the wrong identity.
+func TestGCSCredentialFileDirectStateReadSupportedMissingFile(t *testing.T) {
+	t.Parallel()
+
+	pctx := &ParsingContext{Venv: venvtest.New()}
+
+	assert.True(t, gcsCredentialFileDirectStateReadSupported(pctx, ""), "an unset credential path is not a divergence")
+	assert.False(t, gcsCredentialFileDirectStateReadSupported(pctx, "/config/absent.json"))
 }

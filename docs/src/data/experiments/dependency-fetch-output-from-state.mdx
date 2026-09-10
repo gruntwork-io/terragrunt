@@ -25,11 +25,35 @@ Reading state directly is an optimization and never decides whether a run succee
 
 Azure state protected with `customer_provided_key`, and Azure configurations that rely on native-only authentication, `metadata_host`, or `timeout_seconds`, also use the normal method.
 
-GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths, service-account impersonation, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
+GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths, the `impersonate_service_account` setting, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
 
-**Known Limitations:**
+The `credentials` backend setting is a local path to a Google Cloud credentials file in JSON format. `GOOGLE_APPLICATION_CREDENTIALS` points to the same kind of file. Neither is the same thing as `access_token`, which is a temporary OAuth 2.0 access token used as-is rather than a file.
 
-This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the state file is encrypted before upload. Since this experiment reads the raw state object directly through the backend's cloud storage API, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, you must disable this experiment using the `--no-dependency-fetch-output-from-state` flag.
+Terragrunt reads credentials files of type `service_account`, `authorized_user`, and `external_account` (Workload Identity Federation) directly. An `external_account` file is read directly only when its `credential_source` is a `url` or a `file` with an absolute path. Any other source uses the normal method, because a direct read would resolve it with Terragrunt's own environment and working directory rather than the unit's:
+
+- `executable` would run the command with Terragrunt's environment.
+- AWS (an `environment_id` such as `aws1`) would use Terragrunt's AWS credentials.
+- `file` with a relative path would resolve against Terragrunt's working directory.
+
+**Failure handling:**
+
+<Before version="1.1.5">
+Outside `render` and `render-json`, a network, permissions, or parsing failure from a direct state read ends the run instead of retrying through OpenTofu/Terraform. A missing state object still follows the dependency block's `mock_outputs` behavior.
+</Before>
+
+<Since version="1.1.5">
+Reading state directly is an optimization. Outside `render` and `render-json`, Terragrunt retries a failed direct read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list.
+</Since>
+
+**OpenTofu state encryption:**
+
+<Before version="1.1.5">
+This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the encrypted envelope carries no plaintext `outputs` object. Terragrunt treats the dependency as having no outputs. Referencing a missing output can then fail with `Unsupported attribute`, while configured mock-output merging can supply a mock value instead. Disable this experiment using `--no-dependency-fetch-output-from-state` to force native output retrieval.
+</Before>
+
+<Since version="1.1.5">
+The direct reader cannot decrypt state protected by OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) because it does not evaluate OpenTofu's encryption configuration or key providers from the `remote_state.encryption` map. Outside `render` and `render-json`, Terragrunt recognizes the encrypted envelope and retries with `tofu output` or `terraform output`, allowing the configured binary to decrypt the state when it supports that encryption. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list. Disable the experiment when a render command must resolve real outputs from encrypted state.
+</Since>
 
 **Disabling the feature:**
 
@@ -62,5 +86,5 @@ To transition the `dependency-fetch-output-from-state` feature to a stable relea
 - [ ] Performance benchmarking to validate speed improvements
 - [x] Error handling and edge case testing
 - [x] Documentation of supported backends and limitations
-- [ ] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
+- [x] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
 - [ ] Community feedback on real-world usage

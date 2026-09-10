@@ -61,6 +61,10 @@ const (
 
 	logMsgSeparator = "\n"
 
+	// defaultParserOptionCount is what DefaultParserOptions can return: the
+	// diagnostics writer, the logger, and the bare-include file update.
+	defaultParserOptionCount = 3
+
 	DefaultEngineType                   = "rpc"
 	MetadataTerraform                   = "terraform"
 	MetadataTerraformBinary             = "terraform_binary"
@@ -106,7 +110,7 @@ var (
 			writer.WithMsgSeparator(logMsgSeparator),
 		)
 
-		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
+		parseOpts := make([]hclparse.Option, 0, defaultParserOptionCount)
 		parseOpts = append(parseOpts,
 			hclparse.WithDiagnosticsWriter(v, writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
@@ -1655,7 +1659,7 @@ func ParseConfig(
 		return nil, err
 	}
 
-	if err := ValidateBlockIterationExperiment(pctx.Experiments, file); err != nil {
+	if err := ValidateBlockIteration(pctx.Experiments, file); err != nil {
 		return nil, err
 	}
 
@@ -1811,7 +1815,7 @@ func DetectDeprecatedConfigurations(
 	if DetectInputsCtyUsage(file) {
 		// Dependency inputs (dependency.foo.inputs.bar) are now blocked by default for performance.
 		// This deprecated feature causes significant performance overhead due to recursive parsing.
-		return errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+		return errors.New(
 			"Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs (dependency.foo.outputs.bar) instead.",
 		)
 	}

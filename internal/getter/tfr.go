@@ -49,7 +49,7 @@ type RegistryGetter struct {
 
 // auth assembles the environment the registry protocol authenticates with.
 func (r *RegistryGetter) auth() RegistryAuth {
-	return RegistryAuth{Venv: r.Venv, cache: r.authCache}
+	return RegistryAuth{Venv: r.Venv, Impl: r.TofuImplementation, cache: r.authCache}
 }
 
 // NewRegistryGetter returns a [RegistryGetter] that issues registry-protocol
@@ -71,7 +71,8 @@ func NewRegistryGetter(l log.Logger, v *venv.Venv) *RegistryGetter {
 }
 
 // WithTofuImplementation selects which default registry domain is used when
-// the source URL does not specify a host. See [RegistryGetter.TofuImplementation].
+// the source URL does not specify a host, and which implementation's CLI config
+// files supply registry credentials. See [RegistryAuth.Impl].
 func (r *RegistryGetter) WithTofuImplementation(impl tfimpl.Type) *RegistryGetter {
 	r.TofuImplementation = impl
 	return r

@@ -4,6 +4,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"net"
 	"path/filepath"
 	"runtime/debug"
 	"slices"
@@ -69,8 +70,16 @@ const (
 	ShortcutsCommandsCategoryName = "OpenTofu shortcuts"
 )
 
+// Command categories appear in help in the order declared here.
+const (
+	mainCommandsOrder = iota + 1
+	catalogCommandsOrder
+	discoveryCommandsOrder
+	configurationCommandsOrder
+	shortcutsCommandsOrder
+)
+
 // New returns the set of Terragrunt commands, grouped into categories.
-// Categories are ordered in increments of 10 for easy insertion of new categories.
 func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
 	mainCommands := clihelper.Commands{
 		runcmd.NewCommand(l, opts, v),  // run
@@ -80,7 +89,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
-			Order: 10, //nolint: mnd
+			Order: mainCommandsOrder,
 		},
 	)
 
@@ -90,7 +99,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
-			Order: 20, //nolint: mnd
+			Order: catalogCommandsOrder,
 		},
 	)
 
@@ -101,7 +110,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
-			Order: 30, //nolint: mnd
+			Order: discoveryCommandsOrder,
 		},
 	)
 
@@ -116,14 +125,14 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  ConfigurationCommandsCategoryName,
-			Order: 40, //nolint: mnd
+			Order: configurationCommandsOrder,
 		},
 	)
 
 	shortcutsCommands := NewShortcutsCommands(l, opts, v).SetCategory(
 		&clihelper.Category{
 			Name:  ShortcutsCommandsCategoryName,
-			Order: 50, //nolint: mnd
+			Order: shortcutsCommandsOrder,
 		},
 	)
 
@@ -210,6 +219,9 @@ func WrapWithTelemetry(
 	}
 }
 
+// probeDirPerms is the mode of the throwaway directory the symlink probe creates.
+const probeDirPerms = 0o755
+
 // GiveWindowsSymlinksTip warns Windows users that OpenTofu/Terraform may not create symlinks
 // for provider plugins installed in the local cache directory.
 //
@@ -259,7 +271,7 @@ func GiveWindowsSymlinksTip(
 	source := filepath.Join(tmp, "source")
 	target := filepath.Join(tmp, "target")
 
-	if err := fsys.Mkdir(source, 0755); err != nil { //nolint:mnd
+	if err := fsys.Mkdir(source, probeDirPerms); err != nil {
 		l.Debugf("Failed to create source directory for testing symlink: %v", err)
 		return
 	}
@@ -299,10 +311,25 @@ func RunAction(
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
+	// Install run-scoped caches on actionCtx so memoized helpers like
+	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] and
+	// the version probes below share state across the whole action.
+	actionCtx := cache.ContextWithCache(ctx)
+
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(ctx, l, opts, v); err != nil {
+		if err := setupAutoProviderCacheDir(actionCtx, l, opts, v); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
+		}
+	}
+
+	// The implementation decides which CLI config files the cache server reads, so resolve it before the tips and the server start; a run the probe leaves mismatched is warned about, and bypasses the cache, in the command hook.
+	if opts.ProviderCacheOptions.Enabled {
+		if err := PopulateTFImplementation(actionCtx, l, opts, v); err != nil {
+			l.Debugf(
+				"Failed to detect the OpenTofu/Terraform implementation; the provider cache server falls back to OpenTofu's CLI config file locations: %v",
+				err,
+			)
 		}
 	}
 
@@ -325,16 +352,12 @@ func RunAction(
 		l.Formatter().SetDisabledColors(true)
 	}
 
-	// Install run-scoped caches on actionCtx so memoized helpers like
-	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] share
-	// state across the whole action.
-	actionCtx := cache.ContextWithCache(ctx)
-
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
 		server, err := providercache.InitServer(
 			l,
 			v,
+			opts.TofuImplementation,
 			&opts.ProviderCacheOptions,
 			opts.RootWorkingDir,
 		)
@@ -346,7 +369,11 @@ func RunAction(
 		if err != nil {
 			return err
 		}
-		defer ln.Close() //nolint:errcheck
+		defer func() {
+			if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				l.Debugf("Failed to close the provider cache listener: %v", err)
+			}
+		}()
 
 		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
 
@@ -372,6 +399,34 @@ func RunAction(
 	})
 
 	return errGroup.Wait()
+}
+
+// PopulateTFImplementation resolves which OpenTofu/Terraform implementation opts.TFPath names, so
+// callers like the provider cache server can follow that implementation's behavior. It reuses the
+// run version cache and returns without probing when both the implementation and version are known.
+func PopulateTFImplementation(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v *venv.Venv,
+) error {
+	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown && opts.TerraformVersion != nil {
+		return nil
+	}
+
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
+		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
+		WorkingDir:   opts.WorkingDir,
+		VersionFiles: opts.VersionManagerFileName,
+	})
+	if err != nil {
+		return err
+	}
+
+	opts.TerraformVersion = ver
+	opts.TofuImplementation = impl
+
+	return nil
 }
 
 const minTofuVersionForAutoProviderCacheDir = "1.10.0"
@@ -401,18 +456,8 @@ func setupAutoProviderCacheDir(
 		return nil
 	}
 
-	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-			TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
-			WorkingDir:   opts.WorkingDir,
-			VersionFiles: opts.VersionManagerFileName,
-		})
-		if err != nil {
-			return err
-		}
-
-		opts.TerraformVersion = ver
-		opts.TofuImplementation = impl
+	if err := PopulateTFImplementation(ctx, l, opts, v); err != nil {
+		return err
 	}
 
 	terraformVersion := opts.TerraformVersion

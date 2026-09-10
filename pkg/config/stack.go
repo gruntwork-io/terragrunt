@@ -1212,7 +1212,7 @@ func ParseStackConfig(
 		parser = parser.WithValues(values)
 	}
 
-	if err := ValidateBlockIterationExperiment(parser.Experiments, file); err != nil {
+	if err := ValidateBlockIteration(parser.Experiments, file); err != nil {
 		return nil, err
 	}
 
@@ -1709,7 +1709,7 @@ func processStackConfigIncludes(
 			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
 
-		if err := ValidateBlockIterationExperiment(experiments, incFile); err != nil {
+		if err := ValidateBlockIteration(experiments, incFile); err != nil {
 			return err
 		}
 
@@ -1812,7 +1812,7 @@ func mergeStackAutoIncludeFile(
 		return *typed
 	}
 
-	if err := ValidateBlockIterationExperiment(experiments, incFile); err != nil {
+	if err := ValidateBlockIteration(experiments, incFile); err != nil {
 		return err
 	}
 

@@ -340,7 +340,7 @@ func mergeFeatureFlagConfig(
 			return nil, err
 		}
 	case DeepMergeMapOnly:
-		return nil, InvalidMergeStrategyTypeError(mergeStrategy)
+		return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 	default:
 		return nil, fmt.Errorf(
 			"you reached an impossible condition. "+
@@ -617,7 +617,7 @@ func PartialParseConfig(
 		return nil, err
 	}
 
-	if err := ValidateBlockIterationExperiment(pctx.Experiments, file); err != nil {
+	if err := ValidateBlockIteration(pctx.Experiments, file); err != nil {
 		return nil, err
 	}
 

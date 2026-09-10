@@ -84,6 +84,15 @@ const (
 
 	caKeyBits = 4096
 
+	// argsPerModulePath is the flag and value each module path adds to a command line.
+	argsPerModulePath = 2
+
+	// fakeProviderBinarySize is the size of the dummy binary FakeProvider packs into its archive.
+	fakeProviderBinarySize = 1e7
+
+	// certValidityYears is how long the test CA and its leaf certificate stay valid.
+	certValidityYears = 10
+
 	semverPartsLen = 3
 
 	// cleanupTimeout caps the runtime of a cleanup helper invoked
@@ -473,13 +482,15 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd
-	cmdParts = append(cmdParts,
+	fixedArgs := []string{
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", rootModulePath,
-	)
+	}
+
+	cmdParts := make([]string, 0, len(fixedArgs)+argsPerModulePath*len(includeModulePaths))
+	cmdParts = append(cmdParts, fixedArgs...)
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
@@ -524,13 +535,15 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd
-	cmdParts = append(cmdParts,
+	fixedArgs := []string{
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", workDir,
-	)
+	}
+
+	cmdParts := make([]string, 0, len(fixedArgs)+argsPerModulePath*len(units))
+	cmdParts = append(cmdParts, fixedArgs...)
 
 	for _, unit := range units {
 		cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'{%s}...'", unit))
@@ -749,9 +762,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 		require.NoError(t, os.Remove(filepath.Join(providerDir, provider.filename())))
 	}()
 
-	// I wouldn't ignore this lint, but I actually don't know what
-	// the number is there for.
-	err = file.Truncate(1e7) //nolint:mnd
+	err = file.Truncate(fakeProviderBinarySize)
 	require.NoError(t, err)
 
 	err = file.Sync()
@@ -821,7 +832,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			PostalCode:    []string{"94016"},
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().AddDate(10, 0, 0), //nolint:mnd
+		NotAfter:  time.Now().AddDate(certValidityYears, 0, 0),
 		IsCA:      true,
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageClientAuth,
@@ -863,9 +874,9 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			StreetAddress: []string{"Golden Gate Bridge"},
 			PostalCode:    []string{"94016"},
 		},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback}, //nolint:mnd
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.IPv6loopback},
 		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(10, 0, 0), //nolint:mnd
+		NotAfter:     time.Now().AddDate(certValidityYears, 0, 0),
 		SubjectKeyId: []byte{1, 2, 3, 4, 6},
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:     x509.KeyUsageDigitalSignature,

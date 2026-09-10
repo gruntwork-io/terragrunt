@@ -251,11 +251,32 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 	return false
 }
 
-// Takes apbsolute glob path and returns an array of expanded relative paths
-func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, error) {
+// expandGlobPath expands absoluteGlobPath under source into paths relative to
+// source, descending into every matched directory. chain holds the resolved
+// directories already being descended when symlinkedGlobRoots is on; a matched
+// directory that resolves to one of them, or to an ancestor of one, is a link
+// back up the tree and is skipped (issue #6791).
+func expandGlobPath(
+	l log.Logger,
+	fsys vfs.FS,
+	source, absoluteGlobPath string,
+	symlinkedGlobRoots bool,
+	chain []string,
+) ([]string, error) {
+	var globOpts []glob.LegacyExpandOption
+	if symlinkedGlobRoots {
+		globOpts = append(globOpts, glob.WithSymlinkedRoots())
+	}
+
 	includeExpandedGlobs := []string{}
 
-	absoluteExpandGlob, err := glob.LegacyExpand(fsys, absoluteGlobPath)
+	absoluteExpandGlob, err := glob.LegacyExpand(fsys, absoluteGlobPath, globOpts...)
+	if errors.Is(err, glob.ErrSymlinkedRootEscapes) {
+		l.Warnf("Skipping copy pattern %s: %v. Drop the link or narrow the pattern.", absoluteGlobPath, err)
+
+		return includeExpandedGlobs, nil
+	}
+
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, err
@@ -264,6 +285,32 @@ func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, err
 	for _, absoluteExpandGlobPath := range absoluteExpandGlob {
 		if strings.Contains(absoluteExpandGlobPath, TerragruntCacheDir) {
 			continue
+		}
+
+		isDir := vfs.IsDir(fsys, absoluteExpandGlobPath)
+		next := chain
+
+		if isDir && symlinkedGlobRoots {
+			resolved, err := vfs.EvalSymlinks(fsys, absoluteExpandGlobPath)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("resolve glob match %q: %w", absoluteExpandGlobPath, err)
+			}
+
+			if linksBackIntoChain(resolved, chain) {
+				l.Warnf(
+					"Skipping %s while expanding copy patterns: it links back to %s, which is already being copied. Drop the link or narrow the pattern.",
+					absoluteExpandGlobPath,
+					resolved,
+				)
+
+				continue
+			}
+
+			next = append(slices.Clone(chain), resolved)
 		}
 
 		relativeExpandGlobPath, err := filepath.Rel(source, absoluteExpandGlobPath)
@@ -281,14 +328,16 @@ func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, err
 			filepath.ToSlash(relativeExpandGlobPath),
 		)
 
-		if vfs.IsDir(fsys, absoluteExpandGlobPath) {
-			dirExpandGlob, err := expandGlobPath(fsys, source, absoluteExpandGlobPath+"/*")
-			if err != nil {
-				return nil, err
-			}
-
-			includeExpandedGlobs = append(includeExpandedGlobs, dirExpandGlob...)
+		if !isDir {
+			continue
 		}
+
+		dirExpandGlob, err := expandGlobPath(l, fsys, source, absoluteExpandGlobPath+"/*", symlinkedGlobRoots, next)
+		if err != nil {
+			return nil, err
+		}
+
+		includeExpandedGlobs = append(includeExpandedGlobs, dirExpandGlob...)
 	}
 
 	return includeExpandedGlobs, nil
@@ -298,9 +347,10 @@ func expandGlobPath(fsys vfs.FS, source, absoluteGlobPath string) ([]string, err
 type CopyOption func(*copyConfig)
 
 type copyConfig struct {
-	includeInCopy   []string
-	excludeFromCopy []string
-	fastCopy        bool
+	includeInCopy      []string
+	excludeFromCopy    []string
+	fastCopy           bool
+	symlinkedGlobRoots bool
 }
 
 // WithIncludeInCopy adds glob patterns that must be copied even when
@@ -326,6 +376,16 @@ func WithExcludeFromCopy(patterns ...string) CopyOption {
 func WithFastCopy() CopyOption {
 	return func(c *copyConfig) {
 		c.fastCopy = true
+	}
+}
+
+// WithSymlinkedGlobRoots makes include/exclude globs rooted at a symlinked
+// directory expand through the link, so its contents are matched (issue
+// #6791). Enabled behind the symlinks experiment; the fast-copy path always
+// follows symlinks and ignores this option.
+func WithSymlinkedGlobRoots() CopyOption {
+	return func(c *copyConfig) {
+		c.symlinkedGlobRoots = true
 	}
 }
 
@@ -377,7 +437,7 @@ func CopyFolderContents(
 		)
 	}
 
-	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy, cfg.symlinkedGlobRoots)
 	if err != nil {
 		return err
 	}
@@ -407,7 +467,7 @@ func NewCopyFilter(l log.Logger, fsys vfs.FS, source string, opts ...CopyOption)
 		return newFastCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
 	}
 
-	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	filter, err := newLegacyCopyFilter(l, fsys, source, cfg.includeInCopy, cfg.excludeFromCopy, cfg.symlinkedGlobRoots)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +486,19 @@ func newLegacyCopyFilter(
 	fsys vfs.FS,
 	source string,
 	includeInCopy, excludeFromCopy []string,
+	symlinkedGlobRoots bool,
 ) (func(absolutePath string) bool, error) {
+	var chain []string
+
+	if symlinkedGlobRoots {
+		resolvedSource, err := vfs.EvalSymlinks(fsys, source)
+		if err != nil {
+			return nil, fmt.Errorf("resolve copy source %q: %w", source, err)
+		}
+
+		chain = []string{resolvedSource}
+	}
+
 	// Expand all the includeInCopy glob paths, converting the globbed results
 	// to relative paths so that they work in the copy filter.
 	includeExpandedGlobs := []string{}
@@ -434,7 +506,7 @@ func newLegacyCopyFilter(
 	for _, includeGlob := range includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
 
-		expandGlob, err := expandGlobPath(fsys, source, globPath)
+		expandGlob, err := expandGlobPath(l, fsys, source, globPath, symlinkedGlobRoots, chain)
 		if err != nil {
 			return nil, err
 		}
@@ -447,7 +519,7 @@ func newLegacyCopyFilter(
 	for _, excludeGlob := range excludeFromCopy {
 		globPath := filepath.Join(source, excludeGlob)
 
-		expandGlob, err := expandGlobPath(fsys, source, globPath)
+		expandGlob, err := expandGlobPath(l, fsys, source, globPath, symlinkedGlobRoots, chain)
 		if err != nil {
 			return nil, err
 		}
@@ -2130,4 +2202,20 @@ func relPathInsideRoot(rootDir, target string) (string, bool) {
 	}
 
 	return cleanRootRelPath(rel)
+}
+
+// linksBackIntoChain reports whether dir equals or contains a directory in
+// chain, so descending into it would revisit a tree already being expanded.
+func linksBackIntoChain(dir string, chain []string) bool {
+	for _, ancestor := range chain {
+		if filepath.Clean(ancestor) == filepath.Clean(dir) {
+			return true
+		}
+
+		if _, inside := relPathInsideRoot(dir, ancestor); inside {
+			return true
+		}
+	}
+
+	return false
 }

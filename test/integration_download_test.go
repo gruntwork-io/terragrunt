@@ -19,6 +19,7 @@ const (
 	testFixtureLocalMissingBackend                    = "fixtures/download/local-with-missing-backend"
 	testFixtureLocalWithHiddenFolder                  = "fixtures/download/local-with-hidden-folder"
 	testFixtureLocalWithAllowedHidden                 = "fixtures/download/local-with-allowed-hidden"
+	testFixtureLocalWithSymlinkedInclude              = "fixtures/download/local-with-symlinked-include"
 	testFixtureLocalPreventDestroy                    = "fixtures/download/local-with-prevent-destroy"
 	testFixtureLocalPreventDestroyDependencies        = "fixtures/download/local-with-prevent-destroy-dependencies"
 	testFixtureLocalIncludePreventDestroyDependencies = "fixtures/download/local-include-with-prevent-destroy-dependencies"

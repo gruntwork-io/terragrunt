@@ -98,7 +98,7 @@ func BenchmarkContent(b *testing.B) {
 
 			b.StartTimer()
 
-			require.NoError(b, content.Store(l, v, hash, testData))
+			require.NoError(b, content.Store(l, v, hash, testData, cas.StoredFilePerms))
 		}
 	})
 
@@ -124,7 +124,7 @@ func BenchmarkContent(b *testing.B) {
 
 				mu.Unlock()
 
-				if err := content.Store(l, v, hash, testData); err != nil {
+				if err := content.Store(l, v, hash, testData, cas.StoredFilePerms); err != nil {
 					b.Fatal(err)
 				}
 
@@ -170,7 +170,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		}
 	})
 
-	b.Run("cat-file", func(b *testing.B) {
+	b.Run("cat-file --batch", func(b *testing.B) {
 		tree, err := g.LsTreeRecursive(ctx, "HEAD")
 		require.NoError(b, err)
 		require.NotEmpty(b, tree.Entries(), "no entries in tree")
@@ -185,10 +185,17 @@ func BenchmarkGitOperations(b *testing.B) {
 		defer os.Remove(tmpFile)
 		defer tmp.Close()
 
+		batch, err := g.StartCatFileBatch(ctx)
+		require.NoError(b, err)
+
+		// Not b.Cleanup. The benchmark's context is already canceled by the
+		// time cleanups run, and Close reports that as a failure.
+		defer func() { require.NoError(b, batch.Close()) }()
+
 		b.ResetTimer()
 
 		for b.Loop() {
-			err := g.CatFile(ctx, hash, tmp)
+			err := batch.ReadBlob(hash, tmp)
 			require.NoError(b, err)
 		}
 	})

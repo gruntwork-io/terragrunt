@@ -1,7 +1,6 @@
 package git_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -308,37 +307,15 @@ func TestGitRunner_RevParseCommit(t *testing.T) {
 	}
 }
 
-func TestGitRunner_CatFile(t *testing.T) {
+func TestGitRunner_StartCatFileBatch(t *testing.T) {
 	t.Parallel()
-
-	t.Run("writes object", func(t *testing.T) {
-		t.Parallel()
-
-		runner := newMemRunner(t, staticResult(vexec.Result{
-			Stdout: []byte("content"),
-		})).WithWorkDir("/repo")
-
-		var output bytes.Buffer
-
-		require.NoError(t, runner.CatFile(t.Context(), headHash, &output))
-		assert.Equal(t, "content", output.String())
-	})
-
-	t.Run("command failure", func(t *testing.T) {
-		t.Parallel()
-
-		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
-
-		err := runner.CatFile(t.Context(), headHash, &bytes.Buffer{})
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
-	})
 
 	t.Run("missing workdir", func(t *testing.T) {
 		t.Parallel()
 
 		runner := newMemRunner(t, staticResult(vexec.Result{}))
 
-		err := runner.CatFile(t.Context(), headHash, &bytes.Buffer{})
+		_, err := runner.StartCatFileBatch(t.Context())
 		require.ErrorIs(t, err, git.ErrNoWorkDir)
 	})
 }

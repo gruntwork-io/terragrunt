@@ -16,12 +16,13 @@ const (
 type DiagnosticSeverity hcl.DiagnosticSeverity
 
 func (severity DiagnosticSeverity) String() string {
-	// TODO: Remove lint suppression
-	switch hcl.DiagnosticSeverity(severity) { //nolint:exhaustive
+	switch hcl.DiagnosticSeverity(severity) {
 	case hcl.DiagError:
 		return DiagnosticSeverityError
 	case hcl.DiagWarning:
 		return DiagnosticSeverityWarning
+	case hcl.DiagInvalid:
+		return DiagnosticSeverityUnknown
 	default:
 		return DiagnosticSeverityUnknown
 	}

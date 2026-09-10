@@ -155,6 +155,68 @@ func TestTFLocalDownloadWithAllowedHiddenFiles(t *testing.T) {
 	assert.Equal(t, "Hello world", stdout.String())
 }
 
+func TestTFLocalDownloadWithSymlinkedIncludeInCopy(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalWithSymlinkedInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalWithSymlinkedInclude)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// include_in_copy must copy the contents of this symlinked directory (issue #6791).
+	targetDir := filepath.Join(rootPath, "important-target")
+	require.NoError(t, os.MkdirAll(targetDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(targetDir, "stuff1"), []byte("Hello world\n"), 0o600),
+	)
+
+	require.NoError(t, os.Symlink(
+		targetDir,
+		filepath.Join(rootPath, "modules", ".important_stuff"),
+	))
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --experiment symlinks --non-interactive --working-dir %s/live",
+			rootPath,
+		),
+	)
+
+	// Change the linked file and run again, so a stale copy of the link target cannot pass.
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(targetDir, "stuff1"), []byte("Hello again\n"), 0o600),
+	)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --experiment symlinks --non-interactive --working-dir %s/live",
+			rootPath,
+		),
+	)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		fmt.Sprintf(
+			"terragrunt output -raw text --experiment symlinks --non-interactive --working-dir %s/live",
+			rootPath,
+		),
+		&stdout,
+		&stderr,
+	)
+	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "output stderr")
+	require.NoError(t, err)
+	assert.Equal(t, "Hello again", stdout.String())
+}
+
 func TestTFLocalDownloadWithRelativePath(t *testing.T) {
 	t.Parallel()
 

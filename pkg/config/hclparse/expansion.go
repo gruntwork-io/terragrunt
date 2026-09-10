@@ -308,9 +308,9 @@ func ExpandBlock(
 	}
 
 	if expansion == nil {
-		instance, err := decodeInstance(block, outType, ctx)
-		if err != nil {
-			return nil, err
+		instance, diags := decodeInstance(block, outType, ctx)
+		if diags.HasErrors() {
+			return nil, diags
 		}
 
 		return []Instance{{Value: instance}}, nil
@@ -414,7 +414,7 @@ func expandCount(
 		}
 	}
 
-	instances := make([]Instance, 0, total)
+	decoder := newElementDecoder(total)
 
 	for index := range total {
 		child := ctx.NewChild()
@@ -424,18 +424,10 @@ func expandCount(
 			}),
 		}
 
-		value, err := decodeInstance(block, outType, child)
-		if err != nil {
-			return nil, err
-		}
-
-		instances = append(instances, Instance{
-			Value:      value,
-			CountIndex: new(index),
-		})
+		decoder.decode(block, outType, child, InstanceKey{CountIndex: new(index)})
 	}
 
-	return instances, nil
+	return decoder.result()
 }
 
 func expandForEach(
@@ -475,7 +467,7 @@ func expandForEach(
 		}
 	}
 
-	instances := make([]Instance, 0, size)
+	decoder := newElementDecoder(size)
 
 	for it := collection.ElementIterator(); it.Next(); {
 		elementKey, elementValue := it.Element()
@@ -493,18 +485,10 @@ func expandForEach(
 			}),
 		}
 
-		value, err := decodeInstance(block, outType, child)
-		if err != nil {
-			return nil, err
-		}
-
-		instances = append(instances, Instance{
-			Value:   value,
-			EachKey: new(key),
-		})
+		decoder.decode(block, outType, child, InstanceKey{EachKey: new(key)})
 	}
 
-	return instances, nil
+	return decoder.result()
 }
 
 // requireConcrete rejects expansion values that cannot be iterated, converted, or
@@ -543,9 +527,83 @@ func expansionKey(key cty.Value, subject *hcl.Range) (string, error) {
 	}
 }
 
+// elementDecoder decodes a block once per expansion element. A failing element does not stop
+// the decode, since a mistake that only one element's each.value reaches would otherwise go
+// unreported. The decoder drops any diagnostic an earlier element already produced, so one
+// mistake in the body is reported once however many elements the block expands into.
+type elementDecoder struct {
+	reported  map[diagnosticID]struct{}
+	instances []Instance
+	diags     hcl.Diagnostics
+}
+
+// diagnosticID is the part of a diagnostic that decides whether two elements hit the same
+// problem. The expression and eval context a diagnostic also carries differ per element even
+// when the message does not.
+type diagnosticID struct {
+	summary  string
+	detail   string
+	subject  hcl.Range
+	severity hcl.DiagnosticSeverity
+}
+
+func newElementDecoder(elements int) *elementDecoder {
+	return &elementDecoder{
+		reported:  make(map[diagnosticID]struct{}),
+		instances: make([]Instance, 0, elements),
+	}
+}
+
+func (dec *elementDecoder) decode(
+	block *hcl.Block,
+	outType reflect.Type,
+	ctx *hcl.EvalContext,
+	key InstanceKey,
+) {
+	value, diags := decodeInstance(block, outType, ctx)
+	if !diags.HasErrors() {
+		dec.instances = append(dec.instances, Instance{Value: value, InstanceKey: key})
+
+		return
+	}
+
+	for _, diag := range diags {
+		id := diagnosticID{
+			summary:  diag.Summary,
+			detail:   diag.Detail,
+			severity: diag.Severity,
+		}
+		if diag.Subject != nil {
+			id.subject = *diag.Subject
+		}
+
+		if _, reported := dec.reported[id]; reported {
+			continue
+		}
+
+		dec.reported[id] = struct{}{}
+		dec.diags = append(dec.diags, diag)
+	}
+}
+
+// result returns the decoded instances, or every distinct diagnostic the elements produced.
+// An expansion that failed for any element yields no instances, so a caller never addresses
+// a set with holes in it.
+func (dec *elementDecoder) result() ([]Instance, error) {
+	if dec.diags.HasErrors() {
+		return nil, dec.diags
+	}
+
+	return dec.instances, nil
+}
+
 // decodeInstance decodes the whole block body, expansion sub-block included, into a
 // fresh value of outType.
-func decodeInstance(block *hcl.Block, outType reflect.Type, ctx *hcl.EvalContext) (any, error) {
+func decodeInstance(
+	block *hcl.Block,
+	outType reflect.Type,
+	ctx *hcl.EvalContext,
+) (any, hcl.Diagnostics) {
 	instance := reflect.New(outType.Elem())
 
 	if diags := gohcl.DecodeBody(block.Body, ctx, instance.Interface()); diags.HasErrors() {

@@ -13,10 +13,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // unixPermMask isolates the user/group/other rwx bits from a git tree mode.
 const unixPermMask = os.FileMode(0o777)
+
+// defaultMaxTreeDepth stops a descent that the repository being materialized
+// would otherwise decide the length of, growing the stack and the worker count
+// together as every level opens an errgroup of its own.
+const defaultMaxTreeDepth = 64
 
 // Git stores the entry type in the high bits of a six-digit octal mode;
 // gitTypeMask isolates them so a symlink blob (120000) can be distinguished
@@ -30,6 +36,7 @@ const (
 type LinkTreeOption func(*linkTreeOpts)
 
 type linkTreeOpts struct {
+	maxDepth  int
 	forceCopy bool
 }
 
@@ -40,10 +47,27 @@ func WithForceCopy() LinkTreeOption {
 	return func(o *linkTreeOpts) { o.forceCopy = true }
 }
 
+// WithMaxTreeDepth sets how deep a tree is followed before materialization
+// gives up, in place of [defaultMaxTreeDepth].
+func WithMaxTreeDepth(depth int) LinkTreeOption {
+	return func(o *linkTreeOpts) { o.maxDepth = depth }
+}
+
+// maxTreeDepth returns the nesting bound to enforce, falling back to
+// [defaultMaxTreeDepth] when the caller leaves it unset.
+func (o *linkTreeOpts) maxTreeDepth() int {
+	if o.maxDepth > 0 {
+		return o.maxDepth
+	}
+
+	return defaultMaxTreeDepth
+}
+
 // LinkTree writes the tree to a target directory.
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
 func LinkTree(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	blobStore *Store,
 	treeStore *Store,
@@ -56,7 +80,7 @@ func LinkTree(
 		opt(&o)
 	}
 
-	return linkTree(ctx, v, blobStore, treeStore, t, targetDir, targetDir, &o)
+	return linkTree(ctx, l, v, blobStore, treeStore, t, targetDir, targetDir, 0, &o)
 }
 
 // linkTree is the recursive implementation behind LinkTree. rootDir is the
@@ -66,14 +90,20 @@ func LinkTree(
 // resolve outside the original tree even when the link sits in a subdirectory.
 func linkTree(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	blobStore *Store,
 	treeStore *Store,
 	t *git.Tree,
 	rootDir string,
 	targetDir string,
+	depth int,
 	o *linkTreeOpts,
 ) error {
+	if maxDepth := o.maxTreeDepth(); depth > maxDepth {
+		return &TreeDepthExceededError{MaxDepth: maxDepth, Path: targetDir}
+	}
+
 	blobContent := NewContent(blobStore)
 	treeContent := NewContent(treeStore)
 
@@ -157,6 +187,7 @@ func linkTree(
 			case "link":
 				err := blobContent.Link(
 					ctx,
+					l,
 					v,
 					work.entry.Hash,
 					work.path,
@@ -197,7 +228,7 @@ func linkTree(
 					return fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 				}
 
-				err = linkTree(ctx, v, blobStore, treeStore, subTree, rootDir, work.path, o)
+				err = linkTree(ctx, l, v, blobStore, treeStore, subTree, rootDir, work.path, depth+1, o)
 				if err != nil {
 					return fmt.Errorf("link subtree %s: %w", work.path, err)
 				}
@@ -225,7 +256,7 @@ func linkTree(
 					return fmt.Errorf("parse submodule tree %s: %w", work.entry.Hash, err)
 				}
 
-				err = linkTree(ctx, v, blobStore, treeStore, subTree, rootDir, work.path, o)
+				err = linkTree(ctx, l, v, blobStore, treeStore, subTree, rootDir, work.path, depth+1, o)
 				if err != nil {
 					return fmt.Errorf("link submodule %s: %w", work.path, err)
 				}

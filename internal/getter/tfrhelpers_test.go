@@ -4,11 +4,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -699,4 +702,160 @@ func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
 // reachable, which is the unauthenticated path these tests exercise.
 func testRegistryAuth() getter.RegistryAuth {
 	return getter.NewRegistryAuth(venvtest.New())
+}
+
+// TestPinModuleVersionCredentialsFollowImplementation pins that version-constraint
+// resolution reads the CLI config files of the implementation passed to it, even when
+// the RegistryAuth was constructed with the default OpenTofu implementation.
+func TestPinModuleVersionCredentialsFollowImplementation(t *testing.T) {
+	t.Parallel()
+
+	var sawAuth atomic.Bool
+
+	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
+		if r.Header.Get("Authorization") == "Bearer configured-token" {
+			sawAuth.Store(true)
+		}
+	})
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	const home = "/virtual/home"
+
+	v := venvtest.New().
+		WithGOOS("linux").
+		WithHTTP(server.Client()).
+		WithUserHomeDir(func() (string, error) { return home, nil })
+
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	// A credential-less ~/.tofurc shadows ~/.terraformrc under OpenTofu's search order.
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte("\n"), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".terraformrc"), []byte(`
+credentials "`+serverURL.Hostname()+`" {
+  token = "configured-token"
+}
+`), 0o600))
+
+	source := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
+
+	_, err = getter.PinModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), getter.NewRegistryAuth(v), tfimpl.Terraform, source, "~> 3.0",
+	)
+	require.NoError(t, err)
+	assert.True(t, sawAuth.Load(), "the version-listing request must carry the ~/.terraformrc token")
+}
+
+// TestPinModuleVersionMixedImplementationsCredentials pins that one shared RegistryAuth
+// serves each implementation the credentials from its own CLI config files, whichever
+// implementation resolves first (https://github.com/gruntwork-io/terragrunt/issues/6787
+// review follow-up: the memo must be keyed by implementation, not first-wins).
+func TestPinModuleVersionMixedImplementationsCredentials(t *testing.T) {
+	t.Parallel()
+
+	t.Run("tofu first", func(t *testing.T) {
+		t.Parallel()
+
+		auth, source, seen, server := newMixedImplementationsFixture(t)
+
+		for _, impl := range []tfimpl.Type{tfimpl.OpenTofu, tfimpl.Terraform} {
+			_, err := getter.PinModuleVersion(
+				t.Context(), logger.CreateLogger(), server.Client(), auth, impl, source, mixedImplementationsConstraint,
+			)
+			require.NoError(t, err)
+		}
+
+		assertMixedImplementationTokensSeen(t, seen)
+	})
+
+	t.Run("terraform first", func(t *testing.T) {
+		t.Parallel()
+
+		auth, source, seen, server := newMixedImplementationsFixture(t)
+
+		for _, impl := range []tfimpl.Type{tfimpl.Terraform, tfimpl.OpenTofu} {
+			_, err := getter.PinModuleVersion(
+				t.Context(), logger.CreateLogger(), server.Client(), auth, impl, source, mixedImplementationsConstraint,
+			)
+			require.NoError(t, err)
+		}
+
+		assertMixedImplementationTokensSeen(t, seen)
+	})
+}
+
+// TestPinModuleVersionMixedImplementationsCredentialsWithRacing pins the same
+// per-implementation guarantee under concurrent access, and its name opts it into
+// the CI job that runs with the race detector.
+func TestPinModuleVersionMixedImplementationsCredentialsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	auth, source, seen, server := newMixedImplementationsFixture(t)
+
+	eg, ctx := errgroup.WithContext(t.Context())
+
+	for _, impl := range []tfimpl.Type{tfimpl.OpenTofu, tfimpl.Terraform} {
+		eg.Go(func() error {
+			_, err := getter.PinModuleVersion(
+				ctx, logger.CreateLogger(), server.Client(), auth, impl, source, mixedImplementationsConstraint,
+			)
+
+			return err
+		})
+	}
+
+	require.NoError(t, eg.Wait())
+	assertMixedImplementationTokensSeen(t, seen)
+}
+
+// mixedImplementationsConstraint is the version constraint the mixed-implementation credential tests resolve.
+const mixedImplementationsConstraint = "~> 3.0"
+
+// newMixedImplementationsFixture builds one shared RegistryAuth over a home holding a
+// distinct registry token per implementation, plus a registry recording Authorization headers.
+func newMixedImplementationsFixture(t *testing.T) (getter.RegistryAuth, string, *sync.Map, *httptest.Server) {
+	t.Helper()
+
+	const home = "/virtual/home"
+
+	var seen sync.Map
+
+	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
+		seen.Store(r.Header.Get("Authorization"), true)
+	})
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	v := venvtest.New().
+		WithGOOS("linux").
+		WithHTTP(server.Client()).
+		WithUserHomeDir(func() (string, error) { return home, nil })
+
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte(`
+credentials "`+serverURL.Hostname()+`" {
+  token = "tofu-token"
+}
+`), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".terraformrc"), []byte(`
+credentials "`+serverURL.Hostname()+`" {
+  token = "terraform-token"
+}
+`), 0o600))
+
+	source := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
+
+	return getter.NewRegistryAuth(v), source, &seen, server
+}
+
+// assertMixedImplementationTokensSeen asserts each implementation authenticated with its own file's token.
+func assertMixedImplementationTokensSeen(t *testing.T, seen *sync.Map) {
+	t.Helper()
+
+	_, sawTofu := seen.Load("Bearer tofu-token")
+	assert.True(t, sawTofu, "OpenTofu resolution must authenticate with the ~/.tofurc token")
+
+	_, sawTF := seen.Load("Bearer terraform-token")
+	assert.True(t, sawTF, "Terraform resolution must authenticate with the ~/.terraformrc token")
 }

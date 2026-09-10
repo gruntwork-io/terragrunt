@@ -1,0 +1,23 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Direct GCS state reads work with Workload Identity Federation
+
+With the [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment enabled, a GCS backend authenticated through Workload Identity Federation still ran `tofu output` or `terraform output` for every dependency, so the experiment made no difference.
+
+It affected any credentials file of type `external_account`, which is what [`google-github-actions/auth`](https://github.com/google-github-actions/auth) writes and points `GOOGLE_APPLICATION_CREDENTIALS` at. Terragrunt read only `service_account` and `authorized_user` files directly.
+
+Terragrunt now reads `external_account` credentials files directly, including the service-account impersonation that `google-github-actions/auth` configures when you give it a service account. A direct read requires the file's `credential_source` to be one of:
+
+- `url`
+- `file` with an absolute path
+
+Any other `credential_source` keeps the previous behavior, and the dependency still runs `tofu output` or `terraform output`. Reading those directly would use Terragrunt's own process rather than the unit's environment to resolve the identity:
+
+- `executable` would run the command with Terragrunt's environment.
+- AWS (an `environment_id` such as `aws1`) would use Terragrunt's AWS credentials.
+- `file` with a relative path would resolve against Terragrunt's working directory.
+
+The `impersonate_service_account` backend setting is a separate feature and is not affected. Backends that set it still run `tofu output` or `terraform output`.

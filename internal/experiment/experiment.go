@@ -115,6 +115,8 @@ const (
 	// portal instead of local HCL. Nothing is gated on it yet; the login
 	// command and the portal-defined catalog land in follow-up PRs.
 	TGLogin = "tg-login"
+	// Base64GzipCompat enables the base64gzip_compat HCL function.
+	Base64GzipCompat = "base64gzip-compat"
 )
 
 const (
@@ -236,6 +238,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: TGLogin,
+		},
+		{
+			Name: Base64GzipCompat,
 		},
 	}
 }

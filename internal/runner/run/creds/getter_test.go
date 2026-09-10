@@ -230,7 +230,7 @@ func TestObtainCredsForParsingReportsCommandFailure(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, getter)
 
-	var procErr util.ProcessExecutionError
+	var procErr *util.ProcessExecutionError
 
 	require.ErrorAs(t, err, &procErr)
 	assert.Equal(t, map[string]string{"UNRELATED": "kept"}, v.Env)

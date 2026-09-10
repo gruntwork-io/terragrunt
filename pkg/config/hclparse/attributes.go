@@ -24,8 +24,7 @@ func NewAttributes(file *File, hclAttrs hcl.Attributes) Attributes {
 func (attrs Attributes) ValidateIdentifier() error {
 	for _, attr := range attrs {
 		if err := attr.ValidateIdentifier(); err != nil {
-			// TODO: Remove lint suppression
-			return nil //nolint:nilerr
+			return err
 		}
 	}
 

@@ -8,7 +8,7 @@ import (
 )
 
 // InterruptSignal is an interrupt signal.
-var InterruptSignal = syscall.SIGINT //nolint:gochecknoglobals
+var InterruptSignal = syscall.SIGINT
 
 // InterruptSignals contains a list of signals that are treated as interrupts.
-var InterruptSignals = []os.Signal{syscall.SIGTERM, syscall.SIGINT} //nolint:gochecknoglobals
+var InterruptSignals = []os.Signal{syscall.SIGTERM, syscall.SIGINT}

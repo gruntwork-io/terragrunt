@@ -346,14 +346,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // renderComponentContent prepares the pager body, prepending tag pills
 // when configured. Markdown components run through the model's cached
-// renderer, which may itself be (re)allocated.
+// renderer, which may itself be (re)allocated. Content comes from a cloned
+// repository, so it is sanitized before it is rendered.
 func (m Model) renderComponentContent(
 	c *Component,
 	tagsStyle TagsDetailStyle,
 	tags []string,
 ) (Model, string, error) {
 	if !c.IsMarkDown() {
-		content := c.Content(true)
+		content := viewtui.SanitizeText(c.Content(true))
 		if pills := RenderDetailTagPills(tags); pills != "" {
 			content = pills + "\n\n" + content
 		}
@@ -371,7 +372,7 @@ func (m Model) renderComponentContent(
 		body += TagsMarkdownSection(tags)
 	}
 
-	rendered, err := renderer.Render(body)
+	rendered, err := renderer.Render(viewtui.SanitizeText(body))
 	if err != nil {
 		return m, "", err
 	}
@@ -463,8 +464,8 @@ func formatSourceFailureNotice(err error, accent string) string {
 		for _, f := range srcErr.Failures {
 			rows = append(rows,
 				"",
-				valuesBoxPathStyle.Render(f.URL),
-				valuesBoxMuteStyle.Render(f.Err.Error()),
+				valuesBoxPathStyle.Render(viewtui.SanitizeLabel(f.URL)),
+				valuesBoxMuteStyle.Render(viewtui.SanitizeLabel(f.Err.Error())),
 			)
 		}
 	}
@@ -713,7 +714,7 @@ func discoverModuleFields(
 	fields := form.FieldsFromParsedVariables(plan.Required, plan.Optional)
 
 	return formReadyMsg{
-		form: form.NewModel(c.Title(), fields),
+		form: form.NewModel(viewtui.SanitizeLabel(c.Title()), fields),
 		plan: plan,
 	}
 }
@@ -740,7 +741,7 @@ func discoverValuesFields(v *venv.Venv, c *Component) tea.Msg {
 	fields := form.FieldsFromValuesReferences(refs)
 
 	return formReadyMsg{
-		form: form.NewModel(c.Title(), fields),
+		form: form.NewModel(viewtui.SanitizeLabel(c.Title()), fields),
 		refs: &refs,
 	}
 }

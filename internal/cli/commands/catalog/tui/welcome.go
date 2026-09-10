@@ -326,7 +326,7 @@ func (m WelcomeModel) discoveryErrorView() string {
 func (m WelcomeModel) discoveryErrorDetail() []string {
 	errMsg := "unknown error"
 	if m.lastDiscoveryErr != nil {
-		errMsg = m.lastDiscoveryErr.Error()
+		errMsg = viewtui.SanitizeLabel(m.lastDiscoveryErr.Error())
 	}
 
 	var srcErr *SourceLoadError
@@ -339,8 +339,8 @@ func (m WelcomeModel) discoveryErrorDetail() []string {
 	for _, f := range srcErr.Failures {
 		rows = append(rows,
 			"",
-			welcomeCodeStyle.Render("    "+f.URL),
-			welcomeHintStyle.Render("      "+f.Err.Error()),
+			welcomeCodeStyle.Render("    "+viewtui.SanitizeLabel(f.URL)),
+			welcomeHintStyle.Render("      "+viewtui.SanitizeLabel(f.Err.Error())),
 		)
 	}
 

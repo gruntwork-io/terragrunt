@@ -159,8 +159,7 @@ func NewTraceExporter(
 		exporterType = noneTraceExporterType
 	}
 
-	// TODO: Remove lint suppression
-	switch exporterType { //nolint:exhaustive
+	switch exporterType {
 	case httpTraceExporterType:
 		if opts.TraceExporterHTTPEndpoint == "" {
 			return nil, &ErrorMissingEnvVariable{
@@ -192,6 +191,8 @@ func NewTraceExporter(
 		return otlptracegrpc.New(ctx, config...)
 	case consoleTraceExporterType:
 		return stdouttrace.New(stdouttrace.WithWriter(writer))
+	case noneTraceExporterType:
+		return nil, nil
 	default:
 		return nil, nil
 	}
@@ -256,14 +257,9 @@ func (tracer *Tracer) openSpan(
 		}
 	}
 
-	// This lint is suppressed because we definitely do close the span
-	// in a defer statement everywhere openSpan is called. It seems like
-	// a useful lint, though. We should consider removing the suppression
-	// and fixing the lint.
-
-	ctx, span := tracer.Start(ctx, name) // nolint:spancheck
+	ctx, span := tracer.Start(ctx, name) //nolint:spancheck // Trace, the only caller, defers span.End
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
 
-	return ctx, span //nolint:spancheck
+	return ctx, span //nolint:spancheck // Trace, the only caller, defers span.End
 }

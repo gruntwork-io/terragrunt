@@ -71,9 +71,9 @@ const unitWithExpansionJSON = `{
   }
 }`
 
-// TestValidateBlockIterationExperimentGatesExpansion pins which block types reject an
+// TestValidateBlockIterationGatesExpansion pins which block types reject an
 // expansion block while the experiment is off, and that the error names the offending block.
-func TestValidateBlockIterationExperimentGatesExpansion(t *testing.T) {
+func TestValidateBlockIterationGatesExpansion(t *testing.T) {
 	t.Parallel()
 
 	skipInExperimentMode(t)
@@ -160,7 +160,7 @@ generate "backend" {
 
 			file := parseHCLString(t, tc.cfg, tc.configPath)
 
-			err := config.ValidateBlockIterationExperiment(experiment.NewExperiments(), file)
+			err := config.ValidateBlockIteration(experiment.NewExperiments(), file)
 
 			if !tc.wantErr {
 				require.NoError(t, err)
@@ -176,9 +176,9 @@ generate "backend" {
 	}
 }
 
-// TestValidateBlockIterationExperimentGateClearsWhenOn pins that turning the experiment on
+// TestValidateBlockIterationGateClearsWhenOn pins that turning the experiment on
 // clears the gate for both expansion blocks and bare enabled attributes.
-func TestValidateBlockIterationExperimentGateClearsWhenOn(t *testing.T) {
+func TestValidateBlockIterationGateClearsWhenOn(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -222,7 +222,7 @@ func TestValidateBlockIterationExperimentGateClearsWhenOn(t *testing.T) {
 
 			require.NoError(
 				t,
-				config.ValidateBlockIterationExperiment(
+				config.ValidateBlockIteration(
 					experiments,
 					parseHCLString(t, tc.cfg, tc.configPath),
 				),
@@ -1269,6 +1269,237 @@ inputs = {
 		"first_region": "region-r0",
 		"last_region":  "region-r39",
 	}, cfg.Inputs)
+}
+
+// TestValidateBlockIterationRejectsMisspelledExpansion pins that a nested block name close
+// enough to expansion to be a typo of it is reported. A unit or stack block decodes through
+// an `hcl:",remain"` field, which would otherwise absorb the block and leave the component a
+// single static instance.
+func TestValidateBlockIterationRejectsMisspelledExpansion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		configPath    string
+		cfg           string
+		wantBlockType string
+		wantLabel     string
+		wantBlockName string
+	}{
+		{
+			name:       "unit with a dropped letter",
+			configPath: config.DefaultStackFile,
+			cfg: `
+unit "app" {
+  expanson {
+    count = 2
+  }
+
+  source = "./modules/app"
+  path   = "app"
+}
+`,
+			wantBlockType: "unit",
+			wantLabel:     "app",
+			wantBlockName: "expanson",
+		},
+		{
+			name:       "stack with a swapped letter",
+			configPath: config.DefaultStackFile,
+			cfg: `
+stack "team" {
+  expantion {
+    count = 2
+  }
+
+  source = "./stacks/team"
+  path   = "team"
+}
+`,
+			wantBlockType: "stack",
+			wantLabel:     "team",
+			wantBlockName: "expantion",
+		},
+		{
+			name:       "unit with a capitalized block name",
+			configPath: config.DefaultStackFile,
+			cfg: `
+unit "app" {
+  Expansion {
+    count = 2
+  }
+
+  source = "./modules/app"
+  path   = "app"
+}
+`,
+			wantBlockType: "unit",
+			wantLabel:     "app",
+			wantBlockName: "Expansion",
+		},
+		{
+			name:       "dependency with a dropped letter",
+			configPath: config.DefaultTerragruntConfigPath,
+			cfg: `
+dependency "aurora" {
+  expanson {
+    count = 2
+  }
+
+  config_path = "../aurora"
+}
+`,
+			wantBlockType: "dependency",
+			wantLabel:     "aurora",
+			wantBlockName: "expanson",
+		},
+		{
+			name:       "unit spelling expansion correctly",
+			configPath: config.DefaultStackFile,
+			cfg:        unitWithExpansionHCL,
+		},
+		{
+			name:       "unit with an autoinclude block",
+			configPath: config.DefaultStackFile,
+			cfg: `
+unit "app" {
+  autoinclude {
+    inputs = {
+      env = "test"
+    }
+  }
+
+  source = "./modules/app"
+  path   = "app"
+}
+`,
+		},
+		{
+			name:       "json body, which names no blocks to compare",
+			configPath: jsonConfigPath,
+			cfg:        `{"dependency": {"aurora": {"expanson": {"count": 2}, "config_path": "../aurora"}}}`,
+		},
+	}
+
+	experiments := experiment.NewExperiments()
+	require.NoError(t, experiments.EnableExperiment(experiment.BlockIteration))
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			file := parseHCLString(t, tc.cfg, tc.configPath)
+
+			err := config.ValidateBlockIteration(experiments, file)
+
+			if tc.wantBlockName == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var typed config.MisspelledExpansionBlockError
+			require.ErrorAs(t, err, &typed)
+			assert.Equal(t, tc.wantBlockType, typed.BlockType)
+			assert.Equal(t, tc.wantLabel, typed.BlockLabel)
+			assert.Equal(t, tc.wantBlockName, typed.BlockName)
+			assert.Equal(t, tc.configPath, typed.ConfigPath)
+		})
+	}
+}
+
+// TestValidateBlockIterationRejectsMisspelledExpansionWithTheExperimentOff pins that the
+// misspelling is caught whether or not the experiment is on. A config the experiment gate
+// would reject anyway is still worth spelling correctly.
+func TestValidateBlockIterationRejectsMisspelledExpansionWithTheExperimentOff(t *testing.T) {
+	t.Parallel()
+
+	skipInExperimentMode(t)
+
+	file := parseHCLString(t, `
+unit "app" {
+  expanson {
+    count = 2
+  }
+
+  source = "./modules/app"
+  path   = "app"
+}
+`, config.DefaultStackFile)
+
+	err := config.ValidateBlockIteration(experiment.NewExperiments(), file)
+
+	var typed config.MisspelledExpansionBlockError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "expanson", typed.BlockName)
+}
+
+// TestReadStackConfigStringRejectsMisspelledExpansion proves the misspelling check is wired
+// into the stack parse, not just callable on its own. Without it the unit below generates a
+// single static instance.
+func TestReadStackConfigStringRejectsMisspelledExpansion(t *testing.T) {
+	t.Parallel()
+
+	err := parseStackErr(t, `
+unit "app" {
+  expanson {
+    for_each = toset(["web", "api"])
+  }
+
+  source = "./modules/app"
+  path   = "app/${each.key}"
+}
+`)
+
+	var typed config.MisspelledExpansionBlockError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "unit", typed.BlockType)
+	assert.Equal(t, "expanson", typed.BlockName)
+}
+
+// TestPartialParseKeepsParsingPastABrokenExpansion covers the best-effort parsing find and
+// list depend on. With a handler that forgives diagnostics, a dependency whose elements
+// cannot decode is dropped, and the rest of the config still parses.
+func TestPartialParseKeepsParsingPastABrokenExpansion(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+
+	forgiving := hclparse.WithDiagnosticsHandler(
+		func(_ *hcl.File, _ hcl.Diagnostics) (hcl.Diagnostics, error) {
+			return nil, nil
+		},
+	)
+
+	pctx = pctx.
+		WithDecodeList(config.DependencyBlock).
+		WithParseOption(append(pctx.ParserOptions, forgiving))
+
+	cfg, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "broken" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../broken-${count.index}"
+  bogus       = "nope"
+}
+
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 1)
+
+	assert.Equal(t, "vpc", cfg.TerragruntDependencies[0].Name)
 }
 
 func parseDependencyString(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {

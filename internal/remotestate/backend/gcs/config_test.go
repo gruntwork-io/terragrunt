@@ -14,83 +14,83 @@ func TestConfig_IsEqual(t *testing.T) {
 
 	logger := logger.CreateLogger()
 
-	testCases := []struct { //nolint: govet
-		name          string
+	testCases := []struct {
 		cfg           gcs.Config
 		comparableCfg gcs.Config
+		name          string
 		shouldBeEqual bool
 	}{
 		{
-			"equal-both-empty",
-			gcs.Config{},
-			gcs.Config{},
-			true,
+			name:          "equal-both-empty",
+			cfg:           gcs.Config{},
+			comparableCfg: gcs.Config{},
+			shouldBeEqual: true,
 		},
 		{
-			"equal-empty-and-nil",
-			gcs.Config{},
-			nil,
-			true,
+			name:          "equal-empty-and-nil",
+			cfg:           gcs.Config{},
+			comparableCfg: nil,
+			shouldBeEqual: true,
 		},
 		{
-			"equal-one-key",
-			gcs.Config{"foo": "bar"},
-			gcs.Config{"foo": "bar"},
-			true,
+			name:          "equal-one-key",
+			cfg:           gcs.Config{"foo": "bar"},
+			comparableCfg: gcs.Config{"foo": "bar"},
+			shouldBeEqual: true,
 		},
 		{
-			"equal-multiple-keys",
-			gcs.Config{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
-			gcs.Config{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
-			true,
+			name:          "equal-multiple-keys",
+			cfg:           gcs.Config{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
+			comparableCfg: gcs.Config{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
+			shouldBeEqual: true,
 		},
 		{
-			"equal-encrypt-bool-handling",
-			gcs.Config{"encrypt": true},
-			gcs.Config{"encrypt": "true"},
-			true,
+			name:          "equal-encrypt-bool-handling",
+			cfg:           gcs.Config{"encrypt": true},
+			comparableCfg: gcs.Config{"encrypt": "true"},
+			shouldBeEqual: true,
 		},
 		{
-			"equal-general-bool-handling",
-			gcs.Config{"something": true, "encrypt": true},
-			gcs.Config{"something": "true", "encrypt": "true"},
-			true,
+			name:          "equal-general-bool-handling",
+			cfg:           gcs.Config{"something": true, "encrypt": true},
+			comparableCfg: gcs.Config{"something": "true", "encrypt": "true"},
+			shouldBeEqual: true,
 		},
 		{
-			"equal-ignore-gcs-labels",
-			gcs.Config{"foo": "bar", "gcs_bucket_labels": []map[string]string{{"foo": "bar"}}},
-			gcs.Config{"foo": "bar"},
-			true,
+			name:          "equal-ignore-gcs-labels",
+			cfg:           gcs.Config{"foo": "bar", "gcs_bucket_labels": []map[string]string{{"foo": "bar"}}},
+			comparableCfg: gcs.Config{"foo": "bar"},
+			shouldBeEqual: true,
 		},
 		{
-			"unequal-values",
-			gcs.Config{"foo": "bar"},
-			gcs.Config{"foo": "different"},
-			false,
+			name:          "unequal-values",
+			cfg:           gcs.Config{"foo": "bar"},
+			comparableCfg: gcs.Config{"foo": "different"},
+			shouldBeEqual: false,
 		},
 		{
-			"unequal-non-empty-cfg-nil",
-			gcs.Config{"foo": "bar"},
-			nil,
-			false,
+			name:          "unequal-non-empty-cfg-nil",
+			cfg:           gcs.Config{"foo": "bar"},
+			comparableCfg: nil,
+			shouldBeEqual: false,
 		},
 		{
-			"unequal-general-bool-handling",
-			gcs.Config{"something": true},
-			gcs.Config{"something": "false"},
-			false,
+			name:          "unequal-general-bool-handling",
+			cfg:           gcs.Config{"something": true},
+			comparableCfg: gcs.Config{"something": "false"},
+			shouldBeEqual: false,
 		},
 		{
-			"equal-null-ignored",
-			gcs.Config{"something": "foo"},
-			gcs.Config{"something": "foo", "ignored-because-null": nil},
-			true,
+			name:          "equal-null-ignored",
+			cfg:           gcs.Config{"something": "foo"},
+			comparableCfg: gcs.Config{"something": "foo", "ignored-because-null": nil},
+			shouldBeEqual: true,
 		},
 		{
-			"terragrunt-only-configs-remain-intact",
-			gcs.Config{"something": "foo", "skip_bucket_creation": true},
-			gcs.Config{"something": "foo"},
-			true,
+			name:          "terragrunt-only-configs-remain-intact",
+			cfg:           gcs.Config{"something": "foo", "skip_bucket_creation": true},
+			comparableCfg: gcs.Config{"something": "foo"},
+			shouldBeEqual: true,
 		},
 	}
 
@@ -110,84 +110,84 @@ func TestConfig_IsEqual(t *testing.T) {
 func TestParseExtendedGCSConfig_StringBoolCoercion(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
-		name   string
+	testCases := []struct {
 		config gcs.Config
 		check  func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS)
+		name   string
 	}{
 		{
-			"skip-bucket-versioning-string-true",
-			gcs.Config{
+			name: "skip-bucket-versioning-string-true",
+			config: gcs.Config{
 				"bucket":                 "my-bucket",
 				"skip_bucket_versioning": "true",
 			},
-			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+			check: func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketVersioning)
 			},
 		},
 		{
-			"skip-bucket-versioning-string-false",
-			gcs.Config{
+			name: "skip-bucket-versioning-string-false",
+			config: gcs.Config{
 				"bucket":                 "my-bucket",
 				"skip_bucket_versioning": "false",
 			},
-			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+			check: func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.False(t, cfg.SkipBucketVersioning)
 			},
 		},
 		{
-			"skip-bucket-creation-string-true",
-			gcs.Config{
+			name: "skip-bucket-creation-string-true",
+			config: gcs.Config{
 				"bucket":               "my-bucket",
 				"skip_bucket_creation": "true",
 			},
-			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+			check: func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketCreation)
 			},
 		},
 		{
-			"enable-bucket-policy-only-string-true",
-			gcs.Config{
+			name: "enable-bucket-policy-only-string-true",
+			config: gcs.Config{
 				"bucket":                    "my-bucket",
 				"enable_bucket_policy_only": "true",
 			},
-			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+			check: func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.EnableBucketPolicyOnly)
 			},
 		},
 		{
-			"native-bool-still-works",
-			gcs.Config{
+			name: "native-bool-still-works",
+			config: gcs.Config{
 				"bucket":                 "my-bucket",
 				"skip_bucket_versioning": true,
 			},
-			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+			check: func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketVersioning)
 			},
 		},
 		{
-			"empty-string-coerces-to-false",
-			gcs.Config{
+			name: "empty-string-coerces-to-false",
+			config: gcs.Config{
 				"bucket":                 "my-bucket",
 				"skip_bucket_versioning": "",
 			},
-			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+			check: func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.False(t, cfg.SkipBucketVersioning)
 			},
 		},
 		{
-			"numeric-one-coerces-to-true",
-			gcs.Config{
+			name: "numeric-one-coerces-to-true",
+			config: gcs.Config{
 				"bucket":                 "my-bucket",
 				"skip_bucket_versioning": "1",
 			},
-			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+			check: func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketVersioning)
 			},

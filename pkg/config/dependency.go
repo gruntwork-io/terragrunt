@@ -325,12 +325,14 @@ func decodeDependencyBlocks(
 }
 
 // validateUniqueDependencies reports two dependency blocks in one config that address the
-// same dependency. HCL allows the repeated label, and nothing downstream reports it: the
-// dependency map is keyed by address, so the last block silently wins and the ones before
-// it become unreachable.
+// same dependency, either by resolving to the same address or by pointing at the same
+// config_path. HCL allows both, and nothing downstream reports either. The dependency map is
+// keyed by address, so a repeated address means the last block silently wins. A repeated
+// config_path declares one unit twice, and the two blocks drift apart as soon as one gains
+// a mock_outputs or skip_outputs the other lacks.
 //
 // Whether that is an error or a warning is left to the duplicate-dependency-labels strict
-// control, since configs carrying a shadowed block have always run.
+// control, since configs with either duplicate have always run.
 func validateUniqueDependencies(
 	ctx context.Context,
 	pctx *ParsingContext,
@@ -338,18 +340,40 @@ func validateUniqueDependencies(
 	configPath string,
 	deps Dependencies,
 ) error {
-	address, found := duplicateDependencyAddress(deps)
-	if !found {
-		return nil
+	if address, found := duplicateDependencyAddress(deps); found {
+		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyError{
+			ConfigPath: configPath,
+			Address:    address,
+		})
 	}
 
+	if dup, found := duplicateDependencyConfigPath(configPath, deps); found {
+		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyConfigPathError{
+			ConfigPath:     configPath,
+			DependencyPath: dup.path,
+			FirstAddress:   dup.first,
+			SecondAddress:  dup.second,
+		})
+	}
+
+	return nil
+}
+
+// evaluateDuplicateDependency returns strictErr when the duplicate-dependency-labels control
+// is enabled, and otherwise lets the control log its warning.
+func evaluateDuplicateDependency(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	strictErr error,
+) error {
 	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
 	if control == nil {
 		return errors.New("failed to find control " + controls.DuplicateDependencyLabels)
 	}
 
 	if control.GetEnabled() {
-		return DuplicateDependencyError{ConfigPath: configPath, Address: address}
+		return strictErr
 	}
 
 	return control.Evaluate(log.ContextWithLogger(ctx, l))
@@ -372,6 +396,50 @@ func duplicateDependencyAddress(deps Dependencies) (string, bool) {
 	}
 
 	return "", false
+}
+
+// sharedDependencyPath names the two dependency addresses that point at one config_path.
+type sharedDependencyPath struct {
+	path   string
+	first  string
+	second string
+}
+
+// duplicateDependencyConfigPath returns the first config_path that two enabled dependency
+// blocks both point at. Paths are resolved against the config's directory before comparing,
+// so two spellings of one directory count as the same path. A disabled dependency reads
+// nothing and so collides with nothing, and a config_path that is not yet a known string
+// is skipped.
+func duplicateDependencyConfigPath(configPath string, deps Dependencies) (sharedDependencyPath, bool) {
+	seen := make(map[string]string, len(deps))
+
+	for i := range deps {
+		dep := &deps[i]
+
+		if !dep.isEnabled() || !dep.ConfigPath.IsWhollyKnown() || dep.ConfigPath.IsNull() ||
+			!dep.ConfigPath.Type().Equals(cty.String) {
+			continue
+		}
+
+		path := dep.ConfigPath.AsString()
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(filepath.Dir(configPath), path)
+		}
+
+		path = filepath.Clean(path)
+
+		if first, duplicate := seen[path]; duplicate {
+			return sharedDependencyPath{
+				path:   dep.ConfigPath.AsString(),
+				first:  first,
+				second: dep.mergeKey(),
+			}, true
+		}
+
+		seen[path] = dep.mergeKey()
+	}
+
+	return sharedDependencyPath{}, false
 }
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
@@ -932,13 +1000,16 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 			dependencyConfig.MockOutputs != nil {
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 
-			switch mockMergeStrategy { // nolint:exhaustive
+			switch mockMergeStrategy {
 			case NoMerge:
 				return outputVal, nil
 			case ShallowMerge:
 				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
 			case DeepMergeMapOnly:
 				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
+			case DeepMerge:
+				// Mock outputs merge maps only, so a full deep merge has no meaning here.
+				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
 			default:
 				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
 			}
@@ -1029,6 +1100,10 @@ func getTerragruntOutput(
 			return nil, true, err
 		}
 
+		if dependencyConfig.MockOutputs == nil || !dependencyConfig.shouldReturnMockOutputs(pctx) {
+			return nil, true, nil
+		}
+
 		l.Warnf(
 			"Failed to read outputs from %s referenced in %s as %s, fallback to mock outputs. Error: %v",
 			targetConfigPath,
@@ -1059,8 +1134,13 @@ func getTerragruntOutput(
 	return &convertedOutput, isEmpty, err
 }
 
-// collectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
-func collectStackUnitOutputs(
+// CollectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
+//
+// Every element of an expanded unit carries its block's label, so keying by name alone would
+// keep only the last one, each element having read a different generated directory. An expanded
+// unit nests its elements under their iteration key instead, reaching one as
+// dependency.<stack>.outputs.<unit>["<key>"], the address `terragrunt stack output` gives it.
+func CollectStackUnitOutputs(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
@@ -1069,6 +1149,22 @@ func collectStackUnitOutputs(
 	dependencyConfig *Dependency,
 ) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
+	instances := map[string]map[string]cty.Value{}
+
+	record := func(unit *Unit, value cty.Value) {
+		key, expanded := unit.InstanceKey()
+		if !expanded {
+			unitOutputs[unit.Name] = value
+
+			return
+		}
+
+		if instances[unit.Name] == nil {
+			instances[unit.Name] = map[string]cty.Value{}
+		}
+
+		instances[unit.Name][key] = value
+	}
 
 	for _, unit := range units {
 		if !unit.IsEnabled() {
@@ -1097,7 +1193,7 @@ func collectStackUnitOutputs(
 			}
 
 			if ok {
-				unitOutputs[unit.Name] = mock
+				record(unit, mock)
 				continue
 			}
 
@@ -1124,8 +1220,12 @@ func collectStackUnitOutputs(
 				return nil, fmt.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
 			}
 
-			unitOutputs[unit.Name] = convertedOutput
+			record(unit, convertedOutput)
 		}
+	}
+
+	for name, byKey := range instances {
+		unitOutputs[name] = cty.ObjectVal(byKey)
 	}
 
 	return unitOutputs, nil
@@ -1206,7 +1306,7 @@ func tryGetStackOutput(
 		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs, err := collectStackUnitOutputs(
+	unitOutputs, err := CollectStackUnitOutputs(
 		ctx,
 		pctx,
 		l,
@@ -1463,6 +1563,8 @@ func resolveOutputJSON(
 		return nil, "", err
 	}
 
+	callerIsRenderCommand := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
+
 	// Set dependency-specific fields
 	pctx.ForwardTFStdout = false
 	pctx.CheckDependentUnits = false
@@ -1621,12 +1723,11 @@ func resolveOutputJSON(
 			workspace,
 		)
 
-		if fetchErr == nil || shouldFallBackToMockOutputs(pctx, fetchErr) {
+		if fetchErr == nil || isRemoteStateMissing(fetchErr) || callerIsRenderCommand {
 			return out, "state", fetchErr
 		}
 
-		// Reading state directly is an optimization, so any other failure retries through
-		// the routes below rather than ending the run.
+		// Direct reading is an optimization. Errors not handled by mock-output paths retry below.
 		l.Debugf(
 			"Could not read dependency state for %s directly (%v). Falling back to native output retrieval.",
 			pctx.TerragruntConfigPath,
@@ -1849,15 +1950,7 @@ func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, 
 		return workspace, nil
 	}
 
-	dataDir := tf.DefaultTFDataDir
-	if configured := pctx.Venv.Env["TF_DATA_DIR"]; configured != "" {
-		dataDir = configured
-	}
-
-	if !filepath.IsAbs(dataDir) {
-		dataDir = filepath.Join(workingDir, dataDir)
-	}
-
+	dataDir := dependencyStateDataDir(pctx, workingDir)
 	workspaceFile := filepath.Join(dataDir, "environment")
 
 	exists, err := vfs.FileExists(pctx.Venv.FS, workspaceFile)
@@ -1880,6 +1973,19 @@ func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, 
 	}
 
 	return workspace, nil
+}
+
+func dependencyStateDataDir(pctx *ParsingContext, workingDir string) string {
+	dataDir := tf.DefaultTFDataDir
+	if configured := pctx.Venv.Env["TF_DATA_DIR"]; configured != "" {
+		dataDir = configured
+	}
+
+	if filepath.IsAbs(dataDir) {
+		return dataDir
+	}
+
+	return filepath.Join(workingDir, dataDir)
 }
 
 // applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into pctx.Venv.Env
@@ -1974,11 +2080,11 @@ func terragruntAlreadyInit(
 	}
 	// We're only interested in the computed working dir.
 	workingDir := terraformSource.WorkingDir
-	// Terragrunt is already init-ed if the terraform state dir (.terraform) exists in the working dir.
+	// Terragrunt is already init-ed if its configured data directory exists in the working dir.
 	// NOTE: if the ref changes, the workingDir would be different as the download dir includes a base64 encoded hash of
 	// the source URL with ref. This would ensure that this routine would not return true if the new ref is not already
 	// init-ed.
-	return vfs.Exists(pctx.Venv.FS, filepath.Join(workingDir, ".terraform")), workingDir, nil
+	return vfs.Exists(pctx.Venv.FS, dependencyStateDataDir(pctx, workingDir)), workingDir, nil
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -476,31 +475,6 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 	return tree, nil
 }
 
-// CatFile writes the contents of a git object
-// to a given writer.
-func (g *GitRunner) CatFile(ctx context.Context, hash string, w io.Writer) error {
-	if err := g.RequiresWorkDir(); err != nil {
-		return err
-	}
-
-	var stderr bytes.Buffer
-
-	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
-
-	cmd.SetStdout(w)
-	cmd.SetStderr(&stderr)
-
-	if err := cmd.Run(); err != nil {
-		return &WrappedError{
-			Op:      "git_cat_file",
-			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
-		}
-	}
-
-	return nil
-}
-
 // CreateDetachedWorktree creates a new detached worktree for a given reference
 // as a given directory
 func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string) error {
@@ -789,12 +763,9 @@ func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) 
 			continue
 		}
 
-		if strings.HasPrefix(line, "ref:") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 { //nolint:mnd
-				ref := parts[1]
-
-				if after, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
+		if symref, ok := strings.CutPrefix(line, "ref:"); ok {
+			if fields := strings.Fields(symref); len(fields) > 0 {
+				if after, ok := strings.CutPrefix(fields[0], "refs/heads/"); ok {
 					return after, nil
 				}
 			}
@@ -848,8 +819,7 @@ func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
 	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
-		// Older Git versions don't support --show-object-format; default to sha1.
-		return "sha1", nil //nolint:nilerr
+		return "sha1", nil //nolint:nilerr // older Git lacks --show-object-format, and only ever wrote sha1
 	}
 
 	return strings.TrimSpace(stdout.String()), nil
