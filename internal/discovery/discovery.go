@@ -117,6 +117,7 @@ func (d *Discovery) Discover(
 				"parse_includes":    d.parseIncludes,
 				"parse_exclude":     d.parseExclude,
 				"read_files":        d.readFiles,
+				"track_reads":       d.trackReads,
 				"activation_reason": reasonsStr,
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error

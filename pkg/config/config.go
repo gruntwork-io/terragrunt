@@ -2392,7 +2392,15 @@ var moduleSourceReadExtensions = map[string]struct{}{
 // rawSource and marks its configuration files as read in pctx.FilesRead. It is a
 // best-effort annotation: non-local sources are skipped and walk errors are
 // swallowed, since a genuinely broken source will surface during download.
+//
+// A pctx that keeps no record of its reads gets no walk. The walk feeds nothing
+// but that record, and is the most expensive thing a parse does for it, so this
+// is where the cost of tracking goes when nobody is asking.
 func markLocalModuleSourceAsRead(pctx *ParsingContext, cfgPath, rawSource string) {
+	if !pctx.FilesRead.Tracking() {
+		return
+	}
+
 	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
 
 	// Anchor a relative config path to the working directory before deriving

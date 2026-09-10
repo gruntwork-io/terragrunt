@@ -313,6 +313,38 @@ func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 	}
 }
 
+// TestMarkManyAsReadSkippedWithoutTracking pins that a parse keeping no record of
+// its reads leaves the local module source unwalked, while the source itself still
+// decodes as it otherwise would.
+func TestMarkManyAsReadSkippedWithoutTracking(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "modules", "foo")
+	unitDir := filepath.Join(root, "units", "bar")
+
+	writeFile(t, filepath.Join(moduleDir, "main.tf"), "")
+
+	configPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	hcl := `terraform { source = "../../modules/foo" }`
+	writeFile(t, configPath, hcl)
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+	pctx.WorkingDir = unitDir
+	pctx = pctx.WithDecodeList(config.TerraformSource).WithoutFileReadTracking()
+
+	out, err := config.PartialParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.NotNil(t, out.Terraform)
+	require.NotNil(t, out.Terraform.Source)
+	assert.Equal(t, "../../modules/foo", *out.Terraform.Source)
+
+	assert.False(t, pctx.FilesRead.Tracking())
+	assert.Empty(t, pctx.FilesRead.Paths())
+}
+
 func writeFile(t *testing.T, path, contents string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))

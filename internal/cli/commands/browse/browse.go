@@ -27,6 +27,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		WithRequiresParse: true,
 		WithRelationships: true,
 		ParseStackConfigs: true,
+		TrackReads:        true,
 		Filters:           opts.Filters,
 	})
 	if err != nil {

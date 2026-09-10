@@ -395,6 +395,10 @@ func parseComponent(
 				parsingCtx = parsingCtx.WithParseOption(discovery.parserOptions)
 			}
 
+			if !discovery.trackReads {
+				parsingCtx = parsingCtx.WithoutFileReadTracking()
+			}
+
 			if discovery.suppressParseErrors {
 				parserOpts := parsingCtx.ParserOptions
 				parserOpts = append(parserOpts, hclparse.WithDiagnosticsHandler(func(
@@ -437,7 +441,7 @@ func parseComponent(
 				unit.StoreConfig(cfg)
 			}
 
-			if parsingCtx.FilesRead != nil {
+			if parsingCtx.FilesRead.Tracking() {
 				readFiles := sanitizeReadFiles(parsingCtx.FilesRead.Paths())
 				c.SetReading(readFiles...)
 			}

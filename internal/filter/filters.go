@@ -124,6 +124,18 @@ func (f Filters) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 
+// RequiresReading returns true if any filter matches on what a component reads,
+// which is only knowable once parsing records the files each component read.
+func (f Filters) RequiresReading() bool {
+	for _, filter := range f {
+		if containsReadingExpression(filter.expr) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // PartitionReadingFilters splits the filters by whether their top-level expression is a reading
 // attribute filter, preserving the original order within each group. Worktree discovery uses this to
 // separate reading filters (which track files that may be read by other components via a glob) from
@@ -347,6 +359,23 @@ func (f Filters) String() string {
 	}
 
 	return string(jsonBytes)
+}
+
+// containsReadingExpression returns true if the expression tree contains a reading
+// attribute filter.
+func containsReadingExpression(expr Expression) bool {
+	found := false
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if attr, ok := e.(*AttributeExpression); ok && attr.Key == AttributeReading {
+			found = true
+			return false
+		}
+
+		return true
+	})
+
+	return found
 }
 
 // containsGitExpression returns true if the expression tree contains a GitExpression.

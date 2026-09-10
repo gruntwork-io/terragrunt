@@ -272,6 +272,10 @@ func (d *Discovery) withParseSettingsFrom(parent *Discovery) *Discovery {
 		d = d.WithParserOptions(parent.parserOptions)
 	}
 
+	if parent.trackReads {
+		d = d.WithTrackReads()
+	}
+
 	return d
 }
 

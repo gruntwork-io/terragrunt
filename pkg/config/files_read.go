@@ -21,6 +21,12 @@ func NewFilesRead() *FilesRead {
 	return &FilesRead{}
 }
 
+// Tracking reports whether reads are being recorded. Work whose only product is
+// a recorded read can be skipped when it returns false.
+func (f *FilesRead) Tracking() bool {
+	return f != nil
+}
+
 // Add records path as read. Duplicate paths are ignored.
 func (f *FilesRead) Add(path string) {
 	if f == nil {

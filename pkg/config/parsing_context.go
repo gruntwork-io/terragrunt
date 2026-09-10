@@ -256,6 +256,17 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 	return c
 }
 
+// WithoutFileReadTracking returns a copy that keeps no record of the files it
+// reads. Only callers that surface reads consume that record, so a parse with no
+// such caller can skip the bookkeeping and, more to the point, the walk of every
+// local module source that feeds it.
+func (ctx *ParsingContext) WithoutFileReadTracking() *ParsingContext {
+	c := ctx.Clone()
+	c.FilesRead = nil
+
+	return c
+}
+
 func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	c := ctx.Clone()
 	c.SkipOutputsResolution = true

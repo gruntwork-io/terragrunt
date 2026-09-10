@@ -1,0 +1,20 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### Faster discovery when nothing needs to know what units read
+
+Terragrunt recorded the files every unit reads on every run. That record covers the content of each local module a unit sources, so Terragrunt walked those module directories once per unit, whether or not anything would look at the result.
+
+Only four things consult the record: [reading-based filter expressions](/features/filter/attributes#reading-based-expressions), the `--queue-include-units-reading` flag, `find --reading`, and the file tree in `terragrunt browse`. Terragrunt now keeps it for those and skips the module walk otherwise.
+
+Benchmarks on an Apple M3 Max, running `terragrunt find --dependencies` across 1,000 units that all source the same local module:
+
+| files in the module | before | after | change |
+| --- | --- | --- | --- |
+| 50 | 148 ms | 136 ms | -8% |
+| 150 | 178 ms | 134 ms | -25% |
+| 400 | 259 ms | 136 ms | -47% |
+
+The saving grows with the size of the local modules a repository sources. Runs that ask about reads behave as they did before.
