@@ -4,8 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -505,4 +510,119 @@ func TestLinkTreeAcceptsTreeAtNestingBound(t *testing.T) {
 	got, err := vfs.ReadFile(v.FS, filepath.Join("/target", "sub", "sub", "sub", "README.md"))
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hello"), got)
+}
+
+// countingFS counts how many per-entry filesystem operations a materialization
+// has in flight at once, and holds each one open long enough for the rest to
+// pile up behind it.
+type countingFS struct {
+	vfs.FS
+	mu       sync.Mutex
+	inFlight int
+	peak     int
+}
+
+// hold registers an operation as in flight, sleeps so concurrent operations
+// overlap, and returns the release. The sleep is [time.Sleep] rather than
+// [synctest.Sleep] because synctest forbids concurrent Wait calls, and every
+// worker reaches this at once.
+func (fs *countingFS) hold() func() {
+	fs.mu.Lock()
+	fs.inFlight++
+	fs.peak = max(fs.peak, fs.inFlight)
+	fs.mu.Unlock()
+
+	time.Sleep(time.Millisecond)
+
+	return func() {
+		fs.mu.Lock()
+		defer fs.mu.Unlock()
+
+		fs.inFlight--
+	}
+}
+
+func (fs *countingFS) Open(name string) (afero.File, error) {
+	defer fs.hold()()
+
+	return fs.FS.Open(name)
+}
+
+func (fs *countingFS) LinkIfPossible(oldname, newname string) error {
+	defer fs.hold()()
+
+	return fs.FS.(vfs.HardLinker).LinkIfPossible(oldname, newname)
+}
+
+func (fs *countingFS) peakInFlight() int {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	return fs.peak
+}
+
+// TestLinkTreeBoundsConcurrencyAcrossNestingWithRacing pins the bound over a
+// whole materialization rather than over one level of it. Nesting used to
+// multiply the bound, and a deep enough repository ran the process out of file
+// descriptors.
+func TestLinkTreeBoundsConcurrencyAcrossNestingWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			depth         = 5
+			blobsPerLevel = 8
+		)
+
+		l := logger.CreateLogger()
+
+		fs := &countingFS{FS: vfs.NewMemMapFS()}
+		v := venvtest.New().WithFS(fs.FS)
+
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+		require.NoError(t, v.FS.MkdirAll("/target", 0755))
+
+		store := cas.NewStore("/store")
+		content := cas.NewContent(store)
+
+		require.NoError(t, content.Store(l, v, "blob000000", []byte("hello"), cas.StoredFilePerms))
+
+		// Each level lists the same blob under distinct names plus the tree
+		// below it, so every level has more work than the bound allows.
+		treeHashes := make([]string, depth)
+		for i := range treeHashes {
+			treeHashes[i] = fmt.Sprintf("tree%06d", i)
+		}
+
+		for i := depth - 1; i >= 0; i-- {
+			entries := make([]string, 0, blobsPerLevel+1)
+
+			// The subtree is listed first so it descends while its siblings
+			// are still being written. Listed last, it would find the level
+			// already drained and never overlap with it.
+			if i < depth-1 {
+				entries = append(entries, "040000 tree "+treeHashes[i+1]+" sub")
+			}
+
+			for b := range blobsPerLevel {
+				entries = append(entries, fmt.Sprintf("100644 blob blob000000 file%d", b))
+			}
+
+			data := []byte(strings.Join(entries, "\n"))
+			require.NoError(t, content.Store(l, v, treeHashes[i], data, cas.StoredFilePerms))
+		}
+
+		tree, err := git.ParseTree([]byte("040000 tree "+treeHashes[0]+" sub"), "deep-repo")
+		require.NoError(t, err)
+
+		// Only the materialization runs through the counter. Seeding the store
+		// needs file locking, which the wrapper does not forward.
+		require.NoError(t, cas.LinkTree(t.Context(), l, v.WithFS(fs), store, store, tree, "/target"))
+
+		limit := vfs.FSWorkersFor(fs, "/target")
+
+		assert.LessOrEqual(t, fs.peakInFlight(), limit,
+			"materialization ran more file operations at once than the filesystem's bound allows")
+		assert.Positive(t, fs.peakInFlight(), "the counter saw no work at all")
+	})
 }
