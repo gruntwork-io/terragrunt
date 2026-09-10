@@ -1632,9 +1632,7 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping the disabled-vs-enabled comparison in experiment mode")
-	}
+	helpers.SkipInExperimentMode(t, experiment.OCI)
 
 	testCases := []struct {
 		name    string

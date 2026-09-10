@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -254,7 +255,7 @@ func TestUnitAndStackDecodeEnabled(t *testing.T) {
 func TestValidateBlockIterationGatesEnabled(t *testing.T) {
 	t.Parallel()
 
-	skipInExperimentMode(t)
+	helpers.SkipInExperimentMode(t, experiment.BlockIteration)
 
 	testCases := []struct {
 		name          string
@@ -338,7 +339,7 @@ unit "app" {
 func TestReadStackConfigStringEnabledRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	skipInExperimentMode(t)
+	helpers.SkipInExperimentMode(t, experiment.BlockIteration)
 
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultStackFile)
 

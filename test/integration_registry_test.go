@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -179,9 +180,7 @@ func TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *test
 func TestTFTerraformRegistryVersionConstraintRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, so the experiment-disabled error this test pins cannot occur")
-	}
+	helpers.SkipInExperimentMode(t, experiment.VersionAttribute)
 
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintModulePath)
 	helpers.CleanupTerraformFolder(t, modPath)

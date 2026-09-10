@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -35,9 +36,7 @@ func TestTFDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
 	t.Run("flag rejected without experiment", func(t *testing.T) {
 		t.Parallel()
 
-		if helpers.IsExperimentMode(t) {
-			t.Skip("Skipping: TG_EXPERIMENT_MODE forces the optional-dependency-outputs experiment on, so its disabled-state error can't be verified")
-		}
+		helpers.SkipInExperimentMode(t, experiment.OptionalDependencyOutputs)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --no-dependency-outputs --non-interactive --working-dir "+noOutputPath(t))
 		require.ErrorContains(t, err, "--no-dependency-outputs requires the 'optional-dependency-outputs' experiment")

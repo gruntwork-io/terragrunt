@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -587,9 +588,7 @@ func TestTFTerragruntHookContextEnvExperimentEnabled(t *testing.T) {
 func TestTFTerragruntHookContextEnvExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip()
-	}
+	helpers.SkipInExperimentMode(t, experiment.HookContextEnv)
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksContextEnv)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksContextEnv)
