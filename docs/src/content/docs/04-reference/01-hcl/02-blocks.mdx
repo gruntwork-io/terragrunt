@@ -496,7 +496,20 @@ For the `s3` backend, the following additional properties are supported in the `
 - `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store OpenTofu/Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the Opentofu/Terraform state will be disabled. **Note:** When access logging is enabled supported encryption for state bucket is only `AES256`. Reference: [S3 server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html)
 - `accesslogging_target_object_partition_date_source`: (Optional) When provided as a valid `string`, it configures the `PartitionDateSource` option. This option is part of the `TargetObjectKeyFormat` and `PartitionedPrefix` AWS configurations, allowing you to configure the log object key format for the access log files. Reference: [Logging requests with server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html).
 - `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Opentofu/Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
+
+<Before version="1.2.0">
+
 - `skip_accesslogging_bucket_acl`: When set to `true`, the S3 bucket where access logs are stored will not be configured with bucket ACL.
+
+</Before>
+
+<Since version="1.2.0">
+
+- `skip_accesslogging_bucket_policy`: When set to `true`, the S3 bucket where access logs are stored will not be configured with a bucket policy granting S3 permission to deliver access logs to it.
+- `skip_accesslogging_bucket_acl`: *DEPRECATED* Opted out of the bucket ACL that used to carry this grant, an approach [AWS recommends against](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general). It now has no effect, since Terragrunt sets no ACL. Use `skip_accesslogging_bucket_policy` to skip the grant. Terragrunt warns when it is used. See the [`skip-accesslogging-bucket-acl`](/reference/strict-controls/active#skip-accesslogging-bucket-acl) strict control.
+
+</Since>
+
 - `skip_accesslogging_bucket_enforced_tls`: When set to `true`, the S3 bucket where access logs are stored will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `skip_accesslogging_bucket_public_access_blocking`: When set to `true`, the S3 bucket where access logs are stored will not have public access blocking enabled.
 - `skip_accesslogging_bucket_ssencryption`: When set to `true`, the S3 bucket where access logs are stored will not be configured with server-side encryption.

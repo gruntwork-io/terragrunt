@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -15,6 +16,7 @@ import (
 type Options struct {
 	Experiments                  experiment.Experiments
 	IAMRoleOptions               iam.RoleOptions
+	StrictControls               strict.Controls
 	NonInteractive               bool
 	FailIfBucketCreationRequired bool
 }

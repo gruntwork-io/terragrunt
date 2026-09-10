@@ -43,6 +43,9 @@ const (
 	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
 	RequireExplicitBootstrap = "require-explicit-bootstrap"
 
+	// SkipAccessLoggingBucketACL is the control that prevents the use of the deprecated `skip_accesslogging_bucket_acl` config attribute.
+	SkipAccessLoggingBucketACL = "skip-accesslogging-bucket-acl"
+
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
 
@@ -143,6 +146,15 @@ func New() strict.Controls {
 		Status:  strict.CompletedStatus,
 	}
 
+	skipAccessLoggingBucketACLControl := &Control{
+		Name:        SkipAccessLoggingBucketACL,
+		Description: "Prevents the use of the deprecated `skip_accesslogging_bucket_acl` config attribute. Terragrunt no longer puts an ACL on the access logging bucket, so the attribute has nothing left to skip. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that carries the grant now.",
+		Error: errors.New(
+			"The `skip_accesslogging_bucket_acl` config attribute is no longer supported. Terragrunt does not put an ACL on the access logging bucket. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that grants access log delivery.",
+		),
+		Warning: "The `skip_accesslogging_bucket_acl` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer puts an ACL on the access logging bucket, so this attribute has no effect. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that grants access log delivery.",
+	}
+
 	controls := strict.Controls{
 		&Control{
 			Name:        DeprecatedCommands,
@@ -162,10 +174,12 @@ func New() strict.Controls {
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
 				requireExplicitBootstrapControl,
+				skipAccessLoggingBucketACLControl,
 			},
 		},
 		skipDependenciesInputsControl,
 		requireExplicitBootstrapControl,
+		skipAccessLoggingBucketACLControl,
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",

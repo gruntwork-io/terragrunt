@@ -28,6 +28,7 @@ var terragruntOnlyConfigs = []string{
 	"accesslogging_target_object_partition_date_source",
 	"accesslogging_target_prefix",
 	"skip_accesslogging_bucket_acl",
+	"skip_accesslogging_bucket_policy",
 	"skip_accesslogging_bucket_enforced_tls",
 	"skip_accesslogging_bucket_public_access_blocking",
 	"skip_accesslogging_bucket_ssencryption",
@@ -63,6 +64,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketRootAccess                         bool                `mapstructure:"skip_bucket_root_access"`
 	SkipBucketPublicAccessBlocking               bool                `mapstructure:"skip_bucket_public_access_blocking"`
 	SkipAccessLoggingBucketACL                   bool                `mapstructure:"skip_accesslogging_bucket_acl"`
+	SkipAccessLoggingBucketPolicy                bool                `mapstructure:"skip_accesslogging_bucket_policy"`
 	SkipAccessLoggingBucketEnforcedTLS           bool                `mapstructure:"skip_accesslogging_bucket_enforced_tls"`
 	SkipAccessLoggingBucketPublicAccessBlocking  bool                `mapstructure:"skip_accesslogging_bucket_public_access_blocking"`
 	SkipAccessLoggingBucketSSEncryption          bool                `mapstructure:"skip_accesslogging_bucket_ssencryption"`

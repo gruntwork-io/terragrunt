@@ -1,0 +1,28 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### S3 access log delivery is granted with a bucket policy
+
+S3 disables ACLs on new buckets by default, and a bucket with ACLs disabled rejects the ACL grant Terragrunt used to write to make an access logging bucket accept logs. AWS [recommends a bucket policy over an ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general) for this grant, and [recommends keeping ACLs disabled](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html) in general.
+
+Terragrunt now creates buckets with ACLs disabled and grants access log delivery through the logging bucket's policy instead, allowing `s3:PutObject` for the `logging.s3.amazonaws.com` service principal on behalf of buckets in the same AWS account:
+
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket                    = "my-state-bucket"
+    key                       = "${path_relative_to_include()}/tofu.tfstate"
+    region                    = "us-east-1"
+    accesslogging_bucket_name = "my-logs-bucket"
+  }
+}
+```
+
+This only applies to a logging bucket Terragrunt creates. One that already exists keeps the permissions it has, whether that is the ACL grant from an earlier Terragrunt version or something you set up yourself, and Terragrunt neither reads nor writes its policy.
+
+`skip_accesslogging_bucket_policy` opts out of that grant. `skip_accesslogging_bucket_acl` is deprecated and now has no effect: Terragrunt puts no ACL on the logging bucket, so there is nothing left for it to skip.
+
+If you set `skip_accesslogging_bucket_acl` to work around an `AccessControlListNotSupported` failure on a bucket with ACLs disabled, drop it. The bucket policy is what that bucket needs, and leaving the attribute in place no longer suppresses anything. Set `skip_accesslogging_bucket_policy` only if you grant log delivery yourself. Terragrunt warns when the deprecated attribute is used, and the [`skip-accesslogging-bucket-acl`](/reference/strict-controls/active#skip-accesslogging-bucket-acl) strict control turns that warning into an error.
