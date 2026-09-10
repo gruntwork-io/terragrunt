@@ -246,10 +246,10 @@ func redactedURL(u *url.URL) string {
 // the AWS virtual-host and modern path-style forms, so only
 // `<host>/<bucket>/<key>` reaches here.
 //
-// Credentials supplied in the query are also the signal that the URL names an
-// S3-compatible service rather than AWS, so they pin the endpoint to the URL's
-// own host in path style. That mirrors the upstream getter, which callers rely
-// on to reach non-AWS object stores.
+// A non-AWS host pins the endpoint to the URL's own host with path-style
+// addressing, regardless of how credentials are supplied. Credentials in the
+// query build a static provider; otherwise the default credential chain
+// (env vars, IAM role, etc.) applies.
 func ParseS3FetchURL(u *url.URL) (S3FetchTarget, error) {
 	pathParts := strings.SplitN(u.Path, "/", s3PathParts)
 	if len(pathParts) != s3PathParts || pathParts[1] == "" || pathParts[2] == "" {
@@ -272,13 +272,17 @@ func ParseS3FetchURL(u *url.URL) (S3FetchTarget, error) {
 
 	target.Region = region
 
+	// Pin endpoint for non-AWS hosts so the SDK does not redirect to amazonaws.com.
+	if !strings.Contains(u.Host, "amazonaws.com") {
+		target.Endpoint = s3EndpointScheme(u.Scheme) + "://" + u.Host
+	}
+
 	keyID := q.Get("aws_access_key_id")
 	secret := q.Get("aws_access_key_secret")
 	token := q.Get("aws_access_token")
 
 	if cmp.Or(keyID, secret, token) != "" {
 		target.Creds = credentials.NewStaticCredentialsProvider(keyID, secret, token)
-		target.Endpoint = u.Scheme + "://" + u.Host
 	}
 
 	return target, nil
@@ -353,4 +357,15 @@ func S3ClientForTarget(
 	}
 
 	return b.BuildS3Client(ctx, l, v)
+}
+
+// s3EndpointScheme normalizes the URL scheme to a transport the HTTP client
+// supports. The upstream s3 getter claims `s3://` URLs without rewriting the
+// scheme, so the raw value may be "s3" rather than "http" or "https".
+func s3EndpointScheme(scheme string) string {
+	if scheme == SchemeHTTP {
+		return SchemeHTTP
+	}
+
+	return SchemeHTTPS
 }
