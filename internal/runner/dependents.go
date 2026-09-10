@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -57,8 +57,8 @@ func discoverPathsToCheck(
 ) []string {
 	var pathsToCheck []string
 
-	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, v, opts.WorkingDir); err == nil {
-		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
+	if repoRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir); err == nil {
+		pathsToCheck = append(pathsToCheck, repoRoot)
 	} else {
 		uniquePaths := make(map[string]bool)
 		for _, includePath := range terragruntConfig.ProcessedIncludes {

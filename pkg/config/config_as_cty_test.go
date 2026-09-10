@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -14,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -309,7 +307,11 @@ func TestStackUnitCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		venvtest.NewWithOSFS(),
+		config.DefaultTerragruntConfigPath,
+	)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -335,17 +337,12 @@ func TestStackLocalsCtyReading(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	// The fixture calls get_repo_root, which shells out to git.
-	repoRoot, err := filepath.Abs("../..")
+	// The fixture calls get_repo_root, which walks the real filesystem from an
+	// absolute working directory, the way the CLI supplies it.
+	configPath, err := filepath.Abs(config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	v := venvtest.NewWithOSFS().WithHandler(
-		func(_ context.Context, _ vexec.Invocation) vexec.Result {
-			return vexec.Result{Stdout: []byte(repoRoot + "\n")}
-		},
-	)
-
-	ctx, pctx := newTestParsingContext(t, v, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), configPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,

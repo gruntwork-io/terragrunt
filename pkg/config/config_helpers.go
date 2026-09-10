@@ -17,6 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -380,7 +381,10 @@ func createTerragruntEvalContext(
 		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, pctx, l, TimeCmp),
 	}
 
-	if ctrl := pctx.StrictControls.Find(controls.LegacyBase64Gzip); ctrl == nil || !ctrl.GetEnabled() {
+	if ctrl := pctx.StrictControls.Find(
+		controls.LegacyBase64Gzip,
+	); ctrl == nil ||
+		!ctrl.GetEnabled() {
 		terragruntFunctions[FuncNameBase64Gzip] = gzipcompat.Func(func() error {
 			if ctrl == nil {
 				return nil
@@ -457,13 +461,13 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 }
 
 // Return the repository root as an absolute path
-func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
+func getRepoRoot(ctx context.Context, pctx *ParsingContext, _ log.Logger) (string, error) {
+	return git.GoRepoRoot(ctx, pctx.Venv, pctx.WorkingDir)
 }
 
 // Return the path from the repository root
-func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
+func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, _ log.Logger) (string, error) {
+	repoAbsPath, err := git.GoRepoRoot(ctx, pctx.Venv, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -477,8 +481,8 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 }
 
 // Return the path to the repository root
-func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
+func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, _ log.Logger) (string, error) {
+	repoAbsPath, err := git.GoRepoRoot(ctx, pctx.Venv, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -984,7 +988,14 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 	// source resolves to a different cache directory.
 	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
-	source, err := tf.NewSource(l, pctx.Venv.FS, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
+	source, err := tf.NewSource(
+		l,
+		pctx.Venv.FS,
+		sourceURL,
+		pctx.DownloadDir,
+		pctx.WorkingDir,
+		walkWithSymlinks,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -1670,15 +1681,10 @@ func markGlobAsRead(
 	}
 
 	if boundary == "" {
-		// Default to the enclosing Git repository root. GitTopLevelDir errors
-		// when the working directory is not inside a repository (or git is
-		// unavailable); treat that as "no boundary" rather than a failure.
-		if repoRoot, repoErr := shell.GitTopLevelDir(
-			ctx,
-			l,
-			pctx.Venv,
-			pctx.WorkingDir,
-		); repoErr == nil {
+		// Default to the enclosing Git repository root. [git.GoRepoRoot] errors
+		// when the working directory is not inside a repository; treat that as
+		// "no boundary" rather than a failure.
+		if repoRoot, repoErr := git.GoRepoRoot(ctx, pctx.Venv, pctx.WorkingDir); repoErr == nil {
 			boundary = repoRoot
 		}
 	}

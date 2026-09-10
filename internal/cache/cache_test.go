@@ -134,62 +134,40 @@ func TestRepoRootCacheLookupAndAdd(t *testing.T) {
 	ctx := t.Context()
 	c := cache.NewRepoRootCache("repo")
 
+	root := filepath.FromSlash("/repo")
+	unit := filepath.FromSlash("/repo/live/vpc")
+
 	// Empty cache misses.
-	_, ok := c.Lookup(ctx, filepath.FromSlash("/a/b"))
+	_, ok := c.Lookup(ctx, unit)
 	assert.False(t, ok)
 
-	outer := filepath.FromSlash("/repo")
-	inner := filepath.FromSlash("/repo/sub/nested")
-
-	// Add deepest-first, then a shallower root, to exercise insertion ordering.
-	c.Add(ctx, outer)
-	c.Add(ctx, inner)
-	// Duplicate Add is a no-op.
-	c.Add(ctx, outer)
-	// Empty Add is a no-op.
-	c.Add(ctx, "")
+	// A walk records the whole chain it proved free of a `.git`.
+	c.Add(ctx, root, filepath.FromSlash("/repo/live"), unit)
 	assert.Equal(t, 2, c.Len())
 
-	// Adding a shallower-still root exercises the "no insertAt found" branch
-	// where the new root is shorter than every existing one and is appended.
-	shallow := filepath.FromSlash("/r")
-	c.Add(ctx, shallow)
-	assert.Equal(t, 3, c.Len())
-
-	// Exact-path hit returns the matching root.
-	got, ok := c.Lookup(ctx, outer)
+	got, ok := c.Lookup(ctx, unit)
 	assert.True(t, ok)
-	assert.Equal(t, outer, got)
+	assert.Equal(t, root, got)
 
-	// Descendant of the deeper root prefers it over the shallow one.
-	got, ok = c.Lookup(ctx, filepath.Join(inner, "x"))
-	assert.True(t, ok)
-	assert.Equal(t, inner, got)
+	// An empty root records nothing, and an empty directory is skipped.
+	c.Add(ctx, "", unit)
+	c.Add(ctx, root, "")
+	assert.Equal(t, 2, c.Len())
 
-	// Sibling that prefix-matches lexically but not on a separator boundary
-	// is not a hit (e.g. /repobar should not match /repo).
-	_, ok = c.Lookup(ctx, filepath.FromSlash("/repobar/x"))
+	// Entries are exact: a directory nobody walked is a miss even though a
+	// cached root encloses it. That is what keeps a nested repository's units
+	// from inheriting the outer root.
+	_, ok = c.Lookup(ctx, filepath.FromSlash("/repo/vendor/mod/live/vpc"))
 	assert.False(t, ok)
 
-	// Path outside any cached root misses entirely.
-	_, ok = c.Lookup(ctx, filepath.FromSlash("/elsewhere"))
-	assert.False(t, ok)
-}
+	// Re-recording a directory under a different root overwrites it, so a
+	// resolver that learns a nested root is not stuck with a stale answer.
+	nested := filepath.FromSlash("/repo/vendor/mod")
+	c.Add(ctx, nested, unit)
 
-func TestRepoRootCacheBeginEndResolve(t *testing.T) {
-	t.Parallel()
-
-	c := cache.NewRepoRootCache("repo")
-
-	// Round-trip the lock twice to confirm BeginResolve/EndResolve pair up
-	// (a missing Unlock would deadlock the second BeginResolve). The lock's
-	// mutual-exclusion semantics are the stdlib's responsibility, not this
-	// test's.
-	c.BeginResolve()
-	c.EndResolve()
-
-	c.BeginResolve()
-	c.EndResolve()
+	got, ok = c.Lookup(ctx, unit)
+	assert.True(t, ok)
+	assert.Equal(t, nested, got)
 }
 
 func TestContextRepoRootCache(t *testing.T) {

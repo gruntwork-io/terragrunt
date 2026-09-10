@@ -1,31 +1,33 @@
 //go:build windows
 
-package shell_test
+package git_test
 
 import (
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestGitTopLevelDirReturnsOSNativePathOnWindows guards against a regression
-// where `git rev-parse --show-toplevel` output (always forward-slashed, even
-// on Windows) leaked through unchanged. The other HCL path functions return
-// OS-native paths, so get_repo_root must too.
-func TestGitTopLevelDirReturnsOSNativePathOnWindows(t *testing.T) {
+// TestGoRepoRootReturnsOSNativePathOnWindows pins that the resolved root
+// carries Windows separators. The other HCL path functions return OS-native
+// paths, so get_repo_root has to match them.
+func TestGoRepoRootReturnsOSNativePathOnWindows(t *testing.T) {
 	t.Parallel()
 
 	ctx := cache.ContextWithCache(t.Context())
 
-	l := logger.CreateLogger()
+	// The suite's own directory stands in for the working directory the CLI
+	// would have absolutized.
+	wd, err := os.Getwd()
+	require.NoError(t, err)
 
-	repoRoot, err := shell.GitTopLevelDir(ctx, l, venv.OSVenv(), ".")
+	repoRoot, err := git.GoRepoRoot(ctx, venv.OSVenv(), wd)
 	require.NoError(t, err)
 	require.NotEmpty(t, repoRoot)
 

@@ -312,7 +312,7 @@ func RunAction(
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Install run-scoped caches on actionCtx so memoized helpers like
-	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] and
+	// [github.com/gruntwork-io/terragrunt/internal/git.GoRepoRoot] and
 	// the version probes below share state across the whole action.
 	actionCtx := cache.ContextWithCache(ctx)
 
@@ -410,7 +410,8 @@ func PopulateTFImplementation(
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
 ) error {
-	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown && opts.TerraformVersion != nil {
+	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown &&
+		opts.TerraformVersion != nil {
 		return nil
 	}
 
@@ -615,7 +616,11 @@ func initialSetup(
 
 	var fileFilterStrings []string
 
-	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(v.FS, opts.WorkingDir, opts.ExcludesFile)
+	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(
+		v.FS,
+		opts.WorkingDir,
+		opts.ExcludesFile,
+	)
 	if err != nil {
 		return err
 	}
