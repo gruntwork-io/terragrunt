@@ -241,7 +241,7 @@ func TestS3PrefixDownloadReproducesLayout(t *testing.T) { //nolint: paralleltest
 	v := venv.OSVenv()
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "module")
 
-	_, err := tggetter.NewClient(v).Get(t.Context(), &tggetter.Request{
+	_, err := tggetter.NewClient(logger.CreateLogger(), v).Get(t.Context(), &tggetter.Request{
 		Src:     rustfsSourceURL(t, endpoint, bucket, prefix),
 		Dst:     dst,
 		GetMode: tggetter.ModeAny,

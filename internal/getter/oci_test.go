@@ -999,8 +999,7 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
-		getter.WithLogger(logger.CreateLogger()),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithOCI(newTestOCIGetter(staticStore(store))),
 	)
 
@@ -1022,8 +1021,7 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
-		getter.WithLogger(logger.CreateLogger()))
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS())
 	dst := filepath.Join(t.TempDir(), "module")
 
 	_, err := client.Get(t.Context(), &gogetter.Request{
@@ -1154,7 +1152,7 @@ func newTestOCIGetter(newStore getter.OCINewStoreFunc) *getter.OCIGetter {
 }
 
 func newOCITestClient(g *getter.OCIGetter) *gogetter.Client {
-	return getter.NewClient(venvtest.NewWithOSFS(),
+	return getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithCustomGettersPrepended(g))
 }
 

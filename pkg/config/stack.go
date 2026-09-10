@@ -1044,7 +1044,7 @@ func copyFiles(
 			return fmt.Errorf("failed to create directory %s for %s %w", cp.dest, cp.identifier, err)
 		}
 
-		if _, err := getter.GetAny(ctx, v, cp.dest, cp.src, stackGetterOptions(l, v, opts)...); err != nil {
+		if _, err := getter.GetAny(ctx, l, v, cp.dest, cp.src, stackGetterOptions(v, opts)...); err != nil {
 			return fmt.Errorf("failed to fetch %s %s for %s %w", cp.src, cp.dest, cp.identifier, err)
 		}
 
@@ -1102,8 +1102,8 @@ func isOCISource(source string) bool {
 }
 
 // stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.
-func stackGetterOptions(l log.Logger, v *venv.Venv, opts *generateOpts) []getter.Option {
-	clientOpts := []getter.Option{getter.WithLogger(l), getter.WithHTTP(v.HTTP)}
+func stackGetterOptions(v *venv.Venv, opts *generateOpts) []getter.Option {
+	clientOpts := []getter.Option{getter.WithHTTP(v.HTTP)}
 
 	if opts.ociGetter != nil {
 		clientOpts = append(clientOpts, getter.WithOCI(opts.ociGetter))
