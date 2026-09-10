@@ -1,0 +1,21 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Fixed `run --all --filter-allow-destroy` hanging forever after a deleted unit fails
+
+With a git-range `--filter` and `--filter-allow-destroy`, a single run queue mixes plans of surviving
+units with `plan -destroy` entries for units deleted in the diff. Readiness already ignores edges
+that cross that boundary (a unit being destroyed never gates a unit being planned, and vice
+versa), but failure propagation did not: when a deleted unit's `plan -destroy` failed - for example
+at HCL evaluation, before OpenTofu even ran - the failure early-exited the *surviving* dependencies
+it shared with other surviving units. Those surviving units then waited for a dependency that would
+never be `Succeeded`, nothing could ever schedule or finish them, and once the last running unit
+completed the process went silent forever: no summary, no error report, no child process, only an
+external kill would end it.
+
+Failure propagation now respects direction the same way readiness does. A failed destroy cancels only
+the other destroys that depend on it; a failed plan cancels only the other plans that depend on it.
+The failure is reported in the run's error and summary as before, and every unit that never gated on
+the failed one runs to completion.
