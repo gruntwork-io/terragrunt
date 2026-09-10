@@ -49,27 +49,28 @@ func TestControllerFinishesAfterDownEntryFailsWithPendingUpChain(t *testing.T) {
 	require.NoError(t, err)
 
 	errGoneFailed := errors.New("plan -destroy failed")
-	goneReturned := make(chan struct{})
+	goneFailed := make(chan struct{})
+	goneEntry := q.EntryByPath(gone.Path())
 
 	runUnit := func(ctx context.Context, u *component.Unit) error {
 		switch u.Path() {
 		case gone.Path():
-			close(goneReturned)
+			// The controller calls FailEntry only after this runner returns, so there is no
+			// hook to wait on for "the failure has propagated". Propagate it here first, under
+			// the queue lock, then release `base`: `shared` is guaranteed to still be Ready
+			// (gated on base, not Running) when gone's dependencies are walked, with no
+			// scheduler-dependent sleep. The controller's own FailEntry that follows is an
+			// idempotent repeat and is still exercised.
+			q.FailEntry(goneEntry)
+			close(goneFailed)
 
 			return errGoneFailed
 		case base.Path():
-			// Hold `base` open until `gone` has returned its error, so `shared` is still Ready
-			// (gated on base, not Running) when the controller's FailEntry walks gone's
-			// dependencies. FailEntry runs on the controller goroutine right after the runner
-			// returns; the short pause lets it land. Entry statuses are only read after Run
-			// returns, so this test never touches them concurrently with the controller.
 			select {
-			case <-goneReturned:
+			case <-goneFailed:
 			case <-time.After(5 * time.Second):
 				return errors.New("test setup: gone never ran")
 			}
-
-			time.Sleep(100 * time.Millisecond)
 
 			return nil
 		default:
