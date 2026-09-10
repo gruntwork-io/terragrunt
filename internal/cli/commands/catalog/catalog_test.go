@@ -1,9 +1,11 @@
 package catalog_test
 
 import (
+	"context"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -136,6 +138,66 @@ func TestRunLoadsARepoNamedTwiceOnce(t *testing.T) {
 	require.ErrorAs(t, err, &loadErr)
 	assert.Equal(t, []string{repoURL}, failedURLs(loadErr), "the repo must be loaded once, not once per discoverer")
 	assert.Equal(t, 1, loadErr.Attempted)
+}
+
+// TestRunReportsASourceWhoseGitCommandsFail pins that a source whose clone
+// fails inside git reaches the caller as a [tui.SourceLoadError]. The clone
+// runs in a loader goroutine, so a failure that panics there ends the process
+// rather than reaching the screen.
+func TestRunReportsASourceWhoseGitCommandsFail(t *testing.T) {
+	t.Parallel()
+
+	rootDir := t.TempDir()
+
+	// A file:// remote keeps the fallback the getter runs after the CAS
+	// clone fails off the network too.
+	repoURL := "git::file://" + filepath.ToSlash(filepath.Join(rootDir, "absent.git"))
+
+	var (
+		spawnedMu sync.Mutex
+		spawned   [][]string
+	)
+
+	failGit := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		spawnedMu.Lock()
+
+		spawned = append(spawned, inv.Args)
+
+		spawnedMu.Unlock()
+
+		return vexec.Result{ExitCode: 128, Stderr: []byte("fatal: repository not found")}
+	}
+
+	v := venvtest.NewWithOSFS().
+		WithExec(vexec.NewMemExec(failGit)).
+		WithTempDir(func() string { return rootDir }).
+		WithUserCacheDir(func() (string, error) { return filepath.Join(rootDir, "cache"), nil })
+
+	require.NoError(t, vfs.WriteFile(
+		v.FS,
+		filepath.Join(rootDir, "root.hcl"),
+		[]byte("catalog {\n  urls = [\""+repoURL+"\"]\n}\n"),
+		0o644,
+	))
+
+	err := catalog.Run(
+		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+	)
+
+	var loadErr *tui.SourceLoadError
+
+	require.ErrorAs(t, err, &loadErr)
+	assert.Equal(t, []string{repoURL}, failedURLs(loadErr))
+
+	spawnedMu.Lock()
+	defer spawnedMu.Unlock()
+
+	assert.True(t,
+		slices.ContainsFunc(spawned, func(args []string) bool {
+			return slices.Contains(args, "ls-remote")
+		}),
+		"the load must reach the CAS source probe, where the crash used to happen",
+	)
 }
 
 // TestRunWritesComponentsFromTheCatalogBlock pins that the catalog block of
