@@ -27,15 +27,6 @@ func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
 	)
 }
 
-type MaxRetriesWaitingForS3ACLExceeded string
-
-func (err MaxRetriesWaitingForS3ACLExceeded) Error() string {
-	return fmt.Sprintf(
-		"Exceeded max retries waiting for S3 bucket %s to have the proper ACL for access logging",
-		string(err),
-	)
-}
-
 type InvalidAccessLoggingBucketEncryption struct {
 	BucketSSEAlgorithm string
 }

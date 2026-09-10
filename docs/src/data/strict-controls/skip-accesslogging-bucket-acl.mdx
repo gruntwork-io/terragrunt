@@ -1,0 +1,32 @@
+---
+name: skip-accesslogging-bucket-acl
+status: active
+since: "1.2.0"
+---
+
+Throw an error when the `remote_state` block for the `s3` backend sets `skip_accesslogging_bucket_acl`.
+
+### `skip-accesslogging-bucket-acl` - Reason
+
+S3 needs write access to the access logging bucket before it will deliver server access logs there. Terragrunt used to grant that with a bucket ACL, and `skip_accesslogging_bucket_acl` turned the grant off.
+
+AWS [recommends granting it with a bucket policy instead](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general), and a bucket with ACLs disabled, [the default for new buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html), rejects the ACL outright. Terragrunt writes the policy now, and [`skip_accesslogging_bucket_policy`](/reference/hcl/blocks/#remote_state) is the attribute that turns that off:
+
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket                           = "my-state-bucket"
+    key                              = "${path_relative_to_include()}/tofu.tfstate"
+    region                           = "us-east-1"
+    accesslogging_bucket_name        = "my-logs-bucket"
+    skip_accesslogging_bucket_policy = true
+  }
+}
+```
+
+`skip_accesslogging_bucket_acl` is still parsed, but it no longer does anything: Terragrunt puts no ACL on the logging bucket, so the attribute has nothing to skip. It is not carried over to the bucket policy, because the common reason to have set it was an `AccessControlListNotSupported` failure on a bucket with ACLs disabled, and the policy is exactly what such a bucket needs. Terragrunt warns about the attribute by default; enabling the control turns the warning into an error:
+
+```text
+The `skip_accesslogging_bucket_acl` config attribute is no longer supported. Terragrunt grants S3 access log delivery through a bucket policy rather than a bucket ACL. Use `skip_accesslogging_bucket_policy` instead.
+```
