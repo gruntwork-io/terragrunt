@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -31,7 +32,7 @@ const (
 // The document lands in a temporary file that replaces path only once fn returns
 // cleanly. A failed run therefore leaves whatever was already at path untouched,
 // and no reader observes a half-written plan.
-func WriteJSONOutput(fsys vfs.FS, path string, fn func(w io.Writer) error) error {
+func WriteJSONOutput(fsys vfs.FS, path string, fn func(w io.Writer) error) (err error) {
 	if err := fsys.MkdirAll(filepath.Dir(path), jsonOutputDirPerms); err != nil {
 		return err
 	}
@@ -45,24 +46,43 @@ func WriteJSONOutput(fsys vfs.FS, path string, fn func(w io.Writer) error) error
 
 	tmpPath := file.Name()
 
+	closed := false
+	closeFile := func() error {
+		if closed {
+			return nil
+		}
+
+		closed = true
+
+		return file.Close()
+	}
+
+	defer func() {
+		// Windows refuses to remove an open file.
+		closeErr := closeFile()
+
+		rmErr := fsys.Remove(tmpPath)
+		if errors.Is(rmErr, fs.ErrNotExist) {
+			rmErr = nil
+		}
+
+		err = errors.Join(err, closeErr, rmErr)
+	}()
+
 	// The rename carries this mode onto the published plan.
 	if err := fsys.Chmod(tmpPath, jsonOutputFilePerms); err != nil {
-		return errors.Join(err, file.Close(), fsys.Remove(tmpPath))
+		return err
 	}
 
 	buffered := bufio.NewWriterSize(file, jsonOutputBufferSize)
 
 	if err := fn(buffered); err != nil {
-		return errors.Join(err, file.Close(), fsys.Remove(tmpPath))
+		return err
 	}
 
-	if err := errors.Join(buffered.Flush(), file.Close()); err != nil {
-		return errors.Join(err, fsys.Remove(tmpPath))
+	if err := errors.Join(buffered.Flush(), closeFile()); err != nil {
+		return err
 	}
 
-	if err := fsys.Rename(tmpPath, path); err != nil {
-		return errors.Join(err, fsys.Remove(tmpPath))
-	}
-
-	return nil
+	return fsys.Rename(tmpPath, path)
 }

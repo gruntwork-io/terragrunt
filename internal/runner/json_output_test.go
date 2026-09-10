@@ -54,6 +54,33 @@ func TestWriteJSONOutputLeavesNoFileWhenRunFails(t *testing.T) {
 	)
 }
 
+// TestWriteJSONOutputLeavesNoFileWhenRunPanics pins the cleanup against a
+// panic, which unwinds past every return in the function. The scratch file
+// holds a plan, so one left behind under a name nothing looks for outlives the
+// process that wrote it.
+func TestWriteJSONOutputLeavesNoFileWhenRunPanics(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "plan.json")
+
+	require.PanicsWithValue(t, "show exploded", func() {
+		err := runner.WriteJSONOutput(fsys, path, func(w io.Writer) error {
+			if _, err := io.WriteString(w, `{"format_ver`); err != nil {
+				return err
+			}
+
+			panic("show exploded")
+		})
+		require.NoError(t, err)
+	})
+
+	entries, err := vfs.ReadDir(fsys, dir)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "a panic must leave no scratch file behind")
+}
+
 func TestWriteJSONOutputKeepsPreviousPlanWhenRunFails(t *testing.T) {
 	t.Parallel()
 
