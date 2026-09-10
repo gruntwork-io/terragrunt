@@ -16,6 +16,7 @@ completed the process went silent forever: no summary, no error report, no child
 external kill would end it.
 
 Failure propagation now respects direction the same way readiness does. A failed destroy cancels only
-the other destroys that depend on it; a failed plan cancels only the other plans that depend on it.
+its down-command dependencies (the destroys that would have run after it); a failed plan cancels only
+its up-command dependents.
 The failure is reported in the run's error and summary as before, and every unit that never gated on
 the failed one runs to completion.
