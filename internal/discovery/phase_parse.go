@@ -395,8 +395,8 @@ func parseComponent(
 				parsingCtx = parsingCtx.WithParseOption(discovery.parserOptions)
 			}
 
-			if !discovery.trackReads {
-				parsingCtx = parsingCtx.WithoutFileReadTracking()
+			if discovery.trackReads {
+				parsingCtx = parsingCtx.WithFileReadTracking()
 			}
 
 			if discovery.suppressParseErrors {

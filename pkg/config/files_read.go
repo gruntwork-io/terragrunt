@@ -8,8 +8,9 @@ import (
 
 // FilesRead is a concurrency-safe set of file paths that have been read while
 // parsing a configuration. A nil receiver is treated as a no-op for mutations
-// and returns zero values from accessors, so call sites that don't need to
-// track reads can pass nil.
+// and returns zero values from accessors, and nil is what a parsing context
+// carries until a caller asks for tracking, so every writer degrades to doing
+// nothing rather than the caller having to check first.
 type FilesRead struct {
 	seen     map[string]struct{}
 	seenDirs map[string]struct{}

@@ -130,6 +130,11 @@ type ParsingContext struct {
 
 // NewParsingContext builds a parsing context whose file reads, subprocesses,
 // and decryption all travel on v.
+//
+// The returned context keeps no record of the files it reads. Recording them
+// costs a walk of every local module a config sources, and only a caller that
+// surfaces the record has any use for it, so those call
+// [ParsingContext.WithFileReadTracking] and the rest pay nothing.
 func NewParsingContext(
 	ctx context.Context,
 	l log.Logger,
@@ -142,7 +147,6 @@ func NewParsingContext(
 
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
-		FilesRead:        NewFilesRead(),
 		Venv:             v,
 	}
 
@@ -256,13 +260,12 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 	return c
 }
 
-// WithoutFileReadTracking returns a copy that keeps no record of the files it
-// reads. Only callers that surface reads consume that record, so a parse with no
-// such caller can skip the bookkeeping and, more to the point, the walk of every
-// local module source that feeds it.
-func (ctx *ParsingContext) WithoutFileReadTracking() *ParsingContext {
+// WithFileReadTracking returns a copy that records every file it reads, so that
+// the caller can read them back off [ParsingContext.FilesRead] once parsing is
+// done. Clones made from the returned context share the one record.
+func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
 	c := ctx.Clone()
-	c.FilesRead = nil
+	c.FilesRead = NewFilesRead()
 
 	return c
 }
