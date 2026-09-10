@@ -5,8 +5,10 @@ category: "performance-improvements"
 
 #### Faster worktrees for Git filters
 
-A [Git-based filter](/features/filter/git/), such as `--filter '[main...HEAD]'`, generates a worktree for every reference it names, and removes those worktrees when the run ends.
+A [Git-based filter](/features/filter/git/), such as `--filter '[main...HEAD]'`, generates a worktrees to be able to run `tofu` in states that aren't reflected in the current worktree (e.g. when a unit is deleted, Terragrunt has to run a `plan -destroy` or `apply -destroy` in the `main` worktree, not the `HEAD` worktree in the earlier example).
 
-Terragrunt now generates those worktrees alongside each other, fills each one with several workers instead of one, and removes them in parallel.
+As a conditional optimization, Terragrunt now reads the Git diff first and generates worktrees only when on-disk worktrees are necessary downstream.
 
-On a repository with 15,000 tracked files, `terragrunt find --filter '[HEAD~1...HEAD]'` went from 4.7s to 3.3s. The saving grows with the number of files in the repository.
+For commands like `find`, `list` or `browse` worktree generation can be skipped more aggressively, and even more performance improvements were made there.
+
+On a repository with 15,000 tracked files, `terragrunt find --filter '[HEAD~1...HEAD]'` went from 4.7s to 0.4s on an M3 Max machine.

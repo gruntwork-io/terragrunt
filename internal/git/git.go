@@ -447,6 +447,61 @@ const (
 	SkipCheckout
 )
 
+// TreePaths is the set of paths in a tree, in the slash-separated form git
+// reports them in.
+type TreePaths map[string]struct{}
+
+// Has reports whether the tree contains path.
+func (t TreePaths) Has(path string) bool {
+	_, ok := t[path]
+
+	return ok
+}
+
+// LsTreeNames returns every path in the tree at ref, recursively, which tells a
+// caller what a reference contains without checking it out.
+func (g *GitRunner) LsTreeNames(ctx context.Context, v *venv.Venv, ref string) (TreePaths, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
+	// Run from the repository root: git limits a listing to the directory it
+	// runs in, and callers may be working from a subdirectory. -z keeps a path
+	// with unusual characters intact, which git would otherwise quote.
+	root, err := GoRepoRoot(ctx, v, g.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := g.prepareCommand(ctx, "ls-tree", "-r", "--name-only", "-z", ref)
+	cmd.SetDir(root)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_ls_tree_names",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrReadTree, err),
+		}
+	}
+
+	paths := make(TreePaths)
+
+	for name := range strings.SplitSeq(strings.TrimSuffix(stdout.String(), "\x00"), "\x00") {
+		if name == "" {
+			continue
+		}
+
+		paths[name] = struct{}{}
+	}
+
+	return paths, nil
+}
+
 // CreateDetachedWorktree creates a new detached worktree for a given reference
 // as a given directory
 func (g *GitRunner) CreateDetachedWorktree(

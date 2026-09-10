@@ -72,7 +72,7 @@ func discoverExpansionChanges(
 	cmd string,
 	extraFilters filter.Filters,
 	policy parseErrorPolicy,
-) (component.Components, worktrees.WorktreePair) {
+) (component.Components, *worktrees.WorktreePair) {
 	t.Helper()
 
 	l := logger.CreateLogger()

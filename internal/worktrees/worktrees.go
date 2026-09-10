@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -31,14 +31,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// worktreesPerPair is the number of worktrees in a comparison pair: the from worktree and the to worktree.
-const worktreesPerPair = 2
+const (
+	// worktreesPerPair is the number of worktrees in a comparison pair: the from worktree and the to worktree.
+	worktreesPerPair = 2
+)
 
 // Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
 // The key is the string representation of the GitExpression that generated the worktree pair.
 type Worktrees struct {
 	// WorktreePairs maps Git expression strings to their corresponding worktree pairs.
-	WorktreePairs map[string]WorktreePair
+	WorktreePairs map[string]*WorktreePair
 	// gitRunner is the Git runner used to create and manage the worktrees.
 	gitRunner *git.GitRunner
 	// OriginalWorkingDir is the user's working directory before worktrees were created.
@@ -51,12 +53,15 @@ type Worktrees struct {
 }
 
 // WorktreePair is a pair of worktrees, one for the from and one for the to reference, along with
-// the GitExpression that generated the diffs and the diff for that expression.
+// the GitExpression that generated the diffs, the diff for that expression, and what
+// [WorktreePair.Expand] made of that diff.
 type WorktreePair struct {
 	GitExpression *filter.GitExpression
 	Diffs         *git.Diffs
 	FromWorktree  Worktree
 	ToWorktree    Worktree
+	FromFilters   filter.Filters
+	ToFilters     filter.Filters
 }
 
 // Worktree is collects a Git reference and the path to the associated worktree.
@@ -67,9 +72,10 @@ type Worktree struct {
 
 // WorktreeOpts contains parameters for NewWorktrees.
 type WorktreeOpts struct {
-	WorkingDir     string
-	GitExpressions filter.GitExpressions
-	Experiments    experiment.Experiments
+	WorkingDir        string
+	GitExpressions    filter.GitExpressions
+	Experiments       experiment.Experiments
+	FilteredPathsOnly bool
 }
 
 // DisplayPath translates a worktree path to the equivalent path in the original repository
@@ -79,6 +85,10 @@ type WorktreeOpts struct {
 func (w *Worktrees) DisplayPath(worktreePath string) string {
 	for _, pair := range w.WorktreePairs {
 		for _, wt := range []Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if wt.Path == "" {
+				continue
+			}
+
 			// Use boundary-aware check to avoid false matches (e.g., "/tmp/work" vs "/tmp/work-other")
 			if worktreePath == wt.Path ||
 				strings.HasPrefix(worktreePath, wt.Path+string(os.PathSeparator)) {
@@ -303,34 +313,23 @@ func (w *Worktrees) Stacks() StackDiff {
 	return stackDiff
 }
 
-// Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
-// expressions based on the provided diffs for the worktree pair.
-func (wp *WorktreePair) Expand(fsys vfs.FS) (filter.Filters, filter.Filters, error) {
+// Expand expands a worktree pair with an associated Git expression into the
+// equivalent to and from filter expressions based on the diffs for the pair.
+//
+// Whether a changed file sits beside a unit is read from the paths of the "to"
+// reference, so a pair can be expanded before any worktree exists.
+func (wp *WorktreePair) Expand(toTree git.TreePaths) (filter.Filters, filter.Filters, error) {
 	diffs := wp.Diffs
-
-	toPath := wp.ToWorktree.Path
 
 	fromExpressions := make(filter.Expressions, 0, len(diffs.Removed))
 	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
 
 	// Build simple expressions that can be determined simply from the diffs.
-	if err := expandDiffPaths(
-		fsys,
-		diffs.Removed,
-		toPath,
-		&fromExpressions,
-		&toExpressions,
-	); err != nil {
+	if err := expandDiffPaths(toTree, diffs.Removed, &fromExpressions, &toExpressions); err != nil {
 		return nil, nil, err
 	}
 
-	if err := expandDiffPaths(
-		fsys,
-		diffs.Added,
-		toPath,
-		&toExpressions,
-		&toExpressions,
-	); err != nil {
+	if err := expandDiffPaths(toTree, diffs.Added, &toExpressions, &toExpressions); err != nil {
 		return nil, nil, err
 	}
 
@@ -346,11 +345,8 @@ func (wp *WorktreePair) Expand(fsys vfs.FS) (filter.Filters, filter.Filters, err
 
 			toExpressions = append(toExpressions, expr)
 		default:
-			// Check to see if the changed file is in the same directory as a unit in the to worktree.
-			// If so, we'll consider the unit modified.
-			if _, err := fsys.Stat(
-				filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath),
-			); err == nil {
+			// A changed file beside a unit means that unit was modified.
+			if toTree.Has(unitConfigBeside(path)) {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -391,9 +387,314 @@ func (wp *WorktreePair) Expand(fsys vfs.FS) (filter.Filters, filter.Filters, err
 	return fromFilters, toFilters, nil
 }
 
+// expansion is the diff between a Git expression's references and the filters
+// that diff expands into.
+type expansion struct {
+	diffs       *git.Diffs
+	fromFilters filter.Filters
+	toFilters   filter.Filters
+}
+
+// gitSurvey records the diffs, tree listings and expansions read for a set of
+// Git expressions, before any worktree exists. Expansions are keyed by Git
+// expression string and trees by reference.
+type gitSurvey struct {
+	expansions map[string]expansion
+	trees      map[string]git.TreePaths
+}
+
+// neededRefs returns the references that have to be materialized. An expression
+// adding units reads only its "to" side, and one removing them only its "from"
+// side, so the other is never checked out.
+func (s *gitSurvey) neededRefs(gitExpressions filter.GitExpressions) map[string]struct{} {
+	needed := make(map[string]struct{}, len(s.trees))
+
+	for _, gitExpression := range gitExpressions {
+		expansion := s.expansions[gitExpression.String()]
+
+		fromReadFilters, _ := expansion.fromFilters.PartitionReadingFilters()
+		toReadFilters, _ := expansion.toFilters.PartitionReadingFilters()
+
+		// Both sides are read when a file crosses between them. Stack
+		// generation pairs the stack at one reference with the stack at the
+		// other, and a file deleted from one is read by the units of the other.
+		both := len(fromReadFilters) > 0 ||
+			len(toReadFilters) > 0 ||
+			diffHasStackFile(expansion.diffs)
+
+		if len(expansion.fromFilters) > 0 || both {
+			needed[gitExpression.FromRef] = struct{}{}
+		}
+
+		if len(expansion.toFilters) > 0 || both {
+			needed[gitExpression.ToRef] = struct{}{}
+		}
+	}
+
+	return needed
+}
+
+// diffHasStackFile reports whether a stack file appears anywhere in diffs.
+func diffHasStackFile(diffs *git.Diffs) bool {
+	if diffs == nil {
+		return false
+	}
+
+	for _, paths := range [][]string{diffs.Added, diffs.Removed, diffs.Changed} {
+		if slices.ContainsFunc(paths, func(p string) bool {
+			return path.Base(p) == config.DefaultStackFile
+		}) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// pathspecsPerRef returns the directories each reference has to be checked out
+// with, and reports whether those directories are the whole of what a run
+// reads.
+//
+// They are when every expanded filter names a path, because discovery then
+// walks the worktree for exactly those components. A filter matching on what a
+// unit reads calls for parsing instead, as does a stack file, and a
+// configuration being parsed can read anything in the tree.
+func (s *gitSurvey) pathspecsPerRef(l log.Logger, gitExpressions filter.GitExpressions) (map[string][]string, bool) {
+	for ref, tree := range s.trees {
+		for treePath := range tree {
+			if path.Base(treePath) != config.DefaultStackFile {
+				continue
+			}
+
+			l.Debugf(
+				"Checking out whole worktrees: %s in %s is generated by parsing it",
+				treePath,
+				ref,
+			)
+
+			return nil, false
+		}
+	}
+
+	pathspecs := make(map[string][]string, len(s.trees))
+
+	for _, gitExpression := range gitExpressions {
+		expansion := s.expansions[gitExpression.String()]
+
+		for _, side := range []struct {
+			ref     string
+			filters filter.Filters
+		}{
+			{filters: expansion.fromFilters, ref: gitExpression.FromRef},
+			{filters: expansion.toFilters, ref: gitExpression.ToRef},
+		} {
+			paths, ok := filterPaths(side.filters)
+			if !ok {
+				if expr, requiresParse := side.filters.RequiresParse(); requiresParse {
+					l.Debugf(
+						"Checking out whole worktrees: the filter %s needs configurations parsed inside them",
+						expr,
+					)
+				}
+
+				return nil, false
+			}
+
+			pathspecs[side.ref] = append(pathspecs[side.ref], paths...)
+		}
+	}
+
+	return pathspecs, true
+}
+
+// filterPaths returns the directories the filters name, and reports whether
+// every filter named one. A filter matching on what a component reads names no
+// directory to check out.
+func filterPaths(filters filter.Filters) ([]string, bool) {
+	paths := make([]string, 0, len(filters))
+
+	for _, f := range filters {
+		expr, ok := f.Expression().(*filter.PathExpression)
+		if !ok {
+			return nil, false
+		}
+
+		// Pathspecs are relative to the repository root, so "." names the
+		// whole tree and checks nothing out early.
+		if expr.Value == "" || expr.Value == "." {
+			return nil, false
+		}
+
+		// Git reads a wildcard or a leading colon in a pathspec as a pattern of
+		// its own, which selects a different set of paths than the glob this
+		// filter compiled.
+		if strings.ContainsAny(expr.Value, "*?[]") || strings.HasPrefix(expr.Value, ":") {
+			return nil, false
+		}
+
+		paths = append(paths, expr.Value)
+	}
+
+	return paths, true
+}
+
+// newEmptyWorktrees returns a Worktrees with no pairs, for a run that failed
+// before it had any.
+func newEmptyWorktrees(workingDir string, gitRunner *git.GitRunner) *Worktrees {
+	return &Worktrees{
+		WorktreePairs:      make(map[string]*WorktreePair),
+		OriginalWorkingDir: workingDir,
+		gitRunner:          gitRunner,
+	}
+}
+
+// refsToMaterialize returns the references to check out, in the order given,
+// logging the ones left out.
+func (s *gitSurvey) refsToMaterialize(l log.Logger, gitExpressions filter.GitExpressions, gitRefs []string) []string {
+	needed := s.neededRefs(gitExpressions)
+
+	refs := make([]string, 0, len(needed))
+
+	for _, ref := range gitRefs {
+		if _, ok := needed[ref]; !ok {
+			l.Debugf("Skipping the worktree for reference %s: nothing reads it", ref)
+
+			continue
+		}
+
+		refs = append(refs, ref)
+	}
+
+	return refs
+}
+
+// checkoutPathspecs returns the directories to check each reference out with,
+// and nil when the references are checked out in full.
+func (s *gitSurvey) checkoutPathspecs(
+	l log.Logger,
+	gitExpressions filter.GitExpressions,
+	filteredPathsOnly bool,
+) map[string][]string {
+	if !filteredPathsOnly {
+		return nil
+	}
+
+	pathspecs, filtered := s.pathspecsPerRef(l, gitExpressions)
+	if !filtered {
+		return nil
+	}
+
+	return pathspecs
+}
+
+// surveyGitExpressions reads the diff for every expression and the tree listing
+// for every reference, then expands each expression into the filters it stands
+// for. Every command it runs reads the repository, never a worktree.
+func surveyGitExpressions(
+	ctx context.Context,
+	v *venv.Venv,
+	gitRunner *git.GitRunner,
+	gitExpressions filter.GitExpressions,
+	gitRefs []string,
+	repoRemote string,
+) (*gitSurvey, error) {
+	var (
+		mu      sync.Mutex
+		diffs   = make(map[string]*git.Diffs, len(gitExpressions))
+		trees   = make(map[string]git.TreePaths, len(gitRefs))
+		errs    []error
+		g, gCtx = errgroup.WithContext(ctx)
+	)
+
+	g.SetLimit(min(runtime.GOMAXPROCS(0), len(gitRefs)+len(gitExpressions)))
+
+	for _, ref := range gitRefs {
+		g.Go(func() error {
+			tree, err := gitRunner.LsTreeNames(gCtx, v, ref)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to list the tree at reference %s: %w", ref, err))
+
+				return nil
+			}
+
+			trees[ref] = tree
+
+			return nil
+		})
+	}
+
+	for _, gitExpression := range gitExpressions {
+		g.Go(func() error {
+			var expressionDiffs *git.Diffs
+
+			diffErr := filter.TraceGitDiff(
+				gCtx, gitExpression.FromRef, gitExpression.ToRef, repoRemote,
+				func(ctx context.Context) error {
+					var err error
+
+					expressionDiffs, err = gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
+
+					return err
+				})
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if diffErr != nil {
+				errs = append(errs, diffErr)
+
+				return nil
+			}
+
+			diffs[gitExpression.String()] = expressionDiffs
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	survey := &gitSurvey{
+		expansions: make(map[string]expansion, len(gitExpressions)),
+		trees:      trees,
+	}
+
+	for _, gitExpression := range gitExpressions {
+		pair := WorktreePair{GitExpression: gitExpression, Diffs: diffs[gitExpression.String()]}
+
+		fromFilters, toFilters, err := pair.Expand(trees[gitExpression.ToRef])
+		if err != nil {
+			return nil, fmt.Errorf("failed to expand the Git expression %s: %w", gitExpression, err)
+		}
+
+		survey.expansions[gitExpression.String()] = expansion{
+			diffs:       pair.Diffs,
+			fromFilters: fromFilters,
+			toFilters:   toFilters,
+		}
+	}
+
+	return survey, nil
+}
+
 // NewWorktrees creates a new Worktrees for a given set of Git filters.
 //
 // Note that it is the responsibility of the caller to call Cleanup on the Worktrees object when it is no longer needed.
+//
+// Set FilteredPathsOnly only when the caller reads the worktrees to discover
+// the components the filters name and reads nothing else. A worktree created
+// for such a caller may contain those directories alone, leaving out the module
+// sources a run needs and the files a configuration being parsed can read.
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
@@ -406,7 +707,7 @@ func NewWorktrees(
 
 	if len(gitExpressions) == 0 {
 		return &Worktrees{
-			WorktreePairs:      make(map[string]WorktreePair),
+			WorktreePairs:      make(map[string]*WorktreePair),
 			OriginalWorkingDir: workingDir,
 		}, nil
 	}
@@ -436,106 +737,51 @@ func NewWorktrees(
 	traceErr := filter.TraceGitWorktreesCreate(
 		ctx, workingDir, len(gitRefs), repoRemote, repoBranch, repoCommit,
 		func(ctx context.Context) error {
-			var (
-				errs []error
-				mu   sync.Mutex
-			)
-
-			expressionsToDiffs := make(map[*filter.GitExpression]*git.Diffs, len(gitExpressions))
-
-			gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
-			// Cap concurrent git commands to the number of refs, but no more than available CPUs.
-			gitCmdGroup.SetLimit(min(runtime.GOMAXPROCS(0), len(gitRefs)))
-
-			refsToPaths := make(map[string]string, len(gitRefs))
-
-			if len(gitRefs) > 0 {
-				gitCmdGroup.Go(func() error {
-					paths, err := createGitWorktrees(
-						gitCmdCtx,
-						l,
-						v,
-						gitRunner,
-						gitRefs,
-						repoRemote,
-						repoBranch,
-						repoCommit,
-						experiments,
-					)
-					if err != nil {
-						mu.Lock()
-
-						errs = append(errs, err)
-
-						mu.Unlock()
-
-						return err
-					}
-
-					mu.Lock()
-
-					maps.Copy(refsToPaths, paths)
-
-					mu.Unlock()
-
-					return nil
-				})
-			}
-
-			for _, gitExpression := range gitExpressions {
-				gitCmdGroup.Go(func() error {
-					// Wrap git diff with telemetry
-					var diffs *git.Diffs
-
-					diffErr := filter.TraceGitDiff(
-						gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef, repoRemote,
-						func(ctx context.Context) error {
-							var err error
-
-							diffs, err = gitRunner.Diff(
-								ctx,
-								gitExpression.FromRef,
-								gitExpression.ToRef,
-							)
-
-							return err
-						})
-					if diffErr != nil {
-						mu.Lock()
-
-						errs = append(errs, diffErr)
-
-						mu.Unlock()
-
-						return nil
-					}
-
-					mu.Lock()
-
-					expressionsToDiffs[gitExpression] = diffs
-
-					mu.Unlock()
-
-					return nil
-				})
-			}
-
-			if err := gitCmdGroup.Wait(); err != nil {
-				worktrees = &Worktrees{
-					WorktreePairs:      make(map[string]WorktreePair),
-					OriginalWorkingDir: workingDir,
-					gitRunner:          gitRunner,
-				}
+			// The survey decides which references get a worktree and how much
+			// of each one is checked out, so it runs before any of them are.
+			survey, err := surveyGitExpressions(ctx, v, gitRunner, gitExpressions, gitRefs, repoRemote)
+			if err != nil {
+				worktrees = newEmptyWorktrees(workingDir, gitRunner)
 				outerErr = err
 
 				return err
 			}
 
-			worktreePairs := make(map[string]WorktreePair, len(gitExpressions))
+			// A symlink in a checked-out directory can point anywhere in the
+			// reference, so discovery that follows one walks out of the
+			// directories the filters name.
+			filteredPaths := opts.FilteredPathsOnly && !experiments.Evaluate(experiment.Symlinks)
+
+			pathspecs := survey.checkoutPathspecs(l, gitExpressions, filteredPaths)
+
+			refsToPaths, err := createGitWorktrees(
+				ctx,
+				l,
+				v,
+				gitRunner,
+				survey.refsToMaterialize(l, gitExpressions, gitRefs),
+				repoRemote,
+				repoBranch,
+				repoCommit,
+				experiments,
+				pathspecs,
+			)
+			if err != nil {
+				worktrees = newEmptyWorktrees(workingDir, gitRunner)
+				outerErr = err
+
+				return err
+			}
+
+			worktreePairs := make(map[string]*WorktreePair, len(gitExpressions))
 			for _, gitExpression := range gitExpressions {
-				worktreePairs[gitExpression.String()] = WorktreePair{
+				expansion := survey.expansions[gitExpression.String()]
+
+				worktreePairs[gitExpression.String()] = &WorktreePair{
 					GitExpression: gitExpression,
-					Diffs:         expressionsToDiffs[gitExpression],
+					Diffs:         expansion.diffs,
+					FromFilters:   expansion.fromFilters,
+					ToFilters:     expansion.toFilters,
 					FromWorktree: Worktree{
 						Ref:  gitExpression.FromRef,
 						Path: refsToPaths[gitExpression.FromRef],
@@ -547,7 +793,7 @@ func NewWorktrees(
 				}
 
 				// Record telemetry for diff results
-				if diffs := expressionsToDiffs[gitExpression]; diffs != nil {
+				if diffs := expansion.diffs; diffs != nil {
 					recordDiffTelemetry(ctx, diffs)
 				}
 			}
@@ -556,11 +802,6 @@ func NewWorktrees(
 				WorktreePairs:      worktreePairs,
 				OriginalWorkingDir: workingDir,
 				gitRunner:          gitRunner,
-			}
-
-			if len(errs) > 0 {
-				outerErr = errors.Join(errs...)
-				return outerErr
 			}
 
 			return nil
@@ -586,9 +827,8 @@ func NewWorktrees(
 // matched against the same worktree the file exists in. fallbackExprs receives path filters for non-config
 // files adjacent to a unit in the "to" worktree.
 func expandDiffPaths(
-	fsys vfs.FS,
+	toTree git.TreePaths,
 	paths []string,
-	toPath string,
 	primaryExprs, fallbackExprs *filter.Expressions,
 ) error {
 	for _, path := range paths {
@@ -615,9 +855,7 @@ func expandDiffPaths(
 
 			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
 		default:
-			if _, err := fsys.Stat(
-				filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath),
-			); err == nil {
+			if toTree.Has(unitConfigBeside(path)) {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
 					return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -642,6 +880,14 @@ func expandDiffPaths(
 	}
 
 	return nil
+}
+
+// unitConfigBeside returns the path a unit configuration would have in the same
+// directory as diffPath. Git reports paths with forward slashes on every
+// platform, and the result is compared against a tree listing, so it is built
+// in that form too.
+func unitConfigBeside(diffPath string) string {
+	return path.Join(path.Dir(diffPath), config.DefaultTerragruntConfigPath)
 }
 
 // recordDiffTelemetry records telemetry metrics for git diff results.
@@ -672,12 +918,18 @@ func createGitWorktrees(
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
 	experiments experiment.Experiments,
+	pathspecs map[string][]string,
 ) (map[string]string, error) {
+	refsToPaths := make(map[string]string, len(gitRefs))
+
+	if len(gitRefs) == 0 {
+		return refsToPaths, nil
+	}
+
 	var (
-		mu          sync.Mutex
-		registerMu  sync.Mutex
-		errs        []error
-		refsToPaths = make(map[string]string, len(gitRefs))
+		mu         sync.Mutex
+		registerMu sync.Mutex
+		errs       []error
 	)
 
 	// Every reference materializing at once shares the filesystem worker
@@ -692,12 +944,13 @@ func createGitWorktrees(
 			g.Go(func() error {
 				dir, err := createGitWorktree(
 					groupCtx, l, v, gitRunner, &registerMu,
-					worktreeOpts{
+					&worktreeOpts{
 						ref:        ref,
 						writers:    writers,
 						repoRemote: repoRemote,
 						repoBranch: repoBranch,
 						repoCommit: repoCommit,
+						pathspecs:  pathspecs[ref],
 					},
 				)
 
@@ -765,6 +1018,7 @@ type worktreeOpts struct {
 	repoRemote string
 	repoBranch string
 	repoCommit string
+	pathspecs  []string
 	writers    int
 }
 
@@ -777,33 +1031,30 @@ func createGitWorktree(
 	v *venv.Venv,
 	gitRunner *git.GitRunner,
 	registerMu *sync.Mutex,
-	opts worktreeOpts,
+	opts *worktreeOpts,
 ) (string, error) {
-	tmpDir, err := vfs.MkdirTemp(
-		v.FS,
-		v.Platform.TempDir(),
-		"terragrunt-worktree-"+sanitizeRef(opts.ref)+"-",
-	)
+	// `git archive` honors gitattributes that a checkout ignores, so a
+	// reference with them is checked out in full.
+	altering, err := gitRunner.HasArchiveAlteringAttributes(ctx, v, opts.ref)
 	if err != nil {
-		return "", fmt.Errorf("failed to create temporary directory for worktree: %w", err)
+		return "", fmt.Errorf("failed to read gitattributes for reference %s: %w", opts.ref, err)
 	}
 
-	// macOS will create the temporary directory with symlinks, so we need to evaluate them.
-	origTmpDir := tmpDir
+	if altering {
+		// opts belongs to this reference alone, so clearing it here leaves the
+		// other references as they were.
+		opts.pathspecs = nil
+	}
 
-	tmpDir, err = vfs.EvalSymlinks(v.FS, tmpDir)
+	tmpDir, err := worktreeTempDir(v, opts.ref)
 	if err != nil {
-		if cleanErr := v.FS.RemoveAll(origTmpDir); cleanErr != nil {
-			l.Warnf("failed to clean worktree directory %s: %v", origTmpDir, cleanErr)
-		}
-
-		return "", fmt.Errorf("failed to evaluate symlinks for temporary directory: %w", err)
+		return "", err
 	}
 
 	err = filter.TraceGitWorktreeCreate(
 		ctx, opts.ref, tmpDir, opts.repoRemote, opts.repoBranch, opts.repoCommit,
 		func(ctx context.Context) error {
-			return materializeGitWorktree(ctx, v, gitRunner, registerMu, tmpDir, opts)
+			return materializeGitWorktree(ctx, v, gitRunner, registerMu, tmpDir, opts, altering)
 		})
 	if err != nil {
 		if cleanErr := v.FS.RemoveAll(tmpDir); cleanErr != nil {
@@ -811,6 +1062,27 @@ func createGitWorktree(
 		}
 
 		return "", fmt.Errorf("failed to create Git worktree for reference %s: %w", opts.ref, err)
+	}
+
+	return tmpDir, nil
+}
+
+// worktreeTempDir returns a new temporary directory to materialize a reference
+// into.
+func worktreeTempDir(v *venv.Venv, ref string) (string, error) {
+	tmpDir, err := vfs.MkdirTemp(
+		v.FS,
+		v.Platform.TempDir(),
+		"terragrunt-worktree-"+sanitizeRef(ref)+"-",
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary directory for worktree: %w", err)
+	}
+
+	// macOS will create the temporary directory with symlinks, so we need to evaluate them.
+	tmpDir, err = vfs.EvalSymlinks(v.FS, tmpDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate symlinks for temporary directory: %w", err)
 	}
 
 	return tmpDir, nil
@@ -824,13 +1096,9 @@ func materializeGitWorktree(
 	gitRunner *git.GitRunner,
 	registerMu *sync.Mutex,
 	dir string,
-	opts worktreeOpts,
+	opts *worktreeOpts,
+	altering bool,
 ) error {
-	altering, err := gitRunner.HasArchiveAlteringAttributes(ctx, v, opts.ref)
-	if err != nil {
-		return err
-	}
-
 	checkout := git.SkipCheckout
 	if altering {
 		checkout = git.CheckoutFiles
@@ -844,8 +1112,14 @@ func materializeGitWorktree(
 		return nil
 	}
 
-	if err := extractGitWorktree(ctx, v, gitRunner, dir, opts.ref, opts.writers); err != nil {
+	if err := extractGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
 		return err
+	}
+
+	if len(opts.pathspecs) > 0 {
+		// A worktree with only some of the reference's paths has no index to
+		// fill, since every path left out would read as a deletion.
+		return nil
 	}
 
 	// The worktree was registered without a checkout, which leaves its index
@@ -877,15 +1151,15 @@ func extractGitWorktree(
 	ctx context.Context,
 	v *venv.Venv,
 	gitRunner *git.GitRunner,
-	dir, ref string,
-	writers int,
+	dir string,
+	opts *worktreeOpts,
 ) error {
 	pr, pw := io.Pipe()
 
 	g, groupCtx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		err := gitRunner.ArchiveTree(groupCtx, v, ref, pw)
+		err := gitRunner.ArchiveTree(groupCtx, v, opts.ref, pw, opts.pathspecs...)
 
 		// Closing carries the outcome to the reader, which would otherwise wait
 		// on content that is not coming.
@@ -893,7 +1167,7 @@ func extractGitWorktree(
 	})
 
 	g.Go(func() error {
-		err := git.ExtractArchive(groupCtx, v, pr, dir, writers)
+		err := git.ExtractArchive(groupCtx, v, pr, dir, opts.writers)
 
 		// Closing unblocks git if extraction stopped early, so the archive is
 		// not left writing into a pipe nothing reads.

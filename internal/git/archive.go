@@ -56,12 +56,19 @@ var (
 	ErrArchiveTooDeep = errors.New("archive entry is nested too deeply")
 )
 
-// ArchiveTree writes the tree at ref to w as an uncompressed tar stream.
+// ArchiveTree writes the tree at ref to w as an uncompressed tar stream. Given
+// pathspecs, it writes only the paths they name.
 //
 // The stream is written as git produces it, so w has to be read while the
 // command runs. Pass the write half of an [io.Pipe] and read the other half
 // from another goroutine, as [ExtractArchive] expects.
-func (g *GitRunner) ArchiveTree(ctx context.Context, v *venv.Venv, ref string, w io.Writer) error {
+func (g *GitRunner) ArchiveTree(
+	ctx context.Context,
+	v *venv.Venv,
+	ref string,
+	w io.Writer,
+	pathspecs ...string,
+) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
@@ -73,7 +80,13 @@ func (g *GitRunner) ArchiveTree(ctx context.Context, v *venv.Venv, ref string, w
 		return err
 	}
 
-	cmd := g.prepareCommand(ctx, "archive", "--format=tar", ref)
+	args := []string{"--format=tar", ref}
+	if len(pathspecs) > 0 {
+		args = append(args, "--")
+		args = append(args, pathspecs...)
+	}
+
+	cmd := g.prepareCommand(ctx, "archive", args...)
 	cmd.SetDir(root)
 
 	var stderr bytes.Buffer

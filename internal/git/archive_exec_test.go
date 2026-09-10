@@ -120,6 +120,37 @@ func TestExecHasArchiveAlteringAttributes(t *testing.T) {
 	}
 }
 
+func TestExecLsTreeNames(t *testing.T) {
+	t.Parallel()
+
+	repo := newRepoWithFiles(t, map[string]string{
+		"root.hcl":                 "locals {}\n",
+		"live/unit/terragrunt.hcl": "inputs = {}\n",
+		"live/unit/main.tf":        "",
+		"a file with spaces.hcl":   "locals {}\n",
+	})
+
+	v := venv.OSVenv()
+
+	runner, err := git.NewGitRunner(v)
+	require.NoError(t, err)
+
+	// A listing taken from a subdirectory still covers the whole tree, which
+	// callers rely on to answer for paths anywhere in a diff.
+	runner = runner.WithWorkDir(filepath.Join(repo, "live", "unit"))
+
+	tree, err := runner.LsTreeNames(t.Context(), v, "HEAD")
+	require.NoError(t, err)
+
+	assert.True(t, tree.Has("root.hcl"))
+	assert.True(t, tree.Has("live/unit/terragrunt.hcl"))
+	assert.True(t, tree.Has("live/unit/main.tf"))
+	assert.True(t, tree.Has("a file with spaces.hcl"))
+	assert.False(t, tree.Has("live/unit"))
+	assert.False(t, tree.Has("live/missing/terragrunt.hcl"))
+	assert.Len(t, tree, 4)
+}
+
 // newRepoWithFiles commits files to a new repository and returns its path.
 func newRepoWithFiles(t *testing.T, files map[string]string) string {
 	t.Helper()

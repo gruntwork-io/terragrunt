@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -2147,4 +2148,164 @@ func TestValidateResolvedSymlinkTarget(t *testing.T) {
 		err := vfs.ValidateResolvedSymlinkTarget(fsys, root, link)
 		require.ErrorIs(t, err, os.ErrNotExist)
 	})
+}
+
+func TestMemMapFSFollowsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("through a linked file", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo/unit", 0o755))
+		require.NoError(t, vfs.WriteFile(fsys, "/repo/common.hcl", []byte("locals {}\n"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "../common.hcl", "/repo/unit/common.hcl"))
+
+		content, err := vfs.ReadFile(fsys, "/repo/unit/common.hcl")
+		require.NoError(t, err)
+		assert.Equal(t, "locals {}\n", string(content))
+
+		info, err := fsys.Stat("/repo/unit/common.hcl")
+		require.NoError(t, err)
+		assert.False(t, info.IsDir())
+	})
+
+	t.Run("through a linked directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo/real/unit", 0o755))
+		require.NoError(t, vfs.WriteFile(fsys, "/repo/real/unit/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "real", "/repo/linked"))
+
+		content, err := vfs.ReadFile(fsys, "/repo/linked/unit/terragrunt.hcl")
+		require.NoError(t, err)
+		assert.Equal(t, "inputs = {}\n", string(content))
+	})
+
+	t.Run("writing under a linked directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo/real", 0o755))
+		require.NoError(t, vfs.Symlink(fsys, "real", "/repo/linked"))
+		require.NoError(t, vfs.WriteFile(fsys, "/repo/linked/generated.hcl", []byte("locals {}\n"), 0o644))
+
+		// The write lands where the link points, not beside it.
+		content, err := vfs.ReadFile(fsys, "/repo/real/generated.hcl")
+		require.NoError(t, err)
+		assert.Equal(t, "locals {}\n", string(content))
+	})
+
+	t.Run("the link itself is still reported", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo", 0o755))
+		require.NoError(t, vfs.WriteFile(fsys, "/repo/common.hcl", []byte("locals {}\n"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "common.hcl", "/repo/link.hcl"))
+
+		info, err := vfs.Lstat(fsys, "/repo/link.hcl")
+		require.NoError(t, err)
+		assert.NotZero(t, info.Mode()&fs.ModeSymlink)
+
+		target, err := vfs.Readlink(fsys, "/repo/link.hcl")
+		require.NoError(t, err)
+		assert.Equal(t, "common.hcl", target)
+
+		// Removing a link leaves what it points at alone.
+		require.NoError(t, fsys.Remove("/repo/link.hcl"))
+
+		_, err = fsys.Stat("/repo/common.hcl")
+		require.NoError(t, err)
+	})
+
+	t.Run("a cycle does not hang", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo", 0o755))
+		require.NoError(t, vfs.Symlink(fsys, "b", "/repo/a"))
+		require.NoError(t, vfs.Symlink(fsys, "a", "/repo/b"))
+
+		_, err := vfs.ReadFile(fsys, "/repo/a")
+		require.Error(t, err)
+	})
+
+	t.Run("a dangling link reports the missing target", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo", 0o755))
+		require.NoError(t, vfs.Symlink(fsys, "missing.hcl", "/repo/link.hcl"))
+
+		_, err := vfs.ReadFile(fsys, "/repo/link.hcl")
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+}
+
+func TestAncestors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		path string
+		want []string
+	}{
+		{
+			name: "an absolute path",
+			path: filepath.Join(string(filepath.Separator), "wt", "live", "unit"),
+			want: []string{
+				filepath.Join(string(filepath.Separator), "wt", "live", "unit"),
+				filepath.Join(string(filepath.Separator), "wt", "live"),
+				filepath.Join(string(filepath.Separator), "wt"),
+				string(filepath.Separator),
+			},
+		},
+		{
+			name: "a relative path",
+			path: filepath.Join("live", "unit"),
+			want: []string{filepath.Join("live", "unit"), "live", "."},
+		},
+		{
+			name: "a root",
+			path: string(filepath.Separator),
+			want: []string{string(filepath.Separator)},
+		},
+		{
+			name: "an uncleaned path",
+			path: filepath.Join("live", "..", "live", "unit") + string(filepath.Separator),
+			want: []string{filepath.Join("live", "unit"), "live", "."},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, slices.Collect(vfs.Ancestors(tc.path)))
+		})
+	}
+}
+
+func TestAncestorsStopsEarly(t *testing.T) {
+	t.Parallel()
+
+	seen := []string{}
+
+	for current := range vfs.Ancestors(filepath.Join("a", "b", "c")) {
+		seen = append(seen, current)
+
+		if len(seen) == 2 {
+			break
+		}
+	}
+
+	assert.Equal(t, []string{filepath.Join("a", "b", "c"), filepath.Join("a", "b")}, seen)
 }
