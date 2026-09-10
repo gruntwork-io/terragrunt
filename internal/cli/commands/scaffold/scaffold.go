@@ -159,6 +159,7 @@ type Plan struct {
 	sourceDir         string
 	values            component.ValuesReferences
 	kind              component.Kind
+	generatedFiles    []string
 }
 
 // FormFields returns what a user is asked to fill in before this plan is
@@ -182,6 +183,13 @@ func (p *Plan) Cleanup(fsys vfs.FS) {
 	}
 
 	p.tempDirs = nil
+}
+
+// GeneratedFiles returns the paths of the files written by the last
+// [Plan.Generate] call, relative to the output directory, cleaned and
+// deduplicated. It is empty before Generate runs.
+func (p *Plan) GeneratedFiles() []string {
+	return p.generatedFiles
 }
 
 // Prepare downloads the source module and template, parses the module's
@@ -397,6 +405,8 @@ func (p *Plan) Generate(
 	}
 
 	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
+
+	p.generatedFiles = allFiles
 
 	l.Debugf("Running fmt on generated code %s", p.outputDir)
 

@@ -577,6 +577,35 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 	assert.Contains(t, exit, "TODO", "scaffold message should mention the TODO markers")
 }
 
+// TestModelScaffoldFinishedWithFilesListsGeneratedFiles verifies that a
+// scaffold finishing with an explicit file list names those files (and not a
+// hardcoded terragrunt.hcl) in the exit callout.
+func TestModelScaffoldFinishedWithFilesListsGeneratedFiles(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	opts.ScaffoldOutputFolder = t.TempDir()
+
+	l := logger.CreateLogger()
+	components := makeComponents(t)
+
+	componentCh := make(chan *tui.ComponentEntry)
+	close(componentCh)
+
+	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+
+	updated, _ := m.Update(tui.ScaffoldFinishedMsg{Files: []string{"root.hcl", "config/common.hcl"}})
+	finalModel := updated.(tui.Model)
+
+	exit := stripANSI(finalModel.ExitMessage())
+	assert.Contains(t, exit, "2 files scaffolded")
+	assert.Contains(t, exit, "root.hcl")
+	assert.Contains(t, exit, "config/common.hcl")
+	assert.NotContains(t, exit, "terragrunt.hcl scaffolded")
+}
+
 // TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage exercises the
 // early-return in formatScaffoldMessage when no output directory is known.
 func TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage(t *testing.T) {
