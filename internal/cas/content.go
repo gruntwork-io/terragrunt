@@ -131,11 +131,7 @@ func (c *Content) Link(
 
 		data, readErr := vfs.ReadFile(v.FS, sourcePath)
 		if readErr != nil {
-			return &WrappedError{
-				Op:   "read_source",
-				Path: sourcePath,
-				Err:  ErrReadFile,
-			}
+			return storeReadError(hash, sourcePath, readErr)
 		}
 
 		// A unique, freshly-writable temp avoids a fixed "<target>.tmp":
@@ -457,7 +453,29 @@ func (c *Content) GetTmpHandle(v *venv.Venv, hash string) (vfs.File, error) {
 // Read retrieves content from the store by hash.
 func (c *Content) Read(v *venv.Venv, hash string) ([]byte, error) {
 	path := c.getPath(hash)
-	return vfs.ReadFile(v.FS, path)
+
+	data, err := vfs.ReadFile(v.FS, path)
+	if err != nil {
+		return nil, storeReadError(hash, path, err)
+	}
+
+	return data, nil
+}
+
+// storeReadError classifies a failed read of a stored object. An object
+// that is not there is the store missing content the source can supply
+// again, which [CAS.FetchSource] repairs, so it is reported as
+// [MissingObjectError] rather than as an ordinary read failure.
+func storeReadError(hash, path string, err error) error {
+	if errors.Is(err, fs.ErrNotExist) {
+		return &MissingObjectError{Hash: hash, Path: path}
+	}
+
+	return &WrappedError{
+		Op:   "read_source",
+		Path: path,
+		Err:  errors.Join(ErrReadFile, err),
+	}
 }
 
 // writeContentToFile writes data to a temporary file, sets appropriate

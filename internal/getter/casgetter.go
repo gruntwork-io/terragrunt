@@ -475,8 +475,18 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 // s3 and gcs getters reject `http://`/`gs://` URLs unless Forced matches
 // their validScheme; without this the inner client falls through with a
 // generic "error downloading".
+//
+// The ingest mode is ignored: this shape downloads and re-ingests every
+// time it runs, and ingesting content already writes each object the
+// store lacks, so a repair pass needs nothing extra from it.
 func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) cas.SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string) (string, error) {
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		suggestedKey string,
+		_ cas.IngestMode,
+	) (string, error) {
 		tempDir, cleanup, err := g.CAS.MakeFetchTempDir(l, v)
 		if err != nil {
 			return "", err

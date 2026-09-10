@@ -2,6 +2,7 @@ package cas
 
 import (
 	"fmt"
+	"io/fs"
 
 	"errors"
 )
@@ -135,6 +136,34 @@ func (e *GitStoreObjectMissingError) Error() string {
 		"object %s not present in central git store after fetching %s from %s",
 		e.Hash, e.Ref, e.URL,
 	)
+}
+
+// MissingObjectError reports that the store holds no file for an object
+// something still names: a blob a stored tree lists, or a tree a gitlink
+// pins. Ingest writes a tree only after every object that tree names, so a
+// store only Terragrunt has touched never reaches this state, and reaching
+// it means an entry was removed out from under it.
+//
+// [CAS.FetchSource] answers this by re-ingesting from the source, so the
+// error only reaches a caller when the source cannot supply the object
+// either, or when the entry point had no source to go back to
+// ([CAS.MaterializeTree] serving a cas:: reference).
+type MissingObjectError struct {
+	// Hash is the object the store was asked for.
+	Hash string
+	// Path is where the store expected to find it.
+	Path string
+}
+
+func (e *MissingObjectError) Error() string {
+	return fmt.Sprintf("CAS store is missing object %s, expected at %s", e.Hash, e.Path)
+}
+
+// Unwrap reports the miss as [fs.ErrNotExist], which is what it is on
+// disk, so a caller that only asks whether the object was there keeps
+// working without knowing this type.
+func (e *MissingObjectError) Unwrap() error {
+	return fs.ErrNotExist
 }
 
 // TreeDepthExceededError is returned when materializing a tree hits the
