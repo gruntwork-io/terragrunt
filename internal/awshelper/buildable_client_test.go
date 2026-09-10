@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -241,12 +242,80 @@ func TestAWSBuildableClientOSTransportIsBuildable(t *testing.T) {
 		"OS transport must produce *awshttp.BuildableClient, got %T", got)
 }
 
+// TestAWSConfigCustomCABundle reproduces #6873: when AWS_CA_BUNDLE is set, the
+// SDK must be able to attach the custom CA roots to the injected HTTP client.
+// This fails when the client is a plain *http.Client (which lacks
+// WithTransportOptions), so the venv's OS client must be wrapped in an
+// *awshttp.BuildableClient before it is handed to config.LoadDefaultConfig.
+func TestAWSConfigCustomCABundle(t *testing.T) {
+	// The SDK resolves AWS_CA_BUNDLE from the process environment, so this test
+	// isolates it with t.Setenv and therefore cannot run in parallel.
+	caPath := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(caPath, []byte(testCACertPEM), 0o600))
+
+	missing := filepath.Join(t.TempDir(), "missing")
+	t.Setenv("AWS_CA_BUNDLE", caPath)
+	t.Setenv("AWS_CONFIG_FILE", missing)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missing)
+
+	env := map[string]string{
+		"AWS_ACCESS_KEY_ID":     "test-key",
+		"AWS_SECRET_ACCESS_KEY": "test-secret",
+		"AWS_REGION":            "us-east-1",
+	}
+
+	v := venvtest.New().
+		WithFS(vfs.NewOSFS()).
+		WithHTTP(vhttp.NewOSClient()).
+		WithEnv(env)
+
+	l := logger.CreateLogger()
+
+	cfg, err := awshelper.NewAWSConfigBuilder().
+		Build(t.Context(), l, v)
+	require.NoError(t, err, "building AWS config with AWS_CA_BUNDLE set must not fail")
+
+	bc, ok := cfg.HTTPClient.(*awshttp.BuildableClient)
+	require.True(t, ok, "HTTPClient must be *awshttp.BuildableClient, got %T", cfg.HTTPClient)
+
+	tr := bc.GetTransport()
+	require.NotNil(t, tr.TLSClientConfig)
+	require.NotNil(t, tr.TLSClientConfig.RootCAs,
+		"AWS_CA_BUNDLE must be applied to the transport RootCAs")
+	assert.NotEmpty(t, tr.TLSClientConfig.RootCAs.Subjects(),
+		"custom CA bundle must add a root to the transport pool")
+}
+
 const (
 	testIMDSRoleName       = "test-instance-role"
 	testIMDSAccessKeyID    = "AKIAIMDSV1TESTKEY"
 	testAssumedRoleARN     = "arn:aws:iam::123456789012:role/test-assumed-role"
 	testAssumedAccessKeyID = "ASIAASSUMEDTESTKEY"
 )
+
+// testCACertPEM is a self-signed CA certificate used by
+// TestAWSConfigCustomCABundle to exercise the AWS_CA_BUNDLE code path. The
+// private key is not needed: the SDK only appends the certificate to the
+// transport's RootCAs pool.
+const testCACertPEM = `-----BEGIN CERTIFICATE-----
+MIIDGzCCAgOgAwIBAgIUVcZbH9e4atiRMBUxffmRVCBXLcAwDQYJKoZIhvcNAQEL
+BQAwHTEbMBkGA1UEAwwSdGVycmFncnVudC10ZXN0LWNhMB4XDTI2MDkxMDIyNDIz
+OFoXDTM2MDkwNzIyNDIzOFowHTEbMBkGA1UEAwwSdGVycmFncnVudC10ZXN0LWNh
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAokSUMKTzYzVZtdlMCTSC
+M1zc3v8YwCilFnPFe4NCyNhpRz17nZnxYE1ifI5odBmN/lJRJ99YOitNVjKz1A5M
+cVF05NOLr4rWCEa2pGAVrKTOsFhxJwIOiBIqTkICSAKUiKDchwLn704TrlEnocGb
+D89XosNa593zkYOsxgTeftMEVezSFMJUrk8StKDUU1Ms77GJ99s9V4gJny/LTqyN
+l42QMjdw7k1n+cCyhWrtYUlt71NW+CvNYzDISfoXPzK+xzOP7DEMJaCRs4lWgVM/
+WGf97Y2IfNupX38HcIdxt+ERM+4s8L0BktQK1MHNZa9Rsc24V/EfGaxFpYITv7eA
+GwIDAQABo1MwUTAdBgNVHQ4EFgQU/+p+Hl25ymlTIxBu4THAJrjvG+4wHwYDVR0j
+BBgwFoAU/+p+Hl25ymlTIxBu4THAJrjvG+4wDwYDVR0TAQH/BAUwAwEB/zANBgkq
+hkiG9w0BAQsFAAOCAQEAnz+P3Xu5i+EMUwEFclqz1QCj07VR2S7qTsEizHLHsj/3
+m71CBEShwYrpUVU00mZMe01ZszrpaUbFiSPhATSDHsik8bGVBByYfrmd299J7umo
+mTN9zxzrOEGTwaGOhpv732u1+Wy8lcvxoFsDRKOog16riYeOr04jsMbCUMTvQyYM
+GuRkX5LgeNcTSU+1B+uh6L+xN0Zi7+fd0601+d41uBk23aOaJKQ+QpVFaJ6+ZvLA
+udrzeq/zt3UjI6ONrYkI1drXciI3hDRd7dDe8QAkApLtxuDL7K1htuAQBxHLgwNh
+OM/wqaz+IdxkuB0020tM5rs5qb0Uwqn6h+iVWGvl4A==
+-----END CERTIFICATE-----`
 
 // hangingTokenIMDSServer is a local IMDS whose IMDSv2 token endpoint never
 // answers, while the IMDSv1 credential endpoints answer normally.
