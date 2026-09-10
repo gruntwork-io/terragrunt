@@ -85,3 +85,20 @@ func (err TableEncryptedRetriesExceeded) Error() string {
 		err.Retries,
 	)
 }
+
+type InvalidAccountRegionalBucketName struct {
+	Bucket string
+	Region string
+}
+
+func (err InvalidAccountRegionalBucketName) Error() string {
+	return fmt.Sprintf(
+		"S3 bucket name %s is formatted for an account regional namespace, but not for region %s, where the bucket would be created. Such names take the form <prefix>-<account-id>-%s%s, e.g. my-state-111122223333-%s%s",
+		err.Bucket,
+		err.Region,
+		err.Region,
+		accountRegionalSuffix,
+		err.Region,
+		accountRegionalSuffix,
+	)
+}
