@@ -1,0 +1,26 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### Faster file work, especially on small CI runners
+
+Terragrunt frequently does a lot of small file operations at once: copying a module into its working directory, storing a repository in the [Content Addressable Store (CAS)](/features/caching/cas), and materializing one back out. How many it ran at once scaled with the number of vCPUs seen by the Terragrunt process or the `--parallelism` flag if configured.
+
+Terragrunt now picks that number by probing the filesystem it is about to write to to guess how much throughput it can handle to improve performance.
+
+The gain is largest where the filesystem is much faster or slower than Terragrunt would expect, just scaling off vCPUs.
+
+Materializing a 3,000 file repository on a 2 vCPU runner:
+
+| filesystem | before | after | change |
+| --- | --- | --- | --- |
+| ext4 | 40.8ms | 24.4ms | -40% |
+| btrfs | 48.7ms | 34.2ms | -30% |
+| overlayfs | 71.5ms | 56.4ms | -21% |
+
+On a 16 vCPU machine, storing that repository for the first time is 19% faster on ext4 and 20% faster on btrfs.
+
+`terragrunt hcl fmt` now formats at most 8 files at once by default, which measured about 14% faster than one worker per CPU on a 16 core machine.
+
+Runs with the `fast-copy` strict control enabled also copy module directories faster on macOS, by around 60% in benchmarks on an Apple M3 Max.

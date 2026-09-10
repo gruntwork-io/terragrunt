@@ -67,17 +67,119 @@ type ContextLocker interface {
 	LockContext(ctx context.Context, name string) (Unlocker, error)
 }
 
-// FSWorkers bounds how many goroutines may run filesystem metadata
-// operations at once.
+// APFSWorkers is APFS's ceiling for concurrent per-file work.
 //
-// Measurement on APFS (the default for macOS) puts the ceiling at four
-// before performance starts to degrade. Until we have more granular
-// concurrency controls than `--parallelism`, we should use this as the
-// ceiling for filesystem workers.
+// Measurement on APFS (the default for macOS) puts it at four before
+// performance starts to degrade, and three separate workloads agree:
+// walking a tree while writing a file per entry, ingesting blobs into
+// the store, and materializing a tree out of it.
 //
-// Callers that fan out over per-file work should cap their errgroup here
-// rather than at GOMAXPROCS.
-const FSWorkers = 4
+// Reach for [FSWorkersFor] rather than this constant unless the code is
+// specifically about APFS.
+const APFSWorkers = 4
+
+// DefaultFSWorkers is what a filesystem with no measurement behind it
+// gets: the most conservative ceiling any measured filesystem wanted.
+// It matches [APFSWorkers] today and is named separately because a
+// change to APFS's measurement should not quietly move the fallback for
+// everything unmeasured.
+const DefaultFSWorkers = APFSWorkers
+
+// MaxFSWorkers is the ceiling for filesystems that keep answering more
+// concurrent per-file work with more throughput: ext4, tmpfs and
+// overlayfs were still gaining at sixteen. It is a fixed number rather
+// than a multiple of GOMAXPROCS because the work these bounds govern
+// waits on the disk, not on a core, and a large host must not answer a
+// large tree with a worker per core.
+const MaxFSWorkers = 16
+
+// XFSWorkers is XFS's ceiling, past which its allocator contends.
+const XFSWorkers = 8
+
+// BTRFSWorkers is btrfs's ceiling. Copy-on-write metadata makes it the
+// one measured filesystem that works fastest at two concurrent writers
+// and degrades steeply above four.
+const BTRFSWorkers = 2
+
+// fsWorkersByKind is what each filesystem was measured to absorb for
+// per-file work. It is the starting point for any bound the filesystem
+// governs; a site that has measured its own workload may deviate, and
+// should say so where it does.
+//
+// A kind that is absent has no measurement behind it and gets
+// [DefaultFSWorkers], the most conservative ceiling any measured
+// filesystem wanted.
+var fsWorkersByKind = map[FSKind]int{
+	FSAPFS:    APFSWorkers,
+	FSExt4:    MaxFSWorkers,
+	FSTmpfs:   MaxFSWorkers,
+	FSOverlay: MaxFSWorkers,
+	FSXFS:     XFSWorkers,
+	FSBtrfs:   BTRFSWorkers,
+}
+
+// maxAncestorProbes bounds how far [FSWorkersFor] climbs looking for a
+// path that exists.
+const maxAncestorProbes = 64
+
+// FSWorkersFor returns the concurrency the filesystem under path was
+// measured to absorb for per-file work.
+//
+// A path that does not exist yet is answered by its nearest existing
+// ancestor, so a destination can be sized before it is created.
+func FSWorkersFor(fsys FS, path string) int {
+	for range maxAncestorProbes {
+		if kind := DetectFSKind(fsys, path); kind != FSUnprobed {
+			return FSWorkersForKind(kind)
+		}
+
+		parent := filepath.Dir(path)
+		if parent == path {
+			break
+		}
+
+		path = parent
+	}
+
+	return DefaultFSWorkers
+}
+
+// FSWorkersForKind is [FSWorkersFor] for a filesystem already probed.
+func FSWorkersForKind(kind FSKind) int {
+	if workers, ok := fsWorkersByKind[kind]; ok {
+		return workers
+	}
+
+	return DefaultFSWorkers
+}
+
+// walkWorkersDefault leaves the count to fastwalk, whose own default
+// scales with GOMAXPROCS and never drops below four.
+const walkWorkersDefault = 0
+
+// walkWorkersByKind is what a write-heavy walk was measured to want,
+// where that differs from the filesystem's general ceiling in
+// [FSWorkersForKind]. XFS is the one deviation: it absorbs eight
+// concurrent writers elsewhere but peaks at four under a walk.
+//
+// The kinds absent here keep fastwalk's own default, which already
+// scales with GOMAXPROCS. Raising them to [MaxFSWorkers] measured
+// faster still on ext4 and overlayfs, but only on virtualized storage,
+// so that wants confirmation on real hardware first.
+var walkWorkersByKind = map[FSKind]int{
+	FSAPFS:  APFSWorkers,
+	FSXFS:   APFSWorkers,
+	FSBtrfs: BTRFSWorkers,
+}
+
+// walkWorkers sizes a parallel walk to the filesystem under root.
+func walkWorkers(fsys FS, root string) int {
+	if workers, ok := walkWorkersByKind[DetectFSKind(fsys, root)]; ok {
+		return workers
+	}
+
+	return walkWorkersDefault
+}
 
 const maxSymlinkEvaluations = 255
 
@@ -494,10 +596,11 @@ func WithFollowSymlinks() WalkDirParallelOption {
 // [fastwalk.Walk]. On any other FS, including [NewMemMapFS], it falls
 // back to the sequential [WalkDir].
 //
-// The parallel walk calls fn concurrently from multiple goroutines and
-// gives no ordering guarantee across directories. Callers that depend
-// on deterministic order, or that write to shared state from fn, must
-// use [WalkDir] or serialize access themselves.
+// The walk fans out over as many goroutines as the filesystem under
+// root was measured to absorb (see [walkWorkersByKind]), and gives no
+// ordering guarantee across directories. Callers that depend on
+// deterministic order, or that write to shared state from fn, must use
+// [WalkDir] or serialize access themselves.
 func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirParallelOption) error {
 	if _, ok := fsys.(*osFS); !ok {
 		return WalkDir(fsys, root, fn)
@@ -508,9 +611,9 @@ func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirPar
 		opt(&cfg)
 	}
 
-	var fwCfg *fastwalk.Config
-	if cfg.followSymlinks {
-		fwCfg = &fastwalk.Config{Follow: true}
+	fwCfg := &fastwalk.Config{
+		Follow:     cfg.followSymlinks,
+		NumWorkers: walkWorkers(fsys, root),
 	}
 
 	err := fastwalk.Walk(fwCfg, root, fn)
