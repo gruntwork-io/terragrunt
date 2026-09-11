@@ -10,7 +10,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/puzpuzpuz/xsync/v4"
 )
 
 //go:generate go run ./colorgen
@@ -339,9 +338,7 @@ var (
 
 type gradientColor struct {
 	// cache stores unique text with their color code.
-	// We use [xsync.Map](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
-	// instead of standard `sync.Map` since it's faster and has generic types.
-	cache  *xsync.Map[string, ColorValue]
+	cache  map[string]ColorValue
 	values []ColorValue
 	mu     sync.Mutex
 
@@ -351,7 +348,7 @@ type gradientColor struct {
 
 func newGradientColor() *gradientColor {
 	return &gradientColor{
-		cache:  xsync.NewMap[string, ColorValue](),
+		cache:  make(map[string]ColorValue),
 		values: defaultAutoColorValues,
 	}
 }
@@ -360,7 +357,7 @@ func (color *gradientColor) Value(text string) ColorValue {
 	color.mu.Lock()
 	defer color.mu.Unlock()
 
-	if colorCode, ok := color.cache.Load(text); ok {
+	if colorCode, ok := color.cache[text]; ok {
 		return colorCode
 	}
 
@@ -370,7 +367,7 @@ func (color *gradientColor) Value(text string) ColorValue {
 
 	colorCode := color.values[color.nextStyleIndex]
 
-	color.cache.Store(text, colorCode)
+	color.cache[text] = colorCode
 
 	color.nextStyleIndex++
 

@@ -1506,7 +1506,7 @@ exclude {
 			pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
 
 			for name, value := range tc.cliFlags {
-				pctx.FeatureFlags.Store(name, value)
+				pctx.FeatureFlags[name] = value
 			}
 
 			terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)

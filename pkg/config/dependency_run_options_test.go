@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +47,7 @@ func TestRunOptionsFromParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, pctx.OriginalIAMRoleOptions, runOpts.OriginalIAMRoleOptions)
 	assert.True(t, runOpts.Experiments.Evaluate(experiment.Stacks))
 	assert.Equal(t, pctx.StrictControls, runOpts.StrictControls)
-	assert.Same(t, pctx.FeatureFlags, runOpts.FeatureFlags)
+	assert.Equal(t, pctx.FeatureFlags, runOpts.FeatureFlags)
 	assert.Same(t, pctx.EngineConfig, runOpts.EngineConfig)
 	assert.Same(t, pctx.EngineOptions, runOpts.EngineOptions)
 	assert.Equal(t, pctx.TFPath, runOpts.TFPath)
@@ -89,7 +88,7 @@ func parsingContextWithDistinctValues(t *testing.T) *config.ParsingContext {
 	pctx.Experiments = experiment.NewExperiments()
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.Stacks))
 	pctx.StrictControls = controls.New()
-	pctx.FeatureFlags = xsync.NewMap[string, string]()
+	pctx.FeatureFlags = map[string]string{"region": "us-east-1"}
 	pctx.EngineConfig = &engine.EngineConfig{Source: "engine-source"}
 	pctx.EngineOptions = &engine.EngineOptions{}
 	pctx.TFPath = "/usr/local/bin/tofu"
