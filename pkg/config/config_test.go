@@ -2171,6 +2171,185 @@ func TestBestEffortParseConfigString(t *testing.T) {
 	}
 }
 
+// TestParseConfigGenerateBlockOverwriteTerragruntOrSkipRequiresExperiment pins that the
+// overwrite_terragrunt_or_skip value for if_exists is rejected unless its experiment is
+// enabled. TG_EXPERIMENT_MODE forces every experiment on, which defeats the disabled-state
+// assertion, so skip it there.
+func TestParseConfigGenerateBlockOverwriteTerragruntOrSkipRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip(
+			"Skipping: TG_EXPERIMENT_MODE forces the overwrite-terragrunt-or-skip experiment on, so its disabled-state error can't be verified",
+		)
+	}
+
+	cfg := `generate "test" {
+  path = "test.tf"
+  if_exists = "overwrite_terragrunt_or_skip"
+  contents = "test = 1"
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+
+	_, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+
+	var typed config.IfExistsRequiresExperimentError
+
+	require.ErrorAs(t, err, &typed)
+}
+
+// TestParseConfigGenerateBlockOverwriteTerragruntOrSkip verifies that the value parses into
+// the expected enum once its experiment is enabled.
+func TestParseConfigGenerateBlockOverwriteTerragruntOrSkip(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate "test" {
+  path = "test.tf"
+  if_exists = "overwrite_terragrunt_or_skip"
+  contents = "test = 1"
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OverwriteTerragruntOrSkip))
+
+	terragruntConfig, err := config.ParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	assert.Equal(t, codegen.ExistsOverwriteTerragruntOrSkip, generateConfig.IfExists)
+}
+
+// remoteStateGenerateIfExistsConfigs returns the two ways remote_state.generate can be written.
+// They decode through separate branches — the remote_state block populates RemoteState, while the
+// remote_state attribute is decoded from RemoteStateAttr — so the experiment gate has to be
+// asserted on both, not just on top-level generate blocks.
+func remoteStateGenerateIfExistsConfigs() []struct {
+	name string
+	cfg  string
+} {
+	return []struct {
+		name string
+		cfg  string
+	}{
+		{
+			name: "block-form",
+			cfg: `
+remote_state {
+  backend = "s3"
+  config  = {}
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt_or_skip"
+  }
+}
+`,
+		},
+		{
+			name: "attribute-form",
+			cfg: `
+remote_state = {
+  backend = "s3"
+  config  = {}
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt_or_skip"
+  }
+}
+`,
+		},
+	}
+}
+
+// TestParseConfigRemoteStateGenerateOverwriteTerragruntOrSkipRequiresExperiment pins that the
+// overwrite_terragrunt_or_skip gate rejects the value in both remote_state.generate forms while the
+// experiment is disabled. TG_EXPERIMENT_MODE forces every experiment on, which defeats the
+// disabled-state assertion, so skip it there.
+func TestParseConfigRemoteStateGenerateOverwriteTerragruntOrSkipRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip(
+			"Skipping: TG_EXPERIMENT_MODE forces the overwrite-terragrunt-or-skip experiment on, so its disabled-state error can't be verified",
+		)
+	}
+
+	for _, tc := range remoteStateGenerateIfExistsConfigs() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := createLogger()
+			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+
+			_, err := config.ParseConfigString(
+				ctx,
+				pctx,
+				l,
+				config.DefaultTerragruntConfigPath,
+				tc.cfg,
+				nil,
+			)
+
+			var typed config.IfExistsRequiresExperimentError
+
+			require.ErrorAs(t, err, &typed)
+		})
+	}
+}
+
+// TestParseConfigRemoteStateGenerateOverwriteTerragruntOrSkip verifies that both
+// remote_state.generate forms accept the value once the experiment is enabled.
+func TestParseConfigRemoteStateGenerateOverwriteTerragruntOrSkip(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range remoteStateGenerateIfExistsConfigs() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := createLogger()
+			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OverwriteTerragruntOrSkip))
+
+			terragruntConfig, err := config.ParseConfigString(
+				ctx,
+				pctx,
+				l,
+				config.DefaultTerragruntConfigPath,
+				tc.cfg,
+				nil,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, terragruntConfig)
+
+			require.NotNil(t, terragruntConfig.RemoteState)
+			require.NotNil(t, terragruntConfig.RemoteState.Generate)
+			assert.Equal(
+				t,
+				"overwrite_terragrunt_or_skip",
+				terragruntConfig.RemoteState.Generate.IfExists,
+			)
+		})
+	}
+}
+
 // TestParseConfigGenerateBlockWithHclFmt verifies that hcl_fmt is parsed from generate blocks.
 func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
 	t.Parallel()

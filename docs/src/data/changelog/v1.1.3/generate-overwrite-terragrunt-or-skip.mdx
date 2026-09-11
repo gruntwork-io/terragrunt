@@ -1,0 +1,28 @@
+---
+version: "v1.1.3"
+category: "experiments-added"
+---
+
+#### `generate`: add `overwrite_terragrunt_or_skip` value for `if_exists`
+
+The `overwrite_terragrunt` value of `if_exists` errors out when a file already exists at the target path and Terragrunt did not generate it. That makes an inherited `generate` block hard to use when a few units maintain the generated file by hand.
+
+The new `overwrite_terragrunt_or_skip` value behaves the same as `overwrite_terragrunt`, except that it leaves such a file as-is instead of erroring out. `overwrite_terragrunt` is unchanged.
+
+The value is gated behind the `overwrite-terragrunt-or-skip` experiment.
+
+```hcl
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt_or_skip"
+  contents  = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+```
+
+```bash
+terragrunt run --all --experiment overwrite-terragrunt-or-skip -- plan
+```
