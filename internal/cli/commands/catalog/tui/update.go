@@ -585,11 +585,6 @@ func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool, fi
 		Bold(true).
 		Render(scaffoldHeading(files))
 
-	paths := make([]string, 0, len(files))
-	for _, f := range files {
-		paths = append(paths, displayPath(outputDir, filepath.Join(outputDir, f)))
-	}
-
 	summary := "Inputs are marked with `# TODO: fill in value` comments."
 
 	body := "Open the file and replace each TODO placeholder with a real value\n" +
@@ -603,18 +598,41 @@ func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool, fi
 			"value before running terragrunt."
 	}
 
-	return renderValuesBox(valuesBoxAccentGreen, heading, strings.Join(paths, "\n"), summary, body)
+	return renderValuesBox(valuesBoxAccentGreen, heading, formatScaffoldFileList(outputDir, files), summary, body)
+}
+
+// scaffoldFileListCap is how many generated paths the post-scaffold callout
+// lists before collapsing the remainder to "... +N more".
+const scaffoldFileListCap = 5
+
+// formatScaffoldFileList renders generated paths relative to outputDir.
+// Lists longer than scaffoldFileListCap are truncated with "... +N more"
+// so a large template cannot flood the screen.
+func formatScaffoldFileList(outputDir string, files []string) string {
+	shown := min(len(files), scaffoldFileListCap)
+
+	paths := make([]string, 0, shown+1)
+	for _, f := range files[:shown] {
+		paths = append(paths, displayPath(outputDir, filepath.Join(outputDir, f)))
+	}
+
+	if extra := len(files) - shown; extra > 0 {
+		paths = append(paths, fmt.Sprintf("... +%d more", extra))
+	}
+
+	return strings.Join(paths, "\n")
 }
 
 // scaffoldHeading titles the post-scaffold callout from the generated files:
 // the single file's base name when exactly one file was written, otherwise a
-// count.
+// count with a pluralized "file"/"files".
 func scaffoldHeading(files []string) string {
-	if len(files) == 1 {
+	n := len(files)
+	if n == 1 {
 		return filepath.Base(files[0]) + " scaffolded"
 	}
 
-	return fmt.Sprintf("%d files scaffolded", len(files))
+	return fmt.Sprintf("%d %s scaffolded", n, pluralize("file", "files", n))
 }
 
 // pluralize returns singular when n == 1 and plural otherwise.
