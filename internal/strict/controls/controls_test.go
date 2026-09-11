@@ -261,3 +261,29 @@ func TestDuplicateDependencyLabelsControlIsRegistered(t *testing.T) {
 		assert.Error(t, ctrl.(*controls.Control).Error)
 	}
 }
+
+// TestSkipAccessLoggingBucketACLControlIsRegistered pins that the control the S3 backend looks
+// up by name is one the registry hands back, both standalone and under `deprecated-configs`.
+func TestSkipAccessLoggingBucketACLControlIsRegistered(t *testing.T) {
+	t.Parallel()
+
+	registry := controls.New()
+
+	ctrl := registry.Find(controls.SkipAccessLoggingBucketACL)
+
+	if assert.NotNil(t, ctrl, "skip-accesslogging-bucket-acl must be registered") {
+		assert.Equal(t, strict.ActiveStatus, ctrl.GetStatus())
+		assert.Error(t, ctrl.(*controls.Control).Error)
+		assert.NotEmpty(t, ctrl.(*controls.Control).Warning)
+	}
+
+	parent := registry.Find(controls.DeprecatedConfigs)
+
+	if assert.NotNil(t, parent, "deprecated-configs must be registered") {
+		assert.NotNil(
+			t,
+			parent.GetSubcontrols().Find(controls.SkipAccessLoggingBucketACL),
+			"skip-accesslogging-bucket-acl must be a deprecated-configs subcontrol",
+		)
+	}
+}

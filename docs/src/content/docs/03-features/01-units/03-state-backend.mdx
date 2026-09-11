@@ -216,6 +216,20 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 - **Access logging bucket**: If you specify an `accesslogging_bucket_name` in `remote_state.config` and that bucket doesn't already exist, Terragrunt will create it automatically. You can tag the access logging bucket with custom tags using `remote_state.config.accesslogging_bucket_tags`, and control the log object prefix using `accesslogging_target_prefix`.
 
+  <Before version="1.2.0">
+
+  Terragrunt grants S3 permission to deliver logs into this bucket with a bucket ACL, granting `WRITE` and `READ_ACP` to the S3 log delivery group. It does this every run, on a bucket it creates and on one that already exists. A bucket with ACLs disabled rejects the grant.
+
+  </Before>
+
+  <Since version="1.2.0">
+
+  A bucket Terragrunt creates here gets a bucket policy letting S3 deliver access logs into it on behalf of buckets in the same AWS account. AWS [recommends a bucket policy over the log delivery group ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general) for this, and documents the [policy to use](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-bucket-policy). Terragrunt also creates buckets with ACLs disabled, [which AWS recommends](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html) and applies by default to new buckets.
+
+  A bucket that already exists keeps the permissions it has: Terragrunt reads and writes nothing on its policy, so if access logs don't arrive, grant `s3:PutObject` to `logging.s3.amazonaws.com` on that bucket yourself.
+
+  </Since>
+
 <Aside type="tip" title="Using profiles">
 
 If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket, DynamoDB table, or access logging bucket.

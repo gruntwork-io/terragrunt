@@ -115,6 +115,7 @@ func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
 		Experiments:                  opts.Experiments,
 		IAMRoleOptions:               opts.IAMRoleOptions,
+		StrictControls:               opts.StrictControls,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 	}
