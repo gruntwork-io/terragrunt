@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "experiments-updated"
+---
+
+#### `dependency-fetch-output-from-state` completed
+
+The `dependency-fetch-output-from-state` experiment graduated to general availability in this release, and the feature it gated is now enabled by default. Terragrunt reads dependency outputs straight from the state object where it can, instead of initializing the dependency and running `tofu output` or `terraform output`.
+
+The corresponding `--experiment` flag (and `TG_EXPERIMENT` value) is no longer needed. Passing it still works, but emits a warning about the completed experiment, so you can drop it at your convenience. To turn the feature off, set `--no-dependency-fetch-output-from-state` or `TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE=true`.
+
+Reading state directly is an optimization, so it never decides whether a run succeeds. When a direct read fails for any reason other than the state not existing yet, Terragrunt retrieves the outputs through OpenTofu and the run continues. A dependency whose state does not exist yet still resolves to that dependency block's `mock_outputs`, as before.

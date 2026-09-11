@@ -21,18 +21,17 @@ import (
 )
 
 type dependencyStateEligibilityTestCase struct {
-	name                        string
-	backend                     string
-	backendConfig               map[string]string
-	env                         map[string]string
-	files                       map[string]string
-	filesystem                  vfs.FS
-	producerTerraformExtra      string
-	wantRequest                 string
-	enableAzure                 bool
-	disableDependencyExperiment bool
-	optOut                      bool
-	wantDirect                  bool
+	name                   string
+	backend                string
+	backendConfig          map[string]string
+	env                    map[string]string
+	files                  map[string]string
+	filesystem             vfs.FS
+	producerTerraformExtra string
+	wantRequest            string
+	enableAzure            bool
+	optOut                 bool
+	wantDirect             bool
 }
 
 func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
@@ -157,12 +156,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			}),
 			wantRequest: "storage.googleapis.com/state-bucket/environment/service/default.tfstate",
 			wantDirect:  true,
-		},
-		{
-			name:                        "GCS dependency experiment gate falls back",
-			backend:                     "gcs",
-			backendConfig:               gcsConfig,
-			disableDependencyExperiment: true,
 		},
 		{
 			name:          "GCS explicit optimization opt-out falls back",
@@ -464,9 +457,7 @@ inputs = {
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.NoDependencyFetchOutputFromState = testCase.optOut
 
-	if !testCase.disableDependencyExperiment {
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState))
-	}
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState))
 
 	if testCase.enableAzure {
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.AzureBackend))
