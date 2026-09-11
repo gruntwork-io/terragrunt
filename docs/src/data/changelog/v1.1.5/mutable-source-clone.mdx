@@ -9,11 +9,11 @@ A source marked [`mutable = true`](/features/caching/cas#immutable-by-default) n
 
 A cloned target shares the stored content until you write to it, so it occupies disk space only for the parts you change. On those volumes, marking a source `mutable` in every unit costs disk space only for what each unit edits.
 
-Time depends on the size of the files, since a clone costs per file and a copy costs in proportion to file size. These [micro-benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/cas/linkmode_benchmark_test.go) materialize an editable tree on APFS on an M3 Max. The module source is sized from representative catalog repositories, at 500 files totalling 7.3 MiB with a 2 KiB median:
+These [micro-benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/cas/linkmode_benchmark_test.go) time materializing an editable tree on APFS on an M3 Max, once copied as in earlier releases and once cloned.
 
-| Tree | Copied | Cloned |
-| --- | --- | --- |
-| Module source, 500 files, 7.3 MiB | 71ms | 81ms |
-| Vendored artifacts, 120 files, 40 MiB | 146ms | 23ms |
+| Tree | Before (copied) | After (cloned) | Change |
+| --- | --- | --- | --- |
+| 500 files, 7.3 MiB, most around 2 KiB | 71ms | 81ms | 14% slower |
+| 120 files, 40 MiB, 20 of them 2 MiB each | 146ms | 23ms | 84% faster |
 
-A source with build artifacts materializes about six times faster. A source of configuration alone takes about 10ms longer, in exchange for the disk it no longer duplicates.
+A clone takes about the same time for a file of any size, while a copy takes longer the bigger the file. A tree of small files takes about 10ms longer to materialize, and a tree with large files materializes about six times faster.
