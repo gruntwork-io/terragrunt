@@ -140,6 +140,7 @@ func TestOSVenvProvidesPlatformHandles(t *testing.T) {
 	assert.Equal(t, runtime.GOOS, v.Platform.GOOS)
 	assert.Equal(t, runtime.GOARCH, v.Platform.GOARCH)
 	assert.NotNil(t, v.Platform.UserHomeDir)
+	assert.NotNil(t, v.Platform.UserConfigDir)
 }
 
 func TestVenvPlatformBuilders(t *testing.T) {
@@ -147,15 +148,19 @@ func TestVenvPlatformBuilders(t *testing.T) {
 
 	wantHomeErr := errors.New("home lookup failed")
 	homeDir := func() (string, error) { return "", wantHomeErr }
+	configDir := func() (string, error) { return "/tmp/config", nil }
 	original := venv.OSVenv()
 
-	got := original.WithGOOS("plan9").WithGOARCH("mips").WithUserHomeDir(homeDir)
+	got := original.WithGOOS("plan9").WithGOARCH("mips").WithUserHomeDir(homeDir).WithUserConfigDir(configDir)
 
 	require.NotNil(t, got.Platform)
 	assert.Equal(t, "plan9", got.Platform.GOOS)
 	assert.Equal(t, "mips", got.Platform.GOARCH)
 	_, err := got.Platform.UserHomeDir()
 	require.ErrorIs(t, err, wantHomeErr)
+	gotConfigDir, err := got.Platform.UserConfigDir()
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/config", gotConfigDir)
 	assert.Equal(t, runtime.GOOS, original.Platform.GOOS)
 	assert.Equal(t, runtime.GOARCH, original.Platform.GOARCH)
 }
@@ -197,6 +202,9 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
 		(&venv.Venv{}).RequireUserHomeDir()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvUserConfigDirUnset, func() {
+		(&venv.Venv{}).RequireUserConfigDir()
+	})
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).RequirePlatform()
 	})
@@ -231,6 +239,9 @@ func TestVenvPlatformBuildersRequireAPlatform(t *testing.T) {
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).WithUserHomeDir(func() (string, error) { return "", nil })
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithUserConfigDir(func() (string, error) { return "", nil })
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).WithTempDir(func() string { return "" })
