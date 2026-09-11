@@ -133,7 +133,7 @@ func RunValidate(
 	}
 
 	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l, v.FS)
+		cleanupErr := worktrees.Cleanup(ctx, l, v)
 		if cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
@@ -328,7 +328,7 @@ func RunValidateInputs(
 	}
 
 	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l, v.FS)
+		cleanupErr := worktrees.Cleanup(ctx, l, v)
 		if cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
