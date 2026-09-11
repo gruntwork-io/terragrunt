@@ -580,12 +580,14 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 // TestModelScaffoldFinishedWithFilesListsGeneratedFiles verifies that a
 // scaffold finishing with an explicit file list names those files (and not a
 // hardcoded terragrunt.hcl) in the exit callout. It covers the singular
-// heading, the pluralized "files" heading, Windows-safe nested paths, and
-// the "... +N more" cap on long lists.
+// heading (top-level and nested, both relativized from the generation root),
+// the pluralized "files" heading, Windows-safe nested paths, and the
+// "... +N more" cap on long lists.
 func TestModelScaffoldFinishedWithFilesListsGeneratedFiles(t *testing.T) {
 	t.Parallel()
 
 	nested := filepath.Join("config", "common.hcl")
+	nestedHeading := "." + string(filepath.Separator) + nested + " scaffolded"
 
 	tests := []struct {
 		name        string
@@ -597,6 +599,12 @@ func TestModelScaffoldFinishedWithFilesListsGeneratedFiles(t *testing.T) {
 			name:        "singular names the file",
 			files:       []string{"root.hcl"},
 			wantContain: []string{"root.hcl scaffolded"},
+			wantAbsent:  []string{"files scaffolded", "terragrunt.hcl scaffolded", "... +"},
+		},
+		{
+			name:        "singular nested file is relativized from the generation root",
+			files:       []string{nested},
+			wantContain: []string{nestedHeading, nested},
 			wantAbsent:  []string{"files scaffolded", "terragrunt.hcl scaffolded", "... +"},
 		},
 		{

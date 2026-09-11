@@ -583,7 +583,7 @@ func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool, fi
 	heading := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(valuesBoxAccentGreen)).
 		Bold(true).
-		Render(scaffoldHeading(files))
+		Render(scaffoldHeading(outputDir, files))
 
 	summary := "Inputs are marked with `# TODO: fill in value` comments."
 
@@ -623,13 +623,14 @@ func formatScaffoldFileList(outputDir string, files []string) string {
 	return strings.Join(paths, "\n")
 }
 
-// scaffoldHeading titles the post-scaffold callout from the generated files:
-// the single file's base name when exactly one file was written, otherwise a
+// scaffoldHeading titles the post-scaffold callout from the generated files.
+// A single file is shown relativized from outputDir (the generation root)
+// via displayPath, matching the listed paths. Otherwise the heading is a
 // count with a pluralized "file"/"files".
-func scaffoldHeading(files []string) string {
+func scaffoldHeading(outputDir string, files []string) string {
 	n := len(files)
 	if n == 1 {
-		return filepath.Base(files[0]) + " scaffolded"
+		return displayPath(outputDir, filepath.Join(outputDir, files[0])) + " scaffolded"
 	}
 
 	return fmt.Sprintf("%d %s scaffolded", n, pluralize("file", "files", n))
