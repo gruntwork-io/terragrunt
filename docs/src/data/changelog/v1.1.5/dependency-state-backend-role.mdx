@@ -3,8 +3,6 @@ version: "v1.1.5"
 category: "bug-fixes"
 ---
 
-#### Direct dependency state reads use the backend assume_role
+#### Support backend assume_role during direct dependency state reads
 
-With the [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment enabled, the S3 direct state reader now keeps the resolved IAM role options in sync with the credential getter. Previously, `resolveOutputJSON` could clear the parsing context's IAM role before the S3 client was built, making the base identity inconsistent with the credentials the getter had already resolved. The backend's `assume_role.role_arn` was still chained on top, but the base identity it chained onto could be stale or empty.
-
-This affected cross-account setups where one IAM role handles planning and a separate role in the `remote_state` block's `assume_role` reads state.
+With [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) enabled, direct S3 state reads now preserve the resolved IAM role from the credential getter before chaining the backend's `assume_role`. Previously, `resolveOutputJSON` wiped `pctx.IAMRoleOptions` during cross-account dependency resolution, causing direct S3 state reads to fail with `403 AccessDenied`.
