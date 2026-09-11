@@ -135,7 +135,9 @@ type SourceRequest struct {
 // costs one extra pass: src is ingested again under [IngestRepair], which
 // writes the missing object back, and the link is retried. The second
 // failure is returned as it stands, so a source that can no longer supply
-// the object reports [MissingObjectError] rather than looping.
+// the object reports [MissingObjectError] rather than looping. Under
+// [WithOffline] there is no second pass: the miss is returned as an
+// [OfflineRepairError] instead of asking the remote the flag forbids.
 //
 // opts.Dir is the destination. opts.Mutable selects copy vs hardlink
 // for the final link, matching the git path.
@@ -185,6 +187,10 @@ func (c *CAS) FetchSource(
 			var missing *MissingObjectError
 			if !errors.As(err, &missing) {
 				return err
+			}
+
+			if c.probeMode == ProbeModeOffline {
+				return &OfflineRepairError{Missing: missing, Source: RedactURL(src.URL)}
 			}
 
 			l.Warnf(

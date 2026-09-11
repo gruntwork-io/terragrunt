@@ -1329,6 +1329,10 @@ func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
 	require.Error(t, err)
 	require.NotErrorIs(t, err, cas.ErrCASOffline, "the probe is answered; the store fails on the content behind it")
 
+	var refused *cas.OfflineRepairError
+
+	require.ErrorAs(t, err, &refused, "the flag forbids the re-ingest that would repair the store")
+
 	assert.NoFileExists(t, filepath.Join(offline.DownloadDir, "main.tf"), "the standard getter must not have fetched the source")
 }
 
