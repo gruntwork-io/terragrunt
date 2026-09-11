@@ -1,0 +1,12 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Run report includes cause for units that fail before OpenTofu/Terraform
+
+Units that failed during config evaluation or dependency output resolution were
+reported as a run error with an empty cause. The report now records the
+underlying error text in `Cause`.
+
+Thanks to [@Tensho](https://github.com/Tensho) for contributing this fix!
