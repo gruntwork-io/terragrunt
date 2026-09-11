@@ -82,7 +82,7 @@ func RunGenerate(
 		}
 
 		defer func() {
-			cleanupErr := wts.Cleanup(ctx, l, v.FS)
+			cleanupErr := wts.Cleanup(ctx, l, v)
 			if cleanupErr != nil {
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}

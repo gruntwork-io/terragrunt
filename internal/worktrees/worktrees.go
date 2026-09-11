@@ -41,8 +41,6 @@ const (
 type Worktrees struct {
 	// WorktreePairs maps Git expression strings to their corresponding worktree pairs.
 	WorktreePairs map[string]*WorktreePair
-	// gitRunner is the Git runner used to create and manage the worktrees.
-	gitRunner *git.GitRunner
 	// OriginalWorkingDir is the user's working directory before worktrees were created.
 	OriginalWorkingDir string
 	// ReadingAffectedStacks holds stacks identified during generation as affected by
@@ -108,32 +106,34 @@ func (w *Worktrees) DisplayPath(worktreePath string) string {
 }
 
 // Cleanup removes all created Git worktrees and their temporary directories.
-func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) error {
-	// Get repo remote for telemetry
-	var repoRemote string
-	if w.gitRunner != nil {
-		repoRemote = w.gitRunner.GetRemoteURL(ctx)
+func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, v *venv.Venv) error {
+	toRemove := w.worktreesToRemove()
+
+	if len(toRemove) == 0 {
+		return nil
 	}
+
+	gitRunner, err := git.NewGitRunner(v)
+	if err != nil {
+		return fmt.Errorf("failed to create Git runner for worktree cleanup: %w", err)
+	}
+
+	gitRunner = gitRunner.WithWorkDir(w.OriginalWorkingDir)
 
 	return filter.TraceGitWorktreesCleanup(
 		ctx,
 		len(w.WorktreePairs),
-		repoRemote,
+		gitRunner.GetRemoteURL(ctx),
 		func(ctx context.Context) error {
-			toRemove := w.worktreesToRemove()
-			if len(toRemove) == 0 {
-				return nil
-			}
-
 			g, groupCtx := errgroup.WithContext(ctx)
 			// Every worktree was created under the same temporary directory, so
 			// the first one's filesystem sizes removal for all of them.
-			g.SetLimit(min(vfs.FSWorkersFor(fsys, toRemove[0].Path), len(toRemove)))
+			g.SetLimit(min(vfs.FSWorkersFor(v.FS, toRemove[0].Path), len(toRemove)))
 
 			for _, worktree := range toRemove {
 				g.Go(func() error {
 					// Skip removal if the worktree path doesn't exist (may have been cleaned up already)
-					if _, err := fsys.Stat(worktree.Path); errors.Is(err, fs.ErrNotExist) {
+					if _, err := v.FS.Stat(worktree.Path); errors.Is(err, fs.ErrNotExist) {
 						l.Debugf(
 							"Worktree path %s already removed, skipping cleanup",
 							worktree.Path,
@@ -147,7 +147,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, fsys vfs.FS) erro
 						worktree.Ref,
 						worktree.Path,
 						func(ctx context.Context) error {
-							return w.gitRunner.RemoveWorktree(ctx, worktree.Path)
+							return gitRunner.RemoveWorktree(ctx, worktree.Path)
 						},
 					)
 					if err != nil {
@@ -538,13 +538,12 @@ func filterPaths(filters filter.Filters) ([]string, bool) {
 	return paths, true
 }
 
-// newEmptyWorktrees returns a Worktrees with no pairs, for a run that failed
-// before it had any.
-func newEmptyWorktrees(workingDir string, gitRunner *git.GitRunner) *Worktrees {
+// newEmptyWorktrees returns a Worktrees with no pairs, for a run with no Git
+// expressions or one that failed before it had any pairs.
+func newEmptyWorktrees(workingDir string) *Worktrees {
 	return &Worktrees{
 		WorktreePairs:      make(map[string]*WorktreePair),
 		OriginalWorkingDir: workingDir,
-		gitRunner:          gitRunner,
 	}
 }
 
@@ -706,10 +705,7 @@ func NewWorktrees(
 	experiments := opts.Experiments
 
 	if len(gitExpressions) == 0 {
-		return &Worktrees{
-			WorktreePairs:      make(map[string]*WorktreePair),
-			OriginalWorkingDir: workingDir,
-		}, nil
+		return newEmptyWorktrees(workingDir), nil
 	}
 
 	gitRefs := gitExpressions.UniqueGitRefs()
@@ -741,7 +737,7 @@ func NewWorktrees(
 			// of each one is checked out, so it runs before any of them are.
 			survey, err := surveyGitExpressions(ctx, v, gitRunner, gitExpressions, gitRefs, repoRemote)
 			if err != nil {
-				worktrees = newEmptyWorktrees(workingDir, gitRunner)
+				worktrees = newEmptyWorktrees(workingDir)
 				outerErr = err
 
 				return err
@@ -766,42 +762,22 @@ func NewWorktrees(
 				experiments,
 				pathspecs,
 			)
+
+			worktrees = &Worktrees{
+				WorktreePairs:      survey.worktreePairs(gitExpressions, refsToPaths),
+				OriginalWorkingDir: workingDir,
+			}
+
 			if err != nil {
-				worktrees = newEmptyWorktrees(workingDir, gitRunner)
 				outerErr = err
 
 				return err
 			}
 
-			worktreePairs := make(map[string]*WorktreePair, len(gitExpressions))
 			for _, gitExpression := range gitExpressions {
-				expansion := survey.expansions[gitExpression.String()]
-
-				worktreePairs[gitExpression.String()] = &WorktreePair{
-					GitExpression: gitExpression,
-					Diffs:         expansion.diffs,
-					FromFilters:   expansion.fromFilters,
-					ToFilters:     expansion.toFilters,
-					FromWorktree: Worktree{
-						Ref:  gitExpression.FromRef,
-						Path: refsToPaths[gitExpression.FromRef],
-					},
-					ToWorktree: Worktree{
-						Ref:  gitExpression.ToRef,
-						Path: refsToPaths[gitExpression.ToRef],
-					},
-				}
-
-				// Record telemetry for diff results
-				if diffs := expansion.diffs; diffs != nil {
+				if diffs := survey.expansions[gitExpression.String()].diffs; diffs != nil {
 					recordDiffTelemetry(ctx, diffs)
 				}
-			}
-
-			worktrees = &Worktrees{
-				WorktreePairs:      worktreePairs,
-				OriginalWorkingDir: workingDir,
-				gitRunner:          gitRunner,
 			}
 
 			return nil
@@ -813,12 +789,43 @@ func NewWorktrees(
 
 	// cleanup worktrees
 	if outerErr != nil && worktrees != nil {
-		if cleanupErr := worktrees.Cleanup(ctx, l, v.FS); cleanupErr != nil {
+		if cleanupErr := worktrees.Cleanup(ctx, l, v); cleanupErr != nil {
 			l.Warnf("failed to cleanup worktrees: %v", cleanupErr)
 		}
 	}
 
 	return worktrees, outerErr
+}
+
+// worktreePairs pairs each Git expression with its expansion and the worktrees
+// of its references. A reference absent from refsToPaths gets a worktree with
+// no path.
+func (s *gitSurvey) worktreePairs(
+	gitExpressions filter.GitExpressions,
+	refsToPaths map[string]string,
+) map[string]*WorktreePair {
+	pairs := make(map[string]*WorktreePair, len(gitExpressions))
+
+	for _, gitExpression := range gitExpressions {
+		expansion := s.expansions[gitExpression.String()]
+
+		pairs[gitExpression.String()] = &WorktreePair{
+			GitExpression: gitExpression,
+			Diffs:         expansion.diffs,
+			FromFilters:   expansion.fromFilters,
+			ToFilters:     expansion.toFilters,
+			FromWorktree: Worktree{
+				Ref:  gitExpression.FromRef,
+				Path: refsToPaths[gitExpression.FromRef],
+			},
+			ToWorktree: Worktree{
+				Ref:  gitExpression.ToRef,
+				Path: refsToPaths[gitExpression.ToRef],
+			},
+		}
+	}
+
+	return pairs
 }
 
 // expandDiffPaths processes a list of added or removed paths from a worktree diff, creating filter
@@ -1054,7 +1061,7 @@ func createGitWorktree(
 	err = filter.TraceGitWorktreeCreate(
 		ctx, opts.ref, tmpDir, opts.repoRemote, opts.repoBranch, opts.repoCommit,
 		func(ctx context.Context) error {
-			return materializeGitWorktree(ctx, v, gitRunner, registerMu, tmpDir, opts, altering)
+			return materializeGitWorktree(ctx, l, v, gitRunner, registerMu, tmpDir, opts, altering)
 		})
 	if err != nil {
 		if cleanErr := v.FS.RemoveAll(tmpDir); cleanErr != nil {
@@ -1089,9 +1096,11 @@ func worktreeTempDir(v *venv.Venv, ref string) (string, error) {
 }
 
 // materializeGitWorktree registers dir as a worktree for the reference and puts
-// the reference's files in it.
+// the reference's files in it. A worktree registered but left unfilled is
+// removed again.
 func materializeGitWorktree(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	gitRunner *git.GitRunner,
 	registerMu *sync.Mutex,
@@ -1112,6 +1121,24 @@ func materializeGitWorktree(
 		return nil
 	}
 
+	if err := fillGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
+		unregisterWorktree(ctx, l, gitRunner, registerMu, dir)
+
+		return err
+	}
+
+	return nil
+}
+
+// fillGitWorktree puts the reference's files in dir, a worktree registered
+// without a checkout.
+func fillGitWorktree(
+	ctx context.Context,
+	v *venv.Venv,
+	gitRunner *git.GitRunner,
+	dir string,
+	opts *worktreeOpts,
+) error {
 	if err := extractGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
 		return err
 	}
@@ -1143,6 +1170,25 @@ func registerWorktree(
 	defer registerMu.Unlock()
 
 	return gitRunner.CreateDetachedWorktree(ctx, v, dir, ref, checkout)
+}
+
+// unregisterWorktree removes the worktree registered at dir, logging a failure
+// to do so. It holds registerMu because git deletes the repository's
+// `.git/worktrees/` directory along with its last registration, while a
+// concurrent `git worktree add` may be creating an entry in it.
+func unregisterWorktree(
+	ctx context.Context,
+	l log.Logger,
+	gitRunner *git.GitRunner,
+	registerMu *sync.Mutex,
+	dir string,
+) {
+	registerMu.Lock()
+	defer registerMu.Unlock()
+
+	if err := gitRunner.RemoveWorktree(ctx, dir); err != nil {
+		l.Warnf("failed to remove Git worktree %s: %v", dir, err)
+	}
 }
 
 // extractGitWorktree streams the archive of ref into dir. Git writes the

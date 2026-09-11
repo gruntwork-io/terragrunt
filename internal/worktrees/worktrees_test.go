@@ -43,7 +43,7 @@ func TestNewWorktrees(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger(), vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -87,7 +87,7 @@ func TestNewWorktreesForSeveralRefsWithRacing(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), vfs.NewOSFS()))
+		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv()))
 	})
 
 	require.Len(t, w.WorktreePairs, 2)
@@ -222,7 +222,7 @@ func TestNewWorktreesFilteredPathsOnly(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), v.FS))
+				require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), v))
 			})
 
 			materialized := 0
@@ -277,6 +277,59 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.Error(t, err)
+}
+
+// TestNewWorktreesPartialFailureCleanup pins that a reference failing to
+// materialize leaves neither its own worktree nor the ones created beside it
+// in the temporary directory or in the repository's worktree list.
+func TestNewWorktreesPartialFailureCleanup(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
+	}
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	tempDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, repoDir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, "unit"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(repoDir, "unit", "terragrunt.hcl"),
+		[]byte("inputs = {}\n"),
+		0o600,
+	))
+
+	// Extraction refuses a link pointing out of the worktree, so HEAD~1 fails
+	// to materialize after it is registered, while HEAD without the link
+	// succeeds.
+	link := filepath.Join(repoDir, "escape")
+	require.NoError(t, os.Symlink("../outside", link))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
+
+	require.NoError(t, os.Remove(link))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Remove link"))
+
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
+
+	_, err = worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
+		WorkingDir:     repoDir,
+		GitExpressions: filters.UniqueGitFilters(),
+	})
+	require.ErrorIs(t, err, vfs.ErrSymlinkEscapes)
+
+	entries, err := os.ReadDir(tempDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+
+	// Git deletes its worktrees directory along with the last registration.
+	assert.NoDirExists(t, filepath.Join(repoDir, ".git", "worktrees"))
 }
 
 func TestExpressionExpansion(t *testing.T) {
