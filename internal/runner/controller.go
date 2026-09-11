@@ -28,6 +28,7 @@ type Controller struct {
 	runner      UnitRunnerFunc
 	readyCh     chan struct{}
 	unitsMap    map[string]*component.Unit
+	unitErrs    *xsync.Map[string, error]
 	concurrency int
 }
 
@@ -52,12 +53,21 @@ func WithMaxConcurrency(concurrency int) ControllerOption {
 	}
 }
 
+// UnitErr returns the error recorded for the unit at path during [Controller.Run],
+// or nil if the unit did not run or succeeded. It must not be called while Run
+// is still executing.
+func (dr *Controller) UnitErr(path string) error {
+	err, _ := dr.unitErrs.Load(path)
+	return err
+}
+
 // NewController creates a new Controller with the given options and a pre-built queue, which must not be nil.
 func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOption) *Controller {
 	dr := &Controller{
 		q:           q,
 		readyCh:     make(chan struct{}, 1), // buffered to avoid blocking
 		concurrency: options.DefaultParallelism,
+		unitErrs:    xsync.NewMap[string, error](),
 	}
 	unitsMap := make(map[string]*component.Unit)
 
@@ -85,10 +95,15 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			"ignore_dependency_order": dr.q.IgnoreDependencyOrder,
 		}, func(childCtx context.Context, l log.Logger) error {
 			var (
-				wg      sync.WaitGroup
-				sem     = make(chan struct{}, dr.concurrency)
-				results = xsync.NewMap[string, error]()
+				wg  sync.WaitGroup
+				sem = make(chan struct{}, dr.concurrency)
 			)
+
+			// Fresh map per execution, kept on the controller after Run returns:
+			// the report sweep must read only this execution's errors, never
+			// stale ones from a prior Run on the same controller.
+			results := xsync.NewMap[string, error]()
+			dr.unitErrs = results
 
 			if dr.runner == nil {
 				return ErrRunnerNotSet
