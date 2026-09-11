@@ -67,26 +67,6 @@ type WorktreeOpts struct {
 	Experiments    experiment.Experiments
 }
 
-// WorkingDir returns the path within a worktree that corresponds to the user's
-// original working directory. This is used for display purposes after discovery completes.
-func (w *Worktrees) WorkingDir(ctx context.Context, worktreePath string) string {
-	if w.gitRunner == nil {
-		return worktreePath
-	}
-
-	repoRoot, err := w.gitRunner.GetRepoRoot(ctx)
-	if err != nil {
-		return worktreePath
-	}
-
-	relPath, err := filepath.Rel(repoRoot, w.OriginalWorkingDir)
-	if err != nil || relPath == "." {
-		return worktreePath
-	}
-
-	return filepath.Join(worktreePath, relPath)
-}
-
 // DisplayPath translates a worktree path to the equivalent path in the original repository
 // for user-facing output. This is useful for logging and reporting where users expect to see
 // paths relative to their working directory, not temporary worktree paths.
@@ -300,11 +280,23 @@ func (wp *WorktreePair) Expand(fsys vfs.FS) (filter.Filters, filter.Filters, err
 	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
 
 	// Build simple expressions that can be determined simply from the diffs.
-	if err := expandDiffPaths(fsys, diffs.Removed, toPath, &fromExpressions, &toExpressions); err != nil {
+	if err := expandDiffPaths(
+		fsys,
+		diffs.Removed,
+		toPath,
+		&fromExpressions,
+		&toExpressions,
+	); err != nil {
 		return nil, nil, err
 	}
 
-	if err := expandDiffPaths(fsys, diffs.Added, toPath, &toExpressions, &toExpressions); err != nil {
+	if err := expandDiffPaths(
+		fsys,
+		diffs.Added,
+		toPath,
+		&toExpressions,
+		&toExpressions,
+	); err != nil {
 		return nil, nil, err
 	}
 
@@ -651,7 +643,11 @@ func createGitWorktrees(
 	refsToPaths := make(map[string]string, len(gitRefs))
 
 	for _, ref := range gitRefs {
-		tmpDir, err := vfs.MkdirTemp(v.FS, v.Platform.TempDir(), "terragrunt-worktree-"+sanitizeRef(ref)+"-")
+		tmpDir, err := vfs.MkdirTemp(
+			v.FS,
+			v.Platform.TempDir(),
+			"terragrunt-worktree-"+sanitizeRef(ref)+"-",
+		)
 		if err != nil {
 			errs = append(
 				errs,

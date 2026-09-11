@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -32,13 +31,10 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	exec           vexec.Exec
-	env            map[string]string
-	repoRootMu     *sync.Mutex
-	GitPath        string
-	WorkDir        string
-	repoRoot       string
-	repoRootCached bool
+	exec    vexec.Exec
+	env     map[string]string
+	GitPath string
+	WorkDir string
 }
 
 // NewGitRunner creates a new GitRunner instance. It resolves the `git` binary
@@ -59,10 +55,9 @@ func NewGitRunner(v *venv.Venv) (*GitRunner, error) {
 	}
 
 	return &GitRunner{
-		GitPath:    gitPath,
-		exec:       v.Exec,
-		env:        v.Env,
-		repoRootMu: &sync.Mutex{},
+		GitPath: gitPath,
+		exec:    v.Exec,
+		env:     v.Env,
 	}, nil
 }
 
@@ -74,17 +69,8 @@ func ExtractRepoName(repo string) string {
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	// GetRepoRoot writes the memo fields under repoRootMu, so the copy must
-	// hold the same lock to avoid racing with a concurrent memoization.
-	g.repoRootMu.Lock()
 	newRunner := *g
-	g.repoRootMu.Unlock()
-
 	newRunner.WorkDir = workDir
-	// A different WorkDir may resolve to a different root, so reset the memo.
-	newRunner.repoRootMu = &sync.Mutex{}
-	newRunner.repoRoot = ""
-	newRunner.repoRootCached = false
 
 	return &newRunner
 }
@@ -100,33 +86,6 @@ func (g *GitRunner) RequiresWorkDir() error {
 	}
 
 	return nil
-}
-
-// GetRepoRoot returns the root directory of the git repository. The
-// successful result is memoized per-runner so subsequent calls skip the
-// `git rev-parse` fork; failures are not cached so callers can retry.
-// WithWorkDir clears the memo so a derived runner resolves its own root.
-func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
-	if err := g.RequiresWorkDir(); err != nil {
-		return "", err
-	}
-
-	g.repoRootMu.Lock()
-	defer g.repoRootMu.Unlock()
-
-	if g.repoRootCached {
-		return g.repoRoot, nil
-	}
-
-	root, err := g.runRepoRoot(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	g.repoRoot = root
-	g.repoRootCached = true
-
-	return root, nil
 }
 
 // LsRemoteResult represents the output of git ls-remote
@@ -820,27 +779,6 @@ func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
 
 	if err := cmd.Run(); err != nil {
 		return "sha1", nil //nolint:nilerr // older Git lacks --show-object-format, and only ever wrote sha1
-	}
-
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-// runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
-// GetRepoRoot for the memoized entry point.
-func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
-	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
-
-	var stdout, stderr bytes.Buffer
-
-	cmd.SetStdout(&stdout)
-	cmd.SetStderr(&stderr)
-
-	if err := cmd.Run(); err != nil {
-		return "", &WrappedError{
-			Op:      "git_rev_parse",
-			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
-		}
 	}
 
 	return strings.TrimSpace(stdout.String()), nil

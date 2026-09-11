@@ -42,7 +42,7 @@ func newBoundaryFixture(t *testing.T) (boundaryFixture, *venv.Venv) {
 
 	// The venv answers the git top-level probe with repoRoot, so traversal
 	// bounds to the repository root when no discovery boundary is configured.
-	v := memGitTopLevelVenv(t, repoRoot)
+	v := memRepoRootVenv(t, repoRoot)
 
 	f := boundaryFixture{
 		repoRoot:    repoRoot,
@@ -77,7 +77,11 @@ dependency "external" {
 	return f, v
 }
 
-func (f *boundaryFixture) discover(t *testing.T, v *venv.Venv, query, boundary string) (component.Components, error) {
+func (f *boundaryFixture) discover(
+	t *testing.T,
+	v *venv.Venv,
+	query, boundary string,
+) (component.Components, error) {
 	t.Helper()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
@@ -178,7 +182,11 @@ func TestDiscoveryBoundary_EnclosesGraphDiscovery(t *testing.T) {
 			// assertion below is meaningful.
 			configs, err := f.discover(t, v, query, "")
 			require.NoError(t, err)
-			assert.ElementsMatch(t, resolve(tc.unbounded), configs.Filter(component.UnitKind).Paths())
+			assert.ElementsMatch(
+				t,
+				resolve(tc.unbounded),
+				configs.Filter(component.UnitKind).Paths(),
+			)
 
 			// "." resolves against the working directory (staging).
 			configs, err = f.discover(t, v, query, ".")
@@ -241,11 +249,15 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
 		require.NoError(t, err)
 
-		return discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
-			WorkingDir:        f.stagingDir,
-			DiscoveryBoundary: boundary,
-			Filters:           filters,
-		})
+		return discovery.NewForDiscoveryCommand(
+			logger.CreateLogger(),
+			v.FS,
+			&discovery.DiscoveryCommandOptions{
+				WorkingDir:        f.stagingDir,
+				DiscoveryBoundary: boundary,
+				Filters:           filters,
+			},
+		)
 	}
 
 	testCases := []struct {
@@ -285,13 +297,16 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		require.NotNil(t, d)
 	})
 
-	t.Run("dependency direction accepts a boundary outside the working directory", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"dependency direction accepts a boundary outside the working directory",
+		func(t *testing.T) {
+			t.Parallel()
 
-		d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir)
-		require.NoError(t, err)
-		require.NotNil(t, d)
-	})
+			d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir)
+			require.NoError(t, err)
+			require.NotNil(t, d)
+		},
+	)
 }
 
 // Test that the boundary survives filter evaluation when relationships are
@@ -335,7 +350,10 @@ func TestDiscoveryBoundary_SurvivesFilterEvaluationWithRelationships(t *testing.
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
-			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{" + f.edgeDir + "}..."})
+			filters, err := filter.ParseFilterQueries(
+				logger.CreateLogger(),
+				[]string{"{" + f.edgeDir + "}..."},
+			)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(f.stagingDir).WithFilters(filters).WithRelationships()
@@ -503,7 +521,12 @@ func TestDiscoveryBoundary_UnfilteredRunWithholdsOnlyWhatTraversalReached(t *tes
 		depPaths = append(depPaths, dep.Path())
 	}
 
-	assert.Equal(t, []string{f.externalDir}, depPaths, "the edge that orders edge against its dependency stands")
+	assert.Equal(
+		t,
+		[]string{f.externalDir},
+		depPaths,
+		"the edge that orders edge against its dependency stands",
+	)
 }
 
 // Test that a dependency the boundary excludes is still read and still linked.

@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 )
 
 const headHash = "deadbeefcafefacedeadbeefcafefacedeadbeef"
@@ -95,7 +94,8 @@ func TestGitRunner_Clone(t *testing.T) {
 			Stderr:   []byte("fatal: repository not found"),
 		}))
 
-		err := runner.WithWorkDir(t.TempDir()).Clone(ctx, "https://example.com/nonexistent.git", false, 1, "")
+		err := runner.WithWorkDir(t.TempDir()).
+			Clone(ctx, "https://example.com/nonexistent.git", false, 1, "")
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -358,14 +358,6 @@ func TestGitRunner_ArgvConstruction(t *testing.T) {
 			want: []string{"cat-file", "-e", headHash},
 		},
 		{
-			name: "repo root",
-			invoke: func(ctx context.Context, r *git.GitRunner) error {
-				_, err := r.GetRepoRoot(ctx)
-				return err
-			},
-			want: []string{"rev-parse", "--show-toplevel"},
-		},
-		{
 			name: "add",
 			invoke: func(ctx context.Context, r *git.GitRunner) error {
 				return r.Add(ctx, "a.txt", "b.txt")
@@ -414,38 +406,6 @@ func TestGitRunner_ArgvConstruction(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
-}
-
-func TestGitRunner_WithWorkDirGetRepoRootWithRacing(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	runner := newMemRunner(t, staticResult(vexec.Result{Stdout: []byte(dir + "\n")}))
-	runner = runner.WithWorkDir(dir)
-
-	// GetRepoRoot memoizes on first success, so only that first call writes.
-	// Derive a fresh runner per round and race the memoizing call against a
-	// concurrent WithWorkDir copy of the same runner.
-	const rounds = 50
-
-	g, ctx := errgroup.WithContext(t.Context())
-
-	for range rounds {
-		fresh := runner.WithWorkDir(dir)
-
-		g.Go(func() error {
-			_, err := fresh.GetRepoRoot(ctx)
-
-			return err
-		})
-
-		g.Go(func() error {
-			return fresh.WithWorkDir(dir).RequiresWorkDir()
-		})
-	}
-
-	require.NoError(t, g.Wait())
 }
 
 // newMemRunner returns a runner backed by an in-memory exec dispatching every

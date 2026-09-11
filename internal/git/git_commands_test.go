@@ -47,85 +47,6 @@ func TestNewGitRunner(t *testing.T) {
 	})
 }
 
-func TestGitRunner_WithWorkDir(t *testing.T) {
-	t.Parallel()
-
-	t.Run("resets memoized repo root", func(t *testing.T) {
-		t.Parallel()
-
-		var dirs []string
-
-		parent := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
-			dirs = append(dirs, inv.Dir)
-
-			return vexec.Result{Stdout: []byte(inv.Dir + "\n")}
-		}).WithWorkDir("/repo/a")
-
-		root, err := parent.GetRepoRoot(t.Context())
-		require.NoError(t, err)
-		assert.Equal(t, "/repo/a", root)
-
-		root, err = parent.WithWorkDir("/repo/b").GetRepoRoot(t.Context())
-		require.NoError(t, err)
-		assert.Equal(t, "/repo/b", root)
-		assert.Equal(t, []string{"/repo/a", "/repo/b"}, dirs)
-	})
-}
-
-func TestGitRunner_GetRepoRoot(t *testing.T) {
-	t.Parallel()
-
-	t.Run("memoizes success", func(t *testing.T) {
-		t.Parallel()
-
-		calls := 0
-		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
-			calls++
-
-			return vexec.Result{Stdout: []byte("/repo\n")}
-		}).WithWorkDir("/repo/unit")
-
-		for range 2 {
-			root, err := runner.GetRepoRoot(t.Context())
-			require.NoError(t, err)
-			assert.Equal(t, "/repo", root)
-		}
-
-		assert.Equal(t, 1, calls)
-	})
-
-	t.Run("retries failure", func(t *testing.T) {
-		t.Parallel()
-
-		calls := 0
-		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
-			calls++
-			if calls == 1 {
-				return vexec.Result{ExitCode: 128}
-			}
-
-			return vexec.Result{Stdout: []byte("/repo\n")}
-		}).WithWorkDir("/repo/unit")
-
-		_, err := runner.GetRepoRoot(t.Context())
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
-
-		root, err := runner.GetRepoRoot(t.Context())
-		require.NoError(t, err)
-		assert.Equal(t, "/repo", root)
-		assert.Equal(t, 2, calls)
-	})
-
-	t.Run("missing workdir", func(t *testing.T) {
-		t.Parallel()
-
-		runner := newMemRunner(t, staticResult(vexec.Result{}))
-
-		_, err := runner.GetRepoRoot(t.Context())
-		require.ErrorIs(t, err, git.ErrNoWorkDir)
-	})
-}
-
 func TestGitRunner_LatestReleaseTag(t *testing.T) {
 	t.Parallel()
 
@@ -360,7 +281,10 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 		t.Run(tc.name+" command failure", func(t *testing.T) {
 			t.Parallel()
 
-			runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
+			runner := newMemRunner(
+				t,
+				staticResult(vexec.Result{ExitCode: 128}),
+			).WithWorkDir("/repo")
 
 			err := tc.invoke(t.Context(), runner)
 			require.ErrorIs(t, err, git.ErrCommandSpawn)
