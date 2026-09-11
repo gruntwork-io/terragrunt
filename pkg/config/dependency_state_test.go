@@ -343,6 +343,53 @@ remote_state {
 	assert.NotContains(t, requestedRoles, callerRoleARN)
 }
 
+// TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput verifies fallback to native output when direct S3 read fails.
+func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T) {
+	t.Parallel()
+
+	const backendRoleARN = "arn:aws:iam::999999999999:role/backend-state-reader"
+
+	recorder := newDependencyStateRecorder(t, 0, nil)
+	recorder.respond = func(req *http.Request) *http.Response {
+		if strings.Contains(req.URL.Host, "sts") {
+			return vhttp.Respond(http.StatusOK, stsAssumeRoleResponse(backendRoleARN), nil)
+		}
+
+		if strings.Contains(req.URL.Host, "s3") {
+			return vhttp.Respond(http.StatusInternalServerError, []byte("Internal Server Error"), nil)
+		}
+
+		return vhttp.Respond(http.StatusNotFound, nil, nil)
+	}
+
+	cfg, err := parseDependencyStateFixture(
+		t,
+		recorder,
+		"s3",
+		fmt.Sprintf(`
+        bucket              = "state-bucket"
+        key                 = "service.tfstate"
+        region              = "us-east-1"
+        endpoint            = "https://s3.example.com"
+        force_path_style    = true
+        skip_credentials_validation = true
+        assume_role = {
+          role_arn = %q
+        }`, backendRoleARN),
+		map[string]string{
+			"AWS_ACCESS_KEY_ID":     "base-access-key",
+			"AWS_SECRET_ACCESS_KEY": "base-secret-key",
+		},
+		false,
+		"",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+
+	outputs := recorder.outputInvocations()
+	require.Len(t, outputs, 1, "direct read failure must trigger native output retrieval")
+}
+
 func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
 
