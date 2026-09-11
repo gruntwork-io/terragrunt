@@ -34,21 +34,23 @@ var subTemplates = func() *template.Template {
 }()
 
 // tabFlusher is the minimal subset of *tabwriter.Writer that formatOutput uses.
-// It exists so tests can swap newTabFlusher for a stub whose Flush() returns
-// a controlled error.
+// It exists so a test can give a Render a stub whose Flush() returns a
+// controlled error.
 type tabFlusher interface {
 	io.Writer
 	Flush() error
 }
 
-var newTabFlusher = func(w io.Writer) tabFlusher {
-	return tabwriter.NewWriter(w, tabMinWidth, tabWidth, tabPadding, ' ', 0)
+type Render struct {
+	newTabFlusher func(w io.Writer) tabFlusher
 }
 
-type Render struct{}
-
 func NewRender() *Render {
-	return &Render{}
+	return &Render{
+		newTabFlusher: func(w io.Writer) tabFlusher {
+			return tabwriter.NewWriter(w, tabMinWidth, tabWidth, tabPadding, ' ', 0)
+		},
+	}
 }
 
 // List implements [view.Render].
@@ -80,7 +82,7 @@ func (render *Render) buildTemplate(templ string, customFuncs map[string]any) *t
 
 func (render *Render) formatOutput(t *template.Template, data any) (string, error) {
 	out := new(bytes.Buffer)
-	tabOut := newTabFlusher(out)
+	tabOut := render.newTabFlusher(out)
 
 	if err := t.ExecuteTemplate(tabOut, "template", data); err != nil {
 		return "", fmt.Errorf("failed to execute template: %w", err)
