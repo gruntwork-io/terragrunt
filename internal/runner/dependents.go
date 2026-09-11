@@ -50,7 +50,7 @@ func FindDependentUnits(
 // or the parents of the processed includes when git detection fails.
 func discoverPathsToCheck(
 	ctx context.Context,
-	l log.Logger,
+	_ log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	terragruntConfig *config.TerragruntConfig,

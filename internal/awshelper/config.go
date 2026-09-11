@@ -309,14 +309,17 @@ func AssumeIamRole(
 
 	region := cmp.Or(getRegionFromEnv(v.Env), defaultAWSRegion)
 
-	// Set user agent to include terragrunt version
-	//nolint:forbidigo // This is the wrapper the rule points callers at; WithHTTPClient below carries the venv's client.
-	cfg, err := config.LoadDefaultConfig(
-		ctx,
+	configOptions := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
-		config.WithAppID("terragrunt/"+version.GetVersion()),
+		config.WithAppID("terragrunt/" + version.GetVersion()),
 		config.WithHTTPClient(AWSBuildableClient(v.HTTP)),
-	)
+	}
+	if envCreds := createCredentialsFromEnv(v.Env); envCreds != nil {
+		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
+	}
+
+	//nolint:forbidigo // This is the wrapper the rule points callers at; WithHTTPClient below carries the venv's client.
+	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("error loading AWS config: %w", err)
 	}

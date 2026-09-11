@@ -1707,6 +1707,9 @@ func resolveOutputJSON(
 		return nil, "", err
 	}
 
+	// Sync parsing context with credential getter's assumed role for direct state readers.
+	pctx.IAMRoleOptions = mergedIAM
+
 	// Match the normal runner: output-specific environment variables are the
 	// final override after auth-provider and IAM/STS credentials.
 	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)

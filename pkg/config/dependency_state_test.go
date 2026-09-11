@@ -7,6 +7,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -144,6 +146,201 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 			assert.Equal(t, testCase.wantRequest, requestPaths[0])
 		})
 	}
+}
+
+// TestDependencyStateS3AssumeRoleUsedForDirectRead verifies backend assume_role.role_arn is used for direct S3 read (issue #4979).
+func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
+	t.Parallel()
+
+	const backendRoleARN = "arn:aws:iam::999999999999:role/backend-state-reader"
+
+	var (
+		rolesMu        sync.Mutex
+		requestedRoles []string
+	)
+
+	recordRole := func(roleARN string) {
+		rolesMu.Lock()
+		defer rolesMu.Unlock()
+
+		requestedRoles = append(requestedRoles, roleARN)
+	}
+
+	recorder := newDependencyStateRecorder(t, 0, nil)
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+
+	cfg, err := parseDependencyStateFixture(
+		t,
+		recorder,
+		"s3",
+		fmt.Sprintf(`
+        bucket              = "state-bucket"
+        key                 = "service.tfstate"
+        region              = "us-east-1"
+        endpoint            = "https://s3.example.com"
+        force_path_style    = true
+        skip_credentials_validation = true
+        assume_role = {
+          role_arn = %q
+        }`, backendRoleARN),
+		map[string]string{
+			"AWS_ACCESS_KEY_ID":     "base-access-key",
+			"AWS_SECRET_ACCESS_KEY": "base-secret-key",
+		},
+		false,
+		"",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "from-assumed-role", cfg.Inputs["result"])
+
+	requestPaths := recorder.requestPaths()
+	stsIdx := slices.IndexFunc(requestPaths, func(p string) bool {
+		return strings.Contains(p, "sts")
+	})
+	s3Idx := slices.IndexFunc(requestPaths, func(p string) bool {
+		return strings.Contains(p, "s3.example.com")
+	})
+
+	require.GreaterOrEqual(t, stsIdx, 0, "an STS AssumeRole request must be made for the backend role")
+	require.GreaterOrEqual(t, s3Idx, 0, "an S3 GetObject request must be made")
+	assert.Less(t, stsIdx, s3Idx, "STS role assumption must precede the S3 state read")
+
+	rolesMu.Lock()
+	defer rolesMu.Unlock()
+
+	require.Equal(t, []string{backendRoleARN}, requestedRoles)
+}
+
+// stsAndS3Responder returns an HTTP callback handling STS AssumeRole and S3 state requests.
+func stsAndS3Responder(t *testing.T, defaultRoleARN string, onAssumeRole func(string)) func(*http.Request) *http.Response {
+	t.Helper()
+
+	return func(req *http.Request) *http.Response {
+		if strings.Contains(req.URL.Host, "sts") {
+			body, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+
+			if strings.Contains(string(body), "AssumeRole") {
+				roleARN := defaultRoleARN
+
+				if vals, err := url.ParseQuery(string(body)); err == nil {
+					if r := vals.Get("RoleArn"); r != "" {
+						roleARN = r
+					}
+				}
+
+				if onAssumeRole != nil {
+					onAssumeRole(roleARN)
+				}
+
+				return vhttp.Respond(http.StatusOK, stsAssumeRoleResponse(roleARN), nil)
+			}
+		}
+
+		if strings.Contains(req.URL.Host, "s3") {
+			return vhttp.Respond(http.StatusOK, terraformState("from-assumed-role"), nil)
+		}
+
+		return vhttp.Respond(http.StatusNotFound, nil, nil)
+	}
+}
+
+// stsAssumeRoleResponse returns a minimal valid STS AssumeRole XML response.
+func stsAssumeRoleResponse(roleARN string) []byte {
+	return []byte(fmt.Sprintf(`<AssumeRoleResponse>
+  <AssumeRoleResult>
+    <Credentials>
+      <AccessKeyId>ASSUMED_ACCESS_KEY</AccessKeyId>
+      <SecretAccessKey>ASSUMED_SECRET_KEY</SecretAccessKey>
+      <SessionToken>ASSUMED_SESSION_TOKEN</SessionToken>
+      <Expiration>2030-12-31T23:59:59Z</Expiration>
+    </Credentials>
+    <AssumedRoleUser>
+      <AssumedRoleId>AROA_ASSUMED:terragrunt-session</AssumedRoleId>
+      <Arn>%s</Arn>
+    </AssumedRoleUser>
+  </AssumeRoleResult>
+</AssumeRoleResponse>`, roleARN))
+}
+
+// TestDependencyStateS3AssumeRoleWithClearedIAMOptions checks target iam_role and backend assume_role are used when caller IAM differs (issue #4979).
+func TestDependencyStateS3AssumeRoleWithClearedIAMOptions(t *testing.T) {
+	t.Parallel()
+
+	const (
+		callerRoleARN   = "arn:aws:iam::111111111111:role/caller-deploy-role"
+		producerRoleARN = "arn:aws:iam::222222222222:role/producer-base-role"
+		backendRoleARN  = "arn:aws:iam::999999999999:role/backend-state-reader"
+	)
+
+	var (
+		rolesMu        sync.Mutex
+		requestedRoles []string
+	)
+
+	recordRole := func(roleARN string) {
+		rolesMu.Lock()
+		defer rolesMu.Unlock()
+
+		requestedRoles = append(requestedRoles, roleARN)
+	}
+
+	recorder := newDependencyStateRecorder(t, 0, nil)
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+
+	ctx, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		"s3",
+		"",
+		map[string]string{
+			"AWS_ACCESS_KEY_ID":     "caller-access-key",
+			"AWS_SECRET_ACCESS_KEY": "caller-secret-key",
+		},
+		false,
+		"",
+	)
+
+	producerHCL := fmt.Sprintf(`iam_role = %q
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket              = "state-bucket"
+    key                 = "service.tfstate"
+    region              = "us-east-1"
+    endpoint            = "https://s3.example.com"
+    force_path_style    = true
+    skip_credentials_validation = true
+    assume_role = {
+      role_arn = %q
+    }
+  }
+}
+`, producerRoleARN, backendRoleARN)
+	require.NoError(t, vfs.WriteFile(pctx.Venv.FS, "/repo/producer/terragrunt.hcl", []byte(producerHCL), 0o600))
+
+	pctx.IAMRoleOptions = iam.RoleOptions{
+		RoleARN: callerRoleARN,
+	}
+
+	cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "from-assumed-role", cfg.Inputs["result"])
+
+	requestPaths := recorder.requestPaths()
+	require.True(t, slices.ContainsFunc(requestPaths, func(p string) bool {
+		return strings.Contains(p, "sts")
+	}), "STS AssumeRole must be called")
+	require.True(t, slices.ContainsFunc(requestPaths, func(p string) bool {
+		return strings.Contains(p, "s3.example.com")
+	}), "S3 GetObject must be called for the state file")
+
+	rolesMu.Lock()
+	defer rolesMu.Unlock()
+
+	require.Equal(t, []string{producerRoleARN, backendRoleARN}, requestedRoles)
+	assert.NotContains(t, requestedRoles, callerRoleARN)
 }
 
 func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
