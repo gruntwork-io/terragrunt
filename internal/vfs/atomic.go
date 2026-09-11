@@ -76,7 +76,7 @@ func StreamFileAtomic(fsys FS, path string, perm os.FileMode, write func(w io.Wr
 		return errors.Join(err, fsys.Remove(tmpPath))
 	}
 
-	if err := fsys.Rename(tmpPath, path); err != nil {
+	if err := RenameOver(fsys, tmpPath, path); err != nil {
 		return errors.Join(err, fsys.Remove(tmpPath))
 	}
 

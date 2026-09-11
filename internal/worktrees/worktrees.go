@@ -1140,7 +1140,17 @@ func fillGitWorktree(
 	opts *worktreeOpts,
 ) error {
 	if err := extractGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
-		return err
+		if ctx.Err() != nil {
+			return err
+		}
+
+		l.Debugf("Extracting the archive of %s into %s failed, checking it out instead: %v", opts.ref, dir, err)
+
+		if checkoutErr := recreateWorktreeWithCheckout(ctx, v, gitRunner, registerMu, dir, opts.ref); checkoutErr != nil {
+			return errors.Join(err, checkoutErr)
+		}
+
+		return nil
 	}
 
 	if len(opts.pathspecs) > 0 {
@@ -1189,6 +1199,27 @@ func unregisterWorktree(
 	if err := gitRunner.RemoveWorktree(ctx, dir); err != nil {
 		l.Warnf("failed to remove Git worktree %s: %v", dir, err)
 	}
+}
+
+// recreateWorktreeWithCheckout drops the worktree registered at dir without a
+// checkout, files and all, and registers dir again with one. Both commands
+// write to the repository's `.git/worktrees/`, so they run under the lock the
+// adds take.
+func recreateWorktreeWithCheckout(
+	ctx context.Context,
+	v *venv.Venv,
+	gitRunner *git.GitRunner,
+	registerMu *sync.Mutex,
+	dir, ref string,
+) error {
+	registerMu.Lock()
+	defer registerMu.Unlock()
+
+	if err := gitRunner.RemoveWorktree(ctx, dir); err != nil {
+		return err
+	}
+
+	return gitRunner.CreateDetachedWorktree(ctx, v, dir, ref, git.CheckoutFiles)
 }
 
 // extractGitWorktree streams the archive of ref into dir. Git writes the

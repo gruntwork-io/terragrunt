@@ -242,7 +242,7 @@ func linkOver(v *venv.Venv, sourcePath, targetPath string) error {
 		return err
 	}
 
-	if err := v.FS.Rename(tempPath, targetPath); err != nil {
+	if err := vfs.RenameOver(v.FS, tempPath, targetPath); err != nil {
 		return errors.Join(err, v.FS.Remove(tempPath))
 	}
 

@@ -50,6 +50,71 @@ func TestNewWorktrees(t *testing.T) {
 	require.NotEmpty(t, w.WorktreePairs)
 }
 
+// TestNewWorktreesWithSymlinkOutsideRepository pins that a tracked symlink
+// pointing outside the repository does not keep a reference from being
+// materialized. The archive extraction refuses such a link, and the checkout
+// it falls back to writes the link as git would.
+func TestNewWorktreesWithSymlinkOutsideRepository(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("creating a symlink on Windows takes a privilege the runner may not have")
+	}
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	outside := filepath.Join(helpers.TmpDirWOSymlinks(t), "outside.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("outside\n"), 0o600))
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	unitDir := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0o600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(tmpDir, "link")))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
+
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte("# changed\n"), 0o600))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Second commit"))
+
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), v.FS))
+	})
+
+	materialized := 0
+
+	for _, pair := range w.WorktreePairs {
+		for _, worktree := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if worktree.Path == "" {
+				continue
+			}
+
+			materialized++
+
+			target, err := os.Readlink(filepath.Join(worktree.Path, "link"))
+			require.NoError(t, err)
+			assert.Equal(t, outside, target)
+			assert.FileExists(t, filepath.Join(worktree.Path, "unit", "terragrunt.hcl"))
+		}
+	}
+
+	assert.Positive(t, materialized)
+}
+
 // TestNewWorktreesForSeveralRefsWithRacing materializes several references at
 // once, which is what the concurrent worktree creation has to get right.
 func TestNewWorktreesForSeveralRefsWithRacing(t *testing.T) {

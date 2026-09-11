@@ -80,10 +80,12 @@ func newDeprecatedAliasFlag(dest *bool) *flags.Flag {
 	return flags.NewFlag(
 		&clihelper.BoolFlag{
 			Name:        "no-auto-init",
+			EnvVars:     []string{"TG_NO_AUTO_INIT"},
 			Negative:    true,
 			Destination: dest,
 		},
 		flags.WithDeprecatedFlag(&clihelper.BoolFlag{
+			Name:    "terragrunt-auto-init",
 			EnvVars: []string{"TERRAGRUNT_AUTO_INIT"},
 		}, nil, strict.Controls{}),
 	)
@@ -104,8 +106,10 @@ func TestFlag_ValueCarriesDeprecatedAlias(t *testing.T) {
 	assert.False(t, *dest)
 }
 
-// TestFlag_ValueKeepsExplicitOverDeprecatedAlias pins that a value given under the
-// flag's current name wins over the same setting given by a deprecated alias.
+// TestFlag_ValueKeepsExplicitOverDeprecatedAlias pins the precedence between a
+// flag's current name and its deprecated alias: a command-line argument beats an
+// environment variable under either name, and at the same level the current
+// name wins.
 func TestFlag_ValueKeepsExplicitOverDeprecatedAlias(t *testing.T) {
 	t.Parallel()
 
@@ -116,16 +120,33 @@ func TestFlag_ValueKeepsExplicitOverDeprecatedAlias(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "flag turns auto-init off, alias turns it on",
+			name:     "flag argument turns auto-init off, alias env turns it on",
 			args:     []string{"--no-auto-init"},
 			env:      map[string]string{"TERRAGRUNT_AUTO_INIT": "true"},
 			expected: false,
 		},
 		{
-			name:     "flag turns auto-init on, alias turns it off",
+			name:     "flag argument turns auto-init on, alias env turns it off",
 			args:     []string{"--no-auto-init=false"},
 			env:      map[string]string{"TERRAGRUNT_AUTO_INIT": "false"},
 			expected: true,
+		},
+		{
+			name:     "flag argument beats alias argument",
+			args:     []string{"--no-auto-init", "--terragrunt-auto-init=true"},
+			env:      map[string]string{},
+			expected: false,
+		},
+		{
+			name:     "alias argument beats flag env",
+			args:     []string{"--terragrunt-auto-init=true"},
+			env:      map[string]string{"TG_NO_AUTO_INIT": "true"},
+			expected: true,
+		},
+		{
+			name:     "flag env beats alias env",
+			env:      map[string]string{"TG_NO_AUTO_INIT": "true", "TERRAGRUNT_AUTO_INIT": "true"},
+			expected: false,
 		},
 	}
 

@@ -76,18 +76,23 @@ func (newFlag *Flag) DeprecatedNames() []string {
 // Value implements `clihelper.Flag` interface.
 //
 // A deprecated flag's value is carried over to this flag, so that reading this
-// flag is enough to see a value the user gave by an old name. A value already
-// set under the current name wins: the carry-over only fills an empty flag.
+// flag is enough to see a value the user gave by an old name. Between the two
+// names, a command-line argument beats an environment variable, and at the
+// same level the current name beats the deprecated one.
 func (newFlag *Flag) Value() clihelper.FlagValue {
 	value := newFlag.Flag.Value()
 
 	for _, deprecatedFlag := range newFlag.deprecatedFlags {
-		if deprecatedFlag.Flag == newFlag.Flag || value.IsSet() {
+		if deprecatedFlag.Flag == newFlag.Flag || value.IsArgSet() {
 			continue
 		}
 
 		deprecatedFlagValue := deprecatedFlag.Value()
 		if deprecatedFlagValue == nil || !deprecatedFlagValue.IsSet() {
+			continue
+		}
+
+		if value.IsEnvSet() && !deprecatedFlagValue.IsArgSet() {
 			continue
 		}
 
