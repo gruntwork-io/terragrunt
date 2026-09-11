@@ -5,4 +5,4 @@ category: "bug-fixes"
 
 #### Support backend assume_role during direct dependency state reads
 
-With [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) enabled, direct S3 state reads now preserve the resolved IAM role from the credential getter before chaining the backend's `assume_role`. Previously, `resolveOutputJSON` wiped `pctx.IAMRoleOptions` during cross-account dependency resolution, causing direct S3 state reads to fail with `403 AccessDenied`.
+With [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) enabled, direct S3 state reads now correctly chain the backend's `assume_role` onto the dependency's execution role. Previously, cross-account dependency state reads failed with `403 AccessDenied` when the `remote_state` block configured a separate `assume_role` for state access.
