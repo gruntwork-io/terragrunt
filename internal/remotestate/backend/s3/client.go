@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	SidRootPolicy        = "RootAccess"
-	SidEnforcedTLSPolicy = "EnforcedTLS"
+	SidRootPolicy          = "RootAccess"
+	SidEnforcedTLSPolicy   = "EnforcedTLS"
+	SidAccessLoggingPolicy = "AccessLogging"
 
 	s3TimeBetweenRetries  = 5 * time.Second
 	s3MaxRetries          = 3
@@ -1327,6 +1328,17 @@ func (client *Client) configureBucketAccessLoggingACL(
 	}
 
 	if _, err := client.s3Client.PutBucketAcl(ctx, &aclInput); err != nil {
+		var apiErr smithy.APIError
+
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "AccessControlListNotSupported" {
+			l.Warnf(
+				"Bucket %s does not support ACLs (object ownership is enforced). Falling back to a bucket policy to grant S3 Log Delivery access for server access logging.",
+				bucketName,
+			)
+
+			return client.configureBucketAccessLoggingPolicy(ctx, l, bucketName)
+		}
+
 		return fmt.Errorf(
 			"error granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s: %w",
 			s3LogDeliveryGranteeURI,
@@ -1336,6 +1348,88 @@ func (client *Client) configureBucketAccessLoggingACL(
 	}
 
 	return client.waitUntilBucketHasAccessLoggingACL(ctx, l, bucketName)
+}
+
+// configureBucketAccessLoggingPolicy grants the S3 Log Delivery service permission to write server access logs
+// to the access logging bucket via a bucket policy. This is required when the bucket has ACLs disabled
+// (Object Ownership set to BucketOwnerEnforced), because the Log Delivery group ACL grant used by
+// configureBucketAccessLoggingACL is rejected with AccessControlListNotSupported.
+//
+// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-ownership-migrating-acls-prerequisites.html#object-ownership-server-access-logs
+func (client *Client) configureBucketAccessLoggingPolicy(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+) error {
+	l.Debugf(
+		"Granting s3:PutObject to the S3 Log Delivery service via a bucket policy for bucket %s. This is required for access logging when ACLs are disabled.",
+		bucketName,
+	)
+
+	partition, err := awshelper.GetAWSPartition(ctx, &client.awsConfig)
+	if err != nil {
+		return fmt.Errorf("error getting AWS partition for bucket %s: %w", bucketName, err)
+	}
+
+	policyOutput, err := client.s3Client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		l.Debugf("Policy does not exist for bucket %s", bucketName)
+	}
+
+	var policyInBucket awshelper.Policy
+
+	if policyOutput != nil && policyOutput.Policy != nil {
+		policyInBucket, err = awshelper.UnmarshalPolicy(*policyOutput.Policy)
+		if err != nil {
+			return fmt.Errorf("error unmarshalling policy for bucket %s: %w", bucketName, err)
+		}
+	}
+
+	// Ensure Statement is never nil to avoid nil pointer dereference
+	if policyInBucket.Statement == nil {
+		policyInBucket.Statement = []awshelper.Statement{}
+	}
+
+	for _, statement := range policyInBucket.Statement {
+		if statement.Sid == SidAccessLoggingPolicy {
+			l.Debugf("Policy for access logging already exists for bucket %s", bucketName)
+
+			return nil
+		}
+	}
+
+	accessLoggingPolicy := awshelper.Policy{
+		Version: "2012-10-17",
+		Statement: []awshelper.Statement{
+			{
+				Sid:       SidAccessLoggingPolicy,
+				Effect:    "Allow",
+				Action:    "s3:PutObject",
+				Resource:  "arn:" + partition + ":s3:::" + bucketName + "/*",
+				Principal: map[string]string{"Service": "logging.s3.amazonaws.com"},
+			},
+		},
+	}
+
+	accessLoggingPolicy.Statement = append(accessLoggingPolicy.Statement, policyInBucket.Statement...)
+
+	policy, err := awshelper.MarshalPolicy(accessLoggingPolicy)
+	if err != nil {
+		return fmt.Errorf("error marshalling policy for bucket %s: %w", bucketName, err)
+	}
+
+	if _, err = client.s3Client.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+		Policy: aws.String(string(policy)),
+	}); err != nil {
+		return fmt.Errorf("error putting access logging policy for bucket %s: %w", bucketName, err)
+	}
+
+	l.Debugf("Enabled access logging policy for bucket %s", bucketName)
+
+	return nil
 }
 
 func (client *Client) waitUntilBucketHasAccessLoggingACL(
