@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,14 +72,10 @@ type tokenBody struct {
 	AccessToken string      `json:"access_token"`
 	TokenType   string      `json:"token_type"`
 	Scope       string      `json:"scope"`
-	Org         orgBody     `json:"org"`
+	OrgName     string      `json:"org_name"`
 	Account     accountBody `json:"account"`
+	OrgID       int64       `json:"org_id"`
 	ExpiresIn   int64       `json:"expires_in"`
-}
-
-type orgBody struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
 }
 
 type accountBody struct {
@@ -248,16 +245,16 @@ func parseToken(r io.Reader) (*Token, error) {
 		return nil, fmt.Errorf("%w: %w", ErrMalformedResponse, err)
 	}
 
-	for _, field := range []struct {
-		name  string
-		value string
-	}{
-		{name: "access_token", value: parsed.AccessToken},
-		{name: "org.id", value: parsed.Org.ID},
-	} {
-		if field.value == "" {
-			return nil, &MissingFieldError{Field: field.name}
-		}
+	if parsed.AccessToken == "" {
+		return nil, &MissingFieldError{Field: "access_token"}
+	}
+
+	if parsed.OrgID == 0 {
+		return nil, &MissingFieldError{Field: "org_id"}
+	}
+
+	if parsed.OrgID < 0 {
+		return nil, fmt.Errorf("%w: unusable org_id of %d", ErrMalformedResponse, parsed.OrgID)
 	}
 
 	expiresIn, ok := secondsToDuration(parsed.ExpiresIn)
@@ -269,7 +266,7 @@ func parseToken(r io.Reader) (*Token, error) {
 		AccessToken: Secret(parsed.AccessToken),
 		TokenType:   parsed.TokenType,
 		Scope:       parsed.Scope,
-		Org:         Org{ID: parsed.Org.ID, Name: parsed.Org.Name},
+		Org:         Org{ID: strconv.FormatInt(parsed.OrgID, 10), Name: parsed.OrgName},
 		Account:     Account{Email: parsed.Account.Email},
 		ExpiresIn:   expiresIn,
 	}, nil

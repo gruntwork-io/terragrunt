@@ -30,7 +30,7 @@ const (
 	userCode         = "FAKE-CODE"
 	approvalURL      = portalBaseURL + "/auth/device?user_code=FAKE-CODE"
 	accountEmail     = "you@example.com"
-	organizationID   = "org_fake"
+	organizationID   = "42"
 	organizationName = "Acme"
 )
 
@@ -48,7 +48,8 @@ const issuedTokenBody = `{
 	"token_type": "Bearer",
 	"expires_in": 2592000,
 	"scope": "catalog:read",
-	"org": {"id": "org_fake", "name": "Acme"},
+	"org_id": 42,
+	"org_name": "Acme",
 	"account": {"email": "you@example.com"}
 }`
 
@@ -57,7 +58,8 @@ const reissuedTokenBody = `{
 	"token_type": "Bearer",
 	"expires_in": 2592000,
 	"scope": "catalog:read",
-	"org": {"id": "org_fake", "name": "Acme"},
+	"org_id": 42,
+	"org_name": "Acme",
 	"account": {"email": "you@example.com"}
 }`
 
@@ -187,7 +189,7 @@ func TestRunNamesTheOrganizationWithoutAnAccount(t *testing.T) {
 		var out bytes.Buffer
 
 		body := `{"access_token":"fake-access-token","token_type":"Bearer","expires_in":2592000,` +
-			`"org":{"id":"org_fake","name":"Acme"}}`
+			`"org_id":42,"org_name":"Acme"}`
 
 		v := venvtest.New().
 			WithHTTP(approvingPortal(t, body)).
