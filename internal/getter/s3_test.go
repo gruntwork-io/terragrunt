@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"         //nolint:staticcheck // deprecated v1 SDK, per the note above
 	"github.com/aws/aws-sdk-go/aws/session" //nolint:staticcheck // deprecated v1 SDK, per the note above
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
@@ -80,7 +81,7 @@ func TestDefaultClientCanonicalizesS3SourceURLs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := getter.NewClient(venvtest.NewWithOSFS())
+			client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS())
 			req := &gogetter.Request{Src: tt.src, GetMode: getter.ModeAny}
 
 			claimed := false

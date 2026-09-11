@@ -518,7 +518,7 @@ func (repo *Repo) performClone(
 		)
 	}
 
-	client := getter.NewClient(v, clientOpts...)
+	client := getter.NewClient(l, v, clientOpts...)
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {

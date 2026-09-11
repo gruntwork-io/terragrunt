@@ -553,10 +553,11 @@ func pinnedOCIURL(rawURL, digestValue string) string {
 // default protocol set is available for [RegistryGetter]'s delegated
 // archive download. Every other scheme uses a single-getter client.
 func defaultInnerClientBuilder(bare getter.Getter, scheme string) *getter.Client {
-	// The bare tfr getter carries the venv its delegated archive download
-	// needs; the fallback client builds s3 and gcs getters that require one.
+	// The bare tfr getter carries the logger and venv its delegated archive
+	// download needs; the fallback client builds s3 and gcs getters that
+	// require the venv.
 	if tfr, ok := bare.(*RegistryGetter); ok && scheme == SchemeTFR {
-		return NewClient(tfr.Venv, WithCustomGettersPrepended(bare))
+		return NewClient(tfr.Logger, tfr.Venv, WithCustomGettersPrepended(bare))
 	}
 
 	return &getter.Client{Getters: []getter.Getter{bare}}

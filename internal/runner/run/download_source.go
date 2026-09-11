@@ -720,7 +720,6 @@ func BuildDownloadClient(
 	cfg *runcfg.RunConfig,
 ) (*getter.Client, error) {
 	clientOpts := []getter.Option{
-		getter.WithLogger(l),
 		getter.WithHTTP(v.HTTP),
 		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
@@ -736,7 +735,7 @@ func BuildDownloadClient(
 		clientOpts = append(clientOpts, getter.WithOCI(getter.NewOCIGetter(l, v)))
 	}
 
-	return getter.NewClient(v, clientOpts...), nil
+	return getter.NewClient(l, v, clientOpts...), nil
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory

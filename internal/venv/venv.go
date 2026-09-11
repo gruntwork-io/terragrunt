@@ -268,6 +268,19 @@ func (v *Venv) WithUserHomeDir(userHomeDir func() (string, error)) *Venv {
 	return &c
 }
 
+// WithUserCacheDir returns a copy of v whose cache-directory lookup is userCacheDir.
+func (v *Venv) WithUserCacheDir(userCacheDir func() (string, error)) *Venv {
+	v.RequirePlatform()
+
+	platform := *v.Platform
+	platform.UserCacheDir = userCacheDir
+
+	c := *v
+	c.Platform = &platform
+
+	return &c
+}
+
 // WithTempDir returns a copy of v whose temp-directory lookup is tempDir.
 func (v *Venv) WithTempDir(tempDir func() string) *Venv {
 	v.RequirePlatform()

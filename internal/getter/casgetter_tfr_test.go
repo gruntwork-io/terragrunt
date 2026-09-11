@@ -58,7 +58,7 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 	// not need this hook — the default builder uses the standard
 	// HttpGetter, which is fine for a real registry.
 	innerBuilder := func(bare gogetter.Getter, _ string) *gogetter.Client {
-		return getter.NewClient(venvtest.NewWithOSFS(),
+		return getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 			getter.WithCustomGettersPrepended(
 				bare,
 				&gogetter.HttpGetter{Client: httpClient, Netrc: true},

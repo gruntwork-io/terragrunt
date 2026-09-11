@@ -250,7 +250,7 @@ credentials %q {
 		WithHTTP(server.Client()).
 		WithEnv(map[string]string{cliconfig.EnvNameTFCLIConfigFile: configPath})
 	tfr := getter.NewRegistryGetter(logger.CreateLogger(), v).WithTofuImplementation(tfimpl.Terraform)
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithCustomGettersPrepended(
 			tfr,
 			&gogetter.HttpGetter{Client: server.Client(), Netrc: true},
@@ -340,7 +340,7 @@ func newRegistryTestClientWithVenv(t *testing.T, v *venv.Venv, impl tfimpl.Type)
 
 	tfr := getter.NewRegistryGetter(l, v).WithTofuImplementation(impl)
 
-	return getter.NewClient(venvtest.NewWithOSFS(),
+	return getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithCustomGettersPrepended(
 			tfr,
 			&gogetter.HttpGetter{Client: v.HTTP, Netrc: true},

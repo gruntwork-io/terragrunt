@@ -33,7 +33,7 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 
 	v := venvtest.NewOSWithEmptyEnv()
 
-	client := getter.NewClient(v,
+	client := getter.NewClient(logger.CreateLogger(), v,
 		getter.WithCAS(c, &cas.CloneOptions{}),
 		getter.WithHTTP(vhttp.NewNoNetworkClient()),
 	)
@@ -58,7 +58,7 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 
 	v := venvtest.NewOSWithEmptyEnv()
 
-	client := getter.NewClient(v,
+	client := getter.NewClient(logger.CreateLogger(), v,
 		getter.WithCAS(c, &cas.CloneOptions{}),
 		getter.WithHTTP(vhttp.NewNoNetworkClient()),
 	)
@@ -103,7 +103,7 @@ func TestWithHTTPSAuthHeaderReachesServer(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithHTTPSAuth(http.Header{"Authorization": {want}}),
 		getter.WithCustomGettersPrepended(&gogetter.HttpGetter{
 			Client: server.Client(),
@@ -132,7 +132,7 @@ func TestHTTPSchemeRoutingChoosesAuthSlot(t *testing.T) {
 	httpsHeader := http.Header{"X-Auth": {"https-token"}}
 	httpHeader := http.Header{"X-Auth": {"http-token"}}
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithHTTPSAuth(httpsHeader),
 		getter.WithHTTPAuth(httpHeader),
 	)
@@ -189,7 +189,7 @@ func TestWithHTTPSAuthSetsBuilderField(t *testing.T) {
 	t.Parallel()
 
 	header := http.Header{"X-Test": {"yes"}}
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithHTTPSAuth(header))
 
 	httpGetters := allHTTPGetters(client.Getters)
@@ -218,7 +218,7 @@ func TestFileCopyGetIncludeExcludeFiltersHonor(t *testing.T) {
 		WithLogger(logger.CreateLogger()).
 		WithExcludeFromCopy("*.txt")
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(fcg))
 
 	_, err := client.Get(t.Context(), &getter.Request{
@@ -239,7 +239,7 @@ func TestFileCopyGetMissingPath(t *testing.T) {
 
 	missing := filepath.Join(helpers.TmpDirWOSymlinks(t), "does-not-exist")
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
@@ -259,7 +259,7 @@ func TestFileCopyGetSourceIsFile(t *testing.T) {
 	srcFile := filepath.Join(helpers.TmpDirWOSymlinks(t), "main.tf")
 	require.NoError(t, writeFile(srcFile, "# main\n"))
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
@@ -279,7 +279,7 @@ func TestFileCopyGetFileSourceIsDir(t *testing.T) {
 	srcDir := helpers.TmpDirWOSymlinks(t)
 	require.NoError(t, writeFile(filepath.Join(srcDir, "main.tf"), "# main\n"))
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
@@ -302,7 +302,7 @@ func TestFileCopyGetFileDelegates(t *testing.T) {
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "out.tf")
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
