@@ -16,18 +16,17 @@ import (
 )
 
 // deepHistoryCommits and pinnedCommitOffset shape the fixture behind the
-// pinned-SHA tests: a history long enough that fetching one commit and
-// fetching every commit are plainly different transfers, with the pinned
-// commit well behind the tip of main.
+// pinned-SHA tests: a history long enough to tell a fetch of one commit from a
+// fetch of every commit, with the pinned commit well behind the tip of main.
 const (
 	deepHistoryCommits = 200
 	pinnedCommitOffset = 50
 )
 
-// TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit pins the cheap path for
-// a commit the caller named by full object name: the bare repository ends up
-// shallow, which only a depth-limited fetch produces, and the tree behind the
-// commit is still readable.
+// TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit pins the object-name
+// fetch for a commit the caller named by full object name: the bare repository
+// ends up shallow, which only a depth-limited fetch produces, and the tree
+// behind the commit is still readable.
 func TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit(t *testing.T) {
 	t.Parallel()
 
@@ -87,11 +86,10 @@ func TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit(t *testing.T) {
 	require.NoError(t, branchRepo.Unlock())
 }
 
-// TestGitStoreEnsureCommit_PinnedSHADeepensForLaterRefs pins what the
-// pinned-SHA fetch must not cost the next source naming the same URL. The
-// per-URL repository is shared, and a ref only the history behind the
-// shallow boundary can resolve, such as an abbreviated SHA of an older
-// commit, has to resolve there anyway.
+// TestGitStoreEnsureCommit_PinnedSHADeepensForLaterRefs pins that a pinned-SHA
+// fetch leaves older history reachable in the shared per-URL repository: a
+// later ref that needs history behind the shallow boundary, such as an
+// abbreviated SHA of an older commit, still resolves there.
 func TestGitStoreEnsureCommit_PinnedSHADeepensForLaterRefs(t *testing.T) {
 	t.Parallel()
 
@@ -133,9 +131,8 @@ func TestGitStoreEnsureCommit_PinnedSHADeepensForLaterRefs(t *testing.T) {
 
 // TestGitStoreEnsureCommit_ServerRefusingObjectNameFallsBack covers remotes
 // that will not answer a want line naming an object they never advertised.
-// Protocol v2 answers one unconditionally, so the refusal reproduces only
-// against a client on the older protocol, which is what a pre-v2 server
-// negotiates.
+// Protocol v2 answers one unconditionally, so the test runs git on the older
+// protocol a pre-v2 server negotiates.
 func TestGitStoreEnsureCommit_ServerRefusingObjectNameFallsBack(t *testing.T) {
 	t.Parallel()
 
@@ -163,7 +160,7 @@ func TestGitStoreEnsureCommit_ServerRefusingObjectNameFallsBack(t *testing.T) {
 	assert.Equal(t, pinned, repo.Hash)
 
 	_, err = v.FS.Stat(filepath.Join(repo.Path, "shallow"))
-	require.ErrorIs(t, err, fs.ErrNotExist, "the fallback fetch carries full history")
+	require.ErrorIs(t, err, fs.ErrNotExist, "the fallback fetch must bring full history")
 
 	require.NoError(t, repo.Unlock())
 }
@@ -184,7 +181,7 @@ func TestGitStoreEnsureCommit_ServerRefusingObjectNameKeepsKnownHashPath(t *test
 	pinned, err := srv.Head(ctx)
 	require.NoError(t, err)
 
-	// The refusal only bites on an object no ref advertises, so the pinned
+	// The refusal only applies to an object no ref advertises, so the pinned
 	// commit has to fall behind the tip of main.
 	require.NoError(t, srv.CommitEmptyChain(ctx, pinnedCommitOffset, "filler"))
 
@@ -201,7 +198,7 @@ func TestGitStoreEnsureCommit_ServerRefusingObjectNameKeepsKnownHashPath(t *test
 	assert.Equal(t, pinned, repo.Hash)
 
 	_, err = v.FS.Stat(filepath.Join(repo.Path, "shallow"))
-	require.ErrorIs(t, err, fs.ErrNotExist, "the fallback fetch carries full history")
+	require.ErrorIs(t, err, fs.ErrNotExist, "the fallback fetch must bring full history")
 
 	require.NoError(t, repo.Unlock())
 }
@@ -221,9 +218,8 @@ func refuseUnadvertisedWants(t *testing.T, srv *git.Server) {
 }
 
 // oldProtocolVenv returns an OS-backed environment that pins git to the
-// pre-v2 wire protocol. GIT_CONFIG_COUNT is the only way in: the runner
-// starts git with the environment the venv carries and nothing else, so a
-// config file would never be read.
+// pre-v2 wire protocol. The runner passes git only the venv's environment,
+// which has no HOME here, so the setting goes in through GIT_CONFIG_COUNT.
 func oldProtocolVenv() *venv.Venv {
 	return venv.OSVenv().WithEnv(map[string]string{
 		"GIT_CONFIG_COUNT":   "1",

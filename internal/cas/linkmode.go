@@ -11,23 +11,21 @@ type LinkMode int
 
 const (
 	// LinkModeHardlink gives the destination a second name for the stored
-	// blob's inode. No content is read or written, and the destination adds
-	// no disk usage, at the cost of handing out a file the store shares: it
-	// is materialized without its write bits, and a source marked mutable is
-	// served by [LinkModeClone] instead.
+	// blob's inode. No content is read or written and the destination adds no
+	// disk usage, but the destination is the stored file, so it is
+	// materialized without its write bits.
 	LinkModeHardlink LinkMode = iota
 
 	// LinkModeClone asks the filesystem for a copy-on-write clone of the
-	// stored blob. The destination is a separate file that shares the
-	// store's data blocks until it is written, so it keeps the permissions
-	// git recorded and a mutable source costs no more than an immutable one.
-	// APFS, btrfs, and XFS formatted with reflink support offer this;
-	// elsewhere the mode falls back to a hard link and then to a copy.
+	// stored blob. The destination is a separate file that shares the store's
+	// data blocks until it is written, and it keeps the permissions git
+	// recorded. APFS, btrfs, and XFS formatted with reflink support offer
+	// this; elsewhere the mode copies.
 	LinkModeClone
 
-	// LinkModeCopy writes an independent copy of the stored blob carrying
-	// the permissions git recorded. It costs a full read and write per file
-	// and is the mode every other one degrades to.
+	// LinkModeCopy writes an independent copy of the stored blob with the
+	// permissions git recorded. It costs a full read and write per file, and
+	// the other modes fall back to it.
 	LinkModeCopy
 )
 
@@ -42,7 +40,7 @@ var linkModeNames = map[LinkMode]string{
 	LinkModeCopy:     "copy",
 }
 
-// String returns the mode's flag name.
+// String returns the name telemetry reports for the mode.
 func (m LinkMode) String() string {
 	name, ok := linkModeNames[m]
 	if !ok {
@@ -63,38 +61,29 @@ func (e *InvalidLinkModeError) Error() string {
 	return fmt.Sprintf("invalid CAS link mode %q", e.Value)
 }
 
-// sharesStoredFile reports whether the mode hands the destination the
-// store's own file rather than a file of its own.
-func (m LinkMode) sharesStoredFile() bool {
-	return m == LinkModeHardlink
-}
-
-// destPerm returns the permissions a file materialized under mode carries.
-//
-// A mode that shares the stored file loses the write bits, so an edit in the
-// materialized tree cannot reach the shared store. A mode that produces a
-// file of its own keeps the permissions git recorded, which is what a mutable
-// source always ends up under: [resolveLinkMode] has already turned such a
-// request into a mode that shares nothing.
+// destPerm returns the permissions of a file materialized under mode. A hard
+// link is the stored file, so it loses the write bits and an edit in the
+// materialized tree cannot reach the store. A clone or a copy is a separate
+// file and keeps the permissions git recorded.
 func destPerm(mode LinkMode, gitPerm os.FileMode) os.FileMode {
 	perm := gitPerm.Perm()
-	if !mode.sharesStoredFile() {
+	if mode != LinkModeHardlink {
 		return perm
 	}
 
 	return perm &^ WriteBitMask
 }
 
-// resolveLinkMode returns the mode that can serve a request for mode on a
-// tree the caller intends to mutate.
+// resolveLinkMode returns the mode that serves a request for mode, given
+// whether the caller intends to edit the destination.
 //
-// A hard link would hand out the store's own inode, so a mutable tree is
-// cloned instead: the destination is a writable file of its own that shares
-// the stored content until it is written, which costs nothing where the
-// filesystem offers copy-on-write clones and degrades to a copy where it
-// does not. Every other mode already produces a file of its own.
-func resolveLinkMode(mode LinkMode, forceCopy bool) LinkMode {
-	if forceCopy && mode == LinkModeHardlink {
+// A hard link is the stored file itself, so a destination the caller edits is
+// cloned instead: a writable file that shares the stored content until it is
+// written. That costs one clone per file where the filesystem supports
+// copy-on-write, and a copy where it does not. Clones and copies are already
+// separate files.
+func resolveLinkMode(mode LinkMode, mutable bool) LinkMode {
+	if mutable && mode == LinkModeHardlink {
 		return LinkModeClone
 	}
 

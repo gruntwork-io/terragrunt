@@ -2,6 +2,7 @@ package cas_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -23,10 +24,10 @@ import (
 )
 
 // Sizes of the fixtures the store-hygiene benchmarks run against. The
-// ingest repository is wide enough that per-object bookkeeping in the
-// store shows up as a file count rather than as noise, and the pinned
-// history is deep enough that fetching one commit and fetching every
-// commit are plainly different transfers.
+// ingest repository is wide enough that per-object files in the store show
+// up clearly in a file count, and the pinned history is deep enough that
+// fetching one commit and fetching every commit are plainly different
+// transfers.
 const (
 	benchIngestFiles       = 1000
 	benchPinnedFiles       = 20
@@ -108,7 +109,7 @@ type pinnedBenchFixture struct {
 }
 
 // sharedPinnedBenchFixture builds the deep-history repository once for
-// the whole process; five hundred commits cost a git spawn each.
+// the whole process.
 var sharedPinnedBenchFixture = sync.OnceValues(newPinnedBenchFixture)
 
 func newPinnedBenchFixture() (_ *pinnedBenchFixture, retErr error) {
@@ -119,7 +120,7 @@ func newPinnedBenchFixture() (_ *pinnedBenchFixture, retErr error) {
 
 	defer func() {
 		if retErr != nil {
-			retErr = errorsJoinClose(retErr, srv)
+			retErr = errors.Join(retErr, srv.Close())
 		}
 	}()
 
@@ -129,18 +130,17 @@ func newPinnedBenchFixture() (_ *pinnedBenchFixture, retErr error) {
 		return nil, err
 	}
 
-	var pinned string
+	if err := srv.CommitEmptyChain(ctx, benchPinnedCommits-benchPinnedCommitDepth, "filler"); err != nil {
+		return nil, err
+	}
 
-	for i := range benchPinnedCommits {
-		if err := srv.CommitEmpty(ctx, "filler"); err != nil {
-			return nil, err
-		}
+	pinned, err := srv.Head(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-		if i == benchPinnedCommits-benchPinnedCommitDepth-1 {
-			if pinned, err = srv.Head(ctx); err != nil {
-				return nil, err
-			}
-		}
+	if err := srv.CommitEmptyChain(ctx, benchPinnedCommitDepth, "filler"); err != nil {
+		return nil, err
 	}
 
 	if _, err := srv.Start(ctx); err != nil {
@@ -150,15 +150,6 @@ func newPinnedBenchFixture() (_ *pinnedBenchFixture, retErr error) {
 	registerSharedServer(srv)
 
 	return &pinnedBenchFixture{url: uniqueRepoURL(srv), sha: pinned}, nil
-}
-
-// errorsJoinClose closes srv and folds any shutdown failure into err.
-func errorsJoinClose(err error, srv *git.Server) error {
-	if closeErr := srv.Close(); closeErr != nil {
-		return fmt.Errorf("%w (closing server: %w)", err, closeErr)
-	}
-
-	return err
 }
 
 // BenchmarkPinnedSHAFetch times a clone of a commit named by full

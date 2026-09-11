@@ -3,6 +3,7 @@ package vfs_test
 import (
 	"io/fs"
 	"os"
+	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -14,7 +15,7 @@ import (
 func TestCloneFile(t *testing.T) {
 	t.Parallel()
 
-	t.Run("clone carries content and permissions", func(t *testing.T) {
+	t.Run("clone has the source's content and permissions", func(t *testing.T) {
 		t.Parallel()
 
 		fsys := vfs.NewMemMapFS()
@@ -47,6 +48,30 @@ func TestCloneFile(t *testing.T) {
 		err := vfs.CloneFile(vfs.NewMemMapFS(), "/data/missing", "/data/clone")
 
 		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("symlink source returns ELOOP", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/data/source", []byte("source"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "/data/source", "/data/link"))
+
+		require.ErrorIs(t, vfs.CloneFile(fsys, "/data/link", "/data/clone"), syscall.ELOOP)
+	})
+
+	t.Run("clones through a symlinked directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/real/source", []byte("source"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "/real", "/linked"))
+
+		require.NoError(t, vfs.CloneFile(fsys, "/linked/source", "/linked/clone"))
+
+		got, err := vfs.ReadFile(fsys, "/real/clone")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("source"), got)
 	})
 
 	t.Run("filesystem without clone support returns ErrNoCloneFile", func(t *testing.T) {

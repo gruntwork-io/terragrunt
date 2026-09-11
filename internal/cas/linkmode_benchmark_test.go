@@ -3,6 +3,7 @@ package cas_test
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -18,13 +19,12 @@ import (
 
 // The trees the link-mode benchmarks materialize.
 //
-// benchModuleSource is sized from representative catalog repositories: a
-// few hundred files at a median around 2 KiB, with a tail into the hundreds
-// of kilobytes. It holds 500 files totalling 7.3 MiB, at a 2 KiB median and a
-// 15 KiB mean. A mode charging per file and a mode charging per byte
-// separate on that tail, so benchVendoredArtifacts carries the build
-// artifacts a module ships beside its configuration, where the bytes
-// dominate.
+// benchModuleSource is sized from representative catalog repositories, with a
+// tail into the hundreds of kilobytes. It has 500 files totalling 7.3 MiB, at
+// a 2 KiB median and a 15 KiB mean. A mode that costs per file and a mode that
+// costs per byte separate on that tail, so benchVendoredArtifacts adds the
+// build artifacts a module ships beside its configuration, where file size
+// dominates.
 var (
 	benchModuleSource = benchTreeShape{
 		name: "module-source",
@@ -46,8 +46,7 @@ var (
 )
 
 // benchTreeShape describes a fixture repository as buckets of equally sized
-// files, so a fixture can carry the spread of sizes a real source has rather
-// than one size repeated.
+// files, so a fixture can mix file sizes the way a real source does.
 type benchTreeShape struct {
 	name    string
 	buckets []benchFileBucket
@@ -59,7 +58,7 @@ type benchFileBucket struct {
 	size  int
 }
 
-// files returns how many files the shape holds.
+// files returns how many files the shape has.
 func (s benchTreeShape) files() int {
 	total := 0
 	for _, bucket := range s.buckets {
@@ -93,21 +92,24 @@ var benchShapes = []struct {
 }
 
 // benchShapeFiles builds the fixture files for shape, spread over a hundred
-// directories so an ingested tree has breadth and depth. The bodies are a
-// repeating pattern rather than random bytes, which keeps the fixture cheap
-// to commit without changing what the benchmarks measure: the store holds
-// content uncompressed, so a copy moves the whole file either way.
+// directories so an ingested tree has breadth and depth. Each body is a
+// repeating pattern that starts with the file's index, so every file is a
+// distinct blob and the fixture stays cheap to commit. The store keeps content
+// uncompressed, so a pattern costs a copy as much as random content would.
 func benchShapeFiles(shape benchTreeShape) map[string][]byte {
 	files := make(map[string][]byte, shape.files())
 	i := 0
 
 	for _, bucket := range shape.buckets {
-		body := make([]byte, bucket.size)
-		for n := range body {
-			body[n] = byte('a' + n%26)
+		pattern := make([]byte, bucket.size)
+		for n := range pattern {
+			pattern[n] = byte('a' + n%26)
 		}
 
 		for range bucket.count {
+			body := slices.Clone(pattern)
+			copy(body, strconv.Itoa(i))
+
 			files[fmt.Sprintf("modules/mod%03d/file%04d.tf", i%100, i)] = body
 			i++
 		}
@@ -119,18 +121,15 @@ func benchShapeFiles(shape benchTreeShape) map[string][]byte {
 // BenchmarkLinkModes times materializing one pre-ingested tree into a fresh
 // directory under each mode a caller can ask for. The clone sub-benchmark
 // reports whether the filesystem holding the target offered a copy-on-write
-// clone, since without one the mode degrades to a hard link.
+// clone, since without one the mode copies.
 func BenchmarkLinkModes(b *testing.B) {
 	benchmarkLinkModes(b, []cas.LinkMode{cas.LinkModeHardlink, cas.LinkModeClone, cas.LinkModeCopy})
 }
 
 // BenchmarkMutableLinkModes times materializing a tree the caller intends to
-// edit under the two modes that can serve one. A hard link is not among
-// them, since it hands out the store's own file; [resolveLinkMode] turns
-// such a request into the clone measured here, and the copy is what that
-// clone degrades to on a filesystem with no copy-on-write support.
+// edit under copy and clone, the two modes such a tree can end up in.
 func BenchmarkMutableLinkModes(b *testing.B) {
-	benchmarkLinkModes(b, []cas.LinkMode{cas.LinkModeCopy, cas.LinkModeClone}, cas.WithForceCopy())
+	benchmarkLinkModes(b, []cas.LinkMode{cas.LinkModeCopy, cas.LinkModeClone}, cas.WithMutableTree())
 }
 
 // benchmarkLinkModes materializes every shape in [benchShapes] under each of
@@ -202,8 +201,8 @@ func benchmarkShapeLinkModes(
 
 // benchLinkTree clones repoURL into dir with git and reads its flat tree, so
 // LinkTree runs against the same blobs the CAS store ingested. It checks the
-// tree holds wantEntries, which catches a fixture that did not commit what
-// the benchmark sizes itself against.
+// tree has wantEntries, which catches a fixture that did not commit what the
+// benchmark sizes itself against.
 func benchLinkTree(b *testing.B, v *venv.Venv, repoURL, dir string, wantEntries int) *git.Tree {
 	b.Helper()
 
@@ -223,8 +222,8 @@ func benchLinkTree(b *testing.B, v *venv.Venv, repoURL, dir string, wantEntries 
 }
 
 // cloneFallbackMetric reports 1 when the filesystem under dir has no
-// copy-on-write clone, which is when [cas.LinkModeClone] falls back to
-// hard linking or copying, and 0 when the clone is served as asked.
+// copy-on-write clone, which is when [cas.LinkModeClone] copies instead, and 0
+// when the clone is served as asked.
 func cloneFallbackMetric(b *testing.B, v *venv.Venv, dir string) float64 {
 	b.Helper()
 

@@ -191,48 +191,6 @@ func TestProcessStackComponent_RewritesStackSources(t *testing.T) {
 	)
 }
 
-// TestProcessStackComponent_EveryLinkMode pins that the mode a CAS instance
-// carries does not decide whether stack processing works: the clone it makes
-// is read back into the store under every mode.
-func TestProcessStackComponent_EveryLinkMode(t *testing.T) {
-	t.Parallel()
-
-	for _, mode := range []cas.LinkMode{
-		cas.LinkModeHardlink,
-		cas.LinkModeClone,
-		cas.LinkModeCopy,
-	} {
-		t.Run(mode.String(), func(t *testing.T) {
-			t.Parallel()
-
-			repoURL := startStackTestServer(t)
-			l := logger.CreateLogger()
-
-			storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-			c, err := cas.New(
-				venvtest.NewWithOSFS(),
-				cas.WithStorePath(storePath),
-				cas.WithCloneDepth(-1),
-				cas.WithLinkMode(mode),
-			)
-			require.NoError(t, err)
-
-			v := venvtest.NewOSWithEmptyEnv()
-
-			source := repoURL + "//stacks/my-stack?ref=main"
-
-			result, err := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
-			require.NoError(t, err)
-
-			defer result.Cleanup()
-
-			content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
-			require.NoError(t, err)
-			assert.Contains(t, string(content), "cas::", "the unit source must be rewritten")
-		})
-	}
-}
-
 func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
 	t.Parallel()
 

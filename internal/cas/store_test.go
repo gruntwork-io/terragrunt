@@ -178,7 +178,6 @@ func TestStore_EnsureWithWait(t *testing.T) {
 		err = vfs.WriteFile(v.FS, contentPath, []byte("existing content"), 0644)
 		require.NoError(t, err)
 
-		// EnsureWithWait should return false (no write needed)
 		needsWrite, unlock := store.EnsureWithWait(v, testHash)
 		unlock()
 		assert.False(t, needsWrite)
@@ -189,7 +188,6 @@ func TestStore_EnsureWithWait(t *testing.T) {
 
 		testHashNew := "fedcba0987654321fedcba0987654321fedcba09"
 
-		// EnsureWithWait should return true (write needed) and hold the lock
 		needsWrite, unlock := store.EnsureWithWait(v, testHashNew)
 		assert.True(t, needsWrite)
 
@@ -226,8 +224,8 @@ func TestStore_EnsureWithWait(t *testing.T) {
 		case <-time.After(50 * time.Millisecond):
 		}
 
-		// Publishing before the release is what forces the waiter's
-		// re-check to find the content in place.
+		// Publishing before the release makes the waiter's re-check find the
+		// content in place.
 		partitionDir := filepath.Join(storePath, waitedHash[:2])
 		require.NoError(t, v.FS.MkdirAll(partitionDir, 0755))
 		require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(partitionDir, waitedHash), []byte("written"), 0644))

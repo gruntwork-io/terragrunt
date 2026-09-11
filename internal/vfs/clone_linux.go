@@ -21,9 +21,9 @@ const clonedFilePerms = os.FileMode(0600)
 //
 // btrfs and XFS formatted with reflink support implement the ioctl; ext4 and
 // a clone that would cross filesystems reject it, and those rejections come
-// back as [ErrNoCloneFile].
+// back as [ErrNoCloneFile]. A symlink at oldname is refused with ELOOP.
 func (fsys *osFS) CloneFileIfPossible(oldname, newname string) (err error) {
-	src, err := os.Open(oldname)
+	src, err := os.OpenFile(oldname, os.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return &os.LinkError{Op: cloneOp, Old: oldname, New: newname, Err: err}
 	}

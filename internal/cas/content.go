@@ -26,9 +26,8 @@ const (
 	WindowsOS = "windows"
 )
 
-// opWriteTarget names the operation in the errors every path that writes a
-// materialized file reports, so a caller reading one cannot tell which mode
-// produced it apart from the path it names.
+// opWriteTarget is the [WrappedError] Op every link mode reports for a failure
+// writing a materialized file.
 const opWriteTarget = "write_target"
 
 // Content manages git object storage and linking.
@@ -46,7 +45,7 @@ type LinkOption func(*linkOpts)
 
 type linkOpts struct {
 	mode       LinkMode
-	forceCopy  bool
+	mutable    bool
 	storedPerm bool
 	skipClone  bool
 }
@@ -57,12 +56,10 @@ func WithFileLinkMode(mode LinkMode) LinkOption {
 	return func(o *linkOpts) { o.mode = mode }
 }
 
-// WithLinkForceCopy tells Link the destination is going to be edited, so it
-// must not share the stored blob's file. [LinkModeHardlink] is served by
-// [LinkModeClone], which falls back to a copy where the filesystem has no
-// copy-on-write clone.
-func WithLinkForceCopy() LinkOption {
-	return func(o *linkOpts) { o.forceCopy = true }
+// WithLinkMutable tells Link the destination is going to be edited, so
+// [LinkModeHardlink] is served as [LinkModeClone].
+func WithLinkMutable() LinkOption {
+	return func(o *linkOpts) { o.mutable = true }
 }
 
 // WithLinkStoredPerm leaves the destination at the blob's stored permissions
@@ -73,9 +70,8 @@ func WithLinkStoredPerm() LinkOption {
 }
 
 // WithoutCloneAttempt tells Link the filesystem holding the target has
-// already refused a copy-on-write clone, so [LinkModeClone] takes the
-// fallback it would have reached anyway without paying for the syscall that
-// says so. It changes what a clone costs, never what it leaves behind.
+// already refused a copy-on-write clone, so [LinkModeClone] copies without
+// attempting one.
 func WithoutCloneAttempt() LinkOption {
 	return func(o *linkOpts) { o.skipClone = true }
 }
@@ -85,18 +81,14 @@ type LinkOutcome struct {
 	// BytesCopied is the size of the file written when Mode is
 	// [LinkModeCopy], and zero under every other mode.
 	BytesCopied int64
-	// Mode is the mode that produced the file, which is not the requested
-	// mode when the filesystem could not honour that one.
+	// Mode is the mode that produced the file, which differs from the
+	// requested mode when the filesystem could not honor it.
 	Mode LinkMode
 }
 
 // Link materializes a stored blob at targetPath under gitPerm and reports how
-// it got there.
-//
-// The mode chosen with [WithFileLinkMode] decides how much work that takes
-// and what the destination is allowed to be: see [LinkMode] for what each one
-// promises. A mode the filesystem cannot serve degrades rather than failing,
-// so every mode ends at a copy in the worst case.
+// it got there. [WithFileLinkMode] selects the mode; see [LinkMode] for what
+// each one produces. A mode the filesystem cannot serve falls back to a copy.
 func (c *Content) Link(
 	l log.Logger,
 	v *venv.Venv,
@@ -109,7 +101,7 @@ func (c *Content) Link(
 		opt(&o)
 	}
 
-	mode := resolveLinkMode(o.mode, o.forceCopy)
+	mode := resolveLinkMode(o.mode, o.mutable)
 
 	targetDir := filepath.Dir(targetPath)
 	if err := v.FS.MkdirAll(targetDir, DefaultDirPerms); err != nil {
@@ -127,7 +119,7 @@ func (c *Content) Link(
 	case LinkModeHardlink:
 		return c.hardlinkBlob(l, v, hash, sourcePath, targetPath, perm, o)
 	case LinkModeClone:
-		return c.cloneBlob(l, v, hash, sourcePath, targetPath, perm, o)
+		return c.cloneBlob(v, sourcePath, targetPath, perm, o)
 	case LinkModeCopy:
 		return c.copyBlob(v, hash, sourcePath, targetPath, perm)
 	}
@@ -151,32 +143,25 @@ func (c *Content) hardlinkBlob(
 	return c.copyBlob(v, hash, sourcePath, targetPath, perm)
 }
 
-// cloneBlob makes targetPath a copy-on-write clone of the stored blob.
-//
-// A filesystem with no reflink support falls back to a hard link. That link
-// is the store's own file, so it arrives without its write bits and only
-// serves a destination nobody is going to edit whose stored blob already
-// carries the permissions to hand out. Everything else is copied.
+// cloneBlob makes targetPath a copy-on-write clone of the stored blob, and
+// copies where the filesystem cannot clone.
 func (c *Content) cloneBlob(
-	l log.Logger,
 	v *venv.Venv,
-	hash, sourcePath, targetPath string,
+	sourcePath, targetPath string,
 	perm os.FileMode,
 	o linkOpts,
 ) (LinkOutcome, error) {
-	if !o.skipClone {
-		err := c.cloneInto(v, sourcePath, targetPath, perm)
-		if err == nil {
-			return LinkOutcome{Mode: LinkModeClone}, nil
-		}
-
-		if !errors.Is(err, vfs.ErrNoCloneFile) {
-			return LinkOutcome{}, err
-		}
+	if o.skipClone {
+		return c.copyBlob(v, sourcePath, targetPath, perm)
 	}
 
-	if !o.forceCopy && c.tryLink(l, v, hash, sourcePath, targetPath, perm&^WriteBitMask, o) {
-		return LinkOutcome{Mode: LinkModeHardlink}, nil
+	err := c.cloneInto(v, sourcePath, targetPath, perm)
+	if err == nil {
+		return LinkOutcome{Mode: LinkModeClone}, nil
+	}
+
+	if !errors.Is(err, vfs.ErrNoCloneFile) {
+		return LinkOutcome{}, err
 	}
 
 	return c.copyBlob(v, hash, sourcePath, targetPath, perm)
@@ -216,7 +201,7 @@ func (c *Content) tryLink(
 //
 // The clone is made at a name of its own and renamed onto targetPath, so
 // several callers materializing one blob at one path each publish a complete
-// file rather than racing to clear and recreate the same name.
+// file.
 func (c *Content) cloneInto(
 	v *venv.Venv,
 	sourcePath, targetPath string,
@@ -323,9 +308,10 @@ func (c *Content) copyBlob(
 	return LinkOutcome{Mode: LinkModeCopy, BytesCopied: int64(len(data))}, nil
 }
 
-// reserveTempPath returns a free path beside dir that nothing else will take,
-// for callers handing the name to a syscall that creates the file itself and
-// refuses to replace one.
+// reserveTempPath returns an unused path in dir matching pattern, for callers
+// handing the name to a syscall that creates the file itself and refuses to
+// replace one. The file is removed before returning, so another process could
+// still take the name first.
 func reserveTempPath(v *venv.Venv, dir, pattern string) (string, error) {
 	f, err := vfs.CreateTemp(v.FS, dir, pattern)
 	if err != nil {
@@ -472,9 +458,9 @@ func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) error
 	unlock := c.store.Lock(hash)
 	defer unlock()
 
-	// Re-check under the lock: another worker may have raced ahead and
-	// stored the blob between the lock-free hasContent check and Lock,
-	// and skipping the copy is the point of waiting.
+	// Re-check under the lock: another worker may have stored the blob
+	// between the lock-free hasContent check and Lock, and then the copy
+	// can be skipped.
 	if c.store.hasContent(v, path) {
 		return nil
 	}

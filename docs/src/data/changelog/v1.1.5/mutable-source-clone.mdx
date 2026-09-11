@@ -7,13 +7,13 @@ category: "performance-improvements"
 
 A source marked [`mutable = true`](/features/caching/cas#immutable-by-default) needs a file of its own, because a hard link would hand out the store's read-only copy. Terragrunt now asks the filesystem for a copy-on-write clone of the stored file and copies only where the filesystem has none to give. APFS, btrfs, and XFS volumes with reflink support have one.
 
-A cloned target shares the stored content until you write to it, so it occupies disk space only for the parts you change. A source you mark `mutable` in every unit of a large estate stops costing its own size per unit.
+A cloned target shares the stored content until you write to it, so it occupies disk space only for the parts you change. On those volumes, marking a source `mutable` in every unit costs disk space only for what each unit edits.
 
 Time depends on the size of the files, since a clone costs per file and a copy costs in proportion to file size. These [micro-benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/cas/linkmode_benchmark_test.go) materialize an editable tree on APFS on an M3 Max. The module source is sized from representative catalog repositories, at 500 files totalling 7.3 MiB with a 2 KiB median:
 
 | Tree | Copied | Cloned |
 | --- | --- | --- |
-| Module source, 500 files, 7.3 MiB | 104ms | 145ms |
-| Vendored artifacts, 120 files, 40 MiB | 51ms | 41ms |
+| Module source, 500 files, 7.3 MiB | 71ms | 81ms |
+| Vendored artifacts, 120 files, 40 MiB | 146ms | 23ms |
 
-A source carrying build artifacts materializes faster. A source of configuration alone takes about 40ms longer, in exchange for the disk it no longer duplicates.
+A source with build artifacts materializes about six times faster. A source of configuration alone takes about 10ms longer, in exchange for the disk it no longer duplicates.

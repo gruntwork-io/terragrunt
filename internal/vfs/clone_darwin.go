@@ -9,8 +9,8 @@ import (
 )
 
 // CloneFileIfPossible creates newname as a copy-on-write clone of oldname
-// with the clonefile syscall, which carries the source's permissions over to
-// the new file. APFS supports it; HFS+ and any other volume report
+// with the clonefile syscall, which gives the new file the source's
+// permissions. APFS supports it; HFS+ and any other volume report
 // [ErrNoCloneFile].
 //
 // A symlink at oldname is cloned as a symlink rather than followed, so the

@@ -2,6 +2,7 @@ package vfs
 
 import (
 	"os"
+	"syscall"
 
 	"github.com/spf13/afero"
 )
@@ -21,9 +22,8 @@ type FileCloner interface {
 // of them is written.
 //
 // newname must not exist; the underlying system calls refuse to replace a
-// file. Filesystems and platforms without copy-on-write support report that
-// as [ErrNoCloneFile], which callers match with errors.Is to fall back to
-// linking or copying. Any other error is a genuine failure.
+// file. A symlink at oldname is never followed. Filesystems and platforms
+// without copy-on-write support report [ErrNoCloneFile].
 func CloneFile(fsys FS, oldname, newname string) error {
 	cloner, ok := fsys.(FileCloner)
 	if !ok {
@@ -33,10 +33,11 @@ func CloneFile(fsys FS, oldname, newname string) error {
 	return cloner.CloneFileIfPossible(oldname, newname)
 }
 
-// CloneFileIfPossible copies oldname to newname carrying the source's
+// CloneFileIfPossible copies oldname to newname with the source's
 // permissions. The in-memory filesystem stores file content as plain bytes
 // with nothing to share between two files, so the clone is a full copy; it
-// reports the same outcomes a copy-on-write clone would.
+// reports the same outcomes a copy-on-write clone would, and refuses a symlink
+// at oldname with ELOOP as the Linux clone does.
 //
 // The content moves in one read and one write rather than through a copy
 // buffer. Every write to an in-memory file reallocates and recopies the
@@ -47,21 +48,28 @@ func (fsys *memMapFS) CloneFileIfPossible(oldname, newname string) error {
 		return &os.LinkError{Op: cloneOp, Old: oldname, New: newname, Err: err}
 	}
 
-	if _, err := fsys.Fs.Stat(newname); err == nil {
+	oldResolved := fsys.resolveParent(oldname)
+	newResolved := fsys.resolveParent(newname)
+
+	if _, ok := fsys.readSymlink(oldResolved); ok {
+		return linkErr(syscall.ELOOP)
+	}
+
+	if fsys.pathTaken(newResolved) {
 		return linkErr(os.ErrExist)
 	}
 
-	info, err := fsys.Fs.Stat(oldname)
+	info, err := fsys.Fs.Stat(oldResolved)
 	if err != nil {
 		return linkErr(err)
 	}
 
-	data, err := afero.ReadFile(fsys.Fs, oldname)
+	data, err := afero.ReadFile(fsys.Fs, oldResolved)
 	if err != nil {
 		return linkErr(err)
 	}
 
-	if err := afero.WriteFile(fsys.Fs, newname, data, info.Mode().Perm()); err != nil {
+	if err := afero.WriteFile(fsys.Fs, newResolved, data, info.Mode().Perm()); err != nil {
 		return linkErr(err)
 	}
 

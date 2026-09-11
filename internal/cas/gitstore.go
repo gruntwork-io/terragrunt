@@ -39,10 +39,9 @@ const (
 )
 
 // commitFetchPath names the fetch that brought a pinned commit into a
-// per-URL bare repository. It travels as the git_store_commit_fetch
-// attribute on the active span and in the matching debug log line, so a
-// remote that refuses bare object names reads as full-history traffic
-// rather than as an unexplained slowdown.
+// per-URL bare repository. It is set as the git_store_commit_fetch span
+// attribute and logged at debug level, so a remote that refuses bare object
+// names shows up as full_refs fetches.
 type commitFetchPath string
 
 const (
@@ -96,7 +95,7 @@ func (r *GitStoreRepo) Unlock() error {
 // directly should use [GitStoreRepo.Unlock].
 func (r *GitStoreRepo) Release(l log.Logger) {
 	if err := r.unlocker.Unlock(); err != nil {
-		l.Warnf("git store: failed to release lock for %s: %v", r.url, err)
+		l.Warnf("git store: failed to release lock for %s: %v", RedactURL(r.url), err)
 	}
 }
 
@@ -346,10 +345,10 @@ func bareRepoInitialized(fsys vfs.FS, repoPath string) (bool, error) {
 // a ref name, which git resolves from the ref advertisement rather than
 // from a want line.
 //
-// The bare repository is left shallow when the cheap path serves the
-// commit. ls-tree and cat-file, the only readers CAS ingest uses, work
-// at a shallow boundary, and [fetchAllRefs] crosses it for the later ref
-// that needs the history behind it.
+// The bare repository is left shallow when the remote serves the commit by
+// name. ls-tree and cat-file, the only readers CAS ingest uses, work at a
+// shallow boundary, and [fetchAllRefs] crosses it for the later ref that
+// needs the history behind it.
 func fetchPinnedCommit(ctx context.Context, session *repoSession, url, ref string) error {
 	served, err := fetchBareObject(ctx, session, url, ref)
 	if err != nil {
@@ -377,8 +376,9 @@ func fetchPinnedCommit(ctx context.Context, session *repoSession, url, ref strin
 // The per-URL repository is shared by every source naming that URL, and an
 // earlier depth-limited fetch leaves a boundary a plain fetch only grafts
 // onto: history behind it stays unreachable, and a ref that needs it, such
-// as an abbreviated SHA or a rev expression, resolves nowhere. Crossing the
-// boundary is what makes this the fallback the cheap path can rely on.
+// as an abbreviated SHA or a rev expression, resolves nowhere. Unshallowing
+// reaches that history, so this fetch serves every ref the object-name fetch
+// cannot.
 func fetchAllRefs(ctx context.Context, session *repoSession, url string) error {
 	shallow, err := session.runner.IsShallow(ctx)
 	if err != nil {
@@ -393,20 +393,21 @@ func fetchAllRefs(ctx context.Context, session *repoSession, url string) error {
 }
 
 // fetchBareObject asks url for ref as a bare object name and reports
-// whether the object arrived. A false return means the cheap path is
-// unavailable for this remote or this commit, never that the store is
-// broken; only an unreadable local repository surfaces as an error.
+// whether the object arrived. A false return means the remote did not serve
+// ref by object name; only an unreadable local repository surfaces as an
+// error.
 func fetchBareObject(ctx context.Context, session *repoSession, url, ref string) (bool, error) {
 	if !looksLikeFullSHA(ref) {
 		return false, nil
 	}
 
 	if err := session.runner.Fetch(ctx, url, ref, pinnedCommitDepth); err != nil {
+		// The error includes git's stderr, which can repeat the URL.
 		session.l.Debugf(
-			"git store: %s did not serve %s by object name, falling back to full history: %v",
-			url,
+			"git store: %s did not serve %s by object name, falling back to full history: %s",
+			RedactURL(url),
 			ref,
-			err,
+			strings.ReplaceAll(err.Error(), url, RedactURL(url)),
 		)
 
 		return false, nil
@@ -423,7 +424,7 @@ func recordCommitFetchPath(
 	url, ref string,
 	path commitFetchPath,
 ) {
-	l.Debugf("git store: fetched %s from %s via %s", ref, url, path)
+	l.Debugf("git store: fetched %s from %s via %s", ref, RedactURL(url), path)
 
 	span := trace.SpanFromContext(ctx)
 	if !span.IsRecording() {

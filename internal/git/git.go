@@ -284,9 +284,8 @@ func (g *GitRunner) FetchUnshallow(ctx context.Context, repo, ref string) error 
 	return g.fetch(ctx, repo, ref, []string{"--unshallow"})
 }
 
-// IsShallow reports whether the configured working-directory repository
-// stops at a shallow boundary, which is what decides whether a fetch has to
-// unshallow to reach older history.
+// IsShallow reports whether the configured working-directory repository has
+// a shallow boundary, which a fetch must unshallow to reach older history.
 func (g *GitRunner) IsShallow(ctx context.Context) (bool, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return false, err

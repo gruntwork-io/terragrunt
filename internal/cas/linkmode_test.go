@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -27,8 +28,8 @@ import (
 const linkModeTestHash = "ab00112233445566778899aabbccddeeff001122"
 
 // TestLinkModes pins what each mode leaves at the target path: the stored
-// content either way, and permissions that say whether the destination is the
-// store's own file or one of its own.
+// content in every mode, and permissions that show whether the destination is
+// the stored file itself.
 func TestLinkModes(t *testing.T) {
 	t.Parallel()
 
@@ -48,7 +49,7 @@ func TestLinkModes(t *testing.T) {
 			wantPerm: 0o444,
 		},
 		{
-			name:     "clone keeps the write bits because the file is its own",
+			name:     "clone keeps the write bits on a separate file",
 			mode:     cas.LinkModeClone,
 			wantPerm: 0o644,
 		},
@@ -152,10 +153,8 @@ func TestLinkTreeCloneModeFallsBackWithoutCloneSupport(t *testing.T) {
 	}, treeSpan.Attrs)
 }
 
-// TestLinkCloneModeOnOSFilesystem drives the real clone syscall. The
-// destination has to be a file of its own carrying the permissions git
-// recorded, which is what makes the mode usable for a source the caller
-// edits.
+// TestLinkCloneModeOnOSFilesystem drives the real clone syscall and pins that
+// the destination is a separate file with the permissions git recorded.
 func TestLinkCloneModeOnOSFilesystem(t *testing.T) {
 	t.Parallel()
 
@@ -173,46 +172,40 @@ func TestLinkCloneModeOnOSFilesystem(t *testing.T) {
 	sourcePath := filepath.Join(storeDir, linkModeTestHash[:2], linkModeTestHash)
 	skipWithoutCloneSupport(t, v, sourcePath, filepath.Join(targetDir, "probe"))
 
-	for _, mutable := range []bool{false, true} {
-		targetPath := filepath.Join(targetDir, "main.tf")
+	targetPath := filepath.Join(targetDir, "main.tf")
 
-		opts := []cas.LinkOption{cas.WithFileLinkMode(cas.LinkModeClone)}
-		if mutable {
-			opts = append(opts, cas.WithLinkForceCopy())
-		}
+	outcome, err := content.Link(
+		l,
+		v,
+		linkModeTestHash,
+		targetPath,
+		0o644,
+		cas.WithFileLinkMode(cas.LinkModeClone),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, cas.LinkModeClone, outcome.Mode)
+	assert.Zero(t, outcome.BytesCopied, "a clone writes no content")
 
-		outcome, err := content.Link(l, v, linkModeTestHash, targetPath, 0o644, opts...)
-		require.NoError(t, err)
-		assert.Equal(
-			t,
-			cas.LinkModeClone,
-			outcome.Mode,
-			"a mutable source is cloned rather than copied (mutable=%t)",
-			mutable,
-		)
-		assert.Zero(t, outcome.BytesCopied, "a clone writes no content")
+	got, err := os.ReadFile(targetPath)
+	require.NoError(t, err)
+	assert.Equal(t, blobData, got)
 
-		got, err := os.ReadFile(targetPath)
-		require.NoError(t, err)
-		assert.Equal(t, blobData, got)
+	targetInfo, err := os.Stat(targetPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm())
 
-		targetInfo, err := os.Stat(targetPath)
-		require.NoError(t, err)
-		assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm())
-
-		sourceInfo, err := os.Stat(sourcePath)
-		require.NoError(t, err)
-		assert.False(
-			t,
-			os.SameFile(sourceInfo, targetInfo),
-			"a clone must be its own file, not a second name for the stored blob",
-		)
-	}
+	sourceInfo, err := os.Stat(sourcePath)
+	require.NoError(t, err)
+	assert.False(
+		t,
+		os.SameFile(sourceInfo, targetInfo),
+		"a clone must be a separate file, not a second name for the stored blob",
+	)
 }
 
 // TestLinkMutableSourceClonesWhereSupported pins the mode a mutable source
-// resolves to: a hard link cannot serve one, and a clone gives it a writable
-// file of its own without copying the content.
+// resolves to where the filesystem can clone: a separate writable file, with
+// no content copied.
 func TestLinkMutableSourceClonesWhereSupported(t *testing.T) {
 	t.Parallel()
 
@@ -239,7 +232,7 @@ func TestLinkMutableSourceClonesWhereSupported(t *testing.T) {
 		targetPath,
 		0o644,
 		cas.WithFileLinkMode(cas.LinkModeHardlink),
-		cas.WithLinkForceCopy(),
+		cas.WithLinkMutable(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, cas.LinkModeClone, outcome.Mode)
@@ -262,9 +255,8 @@ func TestLinkMutableSourceClonesWhereSupported(t *testing.T) {
 	)
 }
 
-// TestLinkMutableSourceCopiesWithoutCloneSupport pins the fallback behind
-// that resolution, which is the behavior every filesystem without
-// copy-on-write clones gets.
+// TestLinkMutableSourceCopiesWithoutCloneSupport pins that a mutable source on
+// a filesystem with no copy-on-write clone is copied and stays writable.
 func TestLinkMutableSourceCopiesWithoutCloneSupport(t *testing.T) {
 	t.Parallel()
 
@@ -288,7 +280,7 @@ func TestLinkMutableSourceCopiesWithoutCloneSupport(t *testing.T) {
 		targetPath,
 		0o644,
 		cas.WithFileLinkMode(cas.LinkModeHardlink),
-		cas.WithLinkForceCopy(),
+		cas.WithLinkMutable(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, cas.LinkModeCopy, outcome.Mode)
@@ -303,8 +295,8 @@ func TestLinkMutableSourceCopiesWithoutCloneSupport(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm(), "a mutable source stays writable")
 }
 
-// TestLinkTreeProbesCloneSupportOnce pins the cost of asking for a clone on a
-// filesystem that has none: one attempt for the whole tree, not one per file.
+// TestLinkTreeProbesCloneSupportOnce pins that LinkTree attempts one clone per
+// tree on a filesystem that has none.
 func TestLinkTreeProbesCloneSupportOnce(t *testing.T) {
 	t.Parallel()
 
@@ -359,10 +351,89 @@ func TestLinkTreeProbesCloneSupportOnce(t *testing.T) {
 	}
 }
 
-// noCloneFS refuses every copy-on-write clone and counts how many were asked
-// for, which is what says whether a tree probed once or once per file.
-// Embedding the FS interface alone withholds the hard link too, so what it
-// wraps has no way to materialize a blob but to copy it.
+// TestLinkTreeKeepsCloningAfterOneFileFallsBack pins that a blob the
+// filesystem refuses to clone outside the probe copies on its own, and the
+// next level of the tree still attempts clones.
+func TestLinkTreeKeepsCloningAfterOneFileFallsBack(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	blobData := []byte("module content\n")
+
+	v := venvtest.New()
+	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
+
+	store := cas.NewStore("/store")
+	content := cas.NewContent(store)
+
+	blobs := map[string]string{
+		"a.tf": fmt.Sprintf("%040x", 1),
+		"b.tf": fmt.Sprintf("%040x", 2),
+		"c.tf": fmt.Sprintf("%040x", 3),
+	}
+
+	for _, hash := range blobs {
+		require.NoError(t, content.Store(l, v, hash, blobData, cas.StoredFilePerms))
+	}
+
+	subtreeHash := fmt.Sprintf("%040x", 4)
+	subtree := fmt.Appendf(nil, "100644 blob %s\tc.tf\n", blobs["c.tf"])
+	require.NoError(t, content.Store(l, v, subtreeHash, subtree, cas.StoredFilePerms))
+
+	tree, err := git.ParseTree(fmt.Appendf(nil,
+		"100644 blob %s\ta.tf\n100644 blob %s\tb.tf\n040000 tree %s\tsub\n",
+		blobs["a.tf"], blobs["b.tf"], subtreeHash,
+	), "/target")
+	require.NoError(t, err)
+
+	fsys := &refuseCloneFS{FS: v.FS, refuse: "b.tf"}
+
+	require.NoError(t, cas.LinkTree(
+		t.Context(),
+		l,
+		v.WithFS(fsys),
+		store,
+		store,
+		tree,
+		"/target",
+		cas.WithTreeLinkMode(cas.LinkModeClone),
+	))
+
+	assert.Equal(t, int64(3), fsys.attempts.Load(), "every blob must attempt a clone")
+
+	for name := range blobs {
+		path := filepath.Join("/target", name)
+		if name == "c.tf" {
+			path = filepath.Join("/target", "sub", name)
+		}
+
+		got, err := vfs.ReadFile(v.FS, path)
+		require.NoError(t, err)
+		assert.Equal(t, blobData, got)
+	}
+}
+
+// refuseCloneFS clones through the filesystem it wraps, except for a file
+// whose name contains refuse, and counts every attempt.
+type refuseCloneFS struct {
+	vfs.FS
+	refuse   string
+	attempts atomic.Int64
+}
+
+func (fsys *refuseCloneFS) CloneFileIfPossible(oldname, newname string) error {
+	fsys.attempts.Add(1)
+
+	if strings.Contains(filepath.Base(newname), fsys.refuse) {
+		return &os.LinkError{Op: "clonefile", Old: oldname, New: newname, Err: vfs.ErrNoCloneFile}
+	}
+
+	return vfs.CloneFile(fsys.FS, oldname, newname)
+}
+
+// noCloneFS refuses every copy-on-write clone and counts the attempts. Only
+// the FS interface is embedded, so there is no hard link either and every blob
+// is copied.
 type noCloneFS struct {
 	vfs.FS
 	attempts atomic.Int64
@@ -377,6 +448,12 @@ func (fsys *noCloneFS) CloneFileIfPossible(oldname, newname string) error {
 		New: newname,
 		Err: vfs.ErrNoCloneFile,
 	}
+}
+
+// noLinkFS offers neither a hard link nor a copy-on-write clone, so every blob
+// materialized through it is copied.
+type noLinkFS struct {
+	vfs.FS
 }
 
 // newLinkModeStore returns an in-memory venv holding blobData in a store at
@@ -395,8 +472,8 @@ func newLinkModeStore(t *testing.T, l log.Logger, blobData []byte) (*venv.Venv, 
 }
 
 // skipWithoutCloneSupport skips the test when the filesystem holding the
-// temporary directories has no copy-on-write clone to offer, which is the
-// case for ext4, HFS+, and every filesystem on Windows.
+// temporary directories has no copy-on-write clone to offer, as on ext4, HFS+,
+// and every platform other than Linux and macOS.
 func skipWithoutCloneSupport(t *testing.T, v *venv.Venv, sourcePath, probePath string) {
 	t.Helper()
 

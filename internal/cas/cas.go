@@ -32,7 +32,7 @@ import (
 // DefaultCASCloneDepth is the default shallow clone depth for CAS (git clone --depth).
 const DefaultCASCloneDepth = 1
 
-// gitScheme is the [SourceRequest.Scheme] the git ingest path travels under.
+// gitScheme is the [SourceRequest.Scheme] of sources ingested through git.
 const gitScheme = "git"
 
 // Option configures the behavior of CAS.
@@ -40,10 +40,6 @@ type Option func(*CAS)
 
 // CloneOptions configures the behavior of a specific clone operation.
 type CloneOptions struct {
-	// LinkMode overrides the mode the CAS instance materializes trees in
-	// for this clone alone. Nil leaves the instance's own mode in place.
-	LinkMode *LinkMode
-
 	// Dir specifies the target directory for the clone.
 	// If empty, uses the repository name.
 	Dir string
@@ -54,10 +50,9 @@ type CloneOptions struct {
 
 	// IncludedGitFiles names files from the source repository's git
 	// directory to write under .git in the target directory. If empty,
-	// no .git directory is written. The stored tree never carries these
-	// entries; each is recorded separately against the commit so callers
-	// asking for different lists share one tree and each receive only the
-	// files they named.
+	// no .git directory is written. Ingest records each file against the
+	// commit on its own, so callers asking for different lists share one
+	// tree and each receive only the files they named.
 	IncludedGitFiles []string
 
 	// Depth limits the clone history to the given number of commits passed to git clone --depth.
@@ -65,9 +60,9 @@ type CloneOptions struct {
 	// Set to -1 for full history (Terragrunt omits --depth; git rejects --depth 0).
 	Depth int
 
-	// Mutable, when true, copies blobs into the target directory instead of
-	// hardlinking them from the CAS store. The destination tree becomes safe
-	// to mutate without corrupting the shared store.
+	// Mutable, when true, materializes separate writable files in the target
+	// directory instead of hard links to the CAS store. The destination tree
+	// becomes safe to edit without corrupting the shared store.
 	Mutable bool
 }
 
@@ -102,18 +97,9 @@ func WithDepth(depth int) CloneOption {
 	return func(o *CloneOptions) { o.Depth = depth }
 }
 
-// WithMutable copies blobs into the target directory instead of
-// hardlinking from the CAS store, so the destination tree is safe to
-// mutate without corrupting the shared store.
+// WithMutable sets [CloneOptions.Mutable].
 func WithMutable(mutable bool) CloneOption {
 	return func(o *CloneOptions) { o.Mutable = mutable }
-}
-
-// WithCloneLinkMode materializes this clone in mode rather than in the mode
-// the CAS instance carries. It serves a caller whose target directory has to
-// hold files of a particular shape, such as one CAS itself reads back.
-func WithCloneLinkMode(mode LinkMode) CloneOption {
-	return func(o *CloneOptions) { o.LinkMode = &mode }
 }
 
 // CAS clones a git repository using content-addressable storage.
@@ -128,7 +114,6 @@ type CAS struct {
 	cloneDepth        int
 	probeTTL          time.Duration
 	probeMode         ProbeMode
-	linkMode          LinkMode
 	probeCacheEnabled bool
 }
 
@@ -202,17 +187,9 @@ func WithProbeTTL(ttl time.Duration) Option {
 	}
 }
 
-// WithLinkMode sets how materialized trees reach their target directories.
-// Without it, CAS uses [DefaultLinkMode].
-func WithLinkMode(mode LinkMode) Option {
-	return func(c *CAS) {
-		c.linkMode = mode
-	}
-}
-
 // New creates a new CAS instance with the given options.
 func New(v *venv.Venv, opts ...Option) (*CAS, error) {
-	c := &CAS{linkMode: DefaultLinkMode}
+	c := &CAS{}
 
 	for _, opt := range opts {
 		opt(c)
@@ -246,24 +223,14 @@ func (c *CAS) TreeStore() *Store { return c.treeStore }
 // SynthStore returns the store for synthetic tree content.
 func (c *CAS) SynthStore() *Store { return c.synthStore }
 
-// GitFileStore returns the store holding one record per (commit, git
-// file name) pair for the files [CloneOptions.IncludedGitFiles] can
-// name. Each record is a single tree line pointing at the file's blob;
-// [GitFileKey] derives the record key.
+// GitFileStore returns the store with one record per (commit, git file
+// name) pair for the files [CloneOptions.IncludedGitFiles] can name. Each
+// record is a single tree line pointing at the file's blob; [GitFileKey]
+// derives the record key.
 func (c *CAS) GitFileStore() *Store { return c.gitFileStore }
 
 // StorePath returns the root directory containing every CAS store.
 func (c *CAS) StorePath() string { return c.storePath }
-
-// LinkMode returns the mode this instance materializes trees in.
-func (c *CAS) LinkMode() LinkMode { return c.linkMode }
-
-// linkTreeOptions returns the options every tree this instance materializes
-// is linked with: its own mode, plus the caller's own options, which come
-// last so a caller that names a mode overrides the instance's.
-func (c *CAS) linkTreeOptions(opts []LinkTreeOption) []LinkTreeOption {
-	return append([]LinkTreeOption{WithTreeLinkMode(c.linkMode)}, opts...)
-}
 
 // ensureStorePaths creates the store directory hierarchy on v.FS. Callers
 // invoke this from any top-level entry point that may write to a store, so

@@ -6,11 +6,10 @@ import (
 	"github.com/spf13/afero"
 )
 
-// NoSymlinkFS wraps a filesystem so it refuses to create symbolic links,
-// which is what Windows reports to a process without the symlink privilege.
-// Embedding the FS interface alone withholds the hard link and the
-// copy-on-write clone as well, since a caller reaches those through optional
-// interfaces this type no longer satisfies.
+// NoSymlinkFS wraps a filesystem so it refuses to create symbolic links, as
+// Windows does for a process without the symlink privilege. It embeds only
+// the FS interface, so the optional hard link and copy-on-write clone
+// interfaces are unavailable too.
 type NoSymlinkFS struct {
 	FS
 }

@@ -202,6 +202,39 @@ Non-Git sources reuse the same store but address content differently. Their file
 
 The CAS store is organized into namespaced directories:
 
+<Before version="1.1.5">
+
+<FileTree>
+
+- ~/.cache/terragrunt/cas/store/
+  - blobs/ (file content from every fetched source, plus synthetic sources)
+    - ab/
+      - abc123...xyz
+      - abc123...xyz.lock
+    - cd/
+      - cd7890...xyz
+  - trees/ (tree structures describing the layout of a fetched source)
+    - f3/
+      - f39ea0...xyz
+  - synth/
+    - trees/ (synthetic trees created during CAS-backed stack generation)
+      - de/
+        - def456...xyz
+  - git/ (one bare repository per remote URL, used for incremental fetches)
+    - 1a2b3c4d5e6f7890/
+      - repo/
+      - lock
+  - probes/ (recorded probe answers, one file per source)
+    - sha256/
+      - 1a2b3c4d5e6f7890/
+        - 0d6e4079e36703eb.json
+
+</FileTree>
+
+</Before>
+
+<Since version="1.1.5">
+
 <FileTree>
 
 - ~/.cache/terragrunt/cas/store/
@@ -231,7 +264,9 @@ The CAS store is organized into namespaced directories:
 
 </FileTree>
 
-The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores the tree structures that describe the layout of files in a fetched source, whether that source is a Git ref, an object store download, or a local directory. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the source reference and path. The `gitfiles/` directory records the files a source asked Terragrunt to preserve from a repository's `.git` directory, one record per commit and file name. The `git/` directory holds one bare Git repository per remote URL, keyed by a hash of the URL, so cache misses for Git sources can fetch only the new objects instead of re-cloning the repository. Non-Git getters do not use `git/`; they download into a temporary directory and ingest the result. The `probes/` directory holds the answer to each probe, one file per source, so a later run can resolve a source without querying its remote again. Entries sit under the hash algorithm that named them, so a later algorithm gets its own subtree instead of colliding with what is already there. [Recorded probes](#recorded-probes) covers when a recorded answer is served and when a fresh query is made.
+</Since>
+
+The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores the tree structures that describe the layout of files in a fetched source, whether that source is a Git ref, an object store download, or a local directory. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the source reference and path. <Since version="1.1.5">The `gitfiles/` directory records the files a source asked Terragrunt to preserve from a repository's `.git` directory, one record per commit and file name.</Since> The `git/` directory holds one bare Git repository per remote URL, keyed by a hash of the URL, so cache misses for Git sources can fetch only the new objects instead of re-cloning the repository. Non-Git getters do not use `git/`; they download into a temporary directory and ingest the result. The `probes/` directory holds the answer to each probe, one file per source, so a later run can resolve a source without querying its remote again. Entries sit under the hash algorithm that named them, so a later algorithm gets its own subtree instead of colliding with what is already there. [Recorded probes](#recorded-probes) covers when a recorded answer is served and when a fresh query is made.
 
 Each content object within a namespace is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory to avoid degraded file system performance from large flat directories.
 
@@ -295,7 +330,7 @@ When the content is already in the CAS:
 
 Stored blobs are written read-only, and the link step hard links them into the target directory instead of copying. The working copy and the stored blob are the same file on disk, so the content cannot be edited in place: writing to a linked file fails with a permission error. This is deliberate. A single stored blob is shared by every target that references it, so permitting edits would corrupt the content other configurations depend on.
 
-When you need an editable working copy, set `mutable = true`. Terragrunt then gives the target a file of its own, with its write permissions intact, instead of hard linking the stored one. The attribute is available on the `terraform` block, and on the `unit` and `stack` blocks of a stack configuration.
+When you need an editable working copy, set `mutable = true`. <Before version="1.1.5">Terragrunt then copies the content into the target with its write permissions intact rather than hard linking it, producing a tree that is independent of the store and safe to modify. This trades the disk savings of shared inodes for a writable copy, since each `mutable` target keeps its own.</Before><Since version="1.1.5">Terragrunt then gives the target a file of its own, with its write permissions intact, instead of hard linking the stored one.</Since> The attribute is available on the `terraform` block, and on the `unit` and `stack` blocks of a stack configuration.
 
 ```hcl
 # terragrunt.hcl
@@ -321,7 +356,7 @@ If hard linking fails (for example across a filesystem boundary, or on a host th
 
 <Since version="1.1.5">
 
-`clone` falls back the same way: on a filesystem with no copy-on-write support it becomes a hard link, and a copy where even that is unavailable.
+A [`mutable = true`](#immutable-by-default) source on a filesystem with no copy-on-write clone is copied the same way.
 
 </Since>
 
@@ -387,7 +422,7 @@ CAS achieves deduplication through hard links, which allows multiple files to us
 
 <Since version="1.1.5">
 
-A [`mutable = true`](#immutable-by-default) source cannot share the stored file. Terragrunt clones it where the filesystem offers reflinks, which deduplicates for as long as the file goes unedited and leaves the file writable from the start.
+A [`mutable = true`](#immutable-by-default) source cannot share the stored file. Where the filesystem offers reflinks, Terragrunt clones it, so the target shares the stored content except for the parts you edit and is writable from the start.
 
 </Since>
 

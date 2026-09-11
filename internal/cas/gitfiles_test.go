@@ -24,7 +24,7 @@ import (
 // TestCAS_IncludedGitFilesPerCaller pins the tree cache key to the commit
 // alone: whichever caller ingests a commit first, every later caller
 // against the same store receives exactly the .git files it named, and
-// the stored tree never carries a .git entry.
+// the stored tree has no .git entry.
 func TestCAS_IncludedGitFilesPerCaller(t *testing.T) {
 	t.Parallel()
 
@@ -67,9 +67,7 @@ func TestCAS_IncludedGitFilesPerCaller(t *testing.T) {
 			tempDir := helpers.TmpDirWOSymlinks(t)
 			storePath := filepath.Join(tempDir, "store")
 
-			// Each clone runs through its own CAS instance so the store on
-			// disk is the only state the callers share, as it is between
-			// processes.
+			// Each clone builds its own CAS instance, as each unit in a run does.
 			clone := func(name string, files []string) string {
 				t.Helper()
 
@@ -102,9 +100,8 @@ func TestCAS_IncludedGitFilesPerCaller(t *testing.T) {
 
 // TestCAS_IncludedGitFilesFromFoldedTree covers a store written before
 // the .git files moved to records of their own, whose tree for the commit
-// carries the list the caller that ingested it asked for. Later callers
-// receive the files their own lists name, and the cached commit is not
-// thrown away to get there.
+// contains the list the caller that ingested it asked for. Later callers
+// receive the files their own lists name, and the cached commit is kept.
 func TestCAS_IncludedGitFilesFromFoldedTree(t *testing.T) {
 	t.Parallel()
 
@@ -152,9 +149,9 @@ func TestCAS_IncludedGitFilesFromFoldedTree(t *testing.T) {
 	assertGitDir(t, clone("both", []string{"HEAD", "config"}), []string{"HEAD", "config"})
 }
 
-// foldGitFilesIntoTree rewrites the tree stored under hash into the shape
-// releases before per-caller .git files wrote: each named file appended to
-// the tree as a ".git/<name>" entry, with no record of its own left behind.
+// foldGitFilesIntoTree rewrites the tree stored under hash into the layout
+// older releases wrote: each named file appended to the tree as a
+// ".git/<name>" entry, with no record of its own.
 func foldGitFilesIntoTree(
 	t *testing.T,
 	c *cas.CAS,

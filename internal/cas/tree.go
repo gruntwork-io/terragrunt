@@ -36,8 +36,7 @@ const (
 )
 
 // LinkFallback classifies why a tree could not be materialized in the mode it
-// was asked for. It travels as the fallback attribute on the cas_link_tree
-// span.
+// was asked for. It is the fallback attribute on the cas_link_tree span.
 type LinkFallback string
 
 const (
@@ -45,22 +44,21 @@ const (
 	LinkFallbackNone LinkFallback = ""
 
 	// LinkFallbackCloneUnsupported reports that the filesystem holding the
-	// target has no copy-on-write clone, so the tree was hard linked or
-	// copied instead.
+	// target has no copy-on-write clone, so files were copied instead.
 	LinkFallbackCloneUnsupported LinkFallback = "clone_unsupported"
 
-	// LinkFallbackHardlinkUnsupported reports that the target could not be
-	// given a second name for every stored blob, because it sits on another
-	// filesystem or a blob does not carry the permissions git recorded, so
-	// the tree was copied instead.
-	LinkFallbackHardlinkUnsupported LinkFallback = "hardlink_unsupported"
+	// LinkFallbackHardlinkUnavailable reports that some files could not be
+	// hard linked and were copied, because the target sits on another
+	// filesystem, the filesystem has no hard links, or a stored blob's
+	// permissions differ from the ones requested.
+	LinkFallbackHardlinkUnavailable LinkFallback = "hardlink_unavailable"
 )
 
 // linkFallbackByMode names the fallback a tree reports when the mode it was
-// asked for did not serve every file in it. [LinkModeCopy] has no entry: it
-// is the mode every other one degrades to.
+// asked for did not serve every file in it. [LinkModeCopy] never falls back,
+// so it has no entry.
 var linkFallbackByMode = map[LinkMode]LinkFallback{
-	LinkModeHardlink: LinkFallbackHardlinkUnsupported,
+	LinkModeHardlink: LinkFallbackHardlinkUnavailable,
 	LinkModeClone:    LinkFallbackCloneUnsupported,
 }
 
@@ -70,22 +68,19 @@ type LinkTreeOption func(*linkTreeOpts)
 type linkTreeOpts struct {
 	maxDepth  int
 	mode      LinkMode
-	forceCopy bool
+	mutable   bool
 	fsWorkers int
 }
 
-// WithForceCopy tells LinkTree the target directory is going to be edited, so
-// blobs must not be materialized as the CAS store's own files. The
-// destination tree becomes safe to mutate. A tree asked for in
-// [LinkModeHardlink] is cloned instead, so the extra I/O is a copy per file
-// only where the filesystem has no copy-on-write clone.
-func WithForceCopy() LinkTreeOption {
-	return func(o *linkTreeOpts) { o.forceCopy = true }
+// WithMutableTree tells LinkTree the target directory is going to be edited,
+// so a tree asked for in [LinkModeHardlink] is cloned and every file in it is
+// writable.
+func WithMutableTree() LinkTreeOption {
+	return func(o *linkTreeOpts) { o.mutable = true }
 }
 
 // WithTreeLinkMode selects how blobs reach the target directory. Without it
-// LinkTree uses [DefaultLinkMode]; the CAS entry points pass the mode their
-// instance was built with.
+// LinkTree uses [DefaultLinkMode].
 func WithTreeLinkMode(mode LinkMode) LinkTreeOption {
 	return func(o *linkTreeOpts) { o.mode = mode }
 }
@@ -129,8 +124,7 @@ type treeWork struct {
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
 //
 // The whole tree, subtrees included, is reported as one cas_link_tree span
-// carrying the mode that served it and what it cost, so a tree of thousands
-// of files stays one span rather than thousands.
+// with the requested mode and how many files each mode served.
 func LinkTree(
 	ctx context.Context,
 	l log.Logger,
@@ -150,7 +144,7 @@ func LinkTree(
 	// probe cost on every subtree.
 	o.fsWorkers = vfs.FSWorkersFor(v.FS, targetDir)
 
-	mode := resolveLinkMode(o.mode, o.forceCopy)
+	mode := resolveLinkMode(o.mode, o.mutable)
 
 	linker := &treeLinker{
 		blobContent: NewContent(blobStore),
@@ -159,19 +153,19 @@ func LinkTree(
 		rootDir:     targetDir,
 		maxDepth:    o.maxTreeDepth(),
 		mode:        mode,
-		forceCopy:   o.forceCopy,
+		mutable:     o.mutable,
 	}
 
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, "cas_link_tree", map[string]any{
 		"path": targetDir,
 		"mode": mode.String(),
-	}, func(childCtx context.Context, _ log.Logger) error {
+	}, telemetry.WithoutLogger(func(childCtx context.Context) error {
 		err := linkTree(l, v, linker, t, targetDir, o.fsWorkers)
 
 		linker.report(childCtx)
 
 		return err
-	})
+	}))
 }
 
 // linkTree materializes t and everything nested below it, one level of the
@@ -191,7 +185,7 @@ func linkTree(
 
 	for len(level) > 0 {
 		if idx := linker.probeIndex(level); idx >= 0 {
-			if err := linker.link(l, v, &level[idx]); err != nil {
+			if err := linker.probe(l, v, &level[idx]); err != nil {
 				return err
 			}
 
@@ -302,7 +296,7 @@ type treeLinker struct {
 	bytesCopied      atomic.Int64
 	mode             LinkMode
 	cloneUnsupported atomic.Bool
-	forceCopy        bool
+	mutable          bool
 }
 
 // materialize writes work to disk. For a subtree or submodule it opens the
@@ -310,7 +304,9 @@ type treeLinker struct {
 func (tl *treeLinker) materialize(l log.Logger, v *venv.Venv, work *treeWork) ([]treeWork, error) {
 	switch work.kind {
 	case entryLink:
-		return nil, tl.link(l, v, work)
+		_, err := tl.link(l, v, work)
+
+		return nil, err
 	case entrySymlink:
 		return nil, tl.symlink(v, work)
 	case entrySubtree:
@@ -323,7 +319,7 @@ func (tl *treeLinker) materialize(l log.Logger, v *venv.Venv, work *treeWork) ([
 }
 
 // link materializes one blob entry and counts how it arrived.
-func (tl *treeLinker) link(l log.Logger, v *venv.Venv, work *treeWork) error {
+func (tl *treeLinker) link(l log.Logger, v *venv.Venv, work *treeWork) (LinkOutcome, error) {
 	outcome, err := tl.blobContent.Link(
 		l,
 		v,
@@ -332,14 +328,25 @@ func (tl *treeLinker) link(l log.Logger, v *venv.Venv, work *treeWork) error {
 		gitFilePerm(work.entry.Mode),
 		tl.linkOptions()...)
 	if err != nil {
-		return fmt.Errorf("link blob %s: %w", work.path, err)
-	}
-
-	if tl.mode == LinkModeClone && outcome.Mode != LinkModeClone {
-		tl.cloneUnsupported.Store(true)
+		return LinkOutcome{}, fmt.Errorf("link blob %s: %w", work.path, err)
 	}
 
 	tl.record(outcome)
+
+	return outcome, nil
+}
+
+// probe links work ahead of the rest of its level. A blob that comes back as
+// anything but a clone stops the rest of the tree from attempting one.
+func (tl *treeLinker) probe(l log.Logger, v *venv.Venv, work *treeWork) error {
+	outcome, err := tl.link(l, v, work)
+	if err != nil {
+		return err
+	}
+
+	if outcome.Mode != LinkModeClone {
+		tl.cloneUnsupported.Store(true)
+	}
 
 	return nil
 }
@@ -431,10 +438,9 @@ func (tl *treeLinker) submodule(v *venv.Venv, work *treeWork) ([]treeWork, error
 	return children, nil
 }
 
-// probeIndex returns the blob in level to materialize ahead of the others, or
-// -1 when nothing is to be learned from doing so. Only a clone has an answer
-// worth settling: every other mode either serves every file or is already
-// what a clone degrades to.
+// probeIndex returns the index of the blob in level to [treeLinker.probe]
+// before the level fans out, or -1 when the tree is not cloned or an earlier
+// probe already came back uncloned.
 func (tl *treeLinker) probeIndex(level []treeWork) int {
 	if tl.mode != LinkModeClone || tl.cloneUnsupported.Load() {
 		return -1
@@ -445,18 +451,13 @@ func (tl *treeLinker) probeIndex(level []treeWork) int {
 	})
 }
 
-// linkOptions returns the options one blob is materialized with.
-//
-// Once a clone has come back as something else, which is how a filesystem
-// with no copy-on-write clone answers, the rest of the tree takes the same
-// fallback without asking again. A single entry the filesystem cannot clone
-// where others clone fine, such as one reached across a mount point, still
-// falls back on its own inside [Content.Link].
+// linkOptions returns the options one blob is materialized with. Once a probe
+// has come back uncloned, every later blob copies without attempting a clone.
 func (tl *treeLinker) linkOptions() []LinkOption {
 	opts := []LinkOption{WithFileLinkMode(tl.mode)}
 
-	if tl.forceCopy {
-		opts = append(opts, WithLinkForceCopy())
+	if tl.mutable {
+		opts = append(opts, WithLinkMutable())
 	}
 
 	if tl.cloneUnsupported.Load() {
@@ -479,10 +480,8 @@ func (tl *treeLinker) record(outcome LinkOutcome) {
 	}
 }
 
-// report stamps what the tree cost onto the span ctx carries. A file that
-// arrived in a mode other than the one asked for met a filesystem that could
-// not serve the request, which is worth reporting even though every file is
-// in place.
+// report sets the per-mode file counts, the bytes copied, and the fallback on
+// the span in ctx.
 func (tl *treeLinker) report(ctx context.Context) {
 	span := trace.SpanFromContext(ctx)
 	if !span.IsRecording() {

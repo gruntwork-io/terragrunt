@@ -166,7 +166,7 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 		// Local directory.
 		var linkOpts []cas.LinkTreeOption
 		if g.Opts.Mutable {
-			linkOpts = append(linkOpts, cas.WithForceCopy())
+			linkOpts = append(linkOpts, cas.WithMutableTree())
 		}
 
 		return g.CAS.StoreLocalDirectory(ctx, g.Logger, g.Venv, req.Src, req.Dst, linkOpts...)

@@ -142,8 +142,8 @@ type SourceRequest struct {
 // [WithOffline] there is no second pass: the miss is returned as an
 // [OfflineRepairError] instead of asking the remote the flag forbids.
 //
-// opts.Dir is the destination. opts.Mutable selects copy vs hardlink
-// for the final link, matching the git path. opts.IncludedGitFiles are
+// opts.Dir is the destination, and opts.Mutable applies as it does on the git
+// path. opts.IncludedGitFiles are
 // served from the records the git ingest leaves in [CAS.GitFileStore];
 // a probe hit requires every named file to be recorded, and a fetcher
 // that records none must be called with an empty list or the link step
@@ -574,8 +574,8 @@ func (s *probeOriginSink) stamp(ctx context.Context) {
 
 // linkStoredTree materializes the tree at key into opts.Dir, then the
 // files opts.IncludedGitFiles names into opts.Dir/.git. A tree ingested
-// under [gitScheme] is read back through [dropGitDirEntries], which is
-// where a .git entry is residue rather than content.
+// under [gitScheme] is read back through [dropGitDirEntries], since any .git
+// entry in it was written by an older release.
 func (c *CAS) linkStoredTree(
 	ctx context.Context,
 	l log.Logger,
@@ -600,16 +600,9 @@ func (c *CAS) linkStoredTree(
 	}
 
 	var linkOpts []LinkTreeOption
-
-	if opts.LinkMode != nil {
-		linkOpts = append(linkOpts, WithTreeLinkMode(*opts.LinkMode))
-	}
-
 	if opts.Mutable {
-		linkOpts = append(linkOpts, WithForceCopy())
+		linkOpts = append(linkOpts, WithMutableTree())
 	}
-
-	linkOpts = c.linkTreeOptions(linkOpts)
 
 	if err := LinkTree(ctx, l, v, c.blobStore, c.treeStore, tree, opts.Dir, linkOpts...); err != nil {
 		return err

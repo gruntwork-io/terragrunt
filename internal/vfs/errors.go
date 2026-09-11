@@ -10,8 +10,7 @@ var ErrNoHardLink = errors.New("hard link not supported")
 
 // ErrNoCloneFile is returned by [CloneFile] when the filesystem, the volume,
 // or the platform has no copy-on-write clone to offer. Match it with
-// errors.Is to fall back to linking or copying; any other error means the
-// clone itself failed and would fail again.
+// errors.Is to fall back to linking or copying.
 var ErrNoCloneFile = errors.New("copy-on-write clone not supported")
 
 // ErrNoLock is returned when a filesystem does not support locking.

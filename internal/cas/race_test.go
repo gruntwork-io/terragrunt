@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
@@ -185,17 +186,11 @@ func TestContentLinkConcurrentSameTargetWithRacing(t *testing.T) {
 
 			const workers = 8
 
-			errs := make([]error, workers)
+			var g errgroup.Group
 
-			var wg sync.WaitGroup
-
-			for i := range workers {
-				wg.Add(1)
-
-				go func(idx int) {
-					defer wg.Done()
-
-					_, errs[idx] = content.Link(
+			for range workers {
+				g.Go(func() error {
+					_, err := content.Link(
 						l,
 						v,
 						hash,
@@ -203,14 +198,12 @@ func TestContentLinkConcurrentSameTargetWithRacing(t *testing.T) {
 						0o644,
 						cas.WithFileLinkMode(tt.mode),
 					)
-				}(i)
+
+					return err
+				})
 			}
 
-			wg.Wait()
-
-			for i, e := range errs {
-				require.NoErrorf(t, e, "worker %d failed to link the shared target", i)
-			}
+			require.NoError(t, g.Wait(), "a worker failed to link the shared target")
 
 			got, err := os.ReadFile(targetPath)
 			require.NoError(t, err)

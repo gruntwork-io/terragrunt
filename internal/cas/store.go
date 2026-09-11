@@ -20,9 +20,8 @@ type Store struct {
 
 // objectLocks serializes in-process writers per object path. It is
 // package state rather than a Store field because each call site builds
-// a CAS per unit, and instances over one store path must share the lock
-// for writers of one object to wait on each other instead of repeating
-// the write.
+// a CAS per unit, and writers of one object in separate instances must
+// wait on the same lock.
 var objectLocks = newKeyedLocks()
 
 // NewStore creates a new Store rooted at path.

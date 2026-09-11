@@ -403,7 +403,7 @@ func TestContent_Link(t *testing.T) {
 		assert.True(t, os.SameFile(sourceInfo, targetInfo), "expected hard link (same inode)")
 	})
 
-	t.Run("force copy creates independent inode on real filesystem", func(t *testing.T) {
+	t.Run("mutable link creates an independent inode on a real filesystem", func(t *testing.T) {
 		t.Parallel()
 
 		v := venvtest.NewOSWithEmptyEnv()
@@ -420,7 +420,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		_, err = content.Link(l, v, testHash, targetPath, 0o644, cas.WithLinkForceCopy())
+		_, err = content.Link(l, v, testHash, targetPath, 0o644, cas.WithLinkMutable())
 		require.NoError(t, err)
 
 		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
@@ -431,10 +431,10 @@ func TestContent_Link(t *testing.T) {
 		assert.False(
 			t,
 			os.SameFile(sourceInfo, targetInfo),
-			"expected independent inode (copy, not hard link)",
+			"expected an independent inode, not a hard link",
 		)
 		assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm(),
-			"force copy must preserve original git perms exactly")
+			"a mutable link must preserve the git perms exactly")
 
 		copied, err := os.ReadFile(targetPath)
 		require.NoError(t, err)
@@ -547,7 +547,7 @@ func TestContent_Link(t *testing.T) {
 			"perm mismatch must materialize as an independent inode")
 	})
 
-	t.Run("force copy preserves executable bits", func(t *testing.T) {
+	t.Run("mutable link preserves executable bits", func(t *testing.T) {
 		t.Parallel()
 
 		v := venvtest.NewOSWithEmptyEnv()
@@ -563,13 +563,13 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		targetPath := filepath.Join(targetDir, "run.sh")
-		_, err := content.Link(l, v, testHash, targetPath, 0o755, cas.WithLinkForceCopy())
+		_, err := content.Link(l, v, testHash, targetPath, 0o755, cas.WithLinkMutable())
 		require.NoError(t, err)
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)
 		assert.Equal(t, os.FileMode(0o755), info.Mode().Perm(),
-			"force copy must reproduce git mode exactly (0o755)")
+			"a mutable link must reproduce the git mode exactly (0o755)")
 	})
 
 	t.Run("link to existing file overwrites stale content", func(t *testing.T) {

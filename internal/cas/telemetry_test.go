@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -61,8 +60,8 @@ func TestFetchSource_ProbeFailureRecordsFallback(t *testing.T) {
 }
 
 // TestLinkTreeEmitsOneSpanPerTree pins the materialization telemetry
-// contract: a tree of many files is reported as a single span carrying what
-// the whole tree cost, rather than a span for every file in it.
+// contract: a tree of many files is reported as one span with the counts for
+// the whole tree.
 func TestLinkTreeEmitsOneSpanPerTree(t *testing.T) {
 	t.Parallel()
 
@@ -120,9 +119,7 @@ func TestLinkTreeEmitsOneSpanPerTree(t *testing.T) {
 }
 
 // TestLinkTreeReportsDegradedMode pins the fallback attribute for a tree
-// the requested mode could not serve throughout: the span names the mode
-// that could not be honoured, rather than reporting that the request was
-// met.
+// the requested mode could not serve throughout.
 func TestLinkTreeReportsDegradedMode(t *testing.T) {
 	t.Parallel()
 
@@ -143,7 +140,7 @@ func TestLinkTreeReportsDegradedMode(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	v = v.WithFS(&vfs.NoSymlinkFS{FS: v.FS})
+	v = v.WithFS(&noLinkFS{FS: v.FS})
 
 	buf, tlm := newConsoleTelemeter(t, l)
 
@@ -161,7 +158,7 @@ func TestLinkTreeReportsDegradedMode(t *testing.T) {
 		"files_cloned": float64(0),
 		"files_copied": float64(1),
 		"bytes_copied": float64(len(blobData)),
-		"fallback":     string(cas.LinkFallbackHardlinkUnsupported),
+		"fallback":     string(cas.LinkFallbackHardlinkUnavailable),
 	}, linkTreeSpanAttrs(t, buf))
 }
 
@@ -188,8 +185,7 @@ func linkTreeSpanAttrs(t *testing.T, buf *bytes.Buffer) map[string]any {
 }
 
 // newConsoleTelemeter returns a telemeter that writes spans as JSON into the
-// buffer it also returns, which is how these tests read back what a code path
-// reported.
+// buffer it also returns.
 func newConsoleTelemeter(t *testing.T, l log.Logger) (*bytes.Buffer, *telemetry.Telemeter) {
 	t.Helper()
 
@@ -214,8 +210,8 @@ func newConsoleTelemeter(t *testing.T, l log.Logger) (*bytes.Buffer, *telemetry.
 
 // decodedSpan is one span as the console trace exporter wrote it.
 type decodedSpan struct {
-	// Attrs holds the span's attributes, with numbers decoded as float64 the
-	// way encoding/json reports any JSON number.
+	// Attrs maps each attribute key to its value, with numbers decoded as
+	// float64 the way encoding/json reports any JSON number.
 	Attrs map[string]any
 	// Name is the span name.
 	Name string

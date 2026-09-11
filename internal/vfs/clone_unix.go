@@ -21,10 +21,8 @@ var cloneUnsupportedErrnos = []error{
 	unix.ENOSYS,
 }
 
-// cloneErr classifies a failed clone syscall. Callers distinguish a
-// filesystem that cannot clone at all, which they answer by linking or
-// copying instead, from a failure that would recur whatever they try, so
-// only the first kind is reported as [ErrNoCloneFile].
+// cloneErr wraps an errno in [cloneUnsupportedErrnos] with [ErrNoCloneFile]
+// and returns any other error unchanged.
 func cloneErr(err error) error {
 	for _, errno := range cloneUnsupportedErrnos {
 		if errors.Is(err, errno) {
