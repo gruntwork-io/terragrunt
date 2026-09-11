@@ -50,7 +50,7 @@ func FindDependentUnits(
 // or the parents of the processed includes when git detection fails.
 func discoverPathsToCheck(
 	ctx context.Context,
-	_ log.Logger,
+	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	terragruntConfig *config.TerragruntConfig,
@@ -60,6 +60,8 @@ func discoverPathsToCheck(
 	if repoRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir); err == nil {
 		pathsToCheck = append(pathsToCheck, repoRoot)
 	} else {
+		l.Debugf("Could not determine git repo root for %s: %v", opts.WorkingDir, err)
+
 		uniquePaths := make(map[string]bool)
 		for _, includePath := range terragruntConfig.ProcessedIncludes {
 			uniquePaths[filepath.Dir(includePath.Path)] = true
