@@ -337,19 +337,19 @@ func validateUniqueDependencies(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 	deps Dependencies,
 ) error {
 	if address, found := duplicateDependencyAddress(deps); found {
 		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyError{
-			ConfigPath: configPath,
+			ConfigPath: cfgPath,
 			Address:    address,
 		})
 	}
 
-	if dup, found := duplicateDependencyConfigPath(configPath, deps); found {
+	if dup, found := duplicateDependencyConfigPath(cfgPath, deps); found {
 		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyConfigPathError{
-			ConfigPath:     configPath,
+			ConfigPath:     cfgPath,
 			DependencyPath: dup.path,
 			FirstAddress:   dup.first,
 			SecondAddress:  dup.second,
@@ -410,7 +410,7 @@ type sharedDependencyPath struct {
 // so two spellings of one directory count as the same path. A disabled dependency reads
 // nothing and so collides with nothing, and a config_path that is not yet a known string
 // is skipped.
-func duplicateDependencyConfigPath(configPath string, deps Dependencies) (sharedDependencyPath, bool) {
+func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDependencyPath, bool) {
 	seen := make(map[string]string, len(deps))
 
 	for i := range deps {
@@ -423,7 +423,7 @@ func duplicateDependencyConfigPath(configPath string, deps Dependencies) (shared
 
 		path := dep.ConfigPath.AsString()
 		if !filepath.IsAbs(path) {
-			path = filepath.Join(filepath.Dir(configPath), path)
+			path = filepath.Join(filepath.Dir(cfgPath), path)
 		}
 
 		path = filepath.Clean(path)
@@ -459,7 +459,13 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(ctx, pctx, l, file, evalParsingContext)
+	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+		ctx,
+		pctx,
+		l,
+		file,
+		evalParsingContext,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -700,11 +706,11 @@ func checkForDependencyBlockCycles(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 	decodedDependency TerragruntDependency,
 ) error {
 	visitedPaths := []string{}
-	currentTraversalPaths := []string{configPath}
+	currentTraversalPaths := []string{cfgPath}
 
 	for _, dependency := range decodedDependency.Dependencies {
 		if dependency.isDisabled() {
@@ -722,7 +728,7 @@ func checkForDependencyBlockCycles(
 		dependencyPath := getCleanedTargetConfigPath(
 			pctx.Venv.FS,
 			dependency.ConfigPath.AsString(),
-			configPath,
+			cfgPath,
 		)
 
 		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
@@ -816,7 +822,7 @@ func getDependencyBlockConfigPathsByFilepath(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) ([]string, error) {
 	// This will automatically parse everything needed to parse the dependency block configs, and load them as
 	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
@@ -826,7 +832,7 @@ func getDependencyBlockConfigPathsByFilepath(
 		ctx,
 		pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(l),
 		l,
-		configPath,
+		cfgPath,
 		nil,
 	)
 	if err != nil {
@@ -1595,7 +1601,8 @@ func resolveOutputJSON(
 	// reference the dependency namespace.
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).WithDiagnosticsSuppressed(l),
+		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
+			WithDiagnosticsSuppressed(l),
 		l,
 		targetConfig,
 		nil,
@@ -1791,7 +1798,10 @@ var directStateBackends = map[string]directStateBackend{
 }
 
 // shouldFetchDependencyOutputFromState reports whether a registered backend supports a direct state read.
-func shouldFetchDependencyOutputFromState(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+func shouldFetchDependencyOutputFromState(
+	pctx *ParsingContext,
+	remoteState *remotestate.RemoteState,
+) bool {
 	if remoteState == nil ||
 		!pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) ||
 		pctx.NoDependencyFetchOutputFromState {
@@ -2033,7 +2043,7 @@ func terragruntAlreadyInit(
 	ctx context.Context,
 	l log.Logger,
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 ) (bool, string, error) {
 	// We need to first determine the working directory where the terraform source should be located. This is dependent
 	// on the source field of the terraform block in the config.
@@ -2041,7 +2051,7 @@ func terragruntAlreadyInit(
 		ctx,
 		pctx.WithDecodeList(TerraformSource),
 		l,
-		configPath,
+		cfgPath,
 		nil,
 	)
 	if err != nil {
@@ -2194,7 +2204,8 @@ func getTerragruntOutputJSONFromRemoteState(
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
 	// A non-empty workspace means the caller already found a supported backend, so
 	// the reader lookup below cannot miss.
-	if stateBackend, supported := directStateBackends[remoteState.BackendName]; supported && workspace != "" {
+	if stateBackend, supported := directStateBackends[remoteState.BackendName]; supported &&
+		workspace != "" {
 		jsonBytes, readErr := stateBackend.read(ctx, l, pctx, remoteState, workspace)
 		if readErr != nil {
 			return nil, readErr
@@ -2627,7 +2638,11 @@ func siblingAutoIncludeDepOverrides(
 		return nil, nil
 	}
 
-	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, pctx.TrackInclude.AutoIncludeOverride.Path)
+	autoFile, err := parseAutoIncludeFileCached(
+		ctx,
+		pctx,
+		pctx.TrackInclude.AutoIncludeOverride.Path,
+	)
 	if err != nil {
 		return nil, err
 	}

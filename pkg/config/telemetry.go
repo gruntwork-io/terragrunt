@@ -33,7 +33,7 @@ const (
 func TraceParseConfigFile(
 	ctx context.Context,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 	workingDir string,
 	isPartial bool,
 	decodeList []PartialDecodeSectionType,
@@ -42,7 +42,7 @@ func TraceParseConfigFile(
 	fn func(ctx context.Context, l log.Logger) error,
 ) error {
 	attrs := map[string]any{
-		AttrConfigPath:       configPath,
+		AttrConfigPath:       cfgPath,
 		AttrWorkingDir:       workingDir,
 		AttrIsPartial:        isPartial,
 		AttrCacheHit:         cacheHit,
@@ -65,14 +65,14 @@ func TraceParseConfigFile(
 func TraceParseDependencies(
 	ctx context.Context,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 	skipOutputsResolution bool,
 	dependencyCount int,
 	dependencyNames []string,
 	fn func(ctx context.Context, l log.Logger) error,
 ) error {
 	attrs := map[string]any{
-		AttrConfigPath:      configPath,
+		AttrConfigPath:      cfgPath,
 		AttrSkipOutputs:     skipOutputsResolution,
 		AttrDependencyCount: dependencyCount,
 	}
