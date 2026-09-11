@@ -434,14 +434,97 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 	return tree, nil
 }
 
+// WorktreeCheckout selects whether [GitRunner.CreateDetachedWorktree] fills the
+// worktree it creates.
+type WorktreeCheckout int
+
+const (
+	// CheckoutFiles has git write the files of the reference into the worktree.
+	CheckoutFiles WorktreeCheckout = iota
+	// SkipCheckout leaves the worktree empty, for a caller that fills it
+	// itself. The index is left empty too, so a caller that writes the files
+	// should follow with [GitRunner.ReadTree].
+	SkipCheckout
+)
+
+// TreePaths is the set of paths in a tree, in the slash-separated form git
+// reports them in.
+type TreePaths map[string]struct{}
+
+// Has reports whether the tree contains path.
+func (t TreePaths) Has(path string) bool {
+	_, ok := t[path]
+
+	return ok
+}
+
+// LsTreeNames returns every path in the tree at ref, recursively, which tells a
+// caller what a reference contains without checking it out.
+func (g *GitRunner) LsTreeNames(ctx context.Context, v *venv.Venv, ref string) (TreePaths, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
+	// Run from the repository root: git limits a listing to the directory it
+	// runs in, and callers may be working from a subdirectory. -z keeps a path
+	// with unusual characters intact, which git would otherwise quote.
+	root, err := GoRepoRoot(ctx, v, g.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := g.prepareCommand(ctx, "ls-tree", "-r", "--name-only", "-z", ref)
+	cmd.SetDir(root)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_ls_tree_names",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrReadTree, err),
+		}
+	}
+
+	paths := make(TreePaths)
+
+	for name := range strings.SplitSeq(strings.TrimSuffix(stdout.String(), "\x00"), "\x00") {
+		if name == "" {
+			continue
+		}
+
+		paths[name] = struct{}{}
+	}
+
+	return paths, nil
+}
+
 // CreateDetachedWorktree creates a new detached worktree for a given reference
 // as a given directory
-func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string) error {
+func (g *GitRunner) CreateDetachedWorktree(
+	ctx context.Context,
+	v *venv.Venv,
+	dir, ref string,
+	checkout WorktreeCheckout,
+) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
 
-	cmd := g.prepareCommand(ctx, "worktree", "add", "--detach", dir, ref)
+	args := []string{
+		"-c", "checkout.workers=" + strconv.Itoa(vfs.FSWorkersFor(v.FS, dir)),
+		"worktree", "add", "--detach",
+	}
+	if checkout == SkipCheckout {
+		args = append(args, "--no-checkout")
+	}
+
+	args = append(args, dir, ref)
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
 
 	var stdout, stderr bytes.Buffer
 

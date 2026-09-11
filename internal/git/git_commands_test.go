@@ -3,10 +3,12 @@ package git_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -245,23 +247,48 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		invoke func(context.Context, *git.GitRunner) error
-		name   string
-		args   []string
+		invoke  func(context.Context, *git.GitRunner) error
+		wantErr error
+		name    string
+		args    []string
 	}{
 		{
 			name: "create detached",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.CreateDetachedWorktree(ctx, "/worktree", "HEAD")
+				return runner.CreateDetachedWorktree(ctx, venvtest.New(), "/worktree", "HEAD", git.CheckoutFiles)
 			},
-			args: []string{"worktree", "add", "--detach", "/worktree", "HEAD"},
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
+				"worktree", "add", "--detach", "/worktree", "HEAD",
+			},
+			wantErr: git.ErrCommandSpawn,
+		},
+		{
+			name: "create detached without checkout",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.CreateDetachedWorktree(ctx, venvtest.New(), "/worktree", "HEAD", git.SkipCheckout)
+			},
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
+				"worktree", "add", "--detach", "--no-checkout", "/worktree", "HEAD",
+			},
+			wantErr: git.ErrCommandSpawn,
+		},
+		{
+			name: "read tree",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.ReadTree(ctx, "HEAD")
+			},
+			args:    []string{"read-tree", "HEAD"},
+			wantErr: git.ErrReadTree,
 		},
 		{
 			name: "remove",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
 				return runner.RemoveWorktree(ctx, "/worktree")
 			},
-			args: []string{"worktree", "remove", "--force", "/worktree"},
+			args:    []string{"worktree", "remove", "--force", "/worktree"},
+			wantErr: git.ErrCommandSpawn,
 		},
 	}
 
@@ -287,7 +314,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 			).WithWorkDir("/repo")
 
 			err := tc.invoke(t.Context(), runner)
-			require.ErrorIs(t, err, git.ErrCommandSpawn)
+			require.ErrorIs(t, err, tc.wantErr)
 		})
 
 		t.Run(tc.name+" missing workdir", func(t *testing.T) {

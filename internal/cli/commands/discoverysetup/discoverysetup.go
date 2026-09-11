@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -28,9 +29,10 @@ func Worktrees(
 	d *discovery.Discovery,
 ) (*discovery.Discovery, func(context.Context), error) {
 	wts, err := worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
-		WorkingDir:     opts.WorkingDir,
-		GitExpressions: opts.Filters.UniqueGitFilters(),
-		Experiments:    opts.Experiments,
+		WorkingDir:        opts.WorkingDir,
+		GitExpressions:    opts.Filters.UniqueGitFilters(),
+		Experiments:       opts.Experiments,
+		FilteredPathsOnly: FilteredPathsOnly(d, opts.Filters),
 	})
 	if err != nil {
 		return d, func(context.Context) {
@@ -49,4 +51,14 @@ func Worktrees(
 	}
 
 	return d.WithWorktrees(wts), cleanup, nil
+}
+
+// FilteredPathsOnly reports whether the worktrees for filters can be checked
+// out with only the directories the Git expressions in them expand to.
+//
+// They can when discovery reads nothing else. Parsing a configuration reads
+// more, and so does another filter query: those reach the worktree discovery
+// too, and can name a component the expansion never mentions.
+func FilteredPathsOnly(d *discovery.Discovery, filters filter.Filters) bool {
+	return !d.ParsesConfigs() && len(filters.ExcludingGitFilters()) == 0
 }

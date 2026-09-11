@@ -81,6 +81,14 @@ func (d *Discovery) WithNoHidden() *Discovery {
 	return d
 }
 
+// ParsesConfigs reports whether the options set so far commit discovery to
+// parsing Terragrunt configurations. The classifier can still call for a parse
+// later, from a filter expression that exists only once a Git diff has been
+// expanded.
+func (d *Discovery) ParsesConfigs() bool {
+	return len(d.parseReasons) > 0
+}
+
 // WithRequiresParse enables parsing of Terragrunt configurations.
 func (d *Discovery) WithRequiresParse() *Discovery {
 	d.addParseReason(parseReasonExplicit)
