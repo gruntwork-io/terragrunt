@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### `backend` commands no longer fail on unapplied dependencies
+
+[`backend bootstrap`](/reference/cli/commands/backend/bootstrap), [`backend migrate`](/reference/cli/commands/backend/migrate) and [`backend delete`](/reference/cli/commands/backend/delete) used to read the whole configuration of every unit they touched, which meant fetching the outputs of every `dependency` block. Declaring a dependency on a unit you had not applied yet was enough to stop them with the "detected no outputs" error, even when nothing in `remote_state` read that dependency.
+
+These commands now read only the `remote_state` block and the `terraform` block's `source`. They never fetch dependency outputs. A `remote_state` that does read a dependency output still resolves it, and still reports missing outputs when the dependency has not been applied.

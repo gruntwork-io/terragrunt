@@ -151,3 +151,55 @@ The expanded blocks are in comments because they are not a valid Terragrunt conf
 A `dependency` block with no `expansion` block renders as it always has.
 
 </Since>
+
+<Since version="1.1.5">
+
+A configuration written in JSON reads the same way. It has no HCL to quote, so `render` writes the block as the HCL that means the same thing and previews the elements underneath it:
+
+```bash
+$ cat terragrunt.hcl.json
+{"dependency": {"shard": {
+  "expansion": {"count": 2},
+  "config_path": "../shard-${count.index}"
+}}}
+
+$ terragrunt render --experiment block-iteration
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../shard-${count.index}"
+}
+
+# Expands to:
+#
+# dependency "shard" {
+#   config_path = "../shard-0"
+# }
+#
+# dependency "shard" {
+#   config_path = "../shard-1"
+# }
+```
+
+`--format json` has no comment to preview the elements in, and its `dependency` map is keyed by label, which every element shares. It emits the block as it was written, references and all:
+
+```bash
+$ terragrunt render --format json --experiment block-iteration
+{
+  "dependency": {
+    "shard": {
+      "expansion": { "count": 2 },
+      "config_path": "../shard-${count.index}",
+      "skip_outputs": true
+    }
+  }
+}
+```
+
+An expanded block uses the names the configuration writes, such as `skip_outputs`, rather than the resolved names an unexpanded block gets, such as `skip`. Nothing about it has been resolved, so it appears as declared.
+
+Whichever syntax you write and whichever format you ask for, rendering the output again returns it unchanged.
+
+</Since>

@@ -88,6 +88,9 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.NoStackValidate = opts.NoStackValidate
 	pctx.NoCAS = opts.NoCAS
 	pctx.CASCloneDepth = opts.CASCloneDepth
+	pctx.CASOffline = opts.CASOffline
+	pctx.CASRefresh = opts.CASRefresh
+	pctx.CASProbeTTL = opts.CASProbeTTL
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
@@ -184,6 +187,9 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.DisableBucketUpdate = opts.DisableBucketUpdate
 	runOpts.SourceUpdate = opts.SourceUpdate
 	runOpts.CASCloneDepth = opts.CASCloneDepth
+	runOpts.CASOffline = opts.CASOffline
+	runOpts.CASRefresh = opts.CASRefresh
+	runOpts.CASProbeTTL = opts.CASProbeTTL
 	runOpts.NoCAS = opts.NoCAS
 	runOpts.NoHooks = opts.NoRunHooks
 

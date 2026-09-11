@@ -1546,13 +1546,25 @@ func parseDependencyJSONString(
 func parseStackString(tb testing.TB, cfg string) (*config.StackConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), config.DefaultStackFile)
+	return parseStackStringAt(tb, config.DefaultStackFile, cfg)
+}
+
+func parseStackJSONString(tb testing.TB, cfg string) (*config.StackConfig, error) {
+	tb.Helper()
+
+	return parseStackStringAt(tb, config.DefaultStackFile+".json", cfg)
+}
+
+func parseStackStringAt(tb testing.TB, path, cfg string) (*config.StackConfig, error) {
+	tb.Helper()
+
+	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), path)
 
 	return config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
 		pctx,
-		config.DefaultStackFile,
+		path,
 		cfg,
 		nil,
 	)
@@ -1586,4 +1598,37 @@ func parseHCLString(tb testing.TB, cfg, configPath string) *hclparse.File {
 	require.NoError(tb, err)
 
 	return file
+}
+
+// TestUnitExpandsInJSONStackFile pins that a stack file written in JSON expands the same way an
+// HCL one does, including a unit block written as an array. Nothing reads the HCL a unit block is
+// quoted back into, so the unexpanded unit here carries a property no HCL argument can spell: a
+// stack file must not fail on text that only an expanded block would ever need.
+func TestUnitExpandsInJSONStackFile(t *testing.T) {
+	t.Parallel()
+
+	stackCfg, err := parseStackJSONString(t, `{
+  "unit": {
+    "app": [{
+      "expansion": {"count": 2},
+      "source": "./modules/app",
+      "path": "app-${count.index}"
+    }],
+    "vpc": {
+      "//": "the network",
+      "source": "./modules/vpc",
+      "path": "vpc",
+      "not an identifier": "a unit block accepts properties it does not declare"
+    }
+  }
+}`)
+	require.NoError(t, err)
+	require.Len(t, stackCfg.Units, 3)
+
+	paths := make([]string, 0, len(stackCfg.Units))
+	for _, unit := range stackCfg.Units {
+		paths = append(paths, unit.Path)
+	}
+
+	assert.ElementsMatch(t, []string{"app-0", "app-1", "vpc"}, paths)
 }

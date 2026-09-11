@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -19,6 +20,60 @@ var ErrMalformedResponse = errors.New("malformed portal response")
 // ErrResponseNotObject reports a response body that is well-formed JSON but not
 // an object.
 var ErrResponseNotObject = fmt.Errorf("%w: not a JSON object", ErrMalformedResponse)
+
+// ErrLoginDenied reports a login request the user refused at the portal.
+var ErrLoginDenied = errors.New("the login request was denied")
+
+// ErrLoginExpired reports a login request that ran out of time before the user
+// approved it.
+var ErrLoginExpired = errors.New("the login request expired before it was approved")
+
+// ErrPollLimit reports a poll loop that ran past the attempts its authorization
+// allows. An ordinary login ends on that deadline first, so this reports a bug
+// here rather than anything the portal did.
+var ErrPollLimit = errors.New("the login poll ran past the attempts its request allows")
+
+// ErrUnusablePortalURL reports a portal base URL the CLI cannot address, and so
+// cannot file a credential under either. A caller matches it to tell a base URL
+// the user has to correct from a failure it can do nothing about.
+var ErrUnusablePortalURL = errors.New("unusable portal base URL")
+
+// ErrNoPortalHost reports a base URL naming no host, which is what a bare
+// hostname with no scheme in front of it parses as.
+var ErrNoPortalHost = fmt.Errorf("%w: it names no host", ErrUnusablePortalURL)
+
+// ErrPortalSchemeUnsupported reports a base URL the CLI cannot send a request
+// to, and whose credentials it therefore cannot keep apart from those of
+// another scheme.
+var ErrPortalSchemeUnsupported = fmt.Errorf("%w: only http and https are addressable", ErrUnusablePortalURL)
+
+// UnusablePortalURLError carries the address that could not be used. It unwraps
+// to the reason and, through that, to [ErrUnusablePortalURL], so a caller can
+// match either. [UnusablePortalURLError.Error] redacts the address, which may
+// carry a password.
+type UnusablePortalURLError struct {
+	Err error
+	URL string
+}
+
+func (e *UnusablePortalURLError) Error() string {
+	return fmt.Sprintf("%q: %v", redactURL(e.URL), e.Err)
+}
+
+func (e *UnusablePortalURLError) Unwrap() error {
+	return e.Err
+}
+
+// redactURL replaces the password in rawURL. An address [url.Parse] rejects is
+// returned unchanged.
+func redactURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	return parsed.Redacted()
+}
 
 // MissingFieldError reports a response that left out a field the CLI needs. It
 // unwraps to [ErrMalformedResponse], so a caller that does not care which field
@@ -56,6 +111,18 @@ const (
 
 	// ErrorCodeServerError reports an unexpected failure inside the portal.
 	ErrorCodeServerError ErrorCode = "server_error"
+
+	// ErrorCodeAuthorizationPending reports a login request the user has not
+	// answered yet. This is an expected sentinel error indicating
+	// that polling should continue at the same rate.
+	ErrorCodeAuthorizationPending ErrorCode = "authorization_pending"
+
+	// ErrorCodeAccessDenied reports a login request the user refused.
+	ErrorCodeAccessDenied ErrorCode = "access_denied"
+
+	// ErrorCodeExpiredToken reports a login request the portal discarded because
+	// nobody answered it in time.
+	ErrorCodeExpiredToken ErrorCode = "expired_token"
 )
 
 // Error reports a request the portal refused.

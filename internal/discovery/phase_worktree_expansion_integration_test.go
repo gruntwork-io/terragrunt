@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -72,7 +71,7 @@ func discoverExpansionChanges(
 	cmd string,
 	extraFilters filter.Filters,
 	policy parseErrorPolicy,
-) (component.Components, worktrees.WorktreePair) {
+) (component.Components, *worktrees.WorktreePair) {
 	t.Helper()
 
 	l := logger.CreateLogger()
@@ -87,7 +86,7 @@ func discoverExpansionChanges(
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS()))
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv()))
 	})
 
 	filters := make(filter.Filters, 0, len(gitExpressions)+len(extraFilters))

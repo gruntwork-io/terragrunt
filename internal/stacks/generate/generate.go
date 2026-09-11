@@ -676,10 +676,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters, err := pair.Expand(v.FS)
-		if err != nil {
-			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
-		}
+		fromFilters, toFilters := pair.FromFilters, pair.ToFilters
 
 		// Evaluate every reading filter, not just the first: a stack matches one filter per file it reads.
 		// The from filters mix deleted-file reading filters with path filters for genuine removals, so the

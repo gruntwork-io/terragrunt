@@ -10,15 +10,14 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-version"
 )
 
 const (
@@ -32,13 +31,10 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	exec           vexec.Exec
-	env            map[string]string
-	repoRootMu     *sync.Mutex
-	GitPath        string
-	WorkDir        string
-	repoRoot       string
-	repoRootCached bool
+	exec    vexec.Exec
+	env     map[string]string
+	GitPath string
+	WorkDir string
 }
 
 // NewGitRunner creates a new GitRunner instance. It resolves the `git` binary
@@ -59,10 +55,9 @@ func NewGitRunner(v *venv.Venv) (*GitRunner, error) {
 	}
 
 	return &GitRunner{
-		GitPath:    gitPath,
-		exec:       v.Exec,
-		env:        v.Env,
-		repoRootMu: &sync.Mutex{},
+		GitPath: gitPath,
+		exec:    v.Exec,
+		env:     v.Env,
 	}, nil
 }
 
@@ -74,17 +69,8 @@ func ExtractRepoName(repo string) string {
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	// GetRepoRoot writes the memo fields under repoRootMu, so the copy must
-	// hold the same lock to avoid racing with a concurrent memoization.
-	g.repoRootMu.Lock()
 	newRunner := *g
-	g.repoRootMu.Unlock()
-
 	newRunner.WorkDir = workDir
-	// A different WorkDir may resolve to a different root, so reset the memo.
-	newRunner.repoRootMu = &sync.Mutex{}
-	newRunner.repoRoot = ""
-	newRunner.repoRootCached = false
 
 	return &newRunner
 }
@@ -100,33 +86,6 @@ func (g *GitRunner) RequiresWorkDir() error {
 	}
 
 	return nil
-}
-
-// GetRepoRoot returns the root directory of the git repository. The
-// successful result is memoized per-runner so subsequent calls skip the
-// `git rev-parse` fork; failures are not cached so callers can retry.
-// WithWorkDir clears the memo so a derived runner resolves its own root.
-func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
-	if err := g.RequiresWorkDir(); err != nil {
-		return "", err
-	}
-
-	g.repoRootMu.Lock()
-	defer g.repoRootMu.Unlock()
-
-	if g.repoRootCached {
-		return g.repoRoot, nil
-	}
-
-	root, err := g.runRepoRoot(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	g.repoRoot = root
-	g.repoRootCached = true
-
-	return root, nil
 }
 
 // LsRemoteResult represents the output of git ls-remote
@@ -204,7 +163,7 @@ func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string
 		return "", err
 	}
 
-	var best *version.Version
+	var best *semver.Version
 
 	for _, r := range results {
 		name := strings.TrimPrefix(r.Ref, refsTags)
@@ -213,7 +172,7 @@ func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string
 			continue
 		}
 
-		v, err := version.NewVersion(name)
+		v, err := semver.Parse(name)
 		if err != nil {
 			continue
 		}
@@ -475,14 +434,97 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 	return tree, nil
 }
 
+// WorktreeCheckout selects whether [GitRunner.CreateDetachedWorktree] fills the
+// worktree it creates.
+type WorktreeCheckout int
+
+const (
+	// CheckoutFiles has git write the files of the reference into the worktree.
+	CheckoutFiles WorktreeCheckout = iota
+	// SkipCheckout leaves the worktree empty, for a caller that fills it
+	// itself. The index is left empty too, so a caller that writes the files
+	// should follow with [GitRunner.ReadTree].
+	SkipCheckout
+)
+
+// TreePaths is the set of paths in a tree, in the slash-separated form git
+// reports them in.
+type TreePaths map[string]struct{}
+
+// Has reports whether the tree contains path.
+func (t TreePaths) Has(path string) bool {
+	_, ok := t[path]
+
+	return ok
+}
+
+// LsTreeNames returns every path in the tree at ref, recursively, which tells a
+// caller what a reference contains without checking it out.
+func (g *GitRunner) LsTreeNames(ctx context.Context, v *venv.Venv, ref string) (TreePaths, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
+	// Run from the repository root: git limits a listing to the directory it
+	// runs in, and callers may be working from a subdirectory. -z keeps a path
+	// with unusual characters intact, which git would otherwise quote.
+	root, err := GoRepoRoot(ctx, v, g.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := g.prepareCommand(ctx, "ls-tree", "-r", "--name-only", "-z", ref)
+	cmd.SetDir(root)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_ls_tree_names",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrReadTree, err),
+		}
+	}
+
+	paths := make(TreePaths)
+
+	for name := range strings.SplitSeq(strings.TrimSuffix(stdout.String(), "\x00"), "\x00") {
+		if name == "" {
+			continue
+		}
+
+		paths[name] = struct{}{}
+	}
+
+	return paths, nil
+}
+
 // CreateDetachedWorktree creates a new detached worktree for a given reference
 // as a given directory
-func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string) error {
+func (g *GitRunner) CreateDetachedWorktree(
+	ctx context.Context,
+	v *venv.Venv,
+	dir, ref string,
+	checkout WorktreeCheckout,
+) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
 
-	cmd := g.prepareCommand(ctx, "worktree", "add", "--detach", dir, ref)
+	args := []string{
+		"-c", "checkout.workers=" + strconv.Itoa(vfs.FSWorkersFor(v.FS, dir)),
+		"worktree", "add", "--detach",
+	}
+	if checkout == SkipCheckout {
+		args = append(args, "--no-checkout")
+	}
+
+	args = append(args, dir, ref)
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
 
 	var stdout, stderr bytes.Buffer
 
@@ -820,27 +862,6 @@ func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
 
 	if err := cmd.Run(); err != nil {
 		return "sha1", nil //nolint:nilerr // older Git lacks --show-object-format, and only ever wrote sha1
-	}
-
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-// runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
-// GetRepoRoot for the memoized entry point.
-func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
-	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
-
-	var stdout, stderr bytes.Buffer
-
-	cmd.SetStdout(&stdout)
-	cmd.SetStderr(&stderr)
-
-	if err := cmd.Run(); err != nil {
-		return "", &WrappedError{
-			Op:      "git_rev_parse",
-			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
-		}
 	}
 
 	return strings.TrimSpace(stdout.String()), nil

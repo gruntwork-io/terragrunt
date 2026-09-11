@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -137,7 +137,7 @@ func (d *Discovery) Discover(
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.discoveryBoundary == "" && d.gitRoot == "" {
-			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, v, d.workingDir); gitErr == nil {
+			if gitRootPath, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set dependent discovery boundary to git root: %s", d.gitRoot)
 			}
@@ -262,13 +262,14 @@ func (d *Discovery) Discover(
 	components = d.applyQueueFilters(opts, components)
 
 	if d.parseStackConfigs {
-		if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "discovery_phase_stack_configs", map[string]any{
-			"components_in": len(components),
-		}, func(childCtx context.Context, childL log.Logger) error {
-			storeStackConfigs(childCtx, childL, v, opts, components)
+		if err := telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "discovery_phase_stack_configs", map[string]any{
+				"components_in": len(components),
+			}, func(childCtx context.Context, childL log.Logger) error {
+				storeStackConfigs(childCtx, childL, v, opts, components)
 
-			return nil
-		}); err != nil {
+				return nil
+			}); err != nil {
 			return components, err
 		}
 	}
@@ -677,7 +678,10 @@ func removeCycles(components component.Components) (component.Components, error)
 }
 
 // filterGraphTarget prunes components to the target path and its dependents.
-func (d *Discovery) filterGraphTarget(fsys vfs.FS, components component.Components) component.Components {
+func (d *Discovery) filterGraphTarget(
+	fsys vfs.FS,
+	components component.Components,
+) component.Components {
 	if d.graphTarget == "" {
 		return components
 	}
@@ -863,7 +867,8 @@ func reachedByTraversal(c component.Component) bool {
 
 	origin := dctx.Origin()
 
-	return origin == component.OriginGraphDiscovery || origin == component.OriginRelationshipDiscovery
+	return origin == component.OriginGraphDiscovery ||
+		origin == component.OriginRelationshipDiscovery
 }
 
 // applyExcludeModules marks units (and optionally their dependencies) excluded via terragrunt exclude blocks.

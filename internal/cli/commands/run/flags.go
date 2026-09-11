@@ -189,7 +189,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			Name:        NoHooksFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
 			Destination: &opts.NoRunHooks,
-			Usage:       "Disable Terragrunt hooks during run. Requires the 'optional-hooks' experiment.",
+			Usage: flags.ExperimentUsage(opts.Experiments, experiment.OptionalHooks,
+				"Disable Terragrunt hooks during run."),
 			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
 				if !value {
 					return nil
@@ -207,7 +208,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			Name:        NoDependencyOutputsFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoDependencyOutputsFlagName),
 			Destination: &opts.SkipOutput,
-			Usage:       "Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output. Requires the 'optional-dependency-outputs' experiment.",
+			Usage: flags.ExperimentUsage(opts.Experiments, experiment.OptionalDependencyOutputs,
+				"Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output."),
 			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
 				if !value {
 					return nil

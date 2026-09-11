@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -32,6 +33,13 @@ type SourceResolver interface {
 	// "s3", "gcs", "http").
 	Scheme() string
 
+	// Pinned reports whether rawURL names content that cannot change
+	// upstream, such as an object version or an exact module version. A
+	// pinned source's recorded probe is served for
+	// [DefaultImmutableProbeTTL]; everything else is held only for the
+	// mutable TTL the caller set, which is zero by default.
+	Pinned(rawURL string) bool
+
 	// Probe returns a cache key for rawURL.
 	//
 	// Returns ErrNoVersionMetadata when the source has no cheap
@@ -52,6 +60,24 @@ type SourceFetcher func(
 	ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string,
 ) (treeKey string, err error)
 
+// ProbeCaching says which layer consults and records the probe cache for
+// a source.
+type ProbeCaching int
+
+const (
+	// ProbeCachedByCAS lets [CAS.FetchSource] share the resolver's
+	// answers: concurrent callers coalesce onto one probe, and a recorded
+	// answer is served while it is fresh. This is the zero value, so a new
+	// resolver gets the sharing without opting in.
+	ProbeCachedByCAS ProbeCaching = iota
+	// ProbeCachedByResolver leaves the resolver to it, which [CAS.Clone]
+	// asks for. The git probe answers a pinned commit from the local bare
+	// repository before the offline gate, files entries under the ref it
+	// probed, and reads immutability from the ref ls-remote matched. The
+	// generic path supports none of those.
+	ProbeCachedByResolver
+)
+
 // SourceRequest is the input to CAS.FetchSource.
 type SourceRequest struct {
 	// Resolver probes the source for a cache key. Nil means always
@@ -68,6 +94,9 @@ type SourceRequest struct {
 	// URL is the canonical source URL. Passed to Resolver.Probe and
 	// used in error messages.
 	URL string
+	// ProbeCaching says whether FetchSource shares and persists this
+	// resolver's probe answers or leaves that to the resolver.
+	ProbeCaching ProbeCaching
 }
 
 // FetchSource routes src through the CAS. On a probe hit it links the
@@ -98,7 +127,7 @@ func (c *CAS) FetchSource(
 	}
 
 	attrs := map[string]any{
-		"url":    src.URL,
+		"url":    RedactURL(src.URL),
 		"scheme": src.Scheme,
 	}
 
@@ -112,7 +141,10 @@ func (c *CAS) FetchSource(
 		"cas_fetch_source",
 		attrs,
 		func(childCtx context.Context, l log.Logger) error {
-			suggestedKey := c.probeSource(childCtx, l, src)
+			suggestedKey, err := c.probeSource(childCtx, l, v, src)
+			if err != nil {
+				return err
+			}
 
 			if suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {
 				recordFetchOutcome(childCtx, true)
@@ -124,7 +156,7 @@ func (c *CAS) FetchSource(
 
 			treeKey, err := src.Fetch(childCtx, l, v, suggestedKey)
 			if err != nil {
-				return fmt.Errorf("fetch %s: %w", src.URL, err)
+				return fmt.Errorf("fetch %s: %w", RedactURL(src.URL), err)
 			}
 
 			return c.linkStoredTree(childCtx, l, v, opts, treeKey)
@@ -223,34 +255,156 @@ func (c *CAS) IngestDirectory(
 }
 
 // probeSource invokes the resolver and returns its cache key, or empty
-// when no resolver is configured or the probe failed. See
-// [SourceResolver.Probe] for the fallback contract.
-func (c *CAS) probeSource(ctx context.Context, l log.Logger, src SourceRequest) string {
+// when no resolver is configured or the probe failed, stamping where the
+// answer came from on the cas_fetch_source span this runs under. See
+// [SourceResolver.Probe] for the fallback contract. Two probe errors are
+// returned rather than absorbed: an offline miss, because the fallback
+// fetch would contact the network the user forbade, and a caller whose
+// context has ended, because the fallback would start work nobody is
+// waiting for.
+func (c *CAS) probeSource(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	src SourceRequest,
+) (string, error) {
 	if src.Resolver == nil {
-		return ""
+		return "", nil
 	}
 
-	key, err := src.Resolver.Probe(ctx, src.URL)
+	probeCtx, origin := withProbeOriginSink(ctx)
+
+	key, err := c.resolveProbe(probeCtx, l, v, src)
 	if err != nil {
+		if errors.Is(err, ErrCASOffline) || ctx.Err() != nil {
+			return "", err
+		}
+
 		// ErrNoVersionMetadata is the resolver's documented "no cheap
 		// signal" answer, not a degradation, so only real probe errors
 		// count as fallbacks.
 		if !errors.Is(err, ErrNoVersionMetadata) {
 			l.Debugf(
 				"cas: source probe for %s failed (falling back to content hash): %v",
-				src.URL,
+				RedactURL(src.URL),
 				err,
 			)
 			RecordFallback(ctx, l, FallbackReasonProbeFailure, map[string]any{
-				"url":    src.URL,
+				"url":    RedactURL(src.URL),
 				"scheme": src.Scheme,
 			})
 		}
 
-		return ""
+		return "", nil
 	}
 
-	return key
+	origin.stamp(ctx)
+
+	return key, nil
+}
+
+// resolveProbe runs the resolver's probe, coalescing it across every
+// caller in the process and answering from the persisted cache when a
+// recorded answer is still fresh, so a run over many units pointing at one
+// source costs one request rather than one per unit. A resolver that owns
+// its cache is called directly and does all of that itself.
+func (c *CAS) resolveProbe(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	src SourceRequest,
+) (string, error) {
+	if src.ProbeCaching == ProbeCachedByResolver {
+		return src.Resolver.Probe(ctx, src.URL)
+	}
+
+	ref := schemeProbeRef(src.Resolver.Scheme())
+
+	res, err := flights.probe.do(
+		ctx,
+		probeFlightKey(c.probeCache.RootPath(), src.URL, ref),
+		func(ctx context.Context) (probeResult, error) {
+			return c.probeSourceUncoalesced(ctx, l, v, src, ref)
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	recordProbeOrigin(ctx, res.origin)
+
+	return res.key, nil
+}
+
+// probeSourceUncoalesced answers one source probe from the persisted
+// cache or, when the mode allows it, from the resolver, recording a fresh
+// answer for later processes.
+func (c *CAS) probeSourceUncoalesced(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	src SourceRequest,
+	ref string,
+) (probeResult, error) {
+	if entry, ok := c.cachedSourceProbe(v, src.URL, ref); ok {
+		return probeResult{key: entry.Key, origin: probeOriginProbeCache}, nil
+	}
+
+	if c.probeMode == ProbeModeOffline {
+		return probeResult{}, &OfflineMissError{Source: RedactURL(src.URL)}
+	}
+
+	key, err := src.Resolver.Probe(ctx, src.URL)
+	if err != nil {
+		return probeResult{}, err
+	}
+
+	c.recordSourceProbe(l, v, src, ref, key)
+
+	return probeResult{key: key, origin: probeOriginResolver}, nil
+}
+
+// cachedSourceProbe returns the recorded answer for (url, ref) when the
+// mode allows serving one and it has not aged past its TTL.
+func (c *CAS) cachedSourceProbe(v *venv.Venv, url, ref string) (ProbeEntry, bool) {
+	if !c.probeCacheEnabled || c.probeMode == ProbeModeRefresh {
+		return ProbeEntry{}, false
+	}
+
+	entry, ok := c.probeCache.Lookup(v.FS, url, ref)
+	if !ok {
+		return ProbeEntry{}, false
+	}
+
+	if c.probeMode == ProbeModeOffline {
+		return entry, true
+	}
+
+	ttl := ProbeTTL(&entry, c.probeTTL)
+	if ttl <= 0 || time.Since(entry.ProbedAt) >= ttl {
+		return ProbeEntry{}, false
+	}
+
+	return entry, true
+}
+
+// recordSourceProbe files key as the answer for (url, ref). A write
+// failure only costs the next run a probe, so it is logged rather than
+// returned.
+func (c *CAS) recordSourceProbe(l log.Logger, v *venv.Venv, src SourceRequest, ref, key string) {
+	if !c.probeCacheEnabled {
+		return
+	}
+
+	entry := ProbeEntry{
+		ProbedAt:  time.Now(),
+		Key:       key,
+		Immutable: src.Resolver.Pinned(src.URL),
+	}
+
+	if err := c.probeCache.Store(v.FS, src.URL, ref, &entry); err != nil {
+		l.Debugf("cas: probe cache write for %s failed: %v", RedactURL(src.URL), err)
+	}
 }
 
 // recordFetchOutcome stamps cache_hit on the active cas_fetch_source span
@@ -262,6 +416,70 @@ func recordFetchOutcome(ctx context.Context, cacheHit bool) {
 	}
 
 	span.SetAttributes(attribute.Bool("cache_hit", cacheHit))
+}
+
+// probeOrigin names where a probe answer came from. It travels as the
+// probe_origin attribute on the cas_fetch_source span.
+type probeOrigin string
+
+const (
+	// probeOriginGitStore is a pinned SHA already present in the local
+	// bare repository.
+	probeOriginGitStore probeOrigin = "git_store"
+	// probeOriginProbeCache is a persisted ls-remote answer within its TTL
+	// (or any persisted answer when offline).
+	probeOriginProbeCache probeOrigin = "probe_cache"
+	// probeOriginLsRemote is a network answer, whether this caller ran
+	// ls-remote or joined a flight that did.
+	probeOriginLsRemote probeOrigin = "ls_remote"
+	// probeOriginResolver is an answer a non-git resolver produced, whether
+	// this caller probed or joined a flight that did.
+	probeOriginResolver probeOrigin = "resolver"
+)
+
+// probeOriginSink collects what a resolver reports about its answer.
+// [CAS.probeSource] puts one in the context it probes under, so a probe
+// run outside a fetch, such as the one that resolves a stack component's
+// ref, reports into nothing instead of stamping probe_origin on whichever
+// span its caller happens to be inside.
+type probeOriginSink struct {
+	origin probeOrigin
+}
+
+// probeOriginSinkKey addresses the sink a context carries.
+type probeOriginSinkKey struct{}
+
+// withProbeOriginSink returns ctx carrying a fresh sink, plus the sink.
+func withProbeOriginSink(ctx context.Context) (context.Context, *probeOriginSink) {
+	sink := &probeOriginSink{}
+
+	return context.WithValue(ctx, probeOriginSinkKey{}, sink), sink
+}
+
+// recordProbeOrigin reports where a probe answer came from to the sink
+// ctx carries, if it carries one.
+func recordProbeOrigin(ctx context.Context, origin probeOrigin) {
+	sink, ok := ctx.Value(probeOriginSinkKey{}).(*probeOriginSink)
+	if !ok {
+		return
+	}
+
+	sink.origin = origin
+}
+
+// stamp puts the reported origin on the active cas_fetch_source span so
+// dashboards can tell cached probes from network ones.
+func (s *probeOriginSink) stamp(ctx context.Context) {
+	if s.origin == "" {
+		return
+	}
+
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	span.SetAttributes(attribute.String("probe_origin", string(s.origin)))
 }
 
 // linkStoredTree materializes the tree at key into opts.Dir.

@@ -1,0 +1,20 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### Finding the repository root no longer launches `git`
+
+[`get_repo_root()`](/reference/hcl/functions#get_repo_root), [`get_path_from_repo_root()`](/reference/hcl/functions#get_path_from_repo_root), [`get_path_to_repo_root()`](/reference/hcl/functions#get_path_to_repo_root), the runner, and discovery all need the root of the enclosing repository. Terragrunt used to ask Git for it by running `git rev-parse --show-toplevel`, and starting that process cost far more than producing the answer did.
+
+Terragrunt now finds the root itself, by looking for a `.git` entry in the working directory and each directory above it. Linked worktrees and submodules resolve the way they did before.
+
+In [benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/git/repo_root_exec_bench_test.go) on an Apple M3 Max, resolving one root, where depth is how many directories separate the starting point from the root:
+
+| depth | before | after |
+| --- | --- | --- |
+| 1 | 5.29ms | 14µs |
+| 5 | 5.20ms | 24µs |
+| 10 | 5.25ms | 38µs |
+
+Because Terragrunt no longer asks Git, some of Git's own settings for locating a repository stop applying. `GIT_CEILING_DIRECTORIES` still stops the search where it did. `GIT_DIR`, `GIT_WORK_TREE` and `core.worktree` are ignored, and the `safe.directory` ownership check is not applied, so `get_repo_root()` now answers in a repository owned by another user where Git refuses. A path inside a bare repository still reports that there is no repository. This is assumed to be _more_ expected from the perspective of a Terragrunt user, and usage of `git rev-parse --show-toplevel` from a `run_cmd` is still available otherwise. If this impacts your workflows, please open a bug report, and maintainers are happy to work with you on this.

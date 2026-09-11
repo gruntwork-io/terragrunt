@@ -1,8 +1,8 @@
 // Package venvtest builds in-memory [venv.Venv] values for tests. New seeds
 // the mem defaults; callers refine individual handles with venv.Venv's fluent
-// With methods (WithHandler, WithExec, WithFS, WithSops, WithEnv, WithGOOS,
-// WithGOARCH,
-// WithUserHomeDir). Production code builds venvs through [venv.OSVenv] instead.
+// With methods (WithHandler, WithExec, WithFS, WithSops, WithBrowser, WithEnv,
+// WithGOOS, WithGOARCH, WithUserHomeDir, WithUserConfigDir). Production code
+// builds venvs through [venv.OSVenv] instead.
 //
 // [NewFS] and [LoadFS] build the filesystems those venvs carry, from literals
 // and from an on-disk fixture tree.
@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -34,9 +35,10 @@ var ErrNoListen = errors.New("venvtest: listening is not permitted")
 // machine uses, so a test that accidentally runs them against the OS filesystem
 // fails loudly instead of writing into the invoking user's directories.
 const (
-	memCacheDir = "/venvtest/cache"
-	memTempDir  = "/venvtest/tmp"
-	memWorkDir  = "/venvtest/work"
+	memCacheDir  = "/venvtest/cache"
+	memConfigDir = "/venvtest/config"
+	memTempDir   = "/venvtest/tmp"
+	memWorkDir   = "/venvtest/work"
 
 	// memPID is a fixed process id, so a crash report or log line carrying it
 	// compares equal between runs.
@@ -45,7 +47,8 @@ const (
 
 // New returns an in-memory venv: a fail-closed exec, an in-memory filesystem,
 // a fail-closed no-network HTTP client, a mem SOPS decrypter yielding empty
-// cleartext, an empty (non-nil) environment, deterministic platform handles,
+// cleartext, a fail-closed browser opener, an empty (non-nil) environment,
+// deterministic platform handles,
 // an empty console reader, a console that is no stream's terminal and has no
 // width, and both writers wired to [io.Discard]. Refine it with venv.Venv's
 // fluent With methods.
@@ -57,13 +60,15 @@ const (
 // A test whose subject runs a command supplies a handler through WithHandler.
 // Until it does, the command fails with [vexec.ErrNoSpawn] rather than
 // reporting success with empty output, which a caller reading the command's
-// stdout would take as a real answer.
+// stdout would take as a real answer. The browser refuses on the same
+// principle, so a suite never launches a window on the machine running it.
 func New() *venv.Venv {
 	return &venv.Venv{
-		Exec: vexec.NewNoSpawnExec(),
-		FS:   vfs.NewMemMapFS(),
-		HTTP: vhttp.NewNoNetworkClient(),
-		Sops: vsops.NewMemDecrypter(func(map[string]string, string, string) ([]byte, error) { return nil, nil }),
+		Exec:    vexec.NewNoSpawnExec(),
+		FS:      vfs.NewMemMapFS(),
+		HTTP:    vhttp.NewNoNetworkClient(),
+		Sops:    vsops.NewMemDecrypter(func(map[string]string, string, string) ([]byte, error) { return nil, nil }),
+		Browser: vbrowser.NewNoBrowserOpener(),
 		Listen: func(context.Context, string, string) (net.Listener, error) {
 			return nil, ErrNoListen
 		},
@@ -75,6 +80,9 @@ func New() *venv.Venv {
 			},
 			UserCacheDir: func() (string, error) {
 				return memCacheDir, nil
+			},
+			UserConfigDir: func() (string, error) {
+				return memConfigDir, nil
 			},
 			TempDir: func() string {
 				return memTempDir

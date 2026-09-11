@@ -92,15 +92,10 @@ func (p *WorktreePhase) Run(
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters, err := pair.Expand(v.FS)
-			if err != nil {
-				return err
-			}
-
 			// Expand routes reading filters for deleted files onto the from side, since a deleted file
 			// only exists in the from worktree where its read relationship can be evaluated. These need
 			// different handling from the path filters for genuinely removed components, so split them.
-			deletedReadFilters, removalFilters := fromFilters.PartitionReadingFilters()
+			deletedReadFilters, removalFilters := pair.FromFilters.PartitionReadingFilters()
 
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
 
@@ -121,9 +116,9 @@ func (p *WorktreePhase) Run(
 				})
 			}
 
-			if len(toFilters) > 0 || len(deletedReadFilters) > 0 {
+			if len(pair.ToFilters) > 0 || len(deletedReadFilters) > 0 {
 				fromToG.Go(func() error {
-					finalToFilters := toFilters
+					finalToFilters := pair.ToFilters
 
 					if len(deletedReadFilters) > 0 {
 						translated, err := p.deletedReadingComponentsToFilters(
@@ -133,7 +128,7 @@ func (p *WorktreePhase) Run(
 							return err
 						}
 
-						finalToFilters = slices.Concat(toFilters, translated)
+						finalToFilters = slices.Concat(pair.ToFilters, translated)
 					}
 
 					if len(finalToFilters) == 0 {

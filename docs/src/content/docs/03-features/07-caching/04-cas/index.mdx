@@ -32,6 +32,12 @@ You can disable the CAS at any time using the `--no-cas` flag. This flag is avai
 
 The same commands accept the `--cas-clone-depth` flag, which controls the `git clone --depth` value the CAS uses when cloning a Git source (default `1`; `-1` clones the full history).
 
+<Since version="1.1.5">
+
+They accept three more flags, gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment: `--cas-offline` resolves every source from the local store without contacting a remote, `--cas-refresh` asks every remote again instead of trusting a recorded probe, and `--cas-probe-ttl` sets how long a recorded probe of a source that can change upstream is trusted. See [Recorded probes](#recorded-probes) for how recorded answers are used.
+
+</Since>
+
 ## Supported sources
 
 The CAS sits in front of every getter Terragrunt uses to fetch a source. Each getter resolves a source through a **cheap probe**: a low-cost remote request that yields a cache key without downloading the full payload (e.g. for Git this is `git ls-remote`). When the probe key is already present in the store, Terragrunt links the cached content to a target directory and skips the download entirely. Getters with no cheap probe always download (or, for local paths, copy) and then key the result by the content hash of what they fetched.
@@ -51,6 +57,27 @@ Each getter has a dedicated page describing its exact mechanics:
 | [Local paths](/features/caching/cas/local) | None; always copies | Content-addressed on the copied tree |
 
 Regardless of the probe, every getter shares the same back half: download (or copy) the source, hash its files into the store as content-addressed blobs, record a tree describing their layout, and hard link the result into the target directory. Identical files therefore occupy disk space once no matter which getter fetched them or how many configurations use them.
+
+
+## Recorded probes
+
+<Since version="1.1.5">
+
+Units in one run that resolve the same source at the same time share a single probe, and the answer the first one gets is the answer they all use.
+
+Recording those answers for later runs is gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment. With it enabled, every probe answer is written under `probes/` in the store, keyed by the source URL, so a later run can resolve a source without asking its remote again. Whether a recorded answer is served in place of a fresh probe depends on whether the source can change upstream:
+
+- **Pinned sources are trusted for 24 hours.** A source is pinned when its URL names a specific revision that a publisher does not reissue: a Git semantic version tag, an S3 object version, an OCI manifest digest, an exact registry module version, or a full Mercurial changeset node.
+- **Everything else is probed on every run.** A push or an upload is seen immediately. That covers Git branches and `HEAD`, HTTP endpoints, GCS objects, OCI tags, and Mercurial branch names. [`--cas-probe-ttl`](/reference/cli/commands/run#cas-probe-ttl) trusts these answers for a chosen duration, for example `--cas-probe-ttl 10m` for a batch of runs that need not each pay for a probe.
+
+Two flags change how the recorded answers are used:
+
+- [`--cas-offline`](/reference/cli/commands/run#cas-offline) never contacts a remote. Every source is resolved from its recorded answer, however old, and linked from the store. A source with no recorded answer, or whose content is not in the store, fails with an error naming it rather than being fetched. Run once without the flag to fill the store first.
+- [`--cas-refresh`](/reference/cli/commands/run#cas-refresh) ignores the recorded answers and asks every remote again, then records what it learns. Use it when a version tag has been moved and the cache still remembers the previous revision.
+
+The two flags cannot be combined, and both need the experiment. A source with no cheap probe, such as an SMB share or a local path, has no answer to record and is fetched on every run, `--cas-offline` included. Recorded answers that have expired stay on disk until the store is deleted.
+
+</Since>
 
 ## Usage
 
@@ -189,10 +216,14 @@ The CAS store is organized into namespaced directories:
     - 1a2b3c4d5e6f7890/
       - repo/
       - lock
+  - probes/ (recorded probe answers, one file per source)
+    - sha256/
+      - 1a2b3c4d5e6f7890/
+        - 0d6e4079e36703eb.json
 
 </FileTree>
 
-The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores the tree structures that describe the layout of files in a fetched source, whether that source is a Git ref, an object store download, or a local directory. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the source reference and path. The `git/` directory holds one bare Git repository per remote URL, keyed by a hash of the URL, so cache misses for Git sources can fetch only the new objects instead of re-cloning the repository. Non-Git getters do not use `git/`; they download into a temporary directory and ingest the result.
+The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores the tree structures that describe the layout of files in a fetched source, whether that source is a Git ref, an object store download, or a local directory. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the source reference and path. The `git/` directory holds one bare Git repository per remote URL, keyed by a hash of the URL, so cache misses for Git sources can fetch only the new objects instead of re-cloning the repository. Non-Git getters do not use `git/`; they download into a temporary directory and ingest the result. The `probes/` directory holds the answer to each probe, one file per source, so a later run can resolve a source without querying its remote again. Entries sit under the hash algorithm that named them, so a later algorithm gets its own subtree instead of colliding with what is already there. [Recorded probes](#recorded-probes) covers when a recorded answer is served and when a fresh query is made.
 
 Each content object within a namespace is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory to avoid degraded file system performance from large flat directories.
 
@@ -220,7 +251,7 @@ When the content is not already in the CAS:
 3. **Fetch the source.** Terragrunt downloads (or, for local paths, copies) the source into a temporary location.
 
    <Aside type="note" title="Git sources">
-   Terragrunt fetches into a persisted bare repository kept per remote URL under `git/`. Branch and tag refs use a shallow fetch; a bare commit SHA uses a full-history fetch so it can be resolved locally. Subsequent misses against the same URL reuse the repository and transfer only new objects, and concurrent units targeting the same URL share a single fetch instead of cloning in parallel.
+   Terragrunt fetches into a persisted bare repository kept per remote URL under `git/`. Branch and tag refs use a shallow fetch; a bare commit SHA uses a full-history fetch so it can be resolved locally. Subsequent misses against the same URL reuse the repository and transfer only new objects, and concurrent units targeting the same URL share a single fetch instead of cloning in parallel, coordinated by a per-URL lock that works across processes.
    </Aside>
 
 4. **Ingest into the store.** Each file is hashed and stored as a content-addressed blob addressed by its hash, and a tree file describing the layout in the filesystem under its own cache key.

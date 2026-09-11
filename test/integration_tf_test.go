@@ -4338,7 +4338,9 @@ func TestTFExplainingMissingCredentials(t *testing.T) {
 	// no parallel because we need to set env vars
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/tmp/not-existing-creds-46521694")
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
 	initTestCase := filepath.Join(tmpEnvPath, testFixtureInitError)

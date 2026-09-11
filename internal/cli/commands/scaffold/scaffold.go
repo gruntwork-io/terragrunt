@@ -283,7 +283,7 @@ func Prepare(
 		Collect(ctx, l, "scaffold_get_module", map[string]any{
 			"module_url": resolvedURL,
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, v, tempDir, resolvedURL); getErr != nil {
+			if _, getErr := getter.GetAny(ctx, l, v, tempDir, resolvedURL); getErr != nil {
 				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 			}
 
@@ -703,7 +703,7 @@ func downloadTemplate(
 		Collect(ctx, l, "scaffold_get_template", map[string]any{
 			"template_url": baseURL.String(),
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, v, templateDir, baseURL.String()); getErr != nil {
+			if _, getErr := getter.GetAny(ctx, l, v, templateDir, baseURL.String()); getErr != nil {
 				return fmt.Errorf(
 					"downloading scaffold template from %s: %w",
 					baseURL.String(),

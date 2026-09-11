@@ -1,0 +1,8 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Fixed a crash in `terragrunt catalog` when a repository cannot be reached
+
+`terragrunt catalog` now reports the underlying git error when it cannot reach a repository listed in the `catalog` block. Previously, this could cause a crash part-way through loading. This affected any repository Terragrunt could not clone, e.g. an SSH URL with no usable key, a private repository without credentials, or a remote that timed out.

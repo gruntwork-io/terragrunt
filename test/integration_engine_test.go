@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -511,7 +512,7 @@ func setupLocalEngine(t *testing.T) string {
 		require.NoError(t, err)
 	}
 
-	_, err := getter.GetAny(t.Context(), venv.OSVenv(), engineDir, downloadURL)
+	_, err := getter.GetAny(t.Context(), logger.CreateLogger(), venv.OSVenv(), engineDir, downloadURL)
 	require.NoError(t, err)
 
 	helpers.CopyAndFillMapPlaceholders(

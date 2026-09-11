@@ -558,10 +558,7 @@ func TestGcpNoPrefixBucket(t *testing.T) {
 func TestGcpParallelStateInit(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test") //nolint:usetesting // TODO: check whether t.TempDir works here
-	if err != nil {
-		require.NoError(t, err)
-	}
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	for i := range 20 {
 		err := util.CopyFolderContents(
@@ -592,7 +589,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 		gcsBucketName,
 		"root.hcl",
 	)
-	err = vfs.CopyFile(vfs.NewOSFS(), tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
+	err := vfs.CopyFile(vfs.NewOSFS(), tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
 	require.NoError(t, err)
 
 	helpers.RunTerragrunt(
@@ -611,10 +608,7 @@ func createTmpTerragruntGCSConfig(
 ) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test") //nolint:usetesting // TODO: check whether t.TempDir works here
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
+	tmpFolder := helpers.TmpDirWOSymlinks(t)
 
 	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
 	originalTerragruntConfigPath := filepath.Join(templatesPath, configFileName)

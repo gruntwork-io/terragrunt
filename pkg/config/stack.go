@@ -217,7 +217,7 @@ func GenerateStackFile(
 		return nil
 	}
 
-	cs, err := setupCAS(l, pctx.Venv, casEnabled, pctx.CASCloneDepth)
+	cs, err := setupCAS(l, pctx, casEnabled)
 	if err != nil {
 		return err
 	}
@@ -469,26 +469,55 @@ type casSetup struct {
 
 // setupCAS prepares the CAS bundle for stack generation. A non-nil
 // error is reserved for user-facing misconfiguration (invalid clone
-// depth); transient setup failures log a warning and return an
-// Enabled=false bundle so the caller falls through to the standard
-// getter.
-func setupCAS(l log.Logger, v *venv.Venv, enabled bool, cloneDepth int) (casSetup, error) {
+// depth) and for a setup failure under --cas-offline; other transient
+// setup failures log a warning and return an Enabled=false bundle so the
+// caller falls through to the standard getter.
+func setupCAS(l log.Logger, pctx *ParsingContext, enabled bool) (casSetup, error) {
 	if !enabled {
 		return casSetup{}, nil
 	}
 
-	if err := cas.ValidateCASCloneDepth(cloneDepth); err != nil {
+	if err := cas.ValidateCASCloneDepth(pctx.CASCloneDepth); err != nil {
 		return casSetup{}, err
 	}
 
-	c, err := cas.New(v, cas.WithCloneDepth(cloneDepth))
+	casOpts := []cas.Option{cas.WithCloneDepth(pctx.CASCloneDepth), cas.WithProbeTTL(pctx.CASProbeTTL)}
+
+	if pctx.Experiments.Evaluate(experiment.OfflineCAS) {
+		casOpts = append(casOpts, cas.WithProbeCache())
+	}
+
+	if pctx.CASOffline {
+		casOpts = append(casOpts, cas.WithOffline())
+	}
+
+	if pctx.CASRefresh {
+		casOpts = append(casOpts, cas.WithProbeRefresh())
+	}
+
+	v := pctx.Venv
+
+	c, err := cas.New(v, casOpts...)
 	if err != nil {
+		// A disabled CAS sends every remote component through the standard
+		// getter, which fetches from the network --cas-offline forbids, so
+		// the flag turns a setup failure into the run's error.
+		if pctx.CASOffline {
+			return casSetup{}, err
+		}
+
 		l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", err)
+
 		return casSetup{}, nil
 	}
 
 	if _, err := git.NewGitRunner(v); err != nil {
+		if pctx.CASOffline {
+			return casSetup{}, err
+		}
+
 		l.Warnf("Failed to initialize CAS environment: %v. CAS features disabled.", err)
+
 		return casSetup{}, nil
 	}
 
@@ -902,10 +931,12 @@ func fetchComponentSource(
 			return nil
 		}
 
-		// A non-literal source on an update_source_with_cas block can never
-		// be rewritten by CAS, so falling back would silently skip the rewrite
-		// the configuration asked for. Surface the error instead.
-		if errors.Is(casErr, cas.ErrSourceNotLiteral) {
+		// Two failures must not fall back. A non-literal source on an
+		// update_source_with_cas block can never be rewritten by CAS, so the
+		// fallback would silently skip the rewrite the configuration asked
+		// for. An offline miss would be filled by the standard getter over
+		// the network --cas-offline forbids.
+		if errors.Is(casErr, cas.ErrSourceNotLiteral) || errors.Is(casErr, cas.ErrCASOffline) {
 			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
 		}
 
@@ -1041,11 +1072,28 @@ func copyFiles(
 ) error {
 	if !isLocal(v.FS, cp.sourceDir, cp.src) {
 		if err := v.FS.MkdirAll(cp.dest, os.ModePerm); err != nil {
-			return fmt.Errorf("failed to create directory %s for %s %w", cp.dest, cp.identifier, err)
+			return fmt.Errorf(
+				"failed to create directory %s for %s %w",
+				cp.dest,
+				cp.identifier,
+				err,
+			)
 		}
 
-		if _, err := getter.GetAny(ctx, v, cp.dest, cp.src, stackGetterOptions(l, v, opts)...); err != nil {
-			return fmt.Errorf("failed to fetch %s %s for %s %w", cp.src, cp.dest, cp.identifier, err)
+		if _, err := getter.GetAny(
+			ctx,
+			l,
+			v,
+			cp.dest,
+			cp.src,
+			stackGetterOptions(v, opts)...); err != nil {
+			return fmt.Errorf(
+				"failed to fetch %s %s for %s %w",
+				cp.src,
+				cp.dest,
+				cp.identifier,
+				err,
+			)
 		}
 
 		return nil
@@ -1102,8 +1150,8 @@ func isOCISource(source string) bool {
 }
 
 // stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.
-func stackGetterOptions(l log.Logger, v *venv.Venv, opts *generateOpts) []getter.Option {
-	clientOpts := []getter.Option{getter.WithLogger(l), getter.WithHTTP(v.HTTP)}
+func stackGetterOptions(v *venv.Venv, opts *generateOpts) []getter.Option {
+	clientOpts := []getter.Option{getter.WithHTTP(v.HTTP)}
 
 	if opts.ociGetter != nil {
 		clientOpts = append(clientOpts, getter.WithOCI(opts.ociGetter))
@@ -1137,15 +1185,15 @@ func (u *Unit) ReadOutputs(
 	pctx *ParsingContext,
 	unitDir string,
 ) (map[string]cty.Value, error) {
-	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 	l.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
 
-	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, configPath)
+	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 
-	outputMap, err := TerraformOutputJSONToCtyValueMap(configPath, jsonBytes)
+	outputMap, err := TerraformOutputJSONToCtyValueMap(cfgPath, jsonBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -1183,7 +1231,7 @@ func ReadStackConfigString(
 	ctx context.Context,
 	l log.Logger,
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 	configString string,
 	values *cty.Value,
 ) (*StackConfig, error) {
@@ -1192,7 +1240,7 @@ func ReadStackConfigString(
 	}
 
 	hclFile, err := hclparse.NewParser(pctx.ParserOptions...).
-		ParseFromString(configString, configPath)
+		ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}

@@ -74,3 +74,47 @@ func TestStripGitURLParams(t *testing.T) {
 		})
 	}
 }
+
+func TestRedactURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "userinfo dropped",
+			in:   "https://user:token@example.com/org/repo.git",
+			want: "https://example.com/org/repo.git",
+		},
+		{
+			name: "user only dropped",
+			in:   "https://oauth2@example.com/org/repo.git",
+			want: "https://example.com/org/repo.git",
+		},
+		{
+			name: "no userinfo unchanged",
+			in:   "https://example.com/org/repo.git",
+			want: "https://example.com/org/repo.git",
+		},
+		{
+			name: "scp form unchanged",
+			in:   "git@github.com:org/repo.git",
+			want: "git@github.com:org/repo.git",
+		},
+		{
+			name: "ssh url userinfo dropped",
+			in:   "ssh://git@example.com/org/repo.git",
+			want: "ssh://example.com/org/repo.git",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, cas.RedactURL(tt.in))
+		})
+	}
+}

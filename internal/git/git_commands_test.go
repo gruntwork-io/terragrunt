@@ -3,10 +3,12 @@ package git_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -44,85 +46,6 @@ func TestNewGitRunner(t *testing.T) {
 		runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
 		require.ErrorIs(t, err, git.ErrCommandSpawn)
 		assert.Nil(t, runner)
-	})
-}
-
-func TestGitRunner_WithWorkDir(t *testing.T) {
-	t.Parallel()
-
-	t.Run("resets memoized repo root", func(t *testing.T) {
-		t.Parallel()
-
-		var dirs []string
-
-		parent := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
-			dirs = append(dirs, inv.Dir)
-
-			return vexec.Result{Stdout: []byte(inv.Dir + "\n")}
-		}).WithWorkDir("/repo/a")
-
-		root, err := parent.GetRepoRoot(t.Context())
-		require.NoError(t, err)
-		assert.Equal(t, "/repo/a", root)
-
-		root, err = parent.WithWorkDir("/repo/b").GetRepoRoot(t.Context())
-		require.NoError(t, err)
-		assert.Equal(t, "/repo/b", root)
-		assert.Equal(t, []string{"/repo/a", "/repo/b"}, dirs)
-	})
-}
-
-func TestGitRunner_GetRepoRoot(t *testing.T) {
-	t.Parallel()
-
-	t.Run("memoizes success", func(t *testing.T) {
-		t.Parallel()
-
-		calls := 0
-		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
-			calls++
-
-			return vexec.Result{Stdout: []byte("/repo\n")}
-		}).WithWorkDir("/repo/unit")
-
-		for range 2 {
-			root, err := runner.GetRepoRoot(t.Context())
-			require.NoError(t, err)
-			assert.Equal(t, "/repo", root)
-		}
-
-		assert.Equal(t, 1, calls)
-	})
-
-	t.Run("retries failure", func(t *testing.T) {
-		t.Parallel()
-
-		calls := 0
-		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
-			calls++
-			if calls == 1 {
-				return vexec.Result{ExitCode: 128}
-			}
-
-			return vexec.Result{Stdout: []byte("/repo\n")}
-		}).WithWorkDir("/repo/unit")
-
-		_, err := runner.GetRepoRoot(t.Context())
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
-
-		root, err := runner.GetRepoRoot(t.Context())
-		require.NoError(t, err)
-		assert.Equal(t, "/repo", root)
-		assert.Equal(t, 2, calls)
-	})
-
-	t.Run("missing workdir", func(t *testing.T) {
-		t.Parallel()
-
-		runner := newMemRunner(t, staticResult(vexec.Result{}))
-
-		_, err := runner.GetRepoRoot(t.Context())
-		require.ErrorIs(t, err, git.ErrNoWorkDir)
 	})
 }
 
@@ -324,23 +247,48 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		invoke func(context.Context, *git.GitRunner) error
-		name   string
-		args   []string
+		invoke  func(context.Context, *git.GitRunner) error
+		wantErr error
+		name    string
+		args    []string
 	}{
 		{
 			name: "create detached",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.CreateDetachedWorktree(ctx, "/worktree", "HEAD")
+				return runner.CreateDetachedWorktree(ctx, venvtest.New(), "/worktree", "HEAD", git.CheckoutFiles)
 			},
-			args: []string{"worktree", "add", "--detach", "/worktree", "HEAD"},
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
+				"worktree", "add", "--detach", "/worktree", "HEAD",
+			},
+			wantErr: git.ErrCommandSpawn,
+		},
+		{
+			name: "create detached without checkout",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.CreateDetachedWorktree(ctx, venvtest.New(), "/worktree", "HEAD", git.SkipCheckout)
+			},
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
+				"worktree", "add", "--detach", "--no-checkout", "/worktree", "HEAD",
+			},
+			wantErr: git.ErrCommandSpawn,
+		},
+		{
+			name: "read tree",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.ReadTree(ctx, "HEAD")
+			},
+			args:    []string{"read-tree", "HEAD"},
+			wantErr: git.ErrReadTree,
 		},
 		{
 			name: "remove",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
 				return runner.RemoveWorktree(ctx, "/worktree")
 			},
-			args: []string{"worktree", "remove", "--force", "/worktree"},
+			args:    []string{"worktree", "remove", "--force", "/worktree"},
+			wantErr: git.ErrCommandSpawn,
 		},
 	}
 
@@ -360,10 +308,13 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 		t.Run(tc.name+" command failure", func(t *testing.T) {
 			t.Parallel()
 
-			runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
+			runner := newMemRunner(
+				t,
+				staticResult(vexec.Result{ExitCode: 128}),
+			).WithWorkDir("/repo")
 
 			err := tc.invoke(t.Context(), runner)
-			require.ErrorIs(t, err, git.ErrCommandSpawn)
+			require.ErrorIs(t, err, tc.wantErr)
 		})
 
 		t.Run(tc.name+" missing workdir", func(t *testing.T) {

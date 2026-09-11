@@ -15,6 +15,7 @@ import (
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +54,7 @@ func TestAwsS3SourceURLForms(t *testing.T) {
 
 			dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "module")
 
-			_, err := tggetter.GetAny(t.Context(), venv.OSVenv(), dst, tt.src)
+			_, err := tggetter.GetAny(t.Context(), logger.CreateLogger(), venv.OSVenv(), dst, tt.src)
 			require.NoError(t, err)
 			require.FileExists(t, filepath.Join(dst, "main.tf"))
 		})

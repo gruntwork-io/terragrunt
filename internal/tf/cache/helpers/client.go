@@ -1,8 +1,10 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
@@ -11,6 +13,9 @@ import (
 	svchost "github.com/hashicorp/terraform-svchost"
 	"github.com/puzpuzpuz/xsync/v4"
 )
+
+// maxResponseBody bounds a registry response body length.
+const maxResponseBody = 32 << 20
 
 // Client is the cache server's outbound HTTP client. It wraps a
 // [vhttp.Client] with registry credential injection and a per-URL response
@@ -33,7 +38,7 @@ func NewClient(c vhttp.Client, credsSource *cliconfig.CredentialsSource) *Client
 }
 
 // Do sends an HTTP request and decodes an HTTP response to the given `value`.
-func (client *Client) Do(ctx context.Context, method, reqURL string, value any) error {
+func (client *Client) Do(ctx context.Context, method, reqURL string, value any) (err error) {
 	if bodyBytes, ok := client.cache.Load(reqURL); ok {
 		return unmarshalBody(bodyBytes, value)
 	}
@@ -54,7 +59,10 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close() //nolint:errcheck // best-effort close of the response body
+
+	defer func() {
+		err = errors.Join(err, resp.Body.Close())
+	}()
 
 	bodyBytes, err := decodeResponse(resp)
 	if err != nil {
@@ -64,6 +72,28 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 	client.cache.Store(reqURL, bodyBytes)
 
 	return unmarshalBody(bodyBytes, value)
+}
+
+// ReadBody reads r into memory, refusing a body past limit with
+// [ResponseTooLargeError] rather than decoding part of one.
+func ReadBody(r io.Reader, hint, limit int64) ([]byte, error) {
+	limited := io.LimitReader(r, limit+1)
+
+	buf := &bytes.Buffer{}
+	if hint > 0 && hint <= limit {
+		buf.Grow(int(hint))
+	}
+
+	n, err := buf.ReadFrom(limited)
+	if err != nil {
+		return nil, err
+	}
+
+	if n > limit {
+		return nil, ResponseTooLargeError{Limit: limit}
+	}
+
+	return buf.Bytes(), nil
 }
 
 func unmarshalBody(data []byte, value any) error {
@@ -83,17 +113,15 @@ func decodeResponse(resp *http.Response) ([]byte, error) {
 		return nil, nil
 	}
 
-	buffer, err := ResponseBuffer(resp)
+	reader, err := ResponseReader(resp)
 	if err != nil {
 		return nil, err
 	}
 
-	bodyBytes, err := io.ReadAll(buffer)
-	if err != nil {
+	body, readErr := ReadBody(reader, resp.ContentLength, maxResponseBody)
+	if err := errors.Join(readErr, reader.Close()); err != nil {
 		return nil, err
 	}
 
-	resp.Body = io.NopCloser(buffer)
-
-	return bodyBytes, nil
+	return body, nil
 }

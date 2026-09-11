@@ -100,7 +100,7 @@ func StackOutput(
 
 	if wts != nil {
 		defer func() {
-			if cleanupErr := wts.Cleanup(ctx, l, v.FS); cleanupErr != nil {
+			if cleanupErr := wts.Cleanup(ctx, l, v); cleanupErr != nil {
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}
 		}()

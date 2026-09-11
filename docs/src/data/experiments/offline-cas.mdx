@@ -1,0 +1,46 @@
+---
+name: offline-cas
+since: "1.1.5"
+---
+
+Control over the probe cache the [CAS](/features/caching/cas) keeps, including resolving a run without contacting any remote.
+
+### `offline-cas` - What it does
+
+This experiment turns on the probe cache. The CAS records the answer to each cheap probe it makes, for every source it probes, so a later run can learn what a source resolves to without querying the remote again. An answer for a source pinned to a specific revision is served for 24 hours; anything that can change upstream is probed again on every run.
+
+Three flags come with it and change how the recorded answers are used:
+
+- [`--cas-offline`](/reference/cli/commands/run#cas-offline) never contacts a remote. Every source is answered from its recorded probe, however old, and linked from the local store. A source with no recorded answer, or whose content the store lacks, fails with an error naming it instead of being fetched.
+- [`--cas-refresh`](/reference/cli/commands/run#cas-refresh) ignores the recorded answers for one run and asks every remote again, then records what it learns. Use it when a version tag has moved and the 24 hour window for pinned sources has not passed.
+- [`--cas-probe-ttl`](/reference/cli/commands/run#cas-probe-ttl) trusts a recorded probe of a source that can change upstream for a chosen duration, such as `10m`, rather than probing it on every run.
+
+```bash
+terragrunt run --experiment offline-cas --all --cas-offline -- plan
+```
+
+The flags are available on the same commands as `--no-cas`. `--cas-offline` and `--cas-refresh` cannot be combined. A source with no cheap probe, such as an SMB share, has no answer to record and is fetched on every run. With the experiment off, nothing is recorded or served and every run probes every source.
+
+### `offline-cas` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt run --experiment offline-cas --all --cas-probe-ttl 10m -- plan
+
+# Via environment variable
+export TG_EXPERIMENT=offline-cas
+terragrunt run --all --cas-probe-ttl 10m -- plan
+```
+
+Setting one of the three flags without the experiment returns an error naming the flag.
+
+### `offline-cas` - Criteria for stabilization
+
+To transition the `offline-cas` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Confirm an offline run reports every unresolvable source in one pass, rather than failing on the first one.
+- [ ] Decide whether the sources with no cheap probe (SMB shares) should be resolvable offline, or whether failing on them is right.
+- [ ] Decide whether a warm store should be reachable without a prior online run, such as through a store that can be built and shipped to an air-gapped host.
+- [ ] Decide whether the 24 hour window for pinned sources belongs under `--cas-probe-ttl` or stays separate.
+- [ ] Decide how the store is pruned, covering recorded answers and the much larger content beside them, so a long-lived store does not keep growing on sources that are gone. Marking an answer as used when it is served, so that age since last use drives eviction rather than age since recording, is the likely mechanism.
+- [ ] Community feedback from air-gapped and high-unit-count runs on whether the three flags cover their needs.

@@ -242,37 +242,33 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T)
 	targetRole := os.Getenv("AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN")
 	require.NotEmpty(t, targetRole)
 
-	// These tests need to be run without the static key + secret
-	// used by most AWS tests here. Capture them first so the deferred
-	// bucket cleanup can use them: neither chain role can delete the
-	// bucket on its own (the source role has no S3 permissions and the
-	// target role is only reachable through the source role).
-	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	os.Unsetenv("AWS_ACCESS_KEY_ID")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
-
-	t.Setenv("OIDC_TOKEN", token)
-
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-assume-role")
 	helpers.CleanupTerraformFolder(t, rootPath)
 	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
+
+	// The script reads OIDC_TOKEN and exits non-zero without it, so it has to be
+	// set before the script is validated below.
+	t.Setenv("OIDC_TOKEN", token)
 
 	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
 
 	tmpTerragruntConfigFile := filepath.Join(rootPath, "terragrunt.hcl")
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
-	defer func() {
-		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint:usetesting // the bucket cleanup below needs the real creds back before t.Cleanup runs
-		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint:usetesting // as above
-
+	// Registered before the credentials are cleared, so it runs after they are put
+	// back: neither chain role can delete the bucket on its own, since the source
+	// role has no S3 permissions and the target role is only reachable through it.
+	t.Cleanup(func() {
 		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-	}()
+	})
+
+	// The run has to reach AWS through the OIDC chain rather than the static key
+	// and secret most AWS tests here run with.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	helpers.CopyAndFillMapPlaceholders(
 		t,

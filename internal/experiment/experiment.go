@@ -117,6 +117,9 @@ const (
 	TGLogin = "tg-login"
 	// Base64GzipCompat enables the base64gzip_compat HCL function.
 	Base64GzipCompat = "base64gzip-compat"
+	// OfflineCAS gates the CAS flags that control the persisted probe cache:
+	// --cas-offline, --cas-refresh, and --cas-probe-ttl.
+	OfflineCAS = "offline-cas"
 )
 
 const (
@@ -240,6 +243,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: Base64GzipCompat,
+		},
+		{
+			Name: OfflineCAS,
 		},
 	}
 }

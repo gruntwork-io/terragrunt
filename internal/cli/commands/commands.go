@@ -49,11 +49,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/hashicorp/go-version"
 )
 
 // Command category names.
@@ -246,7 +246,7 @@ func GiveWindowsSymlinksTip(
 	envs map[string]string,
 	providerCacheEnabled bool,
 	tfImpl tfimpl.Type,
-	tfVersion *version.Version,
+	tfVersion *semver.Version,
 ) {
 	if goos != "windows" {
 		return
@@ -287,7 +287,7 @@ func GiveWindowsSymlinksTip(
 	}
 
 	if tfImpl == tfimpl.OpenTofu && tfVersion != nil {
-		minVersion, verErr := version.NewVersion("1.12.0")
+		minVersion, verErr := semver.Parse("1.12.0")
 		if verErr == nil && !tfVersion.LessThan(minVersion) {
 			tip.Message = tips.WindowsSymlinkWarningOpenTofuMessage
 		}
@@ -312,7 +312,7 @@ func RunAction(
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Install run-scoped caches on actionCtx so memoized helpers like
-	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] and
+	// [github.com/gruntwork-io/terragrunt/internal/git.GoRepoRoot] and
 	// the version probes below share state across the whole action.
 	actionCtx := cache.ContextWithCache(ctx)
 
@@ -410,7 +410,8 @@ func PopulateTFImplementation(
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
 ) error {
-	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown && opts.TerraformVersion != nil {
+	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown &&
+		opts.TerraformVersion != nil {
 		return nil
 	}
 
@@ -476,7 +477,7 @@ func setupAutoProviderCacheDir(
 		return errors.New("cannot determine OpenTofu version")
 	}
 
-	requiredVersion, err := version.NewVersion(minTofuVersionForAutoProviderCacheDir)
+	requiredVersion, err := semver.Parse(minTofuVersionForAutoProviderCacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to parse required version: %w", err)
 	}
@@ -615,7 +616,11 @@ func initialSetup(
 
 	var fileFilterStrings []string
 
-	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(v.FS, opts.WorkingDir, opts.ExcludesFile)
+	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(
+		v.FS,
+		opts.WorkingDir,
+		opts.ExcludesFile,
+	)
 	if err != nil {
 		return err
 	}
@@ -667,10 +672,10 @@ func initialSetup(
 	}
 
 	// --- Terragrunt Version
-	terragruntVersion, err := version.NewVersion(cliCtx.Version)
+	terragruntVersion, err := semver.Parse(cliCtx.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
-		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {
+		if terragruntVersion, err = semver.Parse("0.0"); err != nil {
 			return err
 		}
 	}
