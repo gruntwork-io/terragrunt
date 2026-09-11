@@ -2,8 +2,6 @@ package cas
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -19,6 +17,8 @@ import (
 
 const (
 	gitStoreURLHashLen = 16
+	// gitStoreURLHashAlgorithm names the per-URL directories under git/.
+	gitStoreURLHashAlgorithm = HashSHA256
 	// gitStoreLockTimeout bounds how long EnsureRef waits for the per-URL
 	// lock before giving up and letting the caller fall back to a temporary
 	// clone. Generous enough to outlast a typical fetch, short enough that a
@@ -282,16 +282,15 @@ func (s *GitStore) RootPath() string {
 }
 
 // EntryPathForURL returns the directory used for the bare repository
-// belonging to url. Exported so tests can place blocking files at the path.
-func EntryPathForURL(rootPath, url string) string {
-	sum := sha256.Sum256([]byte(url))
-	name := hex.EncodeToString(sum[:])[:gitStoreURLHashLen]
-
-	return filepath.Join(rootPath, name)
+// belonging to url, hashed with alg so a caller that records the algorithm
+// in the path above this one derives every component with it. Exported so
+// tests can place blocking files at the path.
+func EntryPathForURL(rootPath, url string, alg HashAlgorithm) string {
+	return filepath.Join(rootPath, alg.Sum([]byte(url))[:gitStoreURLHashLen])
 }
 
 func (s *GitStore) repoPaths(url string) (dir, repo, lockPath string) {
-	dir = EntryPathForURL(s.rootPath, url)
+	dir = EntryPathForURL(s.rootPath, url, gitStoreURLHashAlgorithm)
 	repo = filepath.Join(dir, "repo")
 	lockPath = filepath.Join(dir, "lock")
 

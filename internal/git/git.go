@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-version"
 )
 
 const (
@@ -163,7 +163,7 @@ func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string
 		return "", err
 	}
 
-	var best *version.Version
+	var best *semver.Version
 
 	for _, r := range results {
 		name := strings.TrimPrefix(r.Ref, refsTags)
@@ -172,7 +172,7 @@ func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string
 			continue
 		}
 
-		v, err := version.NewVersion(name)
+		v, err := semver.Parse(name)
 		if err != nil {
 			continue
 		}

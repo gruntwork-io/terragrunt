@@ -9,13 +9,13 @@ import (
 	"regexp"
 	"strings"
 
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-version"
 )
 
 // DefaultTerraformVersionConstraint uses the constraint syntax from https://github.com/hashicorp/go-version
@@ -54,7 +54,7 @@ func PopulateTFVersion(
 	l log.Logger,
 	v *venv.Venv,
 	in PopulateTFVersionInput,
-) (log.Logger, *version.Version, tfimpl.Type, error) {
+) (log.Logger, *semver.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(
 		v.FS,
@@ -85,7 +85,7 @@ func PopulateTFVersion(
 }
 
 // formatVersionForCache formats the implementation and version for the cache
-func formatVersionForCache(implementation tfimpl.Type, version *version.Version) string {
+func formatVersionForCache(implementation tfimpl.Type, version *semver.Version) string {
 	var implStr string
 
 	switch implementation {
@@ -101,7 +101,7 @@ func formatVersionForCache(implementation tfimpl.Type, version *version.Version)
 }
 
 // parseVersionFromCache parses the cache format back to implementation and version for options
-func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, error) {
+func parseVersionFromCache(cachedData string) (tfimpl.Type, *semver.Version, error) {
 	const expectedParts = 2
 
 	parts := strings.SplitN(cachedData, ":", expectedParts)
@@ -123,7 +123,7 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, er
 		implementation = tfimpl.Unknown
 	}
 
-	version, err := version.NewVersion(versionStr)
+	version, err := semver.Parse(versionStr)
 	if err != nil {
 		return tfimpl.Unknown, nil, err
 	}
@@ -139,7 +139,7 @@ func GetTFVersion(
 	l log.Logger,
 	v *venv.Venv,
 	tfOpts *tf.TFOptions,
-) (log.Logger, *version.Version, tfimpl.Type, error) {
+) (log.Logger, *semver.Version, tfimpl.Type, error) {
 	// Clone to avoid mutating the caller's options.
 	optsCopy := *tfOpts
 	shellCopy := *optsCopy.ShellOptions
@@ -190,10 +190,10 @@ func GetTFVersion(
 // CheckTerragruntVersionMeetsConstraint checks that the current version of
 // Terragrunt meets the specified constraint and returns an error if it doesn't.
 func CheckTerragruntVersionMeetsConstraint(
-	currentVersion *version.Version,
+	currentVersion *semver.Version,
 	constraint string,
 ) error {
-	versionConstraint, err := version.NewConstraint(constraint)
+	versionConstraint, err := semver.ParseConstraint(constraint)
 	if err != nil {
 		return err
 	}
@@ -222,10 +222,10 @@ func CheckTerragruntVersionMeetsConstraint(
 // CheckTerraformVersionMeetsConstraint checks that the current version of
 // Terraform meets the specified constraint and returns an error if it doesn't.
 func CheckTerraformVersionMeetsConstraint(
-	currentVersion *version.Version,
+	currentVersion *semver.Version,
 	constraint string,
 ) error {
-	versionConstraint, err := version.NewConstraint(constraint)
+	versionConstraint, err := semver.ParseConstraint(constraint)
 	if err != nil {
 		return err
 	}
@@ -241,14 +241,14 @@ func CheckTerraformVersionMeetsConstraint(
 }
 
 // ParseTerraformVersion parses the output of the terraform --version command
-func ParseTerraformVersion(versionCommandOutput string) (*version.Version, error) {
+func ParseTerraformVersion(versionCommandOutput string) (*semver.Version, error) {
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != versionParts {
 		return nil, InvalidTerraformVersionSyntax(versionCommandOutput)
 	}
 
-	return version.NewVersion(matches[2])
+	return semver.Parse(matches[2])
 }
 
 // parseTerraformImplementationType - Parse terraform implementation from --version command output
@@ -321,13 +321,13 @@ func (err InvalidTerraformVersionSyntax) Error() string {
 }
 
 type InvalidTerraformVersion struct {
-	CurrentVersion     *version.Version
-	VersionConstraints version.Constraints
+	CurrentVersion     *semver.Version
+	VersionConstraints semver.Constraints
 }
 
 type InvalidTerragruntVersion struct {
-	CurrentVersion     *version.Version
-	VersionConstraints version.Constraints
+	CurrentVersion     *semver.Version
+	VersionConstraints semver.Constraints
 }
 
 func (err InvalidTerraformVersion) Error() string {

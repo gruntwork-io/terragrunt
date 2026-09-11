@@ -69,7 +69,10 @@ type Options struct {
 	StrictControls               strict.Controls
 	MaxFoldersToCheck            int
 	CASCloneDepth                int
+	CASProbeTTL                  time.Duration
 	NoCAS                        bool
+	CASOffline                   bool
+	CASRefresh                   bool
 	NoHooks                      bool
 	TofuCPUProfileUserSet        bool
 	AutoRetry                    bool

@@ -13,12 +13,12 @@ import (
 
 	"errors"
 
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	goversion "github.com/hashicorp/go-version"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"golang.org/x/sync/singleflight"
 )
@@ -243,7 +243,7 @@ func GetLatestModuleVersion(
 		return "", err
 	}
 
-	stable := make([]*goversion.Version, 0, len(versions))
+	stable := make([]*semver.Version, 0, len(versions))
 
 	for _, v := range versions {
 		if v.Prerelease() != "" {
@@ -262,7 +262,7 @@ func GetLatestModuleVersion(
 		)
 	}
 
-	latest := slices.MaxFunc(stable, func(a, b *goversion.Version) int { return a.Compare(b) })
+	latest := slices.MaxFunc(stable, func(a, b *semver.Version) int { return a.Compare(b) })
 
 	return latest.Original(), nil
 }
@@ -282,7 +282,7 @@ func GetMatchingModuleVersion(
 	auth RegistryAuth,
 	registryDomain, moduleRegistryBasePath, modulePath, constraint string,
 ) (string, error) {
-	constraints, err := goversion.NewConstraint(constraint)
+	constraints, err := semver.ParseConstraint(constraint)
 	if err != nil {
 		return "", ConstraintParseErr{constraint: constraint, err: err}
 	}
@@ -300,7 +300,7 @@ func GetMatchingModuleVersion(
 		return "", err
 	}
 
-	matching := make([]*goversion.Version, 0, len(versions))
+	matching := make([]*semver.Version, 0, len(versions))
 
 	for _, v := range versions {
 		if constraints.Check(v) {
@@ -316,7 +316,7 @@ func GetMatchingModuleVersion(
 		}
 	}
 
-	match := slices.MaxFunc(matching, func(a, b *goversion.Version) int { return a.Compare(b) })
+	match := slices.MaxFunc(matching, func(a, b *semver.Version) int { return a.Compare(b) })
 
 	return match.Original(), nil
 }
@@ -388,7 +388,7 @@ func SourceHasVersionConstraint(source string) bool {
 		return false
 	}
 
-	_, err = goversion.NewVersion(version)
+	_, err = semver.Parse(version)
 
 	return err != nil
 }
@@ -489,7 +489,7 @@ func listModuleVersions(
 	c vhttp.Client,
 	auth RegistryAuth,
 	registryDomain, moduleRegistryBasePath, modulePath string,
-) ([]*goversion.Version, error) {
+) ([]*semver.Version, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
 	modulePath = strings.TrimSuffix(modulePath, "/")
 	modulePath = strings.TrimPrefix(modulePath, "/")
@@ -532,10 +532,10 @@ func listModuleVersions(
 		)
 	}
 
-	parsed := make([]*goversion.Version, 0, len(versionsResp.Modules[0].Versions))
+	parsed := make([]*semver.Version, 0, len(versionsResp.Modules[0].Versions))
 
 	for _, v := range versionsResp.Modules[0].Versions {
-		pv, err := goversion.NewVersion(v.Version)
+		pv, err := semver.Parse(v.Version)
 		if err != nil {
 			l.Debugf("Skipping unparsable version %q for module %s: %v", v.Version, modulePath, err)
 			continue

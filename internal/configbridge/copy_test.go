@@ -2,6 +2,7 @@ package configbridge_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
@@ -69,6 +70,9 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.True(t, pctx.NoStackValidate)
 	assert.True(t, pctx.NoCAS)
 	assert.Equal(t, opts.CASCloneDepth, pctx.CASCloneDepth)
+	assert.True(t, pctx.CASOffline)
+	assert.True(t, pctx.CASRefresh)
+	assert.Equal(t, opts.CASProbeTTL, pctx.CASProbeTTL)
 	assert.Equal(t, opts.ScaffoldRootFileName, pctx.ScaffoldRootFileName)
 	assert.Equal(t, opts.TerragruntStackConfigPath, pctx.TerragruntStackConfigPath)
 	assert.Equal(t, opts.ProviderCacheOptions, pctx.ProviderCacheOptions)
@@ -155,6 +159,9 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	assert.True(t, runOpts.DisableBucketUpdate)
 	assert.True(t, runOpts.SourceUpdate)
 	assert.Equal(t, opts.CASCloneDepth, runOpts.CASCloneDepth)
+	assert.True(t, runOpts.CASOffline)
+	assert.True(t, runOpts.CASRefresh)
+	assert.Equal(t, opts.CASProbeTTL, runOpts.CASProbeTTL)
 	assert.True(t, runOpts.NoCAS)
 	assert.True(t, runOpts.NoHooks, "NoHooks is fed by NoRunHooks, so before/after hooks stay disabled when asked")
 
@@ -290,6 +297,7 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.TerragruntStackConfigPath = "/copy/unit/terragrunt.stack.hcl"
 	opts.MaxFoldersToCheck = 42
 	opts.CASCloneDepth = 7
+	opts.CASProbeTTL = 90 * time.Second
 	opts.IAMRoleOptions = iam.RoleOptions{
 		RoleARN:               "arn:aws:iam::111111111111:role/resolved",
 		AssumeRoleSessionName: "resolved-session",
@@ -337,6 +345,8 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.CheckDependentUnits = true
 	opts.NoStackValidate = true
 	opts.NoCAS = true
+	opts.CASOffline = true
+	opts.CASRefresh = true
 
 	return opts
 }

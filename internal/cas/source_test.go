@@ -328,15 +328,23 @@ func TestContentKey_DoesNotCollideWithOpaqueKey(t *testing.T) {
 // fakeResolver returns a canned cache key on Probe.
 type fakeResolver struct {
 	err    error
+	gate   chan struct{}
 	scheme string
 	key    string
 	calls  atomic.Int32
+	pinned bool
 }
 
 func (f *fakeResolver) Scheme() string { return f.scheme }
 
+func (f *fakeResolver) Pinned(_ string) bool { return f.pinned }
+
 func (f *fakeResolver) Probe(_ context.Context, _ string) (string, error) {
 	f.calls.Add(1)
+
+	if f.gate != nil {
+		<-f.gate
+	}
 
 	if f.err != nil {
 		return "", f.err

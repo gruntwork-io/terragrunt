@@ -66,6 +66,10 @@ func NewGCSResolver(v *venv.Venv) *GCSResolver { return &GCSResolver{Venv: v} }
 // Scheme returns "gcs".
 func (r *GCSResolver) Scheme() string { return "gcs" }
 
+// Pinned always reports false: a GCS URL names an object without a
+// generation, so the probe describes whichever one is current.
+func (r *GCSResolver) Pinned(_ string) bool { return false }
+
 // Probe reads object metadata via ObjectHandle.Attrs and returns a
 // content-addressed cache key from MD5 (when present) or CRC32C
 // (always populated by GCS). Errors surface as

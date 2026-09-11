@@ -7,6 +7,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
@@ -99,6 +100,7 @@ type ParsingContext struct {
 	MaxFoldersToCheck int
 	ParseDepth        int
 	CASCloneDepth     int
+	CASProbeTTL       time.Duration
 
 	TFPathExplicitlySet bool
 	SkipOutput          bool
@@ -115,6 +117,8 @@ type ParsingContext struct {
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
 	NoCAS                            bool
+	CASOffline                       bool
+	CASRefresh                       bool
 	LogShowAbsPaths                  bool
 	LogDisableErrorSummary           bool
 

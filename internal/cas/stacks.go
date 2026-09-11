@@ -112,7 +112,7 @@ func (c *CAS) ProcessStackComponent(
 	// stacks; CommitHash returns the user input as-is for the
 	// commit-ref path, and the canonical hash for the symbolic-ref
 	// path.
-	resolved, err := c.resolveReference(ctx, v, cleanURL, ref)
+	resolved, err := c.resolveReference(ctx, l, v, cleanURL, ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
 	}

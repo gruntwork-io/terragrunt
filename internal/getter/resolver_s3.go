@@ -91,6 +91,22 @@ func NewS3Resolver(v *venv.Venv) *S3Resolver { return &S3Resolver{Venv: v, Logge
 // Scheme returns "s3".
 func (r *S3Resolver) Scheme() string { return "s3" }
 
+// Pinned reports whether rawURL carries an object version, which S3
+// never reissues.
+func (r *S3Resolver) Pinned(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	target, err := parseS3URL(u)
+	if err != nil {
+		return false
+	}
+
+	return target.Version != ""
+}
+
 // Probe runs HeadObject with ChecksumMode=ENABLED and returns a
 // cache key from the strongest available token. The cascade prefers
 // content-addressed checksums (cross-URL dedupe) over the opaque ETag

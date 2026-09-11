@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -32,7 +33,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/hashicorp/go-version"
 	"github.com/puzpuzpuz/xsync/v4"
 )
 
@@ -77,7 +77,7 @@ type ctxKey byte
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Version of terragrunt
-	TerragruntVersion *version.Version `clone:"shadowcopy"`
+	TerragruntVersion *semver.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags *xsync.Map[string, string] `clone:"shadowcopy"`
 	// EngineConfig holds the resolved engine configuration from HCL.
@@ -89,7 +89,7 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
 	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *version.Version `clone:"shadowcopy"`
+	TerraformVersion *semver.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
 	Errors *errorconfig.Config
 	// Map to replace terraform source locations.
@@ -194,6 +194,9 @@ type TerragruntOptions struct {
 	// repository. Defaults to 1 (see internal/cas.DefaultCASCloneDepth). Values must be
 	// positive (git rejects --depth 0) or negative (e.g. -1) for a full clone without --depth.
 	CASCloneDepth int
+	// CASProbeTTL is how long CAS trusts a persisted probe of a branch, HEAD, or
+	// non-version tag before querying the remote again. Zero re-queries on every run.
+	CASProbeTTL time.Duration
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -266,6 +269,12 @@ type TerragruntOptions struct {
 	NoStackValidate bool
 	// NoCAS disables the CAS feature even when the experiment is enabled.
 	NoCAS bool
+	// CASOffline forbids CAS from contacting a Git remote; Git sources are
+	// answered from the local store and the persisted probe cache or fail.
+	// Other sources CAS handles, such as HTTP or S3, still reach their remote.
+	CASOffline bool
+	// CASRefresh makes CAS ignore its persisted probe cache for this run.
+	CASRefresh bool
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of

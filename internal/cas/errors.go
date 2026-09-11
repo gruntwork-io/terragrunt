@@ -79,7 +79,33 @@ var (
 	ErrGitStoreFSNotOS      = errors.New("git store requires an OS-backed filesystem")
 	ErrFallbackCloneDir     = errors.New("failed to create fallback clone directory")
 	ErrFetchClosureRequired = errors.New("fetch closure is required")
+	ErrCASOffline           = errors.New("cas offline")
 )
+
+// OfflineMissError reports that --cas-offline forbade the network call
+// that would have filled a gap in the local store. It unwraps to
+// [ErrCASOffline].
+type OfflineMissError struct {
+	// Source is the source URL with any credentials removed.
+	Source string
+	// Ref is the branch, tag, or commit requested. Empty for a source that
+	// is not addressed by ref, such as an object in a bucket, whose URL
+	// already names everything that was asked for.
+	Ref string
+}
+
+func (e *OfflineMissError) Error() string {
+	const gap = " is not in the local CAS store and --cas-offline forbids fetching it; " +
+		"run once without --cas-offline to populate the store, or drop the flag"
+
+	if e.Ref == "" {
+		return e.Source + gap
+	}
+
+	return e.Source + " at " + e.Ref + gap
+}
+
+func (e *OfflineMissError) Unwrap() error { return ErrCASOffline }
 
 // UpdateSourceWithCASRequiresCASError is returned when a block sets
 // update_source_with_cas = true but CAS is unavailable, either because the
