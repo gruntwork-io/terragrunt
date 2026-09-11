@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
@@ -23,6 +24,14 @@ const (
 
 	jsonOutputTempPattern = ".*.tmp"
 )
+
+// jsonOutputWriters bounds buffer memory by how many units write at once. A fresh
+// buffer per call costs jsonOutputBufferSize for every unit in a `run --all`.
+var jsonOutputWriters = sync.Pool{
+	New: func() any {
+		return bufio.NewWriterSize(io.Discard, jsonOutputBufferSize)
+	},
+}
 
 // WriteJSONOutput streams whatever fn writes into the file at path, creating the
 // parent directory first. Plan JSON runs to tens of megabytes on large units and
@@ -74,7 +83,11 @@ func WriteJSONOutput(fsys vfs.FS, path string, fn func(w io.Writer) error) (err 
 		return err
 	}
 
-	buffered := bufio.NewWriterSize(file, jsonOutputBufferSize)
+	// Nothing but New and releaseJSONOutputWriter fills this pool, so the assertion holds.
+	buffered := jsonOutputWriters.Get().(*bufio.Writer)
+	buffered.Reset(file)
+
+	defer releaseJSONOutputWriter(buffered)
 
 	if err := fn(buffered); err != nil {
 		return err
@@ -85,4 +98,12 @@ func WriteJSONOutput(fsys vfs.FS, path string, fn func(w io.Writer) error) (err 
 	}
 
 	return fsys.Rename(tmpPath, path)
+}
+
+// releaseJSONOutputWriter returns w to the pool. Resetting it away from the file
+// stops a parked buffer from holding the last unit's closed file for as long as the
+// pool keeps it.
+func releaseJSONOutputWriter(w *bufio.Writer) {
+	w.Reset(io.Discard)
+	jsonOutputWriters.Put(w)
 }
