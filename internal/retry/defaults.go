@@ -1,4 +1,3 @@
-// Package retry provides default retry configuration for Terragrunt.
 package retry
 
 import (
