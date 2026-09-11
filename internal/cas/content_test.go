@@ -149,9 +149,8 @@ func TestContent_Store(t *testing.T) {
 
 // TestContent_WriteLeavesInFlightTempFile pins that a store write leaves
 // alone the temp file another writer of the same hash is still filling.
-// [cas.Store.Lock] serializes only writers sharing one Store, so a writer
-// in another CAS instance or process can hold a temp file for the same
-// object.
+// [cas.Store.Lock] serializes writers only within one process, so a writer
+// in another process can hold a temp file for the same object.
 func TestContent_WriteLeavesInFlightTempFile(t *testing.T) {
 	t.Parallel()
 

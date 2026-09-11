@@ -12,17 +12,22 @@ import (
 // Every writer publishes an object by renaming a uniquely named temp
 // file onto its hash-addressed path, so two writers of one hash leave
 // the same result and racing costs only duplicated work. [Store.Lock]
-// spares that work between goroutines sharing a Store. Writers in other
-// CAS instances or processes race on the rename, so the store needs no
-// per-object lock files.
+// spares that work within a process; across processes writers race on
+// the rename, so the store needs no per-object lock files.
 type Store struct {
-	locks *keyedLocks
-	path  string
+	path string
 }
+
+// objectLocks serializes in-process writers per object path. It is
+// package state rather than a Store field because each call site builds
+// a CAS per unit, and instances over one store path must share the lock
+// for writers of one object to wait on each other instead of repeating
+// the write.
+var objectLocks = newKeyedLocks()
 
 // NewStore creates a new Store rooted at path.
 func NewStore(path string) *Store {
-	return &Store{path: path, locks: newKeyedLocks()}
+	return &Store{path: path}
 }
 
 // Path returns the current store path.
@@ -35,11 +40,12 @@ func (s *Store) NeedsWrite(v *venv.Venv, hash string) bool {
 	return !s.hasContent(v, s.objectPath(hash))
 }
 
-// Lock blocks until no other goroutine holds hash through s and returns
-// the function that releases it, which must be called exactly once.
-// Writers using another Store rooted at the same path do not wait on it.
+// Lock blocks until no other goroutine in this process is writing the
+// object at hash and returns the function that releases it, which must
+// be called exactly once. It offers no protection against other
+// processes.
 func (s *Store) Lock(hash string) (unlock func()) {
-	return s.locks.lock(hash)
+	return objectLocks.lock(s.objectPath(hash))
 }
 
 // EnsureWithWait reports whether the object at hash still has to be
@@ -78,7 +84,7 @@ func (s *Store) hasContent(v *venv.Venv, path string) bool {
 
 // keyedLocks hands out one mutex per key and forgets a key once no
 // goroutine holds or waits on it, so the table grows with in-flight
-// writes rather than with every object the store has ever held.
+// writes rather than with every object the process has ever stored.
 type keyedLocks struct {
 	entries map[string]*keyedLock
 	mu      sync.Mutex

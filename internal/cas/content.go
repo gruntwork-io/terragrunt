@@ -486,8 +486,8 @@ func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) error
 
 // GetTmpHandle creates a uniquely named temporary file in the partition
 // for hash, where content will be written before it is published.
-// [Store.Lock] serializes only writers sharing one Store, so each writer
-// needs a file that no other writer shares.
+// [Store.Lock] serializes writers of one hash only within a process, so
+// each writer needs a file that no writer in another process shares.
 func (c *Content) GetTmpHandle(v *venv.Venv, hash string) (vfs.File, error) {
 	partitionDir := c.getPartition(hash)
 	if err := v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
