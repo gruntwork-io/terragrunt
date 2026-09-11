@@ -114,13 +114,12 @@ func TestStore_LockSerializesSameHash(t *testing.T) {
 	}
 }
 
-// TestStore_LockSharedAcrossInstancesWithRacing pins that separate Store
-// values rooted at one path share the lock, as separate CAS instances
-// in one process do, so their writers of one hash never overlap.
-func TestStore_LockSharedAcrossInstancesWithRacing(t *testing.T) {
+// TestStore_LockSerializesHoldersWithRacing pins that goroutines locking
+// one hash through one Store, as the writers of one CAS do, never overlap.
+func TestStore_LockSerializesHoldersWithRacing(t *testing.T) {
 	t.Parallel()
 
-	storePath := filepath.Join(t.TempDir(), "store")
+	store := cas.NewStore(filepath.Join(t.TempDir(), "store"))
 
 	const (
 		testHash = "abcdef1234567890abcdef1234567890abcdef12"
@@ -136,8 +135,6 @@ func TestStore_LockSharedAcrossInstancesWithRacing(t *testing.T) {
 	var g errgroup.Group
 
 	for range holders {
-		store := cas.NewStore(storePath)
-
 		g.Go(func() error {
 			for range rounds {
 				unlock := store.Lock(testHash)

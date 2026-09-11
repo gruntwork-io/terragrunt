@@ -12,21 +12,17 @@ import (
 // Every writer publishes an object by renaming a uniquely named temp
 // file onto its hash-addressed path, so two writers of one hash leave
 // the same result and racing costs only duplicated work. [Store.Lock]
-// spares that work within a process; across processes writers race on
-// the rename, so the store needs no per-object lock files.
+// spares that work between goroutines sharing a Store. Writers in other
+// CAS instances or processes race on the rename, so the store needs no
+// per-object lock files.
 type Store struct {
-	path string
+	locks *keyedLocks
+	path  string
 }
-
-// objectLocks serializes in-process writers per object path. It is
-// process-wide rather than a Store field because Terragrunt builds a
-// fresh [CAS] per download, and instances sharing a store path must
-// share the lock for the dedupe to hold.
-var objectLocks = newKeyedLocks()
 
 // NewStore creates a new Store rooted at path.
 func NewStore(path string) *Store {
-	return &Store{path: path}
+	return &Store{path: path, locks: newKeyedLocks()}
 }
 
 // Path returns the current store path.
@@ -39,19 +35,18 @@ func (s *Store) NeedsWrite(v *venv.Venv, hash string) bool {
 	return !s.hasContent(v, s.objectPath(hash))
 }
 
-// Lock blocks until no other goroutine in this process is writing the
-// object at hash and returns the function that releases it, which must
-// be called exactly once. It offers no protection against other
-// processes.
+// Lock blocks until no other goroutine holds hash through s and returns
+// the function that releases it, which must be called exactly once.
+// Writers using another Store rooted at the same path do not wait on it.
 func (s *Store) Lock(hash string) (unlock func()) {
-	return objectLocks.lock(s.objectPath(hash))
+	return s.locks.lock(hash)
 }
 
 // EnsureWithWait reports whether the object at hash still has to be
-// written and, when it does, holds the in-process writer lock for it.
-// The existence check is repeated once the lock is held, so a caller
-// that waited on another writer of the same hash learns that the write
-// is already done instead of repeating it.
+// written and, when it does, holds [Store.Lock] for it. The existence
+// check is repeated once the lock is held, so a caller that waited on
+// another writer of the same hash learns that the write is already done
+// instead of repeating it.
 //
 // unlock must always be called; it releases the lock when needsWrite
 // is true and does nothing otherwise.
@@ -83,7 +78,7 @@ func (s *Store) hasContent(v *venv.Venv, path string) bool {
 
 // keyedLocks hands out one mutex per key and forgets a key once no
 // goroutine holds or waits on it, so the table grows with in-flight
-// writes rather than with every object the process has ever stored.
+// writes rather than with every object the store has ever held.
 type keyedLocks struct {
 	entries map[string]*keyedLock
 	mu      sync.Mutex

@@ -544,8 +544,8 @@ func (c *CAS) Clone(
 }
 
 // EnsureBlob stores the blob named by hash unless the store already has
-// it, streaming its content straight from batch into the store's temp
-// file instead of going through [Content.Store]. The stored blob takes the
+// it, streaming its content straight from batch into a temp file in the
+// store instead of going through [Content.Store]. The stored blob takes the
 // git tree mode with the write bits cleared, so the default-link path can
 // hardlink it without changing whether it is executable.
 func (c *CAS) EnsureBlob(
@@ -553,7 +553,7 @@ func (c *CAS) EnsureBlob(
 	batch *git.CatFileBatch,
 	hash string,
 	gitPerm os.FileMode,
-) (err error) {
+) error {
 	v.RequireGOOS()
 
 	needsWrite, unlock := c.blobStore.EnsureWithWait(v, hash)
@@ -561,25 +561,6 @@ func (c *CAS) EnsureBlob(
 
 	if !needsWrite {
 		return nil
-	}
-
-	content := NewContent(c.blobStore)
-
-	tmpHandle, err := content.GetTmpHandle(v, hash)
-	if err != nil {
-		return err
-	}
-
-	tmpPath := tmpHandle.Name()
-
-	defer func() {
-		if _, statErr := v.FS.Stat(tmpPath); statErr == nil {
-			err = errors.Join(err, v.FS.Remove(tmpPath))
-		}
-	}()
-
-	if err = streamBlob(v, batch, hash, tmpHandle); err != nil {
-		return err
 	}
 
 	// Symlink entries (git mode 120000) have no permission bits, but the blob
@@ -590,37 +571,17 @@ func (c *CAS) EnsureBlob(
 		storedPerm = StoredFilePerms
 	}
 
-	// The mode is set before the rename so a reader never sees the object at
-	// the temp file's mode between the two steps.
-	if err = v.FS.Chmod(tmpPath, storedPerm); err != nil {
-		return err
-	}
+	return NewContent(c.blobStore).writeObject(v, hash, storedPerm, func(f vfs.File) error {
+		if err := batch.ReadBlob(hash, f); err != nil {
+			return err
+		}
 
-	return content.publish(v, tmpPath, hash)
-}
+		if v.Platform.GOOS == WindowsOS {
+			return f.Sync()
+		}
 
-// streamBlob reads the blob named by hash from batch into tmpHandle and
-// closes the handle whatever the outcome. The caller removes or renames
-// the file next, and Windows refuses both while a handle is open.
-func streamBlob(
-	v *venv.Venv,
-	batch *git.CatFileBatch,
-	hash string,
-	tmpHandle vfs.File,
-) (err error) {
-	defer func() {
-		err = errors.Join(err, tmpHandle.Close())
-	}()
-
-	if err := batch.ReadBlob(hash, tmpHandle); err != nil {
-		return err
-	}
-
-	if v.Platform.GOOS == WindowsOS {
-		return tmpHandle.Sync()
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // gitFetcher returns a SourceFetcher that ingests through the git-native

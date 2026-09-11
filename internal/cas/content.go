@@ -1,7 +1,6 @@
 package cas
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -415,15 +414,6 @@ func (c *Content) Store(
 	unlock := c.store.Lock(hash)
 	defer unlock()
 
-	if err := v.FS.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return fmt.Errorf("create store dir %s: %w", c.store.Path(), ErrCreateDir)
-	}
-
-	partitionDir := c.getPartition(hash)
-	if err := v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
-	}
-
 	return c.writeContentToFile(l, v, hash, data, perm)
 }
 
@@ -461,15 +451,6 @@ func (c *Content) EnsureWithWait(
 		return nil
 	}
 
-	if err := v.FS.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return fmt.Errorf("create store dir %s: %w", c.store.Path(), ErrCreateDir)
-	}
-
-	partitionDir := c.getPartition(hash)
-	if err := v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
-	}
-
 	return c.writeContentToFile(l, v, hash, data, perm)
 }
 
@@ -477,7 +458,7 @@ func (c *Content) EnsureWithWait(
 // The stored blob is chmodded to the source file's perms with the write bits cleared,
 // so the default-link path can hardlink the blob directly without losing its
 // executable-ness or risking writes back into the shared store.
-func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) (err error) {
+func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) error {
 	path := c.getPath(hash)
 	if c.store.hasContent(v, path) {
 		return nil
@@ -498,89 +479,27 @@ func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) (err 
 		return nil
 	}
 
-	partitionDir := c.getPartition(hash)
-	if err = v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
-	}
-
-	// Write through a tempPath so a crash mid-copy cannot leave a
-	// half-written blob at the final hash-addressed path. The rename
-	// is the publish step.
-	tempPath := path + ".tmp"
-
-	if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
-		return fmt.Errorf("remove stale temp file %s: %w", tempPath, rmErr)
-	}
-
-	f, err := v.FS.Create(tempPath)
-	if err != nil {
-		return fmt.Errorf("create file %s: %w", tempPath, err)
-	}
-
-	// renamed flips after the publish step so the deferred cleanup
-	// removes a stale tempPath only on the error path.
-	renamed := false
-
-	defer func() {
-		if renamed {
-			return
-		}
-
-		if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
-			err = errors.Join(err, rmErr)
-		}
-	}()
-
-	r, err := v.FS.Open(src)
-	if err != nil {
-		err = errors.Join(err, f.Close())
-		return fmt.Errorf("open source %s: %w", src, err)
-	}
-
-	defer func() {
-		err = errors.Join(err, r.Close())
-	}()
-
-	if _, err := io.Copy(f, r); err != nil {
-		closeErr := f.Close()
-		return fmt.Errorf("copy from %s: %w", src, errors.Join(err, closeErr))
-	}
-
-	// Close the writer before rename so platforms that disallow
-	// renaming an open file (Windows) can complete the publish.
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close %s: %w", tempPath, err)
-	}
-
-	if err := v.FS.Chmod(tempPath, srcInfo.Mode().Perm()&^WriteBitMask); err != nil {
-		return fmt.Errorf("chmod %s: %w", tempPath, err)
-	}
-
-	if err := v.FS.Rename(tempPath, path); err != nil {
-		return fmt.Errorf("finalize %s: %w", path, err)
-	}
-
-	renamed = true
-
-	return nil
+	return c.writeObject(v, hash, srcInfo.Mode().Perm()&^WriteBitMask, func(f vfs.File) error {
+		return copySource(v, src, f)
+	})
 }
 
-// GetTmpHandle returns a file handle to a temporary file where content will be stored.
+// GetTmpHandle creates a uniquely named temporary file in the partition
+// for hash, where content will be written before it is published.
+// [Store.Lock] serializes only writers sharing one Store, so each writer
+// needs a file that no other writer shares.
 func (c *Content) GetTmpHandle(v *venv.Venv, hash string) (vfs.File, error) {
 	partitionDir := c.getPartition(hash)
 	if err := v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
 	}
 
-	path := c.getPath(hash)
-	tempPath := path + ".tmp"
-
-	f, err := v.FS.Create(tempPath)
+	f, err := vfs.CreateTemp(v.FS, partitionDir, vfs.TempPattern(hash))
 	if err != nil {
-		return nil, fmt.Errorf("create temp file %s: %w", tempPath, err)
+		return nil, fmt.Errorf("create temp file in %s: %w", partitionDir, err)
 	}
 
-	return f, err
+	return f, nil
 }
 
 // Read retrieves content from the store by hash.
@@ -623,60 +542,7 @@ func (c *Content) writeContentToFile(
 	v.RequireGOOS()
 
 	path := c.getPath(hash)
-	tempPath := path + ".tmp"
-
-	if err := v.FS.Remove(tempPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("remove stale temp file %s: %w", tempPath, err)
-	}
-
-	f, err := v.FS.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
-	if err != nil {
-		return fmt.Errorf("create temp file %s: %w", tempPath, err)
-	}
-
-	buf := bufio.NewWriter(f)
-
-	if _, err := buf.Write(data); err != nil {
-		if closeErr := f.Close(); closeErr != nil {
-			l.Warnf("failed to close temp file %s: %v", tempPath, closeErr)
-		}
-
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return fmt.Errorf("write to %s: %w", tempPath, err)
-	}
-
-	if err := buf.Flush(); err != nil {
-		if closeErr := f.Close(); closeErr != nil {
-			l.Warnf("failed to close temp file %s: %v", tempPath, closeErr)
-		}
-
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return fmt.Errorf("flush %s: %w", tempPath, err)
-	}
-
-	if err := f.Close(); err != nil {
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return fmt.Errorf("close %s: %w", tempPath, err)
-	}
-
 	stored := perm.Perm() &^ WriteBitMask
-
-	if err := v.FS.Chmod(tempPath, stored); err != nil {
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return fmt.Errorf("chmod temp %s: %w", tempPath, err)
-	}
 
 	if v.Platform.GOOS == WindowsOS {
 		if _, err := v.FS.Stat(path); err == nil {
@@ -686,18 +552,100 @@ func (c *Content) writeContentToFile(
 		}
 	}
 
-	if err := v.FS.Rename(tempPath, path); err != nil {
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
+	err := c.writeObject(v, hash, stored, func(f vfs.File) error {
+		if _, err := f.Write(data); err != nil {
+			return fmt.Errorf("write to %s: %w", f.Name(), err)
 		}
 
-		return fmt.Errorf("finalize %s: %w", path, err)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	if v.Platform.GOOS == WindowsOS {
 		if err := v.FS.Chmod(path, stored); err != nil {
 			return fmt.Errorf("chmod %s: %w", path, err)
 		}
+	}
+
+	return nil
+}
+
+// writeObject publishes the object at hash from what fill writes into a
+// fresh temp file, stored under perm. Content reaches the hash-addressed
+// path only through the final rename, so a write cut short never leaves a
+// partial object there. The temp file is closed and removed on every path
+// that does not publish it, including a panic in fill.
+func (c *Content) writeObject(
+	v *venv.Venv,
+	hash string,
+	perm os.FileMode,
+	fill func(f vfs.File) error,
+) (err error) {
+	f, err := c.GetTmpHandle(v, hash)
+	if err != nil {
+		return err
+	}
+
+	tempPath := f.Name()
+	closed := false
+	published := false
+
+	defer func() {
+		// Windows refuses to remove a file that is still open.
+		if !closed {
+			err = errors.Join(err, f.Close())
+		}
+
+		if published {
+			return
+		}
+
+		if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			err = errors.Join(err, rmErr)
+		}
+	}()
+
+	if err := fill(f); err != nil {
+		return err
+	}
+
+	closed = true
+
+	// Windows refuses to rename a file that is still open.
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", tempPath, err)
+	}
+
+	// The mode is set before the rename so a reader never sees the object at
+	// the temp file's mode between the two steps.
+	if err := v.FS.Chmod(tempPath, perm); err != nil {
+		return fmt.Errorf("chmod %s: %w", tempPath, err)
+	}
+
+	if err := c.publish(v, tempPath, hash); err != nil {
+		return fmt.Errorf("publish %s: %w", c.getPath(hash), err)
+	}
+
+	published = true
+
+	return nil
+}
+
+// copySource copies the file at src into w.
+func copySource(v *venv.Venv, src string, w io.Writer) (err error) {
+	r, err := v.FS.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source %s: %w", src, err)
+	}
+
+	defer func() {
+		err = errors.Join(err, r.Close())
+	}()
+
+	if _, err := io.Copy(w, r); err != nil {
+		return fmt.Errorf("copy from %s: %w", src, err)
 	}
 
 	return nil
