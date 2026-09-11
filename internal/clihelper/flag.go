@@ -215,6 +215,11 @@ func (flag *flagValue) Set(str string) error {
 }
 
 func (flag *flagValue) String() string {
+	// The stdlib flag package calls String on a zero flagValueGetter when printing usage, and its embedded *flagValue is nil.
+	if flag == nil {
+		return ""
+	}
+
 	if val := flag.value.Get(); val == nil {
 		return ""
 	}
