@@ -1,6 +1,7 @@
 // Package portal talks to the Gruntwork Developer Portal, the authorization
 // server and catalog API that back `terragrunt login` and a portal-defined
-// `terragrunt catalog`.
+// `terragrunt catalog`. It also owns the CLI's half of the login hand-off,
+// where the user is shown a code and sent to the portal to approve it.
 //
 // Login follows the OAuth 2.0 Device Authorization Grant ([RFC 8628]). The CLI
 // is a public client: it holds no client secret and registers no redirect URI,
