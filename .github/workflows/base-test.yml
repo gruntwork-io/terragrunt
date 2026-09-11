@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos]
+        os: [ubuntu, macos, windows]
     env:
       # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
       GOGC: "400"
@@ -29,10 +29,22 @@ jobs:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Windows Setup
+        if: runner.os == 'Windows'
+        run: pwsh -File ./.github/scripts/setup/windows-setup.ps1
+        shell: pwsh
+
       - id: go-cache-paths
         run: |
           echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
           echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+          # Terragrunt's provider cache lives under os.UserCacheDir: ~/.cache on Linux,
+          # ~/Library/Caches on macOS, %LOCALAPPDATA% on Windows.
+          case "$RUNNER_OS" in
+            Linux)   echo "tg-cache=$HOME/.cache/terragrunt" >> "$GITHUB_OUTPUT" ;;
+            macOS)   echo "tg-cache=$HOME/Library/Caches/terragrunt" >> "$GITHUB_OUTPUT" ;;
+            Windows) echo "tg-cache=$(cygpath "$LOCALAPPDATA")/terragrunt" >> "$GITHUB_OUTPUT" ;;
+          esac
         shell: bash
 
       - name: Go Build Cache
@@ -54,7 +66,7 @@ jobs:
       - name: Terragrunt Provider Cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
-          path: ${{ runner.os == 'Linux' && '~/.cache/terragrunt' || '~/Library/Caches/terragrunt' }}
+          path: ${{ steps.go-cache-paths.outputs.tg-cache }}
           key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
           restore-keys: |
             ${{ runner.os }}-terragrunt-provider-cache-
