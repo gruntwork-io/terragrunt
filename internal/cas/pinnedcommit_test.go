@@ -220,10 +220,16 @@ func refuseUnadvertisedWants(t *testing.T, srv *git.Server) {
 // oldProtocolVenv returns an OS-backed environment that pins git to the
 // pre-v2 wire protocol. The runner passes git only the venv's environment,
 // which has no HOME here, so the setting goes in through GIT_CONFIG_COUNT.
+//
+// Automatic maintenance is off as well. The full-history fallback brings in
+// more commits than the commit-graph task's threshold, and the write it
+// detaches can still be running when t.TempDir cleanup removes the store.
 func oldProtocolVenv() *venv.Venv {
 	return venv.OSVenv().WithEnv(map[string]string{
-		"GIT_CONFIG_COUNT":   "1",
+		"GIT_CONFIG_COUNT":   "2",
 		"GIT_CONFIG_KEY_0":   "protocol.version",
 		"GIT_CONFIG_VALUE_0": "0",
+		"GIT_CONFIG_KEY_1":   "maintenance.auto",
+		"GIT_CONFIG_VALUE_1": "false",
 	})
 }
