@@ -1695,14 +1695,16 @@ func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
 func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 	t.Parallel()
 
+	workingDir := copyIgnoreTerraformDataDirFixture(t)
+
 	expected := []string{
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl",
+		filepath.Join(workingDir, ".tf_data", "modules", "mod", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", ".tf_data", "modules", "mod", "terragrunt.hcl"),
 	}
 	actual, err := config.FindConfigFilesInPath(
 		vfs.NewOSFS(),
-		"../../test/fixtures/config-files/ignore-terraform-data-dir",
+		workingDir,
 		experiment.NewExperiments(),
 		"test",
 		map[string]string{},
@@ -1716,13 +1718,15 @@ func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 	t.Parallel()
 
+	workingDir := copyIgnoreTerraformDataDirFixture(t)
+
 	expected := []string{
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
+		filepath.Join(workingDir, "subdir", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", ".terraform", "modules", "mod", "terragrunt.hcl"),
 	}
 	actual, err := config.FindConfigFilesInPath(
 		vfs.NewOSFS(),
-		"../../test/fixtures/config-files/ignore-terraform-data-dir",
+		workingDir,
 		experiment.NewExperiments(),
 		"test",
 		map[string]string{"TF_DATA_DIR": ".tf_data"},
@@ -1736,14 +1740,16 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 	t.Parallel()
 
+	workingDir := copyIgnoreTerraformDataDirFixture(t)
+
 	expected := []string{
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
+		filepath.Join(workingDir, ".tf_data", "modules", "mod", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", ".terraform", "modules", "mod", "terragrunt.hcl"),
 	}
 	actual, err := config.FindConfigFilesInPath(
 		vfs.NewOSFS(),
-		"../../test/fixtures/config-files/ignore-terraform-data-dir",
+		workingDir,
 		experiment.NewExperiments(),
 		"test",
 		map[string]string{"TF_DATA_DIR": "subdir/.tf_data"},
@@ -1757,10 +1763,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	t.Parallel()
 
-	workingDir, err := filepath.Abs(
-		filepath.Join("..", "..", "test", "fixtures", "config-files", "ignore-terraform-data-dir"),
-	)
-	require.NoError(t, err)
+	workingDir := copyIgnoreTerraformDataDirFixture(t)
 
 	actual, err := config.FindConfigFilesInPath(
 		vfs.NewOSFS(),
@@ -2818,4 +2821,27 @@ func createLogger() log.Logger {
 	formatter.SetDisabledColors(true)
 
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
+}
+
+// copyIgnoreTerraformDataDirFixture copies the ignore-terraform-data-dir fixture into a temporary directory,
+// adds a module under subdir/.terraform, and returns the directory's path.
+func copyIgnoreTerraformDataDirFixture(t *testing.T) string {
+	t.Helper()
+
+	workingDir := helpers.TmpDirWOSymlinks(t)
+	helpers.CopyDir(
+		t,
+		filepath.Join("..", "..", "test", "fixtures", "config-files", "ignore-terraform-data-dir"),
+		workingDir,
+	)
+
+	fsys := vfs.NewOSFS()
+	modDir := filepath.Join(workingDir, "subdir", ".terraform", "modules", "mod")
+
+	// .gitignore excludes every .terraform directory, so the fixture cannot carry this module.
+	for _, name := range []string{"main.tf", config.DefaultTerragruntConfigPath} {
+		require.NoError(t, vfs.WriteFile(fsys, filepath.Join(modDir, name), nil, 0644))
+	}
+
+	return workingDir
 }
