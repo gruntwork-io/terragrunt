@@ -23,7 +23,7 @@ func FindDependentUnits(
 	cfg *config.TerragruntConfig,
 ) []*component.Unit {
 	matchedUnitsMap := make(map[string]*component.Unit)
-	pathsToCheck := discoverPathsToCheck(ctx, v, opts, cfg)
+	pathsToCheck := discoverPathsToCheck(ctx, l, v, opts, cfg)
 
 	for _, dir := range pathsToCheck {
 		maps.Copy(
@@ -50,6 +50,7 @@ func FindDependentUnits(
 // or the parents of the processed includes when git detection fails.
 func discoverPathsToCheck(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	terragruntConfig *config.TerragruntConfig,

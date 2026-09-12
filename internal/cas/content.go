@@ -119,7 +119,7 @@ func (c *Content) Link(
 	case LinkModeHardlink:
 		return c.hardlinkBlob(l, v, hash, sourcePath, targetPath, perm, o)
 	case LinkModeClone:
-		return c.cloneBlob(v, sourcePath, targetPath, perm, o)
+		return c.cloneBlob(v, hash, sourcePath, targetPath, perm, o)
 	case LinkModeCopy:
 		return c.copyBlob(v, hash, sourcePath, targetPath, perm)
 	}
@@ -147,12 +147,12 @@ func (c *Content) hardlinkBlob(
 // copies where the filesystem cannot clone.
 func (c *Content) cloneBlob(
 	v *venv.Venv,
-	sourcePath, targetPath string,
+	hash, sourcePath, targetPath string,
 	perm os.FileMode,
 	o linkOpts,
 ) (LinkOutcome, error) {
 	if o.skipClone {
-		return c.copyBlob(v, sourcePath, targetPath, perm)
+		return c.copyBlob(v, hash, sourcePath, targetPath, perm)
 	}
 
 	err := c.cloneInto(v, sourcePath, targetPath, perm)
