@@ -1,0 +1,16 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Symlinked `terragrunt.stack.hcl` keeps its own directory for relative reads
+
+A regression first shipped in v1.0.3 caused a `terragrunt.stack.hcl` that is a symlink to take its source directory from the symlink target's location instead of the directory the symlink lives in, because stack generation resolved the whole path, stack file included, through the symlink.
+
+Relative reads inside the stack file then looked in the wrong folder. [`read_terragrunt_config()`](/reference/hcl/functions#read_terragrunt_config), [`find_in_parent_folders()`](/reference/hcl/functions#find_in_parent_folders), and a relative `source` all resolved against the target's directory, so a file sitting next to the symlink could not be read:
+
+```
+Call to function "read_terragrunt_config" failed: You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file.
+```
+
+Terragrunt now canonicalizes only the stack file's directory and keeps the file anchored to its own location. [`get_terragrunt_dir()`](/reference/hcl/functions#get_terragrunt_dir) inside a symlinked stack file returns the directory the symlink lives in, matching a stack file that is not a symlink.
