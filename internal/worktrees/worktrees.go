@@ -1121,7 +1121,7 @@ func materializeGitWorktree(
 		return nil
 	}
 
-	if err := fillGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
+	if err := fillGitWorktree(ctx, l, v, gitRunner, registerMu, dir, opts); err != nil {
 		unregisterWorktree(ctx, l, gitRunner, registerMu, dir)
 
 		return err
@@ -1134,13 +1134,25 @@ func materializeGitWorktree(
 // without a checkout.
 func fillGitWorktree(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	gitRunner *git.GitRunner,
+	registerMu *sync.Mutex,
 	dir string,
 	opts *worktreeOpts,
 ) error {
 	if err := extractGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
-		return err
+		if ctx.Err() != nil || isExtractionRefusal(err) {
+			return err
+		}
+
+		l.Debugf("Extracting the archive of %s into %s failed, checking it out instead: %v", opts.ref, dir, err)
+
+		if checkoutErr := recreateWorktreeWithCheckout(ctx, v, gitRunner, registerMu, dir, opts.ref); checkoutErr != nil {
+			return errors.Join(err, checkoutErr)
+		}
+
+		return nil
 	}
 
 	if len(opts.pathspecs) > 0 {
@@ -1189,6 +1201,45 @@ func unregisterWorktree(
 	if err := gitRunner.RemoveWorktree(ctx, dir); err != nil {
 		l.Warnf("failed to remove Git worktree %s: %v", dir, err)
 	}
+}
+
+// recreateWorktreeWithCheckout drops the worktree registered at dir without a
+// checkout, files and all, and registers dir again with one. Both commands
+// write to the repository's `.git/worktrees/`, so they run under the lock the
+// adds take.
+func recreateWorktreeWithCheckout(
+	ctx context.Context,
+	v *venv.Venv,
+	gitRunner *git.GitRunner,
+	registerMu *sync.Mutex,
+	dir, ref string,
+) error {
+	registerMu.Lock()
+	defer registerMu.Unlock()
+
+	if err := gitRunner.RemoveWorktree(ctx, dir); err != nil {
+		return err
+	}
+
+	return gitRunner.CreateDetachedWorktree(ctx, v, dir, ref, git.CheckoutFiles)
+}
+
+// isExtractionRefusal reports whether err is one of the refusals extraction
+// raises on purpose. A checkout would materialize what they refuse, so they
+// are never routed around the fallback.
+func isExtractionRefusal(err error) bool {
+	for _, refusal := range []error{
+		vfs.ErrSymlinkEscapes,
+		git.ErrArchiveEntryOutsideDest,
+		git.ErrArchiveTooManyEntries,
+		git.ErrArchiveTooDeep,
+	} {
+		if errors.Is(err, refusal) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // extractGitWorktree streams the archive of ref into dir. Git writes the
