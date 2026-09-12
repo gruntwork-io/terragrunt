@@ -409,15 +409,9 @@ func cliFlagsToCty(
 	ctx *ParsingContext,
 	flagByName map[string]*FeatureFlag,
 ) (map[string]cty.Value, error) {
-	if ctx.FeatureFlags == nil {
-		return make(map[string]cty.Value), nil
-	}
-
 	evaluatedFlags := make(map[string]cty.Value)
 
-	var conversionErr error
-
-	ctx.FeatureFlags.Range(func(name, value string) bool {
+	for name, value := range ctx.FeatureFlags {
 		var flag cty.Value
 
 		var err error
@@ -429,18 +423,10 @@ func cliFlagsToCty(
 		}
 
 		if err != nil {
-			conversionErr = err
-
-			return false
+			return nil, err
 		}
 
 		evaluatedFlags[name] = flag
-
-		return true
-	})
-
-	if conversionErr != nil {
-		return nil, conversionErr
 	}
 
 	return evaluatedFlags, nil
