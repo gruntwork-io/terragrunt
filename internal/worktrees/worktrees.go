@@ -1121,7 +1121,7 @@ func materializeGitWorktree(
 		return nil
 	}
 
-	if err := fillGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
+	if err := fillGitWorktree(ctx, l, v, gitRunner, registerMu, dir, opts); err != nil {
 		unregisterWorktree(ctx, l, gitRunner, registerMu, dir)
 
 		return err
@@ -1134,8 +1134,10 @@ func materializeGitWorktree(
 // without a checkout.
 func fillGitWorktree(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	gitRunner *git.GitRunner,
+	registerMu *sync.Mutex,
 	dir string,
 	opts *worktreeOpts,
 ) error {

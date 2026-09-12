@@ -92,7 +92,7 @@ func TestNewWorktreesWithSymlinkOutsideRepository(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), v.FS))
+		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), v))
 	})
 
 	materialized := 0
