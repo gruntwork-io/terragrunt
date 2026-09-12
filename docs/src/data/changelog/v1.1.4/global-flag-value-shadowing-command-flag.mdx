@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Fixed a global flag value that reads like a command flag being parsed as the command
+
+When the value passed to a global flag was spelled the same way as a command-specific flag, the CLI parser stopped reading the arguments one token too early. The value was left behind as a positional argument, and Terragrunt then resolved it as the command name.
+
+For example, `terragrunt run --all --working-dir queue-include-dir --queue-include-dir foo -- plan` ran against a command called `queue-include-dir` instead of `plan`, because `queue-include-dir` is also the name of a flag. Directory names that match a flag name are now parsed as the values they are.

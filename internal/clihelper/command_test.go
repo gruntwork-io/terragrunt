@@ -352,3 +352,88 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 		})
 	}
 }
+
+// A flag value is not a flag. `flagSet.Parse` only reports a dash-prefixed token as
+// undefined, so the args must be cut at that token and not at an earlier positional that
+// happens to read the same way -- otherwise the value is left behind and resolves as the
+// command name. https://github.com/gruntwork-io/terragrunt/issues/4966
+func TestCommandRunUndefinedFlagIsNotMatchedByAnotherFlagsValue(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expectedGlobal string
+		expectedScoped string
+		args           []string
+	}{
+		// The value of the global flag is spelled exactly like the subcommand's own flag.
+		{
+			args:           []string{"cmd-bar", "--foo", "bar", "--bar", "value"},
+			expectedGlobal: "bar",
+			expectedScoped: "value",
+		},
+		// The same, with the global flag given before the subcommand.
+		{
+			args:           []string{"--foo", "bar", "cmd-bar", "--bar", "value"},
+			expectedGlobal: "bar",
+			expectedScoped: "value",
+		},
+		// `--flag=value` form: the value is not a separate arg and never was affected.
+		{
+			args:           []string{"cmd-bar", "--foo=bar", "--bar", "value"},
+			expectedGlobal: "bar",
+			expectedScoped: "value",
+		},
+		// A value spelled like the global flag itself.
+		{
+			args:           []string{"cmd-bar", "--bar", "foo", "--foo", "value"},
+			expectedGlobal: "value",
+			expectedScoped: "foo",
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			var actualGlobal, actualScoped string
+
+			var actualArgs []string
+
+			cmd := clihelper.Command{
+				Flags: clihelper.Flags{
+					&clihelper.GenericFlag[string]{Name: "foo", Destination: &actualGlobal},
+				},
+				Subcommands: clihelper.Commands{
+					&clihelper.Command{
+						Name: "cmd-bar",
+						Flags: clihelper.Flags{
+							&clihelper.GenericFlag[string]{
+								Name:        "bar",
+								Destination: &actualScoped,
+							},
+						},
+						Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
+							actualArgs = cliCtx.Args().Slice()
+							return nil
+						},
+						DisabledErrorOnUndefinedFlag: true,
+					},
+				},
+				DisabledErrorOnUndefinedFlag: true,
+			}
+
+			app := &clihelper.App{
+				App: &urfaveCli.App{Writer: io.Discard},
+				Env: map[string]string{},
+			}
+			cliCtx := clihelper.NewAppContext(app, tc.args)
+
+			err := cmd.Run(t.Context(), cliCtx, tc.args)
+			require.NoError(t, err, tc)
+
+			assert.Equal(t, tc.expectedGlobal, actualGlobal, tc)
+			assert.Equal(t, tc.expectedScoped, actualScoped, tc)
+			assert.Empty(t, actualArgs, "no flag value may be left behind as an argument")
+		})
+	}
+}
