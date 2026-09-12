@@ -27,6 +27,7 @@ const commands = defineCollection({
 		examples: z.array(z.object({
 			code: z.string(),
 			description: z.string().optional(),
+			lang: z.string().optional(),
 		})),
 		flags: z.array(z.string()).optional(),
 		experiment: z.object({

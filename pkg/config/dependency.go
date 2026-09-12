@@ -1480,7 +1480,7 @@ func getOutputJSONWithCaching(
 			//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
 			//
 			// To make parsing robust to either, isolate the first JSON object in the buffer.
-			trimmed, trimErr := extractFirstJSONObject(fetched)
+			trimmed, trimErr := tf.ExtractFirstJSONObject(fetched)
 			if trimErr != nil {
 				return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
 			}
@@ -1495,29 +1495,6 @@ func getOutputJSONWithCaching(
 	}
 
 	return newJSONBytes, nil
-}
-
-// extractFirstJSONObject returns the first complete JSON object found in data, ignoring any
-// non-JSON content that precedes or follows it. This is needed because `tofu/terraform output -json`
-// can intermix log lines, ANSI escape codes, or deprecation warnings with the JSON output, depending
-// on the version and backend in use.
-//
-// If data contains no `{`, the original bytes are returned so downstream JSON parsing surfaces the
-// usual "unexpected end of JSON input" error rather than a cryptic message from this helper.
-func extractFirstJSONObject(data []byte) ([]byte, error) {
-	start := bytes.IndexByte(data, '{')
-	if start < 0 {
-		return data, nil
-	}
-
-	dec := json.NewDecoder(bytes.NewReader(data[start:]))
-
-	var raw json.RawMessage
-	if err := dec.Decode(&raw); err != nil {
-		return nil, err
-	}
-
-	return raw, nil
 }
 
 // adjustSourceForTargetModule rewrites a `--source` CLI override so it points at targetConfig's own module subdir
@@ -1715,7 +1692,7 @@ func resolveOutputJSON(
 	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
 
 	workspace := ""
-	if shouldFetchDependencyOutputFromState(pctx, remoteStateTGConfig.RemoteState) {
+	if ShouldFetchDependencyOutputFromState(pctx, remoteStateTGConfig.RemoteState) {
 		workspace, err = dependencyStateWorkspace(pctx, workingDir)
 		if err != nil {
 			l.Debugf("Could not determine dependency workspace for direct state retrieval: %v", err)
@@ -1800,8 +1777,10 @@ var directStateBackends = map[string]directStateBackend{
 	},
 }
 
-// shouldFetchDependencyOutputFromState reports whether a registered backend supports a direct state read.
-func shouldFetchDependencyOutputFromState(
+// ShouldFetchDependencyOutputFromState reports whether a registered backend supports a direct state read.
+// The set of backends and their per-configuration rules live in [directStateBackends], so callers outside
+// this package ask here rather than testing a backend name themselves.
+func ShouldFetchDependencyOutputFromState(
 	pctx *ParsingContext,
 	remoteState *remotestate.RemoteState,
 ) bool {

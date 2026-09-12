@@ -40,6 +40,7 @@ import (
 	helpcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/help"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
+	mcpcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
@@ -119,6 +120,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 		info.NewCommand(l, opts, v),             // info
 		dag.NewCommand(l, opts, v),              // dag
 		render.NewCommand(l, opts, v),           // render
+		mcpcmd.NewCommand(l, opts, v),           // mcp
 		helpcmd.NewCommand(l, opts),             // help (hidden)
 		versioncmd.NewCommand(),                 // version (hidden)
 		awsproviderpatch.NewCommand(l, opts, v), // aws-provider-patch (hidden)

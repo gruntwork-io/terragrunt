@@ -12,24 +12,17 @@ export async function getHeadings(
 		headings.push({ depth: 2, slug: 'examples', text: 'Examples' });
 	}
 
-	const h2HeadingsLines = command.body?.match(/## (.*)/g);
-	const h2Headings = h2HeadingsLines?.map((line) => line.replace(/## /g, ''));
+	// Matched in one pass so the body's headings keep their document order. A
+	// pass per depth would list every h3 after the last h2, detaching each from
+	// the section it belongs to.
+	const bodyHeadingLines = command.body?.match(/^(#{2,3}) (.*)/gm);
 
-	const h3HeadingsLines = command.body?.match(/### (.*)/g);
-	const h3Headings = h3HeadingsLines?.map((line) => line.replace(/### /g, ''));
-
-
-	if (h2Headings) {
-		h2Headings.forEach((text) => {
+	if (bodyHeadingLines) {
+		bodyHeadingLines.forEach((line) => {
+			const depth = line.startsWith('### ') ? 3 : 2;
+			const text = line.replace(/^#{2,3} /, '');
 			const slug = text.toLowerCase().replace(/ /g, '-');
-			headings.push({ depth: 2, slug, text });
-		});
-	}
-
-	if (h3Headings) {
-		h3Headings.forEach((text) => {
-			const slug = text.toLowerCase().replace(/ /g, '-');
-			headings.push({ depth: 3, slug, text });
+			headings.push({ depth, slug, text });
 		});
 	}
 

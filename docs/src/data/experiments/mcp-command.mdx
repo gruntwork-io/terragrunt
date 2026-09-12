@@ -1,0 +1,91 @@
+---
+name: mcp-command
+since: "1.1.5"
+---
+
+Adds the `terragrunt mcp` command, which serves Terragrunt operations to AI agents over the [Model Context Protocol](https://modelcontextprotocol.io).
+
+### `mcp-command` - What it does
+
+With the experiment enabled, `terragrunt mcp` speaks the Model Context Protocol over standard input and output, so an agent can ask Terragrunt questions about your estate instead of guessing at them from the HCL. It serves these tools:
+
+| Name            | What it does                                                                 |
+| --------------- | ---------------------------------------------------------------------------- |
+| `discover`      | Which units and stacks exist under a directory, and how they depend on each other |
+| `render_config` | What one unit's `terragrunt.hcl` resolves to, once locals, includes, and dependency outputs are evaluated |
+| `validate`      | Whether the configurations under a directory parse and evaluate, as file/line diagnostics |
+| `run_order`     | What must finish before each unit may start, for the command you name |
+| `get_outputs`   | The applied outputs of one unit                                              |
+| `plan`          | The per-unit result of `run --all plan`                                      |
+| `apply`, `destroy` | The per-unit result of a real change, served only under `--dangerously-allow-apply` and gated on a person accepting it |
+
+`run_order` takes the command it should answer for. `plan` and `apply` order alike, and only `destroy` inverts, but an `exclude` block naming one action does not match another, so the three can cover different sets of units.
+
+Every tool is confined to the directory the server was launched in. A `working_dir` argument that resolves outside it is refused, and graph traversal is bounded there too, so a filter that follows dependencies or dependents cannot bring back a unit from a tree the server was never pointed at. A unit across that boundary still has its configuration read, so units inside can be ordered against it and fetch its outputs.
+
+That confinement covers `working_dir` and traversal, not file access. Tools work against the real filesystem, so a dependency fetch writes that dependency's source into a `.terragrunt-cache`, and an HCL function such as `file()` reads anything the user running the server can.
+
+The server denies every capability at startup, and grants them separately.
+
+- [`--allow=sops`](/reference/cli/commands/mcp#allow) lets it decrypt SOPS-encrypted files. Without it `sops_decrypt_file` fails rather than putting cleartext in front of the agent.
+- [`--allow=exec`](/reference/cli/commands/mcp#allow) lets it run its own commands, meaning `tofu`, `terraform`, and `git`. Without it none of them run. Even with it, a program a configuration names through `run_cmd()`, a hook, or an auth-provider command stays refused, since the agent picks the repository and a configuration under it could otherwise name any program on the machine. Name one with [`--allow-command`](/reference/cli/commands/mcp#allow-command), or let the read-only tools offer the refused programs to the person operating the client and run again with what they accept.
+- [`--allow=http`](/reference/cli/commands/mcp#allow) lets it make requests. Without it every request Terragrunt makes on its own account fails, so state backends, registries, and remote module sources are unreachable, and a unit whose `terraform` source is remote cannot be planned at all.
+
+With none granted, tools read and parse configuration and nothing else. A result a restriction affected carries a `degraded` list naming what was substituted, such as a dependency output that fell back to `mock_outputs`, a `run_cmd` that returned an empty string, or outputs that were not fetched. `plan` needs real commands, so it is refused outright. `get_outputs` needs either `exec` or `http`, since it runs the real output command or reads remote state itself. The second path works for a unit whose `remote_state` backend is `s3`, `gcs`, or `azurerm`; any other unit reports that it fetched nothing and says why.
+
+Granting one does not bound another. A process started under `--allow=exec` reaches the network on its own account, so `tofu init` downloads providers whether or not `--allow=http` was passed. Denying HTTP restricts Terragrunt, not the tools it runs.
+
+A separate flag, [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply), adds `apply` and `destroy` tools on top of `--allow=exec`. It is spelled out in full rather than being a value of `--allow`, because it is the one that changes infrastructure. Without it neither tool is registered, so a client is never told they exist. With it, an agent can reach real infrastructure, though not on its own say-so. Each run is described to the person operating the client through an elicitation (the protocol's way for a server to ask the client's user a question), and starts only once they accept. A client that cannot ask anyone is refused. The client draws that prompt, so it stops an agent acting unobserved rather than acting without authorization. Read the flag documentation before granting it.
+
+Running `terragrunt mcp` without the experiment enabled is an error.
+
+### `mcp-command` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt --experiment mcp-command mcp
+
+# Via environment variable
+export TG_EXPERIMENT=mcp-command
+terragrunt mcp
+```
+
+Agents launch the server themselves, so the experiment is usually set in the client's server configuration:
+
+```json
+{
+  "mcpServers": {
+    "terragrunt": {
+      "command": "terragrunt",
+      "args": ["mcp"],
+      "env": {
+        "TG_EXPERIMENT": "mcp-command"
+      }
+    }
+  }
+}
+```
+
+### `mcp-command` - How to provide feedback
+
+Provide feedback on the [Terragrunt GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) or by opening an issue.
+When reporting issues or providing feedback, please include:
+
+- The agent or MCP client you connected with.
+- Which capabilities you granted, and what the `degraded` lists said for the ones you did not grant.
+- The questions you wanted to ask that no tool answered.
+
+### `mcp-command` - Criteria for stabilization
+
+This will not stabilize before v1.3. The open items below include whether the mutating tools should be served at all and whether stdio is the right transport, and settling those needs feedback from people running the server against real estates. Until then, treat the tool set, the flag names, and the shape of every result as subject to change, and pin a Terragrunt version if you build against them.
+
+To transition the `mcp-command` feature to a stable release, the following must be addressed, at a minimum:
+
+- [x] A tool set covering discovery, configuration rendering, validation, run ordering, outputs, and plan.
+- [x] Confinement of every tool call to the directory the server was launched in.
+- [x] A default that neither starts processes nor makes requests, with results that say what was degraded by it.
+- [x] A boundary between the commands Terragrunt runs and the programs a configuration names, so pointing the server at a repository does not hand it the shell.
+- [x] An approval step in front of every mutating run, carried by the protocol's own elicitation rather than left to the operator.
+- [ ] Whether serving mutating tools at all is the right call, given that the client draws the approval and Terragrunt cannot verify a person answered it.
+- [ ] A transport other than stdio, for clients that cannot launch a local process.
+- [ ] Feedback from agents driving the tool set against real estates.
