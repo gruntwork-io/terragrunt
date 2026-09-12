@@ -51,9 +51,11 @@ func TestNewWorktrees(t *testing.T) {
 }
 
 // TestNewWorktreesWithSymlinkOutsideRepository pins that a tracked symlink
-// pointing outside the repository does not keep a reference from being
-// materialized. The archive extraction refuses such a link, and the checkout
-// it falls back to writes the link as git would.
+// whose target is absolute and outside the repository keeps a reference from
+// being materialized, like the relative target
+// TestNewWorktreesPartialFailureCleanup pins. Extraction refuses such a link,
+// and the checkout it could fall back to would write the link as git would,
+// so the refusal is never routed around the fallback.
 func TestNewWorktreesWithSymlinkOutsideRepository(t *testing.T) {
 	t.Parallel()
 
@@ -61,16 +63,17 @@ func TestNewWorktreesWithSymlinkOutsideRepository(t *testing.T) {
 		t.Skip("creating a symlink on Windows takes a privilege the runner may not have")
 	}
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	outside := filepath.Join(helpers.TmpDirWOSymlinks(t), "outside.txt")
 	require.NoError(t, os.WriteFile(outside, []byte("outside\n"), 0o600))
 
-	runner := helpers.InitTestGitRunner(t, tmpDir)
+	runner := helpers.InitTestGitRunner(t, repoDir)
 
-	unitDir := filepath.Join(tmpDir, "unit")
+	unitDir := filepath.Join(repoDir, "unit")
 	require.NoError(t, os.MkdirAll(unitDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0o600))
-	require.NoError(t, os.Symlink(outside, filepath.Join(tmpDir, "link")))
+	require.NoError(t, os.Symlink(outside, filepath.Join(repoDir, "link")))
 	require.NoError(t, runner.Add(t.Context(), "."))
 	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
@@ -81,38 +84,22 @@ func TestNewWorktreesWithSymlinkOutsideRepository(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
-	v := venvtest.NewOSWithEmptyEnv()
+	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
 
-	w, err := worktrees.NewWorktrees(
+	_, err = worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
-		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+		worktrees.WorktreeOpts{WorkingDir: repoDir, GitExpressions: filters.UniqueGitFilters()},
 	)
+	require.ErrorIs(t, err, vfs.ErrSymlinkEscapes)
+
+	entries, err := os.ReadDir(tempDir)
 	require.NoError(t, err)
+	assert.Empty(t, entries)
 
-	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), v))
-	})
-
-	materialized := 0
-
-	for _, pair := range w.WorktreePairs {
-		for _, worktree := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
-			if worktree.Path == "" {
-				continue
-			}
-
-			materialized++
-
-			target, err := os.Readlink(filepath.Join(worktree.Path, "link"))
-			require.NoError(t, err)
-			assert.Equal(t, outside, target)
-			assert.FileExists(t, filepath.Join(worktree.Path, "unit", "terragrunt.hcl"))
-		}
-	}
-
-	assert.Positive(t, materialized)
+	// Git deletes its worktrees directory along with the last registration.
+	assert.NoDirExists(t, filepath.Join(repoDir, ".git", "worktrees"))
 }
 
 // TestNewWorktreesForSeveralRefsWithRacing materializes several references at

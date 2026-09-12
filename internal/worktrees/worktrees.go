@@ -1142,7 +1142,7 @@ func fillGitWorktree(
 	opts *worktreeOpts,
 ) error {
 	if err := extractGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || isExtractionRefusal(err) {
 			return err
 		}
 
@@ -1222,6 +1222,24 @@ func recreateWorktreeWithCheckout(
 	}
 
 	return gitRunner.CreateDetachedWorktree(ctx, v, dir, ref, git.CheckoutFiles)
+}
+
+// isExtractionRefusal reports whether err is one of the refusals extraction
+// raises on purpose. A checkout would materialize what they refuse, so they
+// are never routed around the fallback.
+func isExtractionRefusal(err error) bool {
+	for _, refusal := range []error{
+		vfs.ErrSymlinkEscapes,
+		git.ErrArchiveEntryOutsideDest,
+		git.ErrArchiveTooManyEntries,
+		git.ErrArchiveTooDeep,
+	} {
+		if errors.Is(err, refusal) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // extractGitWorktree streams the archive of ref into dir. Git writes the
