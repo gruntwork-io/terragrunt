@@ -1,0 +1,19 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### `mutable = true` sources are cloned instead of copied
+
+A source marked [`mutable = true`](/features/caching/cas#immutable-by-default) needs a file of its own, because a hard link would hand out the store's read-only copy. Terragrunt now asks the filesystem for a copy-on-write clone of the stored file and copies only where the filesystem has none to give. APFS, btrfs, and XFS volumes with reflink support have one.
+
+A cloned target shares the stored content until you write to it, so it occupies disk space only for the parts you change. On those volumes, marking a source `mutable` in every unit costs disk space only for what each unit edits.
+
+These [micro-benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/cas/linkmode_benchmark_test.go) time materializing an editable tree on APFS on an M3 Max, once copied as in earlier releases and once cloned.
+
+| Tree | Before (copied) | After (cloned) | Change |
+| --- | --- | --- | --- |
+| 500 files, 7.3 MiB, most around 2 KiB | 71ms | 81ms | 14% slower |
+| 120 files, 40 MiB, 20 of them 2 MiB each | 146ms | 23ms | 84% faster |
+
+A clone takes about the same time for a file of any size, while a copy takes longer the bigger the file. A tree of small files takes about 10ms longer to materialize, and a tree with large files materializes about six times faster.

@@ -10,7 +10,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -542,7 +541,7 @@ func (fs *countingFS) hold() func() {
 	}
 }
 
-func (fs *countingFS) Open(name string) (afero.File, error) {
+func (fs *countingFS) Open(name string) (vfs.File, error) {
 	defer fs.hold()()
 
 	return fs.FS.Open(name)

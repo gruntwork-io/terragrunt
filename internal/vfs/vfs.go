@@ -963,21 +963,24 @@ func (fsys *memMapFS) symlinkedPrefix(path string) (prefix, target string, found
 }
 
 func (fsys *memMapFS) LinkIfPossible(oldname, newname string) error {
-	if _, err := fsys.Fs.Stat(newname); err == nil {
+	oldResolved := fsys.resolve(oldname)
+	newResolved := fsys.resolveParent(newname)
+
+	if fsys.pathTaken(newResolved) {
 		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: os.ErrExist}
 	}
 
-	data, err := afero.ReadFile(fsys.Fs, oldname)
+	data, err := afero.ReadFile(fsys.Fs, oldResolved)
 	if err != nil {
 		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: err}
 	}
 
-	info, err := fsys.Fs.Stat(oldname)
+	info, err := fsys.Fs.Stat(oldResolved)
 	if err != nil {
 		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: err}
 	}
 
-	return afero.WriteFile(fsys.Fs, newname, data, info.Mode())
+	return afero.WriteFile(fsys.Fs, newResolved, data, info.Mode())
 }
 
 func (fsys *memMapFS) ReadlinkIfPossible(name string) (string, error) {
@@ -1049,6 +1052,52 @@ func (fsys *memMapFS) removeSymlink(name string) bool {
 	delete(fsys.symlinks, name)
 
 	return true
+}
+
+// pathTaken reports whether the resolved path name is a file, a directory, or
+// a symlink.
+func (fsys *memMapFS) pathTaken(name string) bool {
+	if _, ok := fsys.readSymlink(name); ok {
+		return true
+	}
+
+	_, err := fsys.Fs.Stat(name)
+
+	return err == nil
+}
+
+// Rename moves the file or symlink at oldname to newname, replacing anything
+// at newname. Symlinks live in a side table that the embedded afero.MemMapFs
+// does not see. A renamed file drops any link recorded at newname, and a
+// renamed link removes the file at newname and takes over its name in the
+// side table.
+func (fsys *memMapFS) Rename(oldname, newname string) error {
+	// Resolved before the write lock, since resolving takes the read lock.
+	oldResolved := fsys.resolveParent(oldname)
+	newResolved := fsys.resolveParent(newname)
+
+	fsys.symlinksMu.Lock()
+	defer fsys.symlinksMu.Unlock()
+
+	target, isLink := fsys.symlinks[oldResolved]
+	if !isLink {
+		if err := fsys.Fs.Rename(oldResolved, newResolved); err != nil {
+			return err
+		}
+
+		delete(fsys.symlinks, newResolved)
+
+		return nil
+	}
+
+	if err := fsys.Fs.Remove(newResolved); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	delete(fsys.symlinks, oldResolved)
+	fsys.symlinks[newResolved] = target
+
+	return nil
 }
 
 // symlinkFileInfo reports symlink metadata for links stored in memMapFS's side table.

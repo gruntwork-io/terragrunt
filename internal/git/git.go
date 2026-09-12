@@ -267,33 +267,46 @@ func (g *GitRunner) InitBare(ctx context.Context) error {
 // positive depth adds --depth and --no-tags. A zero or negative depth fetches
 // full history.
 func (g *GitRunner) Fetch(ctx context.Context, repo, ref string, depth int) error {
-	if err := g.RequiresWorkDir(); err != nil {
-		return err
-	}
-
 	args := []string{}
 
 	if depth > 0 {
 		args = append(args, "--depth", strconv.Itoa(depth), "--no-tags")
 	}
 
-	args = append(args, "--", repo, ref)
+	return g.fetch(ctx, repo, ref, args)
+}
 
-	cmd := g.prepareCommand(ctx, "fetch", args...)
+// FetchUnshallow runs `git fetch --unshallow` for a single ref against the
+// given remote URL, bringing in the history a previous depth-limited fetch
+// stopped at. Git rejects it on a repository that has no shallow boundary,
+// so callers gate it on [GitRunner.IsShallow].
+func (g *GitRunner) FetchUnshallow(ctx context.Context, repo, ref string) error {
+	return g.fetch(ctx, repo, ref, []string{"--unshallow"})
+}
 
-	var stderr bytes.Buffer
+// IsShallow reports whether the configured working-directory repository has
+// a shallow boundary, which a fetch must unshallow to reach older history.
+func (g *GitRunner) IsShallow(ctx context.Context) (bool, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return false, err
+	}
 
+	cmd := g.prepareCommand(ctx, "rev-parse", "--is-shallow-repository")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
 	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
-		return &WrappedError{
-			Op:      "git_fetch",
+		return false, &WrappedError{
+			Op:      "git_rev_parse",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrGitFetch, err),
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
-	return nil
+	return strings.TrimSpace(stdout.String()) == "true", nil
 }
 
 // RevParseCommit resolves ref to its canonical commit hash in the
@@ -965,6 +978,31 @@ func (g *GitRunner) ConfigSet(ctx context.Context, name, value string) error {
 			Op:      "git_config_set",
 			Context: stderr.String(),
 			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return nil
+}
+
+// fetch runs `git fetch` with args placed ahead of the remote and refspec.
+func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	args = append(args, "--", repo, ref)
+
+	cmd := g.prepareCommand(ctx, "fetch", args...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_fetch",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrGitFetch, err),
 		}
 	}
 

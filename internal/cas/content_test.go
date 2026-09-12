@@ -1,6 +1,7 @@
 package cas_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -145,6 +147,169 @@ func TestContent_Store(t *testing.T) {
 	})
 }
 
+// TestContent_WriteLeavesInFlightTempFile pins that a store write leaves
+// alone the temp file another writer of the same hash is still filling.
+// [cas.Store.Lock] serializes writers only within one process, so a writer
+// in another process can hold a temp file for the same object.
+func TestContent_WriteLeavesInFlightTempFile(t *testing.T) {
+	t.Parallel()
+
+	testData := []byte("test content")
+
+	for _, tt := range contentWriters(testData) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.NewOSWithEmptyEnv()
+
+			storeDir := t.TempDir()
+			content := cas.NewContent(cas.NewStore(storeDir))
+
+			inFlight, err := content.GetTmpHandle(v, testHashValue)
+			require.NoError(t, err)
+
+			_, err = inFlight.Write([]byte("partial"))
+			require.NoError(t, err)
+
+			// Closed before any assertion can fail, since Windows cannot
+			// remove the test's temp dir while the handle is open.
+			writeErr := tt.write(t, v, content)
+			require.NoError(t, inFlight.Close())
+			require.NoError(t, writeErr)
+
+			got, err := os.ReadFile(inFlight.Name())
+			require.NoError(t, err)
+			assert.Equal(t, []byte("partial"), got)
+
+			got, err = os.ReadFile(filepath.Join(storeDir, testHashValue[:2], testHashValue))
+			require.NoError(t, err)
+			assert.Equal(t, testData, got)
+		})
+	}
+}
+
+// TestContent_WriteToleratesConcurrentPublish pins that a store write
+// succeeds when another writer publishes the same object between its
+// existence check and its rename, on a filesystem that refuses to replace
+// the read-only object, and that the losing write removes its temp file.
+func TestContent_WriteToleratesConcurrentPublish(t *testing.T) {
+	t.Parallel()
+
+	testData := []byte("test content")
+
+	for _, tt := range contentWriters(testData) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.NewOSWithEmptyEnv().WithFS(&publishFirstFS{FS: vfs.NewOSFS()})
+
+			storeDir := t.TempDir()
+			content := cas.NewContent(cas.NewStore(storeDir))
+
+			require.NoError(t, tt.write(t, v, content))
+
+			partitionDir := filepath.Join(storeDir, testHashValue[:2])
+
+			got, err := os.ReadFile(filepath.Join(partitionDir, testHashValue))
+			require.NoError(t, err)
+			assert.Equal(t, testData, got)
+
+			entries, err := os.ReadDir(partitionDir)
+			require.NoError(t, err)
+			require.Len(t, entries, 1, "temp file left beside the object")
+			assert.Equal(t, testHashValue, entries[0].Name())
+		})
+	}
+}
+
+// TestContent_WritePanicRemovesTempFile pins that a store write which
+// panics after creating its temp file still removes it.
+func TestContent_WritePanicRemovesTempFile(t *testing.T) {
+	t.Parallel()
+
+	testData := []byte("test content")
+
+	for _, tt := range contentWriters(testData) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.NewOSWithEmptyEnv().WithFS(&chmodPanicFS{FS: vfs.NewOSFS()})
+
+			storeDir := t.TempDir()
+			content := cas.NewContent(cas.NewStore(storeDir))
+
+			assert.Panics(t, func() {
+				assert.NoError(t, tt.write(t, v, content))
+			})
+
+			entries, err := os.ReadDir(filepath.Join(storeDir, testHashValue[:2]))
+			require.NoError(t, err)
+			assert.Empty(t, entries)
+		})
+	}
+}
+
+// contentWriter is one [cas.Content] method that writes a fresh object.
+type contentWriter struct {
+	write func(t *testing.T, v *venv.Venv, content *cas.Content) error
+	name  string
+}
+
+// contentWriters returns the [cas.Content] methods that write an object
+// holding data at testHashValue.
+func contentWriters(data []byte) []contentWriter {
+	l := logger.CreateLogger()
+
+	return []contentWriter{
+		{
+			name: "store",
+			write: func(_ *testing.T, v *venv.Venv, content *cas.Content) error {
+				return content.Store(l, v, testHashValue, data, cas.StoredFilePerms)
+			},
+		},
+		{
+			name: "ensure copy",
+			write: func(t *testing.T, v *venv.Venv, content *cas.Content) error {
+				t.Helper()
+
+				src := filepath.Join(t.TempDir(), "src")
+				require.NoError(t, os.WriteFile(src, data, 0o644))
+
+				return content.EnsureCopy(l, v, testHashValue, src)
+			},
+		},
+	}
+}
+
+// publishFirstFS publishes the object itself on every rename and then
+// refuses the rename the way Windows refuses to replace a read-only file,
+// standing in for another writer that wins the race.
+type publishFirstFS struct {
+	vfs.FS
+}
+
+func (fsys *publishFirstFS) Rename(oldname, newname string) error {
+	data, err := vfs.ReadFile(fsys.FS, oldname)
+	if err != nil {
+		return err
+	}
+
+	if err := vfs.WriteFile(fsys.FS, newname, data, cas.StoredFilePerms); err != nil {
+		return err
+	}
+
+	return &os.LinkError{Op: "rename", Old: oldname, New: newname, Err: fs.ErrPermission}
+}
+
+// chmodPanicFS panics on every Chmod.
+type chmodPanicFS struct {
+	vfs.FS
+}
+
+func (fsys *chmodPanicFS) Chmod(name string, _ os.FileMode) error {
+	panic("chmod " + name)
+}
+
 func TestContent_Link(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +335,7 @@ func TestContent_Link(t *testing.T) {
 		// Then create a link to it
 		targetPath := filepath.Join("/target", "test.txt")
 
-		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644)
+		_, err = content.Link(l, v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		// Verify link was created and contains correct content
@@ -196,7 +361,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644)
+		_, err = content.Link(l, v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		// Verify hard link by comparing inodes
@@ -227,7 +392,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "generated", "nested", "test.txt")
-		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644)
+		_, err = content.Link(l, v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
@@ -238,7 +403,7 @@ func TestContent_Link(t *testing.T) {
 		assert.True(t, os.SameFile(sourceInfo, targetInfo), "expected hard link (same inode)")
 	})
 
-	t.Run("force copy creates independent inode on real filesystem", func(t *testing.T) {
+	t.Run("mutable link creates an independent inode on a real filesystem", func(t *testing.T) {
 		t.Parallel()
 
 		v := venvtest.NewOSWithEmptyEnv()
@@ -255,7 +420,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644, cas.WithLinkForceCopy())
+		_, err = content.Link(l, v, testHash, targetPath, 0o644, cas.WithLinkMutable())
 		require.NoError(t, err)
 
 		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
@@ -266,10 +431,10 @@ func TestContent_Link(t *testing.T) {
 		assert.False(
 			t,
 			os.SameFile(sourceInfo, targetInfo),
-			"expected independent inode (copy, not hard link)",
+			"expected an independent inode, not a hard link",
 		)
 		assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm(),
-			"force copy must preserve original git perms exactly")
+			"a mutable link must preserve the git perms exactly")
 
 		copied, err := os.ReadFile(targetPath)
 		require.NoError(t, err)
@@ -300,7 +465,8 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o644))
+		_, err := content.Link(l, v, testHash, targetPath, 0o644)
+		require.NoError(t, err)
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)
@@ -332,7 +498,8 @@ func TestContent_Link(t *testing.T) {
 			require.NoError(t, os.Chmod(sourcePath, 0o555))
 
 			targetPath := filepath.Join(targetDir, "run.sh")
-			require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o755))
+			_, err := content.Link(l, v, testHash, targetPath, 0o755)
+			require.NoError(t, err)
 
 			info, err := os.Stat(targetPath)
 			require.NoError(t, err)
@@ -366,7 +533,8 @@ func TestContent_Link(t *testing.T) {
 		// Link must produce a fresh inode at 0o555 rather than hardlinking
 		// the 0o444 blob.
 		targetPath := filepath.Join(targetDir, "run.sh")
-		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o755))
+		_, err := content.Link(l, v, testHash, targetPath, 0o755)
+		require.NoError(t, err)
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)
@@ -379,7 +547,7 @@ func TestContent_Link(t *testing.T) {
 			"perm mismatch must materialize as an independent inode")
 	})
 
-	t.Run("force copy preserves executable bits", func(t *testing.T) {
+	t.Run("mutable link preserves executable bits", func(t *testing.T) {
 		t.Parallel()
 
 		v := venvtest.NewOSWithEmptyEnv()
@@ -395,15 +563,13 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, content.Store(l, v, testHash, testData, cas.StoredFilePerms))
 
 		targetPath := filepath.Join(targetDir, "run.sh")
-		require.NoError(
-			t,
-			content.Link(t.Context(), l, v, testHash, targetPath, 0o755, cas.WithLinkForceCopy()),
-		)
+		_, err := content.Link(l, v, testHash, targetPath, 0o755, cas.WithLinkMutable())
+		require.NoError(t, err)
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)
 		assert.Equal(t, os.FileMode(0o755), info.Mode().Perm(),
-			"force copy must reproduce git mode exactly (0o755)")
+			"a mutable link must reproduce the git mode exactly (0o755)")
 	})
 
 	t.Run("link to existing file overwrites stale content", func(t *testing.T) {
@@ -431,7 +597,7 @@ func TestContent_Link(t *testing.T) {
 		err = vfs.WriteFile(v.FS, targetPath, []byte("existing content"), 0644)
 		require.NoError(t, err)
 
-		err = content.Link(t.Context(), l, v, testHash, targetPath, 0o644)
+		_, err = content.Link(l, v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		got, err := vfs.ReadFile(v.FS, targetPath)
@@ -459,7 +625,8 @@ func TestContent_Link(t *testing.T) {
 		targetPath := filepath.Join(targetDir, "test.txt")
 		require.NoError(t, os.WriteFile(targetPath, []byte("stale"), 0o444))
 
-		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o644))
+		_, linkErr := content.Link(l, v, testHash, targetPath, 0o644)
+		require.NoError(t, linkErr)
 
 		got, err := os.ReadFile(targetPath)
 		require.NoError(t, err)
@@ -495,9 +662,8 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		require.NoError(t, content.Link(
-			t.Context(), l, v, testHash, targetPath, 0o600, cas.WithLinkStoredPerm(),
-		))
+		_, linkErr := content.Link(l, v, testHash, targetPath, 0o600, cas.WithLinkStoredPerm())
+		require.NoError(t, linkErr)
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)
@@ -527,7 +693,8 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
-		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o600))
+		_, linkErr := content.Link(l, v, testHash, targetPath, 0o600)
+		require.NoError(t, linkErr)
 
 		info, err := os.Stat(targetPath)
 		require.NoError(t, err)
@@ -560,7 +727,8 @@ func TestContent_Link(t *testing.T) {
 		// it for writing fails with EACCES, so Link must not reuse it.
 		require.NoError(t, os.WriteFile(targetPath+".tmp", []byte("partial"), 0o444))
 
-		require.NoError(t, content.Link(t.Context(), l, v, testHash, targetPath, 0o644))
+		_, err := content.Link(l, v, testHash, targetPath, 0o644)
+		require.NoError(t, err)
 
 		got, err := os.ReadFile(targetPath)
 		require.NoError(t, err)

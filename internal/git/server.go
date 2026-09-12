@@ -189,6 +189,20 @@ func (s *Server) CommitEmpty(ctx context.Context, msg string) error {
 	return s.push(ctx)
 }
 
+// CommitEmptyChain stacks count empty commits on the current HEAD and pushes
+// them together, for tests that need a history deep enough to tell a fetch of
+// one commit from a fetch of every commit. Pushing once keeps the cost of a
+// few hundred commits to one spawn each.
+func (s *Server) CommitEmptyChain(ctx context.Context, count int, msg string) error {
+	for range count {
+		if err := s.gitIn(ctx, s.workDir, "commit", "--allow-empty", "-m", msg); err != nil {
+			return fmt.Errorf("commit: %w", err)
+		}
+	}
+
+	return s.push(ctx)
+}
+
 // CommitFiles writes a batch of files and commits them in a single commit.
 // The files map keys are slash-separated paths relative to the repo root.
 func (s *Server) CommitFiles(ctx context.Context, files map[string][]byte, msg string) error {
@@ -264,6 +278,14 @@ func (s *Server) Branch(ctx context.Context, name string) error {
 // advance that branch — it will only advance main.
 func (s *Server) SetBranch(ctx context.Context, name, hash string) error {
 	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, hash)
+}
+
+// SetConfig writes a config value into the served bare repository. The CGI
+// environment suppresses global and system config, so this is the only way to
+// pick an upload-pack policy, such as whether the server answers a want line
+// naming an object it never advertised.
+func (s *Server) SetConfig(ctx context.Context, name, value string) error {
+	return s.gitIn(ctx, s.bareDir, "config", name, value)
 }
 
 // Start begins serving Git HTTP on a random local port and returns the full
@@ -445,6 +467,11 @@ func (s *Server) gitOut(ctx context.Context, dir string, args ...string) (string
 // settings such as init.defaultBranch, commit.gpgsign, or core.hooksPath.
 // Commit identity comes from the environment, so the work repo needs no
 // `git config user.*` calls.
+//
+// Automatic maintenance is off as well. A commit crosses the loose-object
+// threshold after a hundred or so, and the repack it detaches has pruned the
+// commits made while it ran, leaving the branch pointing at an object the
+// repository no longer holds.
 func (s *Server) gitCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, s.gitPath, args...)
 	cmd.Dir = dir
@@ -452,6 +479,11 @@ func (s *Server) gitCommand(ctx context.Context, dir string, args ...string) *ex
 	cmd.Env = append(os.Environ(),
 		"GIT_CONFIG_GLOBAL="+os.DevNull,
 		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_COUNT=2",
+		"GIT_CONFIG_KEY_0=gc.auto",
+		"GIT_CONFIG_VALUE_0=0",
+		"GIT_CONFIG_KEY_1=maintenance.auto",
+		"GIT_CONFIG_VALUE_1=false",
 		"GIT_AUTHOR_NAME=Test",
 		"GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=Test",

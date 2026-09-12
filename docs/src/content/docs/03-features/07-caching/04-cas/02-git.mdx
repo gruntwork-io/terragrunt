@@ -41,7 +41,7 @@ The probe Terragrunt uses to attempt to avoid fetching Git sources is `git ls-re
 Two special cases bypass or extend the probe:
 
 - **Pinned commit SHA already cached.** If you pin to a full commit SHA and that commit is already in the local store, Terragrunt answers from the store and skips `ls-remote` entirely, so the resolution stays offline. This is especially useful if you plan to use Terragrunt in an air-gapped environment.
-- **Commit SHA.** `ls-remote` only lists named refs. If it returns no match (you supplied a commit SHA directly), Terragrunt defers resolution to the fetch step, which canonicalizes the ref with `git rev-parse` against the local store after a full-history fetch.
+- **Commit SHA.** `ls-remote` only lists named refs. If it returns no match (you supplied a commit SHA directly), Terragrunt defers resolution to the fetch step, which canonicalizes the ref with `git rev-parse` against the local store once the objects have arrived.
 
 <Since version="1.1.5">
 
@@ -64,7 +64,7 @@ The cache key for the root tree is the commit hash itself, content-addressed by 
 
 On a miss, Terragrunt fetches into a central bare repository kept per remote URL under `git/` in the store (initialized on first use), holding a per-URL lock for the duration:
 
-1. Branch and tag refs use a shallow fetch. A bare commit SHA triggers a full-history fetch of every branch and tag so the SHA can be resolved locally.
+1. Branch and tag refs use a shallow fetch. <Before version="1.1.5">A bare commit SHA triggers a full-history fetch of every branch and tag so the SHA can be resolved locally.</Before><Since version="1.1.5">A full commit SHA is asked for on its own, one commit deep, which transfers that commit rather than every branch and tag. Remotes that will not serve a commit by name, such as an older or locked-down server, fall back to the full-history fetch, so a pinned SHA resolves either way.</Since>
 2. The blobs and trees reachable from the commit are extracted and stored, partitioned by hash prefix.
 3. The tree is read back from the store and hard linked into the target directory.
 
