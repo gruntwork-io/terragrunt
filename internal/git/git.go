@@ -442,8 +442,7 @@ const (
 	// CheckoutFiles has git write the files of the reference into the worktree.
 	CheckoutFiles WorktreeCheckout = iota
 	// SkipCheckout leaves the worktree empty, for a caller that fills it
-	// itself. The index is left empty too, so a caller that writes the files
-	// should follow with [GitRunner.ReadTree].
+	// itself, such as with [GitRunner.CheckoutPaths].
 	SkipCheckout
 )
 
@@ -456,6 +455,24 @@ func (t TreePaths) Has(path string) bool {
 	_, ok := t[path]
 
 	return ok
+}
+
+// HasOrContains reports whether the tree holds path itself or anything under
+// it, which is what a pathspec naming path selects.
+func (t TreePaths) HasOrContains(path string) bool {
+	if t.Has(path) {
+		return true
+	}
+
+	prefix := path + "/"
+
+	for treePath := range t {
+		if strings.HasPrefix(treePath, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // LsTreeNames returns every path in the tree at ref, recursively, which tells a
@@ -534,6 +551,50 @@ func (g *GitRunner) CreateDetachedWorktree(
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
 			Op:      "git_create_detached_worktree",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return nil
+}
+
+// CheckoutPaths writes the paths the working directory's HEAD holds into the
+// working directory and stages them in its index. Given pathspecs, only the
+// paths they name are written; without any, the whole tree is. The working
+// directory is expected to be a worktree registered without a checkout, so
+// the checkout fills it rather than switching to another reference. Relative
+// references such as HEAD~1 name the worktree's own HEAD, so the checkout
+// runs against HEAD rather than against the reference the caller holds.
+func (g *GitRunner) CheckoutPaths(
+	ctx context.Context,
+	v *venv.Venv,
+	pathspecs ...string,
+) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	args := []string{
+		"-c", "checkout.workers=" + strconv.Itoa(vfs.FSWorkersFor(v.FS, g.WorkDir)),
+		"checkout", "HEAD", "--",
+	}
+	if len(pathspecs) > 0 {
+		args = append(args, pathspecs...)
+	} else {
+		args = append(args, ".")
+	}
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_checkout_paths",
 			Context: stderr.String(),
 			Err:     errors.Join(ErrCommandSpawn, err),
 		}

@@ -275,12 +275,26 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 			wantErr: git.ErrCommandSpawn,
 		},
 		{
-			name: "read tree",
+			name: "checkout paths",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.ReadTree(ctx, "HEAD")
+				return runner.CheckoutPaths(ctx, venvtest.New(), "unit")
 			},
-			args:    []string{"read-tree", "HEAD"},
-			wantErr: git.ErrReadTree,
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
+				"checkout", "HEAD", "--", "unit",
+			},
+			wantErr: git.ErrCommandSpawn,
+		},
+		{
+			name: "checkout whole tree",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.CheckoutPaths(ctx, venvtest.New())
+			},
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
+				"checkout", "HEAD", "--", ".",
+			},
+			wantErr: git.ErrCommandSpawn,
 		},
 		{
 			name: "remove",
