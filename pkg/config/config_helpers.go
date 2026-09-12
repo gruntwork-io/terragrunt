@@ -912,7 +912,7 @@ func PathRelativeToInclude(
 		)
 	}
 
-	return result, nil
+	return filepath.ToSlash(result), nil
 }
 
 // PathRelativeFromInclude returns the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
@@ -948,7 +948,7 @@ func PathRelativeFromInclude(
 		)
 	}
 
-	return result, nil
+	return filepath.ToSlash(result), nil
 }
 
 // getTerraformCommand returns the current terraform command in execution
