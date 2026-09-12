@@ -21,6 +21,7 @@ type DiscoveryCommandOptions struct {
 	Exclude           bool
 	Include           bool
 	Reading           bool
+	TrackReads        bool
 	ParseStackConfigs bool
 	WithRequiresParse bool
 	WithRelationships bool
@@ -67,6 +68,10 @@ func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOpt
 
 	if opts.Reading {
 		d = d.WithReadFiles()
+	}
+
+	if opts.TrackReads {
+		d = d.WithTrackReads()
 	}
 
 	if opts.ParseStackConfigs {

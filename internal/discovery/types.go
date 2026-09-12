@@ -183,6 +183,11 @@ type Discovery struct {
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
 
+	// trackReads determines whether parsing records the files each component
+	// reads. Recording them costs a walk of every local module source, so it
+	// stays off until something asks to see them.
+	trackReads bool
+
 	// parseStackConfigs determines whether to parse discovered stack config files.
 	parseStackConfigs bool
 
