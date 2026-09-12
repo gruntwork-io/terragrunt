@@ -5,7 +5,6 @@ package worktrees
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -500,7 +499,23 @@ func (s *gitSurvey) pathspecsPerRef(l log.Logger, gitExpressions filter.GitExpre
 				return nil, false
 			}
 
-			pathspecs[side.ref] = append(pathspecs[side.ref], paths...)
+			// A path the reference doesn't have would fail the checkout that
+			// materializes it, so the paths are narrowed to what the
+			// reference's tree holds.
+			tree := s.trees[side.ref]
+
+			present := make([]string, 0, len(paths))
+			for _, path := range paths {
+				if tree.HasOrContains(path) {
+					present = append(present, path)
+				}
+			}
+
+			if pathspecs[side.ref] == nil {
+				pathspecs[side.ref] = []string{}
+			}
+
+			pathspecs[side.ref] = append(pathspecs[side.ref], present...)
 		}
 	}
 
@@ -912,11 +927,11 @@ func recordDiffTelemetry(ctx context.Context, diffs *git.Diffs) {
 // createGitWorktrees creates detached worktrees for each unique Git reference needed by filters.
 // The worktrees are created in temporary directories and tracked in refsToPaths.
 //
-// A reference whose files can come from `git archive` is registered as a
-// worktree without a checkout and filled from that archive, which reads the
-// tree once and writes it with several workers. References are materialized
-// concurrently, apart from the `git worktree add` that registers each one,
-// since concurrent calls race on the repository's `.git/worktrees/` directory.
+// A reference is registered as a worktree without a checkout and then checked
+// out into it, which reads the reference once and writes it with git's own
+// parallel checkout. The checkouts of different references run concurrently;
+// the `git worktree add` that registers each one does not, since concurrent
+// calls race on the repository's `.git/worktrees/` directory.
 func createGitWorktrees(
 	ctx context.Context,
 	l log.Logger,
@@ -939,10 +954,6 @@ func createGitWorktrees(
 		errs       []error
 	)
 
-	// Every reference materializing at once shares the filesystem worker
-	// ceiling, so refs do not multiply into disk contention.
-	writers := max(1, vfs.FSWorkersFor(v.FS, v.Platform.TempDir())/len(gitRefs))
-
 	create := func() error {
 		g, groupCtx := errgroup.WithContext(ctx)
 		g.SetLimit(min(runtime.GOMAXPROCS(0), len(gitRefs)))
@@ -953,7 +964,6 @@ func createGitWorktrees(
 					groupCtx, l, v, gitRunner, &registerMu,
 					&worktreeOpts{
 						ref:        ref,
-						writers:    writers,
 						repoRemote: repoRemote,
 						repoBranch: repoBranch,
 						repoCommit: repoCommit,
@@ -1026,7 +1036,6 @@ type worktreeOpts struct {
 	repoBranch string
 	repoCommit string
 	pathspecs  []string
-	writers    int
 }
 
 // createGitWorktree materializes a single reference in a new temporary
@@ -1040,19 +1049,6 @@ func createGitWorktree(
 	registerMu *sync.Mutex,
 	opts *worktreeOpts,
 ) (string, error) {
-	// `git archive` honors gitattributes that a checkout ignores, so a
-	// reference with them is checked out in full.
-	altering, err := gitRunner.HasArchiveAlteringAttributes(ctx, v, opts.ref)
-	if err != nil {
-		return "", fmt.Errorf("failed to read gitattributes for reference %s: %w", opts.ref, err)
-	}
-
-	if altering {
-		// opts belongs to this reference alone, so clearing it here leaves the
-		// other references as they were.
-		opts.pathspecs = nil
-	}
-
 	tmpDir, err := worktreeTempDir(v, opts.ref)
 	if err != nil {
 		return "", err
@@ -1061,7 +1057,7 @@ func createGitWorktree(
 	err = filter.TraceGitWorktreeCreate(
 		ctx, opts.ref, tmpDir, opts.repoRemote, opts.repoBranch, opts.repoCommit,
 		func(ctx context.Context) error {
-			return materializeGitWorktree(ctx, l, v, gitRunner, registerMu, tmpDir, opts, altering)
+			return materializeGitWorktree(ctx, l, v, gitRunner, registerMu, tmpDir, opts)
 		})
 	if err != nil {
 		if cleanErr := v.FS.RemoveAll(tmpDir); cleanErr != nil {
@@ -1095,9 +1091,9 @@ func worktreeTempDir(v *venv.Venv, ref string) (string, error) {
 	return tmpDir, nil
 }
 
-// materializeGitWorktree registers dir as a worktree for the reference and puts
-// the reference's files in it. A worktree registered but left unfilled is
-// removed again.
+// materializeGitWorktree registers dir as a worktree for the reference and
+// checks the reference's files out into it. A worktree registered but left
+// unfilled is removed again.
 func materializeGitWorktree(
 	ctx context.Context,
 	l log.Logger,
@@ -1106,22 +1102,12 @@ func materializeGitWorktree(
 	registerMu *sync.Mutex,
 	dir string,
 	opts *worktreeOpts,
-	altering bool,
 ) error {
-	checkout := git.SkipCheckout
-	if altering {
-		checkout = git.CheckoutFiles
-	}
-
-	if err := registerWorktree(ctx, v, gitRunner, registerMu, dir, opts.ref, checkout); err != nil {
+	if err := registerWorktree(ctx, v, gitRunner, registerMu, dir, opts.ref, git.SkipCheckout); err != nil {
 		return err
 	}
 
-	if altering {
-		return nil
-	}
-
-	if err := fillGitWorktree(ctx, l, v, gitRunner, registerMu, dir, opts); err != nil {
+	if err := fillGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
 		unregisterWorktree(ctx, l, gitRunner, registerMu, dir)
 
 		return err
@@ -1130,41 +1116,23 @@ func materializeGitWorktree(
 	return nil
 }
 
-// fillGitWorktree puts the reference's files in dir, a worktree registered
-// without a checkout.
+// fillGitWorktree checks the reference's files out into dir, a worktree
+// registered without a checkout. Git writes the files itself, giving them the
+// checkout semantics a clone or a plain `git worktree add` would.
 func fillGitWorktree(
 	ctx context.Context,
-	l log.Logger,
 	v *venv.Venv,
 	gitRunner *git.GitRunner,
-	registerMu *sync.Mutex,
 	dir string,
 	opts *worktreeOpts,
 ) error {
-	if err := extractGitWorktree(ctx, v, gitRunner, dir, opts); err != nil {
-		if ctx.Err() != nil || isExtractionRefusal(err) {
-			return err
-		}
-
-		l.Debugf("Extracting the archive of %s into %s failed, checking it out instead: %v", opts.ref, dir, err)
-
-		if checkoutErr := recreateWorktreeWithCheckout(ctx, v, gitRunner, registerMu, dir, opts.ref); checkoutErr != nil {
-			return errors.Join(err, checkoutErr)
-		}
-
+	// The worktree was narrowed to paths the reference doesn't have, so it
+	// checks out nothing at all.
+	if opts.pathspecs != nil && len(opts.pathspecs) == 0 {
 		return nil
 	}
 
-	if len(opts.pathspecs) > 0 {
-		// A worktree with only some of the reference's paths has no index to
-		// fill, since every path left out would read as a deletion.
-		return nil
-	}
-
-	// The worktree was registered without a checkout, which leaves its index
-	// empty. Filling the index from the reference makes the files that were
-	// just written read as committed content rather than as deletions.
-	return gitRunner.WithWorkDir(dir).ReadTree(ctx, "HEAD")
+	return gitRunner.WithWorkDir(dir).CheckoutPaths(ctx, v, opts.pathspecs...)
 }
 
 // registerWorktree runs the `git worktree add` that registers dir in the
@@ -1201,77 +1169,6 @@ func unregisterWorktree(
 	if err := gitRunner.RemoveWorktree(ctx, dir); err != nil {
 		l.Warnf("failed to remove Git worktree %s: %v", dir, err)
 	}
-}
-
-// recreateWorktreeWithCheckout drops the worktree registered at dir without a
-// checkout, files and all, and registers dir again with one. Both commands
-// write to the repository's `.git/worktrees/`, so they run under the lock the
-// adds take.
-func recreateWorktreeWithCheckout(
-	ctx context.Context,
-	v *venv.Venv,
-	gitRunner *git.GitRunner,
-	registerMu *sync.Mutex,
-	dir, ref string,
-) error {
-	registerMu.Lock()
-	defer registerMu.Unlock()
-
-	if err := gitRunner.RemoveWorktree(ctx, dir); err != nil {
-		return err
-	}
-
-	return gitRunner.CreateDetachedWorktree(ctx, v, dir, ref, git.CheckoutFiles)
-}
-
-// isExtractionRefusal reports whether err is one of the refusals extraction
-// raises on purpose. A checkout would materialize what they refuse, so they
-// are never routed around the fallback.
-func isExtractionRefusal(err error) bool {
-	for _, refusal := range []error{
-		vfs.ErrSymlinkEscapes,
-		git.ErrArchiveEntryOutsideDest,
-		git.ErrArchiveTooManyEntries,
-		git.ErrArchiveTooDeep,
-	} {
-		if errors.Is(err, refusal) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// extractGitWorktree streams the archive of ref into dir. Git writes the
-// archive as it is read, so the two run together.
-func extractGitWorktree(
-	ctx context.Context,
-	v *venv.Venv,
-	gitRunner *git.GitRunner,
-	dir string,
-	opts *worktreeOpts,
-) error {
-	pr, pw := io.Pipe()
-
-	g, groupCtx := errgroup.WithContext(ctx)
-
-	g.Go(func() error {
-		err := gitRunner.ArchiveTree(groupCtx, v, opts.ref, pw, opts.pathspecs...)
-
-		// Closing carries the outcome to the reader, which would otherwise wait
-		// on content that is not coming.
-		return errors.Join(err, pw.CloseWithError(err))
-	})
-
-	g.Go(func() error {
-		err := git.ExtractArchive(groupCtx, v, pr, dir, opts.writers)
-
-		// Closing unblocks git if extraction stopped early, so the archive is
-		// not left writing into a pipe nothing reads.
-		return errors.Join(err, pr.CloseWithError(err))
-	})
-
-	return g.Wait()
 }
 
 // sanitizeRef sanitizes a Git reference string for use in file paths.
