@@ -95,6 +95,7 @@ func buildDirOptions(
 	opts.NonInteractive = true
 	opts.Experiments = d.baseOpts.Experiments
 	opts.StrictControls = d.baseOpts.StrictControls
+	opts.TerragruntVersion = d.tgVersion
 
 	if !d.allowExec {
 		// Discovery's auth-provider probe is a subprocess; don't waste a
@@ -147,6 +148,7 @@ func buildUnitOptions(
 	opts.NonInteractive = true
 	opts.Experiments = d.baseOpts.Experiments
 	opts.StrictControls = d.baseOpts.StrictControls
+	opts.TerragruntVersion = d.tgVersion
 	opts.TerraformCommand = command
 	opts.OriginalTerraformCommand = command
 	opts.TerraformCliArgs = iacargs.New(append([]string{command}, cliArgs...)...)

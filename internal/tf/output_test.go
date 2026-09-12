@@ -90,5 +90,3 @@ func TestExtractFirstJSONObject(t *testing.T) {
 		})
 	}
 }
-
-// TestResolveStackFilePath pins resolveStackFilePath across dependency-target shapes (direct stack file, explicit terragrunt config, bare directory).

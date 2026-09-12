@@ -31,12 +31,15 @@ var ErrMirrorUnknownPath = errors.New("mirror selector returned a path the walk 
 // finds, and on APFS that read traffic is fastest with about four in flight.
 const mirrorWorkers = 4
 
-// MirrorLimits bounds what [MirrorToMem] will copy. The file count is
-// checked on everything the walk finds, before any selector runs, since every
-// candidate is held until selection. The byte total is checked on the files
-// actually copied, which are the only ones read.
+// MirrorLimits bounds what [MirrorToMem] will copy. A tree past either limit
+// fails the copy with [ErrMirrorTooLarge] rather than arriving truncated.
 type MirrorLimits struct {
+	// MaxFiles caps how many files the walk may find, counted on everything
+	// it finds and before any selector runs, since every candidate is held
+	// until selection.
 	MaxFiles int
+	// MaxBytes caps the total size of the files actually copied, which are
+	// the only ones read.
 	MaxBytes int64
 }
 

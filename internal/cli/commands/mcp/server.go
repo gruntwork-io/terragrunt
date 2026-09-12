@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -24,6 +25,7 @@ type serverDeps struct {
 	baseOpts      *options.TerragruntOptions
 	rec           *execRecorder
 	runSem        chan struct{}
+	tgVersion     *semver.Version
 	launchDir     string
 	allowCommands []string
 	approved      []string
@@ -114,9 +116,15 @@ func Serve(
 		return err
 	}
 
+	tgVersion, err := serverTerragruntVersion(opts.TerragruntOptions)
+	if err != nil {
+		return err
+	}
+
 	deps := &serverDeps{
 		launchDir:     launchDir,
 		baseOpts:      opts.TerragruntOptions,
+		tgVersion:     tgVersion,
 		allowExec:     granted.Has(CapabilityExec),
 		allowHTTP:     granted.Has(CapabilityHTTP),
 		allowSops:     granted.Has(CapabilitySops),
@@ -144,6 +152,25 @@ func Serve(
 	}
 
 	return serve(ctx, l, srv, in, out)
+}
+
+// serverTerragruntVersion returns the version a unit's
+// terragrunt_version_constraint is checked against.
+//
+// The CLI populates it on the options it hands this command,
+// but [Serve] is reachable without it, and the check dereferences
+// whatever it is given, so the binary's own version stands in.
+func serverTerragruntVersion(opts *options.TerragruntOptions) (*semver.Version, error) {
+	if opts.TerragruntVersion != nil {
+		return opts.TerragruntVersion, nil
+	}
+
+	v, err := semver.Parse(version.GetVersion())
+	if err != nil {
+		return semver.Parse("0.0.0")
+	}
+
+	return v, nil
 }
 
 // serve blocks until the client closes stdin or ctx cancels, and treats both

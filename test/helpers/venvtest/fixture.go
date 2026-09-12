@@ -38,10 +38,12 @@ func NewFS(t *testing.T, root string, files map[string]string) vfs.FS {
 
 // LoadFS mirrors the on-disk tree at dir into an in-memory filesystem and
 // returns it with the root the copy landed at, for fixtures that are easier to
-// keep as files than as literals. A subject that reached for os instead of the
-// venv would leave the copy untouched, and every assertion against it fails.
+// keep as files than as literals.
 //
-// The copy keeps the paths the tree has, so the returned root is dir itself.
+// The copy keeps the paths the tree has, so the returned root is dir itself. A
+// subject that writes through os instead of the venv therefore leaves the copy
+// untouched, and every assertion against it fails; a subject that only reads
+// that way still finds the fixture, since it is really there.
 func LoadFS(t *testing.T, dir string) (vfs.FS, string) {
 	t.Helper()
 

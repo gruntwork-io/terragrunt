@@ -90,9 +90,10 @@ func raisedElsewhere(file *hcl.File, diag *hcl.Diagnostic) bool {
 type ParserOptions int
 
 const (
-	// CollectorOnly parses with the collector alone. The defaults carry a
-	// writer that prints diagnostics, which duplicates what a caller
-	// rendering the collected set prints for itself.
+	// CollectorOnly parses with the collector alone, which is what the hcl
+	// validate command has always done. It leaves out the bare-include
+	// rewrite the defaults carry, so a bare `include {}` block reads as an
+	// HCL error here and parses cleanly under CollectorAndDefaults.
 	CollectorOnly ParserOptions = iota
 	// CollectorAndDefaults stacks the collector on the defaults, keeping the
 	// bare-include strict control that lives among them.

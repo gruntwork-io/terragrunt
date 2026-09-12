@@ -198,11 +198,32 @@ type allowlistExec struct {
 }
 
 func (e allowlistExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
-	if execIsAllowed(e.allowed, e.tfPath, name) {
+	if execIsAllowed(e.allowed, e.tfPath, name) || e.resolvesToAllowed(name) {
 		return e.Exec.Command(ctx, name, args...)
 	}
 
 	return e.denied.Command(ctx, name, args...)
+}
+
+// resolvesToAllowed reports whether a pathed name is where PATH resolves one of
+// the allowed programs.
+func (e allowlistExec) resolvesToAllowed(name string) bool {
+	if !strings.ContainsRune(name, filepath.Separator) && !strings.ContainsRune(name, '/') {
+		return false
+	}
+
+	for _, allowed := range e.allowed {
+		path, err := e.Exec.LookPath(allowed)
+		if err != nil {
+			continue
+		}
+
+		if path == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 // execIsAllowed reports whether name is one of the allowed programs, resolved
@@ -212,9 +233,10 @@ func (e allowlistExec) Command(ctx context.Context, name string, args ...string)
 // is allowed, because matching on the base alone lets a configuration ship a
 // file named git beside itself and reach the real executor with ./git.
 //
-// The one pathed name that runs is the binary the operator named with
-// --tf-path, which is compared whole. A path a configuration chose never
-// reaches here as tfPath; see [applyOperatorTFPath].
+// Two pathed names still run, each compared whole: the binary the operator
+// named with --tf-path, which a configuration never reaches here as tfPath
+// (see [applyOperatorTFPath]), and the path PATH resolves an allowed program
+// to (see [allowlistExec.resolvesToAllowed]).
 func execIsAllowed(allowed []string, tfPath, name string) bool {
 	if tfPath != "" && name == tfPath {
 		return true

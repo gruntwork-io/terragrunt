@@ -592,8 +592,8 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 // [TestHCLFmtStdin] covers the same flag for content arriving on standard
 // input, where the header names stdin instead of a path.
 //
-// The header names the path the file was found at. An in-memory root gives
-// the same string on every machine, so this compares the header too.
+// The header names the path the file was found at, which the fixture root
+// supplies, so this compares the header too.
 func TestHCLFmtDiffFile(t *testing.T) {
 	t.Parallel()
 
