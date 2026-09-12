@@ -55,19 +55,21 @@ func discoverPathsToCheck(
 	opts *options.TerragruntOptions,
 	terragruntConfig *config.TerragruntConfig,
 ) []string {
+	repoRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir)
+	if err == nil {
+		return []string{repoRoot}
+	}
+
+	l.Debugf("Could not determine git repo root for %s: %v", opts.WorkingDir, err)
+
+	uniquePaths := make(map[string]bool)
+	for _, includePath := range terragruntConfig.ProcessedIncludes {
+		uniquePaths[filepath.Dir(includePath.Path)] = true
+	}
+
 	var pathsToCheck []string
-
-	if repoRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir); err == nil {
-		pathsToCheck = append(pathsToCheck, repoRoot)
-	} else {
-		uniquePaths := make(map[string]bool)
-		for _, includePath := range terragruntConfig.ProcessedIncludes {
-			uniquePaths[filepath.Dir(includePath.Path)] = true
-		}
-
-		for path := range uniquePaths {
-			pathsToCheck = append(pathsToCheck, path)
-		}
+	for path := range uniquePaths {
+		pathsToCheck = append(pathsToCheck, path)
 	}
 
 	return pathsToCheck

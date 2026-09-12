@@ -228,6 +228,58 @@ func TestAssumeIamRoleFallsBackToIMDSv1WhenTokenEndpointHangs(t *testing.T) {
 		"STS call must be signed with the IMDSv1 instance credentials")
 }
 
+// TestAssumeIamRoleUsesEnvCredentials verifies that AssumeIamRole signs the STS request with v.Env credentials.
+func TestAssumeIamRoleUsesEnvCredentials(t *testing.T) {
+	t.Parallel()
+
+	const (
+		envAccessKeyID = "AKIAENVCREDSTESTKEY"
+		assumedKeyID   = "ASIAASSUMEDTESTKEY"
+	)
+
+	var authHead atomic.Value
+	authHead.Store("")
+
+	memHTTP := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		authHead.Store(req.Header.Get("Authorization"))
+
+		xml := `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
+			`<AssumeRoleResult><Credentials>` +
+			`<AccessKeyId>` + assumedKeyID + `</AccessKeyId>` +
+			`<SecretAccessKey>assumed-secret</SecretAccessKey>` +
+			`<SessionToken>assumed-token</SessionToken>` +
+			`<Expiration>2030-12-31T23:59:59Z</Expiration>` +
+			`</Credentials>` +
+			`<AssumedRoleUser>` +
+			`<AssumedRoleId>AROATEST:session</AssumedRoleId>` +
+			`<Arn>arn:aws:iam::123456789012:role/test-role</Arn>` +
+			`</AssumedRoleUser>` +
+			`</AssumeRoleResult></AssumeRoleResponse>`
+
+		return vhttp.Respond(http.StatusOK, []byte(xml), nil), nil
+	})
+
+	v := venvtest.New().
+		WithHTTP(memHTTP).
+		WithEnv(map[string]string{
+			"AWS_REGION":            "us-east-1",
+			"AWS_ACCESS_KEY_ID":     envAccessKeyID,
+			"AWS_SECRET_ACCESS_KEY": "env-secret-key",
+		})
+
+	creds, err := awshelper.AssumeIamRole(
+		t.Context(),
+		v,
+		iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/test-role"},
+		"",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, creds)
+	assert.Equal(t, assumedKeyID, aws.ToString(creds.AccessKeyId))
+	assert.Contains(t, authHead.Load().(string), "Credential="+envAccessKeyID+"/",
+		"STS call must be signed with the v.Env credentials")
+}
+
 // TestAWSBuildableClientOSTransportIsBuildable explicitly tests the
 // function's return type with a production OS client.
 func TestAWSBuildableClientOSTransportIsBuildable(t *testing.T) {
