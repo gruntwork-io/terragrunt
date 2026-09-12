@@ -276,3 +276,55 @@ func fetchThroughNewCAS(
 			Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
 		})
 }
+
+// TestFetchSourceOfflineRefusesRepair pins that a store missing an object
+// behind a recorded probe fails an offline run by naming the object, not
+// by re-ingesting from the remote the flag forbids and not as a miss for
+// content that was in fact fetched.
+func TestFetchSourceOfflineRefusesRepair(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	v := venvtest.NewOSWithEmptyEnv()
+	l := logger.CreateLogger()
+
+	key := cas.OpaqueKey("http", probeCacheTestURL, "etag-abc")
+	resolver := &fakeResolver{scheme: "http", key: key}
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithProbeCache())
+	require.NoError(t, err)
+
+	var fetchCalls atomic.Int32
+
+	files := map[string]string{"main.tf": "# hello"}
+	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst1")},
+		cas.SourceRequest{
+			Scheme:   "http",
+			URL:      probeCacheTestURL,
+			Resolver: resolver,
+			Fetch:    fakeFetcher(c, files, &fetchCalls),
+		}))
+	require.NoError(t, v.FS.Remove(storedBlobPath(t, c, v, key, "main.tf")))
+
+	offline, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithOffline())
+	require.NoError(t, err)
+
+	err = offline.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst2")},
+		cas.SourceRequest{
+			Scheme:   "http",
+			URL:      probeCacheTestURL,
+			Resolver: resolver,
+			Fetch:    fakeFetcher(offline, files, &fetchCalls),
+		})
+
+	var refused *cas.OfflineRepairError
+
+	require.ErrorAs(t, err, &refused)
+	require.NotErrorIs(t, err, cas.ErrCASOffline)
+	assert.Equal(t, probeCacheTestURL, refused.Source)
+
+	var missing *cas.MissingObjectError
+
+	require.ErrorAs(t, err, &missing)
+	assert.Equal(t, int32(1), fetchCalls.Load(), "the offline run must not re-ingest the source")
+}

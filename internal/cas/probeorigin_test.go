@@ -76,7 +76,13 @@ func TestProbeOriginStampedOnlyByFetchSource(t *testing.T) {
 func ingestFixture(t *testing.T, c *cas.CAS) cas.SourceFetcher {
 	t.Helper()
 
-	return func(_ context.Context, l log.Logger, v *venv.Venv, suggestedKey string) (string, error) {
+	return func(
+		_ context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		suggestedKey string,
+		_ cas.IngestMode,
+	) (string, error) {
 		dir := t.TempDir()
 		if err := vfs.WriteFile(v.FS, filepath.Join(dir, "main.tf"), []byte("# hello\n"), cas.RegularFilePerms); err != nil {
 			return "", err

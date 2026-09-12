@@ -2,6 +2,7 @@ package cas
 
 import (
 	"fmt"
+	"io/fs"
 
 	"errors"
 )
@@ -136,6 +137,53 @@ func (e *GitStoreObjectMissingError) Error() string {
 		e.Hash, e.Ref, e.URL,
 	)
 }
+
+// MissingObjectError reports that the store holds no file for an object
+// something still names: a blob a stored tree lists, or a tree a gitlink
+// pins. Ingest writes a tree only after every object that tree names, so a
+// store only Terragrunt has touched never reaches this state, and reaching
+// it means an entry was removed out from under it.
+//
+// [CAS.FetchSource] answers this by re-ingesting from the source, so the
+// error only reaches a caller when the source cannot supply the object
+// either, when [WithOffline] forbids going back to it (wrapped in
+// [OfflineRepairError]), or when the entry point had no source to go back
+// to ([CAS.MaterializeTree] serving a cas:: reference).
+type MissingObjectError struct {
+	// Hash is the object the store was asked for.
+	Hash string
+	// Path is where the store expected to find it.
+	Path string
+}
+
+func (e *MissingObjectError) Error() string {
+	return fmt.Sprintf("CAS store is missing object %s, expected at %s", e.Hash, e.Path)
+}
+
+// Unwrap reports the miss as [fs.ErrNotExist], which is what it is on
+// disk, so a caller that only asks whether the object was there keeps
+// working without knowing this type.
+func (e *MissingObjectError) Unwrap() error {
+	return fs.ErrNotExist
+}
+
+// OfflineRepairError reports that the store is missing an object and
+// --cas-offline forbade the re-ingest that would restore it. It unwraps
+// to the [MissingObjectError] and not to [ErrCASOffline]: the source was
+// in the store, so a caller must not read this as content never fetched.
+type OfflineRepairError struct {
+	// Missing is the object the store could not produce.
+	Missing *MissingObjectError
+	// Source is the source URL with any credentials removed.
+	Source string
+}
+
+func (e *OfflineRepairError) Error() string {
+	return e.Missing.Error() + "; --cas-offline forbids fetching " + e.Source +
+		" to restore it; run once without --cas-offline to repair the store, or drop the flag"
+}
+
+func (e *OfflineRepairError) Unwrap() error { return e.Missing }
 
 // TreeDepthExceededError is returned when materializing a tree hits the
 // nesting bound. Only a repository built to exhaust the stack reaches it.

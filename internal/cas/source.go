@@ -49,6 +49,28 @@ type SourceResolver interface {
 	Probe(ctx context.Context, rawURL string) (cacheKey string, err error)
 }
 
+// IngestMode says whether an ingest may trust what the store already
+// holds. Ingest writes a tree only after every object that tree names, so
+// a tree in the store normally means its blobs are there too and the work
+// behind it can be skipped.
+type IngestMode int
+
+const (
+	// IngestCached takes that shortcut, and is where every fetch starts.
+	IngestCached IngestMode = iota
+
+	// IngestRepair skips no work, re-ingesting from the source so that
+	// objects missing from the store are written again. [CAS.FetchSource]
+	// switches to it for a single retry after a [MissingObjectError].
+	IngestRepair
+)
+
+// trustsStoreHits reports whether m may skip work the store appears to
+// have done already.
+func (m IngestMode) trustsStoreHits() bool {
+	return m == IngestCached
+}
+
 // SourceFetcher downloads and ingests a source into CAS, returning the
 // tree-store key the materialized tree was written under.
 //
@@ -56,8 +78,14 @@ type SourceResolver interface {
 // produced none. Fetchers that learn the canonical key only after
 // downloading (the git rev-parse path) may ignore it and return the
 // canonical key instead.
+//
+// mode is [IngestRepair] when the store turned out to be missing an
+// object and this call is the attempt to restore it. A fetcher that
+// downloads and re-ingests everything it is handed needs no special
+// handling, since storing content checks the store per object anyway; a
+// fetcher carrying store shortcuts of its own must skip them.
 type SourceFetcher func(
-	ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string,
+	ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string, mode IngestMode,
 ) (treeKey string, err error)
 
 // ProbeCaching says which layer consults and records the probe cache for
@@ -103,6 +131,14 @@ type SourceRequest struct {
 // cached tree into opts.Dir without invoking Fetch. On a probe miss it
 // calls Fetch and links the resulting tree.
 //
+// A store that turns out to be missing an object the cached tree names
+// costs one extra pass: src is ingested again under [IngestRepair], which
+// writes the missing object back, and the link is retried. The second
+// failure is returned as it stands, so a source that can no longer supply
+// the object reports [MissingObjectError] rather than looping. Under
+// [WithOffline] there is no second pass: the miss is returned as an
+// [OfflineRepairError] instead of asking the remote the flag forbids.
+//
 // opts.Dir is the destination. opts.Mutable selects copy vs hardlink
 // for the final link, matching the git path.
 //
@@ -146,22 +182,69 @@ func (c *CAS) FetchSource(
 				return err
 			}
 
-			if suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {
-				recordFetchOutcome(childCtx, true)
+			err = c.fetchAndLink(childCtx, l, v, opts, src, suggestedKey, IngestCached)
 
-				return c.linkStoredTree(childCtx, l, v, opts, suggestedKey)
+			var missing *MissingObjectError
+			if !errors.As(err, &missing) {
+				return err
 			}
 
-			recordFetchOutcome(childCtx, false)
-
-			treeKey, err := src.Fetch(childCtx, l, v, suggestedKey)
-			if err != nil {
-				return fmt.Errorf("fetch %s: %w", RedactURL(src.URL), err)
+			if c.probeMode == ProbeModeOffline {
+				return &OfflineRepairError{Missing: missing, Source: RedactURL(src.URL)}
 			}
 
-			return c.linkStoredTree(childCtx, l, v, opts, treeKey)
+			l.Warnf(
+				"cas: store is missing object %s, re-ingesting %s to restore it",
+				missing.Hash,
+				RedactURL(src.URL),
+			)
+			RecordFallback(childCtx, l, FallbackReasonStoreRepair, map[string]any{
+				"url":    RedactURL(src.URL),
+				"scheme": src.Scheme,
+				"hash":   missing.Hash,
+			})
+
+			// One attempt. A source that answered the re-ingest without
+			// producing the object cannot produce it on a third pass
+			// either, so the second failure is the one the caller sees.
+			if err := c.fetchAndLink(
+				childCtx, l, v, opts, src, suggestedKey, IngestRepair,
+			); err != nil {
+				return fmt.Errorf("re-ingest %s: %w", RedactURL(src.URL), err)
+			}
+
+			return nil
 		},
 	)
+}
+
+// fetchAndLink ingests src unless the store already holds the tree
+// suggestedKey names, then materializes that tree into opts.Dir. Under
+// [IngestRepair] the store hit is passed over, so the fetcher runs and
+// writes back whatever the store has lost.
+func (c *CAS) fetchAndLink(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *CloneOptions,
+	src SourceRequest,
+	suggestedKey string,
+	mode IngestMode,
+) error {
+	if mode.trustsStoreHits() && suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {
+		recordFetchOutcome(ctx, true)
+
+		return c.linkStoredTree(ctx, l, v, opts, suggestedKey)
+	}
+
+	recordFetchOutcome(ctx, false)
+
+	treeKey, err := src.Fetch(ctx, l, v, suggestedKey, mode)
+	if err != nil {
+		return fmt.Errorf("fetch %s: %w", RedactURL(src.URL), err)
+	}
+
+	return c.linkStoredTree(ctx, l, v, opts, treeKey)
 }
 
 // ContentKey derives a cache key for a probe token that is a content

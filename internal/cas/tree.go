@@ -329,6 +329,11 @@ func (tl *treeLinker) submodule(v *venv.Venv, work *treeWork) ([]treeWork, error
 	// created up front: a gitlink with no stored tree had no .gitmodules
 	// entry to fetch it by, and `git clone` leaves an empty directory there
 	// too.
+	//
+	// Which is also why a submodule tree deleted from the store reads as that
+	// same skip and leaves an empty directory rather than a
+	// [MissingObjectError] that repair could act on. Telling the two apart
+	// needs the .gitmodules blob parsed here, at materialization time.
 	if err := v.FS.MkdirAll(work.path, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("mkdir submodule %s: %w", work.path, err)
 	}

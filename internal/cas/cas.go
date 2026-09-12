@@ -13,6 +13,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"time"
 
 	"errors"
@@ -567,7 +569,13 @@ func (c *CAS) EnsureBlob(
 // rev-parse against the central GitStore canonicalizes the user ref after
 // fetching.
 func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string) (string, error) {
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		suggestedKey string,
+		mode IngestMode,
+	) (string, error) {
 		var ref resolvedRef
 		if suggestedKey != "" {
 			ref = &symbolicRef{URL: url, Branch: opts.Branch, Hash: suggestedKey}
@@ -575,7 +583,7 @@ func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
 			ref = &commitRef{URL: url, RawRef: opts.Branch}
 		}
 
-		return c.populateTreeFromRef(ctx, l, v, opts, ref)
+		return c.populateTreeFromRef(ctx, l, v, opts, ref, mode)
 	}
 }
 
@@ -584,14 +592,18 @@ func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
 // anywhere in the process share one flight; the flight runs with the
 // first caller's logger, venv, and clone options, and later callers only
 // wait for its tree.
+//
+// Under [IngestRepair] the store hit is passed over, so the tree is
+// ingested again and the objects it names are written back.
 func (c *CAS) populateTreeFromRef(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *CloneOptions,
 	ref resolvedRef,
+	mode IngestMode,
 ) (string, error) {
-	if hash := ref.knownHash(); hash != "" && !c.treeStore.NeedsWrite(v, hash) {
+	if hash := ref.knownHash(); mode.trustsStoreHits() && hash != "" && !c.treeStore.NeedsWrite(v, hash) {
 		return hash, nil
 	}
 
@@ -601,22 +613,28 @@ func (c *CAS) populateTreeFromRef(
 		return "", &OfflineMissError{Source: RedactURL(url), Ref: probeRefName(requested)}
 	}
 
-	return flights.ingest.do(ctx, c.ingestFlightKey(ref), func(ctx context.Context) (string, error) {
-		return c.ingestRef(ctx, l, v, opts, ref)
+	return flights.ingest.do(ctx, c.ingestFlightKey(ref, mode), func(ctx context.Context) (string, error) {
+		return c.ingestRef(ctx, l, v, opts, ref, mode)
 	})
 }
 
 // ingestFlightKey identifies the tree an ingest writes into this store:
 // the commit hash when it is already known, otherwise the (URL, ref) pair
 // that will resolve to it.
-func (c *CAS) ingestFlightKey(ref resolvedRef) string {
+//
+// The mode is part of the key because a repair that joined a cached
+// ingest would get back an ingest that trusted the store hit the repair
+// was started to correct.
+func (c *CAS) ingestFlightKey(ref resolvedRef, mode IngestMode) string {
+	scope := c.storePath + "\x00" + strconv.Itoa(int(mode))
+
 	if hash := ref.knownHash(); hash != "" {
-		return c.storePath + "\x00commit\x00" + hash
+		return scope + "\x00commit\x00" + hash
 	}
 
 	url, requested := ref.origin()
 
-	return c.storePath + "\x00ref\x00" + url + "\x00" + requested
+	return scope + "\x00ref\x00" + url + "\x00" + requested
 }
 
 // ingestRef dispatches by ref kind to the populate that fills the store.
@@ -627,17 +645,18 @@ func (c *CAS) ingestRef(
 	v *venv.Venv,
 	opts *CloneOptions,
 	ref resolvedRef,
+	mode IngestMode,
 ) (string, error) {
 	switch ref := ref.(type) {
 	case *symbolicRef:
-		if err := c.populateTreeFromSymbolicRef(ctx, l, v, opts, ref); err != nil {
+		if err := c.populateTreeFromSymbolicRef(ctx, l, v, opts, ref, mode); err != nil {
 			return "", err
 		}
 
 		return ref.Hash, nil
 
 	case *commitRef:
-		return c.populateTreeFromCommitRef(ctx, l, v, opts, ref)
+		return c.populateTreeFromCommitRef(ctx, l, v, opts, ref, mode)
 
 	default:
 		return "", fmt.Errorf("unsupported resolved ref type %T", ref)
@@ -654,6 +673,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 	v *venv.Venv,
 	opts *CloneOptions,
 	ref *symbolicRef,
+	mode IngestMode,
 ) error {
 	gitRunner, err := git.NewGitRunner(v)
 	if err != nil {
@@ -668,7 +688,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 		runner := gitRunner.WithWorkDir(repo.Path)
 
-		return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts)
+		return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts, mode)
 	}
 
 	l.Warnf(
@@ -691,7 +711,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 		return err
 	}
 
-	return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts)
+	return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts, mode)
 }
 
 // populateTreeFromCommitRef resolves ref via [GitStore.EnsureCommit]
@@ -704,6 +724,7 @@ func (c *CAS) populateTreeFromCommitRef(
 	v *venv.Venv,
 	opts *CloneOptions,
 	ref *commitRef,
+	mode IngestMode,
 ) (string, error) {
 	gitRunner, err := git.NewGitRunner(v)
 	if err != nil {
@@ -714,13 +735,13 @@ func (c *CAS) populateTreeFromCommitRef(
 	if err == nil {
 		defer repo.Release(l)
 
-		if !c.treeStore.NeedsWrite(v, repo.Hash) {
+		if mode.trustsStoreHits() && !c.treeStore.NeedsWrite(v, repo.Hash) {
 			return repo.Hash, nil
 		}
 
 		runner := gitRunner.WithWorkDir(repo.Path)
 
-		if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, repo.Hash, opts); err != nil {
+		if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, repo.Hash, opts, mode); err != nil {
 			return "", err
 		}
 
@@ -764,11 +785,11 @@ func (c *CAS) populateTreeFromCommitRef(
 		return "", err
 	}
 
-	if !c.treeStore.NeedsWrite(v, canonicalHash) {
+	if mode.trustsStoreHits() && !c.treeStore.NeedsWrite(v, canonicalHash) {
 		return canonicalHash, nil
 	}
 
-	if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, canonicalHash, opts); err != nil {
+	if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, canonicalHash, opts, mode); err != nil {
 		return "", err
 	}
 
@@ -932,13 +953,14 @@ func (c *CAS) storeRootTreeFrom(
 	runner *git.GitRunner,
 	url, hash string,
 	opts *CloneOptions,
+	mode IngestMode,
 ) error {
 	tree, err := runner.LsTreeRecursive(ctx, hash)
 	if err != nil {
 		return err
 	}
 
-	if err = c.storeTreeRecursive(ctx, l, v, runner, url, hash, tree); err != nil {
+	if err = c.storeTreeRecursive(ctx, l, v, runner, url, hash, tree, mode); err != nil {
 		return err
 	}
 
@@ -948,10 +970,7 @@ func (c *CAS) storeRootTreeFrom(
 
 	treeContent := NewContent(c.treeStore)
 
-	data, err := treeContent.Read(v, hash)
-	if err != nil {
-		return err
-	}
+	data := slices.Clone(tree.Data())
 
 	for _, file := range opts.IncludedGitFiles {
 		stat, err := v.FS.Stat(filepath.Join(runner.WorkDir, file))
@@ -989,6 +1008,11 @@ func (c *CAS) storeRootTreeFrom(
 // storeTreeRecursive stores a tree fetched from git ls-tree -r. The tree
 // object is written last so a tree-store hit implies every blob and
 // submodule tree it references is already present.
+//
+// [IngestRepair] is what to pass once that implication has been shown
+// false. The listing is walked again and every object it names that the
+// store lacks is written, so a store missing one blob is read back out of
+// the repository one blob at a time, not wholesale.
 func (c *CAS) storeTreeRecursive(
 	ctx context.Context,
 	l log.Logger,
@@ -996,8 +1020,9 @@ func (c *CAS) storeTreeRecursive(
 	runner *git.GitRunner,
 	url, hash string,
 	tree *git.Tree,
+	mode IngestMode,
 ) error {
-	if !c.treeStore.NeedsWrite(v, hash) {
+	if mode.trustsStoreHits() && !c.treeStore.NeedsWrite(v, hash) {
 		return nil
 	}
 
@@ -1005,7 +1030,7 @@ func (c *CAS) storeTreeRecursive(
 		return err
 	}
 
-	if err := c.storeSubmodules(ctx, l, v, runner, url, tree); err != nil {
+	if err := c.storeSubmodules(ctx, l, v, runner, url, tree, mode); err != nil {
 		return err
 	}
 
@@ -1142,6 +1167,7 @@ func (c *CAS) storeSubmodules(
 	runner *git.GitRunner,
 	url string,
 	tree *git.Tree,
+	mode IngestMode,
 ) error {
 	var gitlinks []git.TreeEntry
 
@@ -1174,7 +1200,7 @@ func (c *CAS) storeSubmodules(
 		resolvedURL := git.ResolveSubmoduleURL(url, subURL)
 
 		ref := &commitRef{URL: resolvedURL, RawRef: entry.Hash, Hash: entry.Hash}
-		if _, err := c.populateTreeFromRef(ctx, l, v, &CloneOptions{}, ref); err != nil {
+		if _, err := c.populateTreeFromRef(ctx, l, v, &CloneOptions{}, ref, mode); err != nil {
 			return fmt.Errorf("fetch submodule %s from %s: %w", entry.Path, resolvedURL, err)
 		}
 	}
