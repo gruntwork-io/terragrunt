@@ -734,6 +734,97 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, testData, got)
 	})
+
+	t.Run("relinking a target that already links the blob leaves no temp link", func(t *testing.T) {
+		t.Parallel()
+
+		v := venvtest.NewOSWithEmptyEnv()
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		content := cas.NewContent(cas.NewStore(storeDir))
+		testData := []byte("locals { a = 1 }\n")
+
+		require.NoError(t, content.Store(l, v, testHashValue, testData, cas.StoredFilePerms))
+
+		targetPath := filepath.Join(targetDir, "gen.tf")
+		for range 3 {
+			_, err := content.Link(l, v, testHashValue, targetPath, 0o644)
+			require.NoError(t, err)
+		}
+
+		assertSoleLink(t, filepath.Join(storeDir, testHashValue[:2], testHashValue), targetPath, testData)
+	})
+
+	t.Run("a blob linked onto the target mid-swap leaves no temp link", func(t *testing.T) {
+		t.Parallel()
+
+		v := venvtest.NewOSWithEmptyEnv()
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		content := cas.NewContent(cas.NewStore(storeDir))
+		testData := []byte("locals { a = 1 }\n")
+
+		require.NoError(t, content.Store(l, v, testHashValue, testData, cas.StoredFilePerms))
+
+		sourcePath := filepath.Join(storeDir, testHashValue[:2], testHashValue)
+		targetPath := filepath.Join(targetDir, "gen.tf")
+		require.NoError(t, os.WriteFile(targetPath, []byte("stale"), 0o644))
+
+		racing := v.WithFS(&linkBeforeRenameFS{FS: v.FS, source: sourcePath, target: targetPath})
+		_, err := content.Link(l, racing, testHashValue, targetPath, 0o644)
+		require.NoError(t, err)
+
+		assertSoleLink(t, sourcePath, targetPath, testData)
+	})
+}
+
+// assertSoleLink asserts that targetPath links the blob at sourcePath and is the
+// only entry left in its directory.
+func assertSoleLink(t *testing.T, sourcePath, targetPath string, want []byte) {
+	t.Helper()
+
+	entries, err := os.ReadDir(filepath.Dir(targetPath))
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, filepath.Base(targetPath), entries[0].Name())
+
+	sourceInfo, err := os.Stat(sourcePath)
+	require.NoError(t, err)
+	targetInfo, err := os.Stat(targetPath)
+	require.NoError(t, err)
+	assert.True(t, os.SameFile(sourceInfo, targetInfo))
+
+	got, err := os.ReadFile(targetPath)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+// linkBeforeRenameFS links source onto target just before a rename onto target
+// runs, the way a concurrent Link of the same blob can.
+type linkBeforeRenameFS struct {
+	vfs.FS
+	source string
+	target string
+}
+
+func (f *linkBeforeRenameFS) LinkIfPossible(oldname, newname string) error {
+	return vfs.Link(f.FS, oldname, newname)
+}
+
+func (f *linkBeforeRenameFS) Rename(oldname, newname string) error {
+	if newname == f.target {
+		if err := f.FS.Remove(f.target); err != nil {
+			return err
+		}
+
+		if err := vfs.Link(f.FS, f.source, f.target); err != nil {
+			return err
+		}
+	}
+
+	return f.FS.Rename(oldname, newname)
 }
 
 func TestContent_EnsureWithWait(t *testing.T) {

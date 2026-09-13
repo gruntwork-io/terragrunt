@@ -193,7 +193,7 @@ func (c *Content) tryLink(
 		return false
 	}
 
-	return linkOver(v, sourcePath, targetPath) == nil
+	return linkOver(v, sourcePath, info, targetPath) == nil
 }
 
 // cloneInto asks the filesystem for a copy-on-write clone of the stored blob
@@ -355,10 +355,20 @@ func linkable(
 }
 
 // linkOver hardlinks sourcePath beside targetPath and renames the result onto
-// it. A hard link cannot be made over a name that already exists, and unlinking
-// the target first would drop it for as long as the link takes and lose it for
-// good if the link then fails.
-func linkOver(v *venv.Venv, sourcePath, targetPath string) error {
+// it, leaving targetPath alone when it already links the blob that source
+// describes. A hard link cannot be made over a name that already exists, and
+// unlinking the target first would drop it for as long as the link takes and
+// lose it for good if the link then fails.
+func linkOver(v *venv.Venv, sourcePath string, source os.FileInfo, targetPath string) (err error) {
+	target, err := vfs.Lstat(v.FS, targetPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	if err == nil && os.SameFile(source, target) {
+		return nil
+	}
+
 	tmp, err := vfs.CreateTemp(
 		v.FS,
 		filepath.Dir(targetPath),
@@ -370,7 +380,6 @@ func linkOver(v *venv.Venv, sourcePath, targetPath string) error {
 
 	tempPath := tmp.Name()
 
-	// The scratch file exists only to reserve a name the link can have.
 	if err := errors.Join(tmp.Close(), v.FS.Remove(tempPath)); err != nil {
 		return err
 	}
@@ -379,11 +388,13 @@ func linkOver(v *venv.Venv, sourcePath, targetPath string) error {
 		return err
 	}
 
-	if err := vfs.RenameOver(v.FS, tempPath, targetPath); err != nil {
-		return errors.Join(err, v.FS.Remove(tempPath))
-	}
+	defer func() {
+		if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			err = errors.Join(err, rmErr)
+		}
+	}()
 
-	return nil
+	return vfs.RenameOver(v.FS, tempPath, targetPath)
 }
 
 // Store stores a single content item under perm with its write bits cleared, so
