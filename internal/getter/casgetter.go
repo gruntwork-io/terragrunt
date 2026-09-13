@@ -166,7 +166,7 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 		// Local directory.
 		var linkOpts []cas.LinkTreeOption
 		if g.Opts.Mutable {
-			linkOpts = append(linkOpts, cas.WithForceCopy())
+			linkOpts = append(linkOpts, cas.WithMutableTree())
 		}
 
 		return g.CAS.StoreLocalDirectory(ctx, g.Logger, g.Venv, req.Src, req.Dst, linkOpts...)
@@ -455,6 +455,9 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 
 	opts := *g.Opts
 	opts.Dir = req.Dst
+	// A non-git source has no git directory to draw the files from, and
+	// leaving the list set would make every probe hit look like a miss.
+	opts.IncludedGitFiles = nil
 
 	return g.CAS.FetchSource(ctx, g.Logger, g.Venv, &opts, cas.SourceRequest{
 		Scheme:   scheme,

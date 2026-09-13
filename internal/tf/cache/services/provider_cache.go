@@ -528,7 +528,7 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 		},
 	); err != nil {
 		return nil, fmt.Errorf(
-			"unable to acquire lock file %s (already locked?) try to remove the file manually: %w",
+			"unable to acquire lock file %s (held by another Terragrunt process?): %w",
 			cache.lockfilePath,
 			err,
 		)
@@ -881,7 +881,7 @@ func (service *ProviderService) startProviderCaching(
 	}
 
 	defer func() {
-		if unlockErr := lockfile.Unlock(service.FS()); unlockErr != nil {
+		if unlockErr := lockfile.Unlock(); unlockErr != nil {
 			service.logger.Errorf("Failed to release lock file for %s: %v", cache.Provider, unlockErr)
 		}
 	}()

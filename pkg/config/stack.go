@@ -909,7 +909,7 @@ func fetchComponentSource(
 
 		var matOpts []cas.LinkTreeOption
 		if cmp.mutable {
-			matOpts = append(matOpts, cas.WithForceCopy())
+			matOpts = append(matOpts, cas.WithMutableTree())
 		}
 
 		if err := opts.casInstance.MaterializeTree(ctx, l, v, hash, dest, matOpts...); err != nil {

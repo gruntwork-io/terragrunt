@@ -206,7 +206,7 @@ func WriteToFile(
 		contentsToWrite = hclwrite.Format(contentsToWrite)
 	}
 
-	if err := materialize(ctx, l, v, targetPath, contentsToWrite, config.Mutable, o.store); err != nil {
+	if err := materialize(l, v, targetPath, contentsToWrite, config.Mutable, o.store); err != nil {
 		return err
 	}
 
@@ -220,7 +220,6 @@ func WriteToFile(
 // publishes by rename, so a target already there is replaced whole and survives
 // untouched if the generation fails, whatever mode or link count it carries.
 func materialize(
-	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	targetPath string,
@@ -239,15 +238,9 @@ func materialize(
 		return err
 	}
 
-	return store.Link(
-		ctx,
-		l,
-		v,
-		hash,
-		targetPath,
-		generatedFilePerms,
-		cas.WithLinkStoredPerm(),
-	)
+	_, err := store.Link(l, v, hash, targetPath, generatedFilePerms, cas.WithLinkStoredPerm())
+
+	return err
 }
 
 // Whether or not file generation should continue if the file path already exists. The answer depends on the

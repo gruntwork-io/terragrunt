@@ -3,6 +3,7 @@ package cas_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -245,9 +246,9 @@ func TestCASClone_E2E_MissingBlobIsReIngested(t *testing.T) {
 }
 
 // TestCASClone_E2E_RepairKeepsIncludedGitFilesOnce pins that re-ingesting a
-// tree that already carries included .git files does not list them twice.
-// The included entries are appended to the listing the ingest just read, not
-// to the stored tree they were previously appended to.
+// tree whose included .git files are already recorded does not list any of
+// them twice: the re-ingest writes records of its own for names not yet
+// recorded, and the stored tree never carries a .git entry.
 func TestCASClone_E2E_RepairKeepsIncludedGitFilesOnce(t *testing.T) {
 	t.Parallel()
 
@@ -281,13 +282,22 @@ func TestCASClone_E2E_RepairKeepsIncludedGitFilesOnce(t *testing.T) {
 	require.FileExists(t, filepath.Join(dst2, ".git", "HEAD"))
 	require.FileExists(t, filepath.Join(dst2, ".git", "config"))
 
-	counts := map[string]int{}
-	for _, entry := range storedTree(t, c, v, headHash).Entries() {
-		counts[entry.Path]++
-	}
+	// The repair re-ingest records the .git files it lists against the
+	// commit, one record per name, and never folds them into the stored
+	// tree: the listing it re-reads cannot double as a place to re-append.
+	treeData, err := cas.NewContent(c.TreeStore()).Read(v, headHash)
+	require.NoError(t, err)
 
-	assert.Equal(t, 1, counts[filepath.Join(".git", "HEAD")])
-	assert.Equal(t, 1, counts[filepath.Join(".git", "config")])
+	assert.NotContains(t, string(treeData), "\t.git/HEAD\n")
+	assert.NotContains(t, string(treeData), "\t.git/config\n")
+
+	records := cas.NewContent(c.GitFileStore())
+
+	for _, name := range []string{"HEAD", "config"} {
+		record, readErr := records.Read(v, cas.GitFileKey(headHash, name))
+		require.NoError(t, readErr)
+		assert.Equal(t, 1, strings.Count(string(record), "\t"+name+"\n"))
+	}
 }
 
 // storedTree parses the tree the store holds under treeKey.

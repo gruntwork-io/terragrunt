@@ -47,6 +47,12 @@ const (
 	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string"
 	// ErrNotADirectory is returned when a path expected to be a directory is not.
 	ErrNotADirectory Error = "not a directory"
+	// ErrIncludedGitFileIsDir is returned when a name in [CloneOptions.IncludedGitFiles]
+	// resolves to a directory in the source repository's git directory
+	ErrIncludedGitFileIsDir Error = "included git file is a directory"
+	// ErrGitFileNotStored is returned when a name in [CloneOptions.IncludedGitFiles]
+	// has no record against the requested tree in the CAS store
+	ErrGitFileNotStored Error = "included git file not present in CAS store"
 )
 
 // WrappedError provides additional context for errors
