@@ -255,7 +255,13 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 		{
 			name: "create detached",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.CreateDetachedWorktree(ctx, venvtest.New(), "/worktree", "HEAD", git.CheckoutFiles)
+				return runner.CreateDetachedWorktree(
+					ctx,
+					venvtest.New(),
+					"/worktree",
+					"HEAD",
+					git.CheckoutFiles,
+				)
 			},
 			args: []string{
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
@@ -266,7 +272,13 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 		{
 			name: "create detached without checkout",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.CreateDetachedWorktree(ctx, venvtest.New(), "/worktree", "HEAD", git.SkipCheckout)
+				return runner.CreateDetachedWorktree(
+					ctx,
+					venvtest.New(),
+					"/worktree",
+					"HEAD",
+					git.SkipCheckout,
+				)
 			},
 			args: []string{
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
@@ -292,7 +304,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 			},
 			args: []string{
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
-				"checkout", "HEAD", "--", ".",
+				"checkout", "--force", "HEAD",
 			},
 			wantErr: git.ErrCommandSpawn,
 		},

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -575,15 +576,19 @@ func (g *GitRunner) CheckoutPaths(
 		return err
 	}
 
-	args := []string{
-		"-c", "checkout.workers=" + strconv.Itoa(vfs.FSWorkersFor(v.FS, g.WorkDir)),
-		"checkout", "HEAD", "--",
-	}
+	target := []string{"--force", "HEAD"}
 	if len(pathspecs) > 0 {
-		args = append(args, pathspecs...)
-	} else {
-		args = append(args, ".")
+		target = append([]string{"HEAD", "--"}, pathspecs...)
 	}
+
+	args := slices.Concat(
+		[]string{
+			"-c",
+			"checkout.workers=" + strconv.Itoa(vfs.FSWorkersFor(v.FS, g.WorkDir)),
+			"checkout",
+		},
+		target,
+	)
 
 	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
 
