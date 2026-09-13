@@ -9,7 +9,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
@@ -54,7 +53,7 @@ type ParsingContext struct {
 	EngineOptions    *engine.EngineOptions
 
 	// FeatureFlags contains explicit feature flag overrides supplied by the user.
-	FeatureFlags *xsync.Map[string, string]
+	FeatureFlags map[string]string
 
 	FilesRead *FilesRead
 	Telemetry *telemetry.Options

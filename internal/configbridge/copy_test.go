@@ -77,9 +77,7 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, opts.TerragruntStackConfigPath, pctx.TerragruntStackConfigPath)
 	assert.Equal(t, opts.ProviderCacheOptions, pctx.ProviderCacheOptions)
 
-	require.NotNil(t, pctx.FeatureFlags)
-
-	flag, ok := pctx.FeatureFlags.Load("region")
+	flag, ok := pctx.FeatureFlags["region"]
 	require.True(t, ok, "feature flags supplied on the CLI must reach config parsing")
 	assert.Equal(t, "us-east-1", flag)
 }
@@ -165,9 +163,7 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	assert.True(t, runOpts.NoCAS)
 	assert.True(t, runOpts.NoHooks, "NoHooks is fed by NoRunHooks, so before/after hooks stay disabled when asked")
 
-	require.NotNil(t, runOpts.FeatureFlags)
-
-	flag, ok := runOpts.FeatureFlags.Load("region")
+	flag, ok := runOpts.FeatureFlags["region"]
 	require.True(t, ok, "feature flags supplied on the CLI must reach the runner")
 	assert.Equal(t, "us-east-1", flag)
 }
@@ -278,7 +274,7 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	require.NoError(t, err)
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Stacks))
 
-	opts.FeatureFlags.Store("region", "us-east-1")
+	opts.FeatureFlags["region"] = "us-east-1"
 
 	opts.TerragruntConfigPath = "/copy/unit/terragrunt.hcl"
 	opts.OriginalTerragruntConfigPath = "/copy/original/terragrunt.hcl"

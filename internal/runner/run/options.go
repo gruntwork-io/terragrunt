@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/puzpuzpuz/xsync/v4"
-
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
@@ -47,7 +45,7 @@ type Options struct {
 	EngineConfig                 *engine.EngineConfig
 	EngineOptions                *engine.EngineOptions
 	Errors                       *errorconfig.Config
-	FeatureFlags                 *xsync.Map[string, string]
+	FeatureFlags                 map[string]string
 	Telemetry                    *telemetry.Options
 	SourceMap                    map[string]string
 	TFPath                       string

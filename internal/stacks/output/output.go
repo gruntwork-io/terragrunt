@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 
 	"errors"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -117,7 +117,9 @@ func StackOutput(
 		return cty.NilVal, nil
 	}
 
-	outputs := xsync.NewMap[string, map[string]cty.Value]()
+	var outputsMu sync.Mutex
+
+	outputs := make(map[string]map[string]cty.Value)
 	declaredStacks := make(map[string][]string)
 	declaredUnits := make(map[string]*config.Unit)
 	parsedStackFiles := make(map[string]*config.StackConfig, len(foundFiles))
@@ -198,7 +200,9 @@ func StackOutput(
 					return err
 				}
 
-				outputs.Store(key, out)
+				outputsMu.Lock()
+				outputs[key] = out
+				outputsMu.Unlock()
 
 				return nil
 			})
@@ -212,7 +216,7 @@ func StackOutput(
 	collected := make([]UnitOutput, 0, len(declaredUnits))
 
 	for path, unit := range declaredUnits {
-		output, found := outputs.Load(path)
+		output, found := outputs[path]
 		if !found {
 			l.Debugf("No output found for %s", path)
 			continue
