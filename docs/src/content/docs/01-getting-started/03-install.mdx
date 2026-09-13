@@ -7,7 +7,6 @@ sidebar:
 ---
 
 import InstallTabs from '@components/InstallTabs.astro'
-import Before from '@components/Before.astro'
 import { Aside, Code, Tabs, TabItem } from '@astrojs/starlight/components'
 import { getLatestRelease } from '@lib/github';
 export const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
@@ -103,12 +102,6 @@ cosign verify-blob SHA256SUMS \
 ```
 
 ### Verifying releases with the GitHub CLI
-
-<Before version="1.1.0">
-<Aside type="note" title="Coming in v1.1.0">
-  Terragrunt adopts immutable releases starting with `v1.1.0`. The verification below will be supported once `v1.1.0` is published.
-</Aside>
-</Before>
 
 Terragrunt releases starting with `v1.1.0` are published as [immutable releases](/process/releases#immutable-releases), and each one includes a release attestation: a signed record binding the release tag, commit SHA, and asset digests. The [GitHub CLI](https://cli.github.com/) (version 2.81.0 or later) can check a release and your downloaded files against that attestation.
 
