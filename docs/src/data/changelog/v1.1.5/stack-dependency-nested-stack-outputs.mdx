@@ -21,3 +21,5 @@ inputs = {
 ```
 
 `mock_outputs` entries for a nested stack's units nest under the stack's name the same way.
+
+A unit and a nested stack with the same name in one stack file share an address, so a dependency on that stack now errors once both have outputs to read. `terragrunt stack output` already rejects the same configuration. Rename one of the two blocks to give each its own address.
