@@ -39,13 +39,7 @@ By default, Terragrunt runs `output -json` against each dependency, which loads 
 terragrunt run --all --experiment=dependency-fetch-output-from-state -- plan
 ```
 
-<Before version="1.1.4">
-This only applies to S3 backends.
-</Before>
-
-<Since version="1.1.4">
 This applies to S3 and GCS backends. Azure Storage (`azurerm`) also supports it when the `azure-backend` experiment is enabled.
-</Since>
 
 <Before version="1.1.5">
 OpenTofu client-side state encryption can make the direct reader resolve no outputs. Disable the experiment with `--no-dependency-fetch-output-from-state` when using encrypted state.
@@ -57,7 +51,7 @@ Outside `render` and `render-json`, direct-read failures other than a missing st
 
 ## Cache repository clones
 
-If many units source modules from the same git repository, the [Content Addressable Store](/features/caching/cas/) clones it once and reuses it. This is on by default as of 1.1. On earlier versions, enable it with `--experiment cas`.
+If many units source modules from the same git repository, the [Content Addressable Store](/features/caching/cas/) clones it once and reuses it.
 
 ## Measure before you tune
 

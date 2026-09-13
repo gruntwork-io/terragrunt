@@ -10,7 +10,7 @@ A [unit](/features/units/) is a single instance of infrastructure that Terragrun
 
 ## Stack
 
-A [stack](/features/stacks/) is a collection of units managed together, such as every unit that makes up one environment or one region. Units in a stack can depend on each other, and Terragrunt orders them using the DAG built from their [`dependency` blocks](/reference/hcl/blocks#dependency).
+A [stack](/features/stacks/) is a collection of units managed together, such as every unit that makes up one environment or one region. Units in a stack can depend on each other, and Terragrunt orders them using the DAG built from their [`dependency` blocks](/reference/hcl/blocks#dependency). A unit can also [depend on a whole stack](/features/stacks/stack-operations#depending-on-a-stack) and read the outputs of every unit in it.
 
 Stacks come in two forms:
 

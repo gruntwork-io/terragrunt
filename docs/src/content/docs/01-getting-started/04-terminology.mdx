@@ -6,9 +6,6 @@ sidebar:
   order: 4
 ---
 
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
-
 Infrastructure as Code (IaC) tooling necessarily requires a lot of terminology to describe various concepts and features due to the breadth of the domain.
 
 Whenever possible, Terragrunt terminology attempts to align with wider industry standards, but there are always exceptions. There are going to be times when certain terms are used in different tools, but have special meaning in Terragrunt, and there are times when the same term might have different meaning in different contexts.
@@ -53,7 +50,7 @@ Note that units don't technically need to call their configuration files `terrag
 
 ### Stack
 
-A stack is a collection of units managed by Terragrunt. There is ([as of writing](https://github.com/gruntwork-io/terragrunt/issues/3313)) work underway to provide a top level artifact for interacting with stacks via a `terragrunt.stack.hcl` file, but as of now, stacks are generally defined by a directory with a tree of units. Units within a stack can be dependent on each other, and can be updated in a specific order to ensure that dependencies are resolved in the correct order.
+A stack is a collection of units managed by Terragrunt. A stack is either a directory with a tree of units (an [implicit stack](/features/stacks/implicit)) or a `terragrunt.stack.hcl` file that generates them (an [explicit stack](/features/stacks/explicit)). Units within a stack can be dependent on each other, and can be updated in a specific order to ensure that dependencies are resolved in the correct order.
 
 Stacks typically represent a collection of units that need to be managed in concert.
 
@@ -189,7 +186,7 @@ Units are only considered "running" when they are in the Runner Pool.
 
 ### Dependency
 
-A dependency is a relationship between two units in a stack that results in data being passed from the dependency to the dependent unit.
+A dependency is a relationship between two units in a stack that results in data being passed from the dependency to the dependent unit. A unit can also depend on a whole stack, in which case it receives the outputs of every unit in that stack. See [Depending on a stack](/features/stacks/stack-operations#depending-on-a-stack).
 
 Dependencies are defined in Terragrunt configuration files using the [dependency block](/reference/hcl/blocks#dependency).
 
@@ -226,13 +223,7 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-<Before version="1.1.4">
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
-</Before>
-
-<Since version="1.1.4">
 Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies using a supported remote-state backend. This is an experimental feature, and more tooling is planned to make this easier to use.
-</Since>
 
 ### Feature
 

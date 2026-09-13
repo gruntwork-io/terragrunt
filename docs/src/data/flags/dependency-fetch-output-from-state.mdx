@@ -27,15 +27,9 @@ Outside `render` and `render-json`, a network, permissions, or parsing failure f
 Outside `render` and `render-json`, Terragrunt retries a failed direct state read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the direct-read speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list.
 </Since>
 
-<Before version="1.1.4">
-This approach is only supported by the S3 backend.
-</Before>
-
-<Since version="1.1.4">
 This approach supports S3 and GCS backends. It also supports the Azure Storage (`azurerm`) backend when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is enabled. Other backends continue to use `tofu output` or `terraform output`.
 
 Terragrunt also uses the native output path for Azure state protected by `customer_provided_key`, Azure configurations requiring native-only authentication or endpoint behavior, and GCS configurations whose backend-specific credential or endpoint behavior is not yet mirrored by the direct reader.
-</Since>
 
 <Aside type="caution">
 <Before version="1.1.5">

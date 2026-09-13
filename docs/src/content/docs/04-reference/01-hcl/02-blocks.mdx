@@ -55,8 +55,6 @@ The `terraform` block supports the following arguments:
     `latest` tag is used. This requires the [`oci` experiment](/reference/experiments/active#oci); see
     [OCI registries](/features/units/oci) for the publishing contract and authentication.
 
-<Since version="1.1.1">
-
 - `version` (attribute): A version constraint used to resolve a `tfr://` registry module, as an alternative to pinning an exact version in the source URL.
 
   <Aside type="tip" title="Experimental">
@@ -77,8 +75,6 @@ The `terraform` block supports the following arguments:
   - The `--source` and `TG_SOURCE` overrides accept an exact version pin only (for example `?version=3.4.0`); a constraint there is an error.
   - A resolved constraint is cached by source URL. A newly published version that matches the constraint is only picked up after you re-resolve with `--source-update`.
   - Prereleases follow OpenTofu and Terraform: a prerelease is eligible only when the constraint itself names one (for example `>= 2.0.0-rc1`).
-
-</Since>
 
 - `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied from the same directory containing `terragrunt.hcl` into the
   OpenTofu/Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
@@ -757,6 +753,34 @@ if an included config also has an `include` block defined. If you are interested
 replacement, except for `dependencies` blocks (NOT `dependency` block). `dependencies` blocks are deep merged: that is,
 all the lists of paths from included configurations are concatenated together, rather than replaced in override fashion.
 
+### Includes in stack files
+
+A `terragrunt.stack.hcl` file can also declare `include` blocks. The included file adds its `unit` and `stack` blocks to the stack, so a set of components shared by several stacks can live in one file:
+
+```hcl
+# live/dev/terragrunt.stack.hcl
+
+include "shared" {
+  path = "../shared.stack.hcl"
+}
+
+unit "app" {
+  source = "../../catalog/units/app"
+  path   = "app"
+}
+```
+
+```hcl
+# live/shared.stack.hcl
+
+unit "vpc" {
+  source = "${get_repo_root()}/catalog/units/vpc"
+  path   = "vpc"
+}
+```
+
+A relative `path` resolves against the directory of the stack file that declares the include. The included file is evaluated with the including stack's `local` and `values` in scope. It may declare only `unit` and `stack` blocks. A `locals` block or a nested `include` in the included file fails generation, and so does a unit or stack name that collides with one in the including file. The `expose` and `merge_strategy` attributes are not accepted here.
+
 Examples:
 
 ### Single include
@@ -1286,8 +1310,8 @@ The `dependency` block supports the following arguments:
   name to differentiate between the other blocks, which is what the first label of the block is used for. You can
   reference the specific dependency output by the name. E.g if you had a block `dependency "vpc"`, you can reference the
   outputs and inputs of this dependency with the expressions `dependency.vpc.outputs` and `dependency.vpc.inputs`.
-- `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
-  as a dependency in this configuration.
+- `config_path` (attribute): Path to a Terragrunt unit (folder with a `terragrunt.hcl` file) that should be included
+  as a dependency in this configuration. The path can also point at a stack (folder with a `terragrunt.stack.hcl` file). See [Depending on a stack](#depending-on-a-stack).
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
 - `expansion` (block, optional): Iterates the `dependency` block, producing one dependency per element of a `count` or `for_each`. Each instance is referenced by key, as in `dependency.aurora["web"].outputs.id`. See [`expansion`](#expansion).
 
@@ -1347,6 +1371,54 @@ inputs = {
 ```
 **IMPORTANT**: The `dependency.<name>.inputs` field has been deprecated and removed. You can only access dependency outputs via `dependency.<name>.outputs`. If you were previously using `dependency.<name>.inputs`, you should refactor your configuration to use `dependency.<name>.outputs` instead.
 
+### Depending on a stack
+
+A `dependency` block's `config_path` can point at a directory that contains a `terragrunt.stack.hcl` file. Given a `networking` stack that declares `vpc` and `subnets` units:
+
+```hcl
+# app/terragrunt.hcl
+dependency "networking" {
+  config_path = "../networking"
+
+  mock_outputs = {
+    vpc = {
+      vpc_id = "vpc-mock"
+    }
+    subnets = {
+      ids = ["subnet-mock"]
+    }
+  }
+}
+
+inputs = {
+  vpc_id     = dependency.networking.outputs.vpc.vpc_id
+  subnet_ids = dependency.networking.outputs.subnets.ids
+}
+```
+
+The outputs are keyed by the unit's name in the stack file, so `dependency.networking.outputs.vpc.vpc_id` reads the `vpc_id` output of the `vpc` unit, the same address `terragrunt stack output` gives it. A unit with `enabled = false` is left out, and so is a unit that has no outputs. An [expanded](#expansion) unit nests its elements under their keys: `dependency.networking.outputs.aurora["web"].id`.
+
+<Before version="1.1.5">
+
+Only units the stack file declares directly are aggregated. Units generated by a nested `stack` block are not, so to read their outputs, point a separate `dependency` at the nested stack's generated directory.
+
+</Before>
+
+<Since version="1.1.5">
+
+A nested `stack` block adds one level, named after the stack, so `dependency.networking.outputs.nested.vpc.vpc_id` reads the `vpc` unit of a `nested` stack inside `networking`. That is the address `terragrunt stack output` gives it. A nested stack whose units have no outputs is left out, and `mock_outputs` entries for its units nest under the stack's name the same way.
+
+</Since>
+
+`mock_outputs` for a stack dependency follows the same shape, keyed by unit name, and must be a map or object. When no unit in the stack has outputs yet, the whole `mock_outputs` value stands in, as it would for a unit dependency. A partially applied stack needs one more setting, because the units without outputs are missing from the aggregated result:
+
+- Set `mock_outputs_merge_strategy_with_state = "shallow"` to fill each missing unit from its `mock_outputs` entry.
+- Or run with [`--dependency-fetch-output-from-state`](/reference/cli/commands/run#dependency-fetch-output-from-state) on a backend that supports it. A unit whose state object is missing then uses its own `mock_outputs` entry when mocks are allowed for the command. A unit with no entry is left out. When mocks are not allowed, the dependency fails and names that unit.
+
+In the [run queue](/features/stacks/run-queue), a dependency on a stack expands to a dependency on every unit the stack generates, including units in nested stacks, so the dependent unit waits for all of them. `terragrunt find` and `terragrunt list` show the expanded edges. The relationship is one-way. A unit can depend on a stack, but a stack cannot declare dependencies of its own.
+
+The stack's units have to exist on disk before their outputs can be read. `run --all` generates stacks under its working directory before running, so run it from a directory that contains both the stack and the dependent unit, or run `terragrunt stack generate` in the stack directory first.
+
 **Can I speed up dependency fetching?**
 
 `dependency` blocks are fetched in parallel at each source level, but will serially parse each recursive dependency. For
@@ -1387,7 +1459,7 @@ OpenTofu/Terraform. This does not expose or pull in the outputs like `dependency
 
 The `dependencies` block supports the following arguments:
 
-- `paths` (attribute): A list of paths to modules that should be marked as a dependency.
+- `paths` (attribute): A list of paths to units that should be marked as a dependency. A path to a stack directory expands to every unit that stack generates, as described in [Depending on a stack](#depending-on-a-stack).
 
 Example:
 
@@ -1432,16 +1504,11 @@ The `generate` block supports the following arguments:
 - `disable_signature` (attribute): When `true`, disables including a signature in the generated file. This means that
   there will be no difference between `overwrite_terragrunt` and `overwrite` for the `if_exists` setting. Defaults to
   `false`. Optional.
-<Since version="1.0.8">
 
 - `hcl_fmt` (attribute): When `false`, disables HCL formatting for generated `.tf`, `.hcl`, and `.tofu` files. Defaults to `true`. Optional.
 
-</Since>
-
 - `contents` (attribute): The contents of the generated file.
 - `disable` (attribute): Disables this generate block.
-
-<Since version="1.1.2">
 
 - `mutable` (attribute): When `true`, the generated file is an ordinary writable file. Defaults to `false`. Optional.
 
@@ -1458,8 +1525,6 @@ The `generate` block supports the following arguments:
   Because the stored copy is addressed by the hash of its contents, anything else generating identical contents links
   to the same copy instead of writing its own. The CAS is required for this, so `--no-cas` writes generated files
   directly and `mutable` has no effect.
-
-</Since>
 
 Example:
 
@@ -2255,12 +2320,6 @@ Two cases behave differently:
 
 ## autoinclude
 
-<Before version="1.1.0">
-<Aside type="tip" title="Experimental">
-The `autoinclude` block is part of the [`stack-dependencies` experiment](/reference/experiments/active#stack-dependencies). Enable it with `--experiment stack-dependencies`.
-</Aside>
-</Before>
-
 The `autoinclude` block is used inside [`unit`](#unit) and [`stack`](#stack) blocks in Terragrunt stack files (`terragrunt.stack.hcl`) to inject configuration into the generated component during stack generation. Its main job is declaring `dependency` relationships between components of a stack without editing the unit sources in your catalog.
 
 **Purpose**: Inject dependencies and configuration overrides into a unit or stack at generation time.
@@ -2309,7 +2368,7 @@ unit "app" {
 }
 ```
 
-Running <Before version="1.1.0">`terragrunt stack generate --experiment stack-dependencies`</Before><Since version="1.1.0">`terragrunt stack generate`</Since> produces:
+Running `terragrunt stack generate` produces:
 
 <FileTree>
 
@@ -2343,7 +2402,7 @@ Expressions in the autoinclude body resolve at generation time, in the context o
 
 ### Component path variables
 
-With the experiment enabled, `terragrunt.stack.hcl` files expose a `unit.<name>.path` and `stack.<name>.path` variable for each declared component. They resolve to the generated directory of that component, following the same layout `stack generate` produces (including the effect of `no_dot_terragrunt_stack` on the referenced block). In a generated dependency, `config_path` is written relative to the unit's directory.
+`terragrunt.stack.hcl` files expose a `unit.<name>.path` and `stack.<name>.path` variable for each declared component. They resolve to the generated directory of that component, following the same layout `stack generate` produces (including the effect of `no_dot_terragrunt_stack` on the referenced block). In a generated dependency, `config_path` is written relative to the unit's directory.
 
 These variables are available inside `autoinclude` blocks and in the `values` attribute of `unit` and `stack` blocks, so a parent stack can pass a component's path down to a child stack. Only components declared in the same stack file are visible; referencing an undeclared name fails generation.
 
@@ -2351,11 +2410,11 @@ These variables are available inside `autoinclude` blocks and in the `values` at
 
 A generated `terragrunt.autoinclude.hcl` merges into the unit's configuration using the same default strategy as a regular [`include`](#include): a shallow merge, with the autoinclude winning. Top-level keys from the unit and the autoinclude combine; on a conflict, the autoinclude's value replaces the unit's rather than deep merging nested maps. `inputs` maps combine key by key at the top level. A `dependency` block with the same name as one in the unit's own `terragrunt.hcl` replaces it wholesale.
 
-The merge applies to any unit with a sibling `terragrunt.autoinclude.hcl` while the experiment is enabled. `stack generate` normally writes this file; treat it as a generated artifact rather than something to edit by hand.
+The merge applies to any unit with a sibling `terragrunt.autoinclude.hcl`. `stack generate` normally writes this file; treat it as a generated artifact rather than something to edit by hand.
 
-### Depending on a stack
+### Depending on a sibling stack
 
-A dependency's `config_path` can point at a stack directory via `stack.<name>.path`. The dependency's outputs aggregate the outputs of every unit in that stack, keyed by unit name:
+A dependency's `config_path` can point at a sibling stack via `stack.<name>.path`. The generated dependency behaves as described in [Depending on a stack](#depending-on-a-stack): outputs aggregate every unit the stack declares, keyed by unit name.
 
 ```hcl
 # terragrunt.stack.hcl
@@ -2388,7 +2447,7 @@ unit "app" {
 }
 ```
 
-Here the `network` stack contains a unit named `vpc` with a `vpc_id` output, so the dependent unit reads it as `dependency.network.outputs.vpc.vpc_id`. During `run --all`, a dependency on a stack expands to a dependency on each of the stack's units, so the dependent unit waits for all of them to finish.
+Here the `network` stack contains a unit named `vpc` with a `vpc_id` output, so the dependent unit reads it as `dependency.network.outputs.vpc.vpc_id`.
 
 ### Stack-level autoinclude
 
