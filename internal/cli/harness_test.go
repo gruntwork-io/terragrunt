@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const unitRoot = "/units"
+var unitRoot = venvtest.Root("/units")
 
 // runCLI drives the whole CLI against v and returns what the run wrote to
 // standard output. Colors are off so output compares byte for byte.
@@ -43,7 +43,7 @@ func oneUnit(t *testing.T) *venv.Venv {
 	}))
 }
 
-const discoveryRoot = "/components"
+var discoveryRoot = venvtest.Root("/components")
 
 // runDiscovery runs a discovery command against files and returns what it
 // printed. Callers compare whole strings, which pins ordering and column

@@ -266,7 +266,7 @@ func Prepare(
 		Collect(ctx, l, "scaffold_get_module", map[string]any{
 			"module_url": resolvedURL,
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, l, v, tempDir, resolvedURL); getErr != nil {
+			if getErr := fetchScaffoldSource(ctx, l, v, tempDir, resolvedURL); getErr != nil {
 				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 			}
 
@@ -661,9 +661,8 @@ func downloadTemplate(
 		return "", err
 	}
 
-	// Go-getter expects a pathspec or . for file paths
 	if baseURL.Scheme == "" || baseURL.Scheme == "file" {
-		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/")) + "//."
+		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/"))
 	}
 
 	baseURL, err = rewriteTemplateURL(ctx, l, v, opts, baseURL)
@@ -683,7 +682,7 @@ func downloadTemplate(
 		Collect(ctx, l, "scaffold_get_template", map[string]any{
 			"template_url": baseURL.String(),
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, l, v, templateDir, baseURL.String()); getErr != nil {
+			if getErr := fetchScaffoldSource(ctx, l, v, templateDir, baseURL.String()); getErr != nil {
 				return fmt.Errorf(
 					"downloading scaffold template from %s: %w",
 					baseURL.String(),
@@ -711,6 +710,24 @@ func downloadTemplate(
 	}
 
 	return templateDir, nil
+}
+
+// fetchScaffoldSource downloads the module or template at src into dst.
+func fetchScaffoldSource(ctx context.Context, l log.Logger, v *venv.Venv, dst, src string) error {
+	fileCopy := getter.NewFileCopyGetter(v.FS).
+		WithLogger(l).
+		WithIncludeInCopy(".*", "**/.*")
+
+	if _, err := getter.GetAny(ctx, l, v, dst, src, getter.WithFileCopy(fileCopy)); err != nil {
+		return err
+	}
+
+	err := v.FS.Remove(filepath.Join(dst, getter.SourceManifestName))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	return nil
 }
 
 // prepareBoilerplateFiles - prepare boilerplate files from provided template, tf module, or (custom) default template

@@ -351,8 +351,8 @@ func (s *GitServer) RequireSSH() {
 	require.NoError(s.t, os.WriteFile(keyPath, keyPEM, sshKeyFilePerm), "write ssh key")
 
 	s.t.Setenv("GIT_SSH_COMMAND", fmt.Sprintf(
-		"ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes",
-		keyPath,
+		"ssh -i %q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes",
+		filepath.ToSlash(keyPath),
 	))
 }
 

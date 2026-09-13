@@ -232,7 +232,7 @@ func (c *Content) cloneInto(
 		}
 	}
 
-	if err := v.FS.Rename(tempPath, targetPath); err != nil {
+	if err := vfs.RenameOver(v.FS, tempPath, targetPath); err != nil {
 		return &WrappedError{
 			Op:   "rename_target",
 			Path: tempPath,
@@ -297,7 +297,7 @@ func (c *Content) copyBlob(
 		}
 	}
 
-	if err := v.FS.Rename(tempPath, targetPath); err != nil {
+	if err := vfs.RenameOver(v.FS, tempPath, targetPath); err != nil {
 		return LinkOutcome{}, &WrappedError{
 			Op:   "rename_target",
 			Path: tempPath,
