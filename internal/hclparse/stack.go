@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"syscall"
 
 	"errors"
 
@@ -164,6 +165,7 @@ type discoveryAutoIncludeDecode struct {
 }
 
 // ParseStackFileFromPath reads a terragrunt.stack.hcl from disk and runs ParseStackFile; returns (nil, nil) when the file is absent.
+// A stackDir that is a regular file returns a [FileReadError] wrapping syscall.ENOTDIR on every platform.
 func ParseStackFileFromPath(fsys vfs.FS, stackDir string) (*ParseResult, error) {
 	if fsys == nil {
 		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fsys is nil (stackDir=%q)", stackDir))
@@ -178,11 +180,20 @@ func ParseStackFileFromPath(fsys vfs.FS, stackDir string) (*ParseResult, error) 
 
 	data, err := vfs.ReadFile(fsys, stackFile)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, FileReadError{FilePath: stackFile, Err: err}
 		}
 
-		return nil, FileReadError{FilePath: stackFile, Err: err}
+		// Windows and the in-memory filesystem report a path through a regular
+		// file as not found rather than as not a directory.
+		if vfs.IsFile(fsys, stackDir) {
+			return nil, FileReadError{
+				FilePath: stackFile,
+				Err:      &fs.PathError{Op: "open", Path: stackFile, Err: syscall.ENOTDIR},
+			}
+		}
+
+		return nil, nil
 	}
 
 	return ParseStackFile(fsys, &ParseStackFileInput{

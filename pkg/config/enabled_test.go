@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const enabledStackDir = "/virtual/stack"
+var enabledStackDir = venvtest.Root("/virtual/stack")
 
 const enabledUnitSource = "./units/app"
 

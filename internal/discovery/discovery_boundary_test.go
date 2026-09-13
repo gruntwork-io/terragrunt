@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // boundaryFixture is an in-memory monorepo whose graph crosses out of the
@@ -38,7 +39,7 @@ type boundaryFixture struct {
 func newBoundaryFixture(t *testing.T) (boundaryFixture, *venv.Venv) {
 	t.Helper()
 
-	repoRoot := string(filepath.Separator) + "repo"
+	repoRoot := venvtest.Root("/repo")
 
 	// The venv answers the git top-level probe with repoRoot, so traversal
 	// bounds to the repository root when no discovery boundary is configured.

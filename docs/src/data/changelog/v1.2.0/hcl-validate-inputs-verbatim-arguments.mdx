@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `hcl validate --inputs` reads `-var` and `-var-file` arguments verbatim
+
+[`hcl validate --inputs`](/reference/cli/commands/hcl/validate#inputs) applied shell quoting rules to each entry in `extra_arguments` before reading `-var` and `-var-file` from it. Those rules treat a backslash as an escape character, so on Windows a var file path such as `"-var-file=${get_terragrunt_dir()}\\varfiles\\main.tfvars"` lost its separators, and validation failed to open the file.
+
+Terragrunt now passes each entry in `arguments` to OpenTofu/Terraform as a single argument, passed verbatim.

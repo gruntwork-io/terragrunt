@@ -490,7 +490,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 
 	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{
-		filepath.Join(tmpPath, "terragrunt.hcl"),
+		filepath.ToSlash(filepath.Join(tmpPath, "terragrunt.hcl")),
 		"./a/b/c/d/e/**",
 	})
 	require.NoError(t, parseErr)
@@ -616,9 +616,9 @@ func TestHCLFmtDiffFile(t *testing.T) {
 		tgOptions,
 	))
 
-	formatted := filepath.Join(root, "terragrunt.hcl")
+	formatted := strings.TrimPrefix(filepath.ToSlash(filepath.Join(root, "terragrunt.hcl")), "/")
 	header := fmt.Sprintf(
-		"diff old%[1]s new%[1]s\n--- old%[1]s\n+++ new%[1]s\n",
+		"diff old/%[1]s new/%[1]s\n--- old/%[1]s\n+++ new/%[1]s\n",
 		formatted,
 	)
 

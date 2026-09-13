@@ -36,6 +36,11 @@ const (
 	// concurrentWarmupRequests is how many clients must be answered while one download is in flight.
 	concurrentWarmupRequests = 20
 
+	// warmupRegistryName addresses the fake registry by a reserved name that never resolves, so the
+	// cache server reaches it only through the seeded discovery URLs. The registry name becomes a
+	// directory and file name in the cache, where the colon of an httptest host:port is invalid on Windows.
+	warmupRegistryName = "registry.test"
+
 	warmupProviderNamespace = "example"
 	warmupProviderName      = "tiny"
 	warmupProviderVersion   = "1.0.0"
@@ -113,8 +118,6 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	}))
 	t.Cleanup(upstream.Close)
 
-	registryName := strings.TrimPrefix(upstream.URL, "http://")
-
 	l := logger.CreateLogger()
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
@@ -135,7 +138,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		new(cliconfig.ProviderInstallationDirect),
 		nil,
 	)
-	directHandler.SetDiscoveryURLCache(registryName, &handlers.RegistryURLs{
+	directHandler.SetDiscoveryURLCache(warmupRegistryName, &handlers.RegistryURLs{
 		ProvidersV1: upstream.URL + "/v1/providers",
 	})
 
@@ -170,7 +173,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	downloadURL := server.ProviderController.URL()
 	downloadURL.Path += "/" + strings.Join([]string{
 		requestID,
-		registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,
@@ -230,7 +233,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	packageDir := filepath.Join(
 		providerCacheDir,
-		registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,

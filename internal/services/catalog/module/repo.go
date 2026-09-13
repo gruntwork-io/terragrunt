@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -551,7 +552,7 @@ func (repo *Repo) performClone(
 		return err
 	}
 
-	repo.cloneURL = sourceURL.String()
+	repo.cloneURL = cloneURLString(sourceURL)
 	l.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
 	// Check first if the query param ref is already set
@@ -709,4 +710,17 @@ func (repo *Repo) remoteForTagLookup() string {
 	parsed.Fragment = ""
 
 	return parsed.String()
+}
+
+// cloneURLString formats sourceURL keeping the slash ahead of a Windows drive
+// letter (file:///C:/repo), which parsing strips from the path.
+func cloneURLString(sourceURL *url.URL) string {
+	if sourceURL.Scheme != "file" || len(sourceURL.Path) < 2 || sourceURL.Path[1] != ':' {
+		return sourceURL.String()
+	}
+
+	u := *sourceURL
+	u.Path = "/" + u.Path
+
+	return u.String()
 }

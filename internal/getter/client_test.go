@@ -49,7 +49,12 @@ func TestGetAnyConvenience(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(src, "main.tf"), []byte("# fixture\n"), 0644))
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "copy")
-	_, err := getter.GetAny(t.Context(), logger.CreateLogger(), venvtest.NewWithOSFS(), dst, "file://"+src,
+	_, err := getter.GetAny(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewWithOSFS(),
+		dst,
+		helpers.FileURL(src),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	require.NoError(t, err)
@@ -67,7 +72,12 @@ func TestGetConvenience(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(src, "main.tf"), []byte("# fixture\n"), 0644))
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "copy")
-	_, err := getter.Get(t.Context(), logger.CreateLogger(), venvtest.NewWithOSFS(), dst, "file://"+src,
+	_, err := getter.Get(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewWithOSFS(),
+		dst,
+		helpers.FileURL(src),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	require.NoError(t, err)

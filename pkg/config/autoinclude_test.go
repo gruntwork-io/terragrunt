@@ -39,7 +39,7 @@ inputs = {
 	// A unit with a resolvable include so TrackInclude is set and the post-merge handleInclude branch dereferences config on a shallow merge.
 	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 include "root" {
-  path           = "`+filepath.Join(parentDir, "root.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(parentDir, "root.hcl"))+`"
   merge_strategy = "shallow"
 }
 
@@ -179,7 +179,7 @@ remote_state {
 	// the unit relies on. config_path is absolute so it resolves the same regardless of parse dir.
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "base", "base.hcl"), []byte(`
 dependency "foo" {
-  config_path  = "`+filepath.Join(tmpDir, "foo")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "foo"))+`"
   skip_outputs = true
   mock_outputs = {
     val = "`+marker+`"
@@ -192,7 +192,7 @@ dependency "foo" {
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 include "base" {
-  path           = "`+filepath.Join(tmpDir, "base", "base.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "base", "base.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
@@ -243,7 +243,7 @@ inputs = {
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 include "common" {
-  path           = "`+filepath.Join(tmpDir, "common.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "common.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
@@ -298,14 +298,14 @@ inputs = { from_unit = "a" }
 	// A's autoinclude declares a WANTED dependency and deep-includes a base file in a different dir.
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
 dependency "wanted" {
-  config_path  = "`+filepath.Join(tmpDir, "wanted-target")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "wanted-target"))+`"
   skip_outputs = true
   mock_outputs = { val = "wanted" }
   mock_outputs_allowed_terraform_commands = ["init"]
 }
 
 include "base" {
-  path           = "`+filepath.Join(tmpDir, "b", "base.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "b", "base.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
@@ -319,7 +319,7 @@ inputs = { from_base = "b" }
 		t,
 		vfs.WriteFile(v.FS, filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
 dependency "leak" {
-  config_path  = "`+filepath.Join(tmpDir, "leak-target")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "leak-target"))+`"
   skip_outputs = true
   mock_outputs = { val = "leaked" }
   mock_outputs_allowed_terraform_commands = ["init"]

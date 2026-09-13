@@ -17,10 +17,14 @@ func TestNewForDiscoveryCommand_QueueConstructAs(t *testing.T) {
 
 		v := venvtest.New()
 
-		return discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
-			WorkingDir:       "/repo",
-			QueueConstructAs: queueConstructAs,
-		})
+		return discovery.NewForDiscoveryCommand(
+			logger.CreateLogger(),
+			v.FS,
+			&discovery.DiscoveryCommandOptions{
+				WorkingDir:       venvtest.Root("/repo"),
+				QueueConstructAs: queueConstructAs,
+			},
+		)
 	}
 
 	testCases := []struct {

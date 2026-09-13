@@ -86,7 +86,7 @@ func runExpansionFilterFind(t *testing.T, tmpDir, args string) []string {
 		return nil
 	}
 
-	return strings.Split(trimmed, "\n")
+	return helpers.ToSlashAll(strings.Split(trimmed, "\n"))
 }
 
 // generateExpansionFilterStacks runs `terragrunt stack generate` over tmpDir and returns the

@@ -97,6 +97,14 @@ jobs:
           path: test-events.ndjson
           retention-days: 7
 
+      - name: Upload test-events-windows.ndjson
+        if: always() && matrix.os == 'windows'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-events-windows.ndjson
+          path: test-events.ndjson
+          retention-days: 7
+
       - name: Upload timing-summary.json
         if: always() && matrix.os == 'ubuntu'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -141,6 +149,6 @@ jobs:
         if: always()
         with:
           report_paths: result.xml
-          detailed_summary: 'true'
-          include_time_in_summary: 'true'
-          group_suite: 'true'
+          detailed_summary: "true"
+          include_time_in_summary: "true"
+          group_suite: "true"
