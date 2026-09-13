@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -14,6 +13,7 @@ import (
 	"errors"
 
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -28,8 +28,9 @@ const (
 	authTokenEnvName     = "TG_TF_REGISTRY_TOKEN"
 
 	// maxRegistryResponseBytes bounds a registry response. The largest of them
-	// lists a module's versions, which stays well under this.
-	maxRegistryResponseBytes = 1 << 20
+	// lists a module's versions: the longest public lists run to several hundred
+	// KiB and grow with every release.
+	maxRegistryResponseBytes = 32 << 20
 )
 
 // RegistryServicePath is the modules service path returned by service discovery.
@@ -724,7 +725,7 @@ func httpGETAndGetResponse(
 		return nil, nil, RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode}
 	}
 
-	bodyData, err := io.ReadAll(io.LimitReader(resp.Body, maxRegistryResponseBytes))
+	bodyData, err := helpers.ReadBody(resp.Body, resp.ContentLength, maxRegistryResponseBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading registry response body from %s: %w", getURL, err)
 	}
