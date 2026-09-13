@@ -8,7 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 
 OpenTofu/Terraform supports [remote state storage](https://opentofu.org/docs/language/state/remote/) via various [backends](https://opentofu.org/docs/language/settings/backends/configuration/) that you normally configure in your `.tf` files as follows:
@@ -169,7 +168,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
-- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; <Before version="1.1.2">see the [`azure-backend`](/reference/experiments/active#azure-backend) experiment, which currently does not change behavior</Before><Since version="1.1.2">bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment</Since>)
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -355,18 +354,12 @@ The following config options are only valid for the `gcs` backend and are used b
 
 <Aside type="caution" title="Experimental">
 Azure backend support is delivered through the [`azure-backend`](/reference/experiments/active#azure-backend) experiment.
-<Before version="1.1.2">
-Until that experiment lands functional behavior, Terragrunt does not bootstrap, delete, or migrate Azure resources;
-OpenTofu/Terraform's native `azurerm` backend is used as-is.
-</Before>
-<Since version="1.1.2">
+
 With the experiment enabled, Terragrunt bootstraps, deletes, and migrates Azure Storage state resources.
 Otherwise, these operations return an error. OpenTofu/Terraform's native azurerm backend handles normal state reads and writes.
 
-<Since version="1.1.4">
 When both `azure-backend` and [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) are enabled, and the Azure backend configuration is supported by the direct reader, Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
-</Since>
-</Since>
+
 </Aside>
 
 Example configuration:
@@ -386,11 +379,6 @@ remote_state {
 }
 ```
 
-<Before version="1.1.2">
-Further configuration keys, authentication methods, and Terragrunt-side bootstrap behavior will be documented as the experiment matures.
-</Before>
-
-<Since version="1.1.2">
 Terragrunt-only bootstrap settings are set in the same `config` block:
 
 ```hcl
@@ -499,7 +487,6 @@ remote_state {
 - With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Set `assign_blob_data_role = true` to have bootstrap assign it, or grant it out of band.
 - State migration is supported within a single storage account; cross-account migration must be performed manually (init, state pull, state push).
 </Aside>
-</Since>
 
 ### Disabling automatic remote state bootstrapping
 

@@ -8,8 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
 
 ## Support
 
@@ -187,14 +185,6 @@ we should be golden!
 
 ## Profiling
 
-<Before version="v1.1.2">
-
-Runtime profiling for Terragrunt ships with v1.1.2.
-
-</Before>
-
-<Since version="v1.1.2">
-
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
@@ -243,8 +233,6 @@ terragrunt --profile-dir /tmp/profiles run -- plan
 ```
 
 See the [Performance documentation](/troubleshooting/performance) for the full list of flags and environment variables.
-
-</Since>
 
 ## Additional OpenTofu/Terraform Debugging
 
