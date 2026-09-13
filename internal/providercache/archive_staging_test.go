@@ -35,10 +35,10 @@ import (
 func TestProviderCacheConcurrentRunsStageArchivesApartWithRacing(t *testing.T) {
 	t.Parallel()
 
-	registryName, upstreamURL := startFakeProviderRegistry(t)
+	upstreamURL := startFakeProviderRegistry(t)
 
-	firstRun := startProviderCacheRun(t, registryName, upstreamURL)
-	secondRun := startProviderCacheRun(t, registryName, upstreamURL)
+	firstRun := startProviderCacheRun(t, upstreamURL)
+	secondRun := startProviderCacheRun(t, upstreamURL)
 
 	firstArchive := firstRun.warmUpProviderArchive(t)
 	secondArchive := secondRun.warmUpProviderArchive(t)
@@ -56,9 +56,8 @@ func TestProviderCacheConcurrentRunsStageArchivesApartWithRacing(t *testing.T) {
 	assert.NoFileExists(t, secondArchive, "a run must clean up the archives it staged")
 }
 
-// startFakeProviderRegistry serves the tiny warm-up provider over plain HTTP, and returns the
-// registry name to address it by along with its URL.
-func startFakeProviderRegistry(t *testing.T) (string, string) {
+// startFakeProviderRegistry serves the tiny warm-up provider over plain HTTP, and returns its URL.
+func startFakeProviderRegistry(t *testing.T) string {
 	t.Helper()
 
 	var (
@@ -112,21 +111,20 @@ func startFakeProviderRegistry(t *testing.T) (string, string) {
 	}))
 	t.Cleanup(upstream.Close)
 
-	return strings.TrimPrefix(upstream.URL, "http://"), upstream.URL
+	return upstream.URL
 }
 
 // providerCacheRun is a single cache server with the provider cache directory of its own that a
 // Terragrunt run would have.
 type providerCacheRun struct {
-	service      *services.ProviderService
-	server       *cache.Server
-	serverGroup  *errgroup.Group
-	cancel       context.CancelFunc
-	registryName string
-	token        string
+	service     *services.ProviderService
+	server      *cache.Server
+	serverGroup *errgroup.Group
+	cancel      context.CancelFunc
+	token       string
 }
 
-func startProviderCacheRun(t *testing.T, registryName, upstreamURL string) *providerCacheRun {
+func startProviderCacheRun(t *testing.T, upstreamURL string) *providerCacheRun {
 	t.Helper()
 
 	l := logger.CreateLogger()
@@ -146,7 +144,7 @@ func startProviderCacheRun(t *testing.T, registryName, upstreamURL string) *prov
 		new(cliconfig.ProviderInstallationDirect),
 		nil,
 	)
-	directHandler.SetDiscoveryURLCache(registryName, &handlers.RegistryURLs{
+	directHandler.SetDiscoveryURLCache(warmupRegistryName, &handlers.RegistryURLs{
 		ProvidersV1: upstreamURL + "/v1/providers",
 	})
 
@@ -178,12 +176,11 @@ func startProviderCacheRun(t *testing.T, registryName, upstreamURL string) *prov
 	serverGroup.Go(func() error { return server.Run(serverCtx, ln) })
 
 	return &providerCacheRun{
-		service:      service,
-		server:       server,
-		serverGroup:  serverGroup,
-		cancel:       cancel,
-		registryName: registryName,
-		token:        token,
+		service:     service,
+		server:      server,
+		serverGroup: serverGroup,
+		cancel:      cancel,
+		token:       token,
 	}
 }
 
@@ -197,7 +194,7 @@ func (run *providerCacheRun) warmUpProviderArchive(t *testing.T) string {
 	downloadURL := run.server.ProviderController.URL()
 	downloadURL.Path += "/" + strings.Join([]string{
 		requestID,
-		run.registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,

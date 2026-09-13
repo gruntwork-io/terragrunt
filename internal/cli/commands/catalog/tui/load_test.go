@@ -83,6 +83,7 @@ func TestLoadURLKeepsTempDirAfterEmittingComponentOnCancel(t *testing.T) {
 	tempRoot := filepath.Join(base, "tmp")
 	require.NoError(t, os.Mkdir(tempRoot, 0o755))
 	t.Setenv("TMPDIR", tempRoot)
+	t.Setenv("TMP", tempRoot)
 
 	repoDir := filepath.Join(base, "repo")
 	writeCatalogRepo(t, repoDir)

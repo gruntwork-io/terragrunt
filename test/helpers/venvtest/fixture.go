@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -13,6 +14,24 @@ import (
 )
 
 const fixtureFileMode = 0o644
+
+// Root returns a slash-rooted fixture path as the absolute path the host
+// resolves it to. On Unix that is the path itself; on Windows "/repo" alone is
+// not absolute, so it takes the volume of the working directory ("D:\\repo"),
+// which is also where production code lands when it runs filepath.Abs on the
+// same value. Every in-memory tree is rooted through it so the two agree.
+func Root(path string) string {
+	if !strings.HasPrefix(path, "/") {
+		panic("venvtest.Root: path must be slash-rooted: " + path)
+	}
+
+	abs, err := filepath.Abs(filepath.FromSlash(path))
+	if err != nil {
+		panic("venvtest.Root: " + err.Error())
+	}
+
+	return abs
+}
 
 // NewFS returns an in-memory filesystem holding files, each path taken
 // relative to root. Pair it with WithFS to give a command a tree to walk
@@ -47,7 +66,7 @@ var generatedDirs = []string{".terraform", util.TerragruntCacheDir}
 func LoadFS(t *testing.T, dir string) (vfs.FS, string) {
 	t.Helper()
 
-	const root = "/fixture"
+	root := Root("/fixture")
 
 	abs, err := filepath.Abs(dir)
 	require.NoError(t, err)

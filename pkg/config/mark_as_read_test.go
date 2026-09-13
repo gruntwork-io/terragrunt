@@ -137,7 +137,8 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
 		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
 		pctx.WorkingDir = unitDir
 
-		hcl := `locals { matched = mark_glob_as_read("/{*.yaml}") }`
+		// The volume keeps the pattern rooted on Windows, where a bare "/" is relative to the drive.
+		hcl := `locals { matched = mark_glob_as_read("` + filepath.VolumeName(root) + `/{*.yaml}") }`
 
 		_, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
 		require.Error(t, err)

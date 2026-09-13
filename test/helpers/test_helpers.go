@@ -26,6 +26,29 @@ func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
 
+// FileURL returns the file:// URL for an absolute host path. A Windows path
+// needs a slash ahead of the drive letter ("file:///C:/tmp/x", RFC 8089);
+// without it go-getter reads "C:" as the host and the source is not found.
+func FileURL(absPath string) string {
+	p := filepath.ToSlash(absPath)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
+	return "file://" + p
+}
+
+// ToSlashAll returns paths with every separator turned into a slash, so
+// command output listing OS-native paths compares against slash literals.
+func ToSlashAll(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, filepath.ToSlash(p))
+	}
+
+	return out
+}
+
 // MustAbs resolves rel against the Go test process working directory.
 // [util.CopyFolderContents] and related helpers require absolute paths
 // so their dest-inside-source guard isn't fooled by Terragrunt's
@@ -510,5 +533,5 @@ func LocalGitRemote(t *testing.T, fixturePath string) string {
 
 	InitGitRepoWithBranchRef(t, repoDir, "main")
 
-	return "file://" + filepath.ToSlash(repoDir)
+	return FileURL(repoDir)
 }

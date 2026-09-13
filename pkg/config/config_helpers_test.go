@@ -146,6 +146,8 @@ func TestPathRelativeToInclude(t *testing.T) {
 		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeToInclude(ctx, pctx, l, tc.params)
+		actualPath = filepath.ToSlash(actualPath)
+
 		require.NoError(
 			t,
 			actualErr,
@@ -280,6 +282,8 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
+		actualPath = filepath.ToSlash(actualPath)
+
 		require.NoError(
 			t,
 			actualErr,
@@ -695,7 +699,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 	}{
 		{
 			str:         "terraform { source = path_relative_to_include() }",
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(venvtest.Root("/root"), "child", config.DefaultTerragruntConfigPath),
 			expectedOut: ".",
 		},
 		{
@@ -703,7 +707,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			include: &config.IncludeConfig{
 				Path: filepath.Join("..", config.DefaultTerragruntConfigPath),
 			},
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(venvtest.Root("/root"), "child", config.DefaultTerragruntConfigPath),
 			expectedOut: "child",
 		},
 		{
@@ -1040,9 +1044,7 @@ func toStringSlice(t *testing.T, value any) []string {
 func TestGetTerragruntDirAbsPath(t *testing.T) {
 	t.Parallel()
 
-	workingDir, err := os.Getwd()
-	require.NoError(t, err, "Could not get current working dir: %v", err)
-	testGetTerragruntDir(t, "/foo/bar/terragrunt.hcl", filepath.VolumeName(workingDir)+"/foo/bar")
+	testGetTerragruntDir(t, venvtest.Root("/foo/bar/terragrunt.hcl"), venvtest.Root("/foo/bar"))
 }
 
 func TestGetTerragruntDirRelPath(t *testing.T) {
@@ -1141,7 +1143,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 				"child",
 				config.DefaultTerragruntConfigPath,
 			),
-			expectedPath: helpers.RootFolder,
+			expectedPath: filepath.Clean(helpers.RootFolder),
 		},
 		{
 			include: map[string]config.IncludeConfig{
@@ -1152,7 +1154,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 				"child",
 				config.DefaultTerragruntConfigPath,
 			),
-			expectedPath: helpers.RootFolder,
+			expectedPath: filepath.Clean(helpers.RootFolder),
 		},
 		{
 			include: map[string]config.IncludeConfig{
@@ -1165,7 +1167,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 				"sub-sub-child",
 				config.DefaultTerragruntConfigPath,
 			),
-			expectedPath: helpers.RootFolder,
+			expectedPath: filepath.Clean(helpers.RootFolder),
 		},
 		{
 			include: map[string]config.IncludeConfig{
@@ -1178,7 +1180,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 				"sub-sub-child",
 				config.DefaultTerragruntConfigPath,
 			),
-			expectedPath: helpers.RootFolder,
+			expectedPath: filepath.Clean(helpers.RootFolder),
 		},
 		{
 			include: map[string]config.IncludeConfig{
@@ -1192,7 +1194,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 				"sub-child",
 				config.DefaultTerragruntConfigPath,
 			),
-			expectedPath: filepath.VolumeName(parentDir) + "/other-child",
+			expectedPath: filepath.Clean(filepath.VolumeName(parentDir) + "/other-child"),
 		},
 		{
 			include: map[string]config.IncludeConfig{
@@ -1220,7 +1222,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 				"sub-child",
 				config.DefaultTerragruntConfigPath,
 			),
-			expectedPath: filepath.VolumeName(parentDir) + "/other-child",
+			expectedPath: filepath.Clean(filepath.VolumeName(parentDir) + "/other-child"),
 		},
 	}
 

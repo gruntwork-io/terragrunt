@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -61,7 +62,7 @@ func TestCanonicalPath(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(
 				t,
-				tc.expected,
+				filepath.FromSlash(tc.expected),
 				actual,
 				"For path %s and basePath %s",
 				tc.path,
@@ -578,7 +579,7 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "exceeded 100000 manifests")
-	assert.Contains(t, err.Error(), root)
+	assert.Contains(t, err.Error(), strconv.Quote(root))
 }
 
 func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
@@ -602,7 +603,81 @@ func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "entry cap")
-	assert.Contains(t, err.Error(), root)
+	assert.Contains(t, err.Error(), strconv.Quote(manifestPath))
+}
+
+// TestCopyFolderContentsSkipsSourceManifest pins that a source carrying the
+// manifest of an earlier copy does not have it copied over the manifest this
+// copy writes.
+func TestCopyFolderContentsSkipsSourceManifest(t *testing.T) {
+	t.Parallel()
+
+	acceptAll := func(string) bool { return true }
+
+	testCases := []struct {
+		copy func(l tglog.Logger, src, dst string) error
+		name string
+	}{
+		{
+			name: "filtered copy",
+			copy: func(l tglog.Logger, src, dst string) error {
+				return util.CopyFolderContentsWithFilter(l, vfs.NewOSFS(), src, dst, testManifestName, acceptAll)
+			},
+		},
+		{
+			name: "fast copy with an include matching the manifest",
+			copy: func(l tglog.Logger, src, dst string) error {
+				return util.CopyFolderContents(
+					l, vfs.NewOSFS(), src, dst, testManifestName,
+					util.WithFastCopy(), util.WithIncludeInCopy(".*"),
+				)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := t.TempDir()
+			dst := t.TempDir()
+
+			require.NoError(t, os.WriteFile(filepath.Join(src, "main.tf"), []byte("x"), 0o644))
+			writeManifest(t, filepath.Join(src, testManifestName), filepath.Join(src, "stale.tf"))
+
+			require.NoError(t, tc.copy(logger.CreateLogger(), src, dst))
+
+			assert.Equal(t, []manifestTestEntry{manifestFile(filepath.Join(dst, "main.tf"))}, readManifest(t, filepath.Join(dst, testManifestName)))
+		})
+	}
+}
+
+// readManifest decodes every entry of the manifest at path.
+func readManifest(t *testing.T, path string) []manifestTestEntry {
+	t.Helper()
+
+	f, err := os.Open(path)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	decoder := gob.NewDecoder(f)
+	entries := []manifestTestEntry{}
+
+	for {
+		var entry manifestTestEntry
+
+		err := decoder.Decode(&entry)
+		if errors.Is(err, io.EOF) {
+			return entries
+		}
+
+		require.NoError(t, err)
+
+		entries = append(entries, entry)
+	}
 }
 
 func writeManifest(t *testing.T, path string, paths ...string) {
@@ -1125,7 +1200,7 @@ func Test_sanitizePath(t *testing.T) {
 		{
 			name:    "file is just a slash",
 			baseDir: "./testdata/fixture-sanitize-path/env/unit",
-			file:    "/",
+			file:    helpers.RootFolder,
 			want:    "",
 			wantErr: true,
 		},
@@ -1139,7 +1214,7 @@ func Test_sanitizePath(t *testing.T) {
 		{
 			name:    "encoded characters",
 			baseDir: "./testdata/fixture-sanitize-path/env/unit",
-			file:    "..%2F..%2Fetc%2Fpasswd",
+			file:    "..%2F..%2Foutside",
 			want:    "",
 			wantErr: true,
 		},
@@ -1157,7 +1232,7 @@ func Test_sanitizePath(t *testing.T) {
 
 			require.NoError(t, err)
 
-			assert.Equalf(t, tt.want, got, "sanitizePath(%v, %v)", tt.baseDir, tt.file)
+			assert.Equalf(t, filepath.FromSlash(tt.want), got, "sanitizePath(%v, %v)", tt.baseDir, tt.file)
 		})
 	}
 }

@@ -43,10 +43,10 @@ func TestHostileNamesRenderInert(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/"+hostileName, []byte("x = 1\n"), 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/"+hostileName+"-unit/terragrunt.hcl", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath(hostileName), []byte("x = 1\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath(hostileName+"-unit/terragrunt.hcl"), nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorEnabled)
+	m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorEnabled)
 
 	// The highlighted entry's own path is what the header bar draws.
 	content := m.View().Content
@@ -60,13 +60,13 @@ func TestHostileComponentMetadataRendersInert(t *testing.T) {
 	t.Parallel()
 
 	source := "example.com/mod\x1b]0;pwned\a/aws"
-	unit := component.NewUnit("/repo/vpc").
+	unit := component.NewUnit(repoPath("vpc")).
 		WithConfig(&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: &source}}).
-		WithReading("/repo/vpc/read\x1b[2J.hcl")
-	unit.AddDependency(component.NewUnit("/repo/dep\x1b[2J"))
-	unit.AddDependent(component.NewUnit("/repo/dependent\x1b[2J"))
+		WithReading(repoPath("vpc/read\x1b[2J.hcl"))
+	unit.AddDependency(component.NewUnit(repoPath("dep\x1b[2J")))
+	unit.AddDependent(component.NewUnit(repoPath("dependent\x1b[2J")))
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.BuildTree("/repo", component.Components{unit}), tui.ColorEnabled)
+	m := newModel(t, vfs.NewMemMapFS(), tui.BuildTree(repoRoot, component.Components{unit}), tui.ColorEnabled)
 	require.Equal(t, "vpc", m.Selected().Name())
 
 	assertOnlyStylingEscapes(t, m.View().Content)
@@ -75,14 +75,14 @@ func TestHostileComponentMetadataRendersInert(t *testing.T) {
 func TestHostileStackDefinitionRendersInert(t *testing.T) {
 	t.Parallel()
 
-	stack := component.NewStack("/repo/live")
+	stack := component.NewStack(repoPath("live"))
 	stack.StoreConfig(&config.StackConfig{
 		Units: []*config.Unit{
 			{Name: "db\x1b[2J", Source: "./mods\x1b]0;pwned\a/db", Path: "db\x1b[2J"},
 		},
 	})
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.BuildTree("/repo", component.Components{stack}), tui.ColorEnabled)
+	m := newModel(t, vfs.NewMemMapFS(), tui.BuildTree(repoRoot, component.Components{stack}), tui.ColorEnabled)
 	require.Equal(t, tui.KindStack, m.Selected().Kind())
 
 	assertOnlyStylingEscapes(t, m.View().Content)
@@ -104,10 +104,10 @@ func FuzzHostileNames(f *testing.F) {
 		}
 
 		fs := vfs.NewMemMapFS()
-		require.NoError(t, vfs.WriteFile(fs, "/repo/"+name, []byte("x = 1\n"), 0o644))
-		require.NoError(t, vfs.WriteFile(fs, "/repo/dir-"+name+"/terragrunt.hcl", nil, 0o644))
+		require.NoError(t, vfs.WriteFile(fs, repoPath(name), []byte("x = 1\n"), 0o644))
+		require.NoError(t, vfs.WriteFile(fs, repoPath("dir-"+name+"/terragrunt.hcl"), nil, 0o644))
 
-		m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorEnabled)
+		m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorEnabled)
 
 		assertOnlyStylingEscapes(t, m.View().Content)
 

@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // graphBoundaryFixture is a monorepo layout with sibling environments. The
@@ -37,7 +38,7 @@ type graphBoundaryFixture struct {
 func newGraphBoundaryFixture(t *testing.T) (graphBoundaryFixture, *venv.Venv) {
 	t.Helper()
 
-	repoRoot := string(filepath.Separator) + "repo"
+	repoRoot := venvtest.Root("/repo")
 
 	v := memRepoRootVenv(t, repoRoot)
 
@@ -189,7 +190,7 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 func TestDiscoveryGraphBoundary_PathWithLiteralParens(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := string(filepath.Separator) + "repo"
+	repoRoot := venvtest.Root("/repo")
 
 	v := memRepoRootVenv(t, repoRoot)
 

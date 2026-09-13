@@ -21,7 +21,7 @@ import (
 // docsRoot holds one example's tree. Discovery starts at the root directory
 // inside it, which leaves room alongside for the external dependencies a few
 // examples reach.
-const docsRoot = "/docs"
+var docsRoot = venvtest.Root("/docs")
 
 // unitHCL is the smallest configuration that makes a directory discoverable as
 // a unit. A stack needs no contents at all, only the file that names it one,

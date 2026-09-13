@@ -28,6 +28,10 @@ func TestWriteFileAtomic(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(contents))
 
+	if runtime.GOOS == "windows" {
+		return
+	}
+
 	info, err := fsys.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
@@ -76,6 +80,10 @@ func TestWriteFileAtomicReplacesSymlink(t *testing.T) {
 // a file that exists.
 func TestWriteFileAtomicTightensExistingMode(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+	}
 
 	fsys := vfs.NewOSFS()
 	path := filepath.Join(t.TempDir(), "out.txt")

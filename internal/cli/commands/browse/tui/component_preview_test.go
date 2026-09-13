@@ -16,13 +16,13 @@ func TestUnitPreviewShowsMetadataAndRelationships(t *testing.T) {
 	t.Parallel()
 
 	source := "example.com/mod/aws"
-	unit := component.NewUnit("/repo/vpc").
+	unit := component.NewUnit(repoPath("vpc")).
 		WithConfig(&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: &source}}).
-		WithReading("/repo/vpc/terragrunt.hcl", "/repo/common.hcl")
-	unit.AddDependency(component.NewUnit("/repo/db"))
-	unit.AddDependent(component.NewUnit("/repo/app"))
+		WithReading(repoPath("vpc/terragrunt.hcl"), repoPath("common.hcl"))
+	unit.AddDependency(component.NewUnit(repoPath("db")))
+	unit.AddDependent(component.NewUnit(repoPath("app")))
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.BuildTree("/repo", component.Components{unit}), tui.ColorDisabled)
+	m := newModel(t, vfs.NewMemMapFS(), tui.BuildTree(repoRoot, component.Components{unit}), tui.ColorDisabled)
 	require.Equal(t, "vpc", m.Selected().Name())
 
 	content := m.View().Content
@@ -42,7 +42,7 @@ func TestUnitPreviewShowsMetadataAndRelationships(t *testing.T) {
 func TestStackPreviewListsDefinedUnitsAndStacks(t *testing.T) {
 	t.Parallel()
 
-	stack := component.NewStack("/repo/live")
+	stack := component.NewStack(repoPath("live"))
 	stack.StoreConfig(&config.StackConfig{
 		Units: []*config.Unit{
 			{Name: "db", Source: "./mods/db", Path: "db"},
@@ -53,7 +53,7 @@ func TestStackPreviewListsDefinedUnitsAndStacks(t *testing.T) {
 		},
 	})
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.BuildTree("/repo", component.Components{stack}), tui.ColorDisabled)
+	m := newModel(t, vfs.NewMemMapFS(), tui.BuildTree(repoRoot, component.Components{stack}), tui.ColorDisabled)
 	require.Equal(t, "live", m.Selected().Name())
 	require.Equal(t, tui.KindStack, m.Selected().Kind())
 
@@ -74,9 +74,9 @@ func TestComponentPreviewLoadsThenReportsNotDiscovered(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
+	m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorDisabled)
 	require.Equal(t, tui.KindUnit, m.Selected().Kind())
 	assert.NotContains(t, m.View().Content, "(not discovered)")
 
@@ -90,9 +90,9 @@ func TestFilePreviewRendersInDetailPane(t *testing.T) {
 	const content = "name = \"value\"\n"
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte(content), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), []byte(content), 0o644))
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorDisabled)
 	m = press(t, m, 'l')

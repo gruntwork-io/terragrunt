@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,15 @@ func TestSaveReplacesSymlink(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(written), "example-token")
 
-	info, err = os.Stat(configPath)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	t.Run("keeps the config owner-only", func(t *testing.T) {
+		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
+
+		info, err := os.Stat(configPath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	})
 }

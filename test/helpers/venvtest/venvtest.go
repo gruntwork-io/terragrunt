@@ -34,16 +34,16 @@ var ErrNoListen = errors.New("venvtest: listening is not permitted")
 // Cache and temp roots for the in-memory bundle. They sit under a name no real
 // machine uses, so a test that accidentally runs them against the OS filesystem
 // fails loudly instead of writing into the invoking user's directories.
-const (
-	memCacheDir  = "/venvtest/cache"
-	memConfigDir = "/venvtest/config"
-	memTempDir   = "/venvtest/tmp"
-	memWorkDir   = "/venvtest/work"
-
-	// memPID is a fixed process id, so a crash report or log line carrying it
-	// compares equal between runs.
-	memPID = 1
+var (
+	memCacheDir  = Root("/venvtest/cache")
+	memConfigDir = Root("/venvtest/config")
+	memTempDir   = Root("/venvtest/tmp")
+	memWorkDir   = Root("/venvtest/work")
 )
+
+// memPID is a fixed process id, so a crash report or log line carrying it
+// compares equal between runs.
+const memPID = 1
 
 // New returns an in-memory venv: a fail-closed exec, an in-memory filesystem,
 // a fail-closed no-network HTTP client, a mem SOPS decrypter yielding empty

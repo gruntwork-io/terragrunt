@@ -733,7 +733,7 @@ unit "test" {
 		},
 		{
 			name:          "absolute path filter",
-			filterQueries: []string{stackDir},
+			filterQueries: []string{filepath.ToSlash(stackDir)},
 			wantUnits:     []string{},
 			wantStacks:    []string{stackDir},
 		},

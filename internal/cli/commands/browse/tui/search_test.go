@@ -21,10 +21,10 @@ func searchModel(t *testing.T, names ...string) tui.Model {
 
 	comps := make(component.Components, len(names))
 	for i, name := range names {
-		comps[i] = component.NewUnit(filepath.Join("/work", name))
+		comps[i] = component.NewUnit(filepath.Join(workRoot, name))
 	}
 
-	return newModel(t, vfs.NewMemMapFS(), tui.BuildTree("/work", comps), tui.ColorDisabled)
+	return newModel(t, vfs.NewMemMapFS(), tui.BuildTree(workRoot, comps), tui.ColorDisabled)
 }
 
 // typeKey sends a non-rune key such as enter or escape.
@@ -173,9 +173,9 @@ func TestEscapeClearsCommittedSearch(t *testing.T) {
 func TestNavigatingClearsSearch(t *testing.T) {
 	t.Parallel()
 
-	root := tui.BuildTree("/work", component.Components{
-		component.NewUnit(filepath.Join("/work", "env", "vpc")),
-		component.NewUnit(filepath.Join("/work", "env", "db")),
+	root := tui.BuildTree(workRoot, component.Components{
+		component.NewUnit(filepath.Join(workRoot, "env", "vpc")),
+		component.NewUnit(filepath.Join(workRoot, "env", "db")),
 	})
 
 	m := newModel(t, vfs.NewMemMapFS(), root, tui.ColorDisabled)

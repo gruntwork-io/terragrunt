@@ -2,6 +2,7 @@ package tflint_test
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -296,7 +297,7 @@ func TestConfigFilePath_IgnoresNonConfigArguments(t *testing.T) {
 			}, tc.arguments)
 
 			require.NoError(t, err)
-			assert.Equal(t, "/work/.tflint.hcl", got)
+			assert.Equal(t, filepath.FromSlash("/work/.tflint.hcl"), got)
 		})
 	}
 }
@@ -398,7 +399,7 @@ func TestFindConfigInProject(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tc.wantPath, got)
+			assert.Equal(t, filepath.FromSlash(tc.wantPath), got)
 		})
 	}
 }
@@ -444,13 +445,13 @@ func TestRunTflintWithOpts_HappyPath(t *testing.T) {
 	// init call carries --init plus the resolved relative paths.
 	assert.Equal(
 		t,
-		[]string{"--init", "--config", "./.tflint.hcl", "--chdir", "./unit"},
+		[]string{"--init", "--config", filepath.FromSlash("./.tflint.hcl"), "--chdir", filepath.FromSlash("./unit")},
 		calls[0].Args,
 	)
 
 	assert.Equal(t, []string{
-		"--config", "./.tflint.hcl",
-		"--chdir", "./unit",
+		"--config", filepath.FromSlash("./.tflint.hcl"),
+		"--chdir", filepath.FromSlash("./unit"),
 		"--var=instance_count=3",
 		"--var=region=us-east-1",
 		"--var='ami=b'",
@@ -484,8 +485,8 @@ func TestRunTflintWithOpts_HonorsConfigFlagInHook(t *testing.T) {
 	require.Len(t, calls, 2)
 	assert.Equal(t, []string{
 		"--init",
-		"--config", "../../elsewhere/custom.tflint.hcl",
-		"--chdir", "./unit",
+		"--config", filepath.FromSlash("../../elsewhere/custom.tflint.hcl"),
+		"--chdir", filepath.FromSlash("./unit"),
 	}, calls[0].Args)
 }
 

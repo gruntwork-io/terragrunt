@@ -38,9 +38,9 @@ func TestDiscoveryResolvesCountsAndClearsLoading(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/group/db/terragrunt.hcl", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("group/db/terragrunt.hcl"), nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
+	m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorDisabled)
 
 	// Before discovery the selected group directory's counts are placeholders and
 	// the footer advertises that discovery is still running.
@@ -50,7 +50,7 @@ func TestDiscoveryResolvesCountsAndClearsLoading(t *testing.T) {
 	assert.NotContains(t, before, "Units: 1")
 
 	m = update(t, m, tui.DiscoveryResult{
-		Components: component.Components{component.NewUnit("/repo/group/db")},
+		Components: component.Components{component.NewUnit(repoPath("group/db"))},
 	})
 
 	// Once discovery completes the count resolves and the indicator clears.
@@ -63,9 +63,9 @@ func TestDiscoveryFailureSurfacedAsToast(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/group/db/terragrunt.hcl", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("group/db/terragrunt.hcl"), nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
+	m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorDisabled)
 
 	m = update(t, m, tui.DiscoveryResult{Err: errors.New("discovery blew up")})
 
@@ -84,15 +84,15 @@ func TestReadFilesHighlightedAfterDiscovery(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/db/terragrunt.hcl", nil, 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/read.tfvars", nil, 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/other.txt", nil, 0o644))
-	require.NoError(t, fs.MkdirAll("/repo/dir", 0o755))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("db/terragrunt.hcl"), nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("read.tfvars"), nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("other.txt"), nil, 0o644))
+	require.NoError(t, fs.MkdirAll(repoPath("dir"), 0o755))
 	// aaa sorts first, so it's the selected row, keeping the comparison entries
 	// unselected and their preview free of the read-file name.
-	require.NoError(t, fs.MkdirAll("/repo/aaa", 0o755))
+	require.NoError(t, fs.MkdirAll(repoPath("aaa"), 0o755))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
+	m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorDisabled)
 
 	// Before discovery, a read file and an unrelated file are both dimmed like
 	// files, distinct from the white plain directory.
@@ -104,7 +104,7 @@ func TestReadFilesHighlightedAfterDiscovery(t *testing.T) {
 
 	m = update(t, m, tui.DiscoveryResult{
 		Components: component.Components{
-			component.NewUnit("/repo/db").WithReading("/repo/read.tfvars"),
+			component.NewUnit(repoPath("db")).WithReading(repoPath("read.tfvars")),
 		},
 	})
 

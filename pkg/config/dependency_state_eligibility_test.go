@@ -387,8 +387,8 @@ func TestDependencyStateEligibilityUsesPersistedWorkspaceInCustomDataDir(t *test
 	testCase := dependencyStateEligibilityTestCase{
 		backend:       "gcs",
 		backendConfig: eligibilityGCSConfig(),
-		env:           map[string]string{"TF_DATA_DIR": "/workspace-data"},
-		files:         map[string]string{"/workspace-data/environment": "staging\n"},
+		env:           map[string]string{"TF_DATA_DIR": venvtest.Root("/workspace-data")},
+		files:         map[string]string{venvtest.Root("/workspace-data/environment"): "staging\n"},
 		wantRequest:   "storage.googleapis.com/state-bucket/environment/service/staging.tfstate",
 		wantDirect:    true,
 	}
@@ -407,9 +407,9 @@ func parseDependencyStateEligibilityFixture(
 ) (*config.TerragruntConfig, error) {
 	t.Helper()
 
-	const (
-		consumerPath = "/eligibility/consumer/terragrunt.hcl"
-		producerPath = "/eligibility/producer/terragrunt.hcl"
+	var (
+		consumerPath = venvtest.Root("/eligibility/consumer/terragrunt.hcl")
+		producerPath = venvtest.Root("/eligibility/producer/terragrunt.hcl")
 	)
 
 	env := testCase.env

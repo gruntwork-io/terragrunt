@@ -222,7 +222,7 @@ func TestFileCopyGetIncludeExcludeFiltersHonor(t *testing.T) {
 		getter.WithFileCopy(fcg))
 
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + src,
+		Src:     helpers.FileURL(src),
 		Dst:     dst,
 		GetMode: getter.ModeDir,
 	})
@@ -243,7 +243,7 @@ func TestFileCopyGetMissingPath(t *testing.T) {
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + missing,
+		Src:     helpers.FileURL(missing),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeDir,
 	})
@@ -263,7 +263,7 @@ func TestFileCopyGetSourceIsFile(t *testing.T) {
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcFile,
+		Src:     helpers.FileURL(srcFile),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeDir,
 	})
@@ -283,7 +283,7 @@ func TestFileCopyGetFileSourceIsDir(t *testing.T) {
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcDir,
+		Src:     helpers.FileURL(srcDir),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeFile,
 	})
@@ -306,7 +306,7 @@ func TestFileCopyGetFileDelegates(t *testing.T) {
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcFile,
+		Src:     helpers.FileURL(srcFile),
 		Dst:     dst,
 		GetMode: getter.ModeFile,
 	})
@@ -347,21 +347,24 @@ func writeFile(path, content string) error {
 func TestFileCopyGetterCopiesDirOnMemFS(t *testing.T) {
 	t.Parallel()
 
+	src := venvtest.Root("/src")
+	dst := venvtest.Root("/dst")
+
 	fsys := vfs.NewMemMapFS()
-	require.NoError(t, fsys.MkdirAll("/src", 0o755))
-	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("# module"), 0o644))
+	require.NoError(t, fsys.MkdirAll(src, 0o755))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(src, "main.tf"), []byte("# module"), 0o644))
 
 	g := getter.NewFileCopyGetter(fsys).WithLogger(logger.CreateLogger())
 
-	req := &getter.Request{Src: "/src", Dst: "/dst", GetMode: getter.ModeDir}
+	req := &getter.Request{Src: src, Dst: dst, GetMode: getter.ModeDir}
 	_, err := (&getter.Client{Getters: []getter.Getter{g}}).Get(t.Context(), req)
 	require.NoError(t, err)
 
-	copied, err := vfs.ReadFile(fsys, "/dst/main.tf")
+	copied, err := vfs.ReadFile(fsys, filepath.Join(dst, "main.tf"))
 	require.NoError(t, err)
 	assert.Equal(t, "# module", string(copied))
 
-	_, err = os.Stat("/dst/main.tf")
+	_, err = os.Stat(filepath.Join(dst, "main.tf"))
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
@@ -371,16 +374,19 @@ func TestFileCopyGetterCopiesDirOnMemFS(t *testing.T) {
 func TestFileCopyGetterGetFileOnMemFS(t *testing.T) {
 	t.Parallel()
 
+	src := venvtest.Root("/src/main.tf")
+	dst := venvtest.Root("/nested/dst/main.tf")
+
 	fsys := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("# module"), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, src, []byte("# module"), 0o644))
 
 	g := getter.NewFileCopyGetter(fsys).WithLogger(logger.CreateLogger())
 
-	req := &getter.Request{Src: "/src/main.tf", Dst: "/nested/dst/main.tf", GetMode: getter.ModeFile}
+	req := &getter.Request{Src: src, Dst: dst, GetMode: getter.ModeFile}
 	_, err := (&getter.Client{Getters: []getter.Getter{g}}).Get(t.Context(), req)
 	require.NoError(t, err)
 
-	copied, err := vfs.ReadFile(fsys, "/nested/dst/main.tf")
+	copied, err := vfs.ReadFile(fsys, dst)
 	require.NoError(t, err)
 	assert.Equal(t, "# module", string(copied))
 }

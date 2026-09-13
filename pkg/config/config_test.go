@@ -298,7 +298,7 @@ func TestParseTerragruntConfigGenerateBlockInvalidIfDisabledWithInclude(t *testi
 
 	childCfg := `
 include "root" {
-  path   = "` + filepath.Join(tmpDir, "root.hcl") + `"
+  path   = "` + filepath.ToSlash(filepath.Join(tmpDir, "root.hcl")) + `"
   expose = true
 }
 
@@ -934,7 +934,7 @@ include {
 			assert.Equal(
 				t,
 				"child/sub-child/sub-sub-child/terraform.tfstate",
-				terragruntConfig.RemoteState.BackendConfig["key"],
+				slashPath(t, terragruntConfig.RemoteState.BackendConfig["key"]),
 			)
 			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
@@ -981,7 +981,7 @@ include {
 			assert.Equal(
 				t,
 				"child/sub-child/sub-sub-child/terraform.tfstate",
-				terragruntConfig.RemoteState.BackendConfig["key"],
+				slashPath(t, terragruntConfig.RemoteState.BackendConfig["key"]),
 			)
 			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
@@ -1549,6 +1549,27 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 	}
 }
 
+// toSlashAll returns paths in slash form, so a fixture list written with forward
+// slashes compares equal to the OS-native paths the finder returns.
+func toSlashAll(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		out = append(out, filepath.ToSlash(path))
+	}
+
+	return out
+}
+
+// slashPath returns a string-typed config value in slash form.
+func slashPath(t *testing.T, value any) string {
+	t.Helper()
+
+	path, ok := value.(string)
+	require.True(t, ok, "expected a string, got %T", value)
+
+	return filepath.ToSlash(path)
+}
+
 func testDownloadDir(tb testing.TB, configPath string) string {
 	tb.Helper()
 
@@ -1588,7 +1609,7 @@ func TestFindConfigFilesInPathOneConfig(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesInPathOneJsonConfig(t *testing.T) {
@@ -1607,7 +1628,7 @@ func TestFindConfigFilesInPathOneJsonConfig(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
@@ -1628,7 +1649,7 @@ func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesInPathMultipleJsonConfigs(t *testing.T) {
@@ -1649,7 +1670,7 @@ func TestFindConfigFilesInPathMultipleJsonConfigs(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesInPathMultipleMixedConfigs(t *testing.T) {
@@ -1670,7 +1691,7 @@ func TestFindConfigFilesInPathMultipleMixedConfigs(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
@@ -1689,7 +1710,7 @@ func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
@@ -1710,7 +1731,7 @@ func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
@@ -1730,7 +1751,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
@@ -1751,7 +1772,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
@@ -1815,7 +1836,7 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestParseTerragruntConfigPreventDestroyTrue(t *testing.T) {

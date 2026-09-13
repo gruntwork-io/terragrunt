@@ -84,7 +84,7 @@ func TestExtractArchive(t *testing.T) {
 		{
 			name: "absolute entry",
 			entries: []archiveEntry{
-				{name: "/etc/passwd", body: "root\n", mode: 0o644},
+				{name: "/abs/path", body: "content\n", mode: 0o644},
 			},
 			wantErr: git.ErrArchiveEntryOutsideDest,
 		},
@@ -150,7 +150,7 @@ func TestExtractArchiveSymlinks(t *testing.T) {
 
 		target, err := os.Readlink(filepath.Join(dest, "unit", "shared.hcl"))
 		require.NoError(t, err)
-		assert.Equal(t, "../common.hcl", target)
+		assert.Equal(t, "../common.hcl", filepath.ToSlash(target))
 	})
 
 	t.Run("target outside the destination", func(t *testing.T) {

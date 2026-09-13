@@ -72,13 +72,13 @@ func TestTerragruntDownloadDir(t *testing.T) {
 				"download-dir",
 				"in-config",
 			),
+			// The fixture appends "/.download" to get_terragrunt_dir() verbatim.
 			downloadDirReference: filepath.Join(
 				tmpEnvPath,
 				testFixtureGetOutput,
 				"download-dir",
 				"in-config",
-				".download",
-			),
+			) + "/.download",
 		},
 		{
 			name: "download dir set in config and in env var",

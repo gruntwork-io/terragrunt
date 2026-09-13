@@ -178,7 +178,7 @@ func (c *Content) Link(
 			}
 		}
 
-		if err := v.FS.Rename(tempPath, targetPath); err != nil {
+		if err := vfs.RenameReplacing(v.FS, tempPath, targetPath); err != nil {
 			return &WrappedError{
 				Op:   "rename_target",
 				Path: tempPath,
@@ -242,7 +242,7 @@ func linkOver(v *venv.Venv, sourcePath, targetPath string) error {
 		return err
 	}
 
-	if err := v.FS.Rename(tempPath, targetPath); err != nil {
+	if err := vfs.RenameReplacing(v.FS, tempPath, targetPath); err != nil {
 		return errors.Join(err, v.FS.Remove(tempPath))
 	}
 

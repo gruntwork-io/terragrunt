@@ -29,13 +29,13 @@ func TestInitDeliversDiscoveryResultWithRacing(t *testing.T) {
 		logger.CreateLogger(),
 		vfs.NewMemMapFS(),
 		stubHomeDir,
-		tui.NewRoot("/repo"),
+		tui.NewRoot(repoRoot),
 		tui.ColorDisabled,
 		resultCh,
 		warnCh,
 	)
 
-	want := tui.DiscoveryResult{Components: component.Components{component.NewUnit("/repo/vpc")}}
+	want := tui.DiscoveryResult{Components: component.Components{component.NewUnit(repoPath("vpc"))}}
 
 	go func() { resultCh <- want }()
 

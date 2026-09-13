@@ -11,6 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// toSlashAll returns paths with every separator as a slash, so a result the
+// filesystem reports in its native spelling compares against the slash
+// literals the fixtures are written in.
+func toSlashAll(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, filepath.ToSlash(p))
+	}
+
+	return out
+}
+
 func TestCompile(t *testing.T) {
 	t.Parallel()
 
@@ -250,7 +262,7 @@ func TestExpand(t *testing.T) {
 
 			// ElementsMatch ignores order, so the assertion is robust to walker
 			// ordering changes without asserting a specific traversal order.
-			assert.ElementsMatch(t, tc.want, got, "pattern %q", tc.pattern)
+			assert.ElementsMatch(t, tc.want, toSlashAll(got), "pattern %q", tc.pattern)
 		})
 	}
 }
@@ -316,7 +328,7 @@ func TestExpandBoundary(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tc.want, got, "pattern %q", tc.pattern)
+			assert.ElementsMatch(t, tc.want, toSlashAll(got), "pattern %q", tc.pattern)
 		})
 	}
 }
@@ -412,5 +424,5 @@ func TestExpandDivergesFromLegacyOnGlobstar(t *testing.T) {
 	require.NoError(t, err)
 
 	// Only the nested file survives: gobwas does not collapse `**`.
-	assert.Equal(t, []string{"/mod/sub/nested.tf"}, got)
+	assert.Equal(t, []string{"/mod/sub/nested.tf"}, toSlashAll(got))
 }

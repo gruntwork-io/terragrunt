@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // scopeFixture lays out a catalog clone with a secret sitting outside it:
@@ -114,7 +115,10 @@ func TestScaffoldRejectsDanglingEscapingSymlink(t *testing.T) {
 	t.Parallel()
 
 	fsys, clone, src, _ := scopeFixture(t)
-	require.NoError(t, os.Symlink("/nonexistent/secret", filepath.Join(src, "notes.md")))
+	// Rooted through venvtest so the target is absolute on Windows too; a
+	// slash-rooted path there would resolve inside the component instead.
+	linkTarget := venvtest.Root("/nonexistent/secret")
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(src, "notes.md")))
 
 	dst := t.TempDir()
 	_, err := component.Scaffold(fsys, component.KindUnit, component.Paths{Root: clone, Src: src, Dst: dst}, nil)
@@ -122,7 +126,7 @@ func TestScaffoldRejectsDanglingEscapingSymlink(t *testing.T) {
 	var escErr *component.SymlinkEscapesRootError
 
 	require.ErrorAs(t, err, &escErr)
-	assert.Equal(t, "/nonexistent/secret", escErr.Target)
+	assert.Equal(t, linkTarget, escErr.Target)
 }
 
 func TestScaffoldMaterializesLinkElsewhereUnderRoot(t *testing.T) {

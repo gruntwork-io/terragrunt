@@ -1,2 +1,8 @@
 # Ensure golden test files are not treated as text files to prevent line ending conversions
 *.golden -text
+
+# Fixtures whose tests assert on byte offsets or exact file contents, which a
+# CRLF checkout on Windows would shift.
+test/fixtures/hclvalidate/** text eol=lf
+test/fixtures/render-expansion/** text eol=lf
+test/fixtures/render-json-metadata/** text eol=lf

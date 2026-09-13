@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +32,7 @@ import (
 func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := string(filepath.Separator) + "repo"
+	repoRoot := venvtest.Root("/repo")
 
 	v := memRepoRootVenv(t, repoRoot)
 

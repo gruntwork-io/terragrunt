@@ -189,13 +189,13 @@ func TestLinkTreeSymlinks(t *testing.T) {
 		{
 			name:         "absolute symlink target is rejected",
 			treeData:     []byte(`120000 blob 4444444444 escape.txt`),
-			storeTargets: map[string]string{"4444444444": "/etc/passwd"},
+			storeTargets: map[string]string{"4444444444": venvtest.Root("/abs/path")},
 			wantErr:      true,
 		},
 		{
 			name:         "relative symlink that escapes root is rejected",
 			treeData:     []byte(`120000 blob 5555555555 escape.txt`),
-			storeTargets: map[string]string{"5555555555": "../../../etc/passwd"},
+			storeTargets: map[string]string{"5555555555": "../../../outside"},
 			wantErr:      true,
 		},
 	}

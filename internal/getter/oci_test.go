@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -909,6 +910,10 @@ func TestOCIGetterGetKeepsBackupWhenRestoreFails(t *testing.T) {
 // TestOCIGetterGetHonorsUmask: the promoted module root must respect the request umask.
 func TestOCIGetterGetHonorsUmask(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+	}
 
 	moduleFiles := map[string]string{
 		"main.tf":       `output "root" {}`,

@@ -21,10 +21,10 @@ func crowdedModel(t *testing.T, count int) tui.Model {
 
 	fs := vfs.NewMemMapFS()
 	for i := range count {
-		require.NoError(t, fs.MkdirAll(fmt.Sprintf("/repo/dir-%03d", i), 0o755))
+		require.NoError(t, fs.MkdirAll(repoPath(fmt.Sprintf("dir-%03d", i)), 0o755))
 	}
 
-	return newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
+	return newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorDisabled)
 }
 
 func TestViewFillsTerminalExactly(t *testing.T) {
@@ -77,7 +77,7 @@ func TestNarrowTerminalClipsHeaderAndFooter(t *testing.T) {
 		height = 20
 	)
 
-	deep := "/repo/" + strings.Repeat("a-very-long-directory-name/", 5)
+	deep := repoPath(strings.Repeat("a-very-long-directory-name/", 5))
 
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll(deep, 0o755))

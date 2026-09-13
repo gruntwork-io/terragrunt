@@ -18,12 +18,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xeipuuv/gojsonschema"
 )
 
-const testWorkingDir = "/repo"
+var testWorkingDir = venvtest.Root("/repo")
 
 func TestNewReport(t *testing.T) {
 	t.Parallel()

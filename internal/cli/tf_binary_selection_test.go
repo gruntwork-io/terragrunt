@@ -30,14 +30,16 @@ const (
 
 	tfPathEnvVar           = "TG_TF_PATH"
 	deprecatedTFPathEnvVar = "TERRAGRUNT_TFPATH"
+)
 
+var (
 	// mockBinDir is where the fake binaries claim to live when a PATH lookup
 	// asks.
-	mockBinDir = "/mock/bin"
+	mockBinDir = venvtest.Root("/mock/bin")
 
 	// fixtureRoot holds every case's units. Each case gets its own in-memory
 	// filesystem, so one path serves them all.
-	fixtureRoot = "/fixture"
+	fixtureRoot = venvtest.Root("/fixture")
 )
 
 // tfBinaryVersions are the banners the fake binaries answer a version probe

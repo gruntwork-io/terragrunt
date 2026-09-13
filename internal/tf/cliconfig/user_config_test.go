@@ -326,9 +326,11 @@ func TestUserProviderDir(t *testing.T) {
 	t.Run("resolved home", func(t *testing.T) {
 		t.Parallel()
 
-		dir, err := cliconfig.UserProviderDir(userConfigVenv("/virtual/home", nil), tfimpl.OpenTofu)
+		home := venvtest.Root("/virtual/home")
+
+		dir, err := cliconfig.UserProviderDir(userConfigVenv(home, nil), tfimpl.OpenTofu)
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join("/virtual/home", ".terraform.d", "plugins"), dir)
+		assert.Equal(t, filepath.Join(home, ".terraform.d", "plugins"), dir)
 		assert.True(t, filepath.IsAbs(dir))
 	})
 

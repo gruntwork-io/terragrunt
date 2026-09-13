@@ -37,7 +37,7 @@ func repoRootFS(t *testing.T) map[string]string {
 func TestGoRepoRootWalksToNearestGit(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 	got, err := git.GoRepoRoot(
@@ -56,7 +56,7 @@ func TestGoRepoRootWalksToNearestGit(t *testing.T) {
 func TestGoRepoRootPrefersNestedRepo(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	nested := filepath.Join(root, "vendor", "mod")
 
 	for _, tc := range []struct {
@@ -93,7 +93,7 @@ func TestGoRepoRootPrefersNestedRepo(t *testing.T) {
 func TestGoRepoRootMemoizesEveryWalkedDirectory(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 	ctx := cache.ContextWithCache(t.Context())
@@ -115,7 +115,7 @@ func TestGoRepoRootMemoizesEveryWalkedDirectory(t *testing.T) {
 func TestGoRepoRootOutsideAnyRepo(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/elsewhere")
+	root := venvtest.Root("/elsewhere")
 	v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{"unit/main.tf": ""}))
 
 	_, err := git.GoRepoRoot(cache.ContextWithCache(t.Context()), v, filepath.Join(root, "unit"))
@@ -127,7 +127,7 @@ func TestGoRepoRootOutsideAnyRepo(t *testing.T) {
 func TestGoRepoRootRejectsRelativePath(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 	for _, path := range []string{"", ".", filepath.FromSlash("live/prod/vpc")} {
@@ -143,7 +143,7 @@ func TestGoRepoRootRejectsRelativePath(t *testing.T) {
 func TestGoRepoRootCeilingDirectories(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	unit := filepath.Join(root, "live", "prod", "vpc")
 	mid := filepath.Join(root, "live")
 
@@ -163,7 +163,7 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 		},
 		{
 			name:    "unrelated entry does not apply",
-			ceiling: filepath.FromSlash("/elsewhere"),
+			ceiling: venvtest.Root("/elsewhere"),
 			want:    root,
 		},
 		{
@@ -173,7 +173,7 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 		},
 		{
 			name:    "deepest blocking entry wins",
-			ceiling: strings.Join([]string{filepath.FromSlash("/elsewhere"), mid}, string(filepath.ListSeparator)),
+			ceiling: strings.Join([]string{venvtest.Root("/elsewhere"), mid}, string(filepath.ListSeparator)),
 			blocked: true,
 		},
 		{
@@ -220,7 +220,7 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 func TestGoRepoRootCeilingOutranksMemo(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	ceiling := filepath.Join(root, "live")
 	unit := filepath.Join(ceiling, "prod", "vpc")
 
@@ -314,7 +314,7 @@ func (fsys *statErrorFS) Stat(name string) (os.FileInfo, error) {
 func TestGoRepoRootSurfacesUnreadableGitEntry(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	unit := filepath.Join(root, "live", "prod", "vpc")
 
 	fsys := &statErrorFS{
@@ -335,7 +335,7 @@ func TestGoRepoRootSurfacesUnreadableGitEntry(t *testing.T) {
 func TestGoRepoRootWalkDepthBound(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	unit := filepath.Join(root, "live", "prod", "vpc")
 
 	for _, tc := range []struct {
@@ -378,7 +378,7 @@ func TestGoRepoRootWalkDepthBound(t *testing.T) {
 func TestGoRepoRootDefaultWalkDepth(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.FromSlash("/outer")
+	root := venvtest.Root("/outer")
 	v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 	got, err := git.GoRepoRoot(

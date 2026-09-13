@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
@@ -347,17 +348,19 @@ func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
+	unitDir := venvtest.Root("/test")
+	target := venvtest.Root("/absolute/path/to/vpc")
 
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(unitDir, hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
-  config_path = "/absolute/path/to/vpc"
+  config_path = "`+filepath.ToSlash(target)+`"
 }
 `), 0644))
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, unitDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
+	assert.Equal(t, target, paths[0])
 }
 
 // Each malformed dependency block surfaces as a typed MalformedDependencyError naming the dependency: the contract is loud-fail, not silent skip.

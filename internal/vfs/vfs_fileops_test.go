@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -370,6 +371,91 @@ func TestLink(t *testing.T) {
 	})
 }
 
+func TestRenameReplacing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("replaces a read-only destination on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewOSFS()
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source")
+		target := filepath.Join(dir, "target")
+
+		require.NoError(t, vfs.WriteFile(fsys, source, []byte("new"), 0o644))
+		require.NoError(t, vfs.WriteFile(fsys, target, []byte("old"), 0o444))
+
+		require.NoError(t, vfs.RenameReplacing(fsys, source, target))
+
+		contents, err := vfs.ReadFile(fsys, target)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("new"), contents)
+
+		_, err = fsys.Stat(source)
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("leaves the replaced file read-only through its other links on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewOSFS()
+		dir := t.TempDir()
+		blob := filepath.Join(dir, "blob")
+		source := filepath.Join(dir, "source")
+		target := filepath.Join(dir, "target")
+
+		require.NoError(t, vfs.WriteFile(fsys, blob, []byte("old"), 0o444))
+		require.NoError(t, vfs.Link(fsys, blob, target))
+		require.NoError(t, vfs.WriteFile(fsys, source, []byte("new"), 0o644))
+
+		require.NoError(t, vfs.RenameReplacing(fsys, source, target))
+
+		contents, err := vfs.ReadFile(fsys, target)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("new"), contents)
+
+		blobContents, err := vfs.ReadFile(fsys, blob)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("old"), blobContents)
+
+		info, err := fsys.Stat(blob)
+		require.NoError(t, err)
+		assert.Zero(t, info.Mode().Perm()&0o222, "the blob behind the replaced link must stay read-only")
+	})
+
+	t.Run("replaces a destination on MemMapFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/data/source", []byte("new"), 0o644))
+		require.NoError(t, vfs.WriteFile(fsys, "/data/target", []byte("old"), 0o444))
+
+		require.NoError(t, vfs.RenameReplacing(fsys, "/data/source", "/data/target"))
+
+		contents, err := vfs.ReadFile(fsys, "/data/target")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("new"), contents)
+	})
+
+	t.Run("missing source returns fs.ErrNotExist on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+
+		err := vfs.RenameReplacing(vfs.NewOSFS(), filepath.Join(dir, "missing"), filepath.Join(dir, "target"))
+
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("a filesystem without the capability uses its own Rename", func(t *testing.T) {
+		t.Parallel()
+
+		err := vfs.RenameReplacing(afero.NewReadOnlyFs(vfs.NewMemMapFS()), "/data/source", "/data/target")
+
+		require.ErrorIs(t, err, syscall.EPERM)
+	})
+}
+
 func TestReadlink(t *testing.T) {
 	t.Parallel()
 
@@ -602,7 +688,7 @@ func TestEvalSymlinksRelativePaths(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fsys, "/root/first/../second")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/second", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/second"), resolved)
 	})
 
 	t.Run("resolves a parent reference above the root", func(t *testing.T) {
@@ -627,7 +713,7 @@ func TestEvalSymlinksRelativePaths(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fsys, "/root/link.txt")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/target.txt", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/target.txt"), resolved)
 	})
 }
 

@@ -19,9 +19,9 @@ import (
 // The block-iteration tests run the CLI against an in-memory tree built per test, and a
 // lifecycle transition is an edit to that tree. The live configuration sits under live, and
 // the modules and units it points at sit beside it.
-const (
-	blockIterationRoot = "/block-iteration"
+var blockIterationRoot = venvtest.Root("/block-iteration")
 
+const (
 	generatedStackDir = ".terragrunt-stack"
 	generatedValues   = "terragrunt.values.hcl"
 

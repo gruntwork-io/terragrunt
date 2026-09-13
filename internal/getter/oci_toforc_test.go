@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -541,15 +542,16 @@ func TestOCITofuCredentialsDockerStyleConfigFiles(t *testing.T) {
 	t.Parallel()
 
 	home := testHome
+	custom := venvtest.Root("/virtual/custom/auth.json")
 	v := credentialVenv(home, nil)
 	writeTofuConfig(t, v.FS, filepath.Join(home, ".tofurc"), `
 oci_default_credentials {
-  docker_style_config_files = ["/virtual/custom/auth.json"]
+  docker_style_config_files = ["`+filepath.ToSlash(custom)+`"]
 }
 `)
 	// The default location must be ignored once an explicit list is configured.
 	writeAuthFile(t, v.FS, filepath.Join(home, ".docker", "config.json"), testRegistry, "default-path", "pw")
-	writeAuthFile(t, v.FS, "/virtual/custom/auth.json", testRegistry, "custom-path", "pw")
+	writeAuthFile(t, v.FS, custom, testRegistry, "custom-path", "pw")
 
 	store := newStoreForRepo(t, v, testRegistry, "team/vpc")
 	assert.Equal(t, "custom-path", credentialFor(t, store, testRegistry).Username,

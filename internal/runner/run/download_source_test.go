@@ -1877,10 +1877,17 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, terragruntOptions.Experiments.EnableExperiment(experiment.OCI))
 
-	// A .tofurc reachable only through this venv's home lookup.
+	// A CLI config reachable only through this venv's home lookup. Windows reads it as
+	// tofu.rc under %APPDATA%, every other platform as ~/.tofurc.
 	home := t.TempDir()
+	configName := ".tofurc"
+
+	if helpers.IsWindows() {
+		configName = "tofu.rc"
+	}
+
 	require.NoError(t, os.WriteFile(
-		filepath.Join(home, ".tofurc"),
+		filepath.Join(home, configName),
 		[]byte(fmt.Sprintf(
 			"\noci_credentials %q {\n  %s = %q\n  %s = %q\n}\n",
 			"registry.example.com", "username", "wired", "password", "fake-secret-wired",
@@ -1889,7 +1896,7 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	))
 
 	v := venvtest.NewOSWithEmptyEnv().
-		WithEnv(map[string]string{"HOME": home}).
+		WithEnv(map[string]string{"HOME": home, "APPDATA": home}).
 		WithUserHomeDir(func() (string, error) { return home, nil })
 
 	client, err := run.BuildDownloadClient(

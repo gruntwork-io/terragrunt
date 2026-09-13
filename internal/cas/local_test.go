@@ -236,7 +236,7 @@ func TestStoreLocalDirectoryRejectsEscapingSymlink(t *testing.T) {
 	src := writeLocalFixture(t, map[string]string{
 		"main.tf": "ok",
 	})
-	require.NoError(t, os.Symlink("../etc/passwd", filepath.Join(src, "escape")))
+	require.NoError(t, os.Symlink("../outside", filepath.Join(src, "escape")))
 
 	dst := filepath.Join(t.TempDir(), "dst")
 	err := c.StoreLocalDirectory(t.Context(), l, v, src, dst)

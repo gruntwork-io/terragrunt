@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -8,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,11 +18,11 @@ func TestSurroundingEntriesAreShown(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", nil, 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/README.md", []byte("# repo\n"), 0o644))
-	require.NoError(t, fs.MkdirAll("/repo/scripts", 0o755))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("README.md"), []byte("# repo\n"), 0o644))
+	require.NoError(t, fs.MkdirAll(repoPath("scripts"), 0o755))
 
-	root := tui.NewRoot("/repo")
+	root := tui.NewRoot(repoRoot)
 
 	m := newModel(t, fs, root, tui.ColorDisabled)
 
@@ -52,11 +54,11 @@ func TestStackClassifiedFromFilesystem(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/network/terragrunt.stack.hcl", nil, 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/db/terragrunt.hcl", nil, 0o644))
-	require.NoError(t, fs.MkdirAll("/repo/plain", 0o755))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("network/terragrunt.stack.hcl"), nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("db/terragrunt.hcl"), nil, 0o644))
+	require.NoError(t, fs.MkdirAll(repoPath("plain"), 0o755))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
+	m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorDisabled)
 
 	// With no discovery, kinds come from the cheap stat alone.
 	type entry struct {
@@ -86,9 +88,9 @@ func TestIgnorableDirsClassifiedAsPlain(t *testing.T) {
 	// A terragrunt.hcl inside .terragrunt-cache is a cache copy discovery never
 	// scans; neither the cache dir nor anything beneath it may classify as a unit.
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/.terragrunt-cache/xyz/terragrunt.hcl", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath(".terragrunt-cache/xyz/terragrunt.hcl"), nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
+	m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorDisabled)
 
 	children := m.Current().Children()
 	require.Len(t, children, 1)
@@ -109,10 +111,10 @@ func TestSurroundingEntriesLoadedOnce(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", nil, 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/README.md", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("README.md"), nil, 0o644))
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorDisabled)
 	first := len(m.Current().Children())
@@ -129,7 +131,8 @@ func TestSurroundingEntriesBestEffortOnError(t *testing.T) {
 	// The working directory doesn't exist on the filesystem, so loading its
 	// entries fails; the tree keeps just the discovered component.
 	fs := vfs.NewMemMapFS()
-	root := tui.BuildTree("/missing", component.Components{component.NewUnit("/missing/vpc")})
+	missingRoot := venvtest.Root("/missing")
+	root := tui.BuildTree(missingRoot, component.Components{component.NewUnit(filepath.Join(missingRoot, "vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorDisabled)
 
@@ -181,12 +184,12 @@ func TestHiddenDirectoriesDimmed(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/repo/.github", 0o755))
-	require.NoError(t, fs.MkdirAll("/repo/avisible", 0o755))
-	require.NoError(t, fs.MkdirAll("/repo/bvisible", 0o755))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/zz.txt", nil, 0o644))
+	require.NoError(t, fs.MkdirAll(repoPath(".github"), 0o755))
+	require.NoError(t, fs.MkdirAll(repoPath("avisible"), 0o755))
+	require.NoError(t, fs.MkdirAll(repoPath("bvisible"), 0o755))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("zz.txt"), nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
+	m := newModel(t, fs, tui.NewRoot(repoRoot), tui.ColorDisabled)
 
 	// The hidden directory sorts first and starts out selected; move off it so
 	// its own style is visible.

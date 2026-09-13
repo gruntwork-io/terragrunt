@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -282,7 +283,7 @@ func TestEvalSymlinks(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fs, "/root/real/sub")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/real/sub", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/real/sub"), resolved)
 	})
 
 	t.Run("resolves parent symlink", func(t *testing.T) {
@@ -295,7 +296,7 @@ func TestEvalSymlinks(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fs, "/root/link/sub")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/real/sub", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/real/sub"), resolved)
 	})
 
 	t.Run("missing path returns error", func(t *testing.T) {
@@ -369,7 +370,7 @@ func TestParentPathHasSymlink(t *testing.T) {
 	t.Run("absolute relative path is unsafe", func(t *testing.T) {
 		t.Parallel()
 
-		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "/root/file.txt")
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", venvtest.Root("/root/file.txt"))
 
 		require.NoError(t, err)
 		assert.True(t, hasSymlink)
@@ -522,6 +523,10 @@ func TestUnzip(t *testing.T) {
 	t.Run("permissions preserved with umask 0", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
+
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
 		zipPath := filepath.Join(tempDir, "archive.zip")
@@ -541,6 +546,10 @@ func TestUnzip(t *testing.T) {
 
 	t.Run("permissions with umask applied", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
 
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
@@ -964,7 +973,7 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 			"target.txt",
 			[]byte("target content"),
 			"evil_link.txt",
-			"/etc/passwd",
+			venvtest.Root("/abs/path"),
 		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
@@ -984,7 +993,7 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 
 		// Create symlink pointing outside destination with ..
 		zipData := createZipArchiveWithSymlink(
-			t, "target.txt", []byte("target content"), "evil_link.txt", "../../../etc/passwd",
+			t, "target.txt", []byte("target content"), "evil_link.txt", "../../../outside",
 		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
@@ -1042,13 +1051,15 @@ func TestWalkDir(t *testing.T) {
 	t.Run("walks nested directories", func(t *testing.T) {
 		t.Parallel()
 
+		root := filepath.FromSlash("/root")
+
 		memFs := vfs.NewMemMapFS()
-		require.NoError(t, vfs.WriteFile(memFs, "/root/dir/nested.txt", []byte("n"), 0644))
-		require.NoError(t, vfs.WriteFile(memFs, "/root/top.txt", []byte("t"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, filepath.Join(root, "dir", "nested.txt"), []byte("n"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, filepath.Join(root, "top.txt"), []byte("t"), 0644))
 
 		var paths []string
 
-		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+		err := vfs.WalkDir(memFs, root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -1061,7 +1072,12 @@ func TestWalkDir(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(
 			t,
-			[]string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"},
+			[]string{
+				root,
+				filepath.Join(root, "dir"),
+				filepath.Join(root, "dir", "nested.txt"),
+				filepath.Join(root, "top.txt"),
+			},
 			paths,
 		)
 	})
@@ -1091,13 +1107,15 @@ func TestWalkDir(t *testing.T) {
 	t.Run("SkipDir skips directory", func(t *testing.T) {
 		t.Parallel()
 
+		root := filepath.FromSlash("/root")
+
 		memFs := vfs.NewMemMapFS()
-		require.NoError(t, vfs.WriteFile(memFs, "/root/skip/hidden.txt", []byte("h"), 0644))
-		require.NoError(t, vfs.WriteFile(memFs, "/root/keep/visible.txt", []byte("v"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, filepath.Join(root, "skip", "hidden.txt"), []byte("h"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, filepath.Join(root, "keep", "visible.txt"), []byte("v"), 0644))
 
 		var paths []string
 
-		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+		err := vfs.WalkDir(memFs, root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -1112,7 +1130,11 @@ func TestWalkDir(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/root", "/root/keep", "/root/keep/visible.txt"}, paths)
+		assert.Equal(
+			t,
+			[]string{root, filepath.Join(root, "keep"), filepath.Join(root, "keep", "visible.txt")},
+			paths,
+		)
 	})
 
 	t.Run("nonexistent root returns error to callback", func(t *testing.T) {

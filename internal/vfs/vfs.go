@@ -39,6 +39,12 @@ type HardLinker interface {
 	LinkIfPossible(oldname, newname string) error
 }
 
+// RenameReplacer is an optional interface for filesystems that provide the
+// rename [RenameReplacing] needs.
+type RenameReplacer interface {
+	RenameReplacingIfPossible(oldname, newname string) error
+}
+
 // Unlocker can release a held lock.
 type Unlocker interface {
 	Unlock() error
@@ -529,6 +535,29 @@ func Link(fsys FS, oldname, newname string) error {
 	return linker.LinkIfPossible(oldname, newname)
 }
 
+// RenameReplacing renames oldname to newname, replacing whatever newname holds.
+// On Windows a plain Rename refuses to replace a read-only file, or a file that a
+// concurrent rename has just replaced. RenameReplacing replaces both, and leaves
+// alone the read-only attribute of the replaced file, which every hard link to
+// it shares.
+//
+// It delegates to RenameReplacingIfPossible for filesystems that implement the
+// [RenameReplacer] interface, and to Rename for any other, so a filesystem that
+// wraps another keeps the rename it defines.
+//
+// On Windows it requires Windows 10 version 1809 or later and a filesystem that
+// supports POSIX rename semantics, e.g. NTFS. Elsewhere on Windows the rename
+// fails. A destination that another handle holds open without sharing delete
+// access still cannot be replaced there.
+func RenameReplacing(fsys FS, oldname, newname string) error {
+	replacer, ok := fsys.(RenameReplacer)
+	if !ok {
+		return fsys.Rename(oldname, newname)
+	}
+
+	return replacer.RenameReplacingIfPossible(oldname, newname)
+}
+
 // Symlink creates a symbolic link. It uses afero's SymlinkIfPossible
 // which is supported by OsFs and any FS implementing afero.Linker.
 func Symlink(fsys FS, oldname, newname string) error {
@@ -776,6 +805,10 @@ func (fsys *osFS) LinkIfPossible(oldname, newname string) error {
 	return os.Link(oldname, newname)
 }
 
+func (fsys *osFS) RenameReplacingIfPossible(oldname, newname string) error {
+	return renameReplacing(oldname, newname)
+}
+
 func (fsys *osFS) SymlinkIfPossible(oldname, newname string) error {
 	return os.Symlink(oldname, newname)
 }
@@ -960,6 +993,10 @@ func (fsys *memMapFS) symlinkedPrefix(path string) (prefix, target string, found
 	}
 
 	return prefix, target, found
+}
+
+func (fsys *memMapFS) RenameReplacingIfPossible(oldname, newname string) error {
+	return fsys.Rename(oldname, newname)
 }
 
 func (fsys *memMapFS) LinkIfPossible(oldname, newname string) error {

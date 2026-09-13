@@ -694,7 +694,7 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 	l := logger.CreateLogger()
 
 	// The fallback must run in the initialized unit so a relative TF_DATA_DIR retains its workspace.
-	producerDir := "/repo/producer"
+	producerDir := venvtest.Root("/repo/producer")
 	source, err := tf.NewSource(
 		l,
 		pctx.Venv.FS,
@@ -885,9 +885,9 @@ func prepareDependencyStateFixture(
 ) (context.Context, *config.ParsingContext, string) {
 	t.Helper()
 
-	const (
-		consumerPath = "/repo/consumer/terragrunt.hcl"
-		producerPath = "/repo/producer/terragrunt.hcl"
+	var (
+		consumerPath = venvtest.Root("/repo/consumer/terragrunt.hcl")
+		producerPath = venvtest.Root("/repo/producer/terragrunt.hcl")
 	)
 
 	effectiveEnv := maps.Clone(env)
