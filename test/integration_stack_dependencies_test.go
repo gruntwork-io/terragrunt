@@ -36,6 +36,7 @@ const (
 	testFixtureStackDepsBasic                    = "fixtures/stacks/stack-deps-basic"
 	testFixtureStackDepsChain                    = "fixtures/stacks/stack-deps-chain"
 	testFixtureStackDepsCrossStack               = "fixtures/stacks/stack-deps-cross-stack"
+	testFixtureStackDepsNestedStackOutputs       = "fixtures/stacks/stack-deps-nested-stack-outputs"
 	testFixtureStackDepsTransitiveStackDir       = "fixtures/stacks/stack-deps-transitive-stack-dir"
 	testFixtureStackDepsTree                     = "fixtures/stacks/stack-deps-tree"
 	testFixtureStackDepsAutoIncParserLimit       = "fixtures/stacks/stack-deps-autoinclude-parser-limit"

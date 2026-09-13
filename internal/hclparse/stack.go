@@ -192,10 +192,10 @@ func ParseStackFileFromPath(fsys vfs.FS, stackDir string) (*ParseResult, error) 
 	})
 }
 
-// defaultMaxStackRecursionDepth bounds nested-stack expansion so a pathological tree (a path
-// escaping via "..", or a symlink loop EvalSymlinks cannot canonicalize) cannot recurse
+// DefaultMaxStackRecursionDepth bounds walks through nested stacks so a pathological tree (a
+// path escaping via "..", or a symlink loop EvalSymlinks cannot canonicalize) cannot recurse
 // without end. Real generated nesting is only a handful of levels deep.
-const defaultMaxStackRecursionDepth = 1000
+const DefaultMaxStackRecursionDepth = 1000
 
 // StackFuncFactory builds the HCL function map used while decoding the stack file
 // in a given stack directory. Each nesting level rebuilds the map for its own dir
@@ -212,13 +212,13 @@ type StackDirArgs struct {
 }
 
 // maxDepth returns the recursion bound to enforce, falling back to
-// defaultMaxStackRecursionDepth when the caller leaves MaxDepth unset.
+// DefaultMaxStackRecursionDepth when the caller leaves MaxDepth unset.
 func (args *StackDirArgs) maxDepth() int {
 	if args.MaxDepth > 0 {
 		return args.MaxDepth
 	}
 
-	return defaultMaxStackRecursionDepth
+	return DefaultMaxStackRecursionDepth
 }
 
 // UnitPathsFromStackDir returns generated unit paths from discovery parsing. Nested stacks

@@ -32,6 +32,7 @@ import (
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -1140,132 +1141,293 @@ func getTerragruntOutput(
 	return &convertedOutput, isEmpty, err
 }
 
-// CollectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
+// CollectStackOutputs aggregates the outputs of the units stackConfig generates under stackDir, for
+// dependency.<stack>.outputs resolution. Units are keyed by name, and each nested stack adds a level
+// keyed by its own name, so a unit in a nested stack reads as
+// dependency.<stack>.outputs.<nested>.<unit>.<key>. These are the addresses `terragrunt stack output`
+// gives the same units.
 //
-// Every element of an expanded unit carries its block's label, so keying by name alone would
-// keep only the last one, each element having read a different generated directory. An expanded
-// unit nests its elements under their iteration key instead, reaching one as
-// dependency.<stack>.outputs.<unit>["<key>"], the address `terragrunt stack output` gives it.
-func CollectStackUnitOutputs(
+// Every element of an expanded unit or stack carries its block's label, so keying by name alone would
+// keep only the last one. An expanded component nests its elements under their iteration key instead,
+// reaching one as dependency.<stack>.outputs.<unit>["<key>"].
+//
+// Nested stacks deeper than maxDepth return [inthclparse.StackRecursionDepthExceededError].
+func CollectStackOutputs(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
 	stackDir string,
-	units []*Unit,
+	stackConfig *StackConfig,
 	dependencyConfig *Dependency,
+	maxDepth int,
 ) (map[string]cty.Value, error) {
-	unitOutputs := make(map[string]cty.Value)
-	instances := map[string]map[string]cty.Value{}
+	return collectStackOutputs(ctx, pctx, l, dependencyConfig, maxDepth, stackDir, stackConfig, nil)
+}
 
-	record := func(unit *Unit, value cty.Value) {
-		key, expanded := unit.InstanceKey()
-		if !expanded {
-			unitOutputs[unit.Name] = value
-
-			return
+// collectStackOutputs collects one stack level for [CollectStackOutputs] and recurses into the
+// nested stacks it declares.
+func collectStackOutputs(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	dependencyConfig *Dependency,
+	maxDepth int,
+	stackDir string,
+	stackConfig *StackConfig,
+	stackAddress []string,
+) (map[string]cty.Value, error) {
+	if len(stackAddress) > maxDepth {
+		return nil, inthclparse.StackRecursionDepthExceededError{
+			MaxDepth: maxDepth,
+			StackDir: stackDir,
 		}
-
-		if instances[unit.Name] == nil {
-			instances[unit.Name] = map[string]cty.Value{}
-		}
-
-		instances[unit.Name][key] = value
 	}
 
-	for _, unit := range units {
+	outputs := newStackOutputs(stackDir)
+
+	for _, unit := range stackConfig.Units {
 		if !unit.IsEnabled() {
 			continue
 		}
 
-		unitDir := unit.GeneratedPath(stackDir)
-		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
+		unitAddress := slices.Concat(stackAddress, []string{unit.Name})
 
-		if !vfs.Exists(pctx.Venv.FS, unitConfigPath) {
-			l.Warnf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
+		value, ok, err := collectUnitOutput(ctx, pctx, l, dependencyConfig, stackDir, unit, unitAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		if !ok {
+			continue
+		}
+
+		key, expanded := unit.InstanceKey()
+		if err := outputs.record(unit.Name, key, expanded, value); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, stack := range stackConfig.Stacks {
+		if !stack.IsEnabled() {
+			continue
+		}
+
+		nestedDir := stack.GeneratedPath(stackDir)
+		nestedFile := filepath.Join(nestedDir, DefaultStackFile)
+
+		if !vfs.Exists(pctx.Venv.FS, nestedFile) {
+			l.Warnf("Nested stack %s config not found at %s, skipping", stack.Name, nestedFile)
 
 			continue
 		}
 
-		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
+		nestedConfig, err := readStackConfigWithValues(ctx, pctx, l, nestedFile)
 		if err != nil {
-			if !shouldFallBackToMockOutputs(pctx, err) ||
-				!dependencyConfig.shouldReturnMockOutputs(pctx) {
-				return nil, StackUnitOutputFetchError{UnitName: unit.Name, Err: err}
-			}
+			return nil, err
+		}
 
-			mock, ok, mockErr := unitMockOutput(dependencyConfig, unit.Name)
-			if mockErr != nil {
-				return nil, mockErr
-			}
+		nested, err := collectStackOutputs(
+			ctx,
+			pctx,
+			l,
+			dependencyConfig,
+			maxDepth,
+			nestedDir,
+			nestedConfig,
+			slices.Concat(stackAddress, []string{stack.Name}),
+		)
+		if err != nil {
+			return nil, err
+		}
 
-			if ok {
-				record(unit, mock)
-				continue
-			}
-
-			l.Warnf(
-				"Stack unit %s has no remote state at %s yet, skipping",
-				unit.Name,
-				unitConfigPath,
-			)
-
+		if len(nested) == 0 {
 			continue
 		}
 
-		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
-		if err != nil {
-			return nil, fmt.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
-		}
-
-		if len(outputMap) > 0 {
-			convertedOutput, err := gocty.ToCtyValue(
-				outputMap,
-				generateTypeFromValuesMap(outputMap),
-			)
-			if err != nil {
-				return nil, fmt.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
-			}
-
-			record(unit, convertedOutput)
+		key, expanded := stack.InstanceKey()
+		if err := outputs.record(stack.Name, key, expanded, cty.ObjectVal(nested)); err != nil {
+			return nil, err
 		}
 	}
 
-	for name, byKey := range instances {
-		unitOutputs[name] = cty.ObjectVal(byKey)
-	}
-
-	return unitOutputs, nil
+	return outputs.result()
 }
 
-// unitMockOutput returns the mock declared for a named stack unit in the dependency's mock_outputs.
-// It lets a partially applied stack resolve: applied units contribute real outputs while unapplied
-// ones fall back to their mock.
+// collectUnitOutput reads one stack unit's outputs, falling back to the mock_outputs entry at
+// unitAddress when the unit has no state and the command allows mocks. ok is false when the unit
+// contributes nothing: its config is not generated, it has no outputs, or it has no state and no mock.
+func collectUnitOutput(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	dependencyConfig *Dependency,
+	stackDir string,
+	unit *Unit,
+	unitAddress []string,
+) (cty.Value, bool, error) {
+	unitConfigPath := filepath.Join(unit.GeneratedPath(stackDir), DefaultTerragruntConfigPath)
+
+	if !vfs.Exists(pctx.Venv.FS, unitConfigPath) {
+		l.Warnf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
+
+		return cty.NilVal, false, nil
+	}
+
+	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
+	if err != nil {
+		if !shouldFallBackToMockOutputs(pctx, err) ||
+			!dependencyConfig.shouldReturnMockOutputs(pctx) {
+			return cty.NilVal, false, StackUnitOutputFetchError{UnitName: unit.Name, Err: err}
+		}
+
+		mock, ok, mockErr := stackMockOutput(dependencyConfig, unitAddress)
+		if mockErr != nil {
+			return cty.NilVal, false, mockErr
+		}
+
+		if ok {
+			return mock, true, nil
+		}
+
+		l.Warnf(
+			"Stack unit %s has no remote state at %s yet, skipping",
+			unit.Name,
+			unitConfigPath,
+		)
+
+		return cty.NilVal, false, nil
+	}
+
+	outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
+	if err != nil {
+		return cty.NilVal, false, fmt.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
+	}
+
+	if len(outputMap) == 0 {
+		return cty.NilVal, false, nil
+	}
+
+	convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
+	if err != nil {
+		return cty.NilVal, false, fmt.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
+	}
+
+	return convertedOutput, true, nil
+}
+
+// stackOutputs accumulates one stack level's outputs under the names dependency.<stack>.outputs
+// reads them by. A clash between a unit and a nested stack is a
+// [StackOutputAddressCollisionError].
+type stackOutputs struct {
+	byName    map[string]cty.Value
+	instances map[string]map[string]cty.Value
+	stackDir  string
+}
+
+func newStackOutputs(stackDir string) *stackOutputs {
+	return &stackOutputs{
+		byName:    map[string]cty.Value{},
+		instances: map[string]map[string]cty.Value{},
+		stackDir:  stackDir,
+	}
+}
+
+// record places value at name, or at name["key"] for an element of an expanded component.
+func (o *stackOutputs) record(name, key string, expanded bool, value cty.Value) error {
+	if !expanded {
+		if _, taken := o.byName[name]; taken {
+			return StackOutputAddressCollisionError{StackDir: o.stackDir, Name: name}
+		}
+
+		o.byName[name] = value
+
+		return nil
+	}
+
+	if o.instances[name] == nil {
+		o.instances[name] = map[string]cty.Value{}
+	}
+
+	if _, taken := o.instances[name][key]; taken {
+		return StackOutputAddressCollisionError{StackDir: o.stackDir, Name: name}
+	}
+
+	o.instances[name][key] = value
+
+	return nil
+}
+
+// result folds each expanded component's elements into one object under its name.
+func (o *stackOutputs) result() (map[string]cty.Value, error) {
+	for name, byKey := range o.instances {
+		if _, taken := o.byName[name]; taken {
+			return nil, StackOutputAddressCollisionError{StackDir: o.stackDir, Name: name}
+		}
+
+		o.byName[name] = cty.ObjectVal(byKey)
+	}
+
+	return o.byName, nil
+}
+
+// stackMockOutput returns the entry at address in the dependency's mock_outputs, descending one
+// map or object per segment. It lets a partially applied stack resolve: applied units contribute
+// real outputs while unapplied ones fall back to their mock.
 //
 // Callers are responsible for checking that mocks are allowed for the current command. ok is false
-// when mock_outputs is absent or declares no entry for the unit. A mock_outputs that can't be keyed
-// by unit name at all is a config error rather than a missing mock, so it returns an error instead
-// of leaving the caller to drop the unit and surface the mistake as an unresolved attribute later.
-func unitMockOutput(dep *Dependency, unitName string) (cty.Value, bool, error) {
+// when mock_outputs is absent or declares no entry along address. A level that can't be keyed by
+// name at all is a config error rather than a missing mock, so it returns an error instead of
+// leaving the caller to drop the unit and surface the mistake as an unresolved attribute later.
+func stackMockOutput(dep *Dependency, address []string) (cty.Value, bool, error) {
 	if dep.MockOutputs == nil {
 		return cty.NilVal, false, nil
 	}
 
 	mock := *dep.MockOutputs
-	if mock.IsNull() || !mock.IsKnown() {
-		return cty.NilVal, false, nil
-	}
 
-	if mockType := mock.Type(); !mockType.IsObjectType() && !mockType.IsMapType() {
-		return cty.NilVal, false, StackMockOutputsTypeError{
-			DependencyName: dep.Name,
-			UnitName:       unitName,
-			Actual:         mockType.FriendlyName(),
+	for _, segment := range address {
+		if mock.IsNull() || !mock.IsKnown() {
+			return cty.NilVal, false, nil
 		}
+
+		if mockType := mock.Type(); !mockType.IsObjectType() && !mockType.IsMapType() {
+			return cty.NilVal, false, StackMockOutputsTypeError{
+				DependencyName: dep.Name,
+				UnitName:       segment,
+				Actual:         mockType.FriendlyName(),
+			}
+		}
+
+		entry, ok := mock.AsValueMap()[segment]
+		if !ok {
+			return cty.NilVal, false, nil
+		}
+
+		mock = entry
 	}
 
-	unitMock, ok := mock.AsValueMap()[unitName]
+	return mock, true, nil
+}
 
-	return unitMock, ok, nil
+// readStackConfigWithValues parses the stack file at stackFilePath with the terragrunt.values.hcl
+// generated beside it, as stack generation does, so a stack whose locals read values.* parses.
+func readStackConfigWithValues(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	stackFilePath string,
+) (*StackConfig, error) {
+	values, err := ReadValues(ctx, pctx, l, filepath.Dir(stackFilePath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
+	}
+
+	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, values)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
+	}
+
+	return stackConfig, nil
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
@@ -1297,42 +1459,33 @@ func tryGetStackOutput(
 		stackFilePath,
 	)
 
-	stackDir := filepath.Dir(stackFilePath)
-
-	// Load values from the target stack's directory before parsing,
-	// mirroring the GenerateStackFile flow so stacks using values.* work.
-	stackValues, err := ReadValues(ctx, pctx, l, stackDir)
+	stackConfig, err := readStackConfigWithValues(ctx, pctx, l, stackFilePath)
 	if err != nil {
-		return nil, true, fmt.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
+		return nil, true, err
 	}
 
-	// Parse the stack config to discover units
-	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, stackValues)
-	if err != nil {
-		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
-	}
-
-	unitOutputs, err := CollectStackUnitOutputs(
+	stackOutputs, err := CollectStackOutputs(
 		ctx,
 		pctx,
 		l,
-		stackDir,
-		stackConfig.Units,
+		filepath.Dir(stackFilePath),
+		stackConfig,
 		dependencyConfig,
+		inthclparse.DefaultMaxStackRecursionDepth,
 	)
 	if err != nil {
 		return nil, true, fmt.Errorf(
-			"failed to collect stack unit outputs for %s: %w",
+			"failed to collect stack outputs for %s: %w",
 			stackFilePath,
 			err,
 		)
 	}
 
-	if len(unitOutputs) == 0 {
+	if len(stackOutputs) == 0 {
 		return nil, true, nil
 	}
 
-	result := cty.ObjectVal(unitOutputs)
+	result := cty.ObjectVal(stackOutputs)
 
 	return &result, true, nil
 }
