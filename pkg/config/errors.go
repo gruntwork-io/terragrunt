@@ -407,8 +407,8 @@ func (err StackUnitOutputFetchError) Unwrap() error {
 	return err.Err
 }
 
-// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs that
-// isn't keyed by unit name, so no unit can be matched against it.
+// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs, or a
+// nested stack's entry in it, that isn't keyed by name, so no unit can be matched against it.
 type StackMockOutputsTypeError struct {
 	DependencyName string
 	UnitName       string
@@ -417,10 +417,26 @@ type StackMockOutputsTypeError struct {
 
 func (err StackMockOutputsTypeError) Error() string {
 	return fmt.Sprintf(
-		"mock_outputs for dependency %s must be a map or object keyed by stack unit name (e.g. { %s = { ... } }), but got %s",
+		"mock_outputs for dependency %s must be a map or object keyed by stack unit or nested stack name (e.g. { %s = { ... } }), but got %s",
 		err.DependencyName,
 		err.UnitName,
 		err.Actual,
+	)
+}
+
+// StackOutputAddressCollisionError is returned when a unit and a nested stack declared in one
+// stack file share a name. A dependency on that stack reads both at the same address, so keeping
+// either would drop the other's outputs.
+type StackOutputAddressCollisionError struct {
+	StackDir string
+	Name     string
+}
+
+func (err StackOutputAddressCollisionError) Error() string {
+	return fmt.Sprintf(
+		"a unit and a nested stack in %s are both named %q, so a dependency on the stack cannot address their outputs separately",
+		err.StackDir,
+		err.Name,
 	)
 }
 
