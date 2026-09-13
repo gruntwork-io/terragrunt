@@ -307,7 +307,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		m.exitMessage = formatScaffoldMessage(m.terragruntOptions, msg.Interactive)
+		m.exitMessage = formatScaffoldMessage(m.terragruntOptions, msg.Interactive, msg.Files)
 
 		return m, tea.Quit
 
@@ -401,6 +401,7 @@ func rendererErrCmd(err error) tea.Cmd {
 type ScaffoldFinishedMsg struct {
 	Err         error
 	Interactive bool
+	Files       []string
 }
 
 // CopyFinishedMsg is delivered when a copy subprocess completes.
@@ -560,10 +561,10 @@ func renderValuesBox(accent, heading, path, summary, body string) string {
 }
 
 // formatScaffoldMessage returns the post-exit callout for a successful
-// scaffold run, pointing the user at the generated terragrunt.hcl. When
+// scaffold run, naming the files that were actually generated. When
 // interactive is true the user came through the form so any unfilled
 // fields landed as `# TODO` lines; otherwise every input is a TODO.
-func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool) string {
+func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool, files []string) string {
 	outputDir := opts.ScaffoldOutputFolder
 	if outputDir == "" {
 		outputDir = opts.WorkingDir
@@ -573,13 +574,16 @@ func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool) st
 		return ""
 	}
 
-	absPath := filepath.Join(outputDir, config.DefaultTerragruntConfigPath)
-	path := displayPath(outputDir, absPath)
+	// A module scaffold writes terragrunt.hcl; when the caller did not
+	// capture a file list, fall back to it so the message stays useful.
+	if len(files) == 0 {
+		files = []string{config.DefaultTerragruntConfigPath}
+	}
 
 	heading := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(valuesBoxAccentGreen)).
 		Bold(true).
-		Render("terragrunt.hcl scaffolded")
+		Render(scaffoldHeading(outputDir, files))
 
 	summary := "Inputs are marked with `# TODO: fill in value` comments."
 
@@ -594,7 +598,42 @@ func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool) st
 			"value before running terragrunt."
 	}
 
-	return renderValuesBox(valuesBoxAccentGreen, heading, path, summary, body)
+	return renderValuesBox(valuesBoxAccentGreen, heading, formatScaffoldFileList(outputDir, files), summary, body)
+}
+
+// scaffoldFileListCap is how many generated paths the post-scaffold callout
+// lists before collapsing the remainder to "... +N more".
+const scaffoldFileListCap = 5
+
+// formatScaffoldFileList renders generated paths relative to outputDir.
+// Lists longer than scaffoldFileListCap are truncated with "... +N more"
+// so a large template cannot flood the screen.
+func formatScaffoldFileList(outputDir string, files []string) string {
+	shown := min(len(files), scaffoldFileListCap)
+
+	paths := make([]string, 0, shown+1)
+	for _, f := range files[:shown] {
+		paths = append(paths, displayPath(outputDir, filepath.Join(outputDir, f)))
+	}
+
+	if extra := len(files) - shown; extra > 0 {
+		paths = append(paths, fmt.Sprintf("... +%d more", extra))
+	}
+
+	return strings.Join(paths, "\n")
+}
+
+// scaffoldHeading titles the post-scaffold callout from the generated files.
+// A single file is shown relativized from outputDir (the generation root)
+// via displayPath, matching the listed paths. Otherwise the heading is a
+// count with a pluralized "file"/"files".
+func scaffoldHeading(outputDir string, files []string) string {
+	n := len(files)
+	if n == 1 {
+		return displayPath(outputDir, filepath.Join(outputDir, files[0])) + " scaffolded"
+	}
+
+	return fmt.Sprintf("%d %s scaffolded", n, pluralize("file", "files", n))
 }
 
 // pluralize returns singular when n == 1 and plural otherwise.
@@ -812,7 +851,7 @@ func scaffoldComponentPlaceholderCmd(l log.Logger, m Model, c *Component) tea.Cm
 	cmd := newScaffoldCmd(l, m.venv, m.terragruntOptions, c)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
-		return ScaffoldFinishedMsg{Err: err, Interactive: false}
+		return ScaffoldFinishedMsg{Err: err, Interactive: false, Files: cmd.Files()}
 	})
 }
 
@@ -840,7 +879,7 @@ func scaffoldComponentWithPlanCmd(
 	cmd := newScaffoldCmd(l, m.venv, m.terragruntOptions, c).WithPlan(plan, values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
-		return ScaffoldFinishedMsg{Err: err, Interactive: true}
+		return ScaffoldFinishedMsg{Err: err, Interactive: true, Files: cmd.Files()}
 	})
 }
 
