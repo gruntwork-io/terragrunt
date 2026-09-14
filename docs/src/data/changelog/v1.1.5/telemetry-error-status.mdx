@@ -1,0 +1,15 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Failed operations now mark their span as errored
+
+When an operation failed, Terragrunt recorded an `exception` event on the span but never
+set the span status or the `error.type` attribute. OpenTelemetry-native backends (such as
+New Relic) classify errors by span status, not by the presence of an exception event, so a
+failed run was indistinguishable from a successful one.
+
+Terragrunt now sets the span status to `Error` with the error message as its description,
+and records the `error.type` attribute with the error's type, per the
+[OpenTelemetry recording-errors convention](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/general/recording-errors.md).
