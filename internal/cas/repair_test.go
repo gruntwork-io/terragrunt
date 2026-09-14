@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -42,7 +43,7 @@ func TestFetchSource_MissingBlobIsReIngested(t *testing.T) {
 	dst1 := filepath.Join(t.TempDir(), "dst1")
 	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
 		Scheme:   "http",
-		URL:      url,
+		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, files, &fetchCalls),
 	}))
@@ -53,7 +54,7 @@ func TestFetchSource_MissingBlobIsReIngested(t *testing.T) {
 	dst2 := filepath.Join(t.TempDir(), "dst2")
 	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
 		Scheme:   "http",
-		URL:      url,
+		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, files, &fetchCalls),
 	}))
@@ -88,7 +89,7 @@ func TestFetchSource_MissingBlobTheSourceCannotSupply(t *testing.T) {
 	dst1 := filepath.Join(t.TempDir(), "dst1")
 	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
 		Scheme:   "http",
-		URL:      url,
+		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
 	}))
@@ -114,7 +115,7 @@ func TestFetchSource_MissingBlobTheSourceCannotSupply(t *testing.T) {
 	dst2 := filepath.Join(t.TempDir(), "dst2")
 	err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
 		Scheme:   "http",
-		URL:      url,
+		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    emptyHanded,
 	})
@@ -151,7 +152,7 @@ func TestFetchSource_ConcurrentRepairWithRacing(t *testing.T) {
 	dst := filepath.Join(t.TempDir(), "dst")
 	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
 		Scheme:   "http",
-		URL:      url,
+		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, files, &fetchCalls),
 	}))
@@ -171,7 +172,7 @@ func TestFetchSource_ConcurrentRepairWithRacing(t *testing.T) {
 		g.Go(func() error {
 			return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dsts[i]}, cas.SourceRequest{
 				Scheme:   "http",
-				URL:      url,
+				URL:      redact.NewURL(url),
 				Resolver: resolver,
 				Fetch:    fakeFetcher(c, files, &fetchCalls),
 			})
@@ -224,7 +225,7 @@ func TestCASClone_E2E_MissingBlobIsReIngested(t *testing.T) {
 	l := logger.CreateLogger()
 
 	dst1 := filepath.Join(tempDir, "dst1")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL,
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(dst1),
 		cas.WithBranch("main"),
 		cas.WithDepth(-1)))
@@ -236,7 +237,7 @@ func TestCASClone_E2E_MissingBlobIsReIngested(t *testing.T) {
 	// The tree is still stored under the commit SHA, so this clone takes the
 	// probe hit that skips the fetch entirely until the miss turns up.
 	dst2 := filepath.Join(tempDir, "dst2")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL,
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(dst2),
 		cas.WithBranch("main"),
 		cas.WithDepth(-1)))
@@ -265,7 +266,7 @@ func TestCASClone_E2E_RepairKeepsIncludedGitFilesOnce(t *testing.T) {
 	clone := func(dst string) {
 		t.Helper()
 
-		require.NoError(t, c.Clone(t.Context(), l, v, repoURL,
+		require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 			cas.WithDir(dst),
 			cas.WithBranch("main"),
 			cas.WithIncludedGitFiles([]string{"HEAD", "config"}),

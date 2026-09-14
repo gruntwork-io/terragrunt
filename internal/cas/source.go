@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -36,20 +37,20 @@ type SourceResolver interface {
 	// "s3", "gcs", "http").
 	Scheme() string
 
-	// Pinned reports whether rawURL names content that cannot change
+	// Pinned reports whether u names content that cannot change
 	// upstream, such as an object version or an exact module version. A
 	// pinned source's recorded probe is served for
 	// [DefaultImmutableProbeTTL]; everything else is held only for the
 	// mutable TTL the caller set, which is zero by default.
-	Pinned(rawURL string) bool
+	Pinned(u redact.URL) bool
 
-	// Probe returns a cache key for rawURL.
+	// Probe returns a cache key for u.
 	//
 	// Returns ErrNoVersionMetadata when the source has no cheap
 	// signal; FetchSource then falls back to downloading and
 	// content-hashing. Other errors are logged and treated the same
 	// way, so a misconfigured probe never breaks a fetch.
-	Probe(ctx context.Context, rawURL string) (cacheKey string, err error)
+	Probe(ctx context.Context, u redact.URL) (cacheKey string, err error)
 }
 
 // IngestMode says whether an ingest may trust what the store already
@@ -124,7 +125,7 @@ type SourceRequest struct {
 	Scheme string
 	// URL is the canonical source URL. Passed to Resolver.Probe and
 	// used in error messages.
-	URL string
+	URL redact.URL
 	// ProbeCaching says whether FetchSource shares and persists this
 	// resolver's probe answers or leaves that to the resolver.
 	ProbeCaching ProbeCaching
@@ -170,7 +171,7 @@ func (c *CAS) FetchSource(
 	}
 
 	attrs := map[string]any{
-		"url":    RedactURL(src.URL),
+		"url":    src.URL,
 		"scheme": src.Scheme,
 	}
 
@@ -197,16 +198,16 @@ func (c *CAS) FetchSource(
 			}
 
 			if c.probeMode == ProbeModeOffline {
-				return &OfflineRepairError{Missing: missing, Source: RedactURL(src.URL)}
+				return &OfflineRepairError{Missing: missing, Source: src.URL}
 			}
 
 			l.Warnf(
 				"cas: store is missing object %s, re-ingesting %s to restore it",
 				missing.Hash,
-				RedactURL(src.URL),
+				src.URL,
 			)
 			RecordFallback(childCtx, l, FallbackReasonStoreRepair, map[string]any{
-				"url":    RedactURL(src.URL),
+				"url":    src.URL,
 				"scheme": src.Scheme,
 				"hash":   missing.Hash,
 			})
@@ -217,7 +218,7 @@ func (c *CAS) FetchSource(
 			if err := c.fetchAndLink(
 				childCtx, l, v, opts, src, suggestedKey, IngestRepair,
 			); err != nil {
-				return fmt.Errorf("re-ingest %s: %w", RedactURL(src.URL), err)
+				return fmt.Errorf("re-ingest %s: %w", src.URL, err)
 			}
 
 			return nil
@@ -248,7 +249,7 @@ func (c *CAS) fetchAndLink(
 
 	treeKey, err := src.Fetch(ctx, l, v, suggestedKey, mode)
 	if err != nil {
-		return fmt.Errorf("fetch %s: %w", RedactURL(src.URL), err)
+		return fmt.Errorf("fetch %s: %w", src.URL, err)
 	}
 
 	return c.linkStoredTree(ctx, l, v, opts, src.Scheme, treeKey)
@@ -376,11 +377,11 @@ func (c *CAS) probeSource(
 		if !errors.Is(err, ErrNoVersionMetadata) {
 			l.Debugf(
 				"cas: source probe for %s failed (falling back to content hash): %v",
-				RedactURL(src.URL),
+				src.URL,
 				err,
 			)
 			RecordFallback(ctx, l, FallbackReasonProbeFailure, map[string]any{
-				"url":    RedactURL(src.URL),
+				"url":    src.URL,
 				"scheme": src.Scheme,
 			})
 		}
@@ -441,7 +442,7 @@ func (c *CAS) probeSourceUncoalesced(
 	}
 
 	if c.probeMode == ProbeModeOffline {
-		return probeResult{}, &OfflineMissError{Source: RedactURL(src.URL)}
+		return probeResult{}, &OfflineMissError{Source: src.URL}
 	}
 
 	key, err := src.Resolver.Probe(ctx, src.URL)
@@ -454,14 +455,14 @@ func (c *CAS) probeSourceUncoalesced(
 	return probeResult{key: key, origin: probeOriginResolver}, nil
 }
 
-// cachedSourceProbe returns the recorded answer for (url, ref) when the
+// cachedSourceProbe returns the recorded answer for (u, ref) when the
 // mode allows serving one and it has not aged past its TTL.
-func (c *CAS) cachedSourceProbe(v *venv.Venv, url, ref string) (ProbeEntry, bool) {
+func (c *CAS) cachedSourceProbe(v *venv.Venv, u redact.URL, ref string) (ProbeEntry, bool) {
 	if !c.probeCacheEnabled || c.probeMode == ProbeModeRefresh {
 		return ProbeEntry{}, false
 	}
 
-	entry, ok := c.probeCache.Lookup(v.FS, url, ref)
+	entry, ok := c.probeCache.Lookup(v.FS, u, ref)
 	if !ok {
 		return ProbeEntry{}, false
 	}
@@ -493,7 +494,7 @@ func (c *CAS) recordSourceProbe(l log.Logger, v *venv.Venv, src SourceRequest, r
 	}
 
 	if err := c.probeCache.Store(v.FS, src.URL, ref, &entry); err != nil {
-		l.Debugf("cas: probe cache write for %s failed: %v", RedactURL(src.URL), err)
+		l.Debugf("cas: probe cache write for %s failed: %v", src.URL, err)
 	}
 }
 

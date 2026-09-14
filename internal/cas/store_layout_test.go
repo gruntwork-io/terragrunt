@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -45,7 +46,7 @@ func TestCAS_ColdIngestLeavesOnlyObjects(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL,
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(filepath.Join(tempDir, "repo")),
 		cas.WithDepth(-1),
 		cas.WithIncludedGitFiles([]string{"HEAD", "config"})))

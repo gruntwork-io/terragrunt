@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -29,7 +30,7 @@ func TestTFRResolver_ProbeReturnsContentKey(t *testing.T) {
 	src := "tfr://" + server.Listener.Addr().String() +
 		"/terraform-aws-modules/vpc/aws?version=3.3.0"
 
-	key, err := r.Probe(t.Context(), src)
+	key, err := r.Probe(t.Context(), redact.NewURL(src))
 	require.NoError(t, err)
 
 	expected := cas.ContentKey(
@@ -54,10 +55,10 @@ func TestTFRResolver_ProbeIsStable(t *testing.T) {
 	src := "tfr://" + server.Listener.Addr().String() +
 		"/terraform-aws-modules/vpc/aws?version=3.3.0"
 
-	first, err := r.Probe(t.Context(), src)
+	first, err := r.Probe(t.Context(), redact.NewURL(src))
 	require.NoError(t, err)
 
-	second, err := r.Probe(t.Context(), src)
+	second, err := r.Probe(t.Context(), redact.NewURL(src))
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second)
@@ -78,10 +79,10 @@ func TestTFRResolver_SubdirCollapsesToSameKey(t *testing.T) {
 	base := "tfr://" + server.Listener.Addr().String() +
 		"/terraform-aws-modules/vpc/aws"
 
-	bare, err := r.Probe(t.Context(), base+"?version=3.3.0")
+	bare, err := r.Probe(t.Context(), redact.NewURL(base+"?version=3.3.0"))
 	require.NoError(t, err)
 
-	withSubdir, err := r.Probe(t.Context(), base+"//modules/public?version=3.3.0")
+	withSubdir, err := r.Probe(t.Context(), redact.NewURL(base+"//modules/public?version=3.3.0"))
 	require.NoError(t, err)
 
 	assert.Equal(t, bare, withSubdir)
@@ -92,7 +93,7 @@ func TestTFRResolver_MissingVersionReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := getter.NewTFRResolver().WithLogger(logger.CreateLogger())
 
-	_, err := r.Probe(t.Context(), "tfr://registry.terraform.io/terraform-aws-modules/vpc/aws")
+	_, err := r.Probe(t.Context(), redact.NewURL("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -103,7 +104,7 @@ func TestTFRResolver_EmptyVersionReturnsErrNoVersionMetadata(t *testing.T) {
 
 	_, err := r.Probe(
 		t.Context(),
-		"tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=",
+		redact.NewURL("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version="),
 	)
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
@@ -123,7 +124,7 @@ func TestTFRResolver_DiscoveryFailureReturnsErrNoVersionMetadata(t *testing.T) {
 	src := "tfr://" + server.Listener.Addr().String() +
 		"/terraform-aws-modules/vpc/aws?version=3.3.0"
 
-	_, err := r.Probe(t.Context(), src)
+	_, err := r.Probe(t.Context(), redact.NewURL(src))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -173,6 +174,6 @@ credentials "`+serverURL.Hostname()+`" {
 	src := "tfr://" + server.Listener.Addr().String() +
 		"/terraform-aws-modules/vpc/aws?version=~> 3.0"
 
-	_, err = r.Probe(t.Context(), src)
+	_, err = r.Probe(t.Context(), redact.NewURL(src))
 	require.NoError(t, err)
 }

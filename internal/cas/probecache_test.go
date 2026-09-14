@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -38,25 +39,25 @@ func TestGitResolver_SemverTagProbeServedFromCacheUntilTTL(t *testing.T) {
 		url := "https://example.com/probe-semver.git"
 		r := newCachingResolver(v, "v1.2.3")
 
-		got, err := r.Probe(t.Context(), url)
+		got, err := r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, stubHash, got)
 		require.Equal(t, int32(1), stub.calls.Load())
 
-		got, err = r.Probe(t.Context(), url)
+		got, err = r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, stubHash, got)
 		assert.Equal(t, int32(1), stub.calls.Load(), "a fresh semver probe must be served from the cache")
 
 		synctest.Sleep(cas.DefaultImmutableProbeTTL - time.Minute)
 
-		_, err = r.Probe(t.Context(), url)
+		_, err = r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, int32(1), stub.calls.Load(), "the entry is still inside its TTL")
 
 		synctest.Sleep(2 * time.Minute)
 
-		_, err = r.Probe(t.Context(), url)
+		_, err = r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, int32(2), stub.calls.Load(), "an expired entry must be re-probed")
 	})
@@ -71,14 +72,14 @@ func TestGitResolver_MutableRefProbeNotServedFromCacheByDefault(t *testing.T) {
 		url := "https://example.com/probe-mutable.git"
 		r := newCachingResolver(v, "main")
 
-		_, err := r.Probe(t.Context(), url)
+		_, err := r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 
-		_, err = r.Probe(t.Context(), url)
+		_, err = r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, int32(2), stub.calls.Load(), "a branch must be re-probed so a push is seen")
 
-		_, ok := r.Cache.Lookup(v.FS, url, "main")
+		_, ok := r.Cache.Lookup(v.FS, redact.NewURL(url), "main")
 		assert.True(t, ok, "the answer is still recorded so offline mode can use it")
 	})
 }
@@ -93,16 +94,16 @@ func TestGitResolver_MutableRefProbeServedWithinConfiguredTTL(t *testing.T) {
 		r := newCachingResolver(v, "main")
 		r.MutableTTL = time.Hour
 
-		_, err := r.Probe(t.Context(), url)
+		_, err := r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 
-		_, err = r.Probe(t.Context(), url)
+		_, err = r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, int32(1), stub.calls.Load())
 
 		synctest.Sleep(2 * time.Hour)
 
-		_, err = r.Probe(t.Context(), url)
+		_, err = r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, int32(2), stub.calls.Load())
 	})
@@ -121,14 +122,14 @@ func TestGitResolver_BranchNamedLikeVersionIsNotServedAsSemver(t *testing.T) {
 		url := "https://example.com/probe-version-branch.git"
 		r := newCachingResolver(v, "v1.2.3")
 
-		_, err := r.Probe(t.Context(), url)
+		_, err := r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 
-		_, err = r.Probe(t.Context(), url)
+		_, err = r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, int32(2), stub.calls.Load(), "a branch must be re-probed whatever it is called")
 
-		entry, ok := r.Cache.Lookup(v.FS, url, "v1.2.3")
+		entry, ok := r.Cache.Lookup(v.FS, redact.NewURL(url), "v1.2.3")
 		require.True(t, ok)
 		assert.False(t, entry.Immutable, "a branch is mutable however it is named")
 	})
@@ -144,14 +145,14 @@ func TestGitResolver_RefreshModeBypassesCacheButStillRecords(t *testing.T) {
 		r := newCachingResolver(v, "v2.0.0")
 		r.Mode = cas.ProbeModeRefresh
 
-		_, err := r.Probe(t.Context(), url)
+		_, err := r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 
-		_, err = r.Probe(t.Context(), url)
+		_, err = r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, int32(2), stub.calls.Load(), "refresh must ignore the entry it just wrote")
 
-		entry, ok := r.Cache.Lookup(v.FS, url, "v2.0.0")
+		entry, ok := r.Cache.Lookup(v.FS, redact.NewURL(url), "v2.0.0")
 		require.True(t, ok)
 		assert.Equal(t, stubHash, entry.Key)
 	})
@@ -166,16 +167,16 @@ func TestGitResolver_CorruptCacheEntryIsIgnoredAndRewritten(t *testing.T) {
 		url := "https://example.com/probe-corrupt.git"
 		r := newCachingResolver(v, "v3.0.0")
 
-		path := r.Cache.EntryPath(url, "v3.0.0")
+		path := r.Cache.EntryPath(redact.NewURL(url), "v3.0.0")
 		require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), cas.DefaultDirPerms))
 		require.NoError(t, vfs.WriteFile(v.FS, path, []byte("{not json"), cas.RegularFilePerms))
 
-		got, err := r.Probe(t.Context(), url)
+		got, err := r.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, stubHash, got)
 		assert.Equal(t, int32(1), stub.calls.Load(), "a damaged entry must fall through to ls-remote")
 
-		entry, ok := r.Cache.Lookup(v.FS, url, "v3.0.0")
+		entry, ok := r.Cache.Lookup(v.FS, redact.NewURL(url), "v3.0.0")
 		require.True(t, ok, "the damaged entry must have been replaced")
 		assert.Equal(t, stubHash, entry.Key)
 	})
@@ -189,7 +190,7 @@ func TestGitResolver_OfflineServesAnyRecordedProbeAndFailsOnMiss(t *testing.T) {
 		v := stub.venv()
 		url := "https://user:token@example.com/probe-offline.git"
 
-		_, err := newCachingResolver(v, "main").Probe(t.Context(), url)
+		_, err := newCachingResolver(v, "main").Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		require.Equal(t, int32(1), stub.calls.Load())
 
@@ -199,7 +200,7 @@ func TestGitResolver_OfflineServesAnyRecordedProbeAndFailsOnMiss(t *testing.T) {
 		offline := newCachingResolver(v, "main")
 		offline.Mode = cas.ProbeModeOffline
 
-		got, err := offline.Probe(t.Context(), url)
+		got, err := offline.Probe(t.Context(), redact.NewURL(url))
 		require.NoError(t, err)
 		assert.Equal(t, stubHash, got)
 		assert.Equal(t, int32(1), stub.calls.Load(), "offline must never reach ls-remote")
@@ -207,13 +208,13 @@ func TestGitResolver_OfflineServesAnyRecordedProbeAndFailsOnMiss(t *testing.T) {
 		missing := newCachingResolver(v, "feature")
 		missing.Mode = cas.ProbeModeOffline
 
-		_, err = missing.Probe(t.Context(), url)
+		_, err = missing.Probe(t.Context(), redact.NewURL(url))
 		require.ErrorIs(t, err, cas.ErrCASOffline)
 
 		var miss *cas.OfflineMissError
 
 		require.ErrorAs(t, err, &miss)
-		assert.Equal(t, "https://example.com/probe-offline.git", miss.Source, "credentials must not reach the error")
+		assert.Equal(t, "https://example.com/probe-offline.git", miss.Source.String(), "credentials must not reach the error")
 		assert.Equal(t, "feature", miss.Ref)
 		assert.Equal(t, int32(1), stub.calls.Load())
 	})
@@ -232,14 +233,14 @@ func TestGitResolver_OfflineServesProbeRecordedUnderRotatedCredential(t *testing
 		v := stub.venv()
 
 		_, err := newCachingResolver(v, "main").
-			Probe(t.Context(), "https://x:token-a@example.com/probe-rotated.git")
+			Probe(t.Context(), redact.NewURL("https://x:token-a@example.com/probe-rotated.git"))
 		require.NoError(t, err)
 		require.Equal(t, int32(1), stub.calls.Load())
 
 		offline := newCachingResolver(v, "main")
 		offline.Mode = cas.ProbeModeOffline
 
-		got, err := offline.Probe(t.Context(), "https://x:token-b@example.com/probe-rotated.git")
+		got, err := offline.Probe(t.Context(), redact.NewURL("https://x:token-b@example.com/probe-rotated.git"))
 		require.NoError(t, err)
 		assert.Equal(t, stubHash, got)
 		assert.Equal(t, int32(1), stub.calls.Load(), "offline must never reach ls-remote")
@@ -253,30 +254,30 @@ func TestProbeCache_StoreAndLookupRoundTrip(t *testing.T) {
 	cache := cas.NewProbeCache(probeCacheRoot)
 	probedAt := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
 
-	_, ok := cache.Lookup(fsys, "https://example.com/a.git", "")
+	_, ok := cache.Lookup(fsys, redact.NewURL("https://example.com/a.git"), "")
 	assert.False(t, ok)
 
-	require.NoError(t, cache.Store(fsys, "https://example.com/a.git", "", &cas.ProbeEntry{
+	require.NoError(t, cache.Store(fsys, redact.NewURL("https://example.com/a.git"), "", &cas.ProbeEntry{
 		ProbedAt: probedAt,
 		Key:      stubHash,
 	}))
 
-	entry, ok := cache.Lookup(fsys, "https://example.com/a.git", "")
+	entry, ok := cache.Lookup(fsys, redact.NewURL("https://example.com/a.git"), "")
 	require.True(t, ok)
 	assert.Equal(t,
 		cas.ProbeEntry{ProbedAt: probedAt, RefDigest: cas.RefDigest("HEAD"), Key: stubHash},
 		entry)
 
-	entry, ok = cache.Lookup(fsys, "https://example.com/a.git", "HEAD")
+	entry, ok = cache.Lookup(fsys, redact.NewURL("https://example.com/a.git"), "HEAD")
 	require.True(t, ok, "an empty ref and an explicit HEAD share one entry")
 	assert.Equal(t, stubHash, entry.Key)
 
-	_, ok = cache.Lookup(fsys, "https://example.com/b.git", "")
+	_, ok = cache.Lookup(fsys, redact.NewURL("https://example.com/b.git"), "")
 	assert.False(t, ok, "entries are partitioned per URL")
 
 	assert.NotEqual(t,
-		cache.EntryPath("https://example.com/a.git", "main"),
-		cache.EntryPath("https://example.com/a.git", "release/main"),
+		cache.EntryPath(redact.NewURL("https://example.com/a.git"), "main"),
+		cache.EntryPath(redact.NewURL("https://example.com/a.git"), "release/main"),
 	)
 }
 
@@ -290,17 +291,36 @@ func TestProbeCache_CredentialRotationSharesEntry(t *testing.T) {
 	fsys := vfs.NewMemMapFS()
 	cache := cas.NewProbeCache(probeCacheRoot)
 
-	require.NoError(t, cache.Store(fsys, "https://x:token-a@example.com/a.git", "main", &cas.ProbeEntry{
+	require.NoError(t, cache.Store(fsys, redact.NewURL("https://x:token-a@example.com/a.git"), "main", &cas.ProbeEntry{
 		ProbedAt: time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC),
 		Key:      stubHash,
 	}))
 
-	entry, ok := cache.Lookup(fsys, "https://x:token-b@example.com/a.git", "main")
+	entry, ok := cache.Lookup(fsys, redact.NewURL("https://x:token-b@example.com/a.git"), "main")
 	require.True(t, ok, "a rotated credential must find the answer recorded for the same repository")
 	assert.Equal(t, stubHash, entry.Key)
 
-	_, ok = cache.Lookup(fsys, "https://x:token-b@example.com/b.git", "main")
+	_, ok = cache.Lookup(fsys, redact.NewURL("https://x:token-b@example.com/b.git"), "main")
 	assert.False(t, ok, "entries are still partitioned per repository")
+}
+
+// TestProbeCache_EntryPathKeepsQueryAndDropsUserinfo pins that an entry is
+// filed under the URL with its userinfo dropped and its query kept, so sources
+// that differ only by a query value stay apart and sources that differ only by
+// credentials share one entry.
+func TestProbeCache_EntryPathKeepsQueryAndDropsUserinfo(t *testing.T) {
+	t.Parallel()
+
+	cache := cas.NewProbeCache(probeCacheRoot)
+
+	versionOne := cache.EntryPath(redact.NewURL("https://example.com/mod.tgz?version=1"), "")
+	versionTwo := cache.EntryPath(redact.NewURL("https://example.com/mod.tgz?version=2"), "")
+	assert.NotEqual(t, versionOne, versionTwo)
+
+	tokenA := cache.EntryPath(redact.NewURL("https://x:token-a@example.com/mod.tgz?version=1"), "")
+	tokenB := cache.EntryPath(redact.NewURL("https://x:token-b@example.com/mod.tgz?version=1"), "")
+	assert.Equal(t, tokenA, tokenB)
+	assert.Equal(t, versionOne, tokenA)
 }
 
 func TestProbeCache_LookupRejectsEntryWithWrongRefOrHash(t *testing.T) {
@@ -333,11 +353,11 @@ func TestProbeCache_LookupRejectsEntryWithWrongRefOrHash(t *testing.T) {
 			// cases would otherwise read each other's bodies and the one
 			// that lost the race would assert against the wrong guard.
 			fsys := vfs.NewMemMapFS()
-			path := cache.EntryPath(url, "main")
+			path := cache.EntryPath(redact.NewURL(url), "main")
 			require.NoError(t, fsys.MkdirAll(filepath.Dir(path), cas.DefaultDirPerms))
 			require.NoError(t, vfs.WriteFile(fsys, path, []byte(tt.body), cas.RegularFilePerms))
 
-			_, ok := cache.Lookup(fsys, url, "main")
+			_, ok := cache.Lookup(fsys, redact.NewURL(url), "main")
 			assert.False(t, ok)
 		})
 	}
@@ -394,6 +414,6 @@ func TestProbeTTL(t *testing.T) {
 func TestOfflineMissError_UnwrapsToErrCASOffline(t *testing.T) {
 	t.Parallel()
 
-	err := &cas.OfflineMissError{Source: "https://example.com/a.git", Ref: "main"}
+	err := &cas.OfflineMissError{Source: redact.NewURL("https://example.com/a.git"), Ref: "main"}
 	assert.ErrorIs(t, err, cas.ErrCASOffline)
 }

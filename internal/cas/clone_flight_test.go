@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -53,7 +54,7 @@ func cloneInto(
 		return err
 	}
 
-	return c.Clone(ctx, logger.CreateLogger(), v, repoURL,
+	return c.Clone(ctx, logger.CreateLogger(), v, redact.NewURL(repoURL),
 		cas.WithDir(dst),
 		cas.WithBranch(branch),
 		cas.WithDepth(-1))
@@ -301,7 +302,7 @@ func TestCASClone_OfflineMissFailsWithoutFallbackClone(t *testing.T) {
 	var miss *cas.OfflineMissError
 
 	require.ErrorAs(t, err, &miss)
-	assert.Equal(t, repoURL, miss.Source)
+	assert.Equal(t, repoURL, miss.Source.String())
 	assert.Equal(t, "main", miss.Ref)
 
 	assert.Equal(t, 0, rec.count("ls-remote"))
@@ -380,7 +381,7 @@ func TestCASClone_OfflineMissRedactsCredentials(t *testing.T) {
 	var miss *cas.OfflineMissError
 
 	require.ErrorAs(t, fetchMiss, &miss)
-	assert.Equal(t, repoURL, miss.Source)
+	assert.Equal(t, repoURL, miss.Source.String())
 
 	assert.Equal(t, 0, rec.count("ls-remote"))
 	assert.Equal(t, 0, rec.count("fetch"))

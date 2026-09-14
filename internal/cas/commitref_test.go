@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -34,7 +35,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(tempDir, "repo")
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 			cas.WithBranch(headHash),
 			cas.WithDepth(-1))
 		require.NoError(t, err)
@@ -51,7 +52,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(tempDir, "repo")
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 			cas.WithBranch(headHash[:8]),
 			cas.WithDepth(-1))
 		require.NoError(t, err)
@@ -71,7 +72,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		// Prime the central git store.
 		require.NoError(
 			t,
-			c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "first")),
+			c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(filepath.Join(tempDir, "first")),
 				cas.WithBranch(headHash),
 				cas.WithDepth(-1)),
 		)
@@ -82,7 +83,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		require.NoError(t, err)
 
 		secondClone := filepath.Join(tempDir, "second")
-		require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondClone),
+		require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(secondClone),
 			cas.WithBranch(headHash),
 			cas.WithDepth(-1)))
 
@@ -97,7 +98,7 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "repo")),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(filepath.Join(tempDir, "repo")),
 			cas.WithBranch("0000000000000000000000000000000000000000"),
 			cas.WithDepth(-1))
 		require.Error(t, err)
@@ -116,14 +117,14 @@ func TestGitStoreEnsureCommit_CachedAfterFirstFetch(t *testing.T) {
 	ctx := t.Context()
 
 	// First call must fetch.
-	repo, err := store.EnsureCommit(ctx, l, v, url, hash, "")
+	repo, err := store.EnsureCommit(ctx, l, v, redact.NewURL(url), hash, "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo.Hash)
 	assert.NotEmpty(t, repo.Path)
 	require.NoError(t, repo.Unlock())
 
 	// Second call hits the local-cache short-circuit.
-	repo2, err := store.EnsureCommit(ctx, l, v, url, hash, "")
+	repo2, err := store.EnsureCommit(ctx, l, v, redact.NewURL(url), hash, "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo2.Hash)
 	require.NoError(t, repo2.Unlock())
@@ -138,7 +139,7 @@ func TestGitStoreEnsureCommit_AbbreviatedSHA(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(t.Context(), l, v, url, hash[:8], "")
+	repo, err := store.EnsureCommit(t.Context(), l, v, redact.NewURL(url), hash[:8], "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo.Hash, "abbreviated SHA must canonicalize to the full hash")
 	require.NoError(t, repo.Unlock())
@@ -156,7 +157,7 @@ func TestGitStoreEnsureCommit_UnresolvableSurfacesNoMatchingReference(t *testing
 		t.Context(),
 		l,
 		v,
-		url,
+		redact.NewURL(url),
 		"0000000000000000000000000000000000000000",
 		"",
 	)
@@ -196,7 +197,7 @@ func TestCASClone_NonTipCommit(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 
 	targetPath := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 		cas.WithBranch(firstHash),
 		cas.WithDepth(-1))
 	require.NoError(t, err)
@@ -249,7 +250,7 @@ func TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones(t *testing.T) {
 
 	require.NoError(
 		t,
-		c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "first")),
+		c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(filepath.Join(tempDir, "first")),
 			cas.WithBranch(branch),
 			cas.WithDepth(-1)),
 	)
@@ -261,7 +262,7 @@ func TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones(t *testing.T) {
 	require.NoError(t, srv.Branch(t.Context(), branch))
 
 	secondDir := filepath.Join(tempDir, "second")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondDir),
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(secondDir),
 		cas.WithBranch(branch),
 		cas.WithDepth(-1)))
 
@@ -299,7 +300,7 @@ func TestCASClone_HexBranchNameResolvesViaLsRemote(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 
 	targetPath := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 		cas.WithBranch(hexBranch),
 		cas.WithDepth(-1))
 	require.NoError(t, err)
@@ -328,7 +329,7 @@ func TestCASClone_TagRef(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 
 	targetPath := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 		cas.WithBranch("v1.0.0"),
 		cas.WithDepth(-1))
 	require.NoError(t, err)
@@ -373,7 +374,7 @@ func TestGitStoreEnsureCommit_TagOnlyCommit(t *testing.T) {
 	t.Run("rev-parse fallback", func(t *testing.T) {
 		t.Parallel()
 
-		repo, err := store.EnsureCommit(ctx, l, fs, repoURL, taggedHash, "")
+		repo, err := store.EnsureCommit(ctx, l, fs, redact.NewURL(repoURL), taggedHash, "")
 		require.NoError(t, err)
 		assert.Equal(t, taggedHash, repo.Hash)
 		require.NoError(t, repo.Unlock())
@@ -383,7 +384,7 @@ func TestGitStoreEnsureCommit_TagOnlyCommit(t *testing.T) {
 		t.Parallel()
 
 		store2, fs2, _ := newTestGitStore(t)
-		repo, err := store2.EnsureCommit(ctx, l, fs2, repoURL, taggedHash, taggedHash)
+		repo, err := store2.EnsureCommit(ctx, l, fs2, redact.NewURL(repoURL), taggedHash, taggedHash)
 		require.NoError(t, err)
 		assert.Equal(t, taggedHash, repo.Hash)
 		require.NoError(t, repo.Unlock())
@@ -411,13 +412,13 @@ func TestGitStoreEnsureCommit_OfflineWhenCached(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx := t.Context()
 
-	primed, err := store.EnsureCommit(ctx, l, v, repoURL, hash, "")
+	primed, err := store.EnsureCommit(ctx, l, v, redact.NewURL(repoURL), hash, "")
 	require.NoError(t, err)
 	require.NoError(t, primed.Unlock())
 
 	require.NoError(t, srv.Close())
 
-	cached, err := store.EnsureCommit(ctx, l, v, repoURL, hash, "")
+	cached, err := store.EnsureCommit(ctx, l, v, redact.NewURL(repoURL), hash, "")
 	require.NoError(t, err, "cached commit must resolve without contacting the server")
 	assert.Equal(t, hash, cached.Hash)
 	require.NoError(t, cached.Unlock())
@@ -444,13 +445,13 @@ func TestGitStoreEnsureCommit_KnownHashFastPath(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx := t.Context()
 
-	primed, err := store.EnsureCommit(ctx, l, fs, repoURL, hash, "")
+	primed, err := store.EnsureCommit(ctx, l, fs, redact.NewURL(repoURL), hash, "")
 	require.NoError(t, err)
 	require.NoError(t, primed.Unlock())
 
 	require.NoError(t, srv.Close())
 
-	cached, err := store.EnsureCommit(ctx, l, fs, repoURL, hash, hash)
+	cached, err := store.EnsureCommit(ctx, l, fs, redact.NewURL(repoURL), hash, hash)
 	require.NoError(t, err, "knownHash path must resolve without contacting the server")
 	assert.Equal(t, hash, cached.Hash)
 	require.NoError(t, cached.Unlock())
@@ -489,7 +490,7 @@ func TestCASClone_OfflineWhenCommitCached(t *testing.T) {
 
 	require.NoError(
 		t,
-		c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "primed")),
+		c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(filepath.Join(tempDir, "primed")),
 			cas.WithBranch(hash),
 			cas.WithDepth(-1)),
 	)
@@ -497,7 +498,7 @@ func TestCASClone_OfflineWhenCommitCached(t *testing.T) {
 	require.NoError(t, srv.Close())
 
 	cachedDir := filepath.Join(tempDir, "cached")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(cachedDir),
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(cachedDir),
 		cas.WithBranch(hash),
 		cas.WithDepth(-1)), "cached commit ref must resolve without contacting the server")
 
@@ -563,7 +564,7 @@ func TestCAS_CommitRefFallbackWhenGitStoreFails(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 
 	targetPath := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 		cas.WithBranch(headHash),
 		cas.WithDepth(-1))
 	require.NoError(t, err)
@@ -603,7 +604,7 @@ func TestCASCloneByCommitRefConcurrentWithRacing(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			errs[idx] = c.Clone(t.Context(), l, v, repoURL,
+			errs[idx] = c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 				cas.WithDir(filepath.Join(tempDir, "repo", "worker", string(rune('a'+idx)))),
 				cas.WithBranch(headHash),
 				cas.WithDepth(-1))
