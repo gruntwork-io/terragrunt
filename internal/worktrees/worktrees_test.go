@@ -2,9 +2,12 @@ package worktrees_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -860,6 +863,137 @@ func TestWorktreeCleanup(t *testing.T) {
 	}
 
 	assert.False(t, worktreeExists, "Worktree test-worktree-cleanup should be deleted")
+}
+
+// TestNewWorktreesInterruptedCheckoutLeavesNoRegistrationWithRacing pins that a
+// worktree registered before an interrupt is unregistered again. The context is
+// cancelled as the checkout that fills the worktree starts.
+func TestNewWorktreesInterruptedCheckoutLeavesNoRegistrationWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	commitUnits(t, tmpDir, 2)
+
+	l := logger.CreateLogger()
+
+	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	v := venvtest.NewOSWithEmptyEnv()
+	v = v.WithExec(&cancelOnCheckoutExec{Exec: v.Exec, cancel: cancel})
+
+	_, err = worktrees.NewWorktrees(
+		ctx,
+		l,
+		v,
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.ErrorIs(t, err, context.Canceled)
+
+	assert.Empty(t, registeredWorktrees(t, tmpDir))
+}
+
+// TestWorktreeCleanupWithCancelledContextWithRacing pins that Cleanup removes
+// worktrees when its context is already cancelled, as it is when an
+// interrupted run cleans up.
+func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	commitUnits(t, tmpDir, 2)
+
+	l := logger.CreateLogger()
+	v := venvtest.NewOSWithEmptyEnv()
+
+	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		l,
+		v,
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, registeredWorktrees(t, tmpDir))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	require.NoError(t, w.Cleanup(ctx, l, v))
+
+	assert.Empty(t, registeredWorktrees(t, tmpDir))
+
+	for _, pair := range w.WorktreePairs {
+		for _, worktree := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if worktree.Path == "" {
+				continue
+			}
+
+			assert.NoDirExists(t, worktree.Path)
+		}
+	}
+}
+
+// cancelOnCheckoutExec cancels a context when a `git checkout` is prepared,
+// which is after a worktree is registered and before it is filled.
+type cancelOnCheckoutExec struct {
+	vexec.Exec
+	cancel context.CancelFunc
+}
+
+// Command cancels the context before preparing a `git checkout`, and prepares
+// every command through the wrapped Exec.
+func (e *cancelOnCheckoutExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	if slices.Contains(args, "checkout") {
+		e.cancel()
+	}
+
+	return e.Exec.Command(ctx, name, args...)
+}
+
+// commitUnits initializes a repository in dir and commits n units to it, one
+// per commit.
+func commitUnits(t *testing.T, dir string, n int) {
+	t.Helper()
+
+	runner := helpers.InitTestGitRunner(t, dir)
+
+	for i := range n {
+		name := fmt.Sprintf("unit-%d", i)
+
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, name), 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, name, "terragrunt.hcl"),
+			[]byte("inputs = {}\n"),
+			0o600,
+		))
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Commit "+name))
+	}
+}
+
+// registeredWorktrees returns the worktrees registered in the repository at
+// repoDir besides its main worktree.
+func registeredWorktrees(t *testing.T, repoDir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(filepath.Join(repoDir, ".git", "worktrees"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	return names
 }
 
 // treePaths returns the paths of a reference, as [git.GitRunner.LsTreeNames]

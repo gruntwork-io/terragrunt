@@ -33,6 +33,11 @@ import (
 const (
 	// worktreesPerPair is the number of worktrees in a comparison pair: the from worktree and the to worktree.
 	worktreesPerPair = 2
+
+	// worktreeRemoveTimeout bounds the worktree removals of one [Worktrees.Cleanup]
+	// or one failed worktree creation. Removing a worktree deletes its checked-out
+	// files, which takes seconds for a large reference.
+	worktreeRemoveTimeout = time.Minute
 )
 
 // Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
@@ -105,12 +110,17 @@ func (w *Worktrees) DisplayPath(worktreePath string) string {
 }
 
 // Cleanup removes all created Git worktrees and their temporary directories.
+// It still removes them once ctx is cancelled, allowing the removals together up
+// to [worktreeRemoveTimeout].
 func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	toRemove := w.worktreesToRemove()
 
 	if len(toRemove) == 0 {
 		return nil
 	}
+
+	ctx, cancel := removalContext(ctx)
+	defer cancel()
 
 	gitRunner, err := git.NewGitRunner(v)
 	if err != nil {
@@ -1166,9 +1176,20 @@ func unregisterWorktree(
 	registerMu.Lock()
 	defer registerMu.Unlock()
 
+	ctx, cancel := removalContext(ctx)
+	defer cancel()
+
 	if err := gitRunner.RemoveWorktree(ctx, dir); err != nil {
 		l.Warnf("failed to remove Git worktree %s: %v", dir, err)
 	}
+}
+
+// removalContext returns a context for removing worktrees that is not cancelled
+// along with ctx and expires after [worktreeRemoveTimeout]. An interrupt
+// cancels ctx, and a removal that never starts git leaves the registration in
+// `.git/worktrees/` after the directory is deleted.
+func removalContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), worktreeRemoveTimeout)
 }
 
 // sanitizeRef sanitizes a Git reference string for use in file paths.
