@@ -89,14 +89,16 @@ func (provider *Provider) GetCredentials(
 		return entry.creds, nil
 	}
 
-	sessionFP := credentialFingerprint(v.Env)
+	// The same fingerprint identifies the caller either way: when the env still holds
+	// the source credentials it keys the identity, and when a previous assumption has
+	// written its session there it keys that session back to the entry that made it.
 	if v.Env["AWS_ACCESS_KEY_ID"] != "" {
-		if entry := store.getBySession(ctx, roleKey, sessionFP); entry != nil {
+		if entry := store.getBySession(ctx, roleKey, sourceFP); entry != nil {
 			l.Debugf("Using cached credentials for IAM role %s.", iamRoleOpts.RoleARN)
 			return entry.creds, nil
 		}
 
-		if pastRefresh := store.getPastRefreshBySession(ctx, roleKey, sessionFP); pastRefresh != nil {
+		if pastRefresh := store.getPastRefreshBySession(ctx, roleKey, sourceFP); pastRefresh != nil {
 			creds, err := provider.assumeAndCache(ctx, l, v, store, iamRoleOpts, roleKey, pastRefresh.sourceEnv)
 			if err == nil {
 				return creds, nil
