@@ -461,7 +461,7 @@ func parseFirstAttrExpr(t *testing.T, src string) (hclsyntax.Expression, []byte)
 		return attr.Expr, srcBytes
 	}
 
-	t.Fatal("unreachable")
+	require.Fail(t, "unreachable")
 
 	return nil, nil
 }

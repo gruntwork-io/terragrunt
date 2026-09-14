@@ -187,9 +187,8 @@ func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 
 	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
 
-	if err := os.WriteFile(tmpTerragruntConfigFile, []byte(contents), readPermissions); err != nil {
-		t.Fatalf("Error writing temp Terragrunt config to %s: %v", tmpTerragruntConfigFile, err)
-	}
+	err := os.WriteFile(tmpTerragruntConfigFile, []byte(contents), readPermissions)
+	require.NoError(t, err, "Error writing temp Terragrunt config to %s", tmpTerragruntConfigFile)
 
 	return tmpTerragruntConfigFile
 }
@@ -357,7 +356,7 @@ func DeleteS3Bucket(
 				return nil
 			}
 
-			t.Errorf("Failed to delete S3 bucket %s: %v", bucketName, err)
+			assert.NoError(t, err, "Failed to delete S3 bucket %s", bucketName)
 
 			return err
 		}
@@ -1148,16 +1147,16 @@ func CleanupTerragruntFolder(t *testing.T, templatesPath string) {
 func RemoveFile(t *testing.T, path string) {
 	t.Helper()
 
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("Error while removing %s: %v", path, err)
+	if err := os.Remove(path); !errors.Is(err, fs.ErrNotExist) {
+		require.NoError(t, err, "Error while removing %s", path)
 	}
 }
 
 func RemoveFolder(t *testing.T, path string) {
 	t.Helper()
 
-	if err := os.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("Error while removing %s: %v", path, err)
+	if err := os.RemoveAll(path); !errors.Is(err, fs.ErrNotExist) {
+		require.NoError(t, err, "Error while removing %s", path)
 	}
 }
 
@@ -1304,10 +1303,11 @@ func RunTerragruntRedirectOutput(
 			stderr = stderrAsBuffer.String()
 		}
 
-		t.Fatalf(
-			"Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s",
+		require.NoError(
+			t,
+			err,
+			"Failed to run Terragrunt command '%s'\n\nStdout: %s\n\nStderr: %s",
 			command,
-			err.Error(),
 			stdout,
 			stderr,
 		)
@@ -1370,9 +1370,7 @@ func CreateTmpTerragruntConfigWithParentAndChild(
 
 	childDestPath := filepath.Join(tmpDir, childRelPath)
 
-	if err := os.MkdirAll(childDestPath, allPermissions); err != nil {
-		t.Fatalf("Failed to create temp dir %s due to error %v", childDestPath, err)
-	}
+	require.NoError(t, os.MkdirAll(childDestPath, allPermissions), "Failed to create temp dir %s", childDestPath)
 
 	parentTerragruntSrcPath := filepath.Join(parentPath, parentConfigFileName)
 	parentTerragruntDestPath := filepath.Join(tmpDir, parentConfigFileName)

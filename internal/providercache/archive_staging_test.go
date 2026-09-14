@@ -99,13 +99,11 @@ func startFakeProviderRegistry(t *testing.T) (string, string) {
 				"http://"+r.Host+archiveURLPath,
 			)
 
-			if _, err := io.WriteString(w, body); err != nil {
-				t.Errorf("upstream platform response write failed: %v", err)
-			}
+			_, err := io.WriteString(w, body)
+			assert.NoError(t, err, "upstream platform response write failed")
 		case archiveURLPath:
-			if _, err := w.Write(archive); err != nil {
-				t.Errorf("upstream archive write failed: %v", err)
-			}
+			_, err := w.Write(archive)
+			assert.NoError(t, err, "upstream archive write failed")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -169,8 +167,8 @@ func startProviderCacheRun(t *testing.T, registryName, upstreamURL string) *prov
 	t.Cleanup(func() {
 		cancel()
 
-		if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("listener close failed: %v", err)
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "listener close failed")
 		}
 	})
 

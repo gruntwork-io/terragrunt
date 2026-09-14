@@ -73,7 +73,7 @@ func TestOIDCAssertionProvider_MissingRequestToken(t *testing.T) {
 	v := oidcTestVenv(map[string]string{
 		"ACTIONS_ID_TOKEN_REQUEST_URL": "https://pipelines.example/token",
 	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
-		t.Fatal("no request must be made without a bearer token")
+		require.Fail(t, "no request must be made without a bearer token")
 
 		return nil, nil
 	})
@@ -125,7 +125,7 @@ func TestOIDCAssertionProvider_NoRequestURL(t *testing.T) {
 	t.Parallel()
 
 	v := oidcTestVenv(map[string]string{}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
-		t.Fatal("no request must be made when no request url is configured")
+		require.Fail(t, "no request must be made when no request url is configured")
 
 		return nil, nil
 	})

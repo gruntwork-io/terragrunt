@@ -962,9 +962,7 @@ func TestTFTerragruntExternalDependencies(t *testing.T) {
 
 	applyAllStdoutString := applyAllStdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	for _, module := range modules {
 		assert.Contains(t, applyAllStdoutString, "Hello World, "+module)
@@ -1004,9 +1002,7 @@ func TestTFTerragruntExternalDependenciesWithFilter(t *testing.T) {
 
 	applyAllStdoutString := applyAllStdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	for _, module := range modules {
 		assert.Contains(t, applyAllStdoutString, "Hello World, "+module)

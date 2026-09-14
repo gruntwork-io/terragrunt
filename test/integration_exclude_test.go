@@ -272,7 +272,7 @@ func TestTFExcludeBlockBehavior(t *testing.T) {
 						run.Reason,
 					)
 				default:
-					t.Fatalf("Unexpected result %q for unit %s", expected.result, unitName)
+					require.FailNowf(t, "unexpected result", "Unexpected result %q for unit %s", expected.result, unitName)
 				}
 			}
 		})
