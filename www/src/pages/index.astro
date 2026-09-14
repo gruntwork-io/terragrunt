@@ -1,0 +1,153 @@
+---
+import BaseLayout from "@layouts/BaseLayout.astro";
+import Button from "@components/Button.astro";
+import CtaSection from "@components/CtaSection.astro";
+import FeatureCards from "@components/FeatureCards.astro";
+import FeaturedBrands from "@components/FeaturedBrands.astro";
+import Footer from "@components/Footer.astro";
+import Nav from "@components/Nav.astro";
+import NewsletterSignup from "@components/NewsletterSignup.astro";
+import NotificationBar from "@components/NotificationBar.astro";
+import OpenSourceTools from "@components/OpenSourceTools.astro";
+import SectionHeading from "@components/SectionHeading.astro";
+import Testimonials from "@components/Testimonials.astro";
+import {
+  consistencySection,
+  drySection,
+  hero,
+  orchestrateSection,
+  scalePanel,
+} from "@data/home";
+
+const title = "Terragrunt | Orchestrate Terraform & OpenTofu at Scale";
+const description =
+  "Standardize IaC and manage growing infra complexity: define units & stacks, cut repetition with includes/hooks, execute modules in dependency order across environments.";
+
+/* Carried over verbatim from the Webflow build — the one page that had it. */
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Terragrunt",
+  url: "https://terragrunt.com",
+  description,
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Linux, macOS, Windows",
+  inLanguage: "en",
+};
+
+/* The first three cards sit above the second headline, the last two below it. */
+const consistencyTop = consistencySection.cards.slice(0, 3);
+const consistencyBottom = consistencySection.cards.slice(3);
+---
+
+<BaseLayout title={title} description={description} path="/" jsonLd={jsonLd}>
+  <NotificationBar />
+  <Nav active="/" />
+
+  <section class="bg-bg-dark px-4 py-20 md:px-8 md:py-28">
+    <div class="mx-auto flex max-w-[900px] flex-col items-center text-center">
+      <h1
+        class="m-0 text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-white md:text-6xl"
+      >
+        The Open Source <span class="text-accent-4">IaC Orchestrator</span> Platform
+        Teams Trust
+      </h1>
+      <p class="mt-6 max-w-[60ch] text-lg leading-[1.55] text-gray-1">
+        {hero.subhead}
+      </p>
+
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <Button href={hero.primary.href} variant="primary" size="lg">
+          {hero.primary.label}
+        </Button>
+        <Button href={hero.secondary.href} variant="secondary" size="lg">
+          {hero.secondary.label}
+        </Button>
+      </div>
+
+      <p
+        class="mt-10 flex items-center gap-3 text-xs uppercase tracking-[0.08em] text-gray-1"
+      >
+        <span>{hero.builtForLabel}</span>
+        {
+          hero.builtFor.map((tool) => (
+            <span class="rounded-full border border-stroke-dark px-3 py-1 normal-case tracking-normal text-white">
+              {tool}
+            </span>
+          ))
+        }
+      </p>
+    </div>
+  </section>
+
+  <div class="global-page-container">
+    <main class="mx-auto w-full max-w-[1310px]">
+      <FeaturedBrands />
+
+      <section class="px-4 py-16 md:px-8">
+        <SectionHeading
+          eyebrow={orchestrateSection.eyebrow}
+          words={[
+            orchestrateSection.headline,
+            orchestrateSection.headlineAccent,
+          ]}
+          accent={[orchestrateSection.headlineAccent]}
+        />
+        <FeatureCards cards={orchestrateSection.cards} columns={3} />
+      </section>
+
+      <section class="px-4 pb-16 md:px-8">
+        <div
+          class="flex flex-col items-start gap-6 rounded-2xl bg-bg-dark p-8 md:flex-row md:items-center md:justify-between md:p-12"
+        >
+          <div class="max-w-[620px]">
+            <h2 class="m-0 text-2xl font-semibold text-white md:text-3xl">
+              {scalePanel.headline}
+            </h2>
+            <p class="mt-3 text-base leading-relaxed text-gray-1">
+              {scalePanel.body}
+            </p>
+          </div>
+          <Button href={scalePanel.cta.href} variant="primary" size="lg">
+            {scalePanel.cta.label}
+          </Button>
+        </div>
+      </section>
+
+      <section class="px-4 pb-16 md:px-8">
+        <SectionHeading
+          eyebrow={consistencySection.eyebrow}
+          words={consistencySection.headline}
+          accent={["Tribal"]}
+        />
+        <FeatureCards cards={consistencyTop} columns={3} />
+
+        <div class="mt-16">
+          <SectionHeading
+            words={consistencySection.secondHeadline}
+            accent={["Enable"]}
+          />
+          <FeatureCards cards={consistencyBottom} columns={2} />
+        </div>
+      </section>
+
+      <section class="px-4 pb-16 md:px-8">
+        <SectionHeading
+          eyebrow={drySection.eyebrow}
+          words={[drySection.headlineAccent, drySection.headline]}
+          accent={[drySection.headlineAccent]}
+        />
+        <FeatureCards cards={drySection.cards} columns={2} style="solid" />
+      </section>
+
+      <Testimonials />
+      <CtaSection />
+      <NewsletterSignup />
+    </main>
+  </div>
+
+  <div class="mt-16">
+    <OpenSourceTools />
+    <Footer />
+  </div>
+</BaseLayout>

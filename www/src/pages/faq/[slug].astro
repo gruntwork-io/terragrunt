@@ -1,0 +1,48 @@
+---
+import { getCollection, render } from "astro:content";
+import PageLayout from "@layouts/PageLayout.astro";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("faq");
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+
+/*
+ * A question page is exactly one question and its answer, which is what
+ * `FAQPage` describes. The live pages carry no structured data; adding it is a
+ * deliberate improvement rather than a parity item.
+ */
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: entry.data.question,
+      acceptedAnswer: { "@type": "Answer", text: entry.data.description },
+    },
+  ],
+};
+---
+
+<PageLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  path={`/faq/${entry.id}`}
+  eyebrow="FAQ"
+  headline={entry.data.question}
+  jsonLd={jsonLd}
+>
+  <div class="prose-tg">
+    <Content />
+  </div>
+
+  <p class="mt-10 text-sm">
+    <a href="/faqs-overview" class="text-accent-1 no-underline hover:underline">
+      &larr; All frequently asked questions
+    </a>
+  </p>
+</PageLayout>

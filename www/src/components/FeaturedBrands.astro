@@ -1,0 +1,104 @@
+---
+import { Image } from "astro:assets";
+import { featuredBrandsHeadline } from "@data/home";
+
+/*
+ * The logo strip scrolls. The list is rendered twice and the track translates by
+ * exactly -50%, so the second copy is under the cursor at the moment the
+ * animation restarts and the loop has no visible seam. The duplicate is
+ * `aria-hidden`, so a screen reader hears each company once.
+ */
+const logos = Object.entries(
+  import.meta.glob<{ default: ImageMetadata }>("../assets/brands/*.svg", {
+    eager: true,
+  }),
+).map(([path, module]) => {
+  const name = path.split("/").pop()!.replace(".svg", "");
+  return { src: module.default, name };
+});
+
+const label = (name: string) =>
+  name.charAt(0).toUpperCase() + name.slice(1);
+---
+
+<section class="border-b border-gray-4 px-4 py-12 md:px-8">
+  <h2
+    class="m-0 text-center text-sm font-medium uppercase tracking-[0.08em] text-gray-2"
+  >
+    {featuredBrandsHeadline}
+  </h2>
+
+  {/*
+    The track is masked at both edges so a logo fades out instead of being
+    sliced off mid-letter at the container boundary, which is what the strip
+    does without it.
+  */}
+  <div class="marquee mt-8 overflow-hidden" data-marquee>
+    <div class="marquee-track flex w-max items-center gap-16">
+      {
+        [false, true].map((isDuplicate) =>
+          logos.map((logo) => (
+            <Image
+              src={logo.src}
+              alt={isDuplicate ? "" : `The logo for ${label(logo.name)}`}
+              aria-hidden={isDuplicate ? "true" : undefined}
+              loading="lazy"
+              class="h-7 w-auto shrink-0 opacity-60 grayscale"
+            />
+          )),
+        )
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .marquee {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 6rem,
+      black calc(100% - 6rem),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 6rem,
+      black calc(100% - 6rem),
+      transparent
+    );
+  }
+
+  .marquee-track {
+    animation: marquee-scroll 40s linear infinite;
+  }
+
+  .marquee:hover .marquee-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      /* Exactly one copy of the list. Any other value shows a jump. */
+      transform: translateX(-50%);
+    }
+  }
+
+  /*
+   * A continuous animation is the case `prefers-reduced-motion` exists for, and
+   * the strip still reads as a logo list when it is still.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .marquee {
+      overflow-x: auto;
+    }
+
+    .marquee-track {
+      animation: none;
+    }
+  }
+</style>

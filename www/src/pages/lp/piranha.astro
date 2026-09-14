@@ -1,0 +1,57 @@
+---
+import { Image } from "astro:assets";
+import LandingLayout from "@layouts/LandingLayout.astro";
+import PiranhaPlant from "@assets/img/piranha-plant.jpg";
+import { driftDetection, patcher, pipelines } from "@data/terragrunt-scale";
+
+const sections = [
+  {
+    eyebrow: "Terragrunt Pipelines",
+    headlineLead: pipelines.headlineLead,
+    headlineAccent: pipelines.headlineAccent,
+    features: pipelines.features,
+  },
+  {
+    eyebrow: "Terragrunt Drift Detection",
+    headlineLead: driftDetection.headlineLead,
+    headlineAccent: driftDetection.headlineAccent,
+    features: driftDetection.features,
+  },
+  {
+    eyebrow: patcher.eyebrow,
+    headlineLead: patcher.headlineLead,
+    headlineAccent: patcher.headlineAccent,
+    features: patcher.features,
+  },
+];
+---
+
+<LandingLayout
+  title="Terragrunt Scale | Demo for Lego Piranha Plant"
+  description="Get a free Lego Super Mario Piranha Plant just for taking a demo of Terragrunt Scale. Secure GitOps for Terragrunt: GitHub/GitLab pipelines, drift detection with auto-PRs, and patching to keep IaC current."
+  path="/lp/piranha"
+  formName="Pipelines Contact Form"
+  sections={sections}
+>
+  <Fragment slot="offer">
+    <h1
+      class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+    >
+      Ready to tame your <span class="text-accent-1">pipelines?</span>
+    </h1>
+    <p class="mt-5 text-lg leading-relaxed text-gray-2">
+      Sign up for a demo with our team and we&rsquo;ll show you how you can
+      scale your IaC estate with centralized pipelines.
+    </p>
+    <p class="mt-4 text-lg leading-relaxed text-gray-2">
+      And to prove our pipelines won&rsquo;t bite, we&rsquo;ll send you a Lego
+      Piranha Plant set after you complete the demo!
+    </p>
+    <Image
+      src={PiranhaPlant}
+      alt="Super Mario Piranha Plant Lego Set"
+      loading="eager"
+      class="mt-8 w-full max-w-[420px] rounded-xl border border-gray-4"
+    />
+  </Fragment>
+</LandingLayout>

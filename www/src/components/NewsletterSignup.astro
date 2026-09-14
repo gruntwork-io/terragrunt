@@ -1,0 +1,35 @@
+---
+import HubspotForm from "@components/HubspotForm.astro";
+---
+
+<section class="px-4 md:px-8">
+  <div
+    class="relative flex flex-col gap-8 overflow-hidden rounded-2xl bg-bg-dark px-6 py-10 md:flex-row md:items-center md:justify-between md:px-20"
+  >
+    <div class="max-w-[460px]">
+      <h2 class="m-0 text-2xl font-semibold text-white">
+        Join the Terragrunt Newsletter!
+      </h2>
+      <p class="mt-2 text-sm leading-relaxed text-gray-1">
+        Hear about the latest updates, features and innovations in Terragrunt.
+      </p>
+    </div>
+
+    <HubspotForm
+      formName="Newsletter Form"
+      tone="dark"
+      class="w-full md:max-w-[380px]"
+      submitLabel="Subscribe"
+      successMessage="Thank you! You're on the list."
+      fields={[
+        {
+          name: "email",
+          label: "Email",
+          type: "email",
+          required: true,
+          placeholder: "Your email here",
+        },
+      ]}
+    />
+  </div>
+</section>

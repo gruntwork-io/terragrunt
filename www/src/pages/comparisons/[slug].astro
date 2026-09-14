@@ -1,0 +1,26 @@
+---
+import { getCollection, render } from "astro:content";
+import ArticleLayout from "@layouts/ArticleLayout.astro";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("comparisons");
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<ArticleLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  path={`/comparisons/${entry.id}`}
+  eyebrow={entry.data.eyebrow}
+  headline={entry.data.headline}
+  subhead={entry.data.subhead}
+  lede={entry.data.lede}
+  backHref="/terragrunt-scale-comparisons"
+  backLabel="All comparisons"
+>
+  <Content />
+</ArticleLayout>

@@ -1,0 +1,104 @@
+---
+import { getCollection, render } from "astro:content";
+import PageLayout from "@layouts/PageLayout.astro";
+
+const entries = await getCollection("faq");
+
+const groups = [
+  { id: "terragrunt", heading: "Terragrunt Questions" },
+  { id: "terragrunt-scale", heading: "Terragrunt Scale Questions" },
+] as const;
+
+/*
+ * Each answer is rendered once, here, and the question's own page renders it
+ * again from the same entry. The index embeds the FULL answer rather than a
+ * summary, which is what the accordion on the live site does — anything else
+ * means two copies of every answer to keep in agreement.
+ */
+const rendered = new Map(
+  await Promise.all(
+    entries.map(
+      async (entry) => [entry.id, (await render(entry)).Content] as const,
+    ),
+  ),
+);
+
+const byGroup = groups.map((group) => ({
+  ...group,
+  items: entries
+    .filter((entry) => entry.data.category === group.id)
+    .sort((a, b) => a.data.order - b.data.order),
+}));
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: entries.map((entry) => ({
+    "@type": "Question",
+    name: entry.data.question,
+    acceptedAnswer: { "@type": "Answer", text: entry.data.description },
+  })),
+};
+---
+
+<PageLayout
+  title="FAQs | Terragrunt & Terragrunt Scale"
+  description="Answers about open-source Terragrunt and Terragrunt Scale."
+  path="/faqs-overview"
+  headline="FAQs"
+  subhead="Answers about open-source Terragrunt and Terragrunt Scale."
+  jsonLd={jsonLd}
+>
+  {
+    byGroup.map((group) => (
+      <section class="mb-14">
+        <h2 class="m-0 mb-6 text-2xl font-semibold text-dark-blue-1">
+          {group.heading}
+        </h2>
+
+        <div class="border-t border-gray-4">
+          {group.items.map((entry) => {
+            const Answer = rendered.get(entry.id)!;
+            return (
+              <details class="group border-b border-gray-4">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-lg font-medium text-dark-blue-1 hover:text-accent-1">
+                  <span>{entry.data.question}</span>
+                  <svg
+                    class="size-5 shrink-0 text-gray-2 transition-transform group-open:rotate-45"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </summary>
+
+                <div class="prose-tg pb-6 text-base">
+                  <Answer />
+                  <p class="mt-4 text-sm">
+                    <a
+                      href={`/faq/${entry.id}`}
+                      class="text-accent-1 no-underline hover:underline"
+                    >
+                      Permalink to this answer &rarr;
+                    </a>
+                  </p>
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      </section>
+    ))
+  }
+</PageLayout>
+
+<style>
+  /* Safari still paints the default disclosure triangle without this. */
+  summary::-webkit-details-marker {
+    display: none;
+  }
+</style>

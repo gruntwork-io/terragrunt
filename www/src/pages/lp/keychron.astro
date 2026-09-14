@@ -1,0 +1,152 @@
+---
+import { Image } from "astro:assets";
+import FeaturedBrands from "@components/FeaturedBrands.astro";
+import LandingLayout from "@layouts/LandingLayout.astro";
+import SectionHeading from "@components/SectionHeading.astro";
+import Keychron from "@assets/img/keychron-1.png";
+import DgxSpark from "@assets/img/keychron-2.png";
+
+const steps = [
+  {
+    title: "See Terragrunt Scale in action",
+    body: "We'll walk through how Scale solves your specific infrastructure challenges. Bring questions — this is your session.",
+  },
+  {
+    title: "Get your Keychron keyboard + DGX Spark raffle entry",
+    body: "After the demo, we ship your mechanical keyboard and enter you into the DGX Spark drawing. You can choose any Keychron keyboard up to $150, or we can send you a Keychron gift card to purchase your perfect keyboard.",
+  },
+];
+
+const differentiators = [
+  "Runs in your existing GitHub Actions or GitLab CI",
+  "Understands Terragrunt units, stacks, and DAGs",
+  "Plans and applies only affected units to reduce blast radius",
+  "Uses temporary, least-privilege OIDC credentials instead of long-lived secrets",
+  "Supports monorepos or polyrepos, GitHub/GitLab, and enterprise/self-managed options",
+  "Keeps workflow behavior configurable in HCL instead of hiding it behind a black box",
+];
+
+const sections = [
+  {
+    eyebrow: "Pipelines",
+    headlineLead: "Deploy",
+    headlineAccent: "infra changes with confidence",
+    features: [
+      {
+        title: "Deploy safely with Pipelines",
+        body: "Run plans only for affected units, post results back to PRs, and apply on merge in dependency order. Pipelines supports concurrent runs for independent units, multi-environment changes, HCL-based configuration, and OIDC credentials scoped to each environment.",
+      },
+      {
+        title: "Detect drift before it becomes an incident",
+        body: "Run scheduled or on-demand scans. When drift is found, open a PR or MR for only the drifted units, review the remediation, and merge when ready. Start narrow with filtered coverage and expand over time.",
+      },
+      {
+        title: "Keep IaC current",
+        body: "Patcher opens pull requests for dependency updates on your schedule and promotes them across environments in order.",
+      },
+    ],
+  },
+];
+---
+
+<LandingLayout
+  title="Terragrunt Scale | Keychron"
+  description="Take a demo of Terragrunt Scale and we'll ship you a Keychron mechanical keyboard, plus you'll be entered in a raffle for an NVIDIA DGX Spark."
+  path="/lp/keychron"
+  formName="Keychron Contact Form"
+  sections={sections}
+>
+  <Fragment slot="offer">
+    <h1
+      class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+    >
+      30 minutes. <span class="text-accent-1">A free keyboard.</span> A shot at a
+      DGX Spark.
+    </h1>
+
+    <ol class="m-0 mt-8 flex list-none flex-col gap-6 p-0">
+      {
+        steps.map((step, i) => (
+          <li class="flex gap-4">
+            <span class="text-lg font-semibold text-accent-3">
+              {String(i + 1).padStart(2, "0")}.
+            </span>
+            <div>
+              <h2 class="m-0 text-base font-semibold text-dark-blue-1">
+                {step.title}
+              </h2>
+              <p class="mt-1 text-sm leading-relaxed text-gray-2">{step.body}</p>
+            </div>
+          </li>
+        ))
+      }
+    </ol>
+
+    <div class="mt-8 grid grid-cols-2 gap-4">
+      <Image
+        src={Keychron}
+        alt="Keychron keyboard"
+        loading="eager"
+        class="w-full rounded-xl border border-gray-4"
+      />
+      <Image
+        src={DgxSpark}
+        alt="NVIDIA DGX Spark"
+        loading="eager"
+        class="w-full rounded-xl border border-gray-4"
+      />
+    </div>
+  </Fragment>
+
+  <Fragment slot="after-form">
+    <FeaturedBrands />
+
+    <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+      <SectionHeading
+        words={["Built for teams that use", "Terragrunt"]}
+        accent={["Terragrunt"]}
+      />
+      <div class="max-w-[820px]">
+        <p class="text-lg leading-relaxed text-gray-2">
+          Terragrunt gives teams a clean way to organize infrastructure.
+          Terragrunt Scale extends the Terragrunt you already know with a
+          secure, production-grade GitOps workflow&mdash;running entirely inside
+          your own GitHub Actions or GitLab CI.
+        </p>
+        <p class="mt-4 text-lg leading-relaxed text-gray-2">
+          Terragrunt-native GitOps pipelines, drift detection, and automated
+          updates. Review plans in pull requests, apply on merge, minimize blast
+          radius, and keep your units, stacks, and modules aligned with code.
+        </p>
+      </div>
+    </section>
+
+    <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+      <SectionHeading
+        words={["Terragrunt-native GitOps,", "not retrofitted from generic CI"]}
+        accent={["not retrofitted from generic CI"]}
+      />
+      <ul class="m-0 flex max-w-[820px] list-none flex-col gap-3 p-0">
+        {
+          differentiators.map((item) => (
+            <li class="flex items-start gap-2.5 text-base text-gray-2">
+              <svg
+                class="mt-1 size-4 shrink-0 text-accent-3"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              {item}
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+  </Fragment>
+</LandingLayout>

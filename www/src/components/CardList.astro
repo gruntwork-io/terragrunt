@@ -1,0 +1,41 @@
+---
+interface Card {
+  href: string;
+  title: string;
+  description?: string;
+}
+
+interface Props {
+  cards: readonly Card[];
+}
+
+const { cards } = Astro.props;
+---
+
+<ul class="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2">
+  {
+    cards.map((card) => (
+      <li>
+        <a
+          href={card.href}
+          class="group flex h-full flex-col gap-2 rounded-xl border border-gray-4 bg-white p-6 no-underline transition-colors hover:border-accent-3"
+        >
+          <span class="text-lg font-semibold text-dark-blue-1 group-hover:text-accent-1">
+            {card.title}
+          </span>
+          {card.description && (
+            <span class="text-sm leading-relaxed text-gray-2">
+              {card.description}
+            </span>
+          )}
+          <span
+            aria-hidden="true"
+            class="mt-auto pt-3 text-sm font-medium text-accent-1"
+          >
+            Read more &rarr;
+          </span>
+        </a>
+      </li>
+    ))
+  }
+</ul>

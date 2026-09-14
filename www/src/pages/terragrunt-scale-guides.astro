@@ -1,0 +1,28 @@
+---
+import { getCollection } from "astro:content";
+import CardList from "@components/CardList.astro";
+import PageLayout from "@layouts/PageLayout.astro";
+
+const entries = (await getCollection("guides")).sort(
+  (a, b) =>
+    (a.data.order ?? Number.MAX_SAFE_INTEGER) -
+      (b.data.order ?? Number.MAX_SAFE_INTEGER) ||
+    a.data.indexTitle.localeCompare(b.data.indexTitle),
+);
+
+const cards = entries.map((entry) => ({
+  href: `/guides/${entry.id}`,
+  title: entry.data.indexTitle,
+  description: entry.data.subhead,
+}));
+---
+
+<PageLayout
+  title="Guides | Terragrunt Scale"
+  description="Step-by-step guides for Terragrunt Scale."
+  path="/terragrunt-scale-guides"
+  headline="Terragrunt Scale Guides"
+  subhead="Step-by-step guides for Terragrunt Scale."
+>
+  <CardList cards={cards} />
+</PageLayout>

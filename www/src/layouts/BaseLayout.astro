@@ -1,0 +1,114 @@
+---
+import "@styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Route-relative path, e.g. `/terragrunt-scale`. Used for the canonical url. */
+  path: string;
+  image?: string;
+  imageAlt?: string;
+  ogType?: "website" | "article";
+  noindex?: boolean;
+  /** Rendered into a `application/ld+json` script when present. */
+  jsonLd?: Record<string, unknown>;
+}
+
+const {
+  title,
+  description,
+  path,
+  image = "https://terragrunt.com/images/terragrunt-og-image-1200x630.png",
+  imageAlt = "Terragrunt — orchestrate Terraform and OpenTofu at scale",
+  ogType = "website",
+  noindex = false,
+  jsonLd,
+} = Astro.props;
+
+/*
+ * Absolute against the site's own origin, because a crawler unfurling a shared
+ * link has no base to resolve a relative url against.
+ */
+const canonical = new URL(path, "https://terragrunt.com").href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <link rel="canonical" href={canonical} />
+
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={image} />
+    <meta property="og:image:alt" content={imageAlt} />
+    <meta property="og:site_name" content="Terragrunt" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@gruntwork_io" />
+    <meta name="twitter:title" content={title} />
+    {description && <meta name="twitter:description" content={description} />}
+    <meta name="twitter:image" content={image} />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    {
+      jsonLd && (
+        <script
+          type="application/ld+json"
+          is:inline
+          set:html={JSON.stringify(jsonLd)}
+        />
+      )
+    }
+
+    {/*
+      Google Tag Manager, served first-party.
+
+      `/mtag/gtm.js` is a Vercel function (`api/mtag.js`) rather than a plain
+      rewrite, because the container builds the GA4 library url from a host
+      value Google bakes into it as `www.googletagmanager.com`. Without the
+      rewrite the page loads the container first-party and then fetches 527 KB
+      of GA4 straight from Google, where a blocker stops it — which is the
+      request the whole first-party setup exists to keep.
+
+      This is a plain synchronous tag on purpose. Do NOT move it into a web
+      worker: Partytown was measured at 9,140 requests per page load on
+      gruntwork.io and removed, because a worker has no `localStorage` and the
+      container injects vendors that poll it.
+    */}
+    <script is:inline>
+      (function (w, d, s, l, i) {
+        w[l] = w[l] || [];
+        w[l].push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+        var f = d.getElementsByTagName(s)[0],
+          j = d.createElement(s),
+          dl = l != "dataLayer" ? "&l=" + l : "";
+        j.async = true;
+        j.src = "/mtag/gtm.js?id=" + i + dl;
+        f.parentNode.insertBefore(j, f);
+      })(window, document, "script", "dataLayer", "GTM-5TTJJGTL");
+    </script>
+
+    <slot name="head" />
+  </head>
+
+  <body class="min-h-full bg-background font-sans text-dark-blue-1 antialiased">
+    <noscript
+      ><iframe
+        src="/mtag/ns.html?id=GTM-5TTJJGTL"
+        height="0"
+        width="0"
+        style="display:none;visibility:hidden"
+        title="Google Tag Manager"></iframe></noscript
+    >
+    <slot />
+  </body>
+</html>

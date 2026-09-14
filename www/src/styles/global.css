@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+/*
+ * Fonts are self-hosted rather than pulled from fonts.gstatic.com. The whole
+ * point of the /mtag and /ftag paths is that nothing a visitor needs comes from
+ * a host an ad blocker or a corporate proxy can cut off; a webfont is no
+ * different, and a blocked font is a visible reflow rather than a silent one.
+ */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-VariableFont_opsz,wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-Italic-VariableFont_opsz,wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+ * The palette is Webflow's `:root` block, carried over name-for-name from
+ * terragrunt.webflow.shared.css. Keeping the upstream names means a value can be
+ * checked against the live site without first decoding a rename.
+ */
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", "SF Mono", Monaco, "Cascadia Code", monospace;
+
+  --color-dark-blue-1: #0f0934;
+  --color-accent-1: #4f2fd0;
+  --color-accent-2: #5e46e6;
+  --color-accent-3: #7d5dff;
+  --color-accent-4: #bfa6f2;
+  --color-accent-background: #dcd5f6;
+  --color-terragrunt-accent: #f48701;
+
+  --color-background: #fafafa;
+  --color-bg-dark: #0f1731;
+  --color-stroke-dark: #2e375a;
+
+  --color-gray-1: #a0a1ac;
+  --color-gray-2: #6b6c7a;
+  --color-gray-3: #6d6f86;
+  --color-gray-4: #dbdbdb;
+  --color-gray-5: #e6e6e6;
+  --color-gray-6: #f1f1f1;
+  --color-gray-7: #2d3754;
+  --color-gray-8: #343956;
+
+  --color-nav-link: #a0a1ac;
+  --color-form-focus-ring: #448daf;
+  --color-error: #ff6b6b;
+
+  /* Webflow's spacing scale, used where a value was read off the live site. */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-xxl: 24px;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-dark-blue-1);
+    font-family: var(--font-sans);
+    margin: 0;
+    min-height: 100%;
+  }
+
+  /* The nav is sticky and opaque, so an anchor target has to clear it. */
+  :target {
+    scroll-margin-top: 6rem;
+  }
+}
+
+@layer components {
+  /*
+   * The page shell: a 1312px column with hairline rules down both sides, which
+   * is the one piece of chrome every non-landing page on the site shares.
+   */
+  .global-page-container {
+    border-left: 1px solid var(--color-gray-4);
+    border-right: 1px solid var(--color-gray-4);
+    margin-inline: auto;
+    max-width: 1312px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /*
+   * Long-form body copy: FAQ answers, comparison and guide bodies. Sized at
+   * 20px/1.7 to match `.rich-text-prose` on the live site.
+   */
+  .prose-tg {
+    color: var(--color-gray-7);
+    font-size: 1.25rem;
+    line-height: 1.7;
+  }
+
+  .prose-tg > * + * {
+    margin-top: 1.25em;
+  }
+
+  .prose-tg h2 {
+    color: var(--color-dark-blue-1);
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    margin-top: 2.25rem;
+  }
+
+  .prose-tg h3 {
+    color: var(--color-dark-blue-1);
+    font-size: 1.375rem;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-top: 2rem;
+  }
+
+  .prose-tg a {
+    color: var(--color-accent-1);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .prose-tg a:hover {
+    color: var(--color-accent-3);
+  }
+
+  .prose-tg strong {
+    color: var(--color-dark-blue-1);
+    font-weight: 600;
+  }
+
+  .prose-tg ul,
+  .prose-tg ol {
+    padding-left: 1.5rem;
+  }
+
+  .prose-tg ul {
+    list-style: disc;
+  }
+
+  .prose-tg ol {
+    list-style: decimal;
+  }
+
+  .prose-tg li + li {
+    margin-top: 0.5rem;
+  }
+
+  .prose-tg code {
+    background-color: var(--color-gray-6);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    padding: 0.15em 0.4em;
+  }
+
+  .prose-tg pre {
+    background-color: var(--color-bg-dark);
+    border-radius: 8px;
+    color: #e8eefc;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    padding: 1rem 1.25rem;
+  }
+
+  .prose-tg pre code {
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    padding: 0;
+  }
+
+  /*
+   * A table is the one block here allowed to be wider than the measure, so it
+   * scrolls inside its own box rather than making the page scroll sideways.
+   */
+  .prose-tg table {
+    border-collapse: collapse;
+    display: block;
+    font-size: 1rem;
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .prose-tg th,
+  .prose-tg td {
+    border: 1px solid var(--color-gray-4);
+    padding: 0.625rem 0.875rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .prose-tg th {
+    background-color: var(--color-gray-6);
+    color: var(--color-dark-blue-1);
+    font-weight: 600;
+  }
+}

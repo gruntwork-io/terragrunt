@@ -1,0 +1,36 @@
+---
+/**
+ * Layout for a standalone Markdown page under `src/pages`.
+ *
+ * Astro passes a markdown page's frontmatter as `Astro.props.frontmatter`,
+ * not as individual props, so this reads it from there rather than destructuring
+ * `Astro.props` directly.
+ */
+import PageLayout from "@layouts/PageLayout.astro";
+
+interface Frontmatter {
+  title: string;
+  description?: string;
+  path: string;
+  eyebrow?: string;
+  headline: string;
+  subhead?: string;
+  hideCta?: boolean;
+}
+
+const { frontmatter } = Astro.props as { frontmatter: Frontmatter };
+---
+
+<PageLayout
+  title={frontmatter.title}
+  description={frontmatter.description}
+  path={frontmatter.path}
+  eyebrow={frontmatter.eyebrow}
+  headline={frontmatter.headline}
+  subhead={frontmatter.subhead}
+  hideCta={frontmatter.hideCta}
+>
+  <div class="prose-tg">
+    <slot />
+  </div>
+</PageLayout>

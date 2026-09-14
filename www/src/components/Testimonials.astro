@@ -1,0 +1,85 @@
+---
+import SectionHeading from "@components/SectionHeading.astro";
+import { testimonialsSection } from "@data/home";
+
+/*
+ * The live page runs two counter-scrolling columns. That is an animation whose
+ * effect is computed from layout, and it hides most of the quotes from anyone
+ * who does not wait for the scroll. Here they are a plain masonry-ish grid,
+ * capped at a readable height with a "show all" toggle: every quote is in the
+ * DOM, in source order, for a crawler and for assistive tech.
+ */
+const { items } = testimonialsSection;
+---
+
+<section class="px-4 py-16 md:px-8">
+  <SectionHeading
+    eyebrow={testimonialsSection.eyebrow}
+    words={[testimonialsSection.headlineAccent, testimonialsSection.headline]}
+    accent={[testimonialsSection.headlineAccent]}
+  />
+
+  <div class="relative" data-testimonials>
+    <ul
+      class="m-0 grid max-h-[46rem] list-none grid-cols-1 gap-4 overflow-hidden p-0 md:grid-cols-2 lg:grid-cols-3"
+      data-testimonial-list
+    >
+      {
+        items.map((item) => (
+          <li class="break-inside-avoid rounded-xl border border-gray-4 bg-white p-6">
+            <blockquote class="m-0 text-sm leading-relaxed text-gray-7">
+              &ldquo;{item.quote}&rdquo;
+            </blockquote>
+            <div class="mt-4">
+              <p class="m-0 text-sm font-semibold text-dark-blue-1">
+                {item.name}
+              </p>
+              {item.role && <p class="m-0 text-xs text-gray-2">{item.role}</p>}
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+
+    <div
+      class="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background to-transparent"
+      data-testimonial-fade
+    >
+    </div>
+  </div>
+
+  <div class="mt-6 text-center">
+    <button
+      type="button"
+      class="rounded-lg border border-gray-4 bg-white px-5 py-2.5 text-sm font-medium text-dark-blue-1 transition-colors hover:border-accent-3 hover:text-accent-1"
+      data-testimonial-toggle
+      aria-expanded="false"
+    >
+      Show all {items.length} reviews
+    </button>
+  </div>
+</section>
+
+<script>
+  const root = document.querySelector<HTMLElement>("[data-testimonials]");
+  const list = root?.querySelector<HTMLElement>("[data-testimonial-list]");
+  const fade = root?.querySelector<HTMLElement>("[data-testimonial-fade]");
+  const toggle = document.querySelector<HTMLButtonElement>(
+    "[data-testimonial-toggle]",
+  );
+
+  const total = list?.children.length ?? 0;
+
+  toggle?.addEventListener("click", () => {
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!expanded));
+    toggle.textContent = expanded ? `Show all ${total} reviews` : "Show fewer";
+
+    if (list) list.classList.toggle("max-h-[46rem]", expanded);
+    if (fade) fade.hidden = !expanded;
+
+    // Collapsing from below the fold would otherwise leave the viewport in the
+    // middle of the next section with no visible cause.
+    if (expanded) root?.scrollIntoView({ block: "start", behavior: "smooth" });
+  });
+</script>

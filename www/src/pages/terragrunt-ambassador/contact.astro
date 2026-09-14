@@ -1,0 +1,77 @@
+---
+import BaseLayout from "@layouts/BaseLayout.astro";
+import Footer from "@components/Footer.astro";
+import HubspotForm from "@components/HubspotForm.astro";
+import Nav from "@components/Nav.astro";
+import OpenSourceTools from "@components/OpenSourceTools.astro";
+
+const title = "Terragrunt Ambassador | Contact";
+const description =
+  "Tell us why you'd make a great Terragrunt Ambassador. We're looking to hear from you.";
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  path="/terragrunt-ambassador/contact"
+>
+  <Nav active="/terragrunt-ambassador" />
+
+  <div class="global-page-container">
+    <main class="mx-auto w-full max-w-[1310px] px-4 py-16 md:px-8">
+      <div class="grid grid-cols-1 gap-12 lg:grid-cols-2">
+        <div class="max-w-[520px]">
+          <h1
+            class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+          >
+            Interested in being a Terragrunt Ambassador?
+          </h1>
+          <p class="mt-5 text-lg leading-relaxed text-gray-2">
+            Let us know why you think you&rsquo;d make a great Ambassador.
+            We&rsquo;re looking to hear from you!
+          </p>
+          <p class="mt-8 text-sm font-medium text-gray-3">
+            Thousands of engineers build with Terragrunt
+          </p>
+        </div>
+
+        <div class="rounded-2xl border border-gray-4 bg-white p-6 md:p-8">
+          <HubspotForm
+            formName="Ambassador Contact Form"
+            submitLabel="Send message"
+            successMessage="Thank you! Your submission has been received. We generally respond the same business day."
+            fields={[
+              { name: "name", label: "Name", required: true },
+              {
+                name: "email",
+                label: "Company email",
+                type: "email",
+                required: true,
+              },
+              { name: "phone", label: "Phone number", type: "tel" },
+              {
+                name: "how-did-you-hear",
+                label: "How did you hear about us?",
+                required: true,
+              },
+              {
+                name: "How-can-we-help",
+                label: "How can we help?",
+                type: "textarea",
+                required: true,
+              },
+            ]}
+          />
+          <p class="mt-4 text-sm text-gray-2">
+            We generally respond the same business day!
+          </p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="mt-16">
+    <OpenSourceTools />
+    <Footer />
+  </div>
+</BaseLayout>

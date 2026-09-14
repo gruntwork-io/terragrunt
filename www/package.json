@@ -1,0 +1,31 @@
+{
+  "name": "terragrunt-www",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "check": "astro check",
+    "vercel:check": "bun tools/vercel-config.ts",
+    "routes:check": "bun tools/routes-check.ts",
+    "analytics:check": "bun tools/analytics-check.ts",
+    "gates": "bun run vercel:check && bun run build && bun run routes:check && bun run analytics:check"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^8.0.0",
+    "@astrojs/sitemap": "3.7.4",
+    "@astrojs/vercel": "11.0.10",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "7.2.8",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@types/bun": "^1.4.1",
+    "typescript": "^6"
+  }
+}

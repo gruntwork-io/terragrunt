@@ -1,0 +1,48 @@
+---
+import Button from "@components/Button.astro";
+import FlagGrunty from "@assets/grunty/flag-grunty.svg";
+import { Image } from "astro:assets";
+import { scaleProducts } from "@data/site";
+---
+
+<section class="px-4 py-12 md:px-8 md:py-16">
+  <div class="relative overflow-hidden rounded-2xl bg-bg-dark px-6 py-14 text-center md:px-12">
+    <h2 class="m-0 text-3xl font-semibold text-white md:text-4xl">
+      <span class="text-accent-4">Supercharge</span> Terragrunt for your Organization
+    </h2>
+    <p class="mx-auto mt-4 max-w-[600px] text-base leading-relaxed text-gray-1">
+      Unlock Terragrunt&rsquo;s full potential with Terragrunt Scale &mdash;
+      purpose-built tooling from the team that builds Terragrunt.
+    </p>
+
+    <div class="mx-auto mt-14 grid max-w-[1100px] grid-cols-1 gap-6 text-left md:grid-cols-3">
+      {
+        scaleProducts.map((product) => (
+          <div class="rounded-xl border border-stroke-dark bg-white/[0.03] p-6">
+            <h3 class="m-0 text-lg font-semibold text-white">{product.title}</h3>
+            <p class="mt-3 text-sm leading-relaxed text-gray-1">
+              <strong class="font-semibold text-accent-4">
+                {product.product}
+              </strong>{" "}
+              {product.body}
+            </p>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="mt-10">
+      <Button href="/terragrunt-scale" variant="primary" size="lg">
+        Learn about Terragrunt Scale
+      </Button>
+    </div>
+
+    <Image
+      src={FlagGrunty}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      class="pointer-events-none absolute -bottom-4 right-6 hidden w-28 opacity-80 lg:block"
+    />
+  </div>
+</section>

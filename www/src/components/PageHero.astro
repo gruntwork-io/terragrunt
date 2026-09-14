@@ -1,0 +1,63 @@
+---
+import Grunty from "@assets/grunty/grunty.svg";
+import { Image } from "astro:assets";
+
+interface Props {
+  eyebrow?: string;
+  headline: string;
+  subhead?: string;
+  /** `half-height` is the variant the FAQ, comparison and guide pages use. */
+  variant?: "full" | "half";
+  showMascot?: boolean;
+}
+
+const {
+  eyebrow,
+  headline,
+  subhead,
+  variant = "half",
+  showMascot = true,
+} = Astro.props;
+---
+
+<section
+  class:list={[
+    "relative z-[2] overflow-hidden bg-bg-dark px-4 md:px-8",
+    variant === "half" ? "py-16 md:py-20" : "min-h-[700px] py-20",
+  ]}
+>
+  <div class="relative z-[2] mx-auto flex max-w-[800px] flex-col items-start">
+    {
+      eyebrow && (
+        <span class="mb-4 inline-block text-[13px] font-semibold uppercase tracking-[0.08em] text-accent-3">
+          {eyebrow}
+        </span>
+      )
+    }
+    <h1
+      class="m-0 max-w-[680px] text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-white md:text-5xl"
+    >
+      {headline}
+    </h1>
+    {
+      subhead && (
+        <p class="mt-5 max-w-[60ch] text-lg leading-[1.55] text-gray-1">
+          {subhead}
+        </p>
+      )
+    }
+    <slot />
+  </div>
+
+  {
+    showMascot && (
+      <Image
+        src={Grunty}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        class="pointer-events-none absolute -bottom-6 right-4 hidden w-40 opacity-90 lg:block"
+      />
+    )
+  }
+</section>

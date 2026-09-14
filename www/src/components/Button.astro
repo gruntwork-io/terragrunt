@@ -1,0 +1,52 @@
+---
+interface Props {
+  href: string;
+  variant?: "primary" | "secondary" | "ghost";
+  size?: "md" | "lg";
+  class?: string;
+  external?: boolean;
+}
+
+const {
+  href,
+  variant = "primary",
+  size = "md",
+  class: className,
+  external,
+  ...rest
+} = Astro.props;
+
+/*
+ * Anything not rooted at `/` or `#` leaves the site, so it gets the rel pair
+ * whether or not the caller remembered to say so.
+ */
+const isExternal = external ?? !/^[/#]/.test(href);
+
+const variants = {
+  primary:
+    "bg-accent-3 text-white border border-white/20 hover:bg-accent-2",
+  secondary:
+    "bg-bg-dark text-white border border-white/20 hover:bg-stroke-dark",
+  ghost:
+    "bg-transparent text-dark-blue-1 border border-gray-4 hover:border-accent-3 hover:text-accent-1",
+} as const;
+
+const sizes = {
+  md: "px-5 py-2.5 text-sm",
+  lg: "px-6 py-3 text-base",
+} as const;
+---
+
+<a
+  href={href}
+  class:list={[
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium leading-6 no-underline transition-colors duration-150",
+    variants[variant],
+    sizes[size],
+    className,
+  ]}
+  {...isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {}}
+  {...rest}
+>
+  <slot />
+</a>

@@ -1,0 +1,34 @@
+---
+interface Props {
+  eyebrow?: string;
+  /** Words rendered in the accent colour, matched against `words`. */
+  accent?: readonly string[];
+  words: readonly string[];
+}
+
+const { eyebrow, accent = [], words } = Astro.props;
+---
+
+<div class="mb-10">
+  {
+    eyebrow && (
+      <span class="mb-3 inline-block rounded-full border border-gray-4 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-gray-2">
+        {eyebrow}
+      </span>
+    )
+  }
+  <h2
+    class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+  >
+    {
+      words.map((word, i) => (
+        <>
+          {i > 0 && " "}
+          <span class:list={[accent.includes(word) && "text-accent-1"]}>
+            {word}
+          </span>
+        </>
+      ))
+    }
+  </h2>
+</div>

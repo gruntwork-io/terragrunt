@@ -1,0 +1,40 @@
+---
+import { openSourceTools } from "@data/site";
+---
+
+<section class="border-y border-dashed border-gray-4 bg-background">
+  <div class="mx-auto max-w-[1312px] px-4 pt-10 md:px-8">
+    <h2 class="m-0 text-base font-semibold text-dark-blue-1">
+      Check out our other open source tools
+    </h2>
+  </div>
+  <div
+    class="mx-auto grid max-w-[1312px] grid-cols-1 sm:grid-cols-2 lg:grid-cols-5"
+  >
+    {
+      openSourceTools.map((tool, i) => (
+        <a
+          href={tool.href}
+          rel="noopener noreferrer"
+          target="_blank"
+          class:list={[
+            "group relative block p-8 no-underline transition-colors hover:bg-gray-6",
+            i < openSourceTools.length - 1 &&
+              "border-b border-dashed border-gray-4 lg:border-b-0 lg:border-r",
+          ]}
+        >
+          <span class="flex items-center gap-2 font-semibold text-dark-blue-1">
+            {tool.name}
+            <span
+              aria-hidden="true"
+              class="translate-x-0 opacity-0 transition-all group-hover:translate-x-1 group-hover:opacity-100"
+            >
+              →
+            </span>
+          </span>
+          <span class="mt-1 block text-sm text-gray-2">{tool.description}</span>
+        </a>
+      ))
+    }
+  </div>
+</section>

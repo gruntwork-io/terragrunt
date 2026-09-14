@@ -1,0 +1,130 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "astro",
+  "installCommand": "bunx bun@1.4.0 install",
+  "buildCommand": "bunx bun@1.4.0 run build",
+  "trailingSlash": false,
+  "cleanUrls": false,
+  "rewrites": [
+    {
+      "source": "/mtag/gtm.js",
+      "destination": "/api/mtag"
+    },
+    {
+      "source": "/mtag/:path*",
+      "destination": "https://www.googletagmanager.com/:path*"
+    },
+    {
+      "source": "/vtag/:path*",
+      "destination": "https://cdn.vector.co/:path*"
+    },
+    {
+      "source": "/htag/:path*",
+      "destination": "https://js.hs-analytics.net/:path*"
+    },
+    {
+      "source": "/stag/:path*",
+      "destination": "https://js.hs-scripts.com/:path*"
+    },
+    {
+      "source": "/btag/:path*",
+      "destination": "https://js.hs-banner.com/:path*"
+    },
+    {
+      "source": "/ctag/:path*",
+      "destination": "https://js.hscollectedforms.net/:path*"
+    },
+    {
+      "source": "/ftag",
+      "destination": "/api/ftag"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap-index.xml"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/terragrunt-comparisons",
+      "destination": "/terragrunt-scale-comparisons",
+      "permanent": true
+    },
+    {
+      "source": "/terragrunt-scale-comparisons/:slug",
+      "destination": "/comparisons/:slug",
+      "permanent": true
+    },
+    {
+      "source": "/terragrunt-scale-guides/:slug",
+      "destination": "/guides/:slug",
+      "permanent": true
+    },
+    {
+      "source": "/faq",
+      "destination": "/faqs-overview",
+      "permanent": true
+    },
+    {
+      "source": "/faqs",
+      "destination": "/faqs-overview",
+      "permanent": true
+    },
+    {
+      "source": "/docs",
+      "destination": "https://docs.terragrunt.com/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/:path*",
+      "destination": "https://docs.terragrunt.com/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/community/invite",
+      "destination": "https://discord.com/invite/YENaT9h8jh",
+      "permanent": false
+    },
+    {
+      "source": "/tgs-discord",
+      "destination": "https://discord.gg/SJgKFdcPns",
+      "permanent": false
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        }
+      ]
+    },
+    {
+      "source": "/fonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/_astro/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}

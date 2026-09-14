@@ -1,0 +1,232 @@
+---
+/**
+ * A marketing form that posts to `/ftag`.
+ *
+ * `/ftag` is a same-origin Vercel function that creates the HubSpot contact
+ * itself and answers 204 ONLY when HubSpot accepted the submission. This
+ * component treats any other status as a failure — deliberately narrower than
+ * "any 2xx", because an endpoint that acknowledges before doing the work makes
+ * a lead path that reaches nobody look green to the visitor and to every check.
+ *
+ * Same-origin matters here beyond privacy: an ad blocker that breaks a pageview
+ * is an annoyance, and one that breaks LEAD CAPTURE is not.
+ */
+export interface FormField {
+  /** Submitted key. Must match what `api/ftag.js` maps for this form. */
+  name: string;
+  label: string;
+  type?: "text" | "email" | "tel" | "textarea";
+  required?: boolean;
+  placeholder?: string;
+  /** Rendered as a `<select>` when present. */
+  options?: readonly string[];
+}
+
+interface Props {
+  /** Identifies the form to `api/ftag.js`, which picks the HubSpot form GUID. */
+  formName: string;
+  fields: readonly FormField[];
+  submitLabel?: string;
+  successMessage?: string;
+  /** `dark` sits on the navy panels; `light` on the page background. */
+  tone?: "light" | "dark";
+  class?: string;
+}
+
+const {
+  formName,
+  fields,
+  submitLabel = "Submit",
+  successMessage = "Thank you! Your submission has been received.",
+  tone = "light",
+  class: className,
+} = Astro.props;
+
+const inputBase =
+  "w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-form-focus-ring/60";
+const inputTone =
+  tone === "dark"
+    ? "border-stroke-dark bg-white/10 text-white placeholder:text-gray-1"
+    : "border-gray-4 bg-white text-dark-blue-1 placeholder:text-gray-2";
+const labelTone = tone === "dark" ? "text-gray-1" : "text-gray-3";
+---
+
+<form
+  class:list={["flex flex-col gap-4", className]}
+  data-tg-form={formName}
+  novalidate
+>
+  {
+    fields.map((field) => (
+      <label class="flex flex-col gap-1.5">
+        <span class:list={["text-sm font-medium", labelTone]}>
+          {field.label}
+          {field.required && (
+            <span class="text-error" aria-hidden="true">
+              {" "}
+              *
+            </span>
+          )}
+        </span>
+        {field.type === "textarea" ? (
+          <textarea
+            name={field.name}
+            required={field.required}
+            placeholder={field.placeholder}
+            rows="4"
+            class:list={[inputBase, inputTone, "resize-y"]}
+          />
+        ) : field.options ? (
+          <select
+            name={field.name}
+            required={field.required}
+            class:list={[inputBase, inputTone]}
+          >
+            <option value="">{field.placeholder ?? "Select one"}</option>
+            {field.options.map((option) => (
+              <option value={option}>{option}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={field.type ?? "text"}
+            name={field.name}
+            required={field.required}
+            placeholder={field.placeholder}
+            autocomplete={
+              field.type === "email"
+                ? "email"
+                : field.type === "tel"
+                  ? "tel"
+                  : undefined
+            }
+            class:list={[inputBase, inputTone]}
+          />
+        )}
+      </label>
+    ))
+  }
+
+  <button
+    type="submit"
+    class="mt-2 inline-flex items-center justify-center rounded-lg border border-white/20 bg-accent-3 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    {submitLabel}
+  </button>
+
+  {/*
+    Both states are in the DOM from the start and toggled with `hidden`, so a
+    submission never waits on markup being created, and a screen reader is told
+    about the change through the live region rather than a silent swap.
+  */}
+  <p
+    class="m-0 text-sm text-error"
+    data-tg-form-error
+    role="alert"
+    hidden
+  >
+  </p>
+  <p
+    class:list={[
+      "m-0 text-sm font-medium",
+      tone === "dark" ? "text-accent-4" : "text-accent-1",
+    ]}
+    data-tg-form-success
+    role="status"
+    hidden
+  >
+    {successMessage}
+  </p>
+</form>
+
+<script>
+  const READ_COOKIE = (name: string): string => {
+    const match = document.cookie.match(
+      new RegExp(`(?:^|; )${name}=([^;]*)`),
+    );
+    return match ? decodeURIComponent(match[1]!) : "";
+  };
+
+  for (const form of document.querySelectorAll<HTMLFormElement>(
+    "[data-tg-form]",
+  )) {
+    const errorEl = form.querySelector<HTMLElement>("[data-tg-form-error]");
+    const successEl = form.querySelector<HTMLElement>("[data-tg-form-success]");
+    const submit = form.querySelector<HTMLButtonElement>("[type=submit]");
+    const originalLabel = submit?.textContent ?? "Submit";
+
+    const fail = (message: string) => {
+      if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+      }
+    };
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (errorEl) errorEl.hidden = true;
+
+      if (!form.reportValidity()) return;
+
+      const data: Record<string, string> = {};
+      for (const [key, value] of new FormData(form).entries()) {
+        data[key] = String(value);
+      }
+
+      // Ties this submission to the visitor's earlier browsing. HubSpot rejects
+      // a blank one, so it is omitted rather than sent empty.
+      const hutk = READ_COOKIE("hubspotutk");
+      if (hutk) data.hutk = hutk;
+      data.pageUri = window.location.href;
+      data.pageName = document.title;
+      data.landing_page_url ||= window.location.href;
+
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = "Sending…";
+      }
+
+      let response: Response;
+      try {
+        response = await fetch("/ftag", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: form.dataset.tgForm,
+            publishedPath: window.location.pathname,
+            pageUrl: window.location.href,
+            data,
+          }),
+        });
+      } catch {
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = originalLabel;
+        }
+        fail("We couldn't reach the server. Please check your connection and try again.");
+        return;
+      }
+
+      // 204 and nothing else. `/ftag` sends it only once HubSpot has accepted
+      // the submission, so a narrower check here is the difference between
+      // reporting a delivered lead and reporting a received request.
+      if (response.status === 204) {
+        form.querySelectorAll("label, [type=submit]").forEach((el) => {
+          (el as HTMLElement).hidden = true;
+        });
+        if (successEl) successEl.hidden = false;
+        return;
+      }
+
+      if (submit) {
+        submit.disabled = false;
+        submit.textContent = originalLabel;
+      }
+      fail(
+        response.status === 400
+          ? "Please check the details you entered and try again."
+          : "Something went wrong submitting the form. Please try again, or email support@gruntwork.io.",
+      );
+    });
+  }
+</script>

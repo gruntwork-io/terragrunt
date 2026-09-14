@@ -1,0 +1,292 @@
+---
+import { Image } from "astro:assets";
+import BaseLayout from "@layouts/BaseLayout.astro";
+import Button from "@components/Button.astro";
+import Footer from "@components/Footer.astro";
+import Nav from "@components/Nav.astro";
+import NewsletterSignup from "@components/NewsletterSignup.astro";
+import OpenSourceTools from "@components/OpenSourceTools.astro";
+import SectionHeading from "@components/SectionHeading.astro";
+import { ambassadors } from "@data/ambassadors";
+import { DISCORD_INVITE } from "@data/site";
+
+const title = "Terragrunt | Terragrunt Ambassador Program";
+const description =
+  "Recognizing, empowering, and amplifying the most passionate and knowledgeable members of the Terragrunt community.";
+
+/*
+ * Portraits are resolved here rather than by string interpolation at the call
+ * site: `import.meta.glob` is build-time, so an ambassador whose `image` does
+ * not exist fails the build instead of shipping a broken portrait that only a
+ * human looking at the page would notice.
+ */
+const portraits = import.meta.glob<{ default: ImageMetadata }>(
+  "../../assets/img/*.{jpg,jpeg,png,webp}",
+  { eager: true },
+);
+
+const portraitFor = (file: string): ImageMetadata => {
+  const match = portraits[`../../assets/img/${file}`];
+  if (!match) throw new Error(`No portrait asset for "${file}"`);
+  return match.default;
+};
+
+const benefits = [
+  {
+    title: "Visibility & Recognition",
+    body: "Stand out in the Terragrunt community as a trusted expert. We'll feature you on our website and in the Terragrunt Discord channel.",
+  },
+  {
+    title: "Ambassador Swag & Discounts",
+    body: "Receive Terragrunt swag, exclusive gear, discounts on Gruntwork products, and event/travel support for speaking engagements.",
+  },
+  {
+    title: "Direct Access to Terragrunt Team",
+    body: "Private channel with core Terragrunt team and fellow Ambassadors to ask questions, share insights, and shape the future of Terragrunt.",
+  },
+  {
+    title: "Beta Access",
+    body: "Get early access to new Terragrunt Scale features and provide critical feedback that helps shape the future of Terragrunt.",
+  },
+  {
+    title: "Social Amplification",
+    body: "We'll promote your Terragrunt-related blog posts, videos, and talks through our official channels.",
+  },
+];
+
+const criteria = [
+  "Technical expertise in Terragrunt and OpenTofu/Terraform",
+  "A passion for sharing knowledge and enabling the community",
+  "Active community involvement",
+];
+
+const socialLabels = {
+  github: "GitHub",
+  linkedin: "LinkedIn",
+  medium: "Medium",
+  website: "Website",
+} as const;
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  path="/terragrunt-ambassador"
+>
+  <Nav active="/terragrunt-ambassador" />
+
+  <section class="bg-bg-dark px-4 py-20 md:px-8 md:py-24">
+    <div class="mx-auto max-w-[800px]">
+      <h1
+        class="m-0 text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-white md:text-5xl"
+      >
+        Terragrunt <span class="text-accent-4">Ambassador</span> Program
+      </h1>
+      <p class="mt-5 max-w-[60ch] text-lg leading-[1.55] text-gray-1">
+        Recognizing, empowering, and amplifying the most passionate and
+        knowledgeable members of the Terragrunt community.
+      </p>
+    </div>
+  </section>
+
+  <div class="global-page-container">
+    <main class="mx-auto w-full max-w-[1310px]">
+      <section class="px-4 py-16 md:px-8">
+        <SectionHeading
+          eyebrow="About the Program"
+          words={["What it means to be a", "Terragrunt Ambassador"]}
+          accent={["Terragrunt Ambassador"]}
+        />
+        <p class="max-w-[800px] text-lg leading-relaxed text-gray-2">
+          Ambassadors are passionate about Terragrunt and are experts at using
+          it to manage infrastructure at scale using IaC. They are an essential
+          part of the Terragrunt community&mdash;answering questions in forums,
+          authoring blog posts, speaking at conferences, and are the community
+          extension of the Terragrunt team at Gruntwork.
+        </p>
+      </section>
+
+      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+        <SectionHeading
+          eyebrow="Program Benefits"
+          words={["Perks of being an", "Ambassador"]}
+          accent={["Ambassador"]}
+        />
+        <ul
+          class="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 lg:grid-cols-3"
+        >
+          {
+            benefits.map((benefit) => (
+              <li class="rounded-xl border border-gray-4 bg-white p-6">
+                <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+                  {benefit.title}
+                </h3>
+                <p class="mt-2 text-sm leading-relaxed text-gray-2">
+                  {benefit.body}
+                </p>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+        <SectionHeading
+          eyebrow="Ambassadors"
+          words={["Meet the Terragrunt", "Ambassadors"]}
+          accent={["Ambassadors"]}
+        />
+        {/*
+          The live page hides each bio behind a modal. Here every bio is in the
+          page as a `<details>`: same click to open, but the text is in the DOM
+          for a crawler and reachable by keyboard without any JavaScript.
+        */}
+        <ul
+          class="m-0 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          {
+            ambassadors.map((person) => (
+              <li class="flex flex-col rounded-xl border border-gray-4 bg-white p-6">
+                <Image
+                  src={portraitFor(person.image)}
+                  alt={person.name}
+                  width={96}
+                  height={96}
+                  loading="lazy"
+                  class="size-24 rounded-full object-cover"
+                />
+                <h3 class="mt-4 text-base font-semibold text-dark-blue-1">
+                  {person.name}
+                </h3>
+                <p class="m-0 mt-0.5 text-sm text-gray-2">{person.role}</p>
+                {person.since && (
+                  <p class="m-0 mt-2">
+                    <span class="inline-block rounded-full bg-accent-background px-2.5 py-0.5 text-xs font-medium text-accent-1">
+                      {person.since}
+                    </span>
+                  </p>
+                )}
+
+                {person.bio && (
+                  <details class="group mt-4">
+                    <summary class="cursor-pointer list-none text-sm font-medium text-accent-1 hover:underline">
+                      <span class="group-open:hidden">Bio</span>
+                      <span class="hidden group-open:inline">Hide bio</span>
+                    </summary>
+                    <p class="mt-2 text-sm leading-relaxed text-gray-2">
+                      {person.bio}
+                    </p>
+                  </details>
+                )}
+
+                <ul class="m-0 mt-auto flex list-none gap-3 p-0 pt-4">
+                  {
+                    Object.entries(person.links).map(([kind, href]) => (
+                      <li>
+                        <a
+                          href={href}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                          class="text-xs text-gray-2 no-underline hover:text-accent-1"
+                        >
+                          {socialLabels[kind as keyof typeof socialLabels]}
+                        </a>
+                      </li>
+                    ))
+                  }
+                </ul>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+        <SectionHeading
+          eyebrow="Join the Program"
+          words={["Become a Terragrunt", "Ambassador"]}
+          accent={["Ambassador"]}
+        />
+        <div class="max-w-[800px]">
+          <p class="text-lg leading-relaxed text-gray-2">
+            We're looking for community members who are passionate, expert users
+            of Terragrunt and are (or willing to be) active in the community.
+          </p>
+          <p class="mt-6 font-medium text-dark-blue-1">
+            To be considered, applicants should demonstrate
+          </p>
+          <ul class="m-0 mt-3 flex list-none flex-col gap-2 p-0">
+            {
+              criteria.map((item) => (
+                <li class="flex items-start gap-2.5 text-base text-gray-2">
+                  <svg
+                    class="mt-1 size-4 shrink-0 text-accent-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                  {item}
+                </li>
+              ))
+            }
+          </ul>
+          <p class="mt-6 leading-relaxed text-gray-2">
+            We understand that not everyone wants to be active on social
+            channels or forums. If you show genuine enthusiasm for Terragrunt
+            and are willing to be an active member of the community in other
+            ways, we&rsquo;d love to consider you as well!
+          </p>
+
+          <p class="mt-8 text-lg font-medium text-dark-blue-1">
+            Think you're a <span class="text-accent-1">good fit?</span> We'd love
+            to hear from you.
+          </p>
+          <div class="mt-4">
+            <Button
+              href="/terragrunt-ambassador/contact"
+              variant="primary"
+              size="lg"
+            >
+              Become an Ambassador
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section class="border-t border-gray-4 px-4 py-16 text-center md:px-8">
+        <p class="m-0 text-lg text-gray-2">
+          Still have questions about the <span class="text-accent-1"
+            >Terragrunt Ambassador</span
+          > Program or just want to talk to the Terragrunt team?
+          <a
+            href={DISCORD_INVITE}
+            rel="noopener noreferrer"
+            target="_blank"
+            class="text-accent-1 underline underline-offset-2"
+          >
+            Connect with us on the Terragrunt Discord Channel.
+          </a>
+        </p>
+      </section>
+
+      <NewsletterSignup />
+    </main>
+  </div>
+
+  <div class="mt-16">
+    <OpenSourceTools />
+    <Footer />
+  </div>
+</BaseLayout>
+
+<style>
+  summary::-webkit-details-marker {
+    display: none;
+  }
+</style>

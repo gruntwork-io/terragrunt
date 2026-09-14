@@ -1,0 +1,62 @@
+---
+/**
+ * Comparison and guide pages: same shape, two collections. Both carry a lede
+ * above the body, which is why the body cannot simply start with it.
+ */
+import PageLayout from "@layouts/PageLayout.astro";
+import { renderLede } from "@lib/lede";
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  eyebrow: string;
+  headline: string;
+  subhead?: string;
+  lede?: string;
+  backHref: string;
+  backLabel: string;
+}
+
+const {
+  title,
+  description,
+  path,
+  eyebrow,
+  headline,
+  subhead,
+  lede,
+  backHref,
+  backLabel,
+} = Astro.props;
+
+const ledeHtml = renderLede(lede);
+---
+
+<PageLayout
+  title={title}
+  description={description}
+  path={path}
+  eyebrow={eyebrow}
+  headline={headline}
+  subhead={subhead}
+>
+  {
+    ledeHtml && (
+      <div
+        class="prose-tg mb-10 border-b border-gray-4 pb-10 [&_p]:text-[1.35rem] [&_p]:leading-[1.6]"
+        set:html={ledeHtml}
+      />
+    )
+  }
+
+  <article class="prose-tg">
+    <slot />
+  </article>
+
+  <p class="mt-12 text-sm">
+    <a href={backHref} class="text-accent-1 no-underline hover:underline">
+      &larr; {backLabel}
+    </a>
+  </p>
+</PageLayout>

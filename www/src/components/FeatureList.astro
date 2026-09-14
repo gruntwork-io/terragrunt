@@ -1,0 +1,41 @@
+---
+/**
+ * The three-item feature list used by the Pipelines, Drift Detection and
+ * Patcher sections. Bodies carry inline `code` spans, so they render through
+ * the same inline-markdown path as everything else rather than as raw text.
+ */
+import { renderLede } from "@lib/lede";
+
+interface Props {
+  features: readonly { title: string; body: string }[];
+  tone?: "light" | "dark";
+}
+
+const { features, tone = "light" } = Astro.props;
+---
+
+<ul class="m-0 flex list-none flex-col gap-6 p-0">
+  {
+    features.map((feature) => (
+      <li>
+        <h3
+          class:list={[
+            "m-0 text-base font-semibold",
+            tone === "dark" ? "text-white" : "text-dark-blue-1",
+          ]}
+        >
+          {feature.title}
+        </h3>
+        <div
+          class:list={[
+            "mt-1.5 text-sm leading-relaxed [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_p]:m-0",
+            tone === "dark"
+              ? "text-gray-1 [&_code]:bg-white/10 [&_code]:text-accent-4"
+              : "text-gray-2 [&_code]:bg-gray-6 [&_code]:text-accent-1",
+          ]}
+          set:html={renderLede(feature.body)}
+        />
+      </li>
+    ))
+  }
+</ul>

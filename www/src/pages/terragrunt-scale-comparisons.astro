@@ -1,0 +1,28 @@
+---
+import { getCollection } from "astro:content";
+import CardList from "@components/CardList.astro";
+import PageLayout from "@layouts/PageLayout.astro";
+
+const entries = (await getCollection("comparisons")).sort(
+  (a, b) =>
+    (a.data.order ?? Number.MAX_SAFE_INTEGER) -
+      (b.data.order ?? Number.MAX_SAFE_INTEGER) ||
+    a.data.indexTitle.localeCompare(b.data.indexTitle),
+);
+
+const cards = entries.map((entry) => ({
+  href: `/comparisons/${entry.id}`,
+  title: entry.data.indexTitle,
+  description: entry.data.subhead,
+}));
+---
+
+<PageLayout
+  title="Terragrunt Comparisons | See How Terragrunt Scale Stacks Up"
+  description="How Terragrunt Scale stacks up against other Terraform CI/CD pipeline tools."
+  path="/terragrunt-scale-comparisons"
+  headline="Terragrunt Scale Comparisons"
+  subhead="How Terragrunt Scale stacks up against other Terraform CI/CD pipeline tools."
+>
+  <CardList cards={cards} />
+</PageLayout>

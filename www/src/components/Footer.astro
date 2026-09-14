@@ -1,0 +1,52 @@
+---
+import { Image } from "astro:assets";
+import GruntworkLogo from "@assets/gruntwork-logo.svg";
+import { footerLinks } from "@data/site";
+
+const year = new Date().getFullYear();
+---
+
+<footer class="relative border-t border-gray-4 bg-background">
+  <div
+    class="mx-auto flex max-w-[1312px] flex-col gap-6 px-4 py-10 md:flex-row md:items-center md:justify-between md:px-8"
+  >
+    <div class="flex flex-col gap-2">
+      <a
+        href="https://www.gruntwork.io/"
+        class="flex items-center gap-2 text-sm text-gray-3 no-underline transition-colors hover:text-dark-blue-1"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <Image
+          src={GruntworkLogo}
+          alt="Gruntwork"
+          loading="lazy"
+          class="h-5 w-auto"
+        />
+        <span>From the DevOps experts at Gruntwork</span>
+      </a>
+      <p class="m-0 text-sm text-gray-2">
+        © {year} Gruntwork, Inc. All rights reserved.
+      </p>
+    </div>
+
+    <nav class="flex gap-10" aria-label="Footer">
+      {
+        [footerLinks.left, footerLinks.right].map((group) => (
+          <ul class="m-0 flex list-none flex-col gap-2 p-0">
+            {group.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  class="text-sm text-gray-3 no-underline transition-colors hover:text-accent-1"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ))
+      }
+    </nav>
+  </div>
+</footer>
