@@ -26,11 +26,21 @@ import (
 // credentialsCacheExpiryWindow reserves five minutes before STS credentials expire.
 const credentialsCacheExpiryWindow = 5 * time.Minute
 
+const credentialsCacheName = "credentialsCache"
+
 var awsCredentialEnvKeys = []string{
 	"AWS_ACCESS_KEY_ID",
 	"AWS_SECRET_ACCESS_KEY",
 	"AWS_SESSION_TOKEN",
 	"AWS_SECURITY_TOKEN",
+}
+
+type credentialsStoreKey struct{}
+
+// WithIsolatedCredentialsCache returns a context that carries a fresh STS
+// credentials cache, so concurrent or repeated tests do not share process state.
+func WithIsolatedCredentialsCache(ctx context.Context) context.Context {
+	return context.WithValue(ctx, credentialsStoreKey{}, newCredentialsStore())
 }
 
 // Provider obtains credentials by making API requests to Amazon STS.
@@ -68,42 +78,61 @@ func (provider *Provider) GetCredentials(
 		return nil, nil
 	}
 
+	store := storeFromContext(ctx)
 	iamRoleOpts.AssumeRoleDuration = effectiveAssumeRoleDuration(iamRoleOpts.AssumeRoleDuration)
 	roleKey := roleConfigKey(iamRoleOpts)
-	sourceFP := sourceCredentialFingerprint(v.Env)
+	sourceFP := credentialFingerprint(v.Env)
 	identityKey := roleKey + "\x00" + sourceFP
 
-	if entry := credentialsStore.get(identityKey); entry != nil {
+	if entry := store.get(ctx, identityKey); entry != nil {
 		l.Debugf("Using cached credentials for IAM role %s.", iamRoleOpts.RoleARN)
 		return entry.creds, nil
 	}
 
-	if accessKeyID := v.Env["AWS_ACCESS_KEY_ID"]; accessKeyID != "" {
-		if entry := credentialsStore.getBySession(roleKey, accessKeyID); entry != nil {
+	sessionFP := credentialFingerprint(v.Env)
+	if v.Env["AWS_ACCESS_KEY_ID"] != "" {
+		if entry := store.getBySession(ctx, roleKey, sessionFP); entry != nil {
 			l.Debugf("Using cached credentials for IAM role %s.", iamRoleOpts.RoleARN)
 			return entry.creds, nil
 		}
 
-		if expired := credentialsStore.getExpiredBySession(roleKey, accessKeyID); expired != nil {
-			return provider.assumeAndCache(ctx, l, v, iamRoleOpts, roleKey, expired.sourceEnv)
+		if pastRefresh := store.getPastRefreshBySession(ctx, roleKey, sessionFP); pastRefresh != nil {
+			creds, err := provider.assumeAndCache(ctx, l, v, store, iamRoleOpts, roleKey, pastRefresh.sourceEnv)
+			if err == nil {
+				return creds, nil
+			}
+
+			if time.Now().Before(pastRefresh.expiresAt) {
+				l.Warnf(
+					"Failed to refresh IAM role %s; reusing cached session until %s: %v",
+					iamRoleOpts.RoleARN,
+					pastRefresh.expiresAt.UTC().Format(time.RFC3339),
+					err,
+				)
+
+				return pastRefresh.creds, nil
+			}
+
+			return nil, err
 		}
 	}
 
-	return provider.assumeAndCache(ctx, l, v, iamRoleOpts, roleKey, snapshotAWSCredentialEnv(v.Env))
+	return provider.assumeAndCache(ctx, l, v, store, iamRoleOpts, roleKey, snapshotAWSCredentialEnv(v.Env))
 }
 
 func (provider *Provider) assumeAndCache(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	store *stsCredentialsStore,
 	iamRoleOpts iam.RoleOptions,
 	roleKey string,
 	sourceEnv map[string]string,
 ) (*providers.Credentials, error) {
-	identityKey := roleKey + "\x00" + sourceCredentialFingerprint(sourceEnv)
+	identityKey := roleKey + "\x00" + credentialFingerprint(sourceEnv)
 
-	vAny, err, _ := credentialsStore.flight.Do(identityKey, func() (any, error) {
-		if entry := credentialsStore.get(identityKey); entry != nil {
+	vAny, err, _ := store.flight.Do(identityKey, func() (any, error) {
+		if entry := store.get(ctx, identityKey); entry != nil {
 			return entry.creds, nil
 		}
 
@@ -137,10 +166,13 @@ func (provider *Provider) assumeAndCache(
 			},
 		}
 
-		credentialsStore.put(identityKey, roleKey, &cacheEntry{
+		refreshAt, expiresAt := cacheTimes(resp, iamRoleOpts.AssumeRoleDuration)
+		store.put(ctx, identityKey, roleKey, &cacheEntry{
 			creds:     creds,
 			sourceEnv: maps.Clone(sourceEnv),
-			expires:   cacheExpiration(resp, iamRoleOpts.AssumeRoleDuration),
+			sessionFP: credentialFingerprint(creds.Envs),
+			refreshAt: refreshAt,
+			expiresAt: expiresAt,
 		})
 
 		return creds, nil
@@ -175,7 +207,7 @@ func roleConfigKey(opts iam.RoleOptions) string {
 	return hex.EncodeToString(sum.Sum(nil))
 }
 
-func sourceCredentialFingerprint(env map[string]string) string {
+func credentialFingerprint(env map[string]string) string {
 	sum := sha256.New()
 	for _, key := range awsCredentialEnvKeys {
 		writeFingerprintField(sum, env[key])
@@ -211,89 +243,158 @@ func assumeVenv(v *venv.Venv, sourceEnv map[string]string) *venv.Venv {
 	return v.WithEnv(env)
 }
 
-func cacheExpiration(resp *types.Credentials, durationSecs int64) time.Time {
-	expiresAt := time.Now().Add(time.Duration(durationSecs) * time.Second)
+func cacheTimes(resp *types.Credentials, durationSecs int64) (refreshAt, expiresAt time.Time) {
+	expiresAt = time.Now().Add(time.Duration(durationSecs) * time.Second)
 	if resp != nil && resp.Expiration != nil {
 		expiresAt = aws.ToTime(resp.Expiration)
 	}
 
-	withWindow := expiresAt.Add(-credentialsCacheExpiryWindow)
-	if withWindow.After(time.Now()) {
-		return withWindow
+	refreshAt = expiresAt.Add(-credentialsCacheExpiryWindow)
+	if !refreshAt.After(time.Now()) {
+		refreshAt = expiresAt
 	}
 
-	return expiresAt
+	return refreshAt, expiresAt
 }
 
 type cacheEntry struct {
 	creds     *providers.Credentials
 	sourceEnv map[string]string
-	expires   time.Time
+	refreshAt time.Time
+	expiresAt time.Time
+	sessionFP string
 }
 
 type stsCredentialsStore struct {
-	flight    singleflight.Group
 	byID      map[string]*cacheEntry
 	bySession map[string]*cacheEntry
+	flight    *singleflight.Group
+	name      string
 	mu        sync.Mutex
 }
 
-func (s *stsCredentialsStore) get(identityKey string) *cacheEntry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return s.live(s.byID[identityKey])
+func newCredentialsStore() *stsCredentialsStore {
+	return &stsCredentialsStore{
+		byID:      make(map[string]*cacheEntry),
+		bySession: make(map[string]*cacheEntry),
+		flight:    &singleflight.Group{},
+		name:      credentialsCacheName,
+	}
 }
 
-func (s *stsCredentialsStore) getBySession(roleKey, accessKeyID string) *cacheEntry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func storeFromContext(ctx context.Context) *stsCredentialsStore {
+	if store, ok := ctx.Value(credentialsStoreKey{}).(*stsCredentialsStore); ok && store != nil {
+		return store
+	}
 
-	return s.live(s.bySession[sessionIndexKey(roleKey, accessKeyID)])
+	return globalCredentialsStore
 }
 
-func (s *stsCredentialsStore) getExpiredBySession(roleKey, accessKeyID string) *cacheEntry {
+func (s *stsCredentialsStore) get(ctx context.Context, identityKey string) *cacheEntry {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entry := s.bySession[sessionIndexKey(roleKey, accessKeyID)]
-	if entry == nil || !time.Now().After(entry.expires) {
+	telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_get", 1)
+
+	entry, found := s.byID[identityKey]
+	if !found {
+		telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_miss", 1)
+		return nil
+	}
+
+	if time.Now().After(entry.refreshAt) {
+		telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_expiry", 1)
+		return nil
+	}
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_hit", 1)
+
+	return entry
+}
+
+func (s *stsCredentialsStore) getBySession(ctx context.Context, roleKey, sessionFP string) *cacheEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_get", 1)
+
+	entry, found := s.bySession[sessionIndexKey(roleKey, sessionFP)]
+	if !found {
+		telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_miss", 1)
+		return nil
+	}
+
+	if time.Now().After(entry.refreshAt) {
+		telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_expiry", 1)
+		return nil
+	}
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_hit", 1)
+
+	return entry
+}
+
+func (s *stsCredentialsStore) getPastRefreshBySession(ctx context.Context, roleKey, sessionFP string) *cacheEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_get", 1)
+
+	key := sessionIndexKey(roleKey, sessionFP)
+
+	entry, found := s.bySession[key]
+	if !found {
+		telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_miss", 1)
+		return nil
+	}
+
+	now := time.Now()
+	if !now.After(entry.refreshAt) {
+		telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_hit", 1)
+		return nil
+	}
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_expiry", 1)
+
+	if now.After(entry.expiresAt) {
+		delete(s.bySession, key)
+		s.deleteIdentityLocked(entry)
+
 		return nil
 	}
 
 	return entry
 }
 
-func (s *stsCredentialsStore) put(identityKey, roleKey string, entry *cacheEntry) {
+func (s *stsCredentialsStore) put(ctx context.Context, identityKey, roleKey string, entry *cacheEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, s.name+"_cache_put", 1)
+
+	previous := s.byID[identityKey]
+	if previous != nil && previous.sessionFP != "" && previous.sessionFP != entry.sessionFP {
+		delete(s.bySession, sessionIndexKey(roleKey, previous.sessionFP))
+	}
 
 	s.byID[identityKey] = entry
-	if accessKeyID := entry.creds.Envs["AWS_ACCESS_KEY_ID"]; accessKeyID != "" {
-		s.bySession[sessionIndexKey(roleKey, accessKeyID)] = entry
+	if entry.sessionFP != "" {
+		s.bySession[sessionIndexKey(roleKey, entry.sessionFP)] = entry
 	}
 }
 
-func (s *stsCredentialsStore) live(entry *cacheEntry) *cacheEntry {
-	if entry == nil {
-		return nil
+func (s *stsCredentialsStore) deleteIdentityLocked(entry *cacheEntry) {
+	for key, candidate := range s.byID {
+		if candidate == entry {
+			delete(s.byID, key)
+			return
+		}
 	}
-
-	if time.Now().After(entry.expires) {
-		return nil
-	}
-
-	return entry
 }
 
-func sessionIndexKey(roleKey, accessKeyID string) string {
-	return roleKey + "\x00" + accessKeyID
+func sessionIndexKey(roleKey, sessionFP string) string {
+	return roleKey + "\x00" + sessionFP
 }
 
-// credentialsStore caches assumed sessions for the process. Entries are keyed by
-// role configuration and source-credential fingerprint, with a session-access-key
-// index so a later call whose env already holds the assumed session still hits.
-var credentialsStore = &stsCredentialsStore{
-	byID:      make(map[string]*cacheEntry),
-	bySession: make(map[string]*cacheEntry),
-}
+// globalCredentialsStore caches assumed sessions for the process.
+var globalCredentialsStore = newCredentialsStore()
