@@ -119,7 +119,7 @@ func (provider *Provider) GetCredentials(
 		}
 	}
 
-	return provider.assumeAndCache(ctx, l, v, store, iamRoleOpts, roleKey, snapshotAWSCredentialEnv(v.Env))
+	return provider.assumeAndCache(ctx, l, v, store, iamRoleOpts, roleKey, store.sourceEnvFor(v.Env))
 }
 
 func (provider *Provider) assumeAndCache(
@@ -268,19 +268,50 @@ type cacheEntry struct {
 }
 
 type stsCredentialsStore struct {
-	byID      map[string]*cacheEntry
-	bySession map[string]*cacheEntry
-	flight    *singleflight.Group
-	name      string
-	mu        sync.Mutex
+	byID        map[string]*cacheEntry
+	bySession   map[string]*cacheEntry
+	mintedBySFP map[string]*cacheEntry
+	flight      *singleflight.Group
+	name        string
+	mu          sync.Mutex
 }
 
 func newCredentialsStore() *stsCredentialsStore {
 	return &stsCredentialsStore{
-		byID:      make(map[string]*cacheEntry),
-		bySession: make(map[string]*cacheEntry),
-		flight:    &singleflight.Group{},
-		name:      credentialsCacheName,
+		byID:        make(map[string]*cacheEntry),
+		bySession:   make(map[string]*cacheEntry),
+		mintedBySFP: make(map[string]*cacheEntry),
+		flight:      &singleflight.Group{},
+		name:        credentialsCacheName,
+	}
+}
+
+// sourceEnvFor returns the identity that should sign an assume-role request made from env.
+func (s *stsCredentialsStore) sourceEnvFor(env map[string]string) map[string]string {
+	snapshot := snapshotAWSCredentialEnv(env)
+	if len(snapshot) == 0 {
+		return snapshot
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	seen := make(map[string]struct{})
+
+	for {
+		fp := credentialFingerprint(snapshot)
+		if _, loop := seen[fp]; loop {
+			return snapshot
+		}
+
+		seen[fp] = struct{}{}
+
+		entry, minted := s.mintedBySFP[fp]
+		if !minted || entry.sourceEnv == nil {
+			return snapshot
+		}
+
+		snapshot = entry.sourceEnv
 	}
 }
 
@@ -382,6 +413,8 @@ func (s *stsCredentialsStore) put(ctx context.Context, identityKey, roleKey stri
 	s.byID[identityKey] = entry
 	if entry.sessionFP != "" {
 		s.bySession[sessionIndexKey(roleKey, entry.sessionFP)] = entry
+		// Indexed by session alone so any minted session is recognized whatever the role options were.
+		s.mintedBySFP[entry.sessionFP] = entry
 	}
 }
 
