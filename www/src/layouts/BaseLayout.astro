@@ -10,6 +10,8 @@ interface Props {
   imageAlt?: string;
   ogType?: "website" | "article";
   noindex?: boolean;
+  /** `dark` paints the page ground navy, as `.body.dark` does on the live site. */
+  tone?: "light" | "dark";
   /** Rendered into a `application/ld+json` script when present. */
   jsonLd?: Record<string, unknown>;
 }
@@ -22,6 +24,7 @@ const {
   imageAlt = "Terragrunt — orchestrate Terraform and OpenTofu at scale",
   ogType = "website",
   noindex = false,
+  tone = "light",
   jsonLd,
 } = Astro.props;
 
@@ -100,7 +103,14 @@ const canonical = new URL(path, "https://terragrunt.com").href;
     <slot name="head" />
   </head>
 
-  <body class="min-h-full bg-background font-sans text-dark-blue-1 antialiased">
+  <body
+    class:list={[
+      "min-h-full font-sans antialiased",
+      tone === "dark"
+        ? "bg-bg-dark text-white"
+        : "bg-background text-dark-blue-1",
+    ]}
+  >
     <noscript
       ><iframe
         src="/mtag/ns.html?id=GTM-5TTJJGTL"

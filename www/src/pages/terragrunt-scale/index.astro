@@ -9,7 +9,9 @@ import Nav from "@components/Nav.astro";
 import NewsletterSignup from "@components/NewsletterSignup.astro";
 import OpenSourceTools from "@components/OpenSourceTools.astro";
 import SectionHeading from "@components/SectionHeading.astro";
-import HalfGrunty from "@assets/img/half-grunty.svg";
+import VerticalGrid from "@components/VerticalGrid.astro";
+import HeroCard from "@assets/img/tgs-hero-pr-card.png";
+import Cube from "@assets/img/cube-3d.png";
 import PipelinesShot from "@assets/img/tgs-pipelines-plan.png";
 import DriftShot from "@assets/img/tgs-drift-detected.png";
 import {
@@ -44,82 +46,98 @@ const headlineParts = (() => {
   description={description}
   path="/terragrunt-scale"
 >
+  <VerticalGrid />
   <Nav active="/terragrunt-scale" />
 
-  <section class="relative overflow-hidden bg-bg-dark px-4 py-20 md:px-8">
-    <div class="mx-auto max-w-[900px]">
-      <span
-        class="mb-4 inline-block text-[13px] font-semibold uppercase tracking-[0.08em] text-accent-3"
-      >
-        {hero.eyebrow}
-      </span>
-      <h1
-        class="m-0 text-3xl font-semibold leading-[1.15] tracking-[-0.01em] text-white md:text-5xl"
-      >
-        {hero.headlineLead}{" "}
-        {
-          headlineParts.map((part) =>
-            (hero.accents as readonly string[]).includes(part) ? (
-              <span class="text-accent-4">{part}</span>
-            ) : (
-              part
-            ),
-          )
-        }
-      </h1>
+  {/*
+    Two columns: copy left, the product screenshot right. "Terragrunt Scale" is
+    the HEADING and the long sentence is body copy beneath it — setting the
+    whole sentence as an h1 made the page open on a wall of display type that
+    the live page does not have.
+  */}
+  <section class="relative z-[2] w-full overflow-hidden bg-bg-dark pt-[100px]">
+    <div class="mx-auto grid max-w-[1310px] grid-cols-1 gap-12 px-4 pb-16 md:px-8 lg:grid-cols-2 lg:items-center">
+      <div>
+        <h1
+          class="m-0 text-4xl font-semibold leading-[1.05] tracking-[-0.02em] text-white md:text-6xl"
+        >
+          Terragrunt <span class="text-accent-4">Scale</span>
+        </h1>
 
-      <ul class="m-0 mt-8 flex list-none flex-wrap gap-x-6 gap-y-2 p-0">
-        {
-          hero.assurances.map((item) => (
-            <li class="flex items-center gap-2 text-sm text-gray-1">
-              <svg
-                class="size-4 shrink-0 text-accent-3"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
-              {item}
-            </li>
-          ))
-        }
-      </ul>
+        <p class="mt-5 max-w-[46ch] text-base leading-relaxed text-gray-1">
+          {hero.headlineLead}{" "}
+          {
+            headlineParts.map((part) =>
+              (hero.accents as readonly string[]).includes(part) ? (
+                <span class="font-medium text-white">{part}</span>
+              ) : (
+                part
+              ),
+            )
+          }
+        </p>
 
-      <div class="mt-8 flex flex-wrap gap-3">
-        <Button href={hero.primary.href} variant="primary" size="lg">
-          {hero.primary.label}
-        </Button>
-        <Button href={hero.secondary.href} variant="secondary" size="lg">
-          {hero.secondary.label}
-        </Button>
+        <p class="mt-8 flex flex-wrap items-center gap-2">
+          <span
+            class="font-mono text-[11px] uppercase tracking-[0.08em] text-gray-1"
+            >{hero.builtForLabel}</span
+          >
+          {
+            hero.builtFor.map((tool) => (
+              <span class="rounded-full bg-background px-3 py-1 text-xs font-medium text-bg-dark">
+                {tool}
+              </span>
+            ))
+          }
+        </p>
+
+        <ul class="m-0 mt-6 flex list-none flex-col gap-2 p-0">
+          {
+            hero.assurances.map((item) => (
+              <li class="flex items-center gap-2.5 text-sm text-gray-1">
+                <svg
+                  class="size-4 shrink-0 text-accent-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                {item}
+              </li>
+            ))
+          }
+        </ul>
+
+        <div class="mt-8 flex flex-wrap gap-3">
+          <Button href={hero.primary.href} variant="primary" size="lg">
+            {hero.primary.label}
+          </Button>
+          <Button href={hero.secondary.href} variant="secondary" size="lg">
+            {hero.secondary.label}
+          </Button>
+        </div>
       </div>
 
-      <p
-        class="mt-10 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.08em] text-gray-1"
-      >
-        <span>{hero.builtForLabel}</span>
-        {
-          hero.builtFor.map((tool) => (
-            <span class="rounded-full border border-stroke-dark px-3 py-1 normal-case tracking-normal text-white">
-              {tool}
-            </span>
-          ))
-        }
-      </p>
+      <div class="relative">
+        <Image
+          src={Cube}
+          alt=""
+          aria-hidden="true"
+          class="absolute -top-10 left-0 w-16 lg:-left-6"
+        />
+        <Image
+          src={HeroCard}
+          alt="A Terragrunt plan posted as a pull request comment"
+          loading="eager"
+          class="w-full rounded-lg"
+        />
+      </div>
     </div>
-
-    <Image
-      src={HalfGrunty}
-      alt=""
-      aria-hidden="true"
-      loading="lazy"
-      class="pointer-events-none absolute bottom-0 right-0 hidden w-56 xl:block"
-    />
   </section>
 
   <div class="global-page-container">
@@ -230,34 +248,34 @@ const headlineParts = (() => {
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {
             pricing.plans.map((plan) => (
-              <div class="flex flex-col rounded-2xl border border-gray-4 bg-white p-8">
-                <p class="m-0 text-sm text-gray-2">{plan.priceLabel}</p>
+              <div class="flex max-w-[400px] flex-col rounded-lg border border-[#2f3547] bg-bg-dark bg-gradient-to-b from-[#5862aa24] to-[#5862aa00] to-60% p-6">
+                <p class="m-0 text-sm text-gray-1">{plan.priceLabel}</p>
                 {plan.price && (
-                  <p class="m-0 mt-1 text-4xl font-semibold text-dark-blue-1">
+                  <p class="m-0 mt-1 text-4xl font-semibold text-white">
                     {plan.price}
                     {plan.priceFootnote && (
-                      <sup class="ml-0.5 text-base text-gray-2">&dagger;</sup>
+                      <sup class="ml-0.5 text-base text-gray-1">&dagger;</sup>
                     )}
                   </p>
                 )}
 
-                <h3 class="mt-6 text-xl font-semibold text-dark-blue-1">
+                <h3 class="mt-6 text-xl font-semibold text-white">
                   {plan.name}
                 </h3>
-                <p class="m-0 mt-1 text-sm font-medium text-accent-1">
+                <p class="m-0 mt-1 text-sm font-medium text-accent-4">
                   {plan.units}
                 </p>
-                <p class="m-0 mt-2 text-sm text-gray-2">{plan.audience}</p>
+                <p class="m-0 mt-2 text-sm text-gray-1">{plan.audience}</p>
 
                 {plan.upsell && (
-                  <p class="m-0 mt-6 text-sm font-medium text-dark-blue-1">
+                  <p class="m-0 mt-6 text-sm font-medium text-white">
                     {plan.upsell}
                   </p>
                 )}
 
                 <ul class="m-0 mt-6 flex list-none flex-col gap-3 p-0">
                   {plan.features.map((feature) => (
-                    <li class="flex items-start gap-2.5 text-sm text-gray-7">
+                    <li class="flex items-start gap-2.5 text-sm text-gray-1">
                       <svg
                         class="mt-0.5 size-4 shrink-0 text-accent-3"
                         viewBox="0 0 24 24"
@@ -277,7 +295,7 @@ const headlineParts = (() => {
 
                 <div class="mt-auto pt-8">
                   {plan.footnote && (
-                    <p class="m-0 mb-4 text-xs text-gray-2">
+                    <p class="m-0 mb-4 text-xs text-gray-1">
                       <sup>&dagger;</sup> {plan.footnote}
                     </p>
                   )}

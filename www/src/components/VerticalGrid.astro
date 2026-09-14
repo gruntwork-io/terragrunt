@@ -1,0 +1,24 @@
+---
+/**
+ * The pair of dashed column rules the live site draws behind every page.
+ *
+ * Fixed rather than scrolled, 852px wide and centred, so the two hairlines stay
+ * put while content moves past them. It is decoration and carries no content,
+ * hence `aria-hidden` and a z-index below everything.
+ */
+interface Props {
+  /** Dark pages rule in `--gray-8`; light pages in `--gray-4`. */
+  tone?: "light" | "dark";
+}
+
+const { tone = "light" } = Astro.props;
+---
+
+<div
+  aria-hidden="true"
+  class:list={[
+    "pointer-events-none fixed inset-0 z-0 mx-auto hidden h-screen w-[852px] max-w-[852px] border-x border-dashed lg:block",
+    tone === "dark" ? "border-gray-8" : "border-gray-4",
+  ]}
+>
+</div>

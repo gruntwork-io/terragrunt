@@ -1,49 +1,58 @@
 ---
+import { Image } from "astro:assets";
 import BaseLayout from "@layouts/BaseLayout.astro";
 import Footer from "@components/Footer.astro";
 import HubspotForm from "@components/HubspotForm.astro";
 import Nav from "@components/Nav.astro";
-import OpenSourceTools from "@components/OpenSourceTools.astro";
+import VerticalGrid from "@components/VerticalGrid.astro";
+import Customers from "@assets/img/customers.png";
 
 const title = "Terragrunt Scale | Contact";
 const description =
   "Talk to the team about Terragrunt Scale: centralized pipelines, drift detection, and expert support for your IaC estate.";
 
 /*
- * The meetings embed is HubSpot's own iframe. It is behind a tab rather than
- * loaded alongside the form, so a visitor who only wants to send a message
- * never pays for it.
+ * The meetings embed is HubSpot's own iframe, behind a tab, so a visitor who
+ * only wants to send a message never pays for it.
  */
 const MEETINGS_URL =
   "https://meetings.hubspot.com/chris-pham/book-a-demo-terragrunt-scale?embed=true";
 ---
 
-<BaseLayout title={title} description={description} path="/contact-tgs">
+{/*
+  This page is DARK — `body.dark` on the live site. Rebuilt light it was the
+  single worst page in the visual diff at 93% differing pixels, more than the
+  layout and the type put together.
+*/}
+<BaseLayout
+  title={title}
+  description={description}
+  path="/contact-tgs"
+  tone="dark"
+>
+  <VerticalGrid tone="dark" />
   <Nav />
 
-  <div class="global-page-container">
-    <main class="mx-auto w-full max-w-[1310px] px-4 py-16 md:px-8">
-      <div class="grid grid-cols-1 gap-12 lg:grid-cols-2">
-        <div class="max-w-[520px]">
+  <div class="global-page-container dark">
+    <main class="mx-auto w-full max-w-[1310px]">
+      <div class="grid grid-cols-1 lg:grid-cols-2">
+        <div class="border-b border-gray-8 px-4 py-14 md:px-10 lg:border-b-0">
           <h1
-            class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+            class="m-0 max-w-[12ch] text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-white md:text-5xl"
           >
             Interested in Terragrunt Scale?
           </h1>
-          <p class="mt-5 text-lg leading-relaxed text-gray-2">
+          <p class="mt-6 max-w-[52ch] text-base leading-relaxed text-gray-1">
             Scale your IaC estate with centralized pipelines, drift detection,
             and expert support. We&rsquo;ll start by asking about your current
             infrastructure needs and goals. Then we&rsquo;ll show you what&rsquo;s
             possible with Terragrunt Scale.
           </p>
-          <p class="mt-8 text-sm font-medium text-gray-3">
-            Thousands of engineers build with Terragrunt
-          </p>
         </div>
 
-        <div class="rounded-2xl border border-gray-4 bg-white p-6 md:p-8">
+        <div class="row-span-2 px-4 py-14 md:px-10">
           <div
-            class="mb-6 flex gap-1 rounded-lg bg-gray-6 p-1"
+            class="mb-6 flex gap-1 rounded-lg border border-gray-8 p-1"
             role="tablist"
             aria-label="Contact method"
           >
@@ -53,7 +62,7 @@ const MEETINGS_URL =
               id="tab-message"
               aria-controls="panel-message"
               aria-selected="true"
-              class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors aria-selected:bg-white aria-selected:text-dark-blue-1 aria-selected:shadow-sm"
+              class="flex-1 rounded-md px-4 py-2 text-sm font-medium text-gray-1 transition-colors aria-selected:bg-white/10 aria-selected:text-white"
               data-contact-tab="message"
             >
               Send a Message
@@ -64,7 +73,7 @@ const MEETINGS_URL =
               id="tab-call"
               aria-controls="panel-call"
               aria-selected="false"
-              class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors aria-selected:bg-white aria-selected:text-dark-blue-1 aria-selected:shadow-sm"
+              class="flex-1 rounded-md px-4 py-2 text-sm font-medium text-gray-1 transition-colors aria-selected:bg-white/10 aria-selected:text-white"
               data-contact-tab="call"
             >
               Book a Call
@@ -74,6 +83,7 @@ const MEETINGS_URL =
           <div id="panel-message" role="tabpanel" aria-labelledby="tab-message">
             <HubspotForm
               formName="Terragrunt Contact Form"
+              tone="dark"
               submitLabel="Send message"
               successMessage="Thank you! Your submission has been received. We generally respond the same business day."
               fields={[
@@ -99,33 +109,42 @@ const MEETINGS_URL =
                 },
               ]}
             />
-            <p class="mt-4 text-sm text-gray-2">
+            <p class="mt-4 text-center text-sm text-gray-1">
               We generally respond the same business day!
             </p>
           </div>
 
           <div id="panel-call" role="tabpanel" aria-labelledby="tab-call" hidden>
-            {/*
-              `data-src` rather than `src`: the iframe is only pointed at
-              HubSpot once someone opens this tab, so the default view costs no
-              third-party request.
-            */}
             <iframe
               data-src={MEETINGS_URL}
               title="Book a demo of Terragrunt Scale"
-              class="h-[680px] w-full rounded-lg border-0"
+              class="h-[680px] w-full rounded-lg border-0 bg-white"
               loading="lazy"
               data-contact-meetings></iframe>
           </div>
+        </div>
+
+        <div class="px-4 py-14 md:px-10">
+          <p class="m-0 text-sm font-medium text-white">
+            Thousands of engineers build with Terragrunt
+          </p>
+          {/*
+            One image, as on the live site — a 3x3 grid of customer marks that
+            includes companies appearing nowhere else (MAXAR, babylist), so it
+            cannot be rebuilt from the homepage logo set.
+          */}
+          <Image
+            src={Customers}
+            alt="Customer logos: MAXAR, OpenText, Vodafone, Nelnet, Fanatics, Toyota, Clari, CarGurus and Babylist"
+            loading="lazy"
+            class="mt-6 w-full max-w-[420px]"
+          />
         </div>
       </div>
     </main>
   </div>
 
-  <div class="mt-16">
-    <OpenSourceTools />
-    <Footer />
-  </div>
+  <Footer tone="dark" />
 </BaseLayout>
 
 <script>

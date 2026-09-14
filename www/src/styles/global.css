@@ -107,6 +107,12 @@
     z-index: 1;
   }
 
+  /* `.global-page-container.dark` rules in --gray-8 on the navy pages. */
+  .global-page-container.dark {
+    border-left-color: var(--color-gray-8);
+    border-right-color: var(--color-gray-8);
+  }
+
   /*
    * Long-form body copy: FAQ answers, comparison and guide bodies. Sized at
    * 20px/1.7 to match `.rich-text-prose` on the live site.
@@ -123,10 +129,10 @@
 
   .prose-tg h2 {
     color: var(--color-dark-blue-1);
-    font-size: 1.75rem;
+    font-size: 30px;
     font-weight: 600;
     letter-spacing: -0.01em;
-    line-height: 1.25;
+    line-height: 37.5px;
     margin-top: 2.25rem;
   }
 

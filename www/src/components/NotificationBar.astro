@@ -4,7 +4,7 @@ import { notificationBar } from "@data/home";
 
 <a
   href={notificationBar.href}
-  class="block bg-accent-1 px-4 py-2.5 text-center text-sm font-medium text-white no-underline transition-colors hover:bg-accent-2"
+  class="relative z-10 flex min-h-11 items-center justify-center bg-accent-1 px-4 py-2 text-center text-sm text-white no-underline transition-colors hover:bg-accent-2"
 >
   {notificationBar.text}
   <span aria-hidden="true" class="ml-1">&rarr;</span>

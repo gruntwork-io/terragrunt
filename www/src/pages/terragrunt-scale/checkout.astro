@@ -3,6 +3,9 @@ import BaseLayout from "@layouts/BaseLayout.astro";
 import FeaturedBrands from "@components/FeaturedBrands.astro";
 import Footer from "@components/Footer.astro";
 import Nav from "@components/Nav.astro";
+import VerticalGrid from "@components/VerticalGrid.astro";
+import { Image } from "astro:assets";
+import Cube from "@assets/img/cube-3d.png";
 
 const title = "Terragrunt Scale | Checkout";
 const description =
@@ -99,10 +102,11 @@ const jsonLd = {
   path="/terragrunt-scale/checkout"
   jsonLd={jsonLd}
 >
+  <VerticalGrid />
   <Nav active="/terragrunt-scale" />
 
   <div class="global-page-container">
-    <main class="mx-auto w-full max-w-[1310px] px-4 py-16 md:px-8">
+    <main class="mx-auto w-full max-w-[1310px] px-4 py-[90px] md:px-20">
       <div class="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_400px]">
         <div>
           <span
@@ -132,14 +136,14 @@ const jsonLd = {
           <h2 class="mt-12 text-xl font-semibold text-dark-blue-1">
             How it works
           </h2>
-          <ol class="m-0 mt-6 flex list-none flex-col gap-6 p-0">
+          <ol class="m-0 mt-6 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-3">
             {
               steps.map((step) => (
-                <li class="flex gap-4">
-                  <span class="text-lg font-semibold text-accent-3">
+                <li class="rounded-xl border border-gray-4 bg-white p-5">
+                  <span class="block text-lg font-semibold text-accent-3">
                     {step.number}
                   </span>
-                  <div>
+                  <div class="mt-2">
                     <h3 class="m-0 text-base font-semibold text-dark-blue-1">
                       {step.title}
                     </h3>
@@ -154,31 +158,36 @@ const jsonLd = {
         </div>
 
         <aside
-          class="h-fit rounded-2xl border border-gray-4 bg-white p-8"
+          class="relative h-fit max-w-[400px] overflow-hidden rounded-lg border border-[#2f3547] bg-bg-dark bg-gradient-to-b from-[#5862aa24] to-[#5862aa00] to-60% p-6"
           data-checkout
         >
+          <Image
+            src={Cube}
+            alt=""
+            aria-hidden="true"
+            class="pointer-events-none absolute right-5 top-5 w-20"
+          />
           <p class="m-0">
-            <span
-              class="text-4xl font-semibold text-dark-blue-1"
-              data-price>{plans.monthly.price}</span
+            <span class="text-5xl font-semibold text-white" data-price
+              >{plans.annual.price}</span
             >
-            <span class="text-gray-2">
-              / <span data-period>{plans.monthly.period}</span>
+            <span class="text-gray-1">
+              / <span data-period>{plans.annual.period}</span>
             </span>
           </p>
 
-          <h2 class="mt-6 text-xl font-semibold text-dark-blue-1">Team</h2>
-          <p class="m-0 mt-1 text-sm font-medium text-accent-1">
+          <h2 class="mt-6 text-xl font-semibold text-white">Team</h2>
+          <p class="m-0 mt-1 text-sm font-medium text-accent-4">
             200 infrastructure units &dagger;
           </p>
-          <p class="m-0 mt-2 text-sm text-gray-2">
+          <p class="m-0 mt-2 text-sm text-gray-1">
             For growing platform teams in production
           </p>
 
           <ul class="m-0 mt-6 flex list-none flex-col gap-3 p-0">
             {
               features.map((feature) => (
-                <li class="flex items-start gap-2.5 text-sm text-gray-7">
+                <li class="flex items-start gap-2.5 text-sm text-gray-1">
                   <svg
                     class="mt-0.5 size-4 shrink-0 text-accent-3"
                     viewBox="0 0 24 24"
@@ -198,42 +207,42 @@ const jsonLd = {
           </ul>
 
           <div
-            class="mt-8 flex gap-1 rounded-lg bg-gray-6 p-1"
+            class="mt-8 flex gap-1 rounded-lg border border-[#2f3547] p-1"
             role="radiogroup"
             aria-label="Billing cycle"
           >
             <button
               type="button"
               role="radio"
-              aria-checked="true"
+              aria-checked="false"
               data-plan="monthly"
               data-url={plans.monthly.url}
               data-price-value={plans.monthly.price}
               data-period-value={plans.monthly.period}
-              class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors aria-checked:bg-white aria-checked:text-dark-blue-1 aria-checked:shadow-sm"
+              class="flex-1 rounded-md px-4 py-2 text-sm font-medium text-gray-1 transition-colors aria-checked:bg-white/10 aria-checked:text-white"
             >
               Monthly
             </button>
             <button
               type="button"
               role="radio"
-              aria-checked="false"
+              aria-checked="true"
               data-plan="annual"
               data-url={plans.annual.url}
               data-price-value={plans.annual.price}
               data-period-value={plans.annual.period}
-              class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors aria-checked:bg-white aria-checked:text-dark-blue-1 aria-checked:shadow-sm"
+              class="flex-1 rounded-md px-4 py-2 text-sm font-medium text-gray-1 transition-colors aria-checked:bg-white/10 aria-checked:text-white"
             >
               Annual
               <span
-                class="ml-1.5 rounded-full bg-accent-background px-2 py-0.5 text-xs text-accent-1"
+                class="ml-1.5 rounded-full bg-accent-3 px-2 py-0.5 text-xs text-white"
                 >17% Off</span
               >
             </button>
           </div>
 
           <a
-            href={plans.monthly.url}
+            href={plans.annual.url}
             data-payment-button
             rel="noopener noreferrer"
             class="mt-6 flex w-full items-center justify-center rounded-lg border border-white/20 bg-accent-3 px-6 py-3 text-sm font-medium text-white no-underline transition-colors hover:bg-accent-2"
@@ -241,17 +250,17 @@ const jsonLd = {
             Continue to Payment
           </a>
 
-          <p class="m-0 mt-4 text-xs text-gray-2" data-annual-note hidden>
+          <p class="m-0 mt-4 text-xs text-gray-1" data-annual-note>
             * Annual contract, billed at $6,000 per year.
           </p>
-          <p class="m-0 mt-2 text-xs text-gray-2">
+          <p class="m-0 mt-2 text-xs text-gray-1">
             &dagger; An <a
               href="https://docs.terragrunt.com/getting-started/terminology/#unit"
               class="text-accent-1 underline underline-offset-2"
               rel="noopener noreferrer"
               target="_blank">infrastructure unit</a
             > is any directory containing a <code
-              class="rounded bg-gray-6 px-1 py-0.5 font-mono">terragrunt.hcl</code
+              class="rounded bg-white/10 px-1 py-0.5 font-mono">terragrunt.hcl</code
             > file.
           </p>
         </aside>

@@ -17,37 +17,40 @@ const logos = Object.entries(
   return { src: module.default, name };
 });
 
-const label = (name: string) =>
-  name.charAt(0).toUpperCase() + name.slice(1);
+const label = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 ---
 
-<section class="border-b border-gray-4 px-4 py-12 md:px-8">
-  <h2
-    class="m-0 text-center text-sm font-medium uppercase tracking-[0.08em] text-gray-2"
-  >
-    {featuredBrandsHeadline}
-  </h2>
+{/*
+  The label sits on the same row as the logos, left of them — not centred above.
+  It is set in the mono face at 12px uppercase, which is what `.featured-brands-text`
+  specifies; in the sans face it reads as a heading rather than a rubric.
+*/}
+<section
+  class="border-b border-gray-4 bg-background px-4 py-11 md:px-8"
+>
+  <div class="mx-auto flex max-w-[1310px] items-center gap-8">
+    <h2
+      class="m-0 shrink-0 whitespace-nowrap font-mono text-xs uppercase leading-3 text-gray-2"
+    >
+      {featuredBrandsHeadline}
+    </h2>
 
-  {/*
-    The track is masked at both edges so a logo fades out instead of being
-    sliced off mid-letter at the container boundary, which is what the strip
-    does without it.
-  */}
-  <div class="marquee mt-8 overflow-hidden" data-marquee>
-    <div class="marquee-track flex w-max items-center gap-16">
-      {
-        [false, true].map((isDuplicate) =>
-          logos.map((logo) => (
-            <Image
-              src={logo.src}
-              alt={isDuplicate ? "" : `The logo for ${label(logo.name)}`}
-              aria-hidden={isDuplicate ? "true" : undefined}
-              loading="lazy"
-              class="h-7 w-auto shrink-0 opacity-60 grayscale"
-            />
-          )),
-        )
-      }
+    <div class="marquee min-w-0 flex-1 overflow-hidden" data-marquee>
+      <div class="marquee-track flex w-max items-center gap-14">
+        {
+          [false, true].map((isDuplicate) =>
+            logos.map((logo) => (
+              <Image
+                src={logo.src}
+                alt={isDuplicate ? "" : `The logo for ${label(logo.name)}`}
+                aria-hidden={isDuplicate ? "true" : undefined}
+                loading="lazy"
+                class="h-6 w-auto shrink-0 opacity-70 grayscale"
+              />
+            )),
+          )
+        }
+      </div>
     </div>
   </div>
 </section>
@@ -57,15 +60,15 @@ const label = (name: string) =>
     -webkit-mask-image: linear-gradient(
       to right,
       transparent,
-      black 6rem,
-      black calc(100% - 6rem),
+      black 3rem,
+      black calc(100% - 3rem),
       transparent
     );
     mask-image: linear-gradient(
       to right,
       transparent,
-      black 6rem,
-      black calc(100% - 6rem),
+      black 3rem,
+      black calc(100% - 3rem),
       transparent
     );
   }

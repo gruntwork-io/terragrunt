@@ -3,17 +3,32 @@ import { Image } from "astro:assets";
 import GruntworkLogo from "@assets/gruntwork-logo.svg";
 import { footerLinks } from "@data/site";
 
+interface Props {
+  tone?: "light" | "dark";
+}
+
+const { tone = "light" } = Astro.props;
 const year = new Date().getFullYear();
 ---
 
-<footer class="relative border-t border-gray-4 bg-background">
+<footer
+  class:list={[
+    "relative border-t",
+    tone === "dark" ? "border-gray-8 bg-bg-dark" : "border-gray-4 bg-background",
+  ]}
+>
   <div
     class="mx-auto flex max-w-[1312px] flex-col gap-6 px-4 py-10 md:flex-row md:items-center md:justify-between md:px-8"
   >
     <div class="flex flex-col gap-2">
       <a
         href="https://www.gruntwork.io/"
-        class="flex items-center gap-2 text-sm text-gray-3 no-underline transition-colors hover:text-dark-blue-1"
+        class:list={[
+          "flex items-center gap-2 text-sm no-underline transition-colors",
+          tone === "dark"
+            ? "text-gray-1 hover:text-white"
+            : "text-gray-3 hover:text-dark-blue-1",
+        ]}
         rel="noopener noreferrer"
         target="_blank"
       >
@@ -25,7 +40,7 @@ const year = new Date().getFullYear();
         />
         <span>From the DevOps experts at Gruntwork</span>
       </a>
-      <p class="m-0 text-sm text-gray-2">
+      <p class:list={["m-0 text-sm", tone === "dark" ? "text-gray-1" : "text-gray-2"]}>
         © {year} Gruntwork, Inc. All rights reserved.
       </p>
     </div>
@@ -38,7 +53,10 @@ const year = new Date().getFullYear();
               <li>
                 <a
                   href={link.href}
-                  class="text-sm text-gray-3 no-underline transition-colors hover:text-accent-1"
+                  class:list={[
+                    "text-sm no-underline transition-colors hover:text-accent-3",
+                    tone === "dark" ? "text-gray-1" : "text-gray-3",
+                  ]}
                 >
                   {link.label}
                 </a>

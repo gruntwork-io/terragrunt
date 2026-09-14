@@ -11,6 +11,7 @@ import Nav from "@components/Nav.astro";
 import NewsletterSignup from "@components/NewsletterSignup.astro";
 import OpenSourceTools from "@components/OpenSourceTools.astro";
 import PageHero from "@components/PageHero.astro";
+import VerticalGrid from "@components/VerticalGrid.astro";
 
 interface Props {
   title: string;
@@ -45,13 +46,16 @@ const {
   jsonLd={jsonLd}
   noindex={noindex}
 >
+  <VerticalGrid />
   <Nav active={path} />
   <PageHero eyebrow={eyebrow} headline={headline} subhead={subhead} />
 
   <div class="global-page-container">
     <main class="mx-auto w-full max-w-[1310px]">
-      <div class="mx-auto max-w-[800px] px-4 py-14 md:px-8">
-        <slot />
+      <div class="px-4 pb-14 pt-[76px] md:px-8">
+        <div class="mx-auto max-w-[800px]">
+          <slot />
+        </div>
       </div>
 
       {!hideCta && <CtaSection />}

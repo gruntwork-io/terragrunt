@@ -6,9 +6,10 @@ interface Props {
   eyebrow?: string;
   headline: string;
   subhead?: string;
-  /** `half-height` is the variant the FAQ, comparison and guide pages use. */
   variant?: "full" | "half";
   showMascot?: boolean;
+  /** Words rendered in the accent colour. Most heroes are plain white. */
+  accent?: readonly string[];
 }
 
 const {
@@ -17,27 +18,40 @@ const {
   subhead,
   variant = "half",
   showMascot = true,
+  accent = [],
 } = Astro.props;
+
+const parts = accent.length
+  ? headline.split(new RegExp(`(${accent.join("|")})`, "g"))
+  : [headline];
 ---
 
 <section
   class:list={[
     "relative z-[2] overflow-hidden bg-bg-dark px-4 md:px-8",
-    variant === "half" ? "py-16 md:py-20" : "min-h-[700px] py-20",
+    variant === "half" ? "h-[360px]" : "min-h-[700px] py-20",
   ]}
 >
-  <div class="relative z-[2] mx-auto flex max-w-[800px] flex-col items-start">
+  <div class="relative z-[2] mx-auto flex h-full max-w-[800px] flex-col items-start justify-center">
     {
       eyebrow && (
-        <span class="mb-4 inline-block text-[13px] font-semibold uppercase tracking-[0.08em] text-accent-3">
+        <span class="mb-4 inline-block font-mono text-[13px] font-semibold uppercase tracking-[0.08em] text-accent-3">
           {eyebrow}
         </span>
       )
     }
     <h1
-      class="m-0 max-w-[680px] text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-white md:text-5xl"
+      class="m-0 max-w-[680px] text-[30.4px] font-semibold leading-[32.83px] tracking-[-0.01em] text-white md:text-5xl md:leading-[51.84px]"
     >
-      {headline}
+      {
+        parts.map((part) =>
+          accent.includes(part) ? (
+            <span class="text-accent-4">{part}</span>
+          ) : (
+            part
+          ),
+        )
+      }
     </h1>
     {
       subhead && (
@@ -50,13 +64,18 @@ const {
   </div>
 
   {
+    /*
+     * 360px, flush to the bottom edge, 40px from the right — the live site's
+     * `.page-hero-mascot`. At 160px and floated off the corner it read as a
+     * stray icon rather than the mascot leaning into the band.
+     */
     showMascot && (
       <Image
         src={Grunty}
         alt=""
         aria-hidden="true"
         loading="lazy"
-        class="pointer-events-none absolute -bottom-6 right-4 hidden w-40 opacity-90 lg:block"
+        class="pointer-events-none absolute bottom-0 right-10 hidden w-[360px] lg:block"
       />
     )
   }

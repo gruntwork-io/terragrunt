@@ -4,27 +4,60 @@ interface Props {
   /** Words rendered in the accent colour, matched against `words`. */
   accent?: readonly string[];
   words: readonly string[];
+  align?: "left" | "center";
+  tone?: "light" | "dark";
+  /** `lg` is the homepage's section headings; `md` suits narrower columns. */
+  size?: "md" | "lg";
 }
 
-const { eyebrow, accent = [], words } = Astro.props;
+const {
+  eyebrow,
+  accent = [],
+  words,
+  align = "left",
+  tone = "light",
+  size = "lg",
+} = Astro.props;
 ---
 
-<div class="mb-10">
+<div
+  class:list={[
+    "mb-8",
+    align === "center" && "flex flex-col items-center text-center",
+  ]}
+>
   {
     eyebrow && (
-      <span class="mb-3 inline-block rounded-full border border-gray-4 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-gray-2">
+      /*
+       * A filled chip in `--accent-background`, not a bordered outline. The live
+       * site sets `.eyebrows-holder { background: var(--accent-background);
+       * padding: 2px }` with mono type, and a grey outlined pill reads as a
+       * different component entirely.
+       */
+      <span class="mb-8 inline-block bg-accent-background px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-accent-1">
         {eyebrow}
       </span>
     )
   }
   <h2
-    class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+    class:list={[
+      "m-0 font-medium tracking-[-0.02em]",
+      size === "lg"
+        ? "text-[2rem] leading-[1.15] md:text-[42px] md:leading-[46.67px]"
+        : "text-2xl leading-[1.2] md:text-[32px] md:leading-[38px]",
+      tone === "dark" ? "text-white" : "text-dark-blue-1",
+    ]}
   >
     {
       words.map((word, i) => (
         <>
           {i > 0 && " "}
-          <span class:list={[accent.includes(word) && "text-accent-1"]}>
+          <span
+            class:list={[
+              accent.includes(word) &&
+                (tone === "dark" ? "text-accent-4" : "text-accent-3"),
+            ]}
+          >
             {word}
           </span>
         </>

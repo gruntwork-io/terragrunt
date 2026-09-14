@@ -1,4 +1,5 @@
 ---
+import { Image } from "astro:assets";
 import BaseLayout from "@layouts/BaseLayout.astro";
 import Button from "@components/Button.astro";
 import CtaSection from "@components/CtaSection.astro";
@@ -8,8 +9,12 @@ import Footer from "@components/Footer.astro";
 import Nav from "@components/Nav.astro";
 import NewsletterSignup from "@components/NewsletterSignup.astro";
 import NotificationBar from "@components/NotificationBar.astro";
+import VerticalGrid from "@components/VerticalGrid.astro";
 import OpenSourceTools from "@components/OpenSourceTools.astro";
 import SectionHeading from "@components/SectionHeading.astro";
+import OpenTofuMark from "@assets/img/opentofu-logo.svg";
+import TerraformMark from "@assets/img/terraform-logo.svg";
+import heroBg from "@assets/img/hero-bg.png";
 import Testimonials from "@components/Testimonials.astro";
 import {
   consistencySection,
@@ -36,47 +41,67 @@ const jsonLd = {
 };
 
 /* The first three cards sit above the second headline, the last two below it. */
+const builtFor = [
+  { label: "OpenTofu", mark: OpenTofuMark },
+  { label: "Terraform", mark: TerraformMark },
+];
+
 const consistencyTop = consistencySection.cards.slice(0, 3);
 const consistencyBottom = consistencySection.cards.slice(3);
 ---
 
 <BaseLayout title={title} description={description} path="/" jsonLd={jsonLd}>
+  <VerticalGrid />
   <NotificationBar />
   <Nav active="/" />
 
-  <section class="bg-bg-dark px-4 py-20 md:px-8 md:py-28">
-    <div class="mx-auto flex max-w-[900px] flex-col items-center text-center">
-      <h1
-        class="m-0 text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-white md:text-6xl"
+  <section class="relative z-[1] min-h-[600px] w-full bg-bg-dark">
+    {/*
+      The dotted field is a real asset positioned at `50% 110%` / contain, the
+      same as `.hero-container` on the live site. Painted flat navy the band
+      looks like a placeholder for it.
+    */}
+    <div
+      class="mx-auto min-h-[650px] max-w-[1310px] bg-[length:contain] bg-[position:50%_110%] bg-no-repeat pt-[60px]"
+      style={`background-image:url(${heroBg.src})`}
+    >
+      <div
+        class="mx-auto flex max-w-[1000px] flex-col items-center gap-6 px-4 text-center md:px-8"
       >
-        The Open Source <span class="text-accent-4">IaC Orchestrator</span> Platform
-        Teams Trust
-      </h1>
-      <p class="mt-6 max-w-[60ch] text-lg leading-[1.55] text-gray-1">
-        {hero.subhead}
-      </p>
+        <h1
+          class="m-0 w-full max-w-[1000px] text-[32px] font-medium leading-[48px] tracking-[-0.01em] text-white md:text-[60px] md:leading-[72px]"
+        >
+          The Open Source<br />IaC Orchestrator<br />Platform Teams Trust
+        </h1>
+        <p class="m-0 max-w-[60ch] text-lg leading-[1.55] text-gray-1">
+          {hero.subhead}
+        </p>
 
-      <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <Button href={hero.primary.href} variant="primary" size="lg">
-          {hero.primary.label}
-        </Button>
-        <Button href={hero.secondary.href} variant="secondary" size="lg">
-          {hero.secondary.label}
-        </Button>
+        {/* Built For sits ABOVE the buttons on the live page, not below them. */}
+        <p class="m-0 flex flex-wrap items-center justify-center gap-2">
+          <span
+            class="font-mono text-[11px] uppercase tracking-[0.08em] text-gray-1"
+            >{hero.builtForLabel}</span
+          >
+          {
+            builtFor.map((tool) => (
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-background px-3 py-1 text-xs font-medium text-bg-dark">
+                <Image src={tool.mark} alt="" aria-hidden="true" class="size-4" />
+                {tool.label}
+              </span>
+            ))
+          }
+        </p>
+
+        <div class="flex flex-wrap items-center justify-center gap-3">
+          <Button href={hero.secondary.href} variant="secondary" size="lg">
+            {hero.secondary.label}
+          </Button>
+          <Button href={hero.primary.href} variant="primary" size="lg">
+            {hero.primary.label}
+          </Button>
+        </div>
       </div>
-
-      <p
-        class="mt-10 flex items-center gap-3 text-xs uppercase tracking-[0.08em] text-gray-1"
-      >
-        <span>{hero.builtForLabel}</span>
-        {
-          hero.builtFor.map((tool) => (
-            <span class="rounded-full border border-stroke-dark px-3 py-1 normal-case tracking-normal text-white">
-              {tool}
-            </span>
-          ))
-        }
-      </p>
     </div>
   </section>
 
@@ -84,16 +109,22 @@ const consistencyBottom = consistencySection.cards.slice(3);
     <main class="mx-auto w-full max-w-[1310px]">
       <FeaturedBrands />
 
+      {/*
+        Two columns — headline left, cards stacked right — not a headline above
+        a three-across row. `._2-col` is `grid-template-columns: 1fr 1fr`.
+      */}
       <section class="px-4 py-16 md:px-8">
-        <SectionHeading
-          eyebrow={orchestrateSection.eyebrow}
-          words={[
-            orchestrateSection.headline,
-            orchestrateSection.headlineAccent,
-          ]}
-          accent={[orchestrateSection.headlineAccent]}
-        />
-        <FeatureCards cards={orchestrateSection.cards} columns={3} />
+        <div class="mx-auto grid max-w-[1100px] grid-cols-1 gap-8 lg:grid-cols-2 lg:pl-14">
+          <SectionHeading
+            eyebrow={orchestrateSection.eyebrow}
+            words={[
+              orchestrateSection.headline,
+              orchestrateSection.headlineAccent,
+            ]}
+            accent={[orchestrateSection.headlineAccent]}
+          />
+          <FeatureCards cards={orchestrateSection.cards} columns={1} />
+        </div>
       </section>
 
       <section class="px-4 pb-16 md:px-8">
@@ -114,7 +145,7 @@ const consistencyBottom = consistencySection.cards.slice(3);
         </div>
       </section>
 
-      <section class="px-4 pb-16 md:px-8">
+      <section class="mx-auto max-w-[900px] px-4 pb-16 md:px-8">
         <SectionHeading
           eyebrow={consistencySection.eyebrow}
           words={consistencySection.headline}
@@ -131,7 +162,7 @@ const consistencyBottom = consistencySection.cards.slice(3);
         </div>
       </section>
 
-      <section class="px-4 pb-16 md:px-8">
+      <section class="mx-auto max-w-[900px] px-4 pb-16 md:px-8">
         <SectionHeading
           eyebrow={drySection.eyebrow}
           words={[drySection.headlineAccent, drySection.headline]}

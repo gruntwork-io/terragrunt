@@ -1,0 +1,150 @@
+---
+/**
+ * Site search, backed by the docs site's Pagefind index.
+ *
+ * The index is built and hosted by `docs/`, and `docs/vercel.json` grants
+ * `Access-Control-Allow-Origin: https://terragrunt.com` on `/pagefind/*`
+ * specifically so this page can read it. That header is the whole integration:
+ * if it is ever narrowed, search here goes dark with no other symptom.
+ *
+ * The bundle is fetched on FIRST OPEN rather than on page load. The live
+ * Webflow build loads ~100KB of Pagefind CSS and JS from a second origin on
+ * every page view, for a feature most visitors never touch.
+ */
+const BUNDLE = "https://docs.terragrunt.com/pagefind/";
+const BASE = "https://docs.terragrunt.com";
+---
+
+<button
+  type="button"
+  class="flex items-center gap-2 rounded-lg border border-stroke-dark bg-white/5 px-3 py-1.5 text-sm text-nav-link transition-colors hover:border-gray-3 hover:text-white"
+  data-search-open
+  aria-label="Search the Terragrunt documentation"
+>
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <circle cx="11" cy="11" r="7"></circle>
+    <path d="m20 20-3.5-3.5"></path>
+  </svg>
+  <span>Search</span>
+  <kbd
+    class="ml-1 hidden rounded border border-stroke-dark px-1.5 py-0.5 font-sans text-[11px] text-gray-3 lg:inline"
+    >⌘K</kbd
+  >
+</button>
+
+<div
+  class="fixed inset-0 z-[100] hidden bg-dark-blue-1/70 p-4 backdrop-blur-sm sm:p-8"
+  data-search-overlay
+  role="dialog"
+  aria-modal="true"
+  aria-label="Search"
+>
+  <div class="mx-auto mt-[10vh] max-w-[640px] rounded-xl bg-white p-4 shadow-2xl">
+    <div data-search-ui>
+      <p class="m-0 p-4 text-sm text-gray-2" data-search-loading>Loading search…</p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ BUNDLE, BASE }}>
+  (() => {
+    const openButton = document.querySelector("[data-search-open]");
+    const overlay = document.querySelector("[data-search-overlay]");
+    const mount = document.querySelector("[data-search-ui]");
+    if (!openButton || !overlay || !mount) return;
+
+    let loading = null;
+
+    const loadOnce = () => {
+      if (loading) return loading;
+      loading = new Promise((resolve, reject) => {
+        const css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = `${BUNDLE}pagefind-ui.css`;
+        document.head.append(css);
+
+        const js = document.createElement("script");
+        js.src = `${BUNDLE}pagefind-ui.js`;
+        js.addEventListener("load", () => {
+          try {
+            mount.querySelector("[data-search-loading]")?.remove();
+            // eslint-disable-next-line no-undef
+            new PagefindUI({
+              element: "[data-search-ui]",
+              bundlePath: BUNDLE,
+              baseUrl: BASE,
+              showSubResults: true,
+            });
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        });
+        js.addEventListener("error", () => reject(new Error("pagefind failed to load")));
+        document.head.append(js);
+      }).catch((error) => {
+        // A failed bundle must say so. Silently showing an empty box reads as
+        // "no results for anything", which is indistinguishable from a working
+        // search over an empty index.
+        const note = mount.querySelector("[data-search-loading]");
+        if (note) {
+          note.textContent = "Search is unavailable right now. ";
+          const link = document.createElement("a");
+          link.href = BASE;
+          link.textContent = "Open the docs instead.";
+          link.className = "text-accent-1 underline";
+          note.append(link);
+        }
+        throw error;
+      });
+      return loading;
+    };
+
+    const open = () => {
+      overlay.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      loadOnce().catch(() => {});
+      // The input only exists once Pagefind has mounted, so focusing is
+      // retried briefly rather than assumed.
+      let tries = 0;
+      const focus = () => {
+        const input = overlay.querySelector("input");
+        if (input) input.focus();
+        else if (tries++ < 40) setTimeout(focus, 50);
+      };
+      focus();
+    };
+
+    const close = () => {
+      overlay.classList.add("hidden");
+      document.body.style.overflow = "";
+      openButton.focus();
+    };
+
+    openButton.addEventListener("click", open);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !overlay.classList.contains("hidden")) {
+        close();
+        return;
+      }
+      // The button advertises ⌘K, so it has to actually work. The live site
+      // shows the hint and binds nothing.
+      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        overlay.classList.contains("hidden") ? open() : close();
+      }
+    });
+  })();
+</script>

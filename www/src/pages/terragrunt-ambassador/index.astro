@@ -7,6 +7,9 @@ import Nav from "@components/Nav.astro";
 import NewsletterSignup from "@components/NewsletterSignup.astro";
 import OpenSourceTools from "@components/OpenSourceTools.astro";
 import SectionHeading from "@components/SectionHeading.astro";
+import VerticalGrid from "@components/VerticalGrid.astro";
+import Cube from "@assets/img/cube-3d.png";
+import heroBg from "@assets/img/hero-bg-ambassador.png";
 import { ambassadors } from "@data/ambassadors";
 import { DISCORD_INVITE } from "@data/site";
 
@@ -73,16 +76,25 @@ const socialLabels = {
   description={description}
   path="/terragrunt-ambassador"
 >
+  <VerticalGrid />
   <Nav active="/terragrunt-ambassador" />
 
-  <section class="bg-bg-dark px-4 py-20 md:px-8 md:py-24">
-    <div class="mx-auto max-w-[800px]">
+  {/*
+    Centred, with the mark above the headline — the live `.ambassador-hero-*`
+    layout. Left-aligned with an accent word it read as a different page.
+  */}
+  <section class="relative z-[1] w-full bg-bg-dark">
+    <div
+      class="mx-auto flex min-h-[600px] max-w-[1310px] flex-col items-center px-4 py-20 text-center bg-[length:contain] bg-[position:50%_100%] bg-no-repeat md:px-8"
+      style={`background-image:url(${heroBg.src})`}
+    >
+      <Image src={Cube} alt="" aria-hidden="true" class="w-[150px]" loading="eager" />
       <h1
-        class="m-0 text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-white md:text-5xl"
+        class="m-0 mt-8 max-w-[1000px] text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-white md:text-6xl"
       >
-        Terragrunt <span class="text-accent-4">Ambassador</span> Program
+        Terragrunt Ambassador Program
       </h1>
-      <p class="mt-5 max-w-[60ch] text-lg leading-[1.55] text-gray-1">
+      <p class="mt-5 max-w-[52ch] text-lg leading-[1.55] text-gray-1">
         Recognizing, empowering, and amplifying the most passionate and
         knowledgeable members of the Terragrunt community.
       </p>
@@ -93,11 +105,12 @@ const socialLabels = {
     <main class="mx-auto w-full max-w-[1310px]">
       <section class="px-4 py-16 md:px-8">
         <SectionHeading
+          align="center"
           eyebrow="About the Program"
           words={["What it means to be a", "Terragrunt Ambassador"]}
           accent={["Terragrunt Ambassador"]}
         />
-        <p class="max-w-[800px] text-lg leading-relaxed text-gray-2">
+        <p class="mx-auto max-w-[800px] text-center text-lg leading-relaxed text-gray-2">
           Ambassadors are passionate about Terragrunt and are experts at using
           it to manage infrastructure at scale using IaC. They are an essential
           part of the Terragrunt community&mdash;answering questions in forums,
@@ -108,6 +121,7 @@ const socialLabels = {
 
       <section class="border-t border-gray-4 px-4 py-16 md:px-8">
         <SectionHeading
+          align="center"
           eyebrow="Program Benefits"
           words={["Perks of being an", "Ambassador"]}
           accent={["Ambassador"]}
@@ -132,6 +146,7 @@ const socialLabels = {
 
       <section class="border-t border-gray-4 px-4 py-16 md:px-8">
         <SectionHeading
+          align="center"
           eyebrow="Ambassadors"
           words={["Meet the Terragrunt", "Ambassadors"]}
           accent={["Ambassadors"]}
@@ -203,6 +218,7 @@ const socialLabels = {
 
       <section class="border-t border-gray-4 px-4 py-16 md:px-8">
         <SectionHeading
+          align="center"
           eyebrow="Join the Program"
           words={["Become a Terragrunt", "Ambassador"]}
           accent={["Ambassador"]}

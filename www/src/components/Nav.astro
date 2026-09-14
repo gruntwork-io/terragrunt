@@ -1,6 +1,7 @@
 ---
 import { Image } from "astro:assets";
 import Button from "@components/Button.astro";
+import Search from "@components/Search.astro";
 import TerragruntLogo from "@assets/horizontal-logo-light.svg";
 import {
   DISCORD_INVITE,
@@ -22,7 +23,7 @@ const { active } = Astro.props;
   class="sticky top-0 z-50 w-full border-b border-stroke-dark bg-bg-dark"
 >
   <nav
-    class="mx-auto flex max-w-[1312px] items-center justify-between gap-4 px-4 py-3 md:px-8 md:py-4"
+    class="mx-auto flex h-[124px] max-w-[1312px] items-center justify-between gap-4 px-4 lg:h-24 lg:px-6"
     aria-label="Main"
   >
     <div class="flex items-center gap-6">
@@ -31,7 +32,7 @@ const { active } = Astro.props;
           src={TerragruntLogo}
           alt="Terragrunt"
           loading="eager"
-          class="h-auto w-[150px] md:w-[180px]"
+          class="h-auto w-[150px] md:w-[200px]"
         />
       </a>
 
@@ -95,6 +96,7 @@ const { active } = Astro.props;
     </div>
 
     <div class="flex items-center gap-2 md:gap-3">
+      <Search />
       <Button
         href={ENTERPRISE_SUPPORT_URL}
         variant="secondary"
