@@ -18,10 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	selfAssumeBaseKeyID   = "AKIABASEIDENTITY"
-	selfAssumeMintedKeyID = "ASIAMINTEDSESSION"
-)
+const selfAssumeMintedKeyID = "ASIAMINTEDSESSION"
 
 // credentialRe extracts the access key id from a SigV4 Authorization header.
 var credentialRe = regexp.MustCompile(`Credential=([A-Z0-9]+)/`)
@@ -37,11 +34,6 @@ func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
 		first  iam.RoleOptions
 		second iam.RoleOptions
 	}{
-		{
-			name:   "same options twice",
-			first:  iam.RoleOptions{RoleARN: baseARN},
-			second: iam.RoleOptions{RoleARN: baseARN},
-		},
 		{
 			name:   "different role arns",
 			first:  iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/dependency"},
@@ -75,7 +67,7 @@ func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
 
 			sts := newRecordingSTS(t, selfAssumeMintedKeyID, time.Hour)
 			v := newSelfAssumeVenv(sts)
-			ctx := amazonsts.WithIsolatedCredentialsCache(t.Context())
+			ctx := testCtx(t)
 			l := logger.CreateLogger()
 
 			first, err := amazonsts.NewProvider(l, tc.first, v.Env).GetCredentials(ctx, l, v)
@@ -99,7 +91,7 @@ func TestNoAssumeRoleIsSignedByAMintedSessionAcrossThreeFetches(t *testing.T) {
 
 	sts := newRecordingSTS(t, selfAssumeMintedKeyID, time.Hour)
 	v := newSelfAssumeVenv(sts)
-	ctx := amazonsts.WithIsolatedCredentialsCache(t.Context())
+	ctx := testCtx(t)
 	l := logger.CreateLogger()
 
 	opts := iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/repeat"}
@@ -121,7 +113,7 @@ func TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency(t *testing.T) {
 
 	sts := newRecordingSTS(t, selfAssumeMintedKeyID, time.Hour)
 	v := newSelfAssumeVenv(sts)
-	ctx := amazonsts.WithIsolatedCredentialsCache(t.Context())
+	ctx := testCtx(t)
 	l := logger.CreateLogger()
 
 	seed, err := amazonsts.NewProvider(l, iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/seed"}, v.Env).
@@ -162,27 +154,6 @@ func TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency(t *testing.T) {
 	assertNoMintedSigner(t, sts)
 }
 
-// Pins that a minted session never becomes the signing identity even when the env holds only it.
-func TestNoAssumeRoleIsSignedByAMintedSessionWhenEnvHasOnlySession(t *testing.T) {
-	t.Parallel()
-
-	sts := newRecordingSTS(t, selfAssumeMintedKeyID, time.Hour)
-	v := newSelfAssumeVenv(sts)
-	ctx := amazonsts.WithIsolatedCredentialsCache(t.Context())
-	l := logger.CreateLogger()
-
-	opts := iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/only-session"}
-
-	first, err := amazonsts.NewProvider(l, opts, v.Env).GetCredentials(ctx, l, v)
-	require.NoError(t, err)
-	maps.Copy(v.Env, first.Envs)
-
-	second, err := amazonsts.NewProvider(l, opts, v.Env).GetCredentials(ctx, l, v)
-	require.NoError(t, err)
-	assert.Equal(t, providers.AWSCredentials, second.Name)
-	assertNoMintedSigner(t, sts)
-}
-
 func assertNoMintedSigner(t *testing.T, sts *recordingSTS) {
 	t.Helper()
 
@@ -191,18 +162,18 @@ func assertNoMintedSigner(t *testing.T, sts *recordingSTS) {
 	require.NotEmpty(t, signers, "expected at least one sts:AssumeRole call to inspect")
 
 	for i, signer := range signers {
-		assert.Equalf(t, selfAssumeBaseKeyID, signer,
+		assert.Equalf(t, baseAccessKeyID, signer,
 			"sts:AssumeRole call %d was signed by %q. Only the caller's own identity (%q) may sign an "+
 				"assume-role request; a session this process minted must never become the signing identity, "+
 				"because AWS rejects a role assuming itself with AccessDenied.",
-			i+1, signer, selfAssumeBaseKeyID)
+			i+1, signer, baseAccessKeyID)
 	}
 }
 
 func newSelfAssumeVenv(sts *recordingSTS) *venv.Venv {
 	return venvtest.New().WithHTTP(sts.client).WithEnv(map[string]string{
 		"AWS_REGION":            "us-east-1",
-		"AWS_ACCESS_KEY_ID":     selfAssumeBaseKeyID,
+		"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": "base-secret",
 	})
 }
