@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Dependency outputs resolve correctly with an absolute `TF_DATA_DIR`
+
+When `TF_DATA_DIR` was set to an absolute path, every dependency looked as though it had already been initialized, because the check tested that shared directory rather than the dependency's own working directory. Terragrunt then read outputs from a cache directory that was never created. `plan` failed with a `chdir` error, and `render` exited successfully while writing empty dependency outputs into the rendered inputs.
+
+The check now tests a data directory that lives inside the working directory it vouches for, so an absolute or otherwise shared `TF_DATA_DIR` no longer stands in for it. A relative `TF_DATA_DIR` is still honoured.
