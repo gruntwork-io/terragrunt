@@ -24,8 +24,7 @@ const (
 	awsRoleARN                = "arn:aws:iam::123456789012:role/auth-provider-test"
 )
 
-// TestProviderAWSRoleReusesAssumedSessionAcrossFetches checks that repeated fetches assume the role
-// once and keep signing STS with the caller's own key.
+// TestProviderAWSRoleReusesAssumedSessionAcrossFetches checks repeated fetches assume the role once.
 func TestProviderAWSRoleReusesAssumedSessionAcrossFetches(t *testing.T) {
 	t.Parallel()
 
@@ -73,8 +72,7 @@ func TestProviderAWSRoleReusesAssumedSessionAcrossFetches(t *testing.T) {
 		"no STS call may be signed by the session a previous assumption produced")
 }
 
-// TestProviderAWSRoleHonoursExplicitSessionName checks that a roleSessionName from the
-// auth-provider response still reaches STS.
+// TestProviderAWSRoleHonoursExplicitSessionName checks an explicit roleSessionName reaches STS.
 func TestProviderAWSRoleHonoursExplicitSessionName(t *testing.T) {
 	t.Parallel()
 

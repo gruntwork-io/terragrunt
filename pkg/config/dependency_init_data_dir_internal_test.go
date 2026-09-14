@@ -10,8 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestDependencyInitDataDir checks that only a data dir inside the working dir counts as
-// evidence that the working dir was initialized.
+// TestDependencyInitDataDir checks only a data dir inside workingDir counts as initialized.
 func TestDependencyInitDataDir(t *testing.T) {
 	t.Parallel()
 
@@ -76,8 +75,7 @@ func TestDependencyInitDataDir(t *testing.T) {
 	}
 }
 
-// TestDependencyStateDataDirKeepsAbsolutePath checks that workspace resolution still gets an
-// absolute TF_DATA_DIR unchanged.
+// TestDependencyStateDataDirKeepsAbsolutePath checks an absolute TF_DATA_DIR is returned unchanged.
 func TestDependencyStateDataDirKeepsAbsolutePath(t *testing.T) {
 	t.Parallel()
 

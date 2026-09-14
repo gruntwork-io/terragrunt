@@ -17,8 +17,7 @@ import (
 
 const testFixtureAwsAuthProviderRoleReuse = "fixtures/auth-provider-cmd/role-session-reuse"
 
-// TestAwsAuthProviderRoleIsAssumedWithCallerIdentity checks against real STS that the role is
-// assumed with the caller's own credentials, not with the session it just produced.
+// TestAwsAuthProviderRoleIsAssumedWithCallerIdentity checks real STS gets the caller's own credentials.
 func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")

@@ -21,8 +21,7 @@ const mintedAccessKeyID = "ASIAMINTEDSESSION"
 
 var credentialRe = regexp.MustCompile(`Credential=([A-Z0-9]+)/`)
 
-// TestNoAssumeRoleIsSignedByAMintedSession checks that changing any part of the role
-// options between two fetches still signs STS with the caller's own key.
+// TestNoAssumeRoleIsSignedByAMintedSession checks differing role options still sign with the caller's key.
 func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
 	t.Parallel()
 
@@ -83,8 +82,7 @@ func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
 	}
 }
 
-// TestNoAssumeRoleIsSignedByAMintedSessionAcrossThreeFetches covers a third fetch,
-// since a cache key can be stable across two calls and break on the next.
+// TestNoAssumeRoleIsSignedByAMintedSessionAcrossThreeFetches covers a third fetch.
 func TestNoAssumeRoleIsSignedByAMintedSessionAcrossThreeFetches(t *testing.T) {
 	t.Parallel()
 
@@ -106,8 +104,7 @@ func TestNoAssumeRoleIsSignedByAMintedSessionAcrossThreeFetches(t *testing.T) {
 	assertNoMintedSigner(t, sts)
 }
 
-// TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency covers fetches racing the
-// cache, as they do under run --all.
+// TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency covers fetches racing the cache.
 func TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency(t *testing.T) {
 	t.Parallel()
 
