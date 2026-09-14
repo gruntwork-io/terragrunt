@@ -11,11 +11,6 @@ import (
 )
 
 // Pins that only a data dir inside the working dir can vouch for that working dir being initialized.
-//
-// A TF_DATA_DIR resolving outside the working dir is shared by every unit that inherits the variable,
-// so its existence says nothing about this dependency. Before this was enforced, one shared directory
-// made every dependency look initialized and outputs were read from a cache dir that never existed,
-// which surfaced as a chdir failure on plan and as silently empty outputs on render.
 func TestDependencyInitDataDir(t *testing.T) {
 	t.Parallel()
 
