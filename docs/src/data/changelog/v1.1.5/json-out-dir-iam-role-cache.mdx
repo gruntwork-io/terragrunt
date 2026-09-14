@@ -1,0 +1,12 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### IAM role credentials are reused for `--json-out-dir` plan export
+
+After `v1.1.4`, `run --all plan` with an IAM role and `--json-out-dir` could make a second `sts:AssumeRole` request. That request used the role session itself and failed with `AccessDenied` unless the role trusted itself.
+
+Terragrunt now caches the assumed session in-process until five minutes before it expires (default session length is one hour when `--iam-assume-role-duration` is unset), keyed by role configuration and source identity, so the JSON export reuses the first assumption. Setting `--iam-assume-role-duration` was already a working workaround and remains supported.
+
+If a session cannot be refreshed but has not yet expired, Terragrunt logs a warning and continues with the cached credentials rather than failing the run.
