@@ -514,10 +514,31 @@ type recordingSTS struct {
 	client       vhttp.Client
 	gate         chan struct{}
 	assumedKey   string
+	auths        []string
 	sessionTTL   time.Duration
 	calls        atomic.Int64
+	mu           sync.Mutex
 	failNext     atomic.Bool
 	webIdentity  bool
+}
+
+// signers returns the access key id that signed each request, in order.
+func (s *recordingSTS) signers() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]string, 0, len(s.auths))
+
+	for _, auth := range s.auths {
+		signer := "NONE"
+		if m := credentialRe.FindStringSubmatch(auth); m != nil {
+			signer = m[1]
+		}
+
+		out = append(out, signer)
+	}
+
+	return out
 }
 
 func newRecordingSTS(t *testing.T, assumedKeyID string, sessionTTL time.Duration) *recordingSTS {
@@ -536,7 +557,13 @@ func newRecordingSTS(t *testing.T, assumedKeyID string, sessionTTL time.Duration
 		}
 
 		sts.calls.Add(1)
-		sts.lastAuth.Store(req.Header.Get("Authorization"))
+
+		auth := req.Header.Get("Authorization")
+		sts.lastAuth.Store(auth)
+
+		sts.mu.Lock()
+		sts.auths = append(sts.auths, auth)
+		sts.mu.Unlock()
 
 		body, err := io.ReadAll(req.Body)
 		if err == nil {

@@ -2154,6 +2154,16 @@ func dependencyStateDataDir(pctx *ParsingContext, workingDir string) string {
 	return filepath.Join(workingDir, dataDir)
 }
 
+// dependencyInitDataDir returns the dir whose existence shows workingDir itself was initialized.
+func dependencyInitDataDir(pctx *ParsingContext, workingDir string) string {
+	dataDir := filepath.Clean(dependencyStateDataDir(pctx, workingDir))
+	if dataDir != filepath.Clean(workingDir) && vfs.Within(pctx.Venv.FS, workingDir, dataDir) {
+		return dataDir
+	}
+
+	return filepath.Join(workingDir, tf.DefaultTFDataDir)
+}
+
 // applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into pctx.Venv.Env
 func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *TerraformConfig) {
 	if terraformConfig == nil {
@@ -2250,7 +2260,7 @@ func terragruntAlreadyInit(
 	// NOTE: if the ref changes, the workingDir would be different as the download dir includes a base64 encoded hash of
 	// the source URL with ref. This would ensure that this routine would not return true if the new ref is not already
 	// init-ed.
-	return vfs.Exists(pctx.Venv.FS, dependencyStateDataDir(pctx, workingDir)), workingDir, nil
+	return vfs.Exists(pctx.Venv.FS, dependencyInitDataDir(pctx, workingDir)), workingDir, nil
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
