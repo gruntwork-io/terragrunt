@@ -7,8 +7,6 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 
 Git is the most common source Terragrunt fetches and has the richest support in the CAS.
 
@@ -33,8 +31,6 @@ Two special cases bypass or extend the probe:
 - **Pinned commit SHA already cached.** If you pin to a full commit SHA and that commit is already in the local store, Terragrunt answers from the store and skips `ls-remote` entirely, so the resolution stays offline. This is especially useful if you plan to use Terragrunt in an air-gapped environment.
 - **Commit SHA.** `ls-remote` only lists named refs. If it returns no match (you supplied a commit SHA directly), Terragrunt defers resolution to the fetch step, which canonicalizes the ref with `git rev-parse` against the local store once the objects have arrived.
 
-<Since version="1.1.5">
-
 **Shared probes and reads.** Units in one run that resolve the same URL and ref at the same time share a single `ls-remote`, and units that need the same commit share a single read of it into the store. The first unit to ask does the work and the others wait for its answer. A unit that starts after that answer has arrived probes again unless a recorded answer covers it (see the probe cache below), so a `run --all` over hundreds of units that point at one branch costs one probe for each group of units that start together, and at most one fetch. A unit that is cancelled while waiting stops waiting; the shared work carries on for the units still depending on it.
 
 **The probe cache.** With the [`offline-cas`](/reference/experiments/active#offline-cas) experiment enabled, each `ls-remote` answer is recorded under `probes/` in the store, keyed by URL and ref. [Recorded probes](/features/caching/cas#recorded-probes) covers the rules every source follows and the flags that change them; two things are specific to Git:
@@ -44,8 +40,6 @@ Two special cases bypass or extend the probe:
 
 Entries are filed under the repository with credentials stripped, so a token rotated between runs still finds the answer recorded for the repository it addresses.
 
-</Since>
-
 ## Cache key & deduplication
 
 The cache key for the root tree is the commit hash itself, content-addressed by Git's native scheme. Both SHA-1 and SHA-256 repositories are supported, with the algorithm detected per repository. Because the commit hash is content-addressed, the same commit reached through two repositories or two refs resolves to the same stored tree, and identical file blobs are shared across every repository that contains them.
@@ -54,7 +48,7 @@ The cache key for the root tree is the commit hash itself, content-addressed by 
 
 On a miss, Terragrunt fetches into a central bare repository kept per remote URL under `git/` in the store (initialized on first use), holding a per-URL lock for the duration:
 
-1. Branch and tag refs use a shallow fetch. <Before version="1.1.5">A bare commit SHA triggers a full-history fetch of every branch and tag so the SHA can be resolved locally.</Before><Since version="1.1.5">A full commit SHA is asked for on its own, one commit deep, which transfers that commit rather than every branch and tag. Remotes that will not serve a commit by name, such as an older or locked-down server, fall back to the full-history fetch, so a pinned SHA resolves either way.</Since>
+1. Branch and tag refs use a shallow fetch. A full commit SHA is asked for on its own, one commit deep, which transfers that commit rather than every branch and tag. Remotes that will not serve a commit by name, such as an older or locked-down server, fall back to the full-history fetch, so a pinned SHA resolves either way.
 2. The blobs and trees reachable from the commit are extracted and stored, partitioned by hash prefix.
 3. The tree is read back from the store and hard linked into the target directory.
 
@@ -66,11 +60,7 @@ Git is unique among the getters in that a cache miss is not always all-or-nothin
 
 When the commit hash is already keyed in the store, Terragrunt reads the tree and hard links its blobs into the target without fetching again from the remote. For a pinned commit SHA that is already cached, even the ref-resolution step stays offline.
 
-<Since version="1.1.5">
-
 With the [`offline-cas`](/reference/experiments/active#offline-cas) experiment enabled, a semantic version tag probed within the last 24 hours also skips the remote, since its recorded answer is served instead of a fresh `ls-remote`. See [Recorded probes](/features/caching/cas#recorded-probes) for which sources are cached and for how long.
-
-</Since>
 
 ## Submodules
 
