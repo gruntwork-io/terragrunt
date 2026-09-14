@@ -34,9 +34,10 @@ func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAwsAuthProviderRoleReuse)
 	authCmd := filepath.Join(rootPath, "auth-provider.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authCmd)
-
+	// Set before validating: the script requires this variable and exits non-zero without it.
 	t.Setenv("TG_TEST_ROLE_ARN", assumeRole)
+
+	helpers.ValidateAuthProviderScript(t, rootPath, authCmd)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
 		"terragrunt run --all plan --non-interactive --log-level debug --working-dir %s --auth-provider-cmd %s",
@@ -67,9 +68,10 @@ func TestAwsAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAwsAuthProviderRoleReuse)
 	authCmd := filepath.Join(rootPath, "auth-provider.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authCmd)
-
+	// Set before validating: the script requires this variable and exits non-zero without it.
 	t.Setenv("TG_TEST_ROLE_ARN", assumeRole)
+
+	helpers.ValidateAuthProviderScript(t, rootPath, authCmd)
 
 	outDir := filepath.Join(t.TempDir(), "plans")
 	jsonOutDir := filepath.Join(t.TempDir(), "json")
@@ -82,6 +84,8 @@ func TestAwsAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	require.NoError(t, err, "stdout:\n%s\nstderr:\n%s", stdout, stderr)
 	assert.NotContains(t, stderr, "AccessDenied",
 		"the JSON export re-assumed the role signed by its own session")
+	assert.NotContains(t, stderr, "Failed to assume role",
+		"an auth-provider role assumption failed during the run")
 
 	assertAuthProviderAssumedRole(t, stderr)
 }
