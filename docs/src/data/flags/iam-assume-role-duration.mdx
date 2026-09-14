@@ -8,6 +8,4 @@ env:
 
 Specifies how long the temporary credentials should remain valid when assuming an IAM role. This flag is only used when [`iam-assume-role`](/reference/cli/commands/run#iam-assume-role) is specified.
 
-When unset, Terragrunt uses a one-hour session. In the same process, it reuses cached credentials until five minutes before they expire, so later steps such as `--json-out-dir` plan export can reuse the first role assumption.
-
 For more information on how to use this flag, and how it differs from other ways of managing authentication with Terragrunt, see the [Authentication](/features/units/authentication) feature documentation.
