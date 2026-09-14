@@ -1649,9 +1649,9 @@ func TestTFStackFindInParentFolders(t *testing.T) {
 }
 
 // TestTFStackVersionConstraints verifies that version constraints are respected in stack runs.
-//
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFStackVersionConstraints(t *testing.T) {
+	t.Parallel()
+
 	helpers.CleanupTerragruntFolder(t, testFixtureStackVersionConstraints)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackVersionConstraints)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackVersionConstraints, "live")
