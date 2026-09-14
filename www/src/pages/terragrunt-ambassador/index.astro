@@ -103,7 +103,7 @@ const socialLabels = {
 
   <div class="global-page-container">
     <main class="mx-auto w-full max-w-[1310px]">
-      <section class="px-4 py-16 md:px-8">
+      <section class="px-4 py-[76px] md:px-8">
         <SectionHeading
           align="center"
           eyebrow="About the Program"
@@ -119,7 +119,7 @@ const socialLabels = {
         </p>
       </section>
 
-      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <SectionHeading
           align="center"
           eyebrow="Program Benefits"
@@ -144,7 +144,7 @@ const socialLabels = {
         </ul>
       </section>
 
-      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <SectionHeading
           align="center"
           eyebrow="Ambassadors"
@@ -161,16 +161,18 @@ const socialLabels = {
         >
           {
             ambassadors.map((person) => (
-              <li class="flex flex-col rounded-xl border border-gray-4 bg-white p-6">
-                <Image
-                  src={portraitFor(person.image)}
-                  alt={person.name}
-                  width={96}
-                  height={96}
-                  loading="lazy"
-                  class="size-24 rounded-full object-cover"
-                />
-                <h3 class="mt-4 text-base font-semibold text-dark-blue-1">
+              <li class="flex h-full flex-col rounded-lg border-4 border-gray-4 bg-white p-6">
+                <div class="mb-4 flex h-[195px] w-full max-w-[228px] items-center justify-center overflow-hidden rounded-md">
+                  <Image
+                    src={portraitFor(person.image)}
+                    alt={person.name}
+                    width={228}
+                    height={195}
+                    loading="lazy"
+                    class="size-full object-cover"
+                  />
+                </div>
+                <h3 class="m-0 text-base font-semibold text-dark-blue-1">
                   {person.name}
                 </h3>
                 <p class="m-0 mt-0.5 text-sm text-gray-2">{person.role}</p>
@@ -216,15 +218,15 @@ const socialLabels = {
         </ul>
       </section>
 
-      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <SectionHeading
           align="center"
           eyebrow="Join the Program"
           words={["Become a Terragrunt", "Ambassador"]}
           accent={["Ambassador"]}
         />
-        <div class="max-w-[800px]">
-          <p class="text-lg leading-relaxed text-gray-2">
+        <div class="mx-auto flex max-w-[850px] flex-col items-center gap-8 text-center">
+          <p class="m-0 text-lg leading-relaxed text-gray-2">
             We're looking for community members who are passionate, expert users
             of Terragrunt and are (or willing to be) active in the community.
           </p>

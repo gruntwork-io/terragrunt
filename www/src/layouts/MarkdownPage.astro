@@ -15,7 +15,9 @@ interface Frontmatter {
   eyebrow?: string;
   headline: string;
   subhead?: string;
-  hideCta?: boolean;
+  cta?: boolean;
+  newsletter?: boolean;
+  openSource?: boolean;
 }
 
 const { frontmatter } = Astro.props as { frontmatter: Frontmatter };
@@ -28,7 +30,9 @@ const { frontmatter } = Astro.props as { frontmatter: Frontmatter };
   eyebrow={frontmatter.eyebrow}
   headline={frontmatter.headline}
   subhead={frontmatter.subhead}
-  hideCta={frontmatter.hideCta}
+  cta={frontmatter.cta}
+  newsletter={frontmatter.newsletter}
+  openSource={frontmatter.openSource}
 >
   <div class="prose-tg">
     <slot />

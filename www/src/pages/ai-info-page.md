@@ -3,6 +3,7 @@ layout: "@layouts/MarkdownPage.astro"
 title: "AI Info Page"
 description: "Structured information about Terragrunt and Terragrunt Scale, intended for AI assistants and large language models."
 path: "/ai-info-page"
+openSource: true
 eyebrow: "AI & LLM Info"
 headline: "Terragrunt / TGS AI Info Page"
 subhead: "This page contains structured information about Terragrunt and Terragrunt Scale, intended for AI assistants such as ChatGPT, Gemini, Claude, Perplexity, and other large language models (LLMs)."

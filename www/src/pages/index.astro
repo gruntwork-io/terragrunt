@@ -11,6 +11,7 @@ import NewsletterSignup from "@components/NewsletterSignup.astro";
 import NotificationBar from "@components/NotificationBar.astro";
 import VerticalGrid from "@components/VerticalGrid.astro";
 import OpenSourceTools from "@components/OpenSourceTools.astro";
+import ScalePanel from "@components/ScalePanel.astro";
 import SectionHeading from "@components/SectionHeading.astro";
 import OpenTofuMark from "@assets/img/opentofu-logo.svg";
 import TerraformMark from "@assets/img/terraform-logo.svg";
@@ -21,7 +22,6 @@ import {
   drySection,
   hero,
   orchestrateSection,
-  scalePanel,
 } from "@data/home";
 
 const title = "Terragrunt | Orchestrate Terraform & OpenTofu at Scale";
@@ -113,7 +113,7 @@ const consistencyBottom = consistencySection.cards.slice(3);
         Two columns — headline left, cards stacked right — not a headline above
         a three-across row. `._2-col` is `grid-template-columns: 1fr 1fr`.
       */}
-      <section class="px-4 py-16 md:px-8">
+      <section class="px-4 py-[76px] md:px-8">
         <div class="mx-auto grid max-w-[1100px] grid-cols-1 gap-8 lg:grid-cols-2 lg:pl-14">
           <SectionHeading
             eyebrow={orchestrateSection.eyebrow}
@@ -127,47 +127,37 @@ const consistencyBottom = consistencySection.cards.slice(3);
         </div>
       </section>
 
-      <section class="px-4 pb-16 md:px-8">
-        <div
-          class="flex flex-col items-start gap-6 rounded-2xl bg-bg-dark p-8 md:flex-row md:items-center md:justify-between md:p-12"
-        >
-          <div class="max-w-[620px]">
-            <h2 class="m-0 text-2xl font-semibold text-white md:text-3xl">
-              {scalePanel.headline}
-            </h2>
-            <p class="mt-3 text-base leading-relaxed text-gray-1">
-              {scalePanel.body}
-            </p>
-          </div>
-          <Button href={scalePanel.cta.href} variant="primary" size="lg">
-            {scalePanel.cta.label}
-          </Button>
-        </div>
-      </section>
+      <ScalePanel />
 
-      <section class="mx-auto max-w-[900px] px-4 pb-16 md:px-8">
+      <section class="mx-auto my-[88px] max-w-[960px] px-4 md:px-8">
+        <div class="mx-auto max-w-[850px] px-0 md:px-8">
         <SectionHeading
           eyebrow={consistencySection.eyebrow}
           words={consistencySection.headline}
           accent={["Tribal"]}
         />
-        <FeatureCards cards={consistencyTop} columns={3} />
+        </div>
+        <div class="mt-[60px]"><FeatureCards cards={consistencyTop} columns={3} /></div>
 
         <div class="mt-16">
-          <SectionHeading
-            words={consistencySection.secondHeadline}
-            accent={["Enable"]}
-          />
+          <div class="mx-auto max-w-[850px] px-0 md:px-8">
+            <SectionHeading
+              words={consistencySection.secondHeadline}
+              accent={["Enable"]}
+            />
+          </div>
           <FeatureCards cards={consistencyBottom} columns={2} />
         </div>
       </section>
 
-      <section class="mx-auto max-w-[900px] px-4 pb-16 md:px-8">
+      <section class="mx-auto my-[88px] max-w-[960px] px-4 md:px-8">
+        <div class="mx-auto max-w-[850px] px-0 md:px-8">
         <SectionHeading
           eyebrow={drySection.eyebrow}
           words={[drySection.headlineAccent, drySection.headline]}
           accent={[drySection.headlineAccent]}
         />
+        </div>
         <FeatureCards cards={drySection.cards} columns={2} style="solid" />
       </section>
 

@@ -40,6 +40,7 @@ export const featuredBrandsHeadline = "Managing Infrastructure At";
 
 export const scalePanel = {
   headline: "The GitOps Pipeline Built for Terragrunt",
+  builtForLabel: "Built For:",
   body: "Get a production-ready infrastructure pipeline that runs in your CI runners. Free for up to 25 infrastructure units.",
   cta: { label: "Get Free CI/CD for Terragrunt", href: "/terragrunt-scale" },
 } as const;

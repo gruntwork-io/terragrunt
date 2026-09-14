@@ -1,42 +1,77 @@
 ---
+/**
+ * The dashed card grid used by the homepage feature bands.
+ *
+ * `._3-col-grid` / `._2-col-grid` are a single grid with dashed top and bottom
+ * rules and NO gap; each `.dotted-grid-block` carries a dashed right border and
+ * 24px of padding, so the separators are shared hairlines rather than an outline
+ * per card. Boxing each card and spacing them apart reads as a different
+ * component entirely.
+ */
 import { renderLede } from "@lib/lede";
 import type { FeatureCard } from "@data/home";
 
 interface Props {
   cards: readonly FeatureCard[];
-  /** `dotted` separates with dashed rules; `solid` boxes each card. */
-  style?: "dotted" | "solid";
   columns?: 1 | 2 | 3;
+  /** `solid` is the DRY band's outlined cards, which really are separate boxes. */
+  style?: "dotted" | "solid";
 }
 
-const { cards, style = "dotted", columns = 3 } = Astro.props;
+const { cards, columns = 3, style = "dotted" } = Astro.props;
 
 const grid = {
   1: "grid-cols-1",
   2: "grid-cols-1 md:grid-cols-2",
-  3: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+  3: "grid-cols-1 md:grid-cols-3",
 }[columns];
 ---
 
-<div class:list={["grid gap-px", grid]}>
-  {
-    cards.map((card) => (
-      <div
-        class:list={[
-          "flex flex-col gap-3 p-6",
-          style === "solid"
-            ? "rounded-xl border border-gray-4 bg-white"
-            : "border border-dashed border-gray-4",
-        ]}
-      >
-        <h3 class="m-0 text-base font-semibold text-dark-blue-1">
-          {card.title}
-        </h3>
+{
+  style === "solid" ? (
+    <div class:list={["mx-auto mt-[60px] grid max-w-[850px] gap-4", grid]}>
+      {cards.map((card) => (
+        <div class="flex flex-col gap-6 rounded-lg border-4 border-gray-6 bg-white p-6 outline outline-2 outline-white">
+          <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+            {card.title}
+          </h3>
+          <div
+            class="text-sm leading-relaxed text-gray-2 [&_a]:text-accent-1 [&_a]:underline [&_a]:underline-offset-2 [&_p]:m-0"
+            set:html={renderLede(card.body)}
+          />
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div
+      class:list={[
+        "mx-auto grid max-w-[850px]",
+        columns === 1
+          ? "border-l border-dashed border-gray-4"
+          : "border-y border-dashed border-gray-4",
+        grid,
+      ]}
+    >
+      {cards.map((card, i) => (
         <div
-          class="text-sm leading-relaxed text-gray-2 [&_a]:text-accent-1 [&_a]:underline [&_a]:underline-offset-2 [&_p]:m-0"
-          set:html={renderLede(card.body)}
-        />
-      </div>
-    ))
-  }
-</div>
+          class:list={[
+            "flex flex-col gap-6 p-6",
+            /* The last cell in each row carries no rule, or it doubles the frame. */
+            columns === 1
+              ? "border-b border-dashed border-gray-4 first:border-t"
+              : i < cards.length - 1 &&
+                "md:border-r md:border-dashed md:border-gray-4",
+          ]}
+        >
+          <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+            {card.title}
+          </h3>
+          <div
+            class="text-sm leading-relaxed text-gray-2 [&_a]:text-accent-1 [&_a]:underline [&_a]:underline-offset-2 [&_p]:m-0"
+            set:html={renderLede(card.body)}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}

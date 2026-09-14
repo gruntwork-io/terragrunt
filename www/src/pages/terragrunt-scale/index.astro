@@ -56,7 +56,7 @@ const headlineParts = (() => {
     the live page does not have.
   */}
   <section class="relative z-[2] w-full overflow-hidden bg-bg-dark pt-[100px]">
-    <div class="mx-auto grid max-w-[1310px] grid-cols-1 gap-12 px-4 pb-16 md:px-8 lg:grid-cols-2 lg:items-center">
+    <div class="mx-auto grid max-w-[1310px] grid-cols-1 gap-12 px-4 pb-[76px] md:px-8 lg:grid-cols-2 lg:items-center">
       <div>
         <h1
           class="m-0 text-4xl font-semibold leading-[1.05] tracking-[-0.02em] text-white md:text-6xl"
@@ -144,7 +144,7 @@ const headlineParts = (() => {
     <main class="mx-auto w-full max-w-[1310px]">
       <FeaturedBrands />
 
-      <section class="px-4 py-14 md:px-8">
+      <section class="px-4 py-[76px] md:px-8">
         <p class="m-0 mb-4 text-center text-sm text-gray-2">
           <strong class="font-semibold text-dark-blue-1">{video.duration}</strong>
           &nbsp;&bull;&nbsp;Watch a <code
@@ -165,7 +165,7 @@ const headlineParts = (() => {
         </div>
       </section>
 
-      <section class="px-4 pb-16 md:px-8">
+      <section class="px-4 pb-[76px] md:px-8">
         <SectionHeading
           eyebrow={howItWorks.eyebrow}
           words={[howItWorks.headlineLead, howItWorks.headlineAccent]}
@@ -192,7 +192,7 @@ const headlineParts = (() => {
           { data: pipelines, image: PipelinesShot },
           { data: driftDetection, image: DriftShot },
         ].map(({ data, image }) => (
-          <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+          <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
             <SectionHeading
               eyebrow={data.eyebrow}
               words={[data.headlineLead, data.headlineAccent]}
@@ -216,7 +216,7 @@ const headlineParts = (() => {
         ))
       }
 
-      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <SectionHeading
           eyebrow={patcher.eyebrow}
           words={[patcher.headlineLead, patcher.headlineAccent]}
@@ -229,7 +229,7 @@ const headlineParts = (() => {
 
       <section
         id="view-plans"
-        class="border-t border-gray-4 px-4 py-16 md:px-8"
+        class="border-t border-gray-4 px-4 py-[76px] md:px-8"
       >
         <div class="mb-10 text-center">
           <h2
@@ -326,7 +326,7 @@ const headlineParts = (() => {
         </p>
       </section>
 
-      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <figure class="mx-auto max-w-[820px] text-center">
           <blockquote class="m-0 text-xl leading-relaxed text-gray-7">
             &ldquo;{testimonial.quote}&rdquo;

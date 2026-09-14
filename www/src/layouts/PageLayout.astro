@@ -22,8 +22,16 @@ interface Props {
   subhead?: string;
   jsonLd?: Record<string, unknown>;
   noindex?: boolean;
-  /** Drops the Terragrunt Scale CTA band, for pages that are themselves the CTA. */
-  hideCta?: boolean;
+  /*
+   * The closing bands are NOT the same on every page, and assuming they were
+   * added roughly a thousand pixels of content to pages that end at the footer.
+   * On the live site: /faqs-overview and both index pages close immediately;
+   * /faq/* carries all three; /comparisons/* drops the CTA; /guides/* keeps only
+   * the newsletter; /ai-info-page keeps only the open-source band.
+   */
+  cta?: boolean;
+  newsletter?: boolean;
+  openSource?: boolean;
 }
 
 const {
@@ -35,7 +43,9 @@ const {
   subhead,
   jsonLd,
   noindex,
-  hideCta = false,
+  cta = false,
+  newsletter = false,
+  openSource = false,
 } = Astro.props;
 ---
 
@@ -58,13 +68,11 @@ const {
         </div>
       </div>
 
-      {!hideCta && <CtaSection />}
-      <NewsletterSignup />
+      {cta && <CtaSection />}
+      {newsletter && <NewsletterSignup />}
     </main>
   </div>
 
-  <div class="mt-16">
-    <OpenSourceTools />
-    <Footer />
-  </div>
+  {openSource && <OpenSourceTools />}
+  <Footer />
 </BaseLayout>

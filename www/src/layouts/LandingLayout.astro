@@ -51,7 +51,7 @@ const {
 
   <div class="global-page-container">
     <main class="mx-auto w-full max-w-[1310px]">
-      <section class="px-4 py-16 md:px-8">
+      <section class="px-4 py-[76px] md:px-8">
         <div class="grid grid-cols-1 items-start gap-12 lg:grid-cols-2">
           <div class="max-w-[560px]">
             <slot name="offer" />
@@ -95,7 +95,7 @@ const {
 
       {
         sections.map((section) => (
-          <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+          <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
             <SectionHeading
               eyebrow={section.eyebrow}
               words={[section.headlineLead, section.headlineAccent]}
@@ -108,7 +108,7 @@ const {
         ))
       }
 
-      <section class="border-t border-gray-4 px-4 py-16 md:px-8">
+      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <figure class="mx-auto max-w-[820px] text-center">
           <blockquote class="m-0 text-xl leading-relaxed text-gray-7">
             &ldquo;{testimonial.quote}&rdquo;

@@ -107,7 +107,7 @@ const jsonLd = {
 
   <div class="global-page-container">
     <main class="mx-auto w-full max-w-[1310px] px-4 py-[90px] md:px-20">
-      <div class="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_400px]">
+      <div class="grid grid-cols-1 gap-[60px] lg:grid-cols-[1fr_426px]">
         <div>
           <span
             class="mb-3 inline-block text-[13px] font-semibold uppercase tracking-[0.08em] text-accent-1"
@@ -115,13 +115,13 @@ const jsonLd = {
             Checkout
           </span>
           <h1
-            class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+            class="m-0 max-w-[14ch] text-4xl font-medium leading-[1.05] tracking-[-0.02em] text-dark-blue-1 md:text-[60px] md:leading-[62px]"
           >
             Purchase <span class="text-accent-1">Terragrunt Scale</span>
           </h1>
 
           <p
-            class="mt-6 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.08em] text-gray-2"
+            class="mt-10 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.08em] text-gray-2"
           >
             <span>Works With:</span>
             {
@@ -133,13 +133,13 @@ const jsonLd = {
             }
           </p>
 
-          <h2 class="mt-12 text-xl font-semibold text-dark-blue-1">
+          <h2 class="mt-[76px] text-[32px] font-medium leading-[1.2] text-dark-blue-1">
             How it works
           </h2>
-          <ol class="m-0 mt-6 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-3">
+          <ol class="m-0 mt-10 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-3">
             {
               steps.map((step) => (
-                <li class="rounded-xl border border-gray-4 bg-white p-5">
+                <li class="flex flex-col gap-4 rounded-lg border-4 border-gray-6 bg-white p-6 outline outline-2 outline-white">
                   <span class="block text-lg font-semibold text-accent-3">
                     {step.number}
                   </span>
@@ -158,7 +158,7 @@ const jsonLd = {
         </div>
 
         <aside
-          class="relative h-fit max-w-[400px] overflow-hidden rounded-lg border border-[#2f3547] bg-bg-dark bg-gradient-to-b from-[#5862aa24] to-[#5862aa00] to-60% p-6"
+          class="relative h-fit w-full max-w-[426px] overflow-hidden rounded-lg border border-[#2f3547] bg-bg-dark bg-gradient-to-b from-[#5862aa24] to-[#5862aa00] to-60% p-6"
           data-checkout
         >
           <Image

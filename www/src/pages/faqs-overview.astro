@@ -51,18 +51,18 @@ const jsonLd = {
 >
   {
     byGroup.map((group) => (
-      <section class="mb-14">
-        <h2 class="m-0 mb-6 text-2xl font-semibold text-dark-blue-1">
+      <section class="mb-[76px]">
+        <h2 class="m-0 mb-[60px] pl-6 text-[32px] font-medium leading-[1.2] text-dark-blue-1">
           {group.heading}
         </h2>
 
-        <div class="border-t border-gray-4">
+        <div class="mx-auto max-w-[850px] border-x border-dashed border-gray-4">
           {group.items.map((entry) => {
             const Answer = rendered.get(entry.id)!;
             return (
-              <details class="group border-b border-gray-4">
-                <summary class="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-lg font-medium text-dark-blue-1 hover:text-accent-1">
-                  <span>{entry.data.question}</span>
+              <details class="group border-t border-dashed border-gray-4 px-6 py-6">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4 pb-2 pt-6 text-left hover:text-accent-1">
+                  <span class="max-w-[750px] text-2xl leading-8 text-bg-dark">{entry.data.question}</span>
                   <svg
                     class="size-5 shrink-0 text-gray-2 transition-transform group-open:rotate-45"
                     viewBox="0 0 24 24"
@@ -76,7 +76,7 @@ const jsonLd = {
                   </svg>
                 </summary>
 
-                <div class="prose-tg pb-6 text-base">
+                <div class="prose-tg pb-2 text-base">
                   <Answer />
                   <p class="mt-4 text-sm">
                     <a

@@ -1,0 +1,83 @@
+---
+/**
+ * The "GitOps Pipeline Built for Terragrunt" band on the homepage.
+ *
+ * A tall, centred card — 6px `--gray-4` frame, navy ground, the isometric boxes
+ * artwork, and Grunty leaning out of the bottom-right corner. It is not a
+ * horizontal strip with the button beside the copy; every value here is read
+ * off `.terragrunt-scale-panel*` on the live site.
+ */
+import { Image } from "astro:assets";
+import Button from "@components/Button.astro";
+import Grunty from "@assets/img/half-grunty.svg";
+import boxesBg from "@assets/img/boxes-bg.svg";
+import GithubMark from "@assets/icons/github-icon.svg";
+import GitlabMark from "@assets/icons/gitlab-icon.svg";
+import TerragruntMark from "@assets/icons/terragrunt-icon.svg";
+import { scalePanel } from "@data/home";
+
+const builtFor = [
+  { label: "Github", mark: GithubMark },
+  { label: "Gitlab", mark: GitlabMark },
+  { label: "Terragrunt", mark: TerragruntMark },
+];
+---
+
+<section class="px-4 pb-[76px] md:px-8">
+  <div
+    class="relative z-[2] mx-auto w-full max-w-[1262px] rounded-xl border-[6px] border-gray-4 bg-bg-dark pt-[100px]"
+  >
+    <div
+      class="bg-[length:1440px] bg-[position:50%_30%] bg-no-repeat pb-[100px]"
+      style={`background-image:url(${boxesBg.src})`}
+    >
+      <div class="mx-auto max-w-[900px] px-6 text-center">
+        <h2
+          class="m-0 text-[32px] font-medium leading-[1.05] text-white md:text-[48px] md:leading-[48px]"
+        >
+          The <span class="text-accent-4">GitOps Pipeline</span> Built for Terragrunt
+        </h2>
+
+        <p class="mx-auto mb-5 mt-10 max-w-[600px] text-[18px] leading-[28px] text-gray-1">
+          Get a production-ready infrastructure pipeline that runs in <em
+            class="not-italic text-accent-4">your CI&nbsp;runners</em
+          >.<br />Free for up to 25 infrastructure units.
+        </p>
+
+        <div class="flex flex-wrap items-center justify-center gap-1 py-6">
+          <span
+            class="mr-8 font-mono text-xs uppercase leading-4 text-white"
+            >{scalePanel.builtForLabel}</span
+          >
+          {
+            builtFor.map((tool) => (
+              <span class="flex items-center gap-1.5 rounded border border-stroke-dark py-1 pl-1 pr-2.5 text-xs uppercase text-white">
+                <Image
+                  src={tool.mark}
+                  alt=""
+                  aria-hidden="true"
+                  class="size-5 rounded"
+                />
+                {tool.label}
+              </span>
+            ))
+          }
+        </div>
+
+        <div class="mt-10 flex flex-wrap items-center justify-center gap-5">
+          <Button href={scalePanel.cta.href} variant="primary" size="lg">
+            {scalePanel.cta.label}
+          </Button>
+        </div>
+      </div>
+    </div>
+
+    <Image
+      src={Grunty}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      class="pointer-events-none absolute -bottom-1.5 right-5 hidden w-[200px] md:block"
+    />
+  </div>
+</section>
