@@ -1597,17 +1597,14 @@ func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T)
 	assert.Contains(t, stdout, "app2 output")
 }
 
-func TestAwsStackCommands(t *testing.T) { //nolint:paralleltest // parallel runs trip a CircleCI bucket-policy error
-	// It seems that disabling parallel test execution helps avoid the CircleCi error: "NoSuchBucket Policy: The bucket policy does not exist."
-	// t.Parallel()
+func TestAwsStackCommands(t *testing.T) {
+	t.Parallel()
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
 
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
-
-	helpers.CleanupTerraformFolder(t, testFixtureStack)
-	helpers.CleanupTerragruntFolder(t, testFixtureStack)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStack)
 
@@ -2445,10 +2442,9 @@ func TestAwsRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 	)
 }
 
-func TestAwsOutputFromRemoteState(t *testing.T) { //nolint:paralleltest // config.ClearOutputCache mutates a global these tests share
-	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
-	// t.Parallel()
+func TestAwsOutputFromRemoteState(t *testing.T) {
+	t.Parallel()
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
@@ -2524,10 +2520,9 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint:paralleltest // confi
 	)
 }
 
-func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint:paralleltest // config.ClearOutputCache mutates a global these tests share
-	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
-	// t.Parallel()
+func TestAwsNoDependencyFetchOutputFromState(t *testing.T) {
+	t.Parallel()
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
@@ -2620,10 +2615,9 @@ func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint:parallelte
 	)
 }
 
-func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint:paralleltest // config.ClearOutputCache mutates a global these tests share
-	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
-	// t.Parallel()
+func TestAwsMockOutputsFromRemoteState(t *testing.T) {
+	t.Parallel()
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
@@ -2744,7 +2738,9 @@ func TestAwsStackDependencyMockOutputsFromRemoteState(t *testing.T) {
 // TestAwsMockOutputsFromRemoteStateMissingBucket pins that a dependency read falls back to
 // mock_outputs when the state bucket itself doesn't exist yet (NoSuchBucket), not only when the
 // state object is missing (NoSuchKey).
-func TestAwsMockOutputsFromRemoteStateMissingBucket(t *testing.T) { //nolint:paralleltest // matches the other output-from-remote-state tests, which don't run in parallel
+func TestAwsMockOutputsFromRemoteStateMissingBucket(t *testing.T) {
+	t.Parallel()
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	// Never pre-created, so the dependency reads hit a missing bucket; init bootstraps it, so clean
