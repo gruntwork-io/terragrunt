@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
@@ -31,7 +33,7 @@ func TestGetCredentialsReusesCacheWhenDurationUnset(t *testing.T) {
 	t.Parallel()
 
 	roleARN := testRoleARNPrefix + t.Name()
-	sts := newRecordingSTS(t, assumedAccessKeyID)
+	sts := newRecordingSTS(t, assumedAccessKeyID, time.Hour)
 
 	v := venvtest.New().
 		WithHTTP(sts.client).
@@ -56,7 +58,6 @@ func TestGetCredentialsReusesCacheWhenDurationUnset(t *testing.T) {
 	require.True(t, ok, "authorization header must be a string")
 	assert.Contains(t, auth, "Credential="+baseAccessKeyID+"/")
 
-	// Simulate creds.Getter writing the assumed session into the shared env.
 	maps.Copy(v.Env, first.Envs)
 
 	second, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -122,7 +123,7 @@ func TestGetCredentialsPropagatesSTSFailure(t *testing.T) {
 func TestGetCredentialsUsesExplicitDurationCachesAcrossCalls(t *testing.T) {
 	t.Parallel()
 
-	sts := newRecordingSTS(t, "ASIAEXPLICITDURATION")
+	sts := newRecordingSTS(t, "ASIAEXPLICITDURATION", 30*time.Minute)
 	v := venvtest.New().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
@@ -149,13 +150,12 @@ func TestGetCredentialsUsesExplicitDurationCachesAcrossCalls(t *testing.T) {
 	assert.Equal(t, "ASIAEXPLICITDURATION", second.Envs["AWS_ACCESS_KEY_ID"])
 }
 
-// TestGetCredentialsShortDurationStillCaches covers durations shorter than the
-// cache expiry window: the TTL clamps to the full session length so a second
-// entry still hits.
-func TestGetCredentialsShortDurationStillCaches(t *testing.T) {
+// TestGetCredentialsAWSMinimumDurationStillCaches uses the AWS minimum role
+// session duration (900 seconds).
+func TestGetCredentialsAWSMinimumDurationStillCaches(t *testing.T) {
 	t.Parallel()
 
-	sts := newRecordingSTS(t, "ASIASHORTDURATION")
+	sts := newRecordingSTS(t, "ASIAMINIMUMDURATION", 15*time.Minute)
 	v := venvtest.New().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
@@ -166,7 +166,7 @@ func TestGetCredentialsShortDurationStillCaches(t *testing.T) {
 
 	provider := amazonsts.NewProvider(logger.CreateLogger(), iam.RoleOptions{
 		RoleARN:            testRoleARNPrefix + t.Name(),
-		AssumeRoleDuration: 60,
+		AssumeRoleDuration: 900,
 	}, v.Env)
 
 	first, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -178,37 +178,228 @@ func TestGetCredentialsShortDurationStillCaches(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, second)
 	assert.Equal(t, int64(1), sts.calls.Load())
-	assert.Equal(t, "ASIASHORTDURATION", second.Envs["AWS_ACCESS_KEY_ID"])
+	assert.Equal(t, "ASIAMINIMUMDURATION", second.Envs["AWS_ACCESS_KEY_ID"])
+}
+
+// TestGetCredentialsNegativeDurationDefaultsAndCaches treats nonpositive
+// durations like AssumeIamRole does: default one hour, then cache hit.
+func TestGetCredentialsNegativeDurationDefaultsAndCaches(t *testing.T) {
+	t.Parallel()
+
+	sts := newRecordingSTS(t, "ASIANEGATIVEDURATION", time.Hour)
+	v := venvtest.New().
+		WithHTTP(sts.client).
+		WithEnv(map[string]string{
+			"AWS_REGION":            "us-east-1",
+			"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
+			"AWS_SECRET_ACCESS_KEY": "base-secret",
+		})
+
+	provider := amazonsts.NewProvider(logger.CreateLogger(), iam.RoleOptions{
+		RoleARN:            testRoleARNPrefix + t.Name(),
+		AssumeRoleDuration: -1,
+	}, v.Env)
+
+	first, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	maps.Copy(v.Env, first.Envs)
+
+	second, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	assert.Equal(t, int64(1), sts.calls.Load())
+}
+
+// TestGetCredentialsIsolatesDifferentSessionNames pins that the same role ARN
+// with different session names does not share a cached session.
+func TestGetCredentialsIsolatesDifferentSessionNames(t *testing.T) {
+	t.Parallel()
+
+	roleARN := testRoleARNPrefix + t.Name()
+
+	for _, tc := range []struct {
+		sessionName string
+		assumedKey  string
+	}{
+		{sessionName: "unit-a", assumedKey: "ASIAA"},
+		{sessionName: "unit-b", assumedKey: "ASIAB"},
+	} {
+		sts := newRecordingSTS(t, tc.assumedKey, time.Hour)
+		v := venvtest.New().
+			WithHTTP(sts.client).
+			WithEnv(map[string]string{
+				"AWS_REGION":            "us-east-1",
+				"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
+				"AWS_SECRET_ACCESS_KEY": "base-secret",
+			})
+
+		provider := amazonsts.NewProvider(logger.CreateLogger(), iam.RoleOptions{
+			RoleARN:               roleARN,
+			AssumeRoleSessionName: tc.sessionName,
+		}, v.Env)
+
+		creds, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
+		require.NoError(t, err)
+		require.NotNil(t, creds)
+		assert.Equal(t, tc.assumedKey, creds.Envs["AWS_ACCESS_KEY_ID"])
+		assert.Equal(t, int64(1), sts.calls.Load())
+	}
+}
+
+// TestGetCredentialsIsolatesDifferentSourceCredentials pins that two source
+// identities targeting the same role each assume once.
+func TestGetCredentialsIsolatesDifferentSourceCredentials(t *testing.T) {
+	t.Parallel()
+
+	roleARN := testRoleARNPrefix + t.Name()
+
+	for _, tc := range []struct {
+		accessKey  string
+		assumedKey string
+	}{
+		{accessKey: "AKIASOURCEONE", assumedKey: "ASIAONE"},
+		{accessKey: "AKIASOURCETWO", assumedKey: "ASIATWO"},
+	} {
+		sts := newRecordingSTS(t, tc.assumedKey, time.Hour)
+		v := venvtest.New().
+			WithHTTP(sts.client).
+			WithEnv(map[string]string{
+				"AWS_REGION":            "us-east-1",
+				"AWS_ACCESS_KEY_ID":     tc.accessKey,
+				"AWS_SECRET_ACCESS_KEY": "secret-" + tc.accessKey,
+			})
+
+		provider := amazonsts.NewProvider(logger.CreateLogger(), iam.RoleOptions{
+			RoleARN: roleARN,
+		}, v.Env)
+
+		creds, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
+		require.NoError(t, err)
+		require.NotNil(t, creds)
+		assert.Equal(t, tc.assumedKey, creds.Envs["AWS_ACCESS_KEY_ID"])
+		assert.Equal(t, int64(1), sts.calls.Load())
+	}
+}
+
+// TestGetCredentialsIsolatesDifferentWebIdentityTokens pins that different
+// web identity tokens for the same role do not share a cache entry.
+func TestGetCredentialsIsolatesDifferentWebIdentityTokens(t *testing.T) {
+	t.Parallel()
+
+	roleARN := testRoleARNPrefix + t.Name()
+
+	for i, token := range []string{"token-a", "token-b"} {
+		assumedKey := "ASIAWEB" + string(rune('A'+i))
+		sts := newRecordingSTS(t, assumedKey, time.Hour)
+		sts.webIdentity = true
+
+		v := venvtest.New().
+			WithHTTP(sts.client).
+			WithEnv(map[string]string{
+				"AWS_REGION": "us-east-1",
+			})
+
+		provider := amazonsts.NewProvider(logger.CreateLogger(), iam.RoleOptions{
+			RoleARN:          roleARN,
+			WebIdentityToken: token,
+		}, v.Env)
+
+		creds, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
+		require.NoError(t, err)
+		require.NotNil(t, creds)
+		assert.Equal(t, assumedKey, creds.Envs["AWS_ACCESS_KEY_ID"])
+		assert.Equal(t, int64(1), sts.calls.Load())
+	}
+}
+
+// TestGetCredentialsRefreshAfterExpiryUsesSourceIdentity verifies that after
+// the cache safety window passes, a refresh is signed with the original base
+// credentials rather than the assumed session already present in v.Env.
+func TestGetCredentialsRefreshAfterExpiryUsesSourceIdentity(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		roleARN := testRoleARNPrefix + t.Name()
+		sts := newRecordingSTS(t, assumedAccessKeyID, 10*time.Minute)
+
+		v := venvtest.New().
+			WithHTTP(sts.client).
+			WithEnv(map[string]string{
+				"AWS_REGION":            "us-east-1",
+				"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
+				"AWS_SECRET_ACCESS_KEY": "base-secret",
+			})
+
+		provider := amazonsts.NewProvider(logger.CreateLogger(), iam.RoleOptions{
+			RoleARN:            roleARN,
+			AssumeRoleDuration: 900,
+		}, v.Env)
+
+		first, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
+		require.NoError(t, err)
+		require.NotNil(t, first)
+		assert.Equal(t, int64(1), sts.calls.Load())
+
+		maps.Copy(v.Env, first.Envs)
+
+		time.Sleep(5*time.Minute + time.Second)
+
+		second, err := provider.GetCredentials(t.Context(), logger.CreateLogger(), v)
+		require.NoError(t, err)
+		require.NotNil(t, second)
+		assert.Equal(t, int64(2), sts.calls.Load(), "expired cache must refresh")
+
+		auth, ok := sts.lastAuth.Load().(string)
+		require.True(t, ok)
+		assert.Contains(t, auth, "Credential="+baseAccessKeyID+"/",
+			"refresh must be signed with the original source credentials")
+	})
 }
 
 type recordingSTS struct {
-	lastAuth atomic.Value
-	client   vhttp.Client
-	calls    atomic.Int64
+	lastAuth    atomic.Value
+	client      vhttp.Client
+	assumedKey  string
+	sessionTTL  time.Duration
+	calls       atomic.Int64
+	webIdentity bool
 }
 
-func newRecordingSTS(t *testing.T, assumedKeyID string) *recordingSTS {
+func newRecordingSTS(t *testing.T, assumedKeyID string, sessionTTL time.Duration) *recordingSTS {
 	t.Helper()
 
-	sts := &recordingSTS{}
+	sts := &recordingSTS{
+		assumedKey: assumedKeyID,
+		sessionTTL: sessionTTL,
+	}
 	sts.lastAuth.Store("")
-
-	xml := `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
-		`<AssumeRoleResult><Credentials>` +
-		`<AccessKeyId>` + assumedKeyID + `</AccessKeyId>` +
-		`<SecretAccessKey>assumed-secret</SecretAccessKey>` +
-		`<SessionToken>assumed-token</SessionToken>` +
-		`<Expiration>2030-12-31T23:59:59Z</Expiration>` +
-		`</Credentials>` +
-		`<AssumedRoleUser>` +
-		`<AssumedRoleId>AROATEST:session</AssumedRoleId>` +
-		`<Arn>arn:aws:iam::123456789012:role/test-role</Arn>` +
-		`</AssumedRoleUser>` +
-		`</AssumeRoleResult></AssumeRoleResponse>`
 
 	sts.client = vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
 		sts.calls.Add(1)
 		sts.lastAuth.Store(req.Header.Get("Authorization"))
+
+		expiration := time.Now().Add(sts.sessionTTL).UTC().Format(time.RFC3339)
+		resultTag := "AssumeRoleResult"
+		responseTag := "AssumeRoleResponse"
+
+		if sts.webIdentity {
+			resultTag = "AssumeRoleWithWebIdentityResult"
+			responseTag = "AssumeRoleWithWebIdentityResponse"
+		}
+
+		xml := `<` + responseTag + ` xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
+			`<` + resultTag + `><Credentials>` +
+			`<AccessKeyId>` + sts.assumedKey + `</AccessKeyId>` +
+			`<SecretAccessKey>assumed-secret</SecretAccessKey>` +
+			`<SessionToken>assumed-token</SessionToken>` +
+			`<Expiration>` + expiration + `</Expiration>` +
+			`</Credentials>` +
+			`<AssumedRoleUser>` +
+			`<AssumedRoleId>AROATEST:session</AssumedRoleId>` +
+			`<Arn>arn:aws:iam::123456789012:role/test-role</Arn>` +
+			`</AssumedRoleUser>` +
+			`</` + resultTag + `></` + responseTag + `>`
 
 		return vhttp.Respond(http.StatusOK, []byte(xml), nil), nil
 	})
