@@ -1,0 +1,17 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### IAM role assumption fixes
+
+Terragrunt assumes an IAM role once and passes the resulting session to every command it runs. Three problems in that path are fixed.
+
+Two of them made Terragrunt ask for credentials a second time within one run and sign that request with the session the first assumption had produced. AWS rejects a role assuming itself with `AccessDenied` unless its trust policy allows it.
+
+- `run --all plan` with `--json-out-dir` re-assumed the role while exporting each unit's plan as JSON, so the export failed.
+- An `--auth-provider-cmd` returning an `awsRole` re-assumed on every fetch, logging repeated `Failed to assume role` warnings. A unit whose `iam_role` named that same role failed outright.
+
+Assumed sessions are now cached in-process until five minutes before they expire, one hour by default or whatever `--iam-assume-role-duration` specifies, so later steps reuse the first assumption. If a session cannot be refreshed but has not yet expired, Terragrunt logs a warning and continues with the cached credentials rather than failing the run. A `roleSessionName` set in the auth-provider response is still honoured.
+
+The third affected cross-account state reads. With [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) enabled, direct S3 state reads now chain the backend's `assume_role` onto the dependency's execution role. Previously these failed with `403 AccessDenied` when the `remote_state` block configured a separate `assume_role` for state access.
