@@ -226,7 +226,7 @@ func newSelfAssumeSTS() *selfAssumeSTS {
 		sts.seen = append(sts.seen, signer)
 		sts.mu.Unlock()
 
-		// Each response mints a distinct session so a re-used one is identifiable in the signer list.
+		// Each response mints a distinct session so a reused one is identifiable in the signer list.
 		keyID := selfAssumeMintedTuple + strings.ToUpper(string(rune('A'+int(sts.minted.Add(1)-1)%26)))
 
 		body := `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
