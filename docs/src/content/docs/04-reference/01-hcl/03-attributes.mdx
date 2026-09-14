@@ -166,6 +166,8 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 
 The `iam_assume_role_duration` attribute can be used to specify the STS session duration, in seconds, for the IAM role that Terragrunt should assume before invoking OpenTofu/Terraform.
 
+When unset, Terragrunt assumes a one-hour session (`3600` seconds). Assumed credentials are cached for the effective session duration within the same process, so a later step such as `--json-out-dir` plan export can reuse them.
+
 The precedence is as follows: `--iam-assume-role-duration` command line option → `TG_IAM_ASSUME_ROLE_DURATION` env variable →
 `iam_assume_role_duration` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_duration` attribute of the included
 `terragrunt.hcl`.

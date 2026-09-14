@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### IAM role credentials are reused for `--json-out-dir` plan export
+
+After `v1.1.4`, `run --all plan` with `iam_role` (or `--iam-assume-role`) and `--json-out-dir` could call `sts:AssumeRole` a second time signed with the role's own session credentials. Against AWS that fails with `AccessDenied` unless the role trusts itself.
+
+The credentials cache now keeps the assumed session for the effective session duration (default one hour when `--iam-assume-role-duration` is unset), so the JSON export reuses the first assumption. Setting `--iam-assume-role-duration` was already a working workaround and remains supported.

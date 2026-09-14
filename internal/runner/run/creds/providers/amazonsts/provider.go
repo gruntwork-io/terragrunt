@@ -2,6 +2,7 @@
 package amazonsts
 
 import (
+	"cmp"
 	"context"
 	"time"
 
@@ -15,6 +16,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
+
+// credentialsCacheExpiryWindow expires the cache slightly before the STS session.
+const credentialsCacheExpiryWindow = 5 * time.Minute
 
 // Provider obtains credentials by making API requests to Amazon STS.
 type Provider struct {
@@ -56,15 +60,17 @@ func (provider *Provider) GetCredentials(
 		return cached, nil
 	}
 
+	sessionDurationSecs := cmp.Or(iamRoleOpts.AssumeRoleDuration, int64(iam.DefaultAssumeRoleDuration))
+
 	l.Debugf("Assuming IAM role %s with a session duration of %d seconds.",
-		iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
+		iamRoleOpts.RoleARN, sessionDurationSecs)
 
 	var resp *types.Credentials
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "creds_assume_role", map[string]any{
 		"role_arn":     iamRoleOpts.RoleARN,
 		"session_name": iamRoleOpts.AssumeRoleSessionName,
-		"duration":     iamRoleOpts.AssumeRoleDuration,
+		"duration":     sessionDurationSecs,
 	}, func(ctx context.Context, l log.Logger) error {
 		var assumeErr error
 
@@ -86,8 +92,14 @@ func (provider *Provider) GetCredentials(
 		},
 	}
 
-	cacheDuration := time.Duration(iamRoleOpts.AssumeRoleDuration) * time.Second
-	credentialsCache.Put(ctx, iamRoleOpts.RoleARN, creds, time.Now().Add(cacheDuration))
+	sessionDuration := time.Duration(sessionDurationSecs) * time.Second
+
+	cacheTTL := sessionDuration - credentialsCacheExpiryWindow
+	if cacheTTL <= 0 {
+		cacheTTL = sessionDuration
+	}
+
+	credentialsCache.Put(ctx, iamRoleOpts.RoleARN, creds, time.Now().Add(cacheTTL))
 
 	return creds, nil
 }
