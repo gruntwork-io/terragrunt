@@ -139,7 +139,12 @@ func TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	for i := range 8 {
+	const concurrent = 8
+
+	errs := make([]error, concurrent)
+	got := make([]*providers.Credentials, concurrent)
+
+	for i := range concurrent {
 		wg.Add(1)
 
 		go func(i int) {
@@ -150,11 +155,18 @@ func TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency(t *testing.T) {
 				opts.AssumeRoleDuration = 1800
 			}
 
-			_, _ = amazonsts.NewProvider(l, opts, v.Env).GetCredentials(ctx, l, v)
+			got[i], errs[i] = amazonsts.NewProvider(l, opts, v.Env).GetCredentials(ctx, l, v)
 		}(i)
 	}
 
 	wg.Wait()
+
+	// Without this the test passes vacuously when every concurrent fetch fails before reaching STS.
+	for i := range concurrent {
+		require.NoErrorf(t, errs[i], "concurrent fetch %d failed", i)
+		require.NotNilf(t, got[i], "concurrent fetch %d returned no credentials", i)
+	}
+
 	assertNoMintedSigner(t, sts)
 }
 
@@ -182,7 +194,11 @@ func TestNoAssumeRoleIsSignedByAMintedSessionWhenEnvHasOnlySession(t *testing.T)
 func assertNoMintedSigner(t *testing.T, sts *selfAssumeSTS) {
 	t.Helper()
 
-	for i, signer := range sts.signers() {
+	signers := sts.signers()
+	// An empty list would satisfy the loop below, so a run that never reached STS must fail here.
+	require.NotEmpty(t, signers, "expected at least one sts:AssumeRole call to inspect")
+
+	for i, signer := range signers {
 		assert.Equalf(t, selfAssumeBaseKeyID, signer,
 			"sts:AssumeRole call %d was signed by %q. Only the caller's own identity (%q) may sign an "+
 				"assume-role request; a session this process minted must never become the signing identity, "+
