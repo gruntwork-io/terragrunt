@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -51,7 +52,7 @@ func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 		"an auth-provider role assumption failed during the run")
 
 	// Without this the test passes when the auth provider never ran and no role was assumed at all.
-	assertAuthProviderAssumedRole(t, stderr)
+	assertAuthProviderAssumedRole(t, stderr, assumeRole)
 }
 
 // Pins the same invariant on the --json-out-dir path, which runs each unit a second time.
@@ -87,13 +88,16 @@ func TestAwsAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	assert.NotContains(t, stderr, "Failed to assume role",
 		"an auth-provider role assumption failed during the run")
 
-	assertAuthProviderAssumedRole(t, stderr)
+	assertAuthProviderAssumedRole(t, stderr, assumeRole)
 }
 
-// Fails when no role was assumed, so the assertions above cannot pass vacuously.
-func assertAuthProviderAssumedRole(t *testing.T, stderr string) {
+// Requires exactly one assumption: zero means the run proved nothing, more than one means reuse failed.
+func assertAuthProviderAssumedRole(t *testing.T, stderr, assumeRole string) {
 	t.Helper()
 
-	assert.Contains(t, stderr, "Assuming IAM role "+os.Getenv("AWS_TEST_S3_ASSUME_ROLE"),
-		"no role assumption was logged, so the run proved nothing about credentials")
+	assumed := strings.Count(stderr, "Assuming IAM role "+assumeRole)
+	assert.Equalf(t, 1, assumed,
+		"expected the role to be assumed exactly once for the whole run, got %d; "+
+			"zero means no credentials were exercised, more than one means the session was not reused",
+		assumed)
 }
