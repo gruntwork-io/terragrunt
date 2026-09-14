@@ -14,16 +14,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const selfAssumeMintedKeyID = "ASIAMINTEDSESSION"
+const mintedAccessKeyID = "ASIAMINTEDSESSION"
 
-// credentialRe extracts the access key id from a SigV4 Authorization header.
 var credentialRe = regexp.MustCompile(`Credential=([A-Z0-9]+)/`)
 
-// Pins the invariant that no sts:AssumeRole request may be signed by credentials this process minted.
+// TestNoAssumeRoleIsSignedByAMintedSession checks that changing any part of the role
+// options between two fetches still signs STS with the caller's own key.
 func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
 	t.Parallel()
 
@@ -65,7 +64,7 @@ func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			sts := newRecordingSTS(t, selfAssumeMintedKeyID, time.Hour)
+			sts := newRecordingSTS(t, mintedAccessKeyID, time.Hour)
 			v := newSelfAssumeVenv(sts)
 			ctx := testCtx(t)
 			l := logger.CreateLogger()
@@ -74,7 +73,6 @@ func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, first)
 
-			// The credential getter writes the assumed session into the shared env; mirror that.
 			maps.Copy(v.Env, first.Envs)
 
 			_, err = amazonsts.NewProvider(l, tc.second, v.Env).GetCredentials(ctx, l, v)
@@ -85,11 +83,12 @@ func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
 	}
 }
 
-// Pins the invariant when a third fetch follows, since a key can be stable across two calls only.
+// TestNoAssumeRoleIsSignedByAMintedSessionAcrossThreeFetches covers a third fetch,
+// since a cache key can be stable across two calls and break on the next.
 func TestNoAssumeRoleIsSignedByAMintedSessionAcrossThreeFetches(t *testing.T) {
 	t.Parallel()
 
-	sts := newRecordingSTS(t, selfAssumeMintedKeyID, time.Hour)
+	sts := newRecordingSTS(t, mintedAccessKeyID, time.Hour)
 	v := newSelfAssumeVenv(sts)
 	ctx := testCtx(t)
 	l := logger.CreateLogger()
@@ -107,11 +106,12 @@ func TestNoAssumeRoleIsSignedByAMintedSessionAcrossThreeFetches(t *testing.T) {
 	assertNoMintedSigner(t, sts)
 }
 
-// Pins the invariant when concurrent fetches race the cache, as they do under run --all.
+// TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency covers fetches racing the
+// cache, as they do under run --all.
 func TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency(t *testing.T) {
 	t.Parallel()
 
-	sts := newRecordingSTS(t, selfAssumeMintedKeyID, time.Hour)
+	sts := newRecordingSTS(t, mintedAccessKeyID, time.Hour)
 	v := newSelfAssumeVenv(sts)
 	ctx := testCtx(t)
 	l := logger.CreateLogger()
@@ -145,31 +145,28 @@ func TestNoAssumeRoleIsSignedByAMintedSessionUnderConcurrency(t *testing.T) {
 
 	wg.Wait()
 
-	// Without this the test passes vacuously when every concurrent fetch fails before reaching STS.
 	for i := range concurrent {
-		require.NoErrorf(t, errs[i], "concurrent fetch %d failed", i)
-		require.NotNilf(t, got[i], "concurrent fetch %d returned no credentials", i)
+		require.NoErrorf(t, errs[i], "fetch %d failed", i)
+		require.NotNilf(t, got[i], "fetch %d returned no credentials", i)
 	}
 
 	assertNoMintedSigner(t, sts)
 }
 
+// assertNoMintedSigner fails if any STS call was signed by a session this process minted.
 func assertNoMintedSigner(t *testing.T, sts *recordingSTS) {
 	t.Helper()
 
 	signers := sts.signers()
-	// An empty list would satisfy the loop below, so a run that never reached STS must fail here.
-	require.NotEmpty(t, signers, "expected at least one sts:AssumeRole call to inspect")
+	require.NotEmpty(t, signers, "no STS call to inspect")
 
 	for i, signer := range signers {
-		assert.Equalf(t, baseAccessKeyID, signer,
-			"sts:AssumeRole call %d was signed by %q. Only the caller's own identity (%q) may sign an "+
-				"assume-role request; a session this process minted must never become the signing identity, "+
-				"because AWS rejects a role assuming itself with AccessDenied.",
-			i+1, signer, baseAccessKeyID)
+		require.Equalf(t, baseAccessKeyID, signer,
+			"STS call %d was signed by %q, not the caller's key", i+1, signer)
 	}
 }
 
+// newSelfAssumeVenv returns a venv holding the caller's own credentials.
 func newSelfAssumeVenv(sts *recordingSTS) *venv.Venv {
 	return venvtest.New().WithHTTP(sts.client).WithEnv(map[string]string{
 		"AWS_REGION":            "us-east-1",

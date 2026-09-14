@@ -24,7 +24,8 @@ const (
 	awsRoleARN                = "arn:aws:iam::123456789012:role/auth-provider-test"
 )
 
-// Pins that repeated auth-provider fetches assume the role once and keep signing STS with the caller's own identity.
+// TestProviderAWSRoleReusesAssumedSessionAcrossFetches checks that repeated fetches assume the role
+// once and keep signing STS with the caller's own key.
 func TestProviderAWSRoleReusesAssumedSessionAcrossFetches(t *testing.T) {
 	t.Parallel()
 
@@ -53,7 +54,7 @@ func TestProviderAWSRoleReusesAssumedSessionAcrossFetches(t *testing.T) {
 	assert.Contains(t, sts.auth(), "Credential="+awsRoleBaseAccessKeyID+"/",
 		"the first assumption must be signed by the caller's own identity")
 
-	// Mirror creds.Getter, which writes the assumed session into the shared env.
+	// creds.Getter writes the assumed session into the shared env.
 	maps.Copy(v.Env, first.Envs)
 
 	second, err := p.GetCredentials(ctx, l, v)
@@ -63,7 +64,7 @@ func TestProviderAWSRoleReusesAssumedSessionAcrossFetches(t *testing.T) {
 	assert.Equal(t, int64(1), sts.calls.Load(),
 		"the second fetch must reuse the cached session rather than re-assuming")
 
-	// A third fetch guards against a key that is stable only between two calls.
+	// A third fetch catches a key that is stable only between two calls.
 	third, err := p.GetCredentials(ctx, l, v)
 	require.NoError(t, err)
 	require.NotNil(t, third)
@@ -72,7 +73,8 @@ func TestProviderAWSRoleReusesAssumedSessionAcrossFetches(t *testing.T) {
 		"no STS call may be signed by the session a previous assumption produced")
 }
 
-// Pins that an explicit roleSessionName from the auth-provider response still reaches STS.
+// TestProviderAWSRoleHonoursExplicitSessionName checks that a roleSessionName from the
+// auth-provider response still reaches STS.
 func TestProviderAWSRoleHonoursExplicitSessionName(t *testing.T) {
 	t.Parallel()
 

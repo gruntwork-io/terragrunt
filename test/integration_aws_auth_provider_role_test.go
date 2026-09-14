@@ -17,7 +17,8 @@ import (
 
 const testFixtureAwsAuthProviderRoleReuse = "fixtures/auth-provider-cmd/role-session-reuse"
 
-// Pins against real STS that an auth-provider role is assumed with the caller's identity, not its own session.
+// TestAwsAuthProviderRoleIsAssumedWithCallerIdentity checks against real STS that the role is
+// assumed with the caller's own credentials, not with the session it just produced.
 func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
@@ -31,7 +32,7 @@ func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAwsAuthProviderRoleReuse)
 	authCmd := filepath.Join(rootPath, "auth-provider.sh")
 
-	// Set before validating: the script requires this variable and exits non-zero without it.
+	// The script exits non-zero without this, so set it before validating.
 	t.Setenv("TG_TEST_ROLE_ARN", assumeRole)
 
 	helpers.ValidateAuthProviderScript(t, rootPath, authCmd)
@@ -47,11 +48,10 @@ func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	assert.NotContains(t, stderr, "Failed to assume role",
 		"an auth-provider role assumption failed during the run")
 
-	// Without this the test passes when the auth provider never ran and no role was assumed at all.
 	assertAuthProviderAssumedRole(t, stderr, assumeRole)
 }
 
-// Pins the same invariant on the --json-out-dir path, which runs each unit a second time.
+// TestAwsAuthProviderRoleWithJSONOutDir covers the --json-out-dir path, which runs each unit twice.
 func TestAwsAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
@@ -65,7 +65,7 @@ func TestAwsAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAwsAuthProviderRoleReuse)
 	authCmd := filepath.Join(rootPath, "auth-provider.sh")
 
-	// Set before validating: the script requires this variable and exits non-zero without it.
+	// The script exits non-zero without this, so set it before validating.
 	t.Setenv("TG_TEST_ROLE_ARN", assumeRole)
 
 	helpers.ValidateAuthProviderScript(t, rootPath, authCmd)
@@ -87,11 +87,11 @@ func TestAwsAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	assertAuthProviderAssumedRole(t, stderr, assumeRole)
 }
 
-// Requires the role's credentials to be exercised, and never assumed more than once.
+// assertAuthProviderAssumedRole fails if the role was never used, or was assumed more than once.
 func assertAuthProviderAssumedRole(t *testing.T, stderr, assumeRole string) {
 	t.Helper()
 
-	// Tests share one process, so a sibling may already have cached the session; either proves the path ran.
+	// Tests share one process, so a sibling may have cached the session already.
 	assumed := strings.Count(stderr, "Assuming IAM role "+assumeRole)
 	reused := strings.Count(stderr, "Using cached credentials for IAM role "+assumeRole)
 
