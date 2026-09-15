@@ -6,7 +6,6 @@ import (
 
 	runcommand "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -15,25 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNoHooksFlagRequiresExperiment(t *testing.T) {
+func TestNoHooksFlagSetsNoRunHooks(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
-
-	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
-
-	err := flags.RunActions(context.Background(), &clihelper.Context{})
-
-	require.ErrorIs(t, err, runcommand.ErrNoHooksRequiresExperiment)
-	assert.True(t, opts.NoRunHooks)
-}
-
-func TestNoHooksFlagAllowedWithExperiment(t *testing.T) {
-	t.Parallel()
-
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OptionalHooks))
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
