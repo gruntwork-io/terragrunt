@@ -1260,7 +1260,7 @@ func ParseStackConfig(
 		parser = parser.WithValues(values)
 	}
 
-	if err := ValidateBlockIteration(parser.Experiments, file); err != nil {
+	if err := ValidateExpansionSpelling(file); err != nil {
 		return nil, err
 	}
 
@@ -1305,7 +1305,6 @@ func ParseStackConfig(
 		stackDir,
 		evalParsingContext,
 		parser.ParserOptions,
-		parser.Experiments,
 	); err != nil {
 		return nil, err
 	}
@@ -1318,7 +1317,6 @@ func ParseStackConfig(
 		filepath.Base(file.ConfigPath),
 		evalParsingContext,
 		parser.ParserOptions,
-		parser.Experiments,
 	); err != nil {
 		return nil, err
 	}
@@ -1744,7 +1742,6 @@ func processStackConfigIncludes(
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
-	experiments experiment.Experiments,
 ) error {
 	for _, inc := range config.Includes {
 		includePath := inc.Path
@@ -1757,7 +1754,7 @@ func processStackConfigIncludes(
 			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
 
-		if err := ValidateBlockIteration(experiments, incFile); err != nil {
+		if err := ValidateExpansionSpelling(incFile); err != nil {
 			return err
 		}
 
@@ -1823,7 +1820,6 @@ func mergeStackAutoIncludeFile(
 	stackDir, stackFileName string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
-	experiments experiment.Experiments,
 ) error {
 	// Never merge the autoinclude file into itself.
 	if stackFileName == inthclparse.AutoIncludeStackFile {
@@ -1860,7 +1856,7 @@ func mergeStackAutoIncludeFile(
 		return *typed
 	}
 
-	if err := ValidateBlockIteration(experiments, incFile); err != nil {
+	if err := ValidateExpansionSpelling(incFile); err != nil {
 		return err
 	}
 

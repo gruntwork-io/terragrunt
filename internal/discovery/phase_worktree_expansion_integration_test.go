@@ -102,7 +102,6 @@ func discoverExpansionChanges(
 	opts.Filters = filters
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.BlockIteration))
 
 	require.NoError(
 		t,
