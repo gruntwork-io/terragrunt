@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -213,8 +214,8 @@ func BenchmarkContent(b *testing.B) {
 
 				mu.Unlock()
 
-				if err := content.Store(l, v, hash, testData, cas.StoredFilePerms); err != nil {
-					b.Fatal(err)
+				if !assert.NoError(b, content.Store(l, v, hash, testData, cas.StoredFilePerms)) {
+					return
 				}
 
 				i++

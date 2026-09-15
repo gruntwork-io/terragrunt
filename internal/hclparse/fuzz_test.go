@@ -1,13 +1,13 @@
 package hclparse_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/stretchr/testify/assert"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -273,9 +273,9 @@ func FuzzParseStackFileFromPath_ArgPanics(f *testing.F) {
 
 			switch {
 			case stackDir == "" && r == nil:
-				t.Errorf("expected panic for empty stackDir, got none")
+				assert.Fail(t, "expected panic for empty stackDir, got none")
 			case stackDir != "" && r != nil:
-				t.Errorf("unexpected panic for stackDir=%q: %v", stackDir, r)
+				assert.Fail(t, "unexpected panic", "stackDir=%q: %v", stackDir, r)
 			}
 		}()
 
@@ -300,9 +300,9 @@ func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
 
 			switch {
 			case stackDir == "" && r == nil:
-				t.Errorf("expected panic for empty stackDir, got none")
+				assert.Fail(t, "expected panic for empty stackDir, got none")
 			case stackDir != "" && r != nil:
-				t.Errorf("unexpected panic for stackDir=%q: %v", stackDir, r)
+				assert.Fail(t, "unexpected panic", "stackDir=%q: %v", stackDir, r)
 			}
 		}()
 
@@ -332,16 +332,15 @@ func FuzzAutoIncludeDependencyPaths_ArgErrors(f *testing.F) {
 
 		defer func() {
 			if r := recover(); r != nil {
-				t.Errorf("unexpected panic for unitDir=%q: %v", unitDir, r)
+				assert.Fail(t, "unexpected panic", "unitDir=%q: %v", unitDir, r)
 			}
 		}()
 
 		_, err := hclparse.AutoIncludeDependencyPaths(fs, unitDir)
 
 		if unitDir == "" {
-			if _, ok := errors.AsType[hclparse.EmptyArgError](err); !ok {
-				t.Errorf("expected EmptyArgError for empty unitDir, got %v", err)
-			}
+			var emptyArgErr hclparse.EmptyArgError
+			assert.ErrorAs(t, err, &emptyArgErr)
 		}
 	})
 }
@@ -363,9 +362,9 @@ func FuzzGenerateAutoIncludeFile_ArgPanics(f *testing.F) {
 
 			switch {
 			case targetDir == "" && r == nil:
-				t.Errorf("expected panic for empty targetDir, got none")
+				assert.Fail(t, "expected panic for empty targetDir, got none")
 			case targetDir != "" && r != nil:
-				t.Errorf("unexpected panic for targetDir=%q: %v", targetDir, r)
+				assert.Fail(t, "unexpected panic", "targetDir=%q: %v", targetDir, r)
 			}
 		}()
 

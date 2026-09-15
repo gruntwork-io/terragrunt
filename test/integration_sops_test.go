@@ -268,11 +268,14 @@ func TestSOPSDecryptedCorrectlyRunAllMultipleUnits(t *testing.T) {
 		secretValue, ok := outputs["secret_value"].Value.(string)
 		require.True(t, ok, "secret_value should be a string for %s", unitName)
 
-		if secretValue == "DECRYPTION_FAILED" {
-			t.Fatalf("SOPS race condition detected! Unit %s got DECRYPTION_FAILED. "+
+		require.NotEqual(
+			t,
+			"DECRYPTION_FAILED",
+			secretValue,
+			"SOPS race condition detected! Unit %s got DECRYPTION_FAILED. "+
 				"This indicates sops_decrypt_file failed and try() returned empty {}.",
-				unitName)
-		}
+			unitName,
+		)
 
 		assert.Equal(t, "example_value", secretValue,
 			"Unit %s should have correct decrypted secret value", unitName)

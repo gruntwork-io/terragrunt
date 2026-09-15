@@ -324,7 +324,7 @@ func storedBlobPath(t *testing.T, c *cas.CAS, v *venv.Venv, treeKey, relPath str
 		}
 	}
 
-	t.Fatalf("tree %s holds no blob for %s", treeKey, relPath)
+	require.Failf(t, "blob not found", "tree %s holds no blob for %s", treeKey, relPath)
 
 	return ""
 }

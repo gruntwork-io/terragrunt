@@ -283,7 +283,7 @@ func (f *assertingS3Head) HeadObject(
 	_ *s3.HeadObjectInput,
 	_ ...func(*s3.Options),
 ) (*s3.HeadObjectOutput, error) {
-	f.t.Fatalf("HeadObject must not be reached for an unsupported S3 URL form")
+	require.Fail(f.t, "HeadObject must not be reached for an unsupported S3 URL form")
 	return nil, nil
 }
 

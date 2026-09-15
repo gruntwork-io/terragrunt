@@ -23,7 +23,7 @@ func TestWarnHookForwardsEntries(t *testing.T) {
 	case w := <-ch:
 		assert.Equal(t, tui.Warning{Message: "cycle detected"}, w)
 	default:
-		t.Fatal("expected a warning on the channel")
+		require.FailNow(t, "expected a warning on the channel")
 	}
 }
 
@@ -43,7 +43,7 @@ func TestWarnHookDropsInsteadOfBlocking(t *testing.T) {
 
 	select {
 	case w := <-ch:
-		t.Fatalf("expected the overflowing warning to be dropped, got %q", w.Message)
+		require.FailNowf(t, "expected the overflowing warning to be dropped", "got %q", w.Message)
 	default:
 	}
 }

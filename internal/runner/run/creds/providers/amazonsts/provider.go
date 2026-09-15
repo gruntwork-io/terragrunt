@@ -296,23 +296,17 @@ func (s *stsCredentialsStore) sourceEnvFor(env map[string]string) map[string]str
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	seen := make(map[string]struct{})
-
-	for {
-		fp := credentialFingerprint(snapshot)
-		if _, loop := seen[fp]; loop {
-			return snapshot
-		}
-
-		seen[fp] = struct{}{}
-
-		entry, minted := s.mintedBySFP[fp]
+	// Each step consumes one minted session, so the chain cannot be longer than the index.
+	for range len(s.mintedBySFP) {
+		entry, minted := s.mintedBySFP[credentialFingerprint(snapshot)]
 		if !minted || entry.sourceEnv == nil {
 			return snapshot
 		}
 
 		snapshot = entry.sourceEnv
 	}
+
+	return snapshot
 }
 
 func storeFromContext(ctx context.Context) *stsCredentialsStore {

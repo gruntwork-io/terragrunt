@@ -167,7 +167,7 @@ func TestPromptApprovalRejectsUnbrowsableURL(t *testing.T) {
 	v := venvtest.New()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 	v = v.WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error {
-		t.Error("the handler must not be reached for an unbrowsable URL")
+		assert.Fail(t, "the handler must not be reached for an unbrowsable URL")
 
 		return nil
 	}))

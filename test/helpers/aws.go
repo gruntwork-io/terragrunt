@@ -35,7 +35,13 @@ func DeleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) 
 		time.Sleep(deleteS3BucketBackoff)
 	}
 
-	t.Fatalf("Max retries attempting to delete s3 bucket %s in region %s", bucketName, awsRegion)
+	require.FailNowf(
+		t,
+		"max retries exhausted",
+		"Max retries attempting to delete s3 bucket %s in region %s",
+		bucketName,
+		awsRegion,
+	)
 }
 
 // GetS3BucketLoggingTarget returns the target bucket for access logging on the given S3 bucket.
