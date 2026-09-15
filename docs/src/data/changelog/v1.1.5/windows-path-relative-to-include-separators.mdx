@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Normalize `path_relative_to_include` separators on Windows
+
+On Windows, `path_relative_to_include()` and `path_relative_from_include()` returned paths with native backslash separators, because they were computed with `filepath.Rel`. When such a path is used as a remote-state `key` (for example the azurerm backend builds its blob URL from it), the backslashes end up in the URL and are rejected as an invalid control character.
+
+Both functions now normalize their result to forward slashes with `filepath.ToSlash`, matching the cross-platform contract documented by their tests. Unix and macOS behaviour is unchanged.
