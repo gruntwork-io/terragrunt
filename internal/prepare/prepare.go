@@ -153,12 +153,21 @@ func PrepareSource(
 		return nil, err
 	}
 
+	// When no_cache is true and no external source is configured, sourceURL
+	// is empty. Run directly from the unit directory.
+	if sourceURL == "" {
+		_, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		return updatedTerragruntOptions, nil
+	}
+
 	runOpts := configbridge.NewRunOptions(opts)
 
 	var updatedRunOpts *run.Options
 
-	// Always download/copy source to cache directory for consistency.
-	// When no source is specified, sourceURL will be "." (current directory).
 	err = telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "download_terraform_source", map[string]any{
 			"sourceUrl": redact.NewURL(sourceURL),
