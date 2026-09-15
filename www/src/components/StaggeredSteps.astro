@@ -1,0 +1,92 @@
+---
+/**
+ * The GitOps "How it works" band.
+ *
+ * Three dashed cards that cascade down the page rather than sitting in a level
+ * row. The stagger is not a margin trick: the live markup puts decorative
+ * spacer images above and/or below each card — column one has one below, column
+ * two has one above AND below, column three has one above — and their heights
+ * are what offsets each block. Rendered as a flat three-across grid the band
+ * loses both the cascade and about 200px of height.
+ */
+import { Image } from "astro:assets";
+import col1Bottom from "@assets/img/col-1-bottom.jpg";
+import col2Top from "@assets/img/col-2-top.jpg";
+import col2Bottom from "@assets/img/col-2-bottom.jpg";
+import col3Top from "@assets/img/col-3-top.jpg";
+import Grunty from "@assets/grunty/grunty.svg";
+
+interface Props {
+  eyebrow: string;
+  headlineAccent: string;
+  headline: string;
+  steps: readonly { title: string; body: string }[];
+}
+
+const { eyebrow, headlineAccent, headline, steps } = Astro.props;
+
+/** Spacers per column, in document order around the card. */
+const spacers = [
+  { above: null, below: col1Bottom },
+  { above: col2Top, below: col2Bottom },
+  { above: col3Top, below: null },
+];
+---
+
+<section class="px-4 py-[76px] md:px-8">
+  <div class="relative mx-auto max-w-[850px]">
+    <div class="px-6 pb-6">
+      <span
+        class="mb-8 inline-block bg-accent-background px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-accent-1"
+      >
+        {eyebrow}
+      </span>
+      <h2
+        class="m-0 mb-[60px] text-[2rem] font-medium leading-[1.5em] text-dark-blue-1 md:text-[42px]"
+      >
+        <span class="text-accent-1">{headlineAccent}</span>{" "}{headline}
+      </h2>
+    </div>
+
+    <Image
+      src={Grunty}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      class="pointer-events-none absolute -top-4 right-0 hidden w-[180px] lg:block"
+    />
+
+    <div class="flex flex-col items-start sm:flex-row">
+      {
+        steps.map((step, i) => (
+          <div class="relative w-full sm:max-w-[34%]">
+            {spacers[i]?.above && (
+              <Image
+                src={spacers[i].above!}
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                class="hidden w-full sm:block"
+              />
+            )}
+            <div class="flex flex-col gap-4 border border-dashed border-gray-4 bg-white p-6">
+              <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+                {step.title}
+              </h3>
+              <p class="m-0 text-sm leading-relaxed text-gray-2">{step.body}</p>
+            </div>
+            {spacers[i]?.below && (
+              <Image
+                src={spacers[i].below!}
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                class="hidden w-full sm:block"
+              />
+            )}
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

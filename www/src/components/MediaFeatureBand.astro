@@ -1,0 +1,93 @@
+---
+/**
+ * The `._2-col.media-two` band: copy on the left, a framed screenshot on the
+ * right.
+ *
+ * The heading lives INSIDE the left column above the cards (`.heading-group`
+ * then `.cards-wrapper`), not full-width above the split — that difference is
+ * what makes the live headline wrap to three narrow lines where a full-width
+ * one runs on a single line.
+ */
+import { Image } from "astro:assets";
+import { renderLede } from "@lib/lede";
+
+interface Props {
+  eyebrow: string;
+  headlineLead: string;
+  headlineAccent: string;
+  features: readonly { title: string; body: string }[];
+  image: ImageMetadata;
+  imageAlt: string;
+  caption: string;
+  /** Live flips the columns for Drift Detection — media first. */
+  reverse?: boolean;
+}
+
+const {
+  eyebrow,
+  headlineLead,
+  headlineAccent,
+  features,
+  image,
+  imageAlt,
+  caption,
+  reverse = false,
+} = Astro.props;
+---
+
+<section class="px-4 py-[76px] md:px-8">
+  <div class="mx-auto grid max-w-[960px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,340px)_1fr]">
+    <div class:list={[reverse && "lg:order-2"]}>
+      <div class="mb-8">
+        <span
+          class="mb-8 inline-block bg-accent-background px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-accent-1"
+        >
+          {eyebrow}
+        </span>
+        <h2
+          class="m-0 text-[2rem] font-medium leading-[1.15] tracking-[-0.02em] text-dark-blue-1 md:text-[42px] md:leading-[46.67px]"
+        >
+          <span class="text-accent-3">{headlineLead}</span>{" "}{headlineAccent}
+        </h2>
+      </div>
+
+      {/*
+        `.cards-wrapper` rules down its RIGHT edge and each card carries dashed
+        top and bottom rules — the `no-left-border` variant of the same dotted
+        card the homepage bands use.
+      */}
+      <div class:list={["mt-6 flex flex-col border-dashed border-gray-4", reverse ? "-mr-6 border-l" : "-ml-6 border-r"]}>
+        {
+          features.map((feature) => (
+            <div class="flex flex-col gap-4 border-y border-dashed border-gray-4 p-6">
+              <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+                {feature.title}
+              </h3>
+              <div
+                class="text-sm leading-relaxed text-gray-2 [&_code]:rounded [&_code]:bg-gray-6 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:text-accent-1 [&_p]:m-0"
+                set:html={renderLede(feature.body)}
+              />
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class:list={["flex items-start justify-center", reverse && "lg:order-1"]}>
+      <figure class="m-0 w-full">
+        {/* `.media-card`: 6px #e2e3e6 frame, 12px radius, 18px padding, 68px down. */}
+        <div
+          class="mt-0 w-full rounded-xl border-[6px] border-[#e2e3e6] bg-background p-[18px] lg:mt-[68px]"
+        >
+          <Image
+            src={image}
+            alt={imageAlt}
+            loading="lazy"
+            class="w-full rounded-md"
+          />
+        </div>
+        <figcaption class="mt-3 text-xs text-gray-2">{caption}</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>

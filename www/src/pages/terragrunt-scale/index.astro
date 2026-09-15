@@ -2,13 +2,15 @@
 import { Image } from "astro:assets";
 import BaseLayout from "@layouts/BaseLayout.astro";
 import Button from "@components/Button.astro";
-import FeatureList from "@components/FeatureList.astro";
 import FeaturedBrands from "@components/FeaturedBrands.astro";
 import Footer from "@components/Footer.astro";
 import Nav from "@components/Nav.astro";
 import NewsletterSignup from "@components/NewsletterSignup.astro";
 import OpenSourceTools from "@components/OpenSourceTools.astro";
 import SectionHeading from "@components/SectionHeading.astro";
+import { renderLede } from "@lib/lede";
+import StaggeredSteps from "@components/StaggeredSteps.astro";
+import MediaFeatureBand from "@components/MediaFeatureBand.astro";
 import VerticalGrid from "@components/VerticalGrid.astro";
 import HeroCard from "@assets/img/tgs-hero-pr-card.png";
 import Cube from "@assets/img/cube-3d.png";
@@ -56,7 +58,7 @@ const headlineParts = (() => {
     the live page does not have.
   */}
   <section class="relative z-[2] w-full overflow-hidden bg-bg-dark pt-[100px]">
-    <div class="mx-auto grid max-w-[1310px] grid-cols-1 gap-12 px-4 pb-[76px] md:px-8 lg:grid-cols-2 lg:items-center">
+    <div class="mx-auto grid max-w-[1310px] grid-cols-1 gap-12 px-4 pb-[76px] md:px-8 lg:grid-cols-2 lg:items-start">
       <div>
         <h1
           class="m-0 text-4xl font-semibold leading-[1.05] tracking-[-0.02em] text-white md:text-6xl"
@@ -167,65 +169,61 @@ const headlineParts = (() => {
         </div>
       </section>
 
-      <section class="px-4 pb-[76px] md:px-8">
-        <SectionHeading
-          eyebrow={howItWorks.eyebrow}
-          words={[howItWorks.headlineLead, howItWorks.headlineAccent]}
-          accent={[howItWorks.headlineAccent]}
-        />
-        <ol class="m-0 mt-[60px] grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-3">
-          {
-            howItWorks.steps.map((step) => (
-              <li class="flex flex-col gap-4 rounded-lg border-4 border-gray-6 bg-white p-8 outline outline-2 outline-white">
-                <h3 class="m-0 text-lg font-semibold text-dark-blue-1">
-                  {step.title}
-                </h3>
-                <p class="mt-2 text-sm leading-relaxed text-gray-2">
-                  {step.body}
-                </p>
-              </li>
-            ))
-          }
-        </ol>
-      </section>
+      <StaggeredSteps
+        eyebrow={howItWorks.eyebrow}
+        headlineAccent={howItWorks.headlineLead}
+        headline={howItWorks.headlineAccent}
+        steps={howItWorks.steps}
+      />
 
       {
         [
           { data: pipelines, image: PipelinesShot },
-          { data: driftDetection, image: DriftShot },
-        ].map(({ data, image }) => (
-          <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
-            <SectionHeading
-              eyebrow={data.eyebrow}
-              words={[data.headlineLead, data.headlineAccent]}
-              accent={[data.headlineAccent]}
-            />
-            <div class="grid grid-cols-1 items-start gap-10 lg:grid-cols-2">
-              <FeatureList features={data.features} />
-              <figure class="m-0">
-                <Image
-                  src={image}
-                  alt={data.imageAlt}
-                  loading="lazy"
-                  class="w-full rounded-xl border border-gray-4"
-                />
-                <figcaption class="mt-3 text-xs text-gray-2">
-                  {data.caption}
-                </figcaption>
-              </figure>
-            </div>
-          </section>
+          { data: driftDetection, image: DriftShot, reverse: true },
+        ].map(({ data, image, reverse }) => (
+          <MediaFeatureBand
+            reverse={reverse}
+            eyebrow={data.eyebrow}
+            headlineLead={data.headlineLead}
+            headlineAccent={data.headlineAccent}
+            features={data.features}
+            image={image}
+            imageAlt={data.imageAlt}
+            caption={data.caption}
+          />
         ))
       }
 
-      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
-        <SectionHeading
-          eyebrow={patcher.eyebrow}
-          words={[patcher.headlineLead, patcher.headlineAccent]}
-          accent={[patcher.headlineAccent]}
-        />
-        <div class="mt-[60px] max-w-[820px]">
-          <FeatureList features={patcher.features} />
+      <section class="px-4 py-[76px] md:px-8">
+        <div class="mx-auto grid max-w-[960px] grid-cols-1 gap-8 lg:grid-cols-2">
+          <div>
+            <span class="mb-8 inline-block bg-accent-background px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-accent-1">
+              {patcher.eyebrow}
+            </span>
+            <h2 class="m-0 max-w-[340px] text-[2rem] font-medium leading-[1.15] tracking-[-0.02em] text-dark-blue-1 md:text-[42px] md:leading-[46.67px]">
+              <span class="text-accent-1">{patcher.headlineLead}</span>{" "}{patcher.headlineAccent}
+            </h2>
+          </div>
+          <div class="flex flex-col">
+            {
+              patcher.features.map((feature, i) => (
+                <div
+                  class:list={[
+                    "flex flex-col gap-4 py-6",
+                    i > 0 && "border-t border-dashed border-gray-4",
+                  ]}
+                >
+                  <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+                    {feature.title}
+                  </h3>
+                  <div
+                    class="text-sm leading-relaxed text-gray-2 [&_code]:rounded [&_code]:bg-gray-6 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:text-accent-1 [&_p]:m-0"
+                    set:html={renderLede(feature.body)}
+                  />
+                </div>
+              ))
+            }
+          </div>
         </div>
       </section>
 
@@ -233,7 +231,14 @@ const headlineParts = (() => {
         id="view-plans"
         class="border-t border-gray-4 px-4 py-[76px] md:px-8"
       >
-        <div class="rounded-3xl border-[6px] border-gray-5 bg-bg-dark px-6 py-20 md:px-12">
+        <div class="relative overflow-hidden rounded-3xl border-[6px] border-gray-5 bg-bg-dark px-6 py-20 md:px-12">
+        <Image
+          src={Cube}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          class="pointer-events-none absolute left-10 top-16 hidden w-24 lg:block"
+        />
         <div class="mb-10 text-center">
           <h2
             class="m-0 text-[32px] font-medium leading-[1.5em] text-white md:text-[42px]"
