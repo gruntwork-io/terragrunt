@@ -96,7 +96,7 @@ const headlineParts = (() => {
     >
       <div class="max-w-[589px] lg:pt-9">
         <h1
-          class="m-0 text-4xl font-medium leading-[1.05] text-white md:text-[60px] md:leading-[48px]"
+          class="m-0 text-4xl font-medium leading-[48px] text-white md:text-[60px]"
         >
           Terragrunt <span class="text-accent-4">Scale</span>
         </h1>
@@ -162,7 +162,7 @@ const headlineParts = (() => {
         src={HeroCard}
         alt="A Terragrunt plan posted as a pull request comment"
         loading="eager"
-        class="w-full max-w-[563px] shrink-0 rounded-lg lg:-mb-20 lg:self-end"
+        class="hidden w-full max-w-[563px] shrink-0 rounded-lg lg:-mb-20 lg:block lg:self-end"
       />
     </div>
   </section>
@@ -173,7 +173,7 @@ const headlineParts = (() => {
 
       {/* `.video-container`: the caption sits inside the frame, under the
           player, not above it as a section rubric. */}
-      <section class="mb-[75px] mt-[150px] px-4 md:px-8">
+      <section class="mb-10 mt-[60px] px-6 md:px-8 lg:mb-[75px] lg:mt-[150px]">
         <figure
           class="mx-auto m-0 w-full max-w-[900px] rounded-xl border-[6px] border-[#e2e3e6] bg-background p-[18px]"
         >
@@ -232,7 +232,7 @@ const headlineParts = (() => {
 
       <section
         id="view-plans"
-        class="border-t border-gray-4 px-4 py-[76px] md:px-8"
+        class="border-t border-gray-4 px-6 py-6 lg:py-[76px] md:px-8"
       >
         {/*
           `.terragrunt-scale-pricing-inner`: the hero plate washed across the
@@ -364,7 +364,7 @@ const headlineParts = (() => {
       />
 
       {/* `.faq-inner`: 850px, left aligned, 24px in — not a centred coda. */}
-      <section class="px-4 py-[76px] md:px-8">
+      <section class="px-6 py-6 lg:py-[76px] md:px-8">
         <div class="mx-auto max-w-[850px] pl-6">
           <SectionHeading
             eyebrow={faqTeaser.eyebrow}
