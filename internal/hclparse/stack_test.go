@@ -96,6 +96,44 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 	)
 }
 
+// TestUnitPathsFromStackDir_SkipsDisabledStack pins that discovery leaves out the units of a
+// disabled stack, including a tree generated before the stack was disabled.
+func TestUnitPathsFromStackDir_SkipsDisabledStack(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+
+stack "team" {
+  enabled = false
+
+  source = "."
+  path   = "team"
+}
+`), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/.terragrunt-stack/team/terragrunt.stack.hcl", []byte(`
+unit "member" {
+  source = "."
+  path   = "member"
+}
+`), 0644),
+	)
+
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "vpc")}, paths)
+}
+
 // TestUnitPathsFromStackDir_ValuesFileResolvesLocals pins that discovery loads the
 // generated terragrunt.values.hcl next to the stack file and publishes it as the
 // `values` variable, so a stack whose locals reference values.* expands instead of
