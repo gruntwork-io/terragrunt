@@ -13,7 +13,6 @@ const entries = (await getCollection("comparisons")).sort(
 const cards = entries.map((entry) => ({
   href: `/comparisons/${entry.id}`,
   title: entry.data.indexTitle,
-  description: entry.data.subhead,
 }));
 ---
 

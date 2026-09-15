@@ -16,6 +16,7 @@ interface Props {
   lede?: string;
   backHref: string;
   backLabel: string;
+  mascot?: boolean;
   newsletter?: boolean;
   openSource?: boolean;
 }
@@ -30,6 +31,7 @@ const {
   lede,
   backHref,
   backLabel,
+  mascot = false,
   newsletter = false,
   openSource = false,
 } = Astro.props;
@@ -44,6 +46,7 @@ const ledeHtml = renderLede(lede);
   eyebrow={eyebrow}
   headline={headline}
   subhead={subhead}
+  mascot={mascot}
   newsletter={newsletter}
   openSource={openSource}
 >

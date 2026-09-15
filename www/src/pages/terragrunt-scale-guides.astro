@@ -13,7 +13,6 @@ const entries = (await getCollection("guides")).sort(
 const cards = entries.map((entry) => ({
   href: `/guides/${entry.id}`,
   title: entry.data.indexTitle,
-  description: entry.data.subhead,
 }));
 ---
 

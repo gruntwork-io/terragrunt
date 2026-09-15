@@ -34,6 +34,8 @@ interface Props {
    * dashed column overlay, and the FAQ index runs an 850px column rather than
    * the 800px prose measure.
    */
+  /** Only /faq/* carries the hero mascot on the live site. */
+  mascot?: boolean;
   grid?: boolean;
   width?: "prose" | "wide";
   cta?: boolean;
@@ -50,6 +52,7 @@ const {
   subhead,
   jsonLd,
   noindex,
+  mascot = false,
   grid = true,
   width = "prose",
   cta = false,
@@ -67,7 +70,12 @@ const {
 >
   {grid && <VerticalGrid />}
   <Nav active={path} />
-  <PageHero eyebrow={eyebrow} headline={headline} subhead={subhead} />
+  <PageHero
+    eyebrow={eyebrow}
+    headline={headline}
+    subhead={subhead}
+    showMascot={mascot}
+  />
 
   <div class="global-page-container">
     <main class="mx-auto w-full max-w-[1310px]">
