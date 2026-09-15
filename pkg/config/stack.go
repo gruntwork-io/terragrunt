@@ -369,7 +369,7 @@ func resolveStackAutoIncludes(
 	// component must not inherit the base block's resolved unit-level autoinclude.
 	if pruneErr := pruneOverriddenStackAutoIncludes(
 		scopedPctx.Venv.FS,
-		autoIncludes,
+		parseResult,
 		stackSourceDir,
 		prodEvalCtx,
 		scopedPctx.ParserOptions,
@@ -477,7 +477,10 @@ func setupCAS(l log.Logger, pctx *ParsingContext, enabled bool) (casSetup, error
 		return casSetup{}, err
 	}
 
-	casOpts := []cas.Option{cas.WithCloneDepth(pctx.CASCloneDepth), cas.WithProbeTTL(pctx.CASProbeTTL)}
+	casOpts := []cas.Option{
+		cas.WithCloneDepth(pctx.CASCloneDepth),
+		cas.WithProbeTTL(pctx.CASProbeTTL),
+	}
 
 	if pctx.Experiments.Evaluate(experiment.OfflineCAS) {
 		casOpts = append(casOpts, cas.WithProbeCache())
@@ -561,7 +564,7 @@ func generateUnits(
 				sourceDir:    opts.sourceDir,
 				targetDir:    opts.targetDir,
 				name:         unit.Name,
-				displayName:  componentAddress(unit.Name, unit.Expansion),
+				address:      componentAddress(unit.Name, unit.Expansion),
 				path:         unit.Path,
 				source:       unit.Source,
 				values:       unit.Values,
@@ -614,7 +617,7 @@ func generateStacks(
 				sourceDir:    opts.sourceDir,
 				targetDir:    opts.targetDir,
 				name:         stack.Name,
-				displayName:  componentAddress(stack.Name, stack.Expansion),
+				address:      componentAddress(stack.Name, stack.Expansion),
 				path:         stack.Path,
 				source:       stack.Source,
 				noStack:      stack.NoStack != nil && *stack.NoStack,
@@ -660,7 +663,7 @@ type componentToGenerate struct {
 	sourceDir    string
 	targetDir    string
 	name         string
-	displayName  string
+	address      string
 	path         string
 	source       string
 	noStack      bool
@@ -774,7 +777,7 @@ func generateAutoInclude(
 		kind = inthclparse.KindStack
 	}
 
-	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(kind, cmp.name)]
+	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(kind, cmp.address)]
 	if !ok {
 		return nil
 	}
@@ -783,7 +786,7 @@ func generateAutoInclude(
 		"Generating %s for %s %s in %s",
 		inthclparse.AutoIncludeFileNameForKind(kind),
 		kind,
-		cmp.name,
+		cmp.address,
 		util.RelPathForLog(opts.rootWorkingDir, dest, opts.logShowAbsPaths),
 	)
 
@@ -797,7 +800,7 @@ func generateAutoInclude(
 		resolved.SourceBytes,
 		resolved.EvalCtx,
 	); err != nil {
-		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
+		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.address, err)
 	}
 
 	return nil
@@ -828,7 +831,7 @@ func generateComponent(
 		kindStr = "stack"
 	}
 
-	l.Debugf("Generating: %s (%s) to %s", cmp.displayName, source, dest)
+	l.Debugf("Generating: %s (%s) to %s", cmp.address, source, dest)
 
 	if err := fetchComponentSource(ctx, l, v, opts, cmp, kindStr, source, dest); err != nil {
 		return err
@@ -1332,10 +1335,11 @@ func ParseStackConfig(
 
 // stackComponentHeader is the path-only shape of a unit or stack block.
 type stackComponentHeader struct {
-	Remain  hcl.Body `hcl:",remain"`
-	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
-	Path    string   `hcl:"path,attr"`
-	Name    string   `hcl:",label"`
+	Remain   hcl.Body `hcl:",remain"`
+	NoStack  *bool    `hcl:"no_dot_terragrunt_stack,optional"`
+	Instance hclparse.InstanceKey
+	Path     string `hcl:"path,attr"`
+	Name     string `hcl:",label"`
 }
 
 // GeneratedPath returns the on-disk path this component generates to under stackDir.
@@ -1364,7 +1368,9 @@ func injectStackComponentRefs(
 
 	// Publish the base refs first so a sibling autoinclude block whose path references unit.<name>.path /
 	// stack.<name>.path can resolve against the base components, matching how the full decode resolves them.
-	setStackComponentRefVars(evalCtx, stackDir, baseUnits, baseStacks)
+	if err := setStackComponentRefVars(evalCtx, stackDir, baseUnits, baseStacks); err != nil {
+		return err
+	}
 
 	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(
 		fsys,
@@ -1379,45 +1385,59 @@ func injectStackComponentRefs(
 	// Republish so an overridden component's path reflects the override, not the base path it replaced.
 	units := util.MergeNamed(baseUnits, autoUnits, componentHeaderName)
 	stacks := util.MergeNamed(baseStacks, autoStacks, componentHeaderName)
-	setStackComponentRefVars(evalCtx, stackDir, units, stacks)
 
-	return nil
+	return setStackComponentRefVars(evalCtx, stackDir, units, stacks)
 }
 
-// setStackComponentRefVars publishes the unit.<name> and stack.<name> path variables into evalCtx.
+// setStackComponentRefVars publishes the unit.<name> and stack.<name> path variables into evalCtx,
+// keyed per element for an expanded component.
+//
+// Returns [inthclparse.ComponentRefCollisionError] when a label names both an unexpanded
+// component and an expanded one, and publishes nothing.
 func setStackComponentRefVars(
 	evalCtx *hcl.EvalContext,
 	stackDir string,
 	units, stacks []*stackComponentHeader,
-) {
-	unitRefs := make([]inthclparse.ComponentRef, 0, len(units))
+) error {
+	unitRefs, err := inthclparse.BuildComponentRefMap(
+		inthclparse.VarUnit,
+		componentRefs(units, stackDir),
+	)
+	if err != nil {
+		return err
+	}
 
-	for _, u := range units {
-		if u == nil {
+	stackRefs, err := inthclparse.BuildComponentRefMap(
+		inthclparse.VarStack,
+		componentRefs(stacks, stackDir),
+	)
+	if err != nil {
+		return err
+	}
+
+	evalCtx.Variables[inthclparse.VarUnit] = unitRefs
+	evalCtx.Variables[inthclparse.VarStack] = stackRefs
+
+	return nil
+}
+
+// componentRefs builds the path ref of every header, one per element of an expanded component.
+func componentRefs(headers []*stackComponentHeader, stackDir string) []inthclparse.ComponentRef {
+	refs := make([]inthclparse.ComponentRef, 0, len(headers))
+
+	for _, h := range headers {
+		if h == nil {
 			continue
 		}
 
-		unitRefs = append(
-			unitRefs,
-			inthclparse.ComponentRef{Name: u.Name, Path: u.GeneratedPath(stackDir)},
-		)
+		refs = append(refs, inthclparse.ComponentRef{
+			Instance: h.Instance,
+			Name:     h.Name,
+			Path:     h.GeneratedPath(stackDir),
+		})
 	}
 
-	stackRefs := make([]inthclparse.ComponentRef, 0, len(stacks))
-
-	for _, s := range stacks {
-		if s == nil {
-			continue
-		}
-
-		stackRefs = append(
-			stackRefs,
-			inthclparse.ComponentRef{Name: s.Name, Path: s.GeneratedPath(stackDir)},
-		)
-	}
-
-	evalCtx.Variables[inthclparse.VarUnit] = inthclparse.BuildComponentRefMap(unitRefs)
-	evalCtx.Variables[inthclparse.VarStack] = inthclparse.BuildComponentRefMap(stackRefs)
+	return refs
 }
 
 // stackAutoIncludeComponentHeaders decodes the unit and stack block headers (name and path only) declared
@@ -1457,9 +1477,8 @@ func stackAutoIncludeComponentHeaders(
 }
 
 // decodeComponentHeaders reads the label and path of each unit and stack block. Blocks are
-// expanded so that a path referencing each.*/count.index still decodes, and only unexpanded
-// components come back: a component reference names a whole block, which an expanded one has
-// no single path to answer for.
+// expanded so that a path referencing each.*/count.index still decodes, and every element of an
+// expanded block comes back with its instance key.
 func decodeComponentHeaders(
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
@@ -1490,10 +1509,6 @@ func expandComponentHeaders(
 	headers := make([]*stackComponentHeader, 0, len(instances))
 
 	for _, instance := range instances {
-		if instance.Expanded() {
-			continue
-		}
-
 		header, ok := instance.Value.(*stackComponentHeader)
 		if !ok {
 			panic(fmt.Sprintf(
@@ -1503,6 +1518,7 @@ func expandComponentHeaders(
 			))
 		}
 
+		header.Instance = instance.InstanceKey
 		headers = append(headers, header)
 	}
 
@@ -1586,19 +1602,19 @@ func stackAutoIncludeComponentNames(
 	return unitNames, stackNames, nil
 }
 
-// pruneOverriddenStackAutoIncludes drops the base-resolved unit-level autoinclude for any component the
-// sibling terragrunt.autoinclude.stack.hcl overrides by name, so an overridden component does not inherit
-// the base block's autoinclude (the override is wholesale). A newly injected name has no base entry, so
-// pruning it is a no-op. It reads only block names so it never evaluates an injected path expression that
-// the generate-path eval context cannot resolve.
+// pruneOverriddenStackAutoIncludes drops the base-resolved unit-level autoinclude of every instance of a
+// component the sibling terragrunt.autoinclude.stack.hcl overrides by name, so an overridden component does
+// not inherit the base block's autoinclude (the override is wholesale, replacing every element of an
+// expanded block). A newly injected name has no base entry, so pruning it is a no-op. It reads only block
+// names so it never evaluates an injected path expression that the generate-path eval context cannot resolve.
 func pruneOverriddenStackAutoIncludes(
 	fsys vfs.FS,
-	autoIncludes map[string]*inthclparse.AutoIncludeResolved,
+	parsed *inthclparse.ParseResult,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	parserOpts []hclparse.Option,
 ) error {
-	if len(autoIncludes) == 0 {
+	if len(parsed.AutoIncludes) == 0 {
 		return nil
 	}
 
@@ -1612,12 +1628,22 @@ func pruneOverriddenStackAutoIncludes(
 		return err
 	}
 
-	for _, name := range unitNames {
-		delete(autoIncludes, inthclparse.AutoIncludeKey(inthclparse.KindUnit, name))
+	for _, unit := range parsed.Units {
+		if slices.Contains(unitNames, unit.Name) {
+			delete(
+				parsed.AutoIncludes,
+				inthclparse.AutoIncludeKey(inthclparse.KindUnit, unit.Address()),
+			)
+		}
 	}
 
-	for _, name := range stackNames {
-		delete(autoIncludes, inthclparse.AutoIncludeKey(inthclparse.KindStack, name))
+	for _, stack := range parsed.Stacks {
+		if slices.Contains(stackNames, stack.Name) {
+			delete(
+				parsed.AutoIncludes,
+				inthclparse.AutoIncludeKey(inthclparse.KindStack, stack.Address()),
+			)
+		}
 	}
 
 	return nil
@@ -1626,11 +1652,11 @@ func pruneOverriddenStackAutoIncludes(
 // componentAddress identifies one instance of a unit or stack block. Every instance of an
 // expanded block carries its label, so the label alone would fold a whole set into one entry.
 func componentAddress(name string, expansion *hclparse.ExpansionBlock) string {
-	if expansion == nil || !expansion.Expanded() {
+	if expansion == nil {
 		return name
 	}
 
-	return name + "[" + expansion.Key() + "]"
+	return expansion.Address(name)
 }
 
 // decodeComponents decodes a stack file's unit and stack blocks, returning one value per

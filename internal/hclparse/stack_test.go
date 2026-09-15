@@ -23,9 +23,10 @@ func noFuncs(string) (map[string]function.Function, error) {
 func TestBuildComponentRefMapExposesPath(t *testing.T) {
 	t.Parallel()
 
-	got := hclparse.BuildComponentRefMap([]hclparse.ComponentRef{
+	got, err := hclparse.BuildComponentRefMap(hclparse.VarStack, []hclparse.ComponentRef{
 		{Name: "networking", Path: ".terragrunt-stack/networking"},
 	})
+	require.NoError(t, err)
 
 	networking := got.AsValueMap()["networking"].AsValueMap()
 	assert.Equal(t, ".terragrunt-stack/networking", networking["path"].AsString())
@@ -50,7 +51,11 @@ unit "db" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
@@ -78,7 +83,11 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Equal(
 		t,
@@ -108,7 +117,11 @@ unit "vpc" {
 	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.values.hcl", []byte(`env = "dev"
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(
 		t,
 		err,
@@ -135,7 +148,11 @@ unit "vpc" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "prod-vpc")}, paths)
 }
@@ -213,7 +230,11 @@ unit "deep" {
 		),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Equal(
 		t,
@@ -275,7 +296,11 @@ func TestUnitPathsFromStackDir_MergesStackAutoInclude(t *testing.T) {
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	require.Len(
 		t,
@@ -310,7 +335,11 @@ func TestUnitPathsFromStackDir_StackAutoIncludePathReferencesSiblingRef(t *testi
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(
 		t,
 		err,
@@ -348,7 +377,11 @@ func TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack(t *testing.
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "vpc"))
 	assert.Contains(
@@ -422,7 +455,11 @@ func TestUnitPathsFromStackDir_StackAutoIncludeSameNameOverrides(t *testing.T) {
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(
 		t,
 		err,
@@ -642,7 +679,11 @@ func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
 		return map[string]function.Function{}, nil
 	}
 
-	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: funcsFor})
+	_, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: funcsFor},
+	)
 	require.NoError(t, err)
 
 	nested := filepath.Join("/test", ".terragrunt-stack", "more")
@@ -673,7 +714,11 @@ func TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics(t *testing.T) {
 	assert.PanicsWithValue(t,
 		`hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir="/test")`,
 		func() {
-			_, _ = hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: nilMapFactory})
+			_, _ = hclparse.UnitPathsFromStackDir(
+				fs,
+				"/test",
+				&hclparse.StackDirArgs{FuncsFor: nilMapFactory},
+			)
 		},
 	)
 }
@@ -691,7 +736,11 @@ func TestUnitPathsFromStackDir_CycleTerminates(t *testing.T) {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Empty(t, paths)
 }
@@ -750,7 +799,11 @@ include "units" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Contains(t, paths[0], filepath.Join(hclparse.StackDir, "vpc"))
@@ -779,7 +832,11 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -789,7 +846,11 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/nonexistent",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -804,7 +865,11 @@ func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
 		vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "x" { source = "." `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.Error(t, err)
 	assert.Nil(t, paths)
 
@@ -964,7 +1029,8 @@ unit "vpc" {
 func TestBuildComponentRefMap_Empty(t *testing.T) {
 	t.Parallel()
 
-	result := hclparse.BuildComponentRefMap(nil)
+	result, err := hclparse.BuildComponentRefMap(hclparse.VarUnit, nil)
+	require.NoError(t, err)
 	assert.True(t, result.Type().IsObjectType())
 }
 
@@ -976,7 +1042,8 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 		{Name: "app", Path: "app-service"},
 	}
 
-	result := hclparse.BuildComponentRefMap(refs)
+	result, err := hclparse.BuildComponentRefMap(hclparse.VarUnit, refs)
+	require.NoError(t, err)
 
 	require.True(t, result.Type().IsObjectType())
 

@@ -3,12 +3,15 @@ package hclparse
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"path/filepath"
+	"slices"
 
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -43,68 +46,200 @@ type StackIncludeHCL struct {
 	Name string         `hcl:",label"`
 }
 
-// unitsAndStacksHCL is the phase-3 decode target for unit and stack blocks.
-type unitsAndStacksHCL struct {
-	Remain hcl.Body         `hcl:",remain"`
-	Stacks []*StackBlockHCL `hcl:"stack,block"`
-	Units  []*UnitBlockHCL  `hcl:"unit,block"`
-}
-
-// UnitBlockHCL is the eager unit block shape with deferred autoinclude content.
+// UnitBlockHCL is the eager unit block shape with deferred autoinclude content. An expanded
+// block decodes to one UnitBlockHCL per element.
 type UnitBlockHCL struct {
 	Remain       hcl.Body        `hcl:",remain"`
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
 	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
 	NoValidation *bool           `hcl:"no_validation,optional"`
 	Values       *cty.Value      `hcl:"values,optional"`
-	Source       string          `hcl:"source,attr"`
-	Path         string          `hcl:"path,attr"`
-	Name         string          `hcl:",label"`
+	evalCtx      *hcl.EvalContext
+	Instance     pkghclparse.InstanceKey
+	Source       string `hcl:"source,attr"`
+	Path         string `hcl:"path,attr"`
+	Name         string `hcl:",label"`
 }
 
-// StackBlockHCL is the eager stack block shape with deferred autoinclude content.
+// Address returns the unit's address in the stack file: its label, followed by the element
+// key when the block is expanded.
+func (u *UnitBlockHCL) Address() string {
+	return u.Instance.Address(u.Name)
+}
+
+// bindInstance records the expansion element u was decoded from and the eval context it
+// decoded in.
+func (u *UnitBlockHCL) bindInstance(instance pkghclparse.Instance) {
+	u.Instance = instance.InstanceKey
+	u.evalCtx = instance.EvalContext
+}
+
+// StackBlockHCL is the eager stack block shape with deferred autoinclude content. An expanded
+// block decodes to one StackBlockHCL per element.
 type StackBlockHCL struct {
 	Remain       hcl.Body        `hcl:",remain"`
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
 	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
 	NoValidation *bool           `hcl:"no_validation,optional"`
 	Values       *cty.Value      `hcl:"values,optional"`
-	Source       string          `hcl:"source,attr"`
-	Path         string          `hcl:"path,attr"`
-	Name         string          `hcl:",label"`
+	evalCtx      *hcl.EvalContext
+	Instance     pkghclparse.InstanceKey
+	Source       string `hcl:"source,attr"`
+	Path         string `hcl:"path,attr"`
+	Name         string `hcl:",label"`
+}
+
+// Address returns the stack's address in the stack file: its label, followed by the element
+// key when the block is expanded.
+func (s *StackBlockHCL) Address() string {
+	return s.Instance.Address(s.Name)
+}
+
+// bindInstance records the expansion element s was decoded from and the eval context it
+// decoded in.
+func (s *StackBlockHCL) bindInstance(instance pkghclparse.Instance) {
+	s.Instance = instance.InstanceKey
+	s.evalCtx = instance.EvalContext
+}
+
+// expandedComponent is a unit or stack shape that records the expansion element it was
+// decoded from.
+type expandedComponent[T any] interface {
+	*T
+	bindInstance(instance pkghclparse.Instance)
+}
+
+// componentBlocksSchema matches the unit and stack blocks of a stack file body.
+func componentBlocksSchema() *hcl.BodySchema {
+	return &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: blockUnit, LabelNames: []string{"name"}},
+			{Type: blockStack, LabelNames: []string{"name"}},
+		},
+	}
+}
+
+// expandComponentBlocks decodes each block into a fresh T once per expansion element, so a
+// body referencing each.* or count.index decodes.
+//
+// Every block is attempted: the components that decoded are returned alongside the joined
+// error of the blocks that did not.
+//
+// Panics when [pkghclparse.ExpandBlock] returns a value that is not the *T it was given.
+func expandComponentBlocks[T any, P expandedComponent[T]](
+	blocks hcl.Blocks,
+	evalCtx *hcl.EvalContext,
+) ([]P, error) {
+	var (
+		components []P
+		diags      hcl.Diagnostics
+		errs       []error
+	)
+
+	for _, block := range blocks {
+		instances, err := pkghclparse.ExpandBlock(block, new(T), evalCtx)
+		if err != nil {
+			if blockDiags, ok := errors.AsType[hcl.Diagnostics](err); ok {
+				diags = append(diags, blockDiags...)
+				continue
+			}
+
+			errs = append(errs, err)
+
+			continue
+		}
+
+		for _, instance := range instances {
+			component, ok := instance.Value.(P)
+			if !ok {
+				panic(fmt.Sprintf(
+					"hclparse: ExpandBlock returned %T for a %s block, but it decodes into the type it is given",
+					instance.Value,
+					block.Type,
+				))
+			}
+
+			component.bindInstance(instance)
+			components = append(components, component)
+		}
+	}
+
+	if diags.HasErrors() {
+		errs = append(errs, diags)
+	}
+
+	return components, errors.Join(errs...)
+}
+
+// decodeComponentPaths decodes the discovery shape of every unit and stack block, once per
+// expansion element.
+func decodeComponentPaths(blocks hcl.Blocks, evalCtx *hcl.EvalContext) (*discoveryDecode, error) {
+	units, unitErr := expandComponentBlocks[unitPathOnlyHCL](blocks.OfType(blockUnit), evalCtx)
+	stacks, stackErr := expandComponentBlocks[stackPathOnlyHCL](blocks.OfType(blockStack), evalCtx)
+
+	return &discoveryDecode{Units: units, Stacks: stacks}, errors.Join(unitErr, stackErr)
 }
 
 // ComponentRef is a top-level unit or stack ref injected into the eval context
-// as `unit.<name>` or `stack.<name>`. Each ref carries its label and its
-// generated path; only the path is exposed in HCL.
+// as `unit.<name>` or `stack.<name>`, or as `unit.<name>[key]` for one element of
+// an expanded block. Only the path is exposed in HCL.
 type ComponentRef struct {
-	Name string
-	Path string
+	Instance pkghclparse.InstanceKey
+	Name     string
+	Path     string
 }
 
 // BuildComponentRefMap converts component refs into an HCL object injected as
-// the `unit` or `stack` variable in the eval context. Empty input returns
+// the root (`unit` or `stack`) variable in the eval context. Empty input returns
 // EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
+//
+// The elements of an expanded block nest under its label by key.
+//
+// Returns [ComponentRefCollisionError] when a label names both an unexpanded block
+// and an expanded one.
 //
 // Output shape:
 //
 //	{
-//	  "<name>": { "path": "<generated path>" }
+//	  "<name>": { "path": "<generated path>" },
+//	  "<expanded name>": {
+//	    "<key>": { "path": "<generated path>" }
+//	  }
 //	}
-func BuildComponentRefMap(refs []ComponentRef) cty.Value {
+func BuildComponentRefMap(root string, refs []ComponentRef) (cty.Value, error) {
 	if len(refs) == 0 {
-		return cty.EmptyObjectVal
+		return cty.EmptyObjectVal, nil
 	}
 
 	refMap := make(map[string]cty.Value, len(refs))
+	elements := make(map[string]map[string]cty.Value)
 
 	for _, ref := range refs {
-		refMap[ref.Name] = cty.ObjectVal(map[string]cty.Value{
+		pathRef := cty.ObjectVal(map[string]cty.Value{
 			"path": cty.StringVal(ref.Path),
 		})
+
+		if !ref.Instance.Expanded() {
+			refMap[ref.Name] = pathRef
+			continue
+		}
+
+		if elements[ref.Name] == nil {
+			elements[ref.Name] = make(map[string]cty.Value)
+		}
+
+		elements[ref.Name][ref.Instance.Key()] = pathRef
 	}
 
-	return cty.ObjectVal(refMap)
+	for _, name := range slices.Sorted(maps.Keys(elements)) {
+		if _, collides := refMap[name]; collides {
+			return cty.NilVal, ComponentRefCollisionError{Root: root, Name: name}
+		}
+
+		refMap[name] = cty.ObjectVal(elements[name])
+	}
+
+	return cty.ObjectVal(refMap), nil
 }
 
 // GeneratedComponentPath returns the on-disk path a unit or stack block in a
@@ -127,19 +262,31 @@ func (u *unitPathOnlyHCL) GeneratedPath(stackDir string) string {
 
 // unitPathOnlyHCL is the discovery shape for unit name and path.
 type unitPathOnlyHCL struct {
-	Remain  hcl.Body `hcl:",remain"`
-	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
-	Path    string   `hcl:"path,attr"`
-	Name    string   `hcl:",label"`
+	Remain   hcl.Body `hcl:",remain"`
+	NoStack  *bool    `hcl:"no_dot_terragrunt_stack,optional"`
+	Instance pkghclparse.InstanceKey
+	Path     string `hcl:"path,attr"`
+	Name     string `hcl:",label"`
+}
+
+// bindInstance records the expansion element u was decoded from.
+func (u *unitPathOnlyHCL) bindInstance(instance pkghclparse.Instance) {
+	u.Instance = instance.InstanceKey
 }
 
 // stackPathOnlyHCL is the discovery shape for stack name, path, and source; Source is lazy so non-literal sources don't block decode.
 type stackPathOnlyHCL struct {
-	Remain  hcl.Body       `hcl:",remain"`
-	NoStack *bool          `hcl:"no_dot_terragrunt_stack,optional"`
-	Source  hcl.Expression `hcl:"source,attr"`
-	Path    string         `hcl:"path,attr"`
-	Name    string         `hcl:",label"`
+	Remain   hcl.Body       `hcl:",remain"`
+	NoStack  *bool          `hcl:"no_dot_terragrunt_stack,optional"`
+	Source   hcl.Expression `hcl:"source,attr"`
+	Instance pkghclparse.InstanceKey
+	Path     string `hcl:"path,attr"`
+	Name     string `hcl:",label"`
+}
+
+// bindInstance records the expansion element s was decoded from.
+func (s *stackPathOnlyHCL) bindInstance(instance pkghclparse.Instance) {
+	s.Instance = instance.InstanceKey
 }
 
 // GeneratedPath returns the on-disk path this stack generates to under stackDir.
@@ -147,20 +294,10 @@ func (s *stackPathOnlyHCL) GeneratedPath(stackDir string) string {
 	return GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
 }
 
-// discoveryDecode holds decoded unit and stack blocks for discovery.
+// discoveryDecode holds the unit and stack instances discovery decoded.
 type discoveryDecode struct {
-	Remain hcl.Body            `hcl:",remain"`
-	Stacks []*stackPathOnlyHCL `hcl:"stack,block"`
-	Units  []*unitPathOnlyHCL  `hcl:"unit,block"`
-}
-
-// discoveryAutoIncludeDecode is the strict decode target for a stack autoinclude file: only unit and
-// stack blocks are allowed at the top level. It has no ",remain" field, so stray top-level content
-// (a misplaced attribute or a generate/remote_state/dependency block) is rejected here just as the
-// full parse rejects it via the strict StackConfigFile, rather than being silently ignored.
-type discoveryAutoIncludeDecode struct {
-	Stacks []*stackPathOnlyHCL `hcl:"stack,block"`
-	Units  []*unitPathOnlyHCL  `hcl:"unit,block"`
+	Stacks []*stackPathOnlyHCL
+	Units  []*unitPathOnlyHCL
 }
 
 // ParseStackFileFromPath reads a terragrunt.stack.hcl from disk and runs ParseStackFile; returns (nil, nil) when the file is absent.
@@ -438,9 +575,14 @@ func decodeDiscovery(
 		return nil, nil, err
 	}
 
-	decoded := &discoveryDecode{}
-	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
+	content, _, diags := mergedRemain.PartialContent(componentBlocksSchema())
+	if diags.HasErrors() {
 		return nil, nil, FileDecodeError{Name: stackFile, Err: diags}
+	}
+
+	decoded, err := decodeComponentPaths(content.Blocks, evalCtx)
+	if err != nil {
+		return nil, nil, FileDecodeError{Name: stackFile, Err: err}
 	}
 
 	// Reject duplicate names within the base stack file itself before the autoinclude override merge, so an
@@ -453,12 +595,9 @@ func decodeDiscovery(
 	// Publish the base unit.<name>.path / stack.<name>.path refs before decoding the autoinclude, so a sibling
 	// autoinclude block whose path references them resolves during discovery exactly as it does in the full
 	// stack parse (injectStackComponentRefs). Without this, discovery would reject a config the full parse accepts.
-	evalCtx.Variables[VarUnit] = BuildComponentRefMap(
-		buildDiscoveryUnitRefs(decoded.Units, stackDir),
-	)
-	evalCtx.Variables[VarStack] = BuildComponentRefMap(
-		buildDiscoveryStackRefs(decoded.Stacks, stackDir),
-	)
+	if err := setComponentRefVars(evalCtx, decoded, stackDir); err != nil {
+		return nil, nil, err
+	}
 
 	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl, overriding same-name
 	// base blocks the same way a full stack parse does. The autoinclude file's own names are validated for
@@ -562,10 +701,17 @@ func mergeDiscoveryStackAutoInclude(
 		return *typed
 	}
 
-	// Strict decode rejecting any top-level content other than unit and stack blocks (the struct has no ",remain").
-	autoDecoded := &discoveryAutoIncludeDecode{}
-	if diags := gohcl.DecodeBody(file.Body, evalCtx, autoDecoded); diags.HasErrors() {
+	// Content rather than PartialContent, so stray top-level content (a misplaced attribute or a
+	// generate/remote_state/dependency block) is rejected here just as the full parse rejects it via the
+	// strict StackConfigFile.
+	content, diags := file.Body.Content(componentBlocksSchema())
+	if diags.HasErrors() {
 		return FileDecodeError{Name: autoIncludePath, Err: diags}
+	}
+
+	autoDecoded, err := decodeComponentPaths(content.Blocks, evalCtx)
+	if err != nil {
+		return FileDecodeError{Name: autoIncludePath, Err: err}
 	}
 
 	// Reject duplicate names within the autoinclude file itself, mirroring the base-file rejection, so a
@@ -581,7 +727,36 @@ func mergeDiscoveryStackAutoInclude(
 	return nil
 }
 
-// buildDiscoveryUnitRefs builds the unit.<name>.path refs from the discovery unit decode.
+// setComponentRefVars publishes the unit.<name> and stack.<name> refs of decoded into evalCtx.
+//
+// Returns [ComponentRefCollisionError] when a label names both an unexpanded block and an
+// expanded one, and publishes nothing.
+func setComponentRefVars(
+	evalCtx *hcl.EvalContext,
+	decoded *discoveryDecode,
+	stackDir string,
+) error {
+	unitRefs, err := BuildComponentRefMap(VarUnit, buildDiscoveryUnitRefs(decoded.Units, stackDir))
+	if err != nil {
+		return err
+	}
+
+	stackRefs, err := BuildComponentRefMap(
+		VarStack,
+		buildDiscoveryStackRefs(decoded.Stacks, stackDir),
+	)
+	if err != nil {
+		return err
+	}
+
+	evalCtx.Variables[VarUnit] = unitRefs
+	evalCtx.Variables[VarStack] = stackRefs
+
+	return nil
+}
+
+// buildDiscoveryUnitRefs builds the unit.<name>.path refs from the discovery unit decode, one per
+// element of an expanded unit.
 func buildDiscoveryUnitRefs(units []*unitPathOnlyHCL, stackDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(units))
 
@@ -590,13 +765,18 @@ func buildDiscoveryUnitRefs(units []*unitPathOnlyHCL, stackDir string) []Compone
 			continue
 		}
 
-		refs = append(refs, ComponentRef{Name: u.Name, Path: u.GeneratedPath(stackDir)})
+		refs = append(refs, ComponentRef{
+			Instance: u.Instance,
+			Name:     u.Name,
+			Path:     u.GeneratedPath(stackDir),
+		})
 	}
 
 	return refs
 }
 
-// buildDiscoveryStackRefs builds the stack.<name>.path refs from the discovery stack decode.
+// buildDiscoveryStackRefs builds the stack.<name>.path refs from the discovery stack decode, one per
+// element of an expanded stack.
 func buildDiscoveryStackRefs(stacks []*stackPathOnlyHCL, stackDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
@@ -605,7 +785,11 @@ func buildDiscoveryStackRefs(stacks []*stackPathOnlyHCL, stackDir string) []Comp
 			continue
 		}
 
-		refs = append(refs, ComponentRef{Name: s.Name, Path: s.GeneratedPath(stackDir)})
+		refs = append(refs, ComponentRef{
+			Instance: s.Instance,
+			Name:     s.Name,
+			Path:     s.GeneratedPath(stackDir),
+		})
 	}
 
 	return refs
@@ -629,7 +813,8 @@ func stackPathName(s *stackPathOnlyHCL) string {
 	return s.Name
 }
 
-// validateDiscoveryUniqueNames reports duplicate unit and stack names from the path-only discovery decode.
+// validateDiscoveryUniqueNames reports duplicate unit and stack addresses from the path-only
+// discovery decode. The elements of one expanded block share its label but not its address.
 func validateDiscoveryUniqueNames(units []*unitPathOnlyHCL, stacks []*stackPathOnlyHCL) error {
 	seenUnits := make(map[string]struct{}, len(units))
 	seenStacks := make(map[string]struct{}, len(stacks))
@@ -637,21 +822,23 @@ func validateDiscoveryUniqueNames(units []*unitPathOnlyHCL, stacks []*stackPathO
 	var errs []error
 
 	for _, unit := range units {
-		if _, ok := seenUnits[unit.Name]; ok {
+		address := unit.Instance.Address(unit.Name)
+		if _, ok := seenUnits[address]; ok {
 			errs = append(errs, DuplicateUnitNameError{Name: unit.Name})
 			continue
 		}
 
-		seenUnits[unit.Name] = struct{}{}
+		seenUnits[address] = struct{}{}
 	}
 
 	for _, stack := range stacks {
-		if _, ok := seenStacks[stack.Name]; ok {
+		address := stack.Instance.Address(stack.Name)
+		if _, ok := seenStacks[address]; ok {
 			errs = append(errs, DuplicateStackNameError{Name: stack.Name})
 			continue
 		}
 
-		seenStacks[stack.Name] = struct{}{}
+		seenStacks[address] = struct{}{}
 	}
 
 	return errors.Join(errs...)

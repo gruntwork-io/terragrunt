@@ -279,6 +279,69 @@ func FuzzAutoIncludeBlockBody(f *testing.F) {
 		f.Add(s)
 	}
 
+	for _, s := range []string{
+		`dependency "db" {
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+  config_path  = unit.vpc.path
+  mock_outputs = { id = each.key }
+}
+
+inputs = { ids = { for k, d in dependency.db : k => d.outputs.id } }`,
+		`dependency "db" {
+  expansion {
+    for_each = local.map
+  }
+  config_path  = "../db-${each.key}"
+  mock_outputs = { id = "${local.env}-${each.value}" }
+}`,
+		`dependency "db" {
+  expansion {
+    count = local.count
+  }
+  config_path  = "../db-${count.index}"
+  mock_outputs = { id = count.index }
+}
+
+inputs = { first = dependency.db["0"].outputs.id }`,
+		`dependency "db" {
+  expansion {
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "db" {
+  expansion {
+    count    = 1
+    for_each = local.map
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "db" {
+  expansion {
+    count = 1
+  }
+  expansion {
+    count = 1
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "db" {
+  expansion {
+    for_each = local.list
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "db" {
+  expansion {
+    for_each = { a = 1 }
+  }
+  config_path = each.value
+}`,
+	} {
+		f.Add(s)
+	}
+
 	f.Fuzz(func(t *testing.T, body string) {
 		reparsesAsValidHCL(t, body, genUnitAutoIncludeBody(t, body))
 	})

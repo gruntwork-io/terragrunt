@@ -94,7 +94,7 @@ unit "db" {
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
 	assert.Equal(
 		t,
-		filepath.Join(testStackDir, ".terragrunt-stack", "vpc"),
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, ".terragrunt-stack", "vpc")),
 		resolved.Dependencies[0].ConfigPath,
 	)
 	assert.NotNil(t, resolved.RawBody)
@@ -184,7 +184,7 @@ unit "app" {
 	assert.Equal(t, "networking", resolved.Dependencies[0].Name)
 	assert.Equal(
 		t,
-		filepath.Join(testStackDir, ".terragrunt-stack", "networking"),
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, ".terragrunt-stack", "networking")),
 		resolved.Dependencies[0].ConfigPath,
 	)
 }
@@ -250,7 +250,7 @@ unit "c" {
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(
 		t,
-		filepath.Join(testStackDir, ".terragrunt-stack", "a"),
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, ".terragrunt-stack", "a")),
 		resolved.Dependencies[0].ConfigPath,
 	)
 }
@@ -1522,7 +1522,7 @@ unit "consumer" {
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(
 		t,
-		filepath.Join(testStackDir, hclparse.StackDir, "p"),
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "p")),
 		resolved.Dependencies[0].ConfigPath,
 	)
 }
@@ -2166,7 +2166,7 @@ unit "app" {
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
 	assert.Equal(
 		t,
-		filepath.Join(testStackDir, ".terragrunt-stack", "vpc"),
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, ".terragrunt-stack", "vpc")),
 		resolved.Dependencies[0].ConfigPath,
 		"unit.vpc.path must resolve to vpc's generated path after include merge, not be undefined",
 	)
