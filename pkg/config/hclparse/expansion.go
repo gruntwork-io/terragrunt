@@ -338,6 +338,8 @@ func blockSource(src []byte, block *hcl.Block, out any) (*SourceBlock, error) {
 // read before the surrounding body is evaluated. That ordering is what lets the
 // body reference each.value at all: the references are still unevaluated here, and
 // only resolve in the per-element decode below.
+//
+// Panics when out is nil or not a pointer.
 func ExpandBlock(
 	block *hcl.Block,
 	out any,

@@ -12,6 +12,7 @@ import (
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -67,29 +68,33 @@ type AutoIncludeResolved struct {
 type AutoIncludeDependency struct {
 	// Block is the original HCL block, preserved for serialization.
 	Block      *hcl.Block
-	Expansion  *AutoIncludeDependencyExpansion
+	ConfigPath ConfigPath
 	Name       string
-	ConfigPath string
 }
 
-// AutoIncludeDependencyExpansion is an expanded autoinclude dependency resolved at generate time:
-// the value its for_each or count evaluated to, and the config_path of every element that value
-// produced. The generated unit expands the dependency again, from these values written as literals.
-type AutoIncludeDependencyExpansion struct {
-	Value     cty.Value
-	MetaArg   pkghclparse.MetaArg
-	Instances []AutoIncludeDependencyInstance
+// ConfigPath is the resolved config_path of an autoinclude dependency: a [SingleConfigPath] for a
+// dependency that does not expand, and a [CountConfigPaths] or [ForEachConfigPaths] for one that does.
+type ConfigPath interface {
+	writeConfigPath(body *hclwrite.Body, targetDir string)
+	deferred() map[string]struct{}
 }
 
-// AutoIncludeDependencyInstance is one element of an expanded autoinclude dependency, with the
-// config_path it resolved to.
-type AutoIncludeDependencyInstance struct {
-	pkghclparse.InstanceKey
-	ConfigPath string
+// SingleConfigPath is the config_path of an autoinclude dependency that does not expand.
+type SingleConfigPath string
+
+// CountConfigPaths is the config_path of each element of an autoinclude dependency expanded by count,
+// in element order.
+type CountConfigPaths []string
+
+// ForEachConfigPaths is the config_path of each element of an autoinclude dependency expanded by
+// for_each.
+type ForEachConfigPaths struct {
+	Collection cty.Value
+	Paths      map[string]string
 }
 
-// dependencyBody is the decode target expansion splits an autoinclude dependency block into. The
-// body stays unevaluated, and each element's config_path is resolved separately.
+// dependencyBody is the decode target expansion splits an autoinclude dependency block into. It
+// leaves the body unevaluated.
 type dependencyBody struct {
 	Remain hcl.Body `hcl:",remain"`
 }
@@ -177,7 +182,7 @@ func (a *AutoIncludeHCL) ResolveForKind(
 			continue
 		}
 
-		dep, depDiags := resolveDependencyBlock(block, evalCtx)
+		dep, depDiags := resolveDependencyBlock(block, block.Labels[0], evalCtx)
 		diags = append(diags, depDiags...)
 
 		if depDiags.HasErrors() {
@@ -195,14 +200,13 @@ func (a *AutoIncludeHCL) ResolveForKind(
 	}, diags
 }
 
-// resolveDependencyBlock extracts config_path from a dependency block, once per element when the
-// block declares an expansion; caller must ensure exactly one label.
+// resolveDependencyBlock extracts the config_path of the dependency block named name, once per
+// element when the block declares an expansion.
 func resolveDependencyBlock(
 	block *hclsyntax.Block,
+	name string,
 	evalCtx *hcl.EvalContext,
 ) (AutoIncludeDependency, hcl.Diagnostics) {
-	name := block.Labels[0]
-
 	// Decode only config_path from the block body, leaving everything else.
 	configPathAttr, exists := block.Body.Attributes[attrConfigPath]
 	if !exists {
@@ -223,67 +227,111 @@ func resolveDependencyBlock(
 			return AutoIncludeDependency{}, diags
 		}
 
-		dep.ConfigPath = configPath
+		dep.ConfigPath = SingleConfigPath(configPath)
 
 		return dep, nil
 	}
 
-	resolved, diags := resolveDependencyExpansion(dep.Block, expansion, configPathAttr, evalCtx)
+	configPaths, diags := resolveDependencyExpansion(
+		dep.Block,
+		name,
+		expansion,
+		configPathAttr,
+		evalCtx,
+	)
 	if diags.HasErrors() {
 		return AutoIncludeDependency{}, diags
 	}
 
-	dep.Expansion = resolved
+	dep.ConfigPath = configPaths
 
 	return dep, nil
 }
 
 // resolveDependencyExpansion expands an autoinclude dependency block at generate time and resolves
 // config_path in each element's eval context, so a config_path indexing stack components by each.key
-// or count.index resolves to that element's component. Every element is resolved, and the elements that
-// resolved are returned alongside the distinct diagnostics of those that did not.
+// or count.index resolves to that element's component.
+//
+// Every element is resolved. The paths of the elements that resolved are returned alongside the
+// distinct diagnostics of those that did not.
+//
+// Panics when the expansion block sets neither for_each nor count.
 func resolveDependencyExpansion(
 	block *hcl.Block,
+	name string,
 	expansion *hclsyntax.Block,
 	configPathAttr *hclsyntax.Attribute,
 	evalCtx *hcl.EvalContext,
-) (*AutoIncludeDependencyExpansion, hcl.Diagnostics) {
+) (ConfigPath, hcl.Diagnostics) {
 	instances, err := pkghclparse.ExpandBlock(block, &dependencyBody{}, evalCtx)
 	if err != nil {
 		return nil, expansionDiagnostics(err, block.DefRange)
 	}
 
-	metaArg, value, diags := expansionMetaArg(expansion, evalCtx)
-	if diags.HasErrors() {
-		return nil, diags
+	for _, attr := range SortedAttributes(expansion.Body.Attributes) {
+		switch pkghclparse.MetaArg(attr.Name) {
+		case pkghclparse.MetaArgCount:
+			paths := make(CountConfigPaths, len(instances))
+			diags := resolveElementConfigPaths(
+				name,
+				configPathAttr,
+				instances,
+				func(i int, path string) { paths[i] = path },
+			)
+
+			return paths, diags
+		case pkghclparse.MetaArgForEach:
+			collection, diags := attr.Expr.Value(evalCtx)
+			if diags.HasErrors() {
+				return nil, diags
+			}
+
+			paths := ForEachConfigPaths{
+				Collection: collection,
+				Paths:      make(map[string]string, len(instances)),
+			}
+			diags = resolveElementConfigPaths(
+				name,
+				configPathAttr,
+				instances,
+				func(i int, path string) { paths.Paths[instances[i].Key()] = path },
+			)
+
+			return paths, diags
+		}
 	}
 
-	resolved := &AutoIncludeDependencyExpansion{
-		Value:     value,
-		MetaArg:   metaArg,
-		Instances: make([]AutoIncludeDependencyInstance, 0, len(instances)),
-	}
+	panic(fmt.Sprintf(
+		"hclparse: ExpandBlock accepted the expansion block at %s, which sets neither %s nor %s",
+		expansion.DefRange(),
+		pkghclparse.MetaArgForEach,
+		pkghclparse.MetaArgCount,
+	))
+}
 
+// resolveElementConfigPaths resolves config_path in the eval context of each instance, and hands
+// record the position and path of every instance that resolves.
+//
+// Returns the distinct diagnostics of the instances that do not resolve.
+func resolveElementConfigPaths(
+	name string,
+	configPathAttr *hclsyntax.Attribute,
+	instances []pkghclparse.Instance,
+	record func(i int, path string),
+) hcl.Diagnostics {
 	var pathDiags distinctDiagnostics
 
-	for _, instance := range instances {
-		configPath, diags := resolveConfigPath(
-			block.Labels[0],
-			configPathAttr,
-			instance.EvalContext,
-		)
+	for i, instance := range instances {
+		configPath, diags := resolveConfigPath(name, configPathAttr, instance.EvalContext)
 		if diags.HasErrors() {
 			pathDiags.append(diags)
 			continue
 		}
 
-		resolved.Instances = append(resolved.Instances, AutoIncludeDependencyInstance{
-			InstanceKey: instance.InstanceKey,
-			ConfigPath:  configPath,
-		})
+		record(i, configPath)
 	}
 
-	return resolved, pathDiags.diags
+	return pathDiags.diags
 }
 
 // distinctDiagnostics accumulates diagnostics, keeping one copy of each.
@@ -332,31 +380,6 @@ func findExpansionBlock(body *hclsyntax.Body) *hclsyntax.Block {
 	return nil
 }
 
-// expansionMetaArg returns which of for_each and count an expansion block sets, and the value it
-// evaluates to in evalCtx. It panics when the block sets neither for_each nor count.
-func expansionMetaArg(
-	expansion *hclsyntax.Block,
-	evalCtx *hcl.EvalContext,
-) (pkghclparse.MetaArg, cty.Value, hcl.Diagnostics) {
-	for _, attr := range SortedAttributes(expansion.Body.Attributes) {
-		metaArg := pkghclparse.MetaArg(attr.Name)
-
-		switch metaArg {
-		case pkghclparse.MetaArgForEach, pkghclparse.MetaArgCount:
-			value, diags := attr.Expr.Value(evalCtx)
-
-			return metaArg, value, diags
-		}
-	}
-
-	panic(fmt.Sprintf(
-		"hclparse: ExpandBlock accepted the expansion block at %s, which sets neither %s nor %s",
-		expansion.DefRange(),
-		pkghclparse.MetaArgForEach,
-		pkghclparse.MetaArgCount,
-	))
-}
-
 // expansionDiagnostics reports an expansion failure as diagnostics, the form autoinclude resolution
 // returns its errors in.
 func expansionDiagnostics(err error, subject hcl.Range) hcl.Diagnostics {
@@ -375,6 +398,9 @@ func expansionDiagnostics(err error, subject hcl.Range) hcl.Diagnostics {
 
 // resolveConfigPath evaluates a dependency's config_path attribute in evalCtx and returns the path it
 // names.
+//
+// Reports a diagnostic when config_path fails to evaluate, or evaluates to an unknown, null, or
+// non-string value.
 func resolveConfigPath(
 	name string,
 	configPathAttr *hclsyntax.Attribute,

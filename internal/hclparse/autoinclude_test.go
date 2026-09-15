@@ -55,7 +55,7 @@ dependency "vpc" {
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "vpc", result.Dependencies[0].Name)
-	assert.Equal(t, "../vpc", result.Dependencies[0].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("../vpc"), result.Dependencies[0].ConfigPath)
 	assert.NotNil(t, result.Dependencies[0].Block)
 	assert.NotNil(t, result.RawBody)
 }
@@ -179,9 +179,9 @@ dependency "db" {
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 2)
 	assert.Equal(t, "vpc", result.Dependencies[0].Name)
-	assert.Equal(t, "../vpc", result.Dependencies[0].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("../vpc"), result.Dependencies[0].ConfigPath)
 	assert.Equal(t, "db", result.Dependencies[1].Name)
-	assert.Equal(t, "../database", result.Dependencies[1].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("../database"), result.Dependencies[1].ConfigPath)
 }
 
 func TestAutoIncludeHCL_Resolve_StackRef(t *testing.T) {
@@ -214,7 +214,7 @@ dependency "networking" {
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "networking", result.Dependencies[0].Name)
-	assert.Equal(t, "../networking", result.Dependencies[0].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("../networking"), result.Dependencies[0].ConfigPath)
 }
 
 func TestAutoIncludeHCL_Resolve_DependencyWithMockOutputs(t *testing.T) {
@@ -260,7 +260,7 @@ inputs = {
 	// Dependency config_path resolved
 	require.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "vpc", result.Dependencies[0].Name)
-	assert.Equal(t, "/abs/path/to/.terragrunt-stack/vpc", result.Dependencies[0].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("/abs/path/to/.terragrunt-stack/vpc"), result.Dependencies[0].ConfigPath)
 
 	// RawBody preserved (contains inputs with dependency.vpc.outputs.val)
 	assert.NotNil(t, result.RawBody)

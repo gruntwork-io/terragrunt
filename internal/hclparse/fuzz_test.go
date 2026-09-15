@@ -157,7 +157,7 @@ func FuzzPartialEval(f *testing.F) {
 		},
 	}
 
-	deferred := map[string]bool{"dependency": true}
+	deferred := map[string]struct{}{"dependency": {}}
 
 	f.Fuzz(func(t *testing.T, input string) {
 		srcBytes := []byte(input)

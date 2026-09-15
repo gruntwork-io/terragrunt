@@ -120,10 +120,12 @@ func componentBlocksSchema() *hcl.BodySchema {
 }
 
 // expandComponentBlocks decodes each block into a fresh T once per expansion element, so a
-// body referencing each.* or count.index decodes. Every block is attempted: the components
-// that decoded are returned alongside the joined error of the blocks that did not. It panics
-// when [github.com/gruntwork-io/terragrunt/pkg/config/hclparse.ExpandBlock] returns a value
-// that is not the *T it was given.
+// body referencing each.* or count.index decodes.
+//
+// Every block is attempted: the components that decoded are returned alongside the joined
+// error of the blocks that did not.
+//
+// Panics when [pkghclparse.ExpandBlock] returns a value that is not the *T it was given.
 func expandComponentBlocks[T any, P expandedComponent[T]](
 	blocks hcl.Blocks,
 	evalCtx *hcl.EvalContext,
@@ -190,9 +192,12 @@ type ComponentRef struct {
 
 // BuildComponentRefMap converts component refs into an HCL object injected as
 // the root (`unit` or `stack`) variable in the eval context. Empty input returns
-// EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics. The
-// elements of an expanded block nest under its label by key. A label naming both
-// an unexpanded block and an expanded one returns [ComponentRefCollisionError].
+// EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
+//
+// The elements of an expanded block nest under its label by key.
+//
+// Returns [ComponentRefCollisionError] when a label names both an unexpanded block
+// and an expanded one.
 //
 // Output shape:
 //
@@ -724,6 +729,9 @@ func mergeDiscoveryStackAutoInclude(
 }
 
 // setComponentRefVars publishes the unit.<name> and stack.<name> refs of decoded into evalCtx.
+//
+// Returns [ComponentRefCollisionError] when a label names both an unexpanded block and an
+// expanded one, and publishes nothing.
 func setComponentRefVars(
 	evalCtx *hcl.EvalContext,
 	decoded *discoveryDecode,

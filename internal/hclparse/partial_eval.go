@@ -17,17 +17,17 @@ import (
 // Every other namespace, including values.* (the stack file's values), local.*, unit.*, and
 // stack.*, resolves at generate time in the terragrunt.stack.hcl context.
 // This map must not be modified after package initialization.
-var deferredRoots = map[string]bool{
-	varDependency: true,
+var deferredRoots = map[string]struct{}{
+	varDependency: {},
 }
 
 // expandedDependencyDeferredRoots extends deferredRoots with the iteration roots of an expanded
 // dependency block, which the generated unit binds when it expands the block again.
 // This map must not be modified after package initialization.
-var expandedDependencyDeferredRoots = map[string]bool{
-	varDependency: true,
-	varEach:       true,
-	varCount:      true,
+var expandedDependencyDeferredRoots = map[string]struct{}{
+	varDependency: {},
+	varEach:       {},
+	varCount:      {},
 }
 
 // defaultMaxPartialEvalDepth bounds recursion for pathological deeply-nested expressions; past this, fall back to source bytes.
@@ -36,7 +36,7 @@ const defaultMaxPartialEvalDepth = 10000
 // EvalArgs bundles the shared arguments for partial evaluation functions.
 type EvalArgs struct {
 	EvalCtx  *hcl.EvalContext
-	Deferred map[string]bool
+	Deferred map[string]struct{}
 	SrcBytes []byte
 	MaxDepth int
 	depth    int
@@ -124,8 +124,8 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 	case *hclsyntax.ForExpr:
 		saved := args.Deferred
 		args.Deferred = maps.Clone(saved)
-		args.Deferred[e.KeyVar] = true
-		args.Deferred[e.ValVar] = true
+		args.Deferred[e.KeyVar] = struct{}{}
+		args.Deferred[e.ValVar] = struct{}{}
 
 		defer func() { args.Deferred = saved }()
 
@@ -144,7 +144,7 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 }
 
 func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]byte, error) {
-	if args.Deferred[e.Traversal.RootName()] {
+	if _, deferred := args.Deferred[e.Traversal.RootName()]; deferred {
 		return RangeBytes(args.SrcBytes, e.Range()), nil
 	}
 
@@ -264,9 +264,9 @@ func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) ([]byte, er
 }
 
 // IsPure returns true if the expression has no references to deferred root names.
-func IsPure(expr hclsyntax.Expression, deferred map[string]bool) bool {
+func IsPure(expr hclsyntax.Expression, deferred map[string]struct{}) bool {
 	for _, traversal := range expr.Variables() {
-		if deferred[traversal.RootName()] {
+		if _, found := deferred[traversal.RootName()]; found {
 			return false
 		}
 	}

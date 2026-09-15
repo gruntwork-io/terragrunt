@@ -248,11 +248,14 @@ func validateUniqueNames(units []*UnitBlockHCL, stacks []*StackBlockHCL) error {
 // from a path-only decode of body (the discovery shapes), leaving source, values, and
 // autoinclude content unevaluated. Running it before the phase-4 decode lets values
 // expressions reference sibling component paths, matching the production parse
-// (injectStackComponentRefs in pkg/config). A failed path-only decode publishes
-// nothing and reports no error: the phase-4 decode evaluates a superset of the same
-// attributes against the same context, so it surfaces the identical diagnostics
-// along with partial results. A [ComponentRefCollisionError] is returned, since the
-// phase-4 decode accepts the blocks that cause it.
+// (injectStackComponentRefs in pkg/config).
+//
+// A failed path-only decode publishes nothing and reports no error: the phase-4 decode
+// evaluates a superset of the same attributes against the same context, so it surfaces
+// the identical diagnostics along with partial results.
+//
+// Returns [ComponentRefCollisionError] when a label names both an unexpanded and an expanded
+// block, which the phase-4 decode accepts.
 func publishComponentRefs(body hcl.Body, evalCtx *hcl.EvalContext, stackDir string) error {
 	headers, decoded := pathOnlyHeaders(body, evalCtx)
 	if !decoded {

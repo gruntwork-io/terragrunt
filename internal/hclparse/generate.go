@@ -73,8 +73,10 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 //     evaluated the same way: only dependency.* (and any expression referencing it) is
 //     preserved verbatim for runtime resolution.
 //
-// Requires non-nil fsys and non-empty targetDir (panics otherwise). It also panics when an expanded
-// dependency in resolved has a MetaArg that is neither for_each nor count. resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
+// resolved may be nil, which writes nothing. srcBytes must be the bytes of the file resolved.RawBody
+// was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
+//
+// Panics when fsys is nil, targetDir is empty, or a dependency in resolved has a nil ConfigPath.
 func GenerateAutoIncludeFile(
 	fsys vfs.FS,
 	resolved *AutoIncludeResolved,
@@ -176,7 +178,7 @@ func copyBlock(
 	block *hclsyntax.Block,
 	srcBytes []byte,
 	evalCtx *hcl.EvalContext,
-	deferred map[string]bool,
+	deferred map[string]struct{},
 	depth int,
 ) error {
 	if depth > maxBlockDepth {
@@ -253,8 +255,11 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 // Its other attributes (mock_outputs, etc.) are partially evaluated like the rest of the autoinclude body:
 // generate-time roots (local.*, values.*, unit.*, stack.*) and function calls resolve to literals while
 // dependency.*.outputs.* is kept verbatim (resolved inside the generated unit). An expanded dependency also
-// keeps each.* and count.index verbatim. When evalCtx is nil the attributes are copied from source bytes
-// unchanged.
+// keeps each.* and count.index verbatim.
+//
+// When evalCtx is nil the attributes are copied from source bytes unchanged.
+//
+// Panics when dep.ConfigPath is nil.
 func writeDependencyBlock(
 	outBody *hclwrite.Body,
 	dep AutoIncludeDependency,
@@ -266,15 +271,9 @@ func writeDependencyBlock(
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
-	deferred := deferredRoots
+	dep.ConfigPath.writeConfigPath(depBody, targetDir)
 
-	if dep.Expansion != nil {
-		writeExpansionBlock(depBody, dep.Expansion)
-
-		deferred = expandedDependencyDeferredRoots
-	}
-
-	depBody.SetAttributeRaw(attrConfigPath, configPathTokens(dep, targetDir))
+	deferred := dep.ConfigPath.deferred()
 
 	// Render the remaining attributes (mock_outputs, etc.) with the same partial evaluation.
 	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {
@@ -301,65 +300,76 @@ func writeDependencyBlock(
 	return nil
 }
 
-// writeExpansionBlock writes the expansion block of an expanded dependency, with for_each or count set
-// to the literal it evaluated to at generate time, so the generated unit iterates the same elements
-// without the stack file's context.
-func writeExpansionBlock(body *hclwrite.Body, expansion *AutoIncludeDependencyExpansion) {
-	value := hclwrite.TokensForValue(expansion.Value)
+// writeConfigPath writes config_path relative to targetDir.
+func (path SingleConfigPath) writeConfigPath(body *hclwrite.Body, targetDir string) {
+	body.SetAttributeRaw(
+		attrConfigPath,
+		quotedStringTokens(relativeConfigPath(targetDir, string(path))),
+	)
+}
+
+// deferred returns the roots a dependency that does not expand keeps verbatim.
+func (SingleConfigPath) deferred() map[string]struct{} {
+	return deferredRoots
+}
+
+// writeConfigPath writes an expansion block with count set to the number of elements, and config_path
+// as a list of paths relative to targetDir that the generated unit reads by count.index.
+func (paths CountConfigPaths) writeConfigPath(body *hclwrite.Body, targetDir string) {
+	writeExpansionBlock(body, pkghclparse.MetaArgCount, cty.NumberIntVal(int64(len(paths))))
+
+	relative := make([]cty.Value, 0, len(paths))
+
+	for _, path := range paths {
+		relative = append(relative, cty.StringVal(relativeConfigPath(targetDir, path)))
+	}
+
+	body.SetAttributeRaw(attrConfigPath, slices.Concat(
+		hclwrite.TokensForValue(cty.TupleVal(relative)),
+		RawTokens([]byte("["+varCount+".index]")),
+	))
+}
+
+// deferred returns the roots a dependency expanded by count keeps verbatim.
+func (CountConfigPaths) deferred() map[string]struct{} {
+	return expandedDependencyDeferredRoots
+}
+
+// writeConfigPath writes an expansion block with for_each set to the collection, and config_path as an
+// object of paths relative to targetDir that the generated unit reads by each.key.
+func (paths ForEachConfigPaths) writeConfigPath(body *hclwrite.Body, targetDir string) {
+	writeExpansionBlock(body, pkghclparse.MetaArgForEach, paths.Collection)
+
+	relative := make(map[string]cty.Value, len(paths.Paths))
+
+	for key, path := range paths.Paths {
+		relative[key] = cty.StringVal(relativeConfigPath(targetDir, path))
+	}
+
+	body.SetAttributeRaw(attrConfigPath, slices.Concat(
+		hclwrite.TokensForValue(cty.ObjectVal(relative)),
+		RawTokens([]byte("["+varEach+".key]")),
+	))
+}
+
+// deferred returns the roots a dependency expanded by for_each keeps verbatim.
+func (ForEachConfigPaths) deferred() map[string]struct{} {
+	return expandedDependencyDeferredRoots
+}
+
+// writeExpansionBlock writes an expansion block setting metaArg to value as a literal, so the generated
+// unit iterates the same elements without the stack file's context.
+func writeExpansionBlock(body *hclwrite.Body, metaArg pkghclparse.MetaArg, value cty.Value) {
+	tokens := hclwrite.TokensForValue(value)
 
 	// hclwrite renders a set as a tuple, which for_each rejects.
-	if expansion.Value.Type().IsSetType() {
-		value = slices.Concat(RawTokens([]byte("toset(")), value, RawTokens([]byte(")")))
+	if value.Type().IsSetType() {
+		tokens = slices.Concat(RawTokens([]byte("toset(")), tokens, RawTokens([]byte(")")))
 	}
 
 	block := body.AppendNewBlock(pkghclparse.ExpansionBlockName, nil)
-	block.Body().SetAttributeRaw(string(expansion.MetaArg), value)
+	block.Body().SetAttributeRaw(string(metaArg), tokens)
 	body.AppendNewline()
-}
-
-// configPathTokens renders a dependency's config_path relative to targetDir. An expanded dependency
-// renders one path per element, looked up by each.key or count.index when the generated unit expands
-// the block again.
-func configPathTokens(dep AutoIncludeDependency, targetDir string) hclwrite.Tokens {
-	if dep.Expansion == nil {
-		return quotedStringTokens(relativeConfigPath(targetDir, dep.ConfigPath))
-	}
-
-	paths, index := elementConfigPaths(dep.Expansion, targetDir)
-
-	return slices.Concat(hclwrite.TokensForValue(paths), RawTokens([]byte(index)))
-}
-
-// elementConfigPaths returns the config_path of every element of an expanded dependency, relative to
-// targetDir, and the expression the generated unit indexes them with: a list read by count.index, or
-// an object read by each.key. It panics when expansion.MetaArg is neither for_each nor count.
-func elementConfigPaths(
-	expansion *AutoIncludeDependencyExpansion,
-	targetDir string,
-) (cty.Value, string) {
-	switch expansion.MetaArg {
-	case pkghclparse.MetaArgCount:
-		paths := make([]cty.Value, 0, len(expansion.Instances))
-
-		for _, instance := range expansion.Instances {
-			paths = append(paths, cty.StringVal(relativeConfigPath(targetDir, instance.ConfigPath)))
-		}
-
-		return cty.TupleVal(paths), "[" + varCount + ".index]"
-	case pkghclparse.MetaArgForEach:
-		paths := make(map[string]cty.Value, len(expansion.Instances))
-
-		for _, instance := range expansion.Instances {
-			paths[instance.Key()] = cty.StringVal(relativeConfigPath(targetDir, instance.ConfigPath))
-		}
-
-		return cty.ObjectVal(paths), "[" + varEach + ".key]"
-	default:
-		panic(fmt.Sprintf(
-			"hclparse.elementConfigPaths: unknown expansion meta-argument %q",
-			expansion.MetaArg,
-		))
-	}
 }
 
 // relativeConfigPath returns configPath relative to targetDir, or configPath unchanged when no relative
@@ -415,7 +425,7 @@ func writeAttribute(
 	attr *hclsyntax.Attribute,
 	srcBytes []byte,
 	evalCtx *hcl.EvalContext,
-	deferred map[string]bool,
+	deferred map[string]struct{},
 ) error {
 	if evalCtx == nil {
 		body.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))

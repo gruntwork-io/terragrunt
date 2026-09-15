@@ -1388,6 +1388,9 @@ func injectStackComponentRefs(
 
 // setStackComponentRefVars publishes the unit.<name> and stack.<name> path variables into evalCtx,
 // keyed per element for an expanded component.
+//
+// Returns [inthclparse.ComponentRefCollisionError] when a label names both an unexpanded
+// component and an expanded one, and publishes nothing.
 func setStackComponentRefVars(
 	evalCtx *hcl.EvalContext,
 	stackDir string,

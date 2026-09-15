@@ -2,6 +2,7 @@ package hclparse_test
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
@@ -93,8 +94,9 @@ type dependencyStackFields struct {
 	ConfigPath string
 }
 
-// renderStackTemplate executes a stack file template with fields and returns the HCL it renders. A
-// field the template names but fields lacks fails the test.
+// renderStackTemplate executes a stack file template with fields and returns the HCL it renders.
+//
+// A field the template names but fields lacks fails the test.
 func renderStackTemplate(t *testing.T, stack *template.Template, fields any) string {
 	t.Helper()
 
@@ -159,7 +161,7 @@ func TestParseStackFileResolvesAutoIncludePerExpandedInstance(t *testing.T) {
 				require.Len(t, resolved.Dependencies, 1)
 				assert.Equal(
 					t,
-					filepath.Join(testStackDir, hclparse.StackDir, "repo"),
+					hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "repo")),
 					resolved.Dependencies[0].ConfigPath,
 				)
 
@@ -236,14 +238,8 @@ func TestParseStackFileResolvesExpandedAutoIncludeDependency(t *testing.T) {
 			require.True(t, ok)
 			require.Len(t, resolved.Dependencies, 1)
 
-			expansion := resolved.Dependencies[0].Expansion
-			require.NotNil(t, expansion)
-			assert.Equal(t, tc.metaArg, expansion.MetaArg)
-
-			components := make(map[string]string, len(expansion.Instances))
-			for _, instance := range expansion.Instances {
-				components[instance.Key()] = instance.ConfigPath
-			}
+			metaArg, components := expandedConfigPaths(t, resolved.Dependencies[0].ConfigPath)
+			assert.Equal(t, tc.metaArg, metaArg)
 
 			want := make(map[string]string, len(tc.components))
 			for key, component := range tc.components {
@@ -391,6 +387,34 @@ unit "environment" {
 		filepath.Join("/test", hclparse.StackDir, "environment", "dev"),
 		filepath.Join("/test", hclparse.StackDir, "environment", "prod"),
 	}, paths)
+}
+
+// expandedConfigPaths returns the meta-argument that expanded a dependency and the config_path of each
+// of its elements by key.
+//
+// Fails the test when configPath is not an expanded config_path.
+func expandedConfigPaths(
+	t *testing.T,
+	configPath hclparse.ConfigPath,
+) (pkghclparse.MetaArg, map[string]string) {
+	t.Helper()
+
+	switch paths := configPath.(type) {
+	case hclparse.CountConfigPaths:
+		byIndex := make(map[string]string, len(paths))
+
+		for i, path := range paths {
+			byIndex[strconv.Itoa(i)] = path
+		}
+
+		return pkghclparse.MetaArgCount, byIndex
+	case hclparse.ForEachConfigPaths:
+		return pkghclparse.MetaArgForEach, paths.Paths
+	default:
+		require.Failf(t, "config_path is not expanded", "got %T", configPath)
+
+		return "", nil
+	}
 }
 
 // generatedInputString returns the string input named key from the terragrunt.autoinclude.hcl

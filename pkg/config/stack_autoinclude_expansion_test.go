@@ -72,8 +72,10 @@ func TestGenerateStackWritesAutoIncludePerExpandedUnit(t *testing.T) {
 
 // TestGenerateStackDropsAutoIncludeOfOverriddenExpandedUnit pins that a sibling
 // terragrunt.autoinclude.stack.hcl overriding an expanded unit replaces every element's autoinclude,
-// including an element the override declares under the same key. The audit unit keeps an autoinclude
-// in the merged config, so generation still resolves autoincludes from the base stack file.
+// including an element the override declares under the same key.
+//
+// The audit unit keeps an autoinclude in the merged config, so generation still resolves autoincludes
+// from the base stack file.
 func TestGenerateStackDropsAutoIncludeOfOverriddenExpandedUnit(t *testing.T) {
 	t.Parallel()
 
@@ -162,8 +164,9 @@ type dependencyStackFields struct {
 	MockName   string
 }
 
-// renderStackTemplate executes a stack file template with fields and returns the HCL it renders. A
-// field the template names but fields lacks fails the test.
+// renderStackTemplate executes a stack file template with fields and returns the HCL it renders.
+//
+// A field the template names but fields lacks fails the test.
 func renderStackTemplate(t *testing.T, stack *template.Template, fields any) string {
 	t.Helper()
 
