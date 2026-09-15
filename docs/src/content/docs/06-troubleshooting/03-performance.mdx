@@ -6,6 +6,7 @@ sidebar:
   order: 3
 ---
 
+import Before from '@components/Before.astro';
 import { Aside, Card } from '@astrojs/starlight/components';
 
 ## Easy Wins
@@ -134,7 +135,7 @@ terragrunt run --all plan --experiment=dependency-fetch-output-from-state
 
 <Card title="Supported backends" icon="information">
 
-The experiment supports S3 and GCS backends. Azure Storage (`azurerm`) is supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled. Unsupported backends, and supported backends whose configuration the direct reader cannot reproduce, fall back to the normal OpenTofu/Terraform output command.
+The experiment supports S3, GCS, and Azure Storage (`azurerm`) backends.<Before version="1.2.0"> Azure also requires the [`azure-backend`](/reference/experiments/active#azure-backend) experiment.</Before> Unsupported backends, and supported backends whose configuration the direct reader cannot reproduce, fall back to the normal OpenTofu/Terraform output command.
 
 </Card>
 

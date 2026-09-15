@@ -39,7 +39,7 @@ By default, Terragrunt runs `output -json` against each dependency, which loads 
 terragrunt run --all --experiment=dependency-fetch-output-from-state -- plan
 ```
 
-This applies to S3 and GCS backends. Azure Storage (`azurerm`) also supports it when the `azure-backend` experiment is enabled.
+This applies to S3, GCS, and Azure Storage (`azurerm`) backends.<Before version="1.2.0"> Azure also requires the `azure-backend` experiment.</Before>
 
 <Before version="1.1.5">
 OpenTofu client-side state encryption can make the direct reader resolve no outputs. Disable the experiment with `--no-dependency-fetch-output-from-state` when using encrypted state.

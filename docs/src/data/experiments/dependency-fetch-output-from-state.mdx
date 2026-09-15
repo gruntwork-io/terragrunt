@@ -13,7 +13,7 @@ By default, Terragrunt retrieves dependency outputs by running `tofu output` or 
 **Current Backend Support:**
 
 - S3 and GCS backends: Direct state reads are supported
-- Azure Storage (`azurerm`) backend: Direct state reads are supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled
+- Azure Storage (`azurerm`) backend: Direct state reads are supported<Before version="1.2.0"> when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled</Before>
 - Other backends: Falls back to the normal method (using `tofu/terraform output`)
 
 Azure state protected with `customer_provided_key`, and Azure configurations that rely on native-only authentication, `metadata_host`, or `timeout_seconds`, also use the normal method.
