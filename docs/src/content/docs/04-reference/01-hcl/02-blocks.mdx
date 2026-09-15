@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Before from '@components/Before.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
@@ -50,7 +51,7 @@ The `terraform` block supports the following arguments:
   - The `source` parameter can pull modules from OCI registries using the `oci` protocol, in the format
     `oci://REGISTRY_HOST/REPOSITORY[//SUBDIR][?tag=TAG|?digest=DIGEST]`. For example:
     `oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0`. When neither `tag` nor `digest` is set, the
-    `latest` tag is used. This requires the [`oci` experiment](/reference/experiments/active#oci); see
+    `latest` tag is used. <Before version="1.2.0">This requires the [`oci` experiment](/reference/experiments/active#oci). </Before>See
     [OCI registries](/features/units/oci) for the publishing contract and authentication.
 
 - `version` (attribute): A version constraint used to resolve a `tfr://` registry module, as an alternative to pinning an exact version in the source URL.

@@ -594,14 +594,6 @@ func tryCASDownload(
 	opts *Options,
 	mutable bool,
 ) (bool, error) {
-	ociEnabled := opts.Experiments.Evaluate(experiment.OCI)
-
-	// Without the oci experiment the CAS maps carry no oci entries, so skip
-	// the attempt instead of logging a guaranteed fallback on every download.
-	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI && !ociEnabled {
-		return false, nil
-	}
-
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
 	l.Debugf(
@@ -674,10 +666,7 @@ func tryCASDownload(
 		getter.WithDispatchFS(v.FS),
 		getter.WithDispatchVenv(v),
 		getter.WithTFRConfig(opts.TofuImplementation),
-	}
-
-	if ociEnabled {
-		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(v))
+		getter.WithOCIConfig(v),
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
@@ -745,8 +734,8 @@ func casFailureIsFatal(opts *Options, err error) bool {
 // BuildDownloadClient constructs the go-getter client used for the standard
 // (non-CAS) download path. The customizations layered on top of the default
 // protocol set are: FileCopyGetter (copies local sources instead of
-// symlinking), RegistryGetter (resolves tfr:// sources), and, behind the oci
-// experiment, OCIGetter (resolves oci:// sources).
+// symlinking), RegistryGetter (resolves tfr:// sources), and OCIGetter
+// (resolves oci:// sources).
 //
 // The client carries the full protocol set whatever v.FS is. Sources that
 // need a getter which cannot honor a virtual filesystem are rejected up front
@@ -769,10 +758,7 @@ func BuildDownloadClient(
 			WithSymlinkedGlobRoots(opts.Experiments.Evaluate(experiment.Symlinks))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
 			WithTofuImplementation(opts.TofuImplementation)),
-	}
-
-	if opts.Experiments.Evaluate(experiment.OCI) {
-		clientOpts = append(clientOpts, getter.WithOCI(getter.NewOCIGetter(l, v)))
+		getter.WithOCI(getter.NewOCIGetter(l, v)),
 	}
 
 	return getter.NewClient(l, v, clientOpts...), nil

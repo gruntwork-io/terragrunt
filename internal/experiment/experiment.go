@@ -78,7 +78,9 @@ const (
 	OptionalHooks = "optional-hooks"
 	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
 	Profiling = "profiling"
-	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
+	// OCI names the now-stable support for downloading modules from OCI
+	// Distribution registries via oci:// sources. It is enabled by default and
+	// the flag is retained only for backwards compatibility.
 	OCI = "oci"
 	// VersionAttribute gates resolving a tfr:// registry module from a version
 	// constraint expressed through the version attribute on the terraform block.
@@ -212,7 +214,8 @@ func NewExperiments() Experiments {
 			Name: Profiling,
 		},
 		{
-			Name: OCI,
+			Name:   OCI,
+			Status: StatusCompleted,
 		},
 		{
 			Name: VersionAttribute,

@@ -1,0 +1,8 @@
+---
+version: "v1.2.0"
+category: "experiments-updated"
+---
+
+#### `oci` experiment completed
+
+`oci://` module sources are now supported by default. Terragrunt accepts them in `terraform { source = ... }` blocks and in the `unit` and `stack` blocks of a `terragrunt.stack.hcl`, against registries such as Amazon ECR, GitHub Container Registry, Azure Container Registry, and Google Artifact Registry. The `--experiment oci` flag and `TG_EXPERIMENT=oci` are no longer needed. Passing either still works, but emits a warning about the completed experiment, so you can drop it at your convenience. See [OCI registries](/features/units/oci) for the source syntax, authentication tiers, and the publishing contract.
