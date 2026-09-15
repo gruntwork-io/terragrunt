@@ -236,10 +236,9 @@ func GenerateStackFile(
 		casEnabled:      cs.Enabled,
 		casInstance:     cs.Instance,
 		strictControls:  pctx.StrictControls,
+		// One getter per stack, so every component shares its credential resolution.
+		ociGetter: getter.NewOCIGetter(l, pctx.Venv),
 	}
-
-	// One getter per stack, so every component shares its credential resolution.
-	genOpts.ociGetter = getter.NewOCIGetter(l, pctx.Venv)
 
 	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
 		return err
