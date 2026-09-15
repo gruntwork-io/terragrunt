@@ -17,6 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,7 @@ func TestExecHgResolver_AgainstRealHg(t *testing.T) {
 
 	r := getter.NewHgResolver(vexec.NewOSExec())
 
-	got, err := r.Probe(t.Context(), repoDir+"?rev=tip")
+	got, err := r.Probe(t.Context(), redact.NewURL(repoDir+"?rev=tip"))
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("hg-node", fullNode), got)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -31,7 +32,7 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 			cas.WithDepth(-1))
 		require.NoError(t, err)
 
@@ -53,7 +54,7 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 			cas.WithBranch("main"),
 			cas.WithDepth(-1))
 		require.NoError(t, err)
@@ -72,7 +73,7 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 			cas.WithIncludedGitFiles([]string{"HEAD", "config"}),
 			cas.WithDepth(-1))
 		require.NoError(t, err)
@@ -109,7 +110,7 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 
 	v := venvtest.NewOSWithEmptyEnv()
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 		cas.WithDepth(-1))
 	require.NoError(t, err)
 
@@ -147,7 +148,7 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 
 	v := venvtest.NewOSWithEmptyEnv()
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 		cas.WithDepth(-1))
 	require.NoError(t, err)
 
@@ -188,7 +189,7 @@ func TestCASRejectsNonOSFilesystem(t *testing.T) {
 
 	v := venvtest.New()
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, "https://example.com/repo.git",
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL("https://example.com/repo.git"),
 		cas.WithDir(filepath.Join(helpers.TmpDirWOSymlinks(t), "repo")),
 		cas.WithDepth(-1))
 	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)

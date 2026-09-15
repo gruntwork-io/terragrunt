@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -56,7 +57,7 @@ func TestCAS_ColdIngestBlobsMatchGit(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	require.NoError(t, c.Clone(ctx, l, v, repoURL, cas.WithDir(targetPath), cas.WithDepth(-1)))
+	require.NoError(t, c.Clone(ctx, l, v, redact.NewURL(repoURL), cas.WithDir(targetPath), cas.WithDepth(-1)))
 
 	for path, want := range files {
 		linked, err := os.ReadFile(filepath.Join(targetPath, filepath.FromSlash(path)))

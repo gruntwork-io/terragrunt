@@ -18,6 +18,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -93,7 +94,7 @@ func BenchmarkColdIngestStore(b *testing.B) {
 
 		b.StartTimer()
 
-		require.NoError(b, c.Clone(b.Context(), l, v, repoURL,
+		require.NoError(b, c.Clone(b.Context(), l, v, redact.NewURL(repoURL),
 			cas.WithDir(targetPath), cas.WithDepth(-1)))
 	}
 
@@ -178,7 +179,7 @@ func BenchmarkPinnedSHAFetch(b *testing.B) {
 
 		b.StartTimer()
 
-		require.NoError(b, c.Clone(b.Context(), l, v, fixture.url,
+		require.NoError(b, c.Clone(b.Context(), l, v, redact.NewURL(fixture.url),
 			cas.WithDir(targetPath), cas.WithBranch(fixture.sha), cas.WithDepth(1)))
 	}
 

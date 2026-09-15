@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -296,7 +297,7 @@ func (r *GitResolver) Scheme() string { return gitScheme }
 // from the ref ls-remote matched rather than the ref that was asked for
 // (see [GitResolver.recordProbe]), so it has no pre-probe answer to give.
 // Nothing consults it: [CAS.Clone] asks for [ProbeCachedByResolver].
-func (r *GitResolver) Pinned(_ string) bool { return false }
+func (r *GitResolver) Pinned(_ redact.URL) bool { return false }
 
 // Probe returns the commit SHA for r.Branch (HEAD when empty). The
 // returned SHA is the cache key verbatim and doubles as the git
@@ -310,15 +311,15 @@ func (r *GitResolver) Pinned(_ string) bool { return false }
 // [GitResolver.storeProbe]). Concurrent probes of the same (URL, ref)
 // anywhere in the process share one ls-remote, and a persisted answer
 // within its TTL (see [ProbeTTL]) skips ls-remote entirely.
-func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	if hash, ok := r.storeProbe(ctx, rawURL); ok {
+func (r *GitResolver) Probe(ctx context.Context, u redact.URL) (string, error) {
+	if hash, ok := r.storeProbe(ctx, u); ok {
 		recordProbeOrigin(ctx, probeOriginGitStore)
 
 		return hash, nil
 	}
 
-	res, err := flights.probe.do(ctx, r.flightKey(rawURL), func(ctx context.Context) (probeResult, error) {
-		return r.probeUncoalesced(ctx, rawURL)
+	res, err := flights.probe.do(ctx, r.flightKey(u), func(ctx context.Context) (probeResult, error) {
+		return r.probeUncoalesced(ctx, u)
 	})
 	if err != nil {
 		return "", err
@@ -338,7 +339,7 @@ func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 // only other outcome is [OfflineMissError], so an abbreviated SHA is
 // offered too; [GitStore.ProbeCachedCommit] rejects a name that resolved
 // through ref lookup on its own.
-func (r *GitResolver) storeProbe(ctx context.Context, rawURL string) (string, bool) {
+func (r *GitResolver) storeProbe(ctx context.Context, u redact.URL) (string, bool) {
 	if r.Store == nil {
 		return "", false
 	}
@@ -347,41 +348,41 @@ func (r *GitResolver) storeProbe(ctx context.Context, rawURL string) (string, bo
 		return "", false
 	}
 
-	return r.Store.ProbeCachedCommit(ctx, r.Venv, rawURL, r.Branch)
+	return r.Store.ProbeCachedCommit(ctx, r.Venv, u, r.Branch)
 }
 
-// flightKey identifies the probe of rawURL for r.Branch within the
+// flightKey identifies the probe of u for r.Branch within the
 // process. See [probeFlightKey] for how the key is built.
-func (r *GitResolver) flightKey(rawURL string) string {
+func (r *GitResolver) flightKey(u redact.URL) string {
 	root := ""
 	if r.Cache != nil {
 		root = r.Cache.RootPath()
 	}
 
-	return probeFlightKey(root, rawURL, r.Branch)
+	return probeFlightKey(root, u, r.Branch)
 }
 
-// probeFlightKey identifies the probe of url for ref within the process.
+// probeFlightKey identifies the probe of u for ref within the process.
 // It carries the cache root because the flight records its answer there,
-// and probes over different stores must each record their own. The URL is
-// redacted so the flights line up with the partition
+// and probes over different stores must each record their own. The URL's
+// userinfo is dropped so the flights line up with the partition
 // [ProbeCache.EntryPath] records under: two units reaching one source
 // through different credentials share an answer here for the same reason
 // they share the persisted one.
-func probeFlightKey(cacheRoot, url, ref string) string {
-	return cacheRoot + "\x00" + RedactURL(url) + "\x00" + ref
+func probeFlightKey(cacheRoot string, u redact.URL, ref string) string {
+	return cacheRoot + "\x00" + u.WithoutUserinfo() + "\x00" + ref
 }
 
 // probeUncoalesced answers one probe from the persisted cache or, when
 // the mode allows it, from ls-remote, recording a fresh network answer
 // for later processes.
-func (r *GitResolver) probeUncoalesced(ctx context.Context, rawURL string) (probeResult, error) {
-	if entry, ok := r.cachedProbe(rawURL); ok {
+func (r *GitResolver) probeUncoalesced(ctx context.Context, u redact.URL) (probeResult, error) {
+	if entry, ok := r.cachedProbe(u); ok {
 		return probeResult{key: entry.Key, origin: probeOriginProbeCache}, nil
 	}
 
 	if r.Mode == ProbeModeOffline {
-		return probeResult{}, &OfflineMissError{Source: RedactURL(rawURL), Ref: probeRefName(r.Branch)}
+		return probeResult{}, &OfflineMissError{Source: u, Ref: probeRefName(r.Branch)}
 	}
 
 	runner, err := git.NewGitRunner(r.Venv)
@@ -389,7 +390,7 @@ func (r *GitResolver) probeUncoalesced(ctx context.Context, rawURL string) (prob
 		return probeResult{}, err
 	}
 
-	results, err := runner.LsRemote(ctx, rawURL, r.Branch)
+	results, err := runner.LsRemote(ctx, u.Reveal(), r.Branch)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMatchingReference) {
 			return probeResult{}, ErrNoVersionMetadata
@@ -402,19 +403,19 @@ func (r *GitResolver) probeUncoalesced(ctx context.Context, rawURL string) (prob
 		return probeResult{}, ErrNoVersionMetadata
 	}
 
-	r.recordProbe(rawURL, results[0])
+	r.recordProbe(u, results[0])
 
 	return probeResult{key: results[0].Hash, origin: probeOriginLsRemote}, nil
 }
 
-// cachedProbe returns the persisted answer for rawURL when the mode and
+// cachedProbe returns the persisted answer for u when the mode and
 // TTL allow serving it.
-func (r *GitResolver) cachedProbe(rawURL string) (ProbeEntry, bool) {
+func (r *GitResolver) cachedProbe(u redact.URL) (ProbeEntry, bool) {
 	if r.Cache == nil || r.Mode == ProbeModeRefresh {
 		return ProbeEntry{}, false
 	}
 
-	entry, ok := r.Cache.Lookup(r.Venv.FS, rawURL, r.Branch)
+	entry, ok := r.Cache.Lookup(r.Venv.FS, u, r.Branch)
 	if !ok || !looksLikeFullSHA(entry.Key) {
 		return ProbeEntry{}, false
 	}
@@ -434,7 +435,7 @@ func (r *GitResolver) cachedProbe(rawURL string) (ProbeEntry, bool) {
 // recordProbe persists a network answer. A failed write costs only the
 // next process a probe, so it is logged rather than failing a probe that
 // already succeeded.
-func (r *GitResolver) recordProbe(rawURL string, res git.LsRemoteResult) {
+func (r *GitResolver) recordProbe(u redact.URL, res git.LsRemoteResult) {
 	if r.Cache == nil {
 		return
 	}
@@ -448,8 +449,8 @@ func (r *GitResolver) recordProbe(rawURL string, res git.LsRemoteResult) {
 		Immutable: IsSemverTag(res.Ref),
 	}
 
-	if err := r.Cache.Store(r.Venv.FS, rawURL, r.Branch, &entry); err != nil {
-		r.Logger.Debugf("cas: probe cache write for %s failed: %v", RedactURL(rawURL), err)
+	if err := r.Cache.Store(r.Venv.FS, u, r.Branch, &entry); err != nil {
+		r.Logger.Debugf("cas: probe cache write for %s failed: %v", u, err)
 	}
 }
 
@@ -472,7 +473,7 @@ func (c *CAS) newGitResolver(l log.Logger, v *venv.Venv, branch string) *GitReso
 	}
 }
 
-// Clone fetches url into the target directory through the CAS, using a
+// Clone fetches u into the target directory through the CAS, using a
 // [GitResolver] for the probe and ingesting via `git ls-tree -r` /
 // `git cat-file` so the native git blob and tree formats reach the
 // stores intact. Callers customize the clone by passing options such as
@@ -486,7 +487,7 @@ func (c *CAS) Clone(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	url string,
+	u redact.URL,
 	options ...CloneOption,
 ) error {
 	v.RequireFS()
@@ -498,13 +499,13 @@ func (c *CAS) Clone(
 	}
 
 	clonedOpts := opts
-	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, url)
+	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, u)
 
 	return c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
 		Scheme:       gitScheme,
-		URL:          url,
+		URL:          u,
 		Resolver:     c.newGitResolver(l, v, opts.Branch),
-		Fetch:        c.gitFetcher(url, &opts),
+		Fetch:        c.gitFetcher(u, &opts),
 		Attrs:        map[string]any{"branch": opts.Branch},
 		ProbeCaching: ProbeCachedByResolver,
 	})
@@ -556,7 +557,7 @@ func (c *CAS) EnsureBlob(
 // commit SHA from ls-remote; empty means ls-remote produced no match and
 // rev-parse against the central GitStore canonicalizes the user ref after
 // fetching.
-func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
+func (c *CAS) gitFetcher(u redact.URL, opts *CloneOptions) SourceFetcher {
 	return func(
 		ctx context.Context,
 		l log.Logger,
@@ -566,9 +567,9 @@ func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
 	) (string, error) {
 		var ref resolvedRef
 		if suggestedKey != "" {
-			ref = &symbolicRef{URL: url, Branch: opts.Branch, Hash: suggestedKey}
+			ref = &symbolicRef{URL: u, Branch: opts.Branch, Hash: suggestedKey}
 		} else {
-			ref = &commitRef{URL: url, RawRef: opts.Branch}
+			ref = &commitRef{URL: u, RawRef: opts.Branch}
 		}
 
 		return c.populateTreeFromRef(ctx, l, v, opts, ref, mode)
@@ -598,7 +599,7 @@ func (c *CAS) populateTreeFromRef(
 	if c.probeMode == ProbeModeOffline {
 		url, requested := ref.origin()
 
-		return "", &OfflineMissError{Source: RedactURL(url), Ref: probeRefName(requested)}
+		return "", &OfflineMissError{Source: url, Ref: probeRefName(requested)}
 	}
 
 	return flights.ingest.do(ctx, c.ingestFlightKey(ref, mode, opts), func(ctx context.Context) (string, error) {
@@ -626,7 +627,7 @@ func (c *CAS) ingestFlightKey(ref resolvedRef, mode IngestMode, opts *CloneOptio
 
 	url, requested := ref.origin()
 
-	return scope + "\x00ref\x00" + url + "\x00" + requested + files
+	return scope + "\x00ref\x00" + url.Reveal() + "\x00" + requested + files
 }
 
 // ingestRef dispatches by ref kind to the populate that fills the store.
@@ -699,7 +700,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 	runner := gitRunner.WithWorkDir(tempDir)
 
-	if err := runner.Clone(ctx, ref.URL, true, depth, ref.Branch); err != nil {
+	if err := runner.Clone(ctx, ref.URL.Reveal(), true, depth, ref.Branch); err != nil {
 		return err
 	}
 
@@ -760,7 +761,7 @@ func (c *CAS) populateTreeFromCommitRef(
 
 	runner := gitRunner.WithWorkDir(tempDir)
 
-	if err := runner.Clone(ctx, ref.URL, true, 0, ""); err != nil {
+	if err := runner.Clone(ctx, ref.URL.Reveal(), true, 0, ""); err != nil {
 		return "", err
 	}
 
@@ -825,10 +826,10 @@ func resolveCloneDepth(optDepth, casDepth int) int {
 	return depth
 }
 
-func (c *CAS) prepareTargetDirectory(dir, url string) string {
+func (c *CAS) prepareTargetDirectory(dir string, u redact.URL) string {
 	targetDir := dir
 	if targetDir == "" {
-		targetDir = git.ExtractRepoName(url)
+		targetDir = git.ExtractRepoName(u.Reveal())
 	}
 
 	return filepath.Clean(targetDir)
@@ -843,12 +844,12 @@ type resolvedRef interface {
 	// produced one, and "" when only a fetch can produce it.
 	knownHash() string
 	// origin returns the remote URL and the ref the caller asked for.
-	origin() (url, ref string)
+	origin() (url redact.URL, ref string)
 }
 
 // symbolicRef carries an ls-remote-resolved branch, tag, or HEAD.
 type symbolicRef struct {
-	URL    string
+	URL    redact.URL
 	Branch string // ref name, used for the per-ref fetch
 	Hash   string // canonical commit hash
 }
@@ -858,14 +859,14 @@ func (r *symbolicRef) CommitHash() string { return r.Hash }
 
 func (r *symbolicRef) knownHash() string { return r.Hash }
 
-func (r *symbolicRef) origin() (string, string) { return r.URL, r.Branch }
+func (r *symbolicRef) origin() (redact.URL, string) { return r.URL, r.Branch }
 
 // commitRef carries a ref ls-remote did not canonicalize. The central git
 // store resolves it later via rev-parse, fetching through
 // [fetchPinnedCommit] on a cache miss.
 type commitRef struct {
 	// URL is the remote repository URL.
-	URL string
+	URL redact.URL
 	// RawRef is the user-supplied ref. Any form `git rev-parse` accepts
 	// works (full SHA, abbreviated SHA, name ls-remote did not match).
 	RawRef string
@@ -882,7 +883,7 @@ func (r *commitRef) CommitHash() string { return r.RawRef }
 
 func (r *commitRef) knownHash() string { return r.Hash }
 
-func (r *commitRef) origin() (string, string) { return r.URL, r.RawRef }
+func (r *commitRef) origin() (redact.URL, string) { return r.URL, r.RawRef }
 
 // resolveReference resolves branch into a [resolvedRef] via [GitResolver].
 //
@@ -898,24 +899,25 @@ func (c *CAS) resolveReference(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	url, branch string,
+	u redact.URL,
+	branch string,
 ) (resolvedRef, error) {
 	if looksLikeFullSHA(branch) || c.probeMode == ProbeModeOffline {
-		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, v, url, branch); ok {
-			return &commitRef{URL: url, RawRef: branch, Hash: hash}, nil
+		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, v, u, branch); ok {
+			return &commitRef{URL: u, RawRef: branch, Hash: hash}, nil
 		}
 	}
 
-	key, err := c.newGitResolver(l, v, branch).Probe(ctx, url)
+	key, err := c.newGitResolver(l, v, branch).Probe(ctx, u)
 	if err != nil {
 		if errors.Is(err, ErrNoVersionMetadata) {
-			return &commitRef{URL: url, RawRef: branch}, nil
+			return &commitRef{URL: u, RawRef: branch}, nil
 		}
 
 		return nil, err
 	}
 
-	return &symbolicRef{URL: url, Branch: branch, Hash: key}, nil
+	return &symbolicRef{URL: u, Branch: branch, Hash: key}, nil
 }
 
 // looksLikeFullSHA reports whether s is exactly 40 or 64 hex characters,
@@ -936,7 +938,7 @@ func looksLikeFullSHA(s string) bool {
 // runner's working repository and stores its tree and reachable blobs in
 // the CAS, then records each of opts.IncludedGitFiles against hash. The
 // runner must already have its WorkDir pointed at a bare repo (or
-// worktree) that contains the requested object. url is the remote the
+// worktree) that contains the requested object. u is the remote the
 // repository came from; submodule ingestion resolves relative .gitmodules
 // URLs against it.
 func (c *CAS) storeRootTreeFrom(
@@ -944,7 +946,8 @@ func (c *CAS) storeRootTreeFrom(
 	l log.Logger,
 	v *venv.Venv,
 	runner *git.GitRunner,
-	url, hash string,
+	u redact.URL,
+	hash string,
 	opts *CloneOptions,
 	mode IngestMode,
 ) error {
@@ -953,7 +956,7 @@ func (c *CAS) storeRootTreeFrom(
 		return err
 	}
 
-	if err = c.storeTreeRecursive(ctx, l, v, runner, url, hash, tree, mode); err != nil {
+	if err = c.storeTreeRecursive(ctx, l, v, runner, u, hash, tree, mode); err != nil {
 		return err
 	}
 
@@ -1053,7 +1056,8 @@ func (c *CAS) storeTreeRecursive(
 	l log.Logger,
 	v *venv.Venv,
 	runner *git.GitRunner,
-	url, hash string,
+	u redact.URL,
+	hash string,
 	tree *git.Tree,
 	mode IngestMode,
 ) error {
@@ -1065,7 +1069,7 @@ func (c *CAS) storeTreeRecursive(
 		return err
 	}
 
-	if err := c.storeSubmodules(ctx, l, v, runner, url, tree, mode); err != nil {
+	if err := c.storeSubmodules(ctx, l, v, runner, u, tree, mode); err != nil {
 		return err
 	}
 
@@ -1188,7 +1192,7 @@ func (c *CAS) blobsNeedingWrite(v *venv.Venv, entries []git.TreeEntry) []git.Tre
 // materializer can later link each submodule's tree by its pinned commit
 // hash, which is exactly the key the recursive ingest stores it under.
 // Submodule URLs come from the tree's .gitmodules blob, with relative
-// URLs resolved against url. Recursion bottoms out naturally: nested
+// URLs resolved against u. Recursion bottoms out naturally: nested
 // gitlinks pin commits by hash, and a hash cycle cannot be constructed.
 //
 // Gitlinks without a .gitmodules entry (the shape left behind by
@@ -1200,7 +1204,7 @@ func (c *CAS) storeSubmodules(
 	l log.Logger,
 	v *venv.Venv,
 	runner *git.GitRunner,
-	url string,
+	u redact.URL,
 	tree *git.Tree,
 	mode IngestMode,
 ) error {
@@ -1232,7 +1236,7 @@ func (c *CAS) storeSubmodules(
 			continue
 		}
 
-		resolvedURL := git.ResolveSubmoduleURL(url, subURL)
+		resolvedURL := redact.NewURL(git.ResolveSubmoduleURL(u.Reveal(), subURL))
 
 		ref := &commitRef{URL: resolvedURL, RawRef: entry.Hash, Hash: entry.Hash}
 		if _, err := c.populateTreeFromRef(ctx, l, v, &CloneOptions{}, ref, mode); err != nil {
