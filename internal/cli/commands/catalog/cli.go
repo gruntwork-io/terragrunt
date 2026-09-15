@@ -32,7 +32,7 @@ func NewFlags(fsys vfs.FS, opts *Options, prefix flags.Prefix) clihelper.Flags {
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
 			Usage:       "Output format for the catalog. Valid values: tui, jsonl, md.",
-			DefaultText: FormatTUI,
+			DefaultText: FormatTUI + " in a terminal, " + FormatJSONL + " otherwise",
 		}),
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        IgnoreFileFlagName,
@@ -88,6 +88,12 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 		Usage: "Launch the user interface for searching and managing your module catalog.",
 		Flags: NewFlags(v.FS, cmdOpts, nil),
 		Before: func(_ context.Context, _ *clihelper.Context) error {
+			if cmdOpts.Format == "" {
+				v.RequireTerminal()
+
+				cmdOpts.Format = DefaultFormat(v.Terminal)
+			}
+
 			if err := cmdOpts.Validate(); err != nil {
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}

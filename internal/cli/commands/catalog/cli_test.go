@@ -104,6 +104,30 @@ func TestNewCommandActionLoadsThePositionalSource(t *testing.T) {
 	assert.Equal(t, []string{"alpha", "bravo"}, sortedDirs(t, buf.String()))
 }
 
+// TestNewCommandDefaultsToJSONLWithoutATerminal pins that a run with no
+// terminal and no --format writes JSON Lines, so piping the command needs no
+// flag.
+func TestNewCommandDefaultsToJSONLWithoutATerminal(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithWriter(&buf)
+	repoDir := "/catalog-default-format/repo"
+
+	writeLocalRepo(t, v, repoDir)
+
+	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), v)
+
+	require.NoError(t, cmd.Flags.Parse(clihelper.Args{}, map[string]string{}))
+	require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
+	require.NoError(t, cmd.Action(
+		t.Context(), clihelper.NewAppContext(nil, clihelper.Args{repoDir}),
+	))
+
+	assert.Equal(t, []string{"alpha", "bravo"}, sortedDirs(t, buf.String()))
+}
+
 // TestNewFlagsIgnoreFileAction pins how the ignore-file path is resolved and
 // rejected: the flag names a file the user expects to be read, so a path that
 // cannot be read has to fail the run rather than be silently ignored.

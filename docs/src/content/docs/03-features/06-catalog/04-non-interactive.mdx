@@ -8,6 +8,7 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 <Before version="1.2.0">
 
@@ -25,6 +26,16 @@ The [catalog TUI](/features/catalog/tui) needs a terminal, which leaves scripts,
 - `md` for a person or an agent that reads prose.
 
 Both carry the same information, and neither is interactive. Scaffolding stays in the TUI.
+
+<Since version="1.2.0">
+
+Piping the catalog needs no `--format`. Unless standard input and standard output are both terminals, `terragrunt catalog` writes `jsonl`:
+
+```bash
+terragrunt catalog | jq -c '{kind, title, component_source}'
+```
+
+</Since>
 
 ## JSON Lines
 

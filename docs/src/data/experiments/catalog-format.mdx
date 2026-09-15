@@ -19,7 +19,7 @@ Both formats render progressively, as entries are discovered, so a consumer that
 
 The `jsonl` records follow a published JSON schema, so consumers can validate what they read.
 
-Scaffolding a module and copying a unit or stack stay in the terminal user interface, which remains the default format.
+Without `--format`, the command opens the terminal user interface when standard input and standard output are both terminals, and writes `jsonl` otherwise. Scaffolding a module and copying a unit or stack stay in the terminal user interface.
 
 See [Non-interactive catalog](/features/catalog/non-interactive) for each format and the structure of an entry.
 
@@ -34,7 +34,7 @@ Criteria for moving `catalog-format` to a stable release:
 - [x] A `--format` flag on `catalog` accepting `jsonl` and `md`.
 - [x] Progressive rendering of both formats, so output is usable before discovery completes.
 - [x] A published JSON schema for `jsonl` records.
-- [ ] A default format derived from what the output stream supports, so piping `catalog` does not require passing `--format`.
-- [ ] Documentation covering each format and the stability guarantees of the record structure.
+- [x] A default format derived from what the output stream supports, so piping `catalog` does not require passing `--format`.
+- [x] Documentation covering each format and the stability guarantees of the record structure.
 - [x] Integration test coverage for each format.
 - [x] Community feedback on real-world usage.

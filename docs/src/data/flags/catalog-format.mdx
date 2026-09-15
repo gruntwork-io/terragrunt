@@ -1,7 +1,7 @@
 ---
 name: format
 description: |
-  Format the catalog as specified. Supported values (tui, jsonl, md). Default: tui.
+  Format the catalog as specified. Supported values (tui, jsonl, md). Default: tui when stdin and stdout are terminals, jsonl otherwise.
 type: string
 env:
   - TG_FORMAT
@@ -21,9 +21,21 @@ This flag is gated behind the [`catalog-format`](/reference/experiments/active#c
 
 ## Formats
 
-- `tui` is the default format for the `catalog` command, and results in the catalog rendering as an interactive Terminal User Interface.
+- `tui` renders the catalog as an interactive Terminal User Interface.
 - `jsonl` writes one JSON object per line to standard output, so a script can read the catalog where a terminal user interface cannot be used.
 - `md` writes a Markdown document to standard output, with a section per catalog entry, for reading by a person or by an agent.
+
+<Before version="1.2.0">
+
+`tui` is the default.
+
+</Before>
+
+<Since version="1.2.0">
+
+Without `--format`, the catalog uses `tui` when standard input and standard output are both terminals, and `jsonl` otherwise (e.g., when piped to another program).
+
+</Since>
 
 ## JSONL
 
