@@ -51,14 +51,14 @@ func TestOCIIsCompleted(t *testing.T) {
 	assert.True(t, got.Evaluate(), "oci must be enabled by default")
 }
 
-func TestOptionalHooksIsOngoing(t *testing.T) {
+func TestOptionalHooksIsCompleted(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
 	got := exps.Find(experiment.OptionalHooks)
 	require.NotNil(t, got, "optional-hooks experiment must be registered in NewExperiments()")
-	assert.Equal(t, experiment.StatusOngoing, got.Status, "optional-hooks must be ongoing")
-	assert.False(t, got.Evaluate(), "optional-hooks must be disabled by default")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "optional-hooks must be completed")
+	assert.True(t, got.Evaluate(), "optional-hooks must be enabled by default")
 }
 
 func TestProfilingIsOngoing(t *testing.T) {
