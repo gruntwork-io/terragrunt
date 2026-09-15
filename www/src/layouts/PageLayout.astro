@@ -29,6 +29,13 @@ interface Props {
    * /faq/* carries all three; /comparisons/* drops the CTA; /guides/* keeps only
    * the newsletter; /ai-info-page keeps only the open-source band.
    */
+  /*
+   * `/faqs-overview` and `/contact-tgs` are the two live pages WITHOUT the
+   * dashed column overlay, and the FAQ index runs an 850px column rather than
+   * the 800px prose measure.
+   */
+  grid?: boolean;
+  width?: "prose" | "wide";
   cta?: boolean;
   newsletter?: boolean;
   openSource?: boolean;
@@ -43,6 +50,8 @@ const {
   subhead,
   jsonLd,
   noindex,
+  grid = true,
+  width = "prose",
   cta = false,
   newsletter = false,
   openSource = false,
@@ -56,14 +65,14 @@ const {
   jsonLd={jsonLd}
   noindex={noindex}
 >
-  <VerticalGrid />
+  {grid && <VerticalGrid />}
   <Nav active={path} />
   <PageHero eyebrow={eyebrow} headline={headline} subhead={subhead} />
 
   <div class="global-page-container">
     <main class="mx-auto w-full max-w-[1310px]">
       <div class="px-4 pb-14 pt-[76px] md:px-8">
-        <div class="mx-auto max-w-[800px]">
+        <div class:list={["mx-auto", width === "wide" ? "max-w-[850px]" : "max-w-[800px]"]}>
           <slot />
         </div>
       </div>

@@ -43,22 +43,22 @@ const {
 } = Astro.props;
 
 const inputBase =
-  "w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-form-focus-ring/60";
+  "mt-2.5 w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-form-focus-ring/60";
 const inputTone =
   tone === "dark"
-    ? "border-stroke-dark bg-white/10 text-white placeholder:text-gray-1"
+    ? "border-transparent bg-white/10 text-gray-4 placeholder:text-gray-1"
     : "border-gray-4 bg-white text-dark-blue-1 placeholder:text-gray-2";
-const labelTone = tone === "dark" ? "text-gray-1" : "text-gray-3";
+const labelTone = tone === "dark" ? "text-white" : "text-gray-3";
 ---
 
 <form
-  class:list={["flex flex-col gap-4", className]}
+  class:list={["flex flex-col gap-1", className]}
   data-tg-form={formName}
   novalidate
 >
   {
     fields.map((field) => (
-      <label class="flex flex-col gap-1.5">
+      <label class="flex flex-col">
         <span class:list={["text-sm font-medium", labelTone]}>
           {field.label}
           {field.required && (
@@ -74,6 +74,7 @@ const labelTone = tone === "dark" ? "text-gray-1" : "text-gray-3";
             required={field.required}
             placeholder={field.placeholder}
             rows="4"
+            style="min-height:170px"
             class:list={[inputBase, inputTone, "resize-y"]}
           />
         ) : field.options ? (
