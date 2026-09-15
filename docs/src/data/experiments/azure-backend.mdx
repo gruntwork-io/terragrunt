@@ -1,15 +1,18 @@
 ---
 name: azure-backend
 since: "1.0.5"
+completedSince: "1.2.0"
 ---
 
-Experimental support for the Azure Storage (`azurerm`) remote state backend.
+Support for the Azure Storage (`azurerm`) remote state backend.
 
 ### `azure-backend` - What it does
 
-Enabling this experiment turns on Terragrunt-managed lifecycle operations for the
-Azure Storage (`azurerm`) remote state backend, matching what Terragrunt already
-does for S3 buckets and GCS buckets:
+This experiment flag is no longer needed, as the Azure Storage (`azurerm`)
+backend is now managed by default.
+
+Terragrunt manages lifecycle operations for the Azure Storage (`azurerm`) remote
+state backend, matching what it already does for S3 buckets and GCS buckets:
 
 1. Bootstrap: creates the resource group (when allowed), storage account, and blob
    container backing the state, and converges blob versioning and optional soft
@@ -30,13 +33,9 @@ Authentication supports six methods, resolved in the following order:
 `ARM_*` and `AZURE_*` environment variable fallbacks are applied. Set `environment`
 (or `ARM_ENVIRONMENT`) to `usgovernment` for Azure Government.
 
-Without the experiment enabled, these lifecycle operations return an error naming
-the experiment; normal state reading and writing is handled by the native
-OpenTofu/Terraform `azurerm` backend.
-
-When both this experiment and
+When
 [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state)
-are enabled, Terragrunt can read dependency outputs directly from the Azure state
+is enabled, Terragrunt can read dependency outputs directly from the Azure state
 blob without initializing the dependency or running `tofu output`/`terraform output`.
 State protected with `customer_provided_key`, and configurations that rely on
 native-only authentication, `metadata_host`, or `timeout_seconds`, continue through
@@ -45,17 +44,6 @@ decryption behavior.
 
 See the [Azure Storage backend documentation](/features/units/state-backend#azure-storage-azurerm-backend)
 for configuration keys and known limitations.
-
-### `azure-backend` - How to enable it
-
-```bash
-# Via CLI flag
-terragrunt --experiment azure-backend run -- plan
-
-# Via environment variable
-export TG_EXPERIMENT=azure-backend
-terragrunt run -- plan
-```
 
 ### `azure-backend` - How to provide feedback
 Track and discuss this experiment in [gruntwork-io/terragrunt#4307](https://github.com/gruntwork-io/terragrunt/issues/4307).
@@ -66,7 +54,7 @@ When reporting issues or providing feedback, please include:
 - Any errors encountered during `init`, `plan`, or backend bootstrap.
 
 ### `azure-backend` - Criteria for stabilization
-To transition the `azure-backend` feature to a stable release, the following must be addressed, at a minimum:
+To transition the `azure-backend` feature to a stable release, the following were completed:
 
 - [x] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
 - [x] Bootstrap of storage accounts and blob containers, including versioning and soft delete convergence.
@@ -76,4 +64,4 @@ To transition the `azure-backend` feature to a stable release, the following mus
 - [x] Documentation covering authentication methods, configuration keys, and troubleshooting.
 - [x] End-to-end live coverage against a real subscription for container bootstrap, blob versioning convergence, backend delete, and direct dependency state reads, behind the `azure` build tag.
 - [x] End-to-end live coverage for resource group and storage account creation, soft-delete retention convergence, and state migration.
-- [ ] Community feedback on real-world usage.
+- [x] Community feedback on real-world usage.

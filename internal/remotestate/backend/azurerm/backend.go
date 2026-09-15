@@ -2,10 +2,6 @@
 // interacting with remote state. It bootstraps the resource group, storage
 // account, and blob container backing a unit's Terraform/OpenTofu state, and
 // supports delete and migrate lifecycle operations via internal/azurehelper.
-//
-// The backend is experimental: every lifecycle operation is gated behind the
-// `azure-backend` experiment and returns ErrAzureBackendExperimentRequired
-// when it is not enabled.
 package azurerm
 
 import (
@@ -19,7 +15,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -46,23 +41,6 @@ func NewBackend() *Backend {
 	return &Backend{
 		CommonBackend: backend.NewCommonBackend(BackendName),
 	}
-}
-
-// experimentEnabled reports whether the azure-backend experiment is on. Every
-// lifecycle entry point is called with options built by the remote-state layer,
-// so a nil opts is a caller bug and panics with ErrBackendOptionsRequired.
-//
-// Callers treat a disabled experiment as "do nothing" rather than as an error.
-// Before this backend existed, an azurerm config inherited CommonBackend's
-// no-op behavior, so a globally applied --backend-bootstrap simply continued
-// into native backend init. Gating must stop the experimental implementation
-// from running without breaking that previously working path.
-func experimentEnabled(opts *backend.Options) bool {
-	if opts == nil {
-		panic(ErrBackendOptionsRequired)
-	}
-
-	return opts.Experiments.Evaluate(experiment.AzureBackend)
 }
 
 // resolveConfig parses, validates, and resolves the azure session config for
@@ -301,10 +279,6 @@ func sharedKeyConfig(ctx context.Context, cfg *azurehelper.AzureConfig) (*azureh
 // state does not yet exist, or (when reachable) blob versioning or soft-delete
 // configuration has drifted from what the config requests.
 func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
-	if !experimentEnabled(opts) {
-		return false, nil
-	}
-
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return false, err
@@ -382,10 +356,6 @@ func accountNeedsBootstrap(
 // Bootstrap creates (if necessary) the resource group, storage account, and
 // blob container backing the state, and ensures blob versioning / soft delete.
 func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if !experimentEnabled(opts) {
-		return nil
-	}
-
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err
@@ -725,10 +695,6 @@ func effectiveSoftDeleteDays(extCfg *ExtendedRemoteStateConfigAzurerm) int32 {
 // storage account. Data-plane-only auth (SAS / access key) cannot query this
 // via ARM and returns false.
 func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
-	if !experimentEnabled(opts) {
-		return false, nil
-	}
-
 	_, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return false, err
@@ -759,10 +725,6 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *
 // Migrate copies the state blob from the source backend config to the
 // destination backend config within the same storage account.
 func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
-	if !experimentEnabled(opts) {
-		return ErrAzureBackendExperimentRequired
-	}
-
 	srcExtCfg, cfg, err := resolveConfig(l, srcV, srcBackendConfig)
 	if err != nil {
 		return err
@@ -817,10 +779,6 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Ve
 
 // Delete deletes the Terraform state blob (config "key") from its container.
 func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if !experimentEnabled(opts) {
-		return ErrAzureBackendExperimentRequired
-	}
-
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err
@@ -854,10 +812,6 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 
 // DeleteBucket deletes the entire blob container backing the state.
 func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if !experimentEnabled(opts) {
-		return ErrAzureBackendExperimentRequired
-	}
-
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err

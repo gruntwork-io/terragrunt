@@ -1945,11 +1945,8 @@ var directStateBackends = map[string]directStateBackend{
 		read:      getTerragruntOutputJSONFromRemoteStateGCS,
 	},
 	azurermbackend.BackendName: {
-		supported: func(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
-			return pctx.Experiments.Evaluate(experiment.AzureBackend) &&
-				azureDirectStateReadSupported(pctx, remoteState)
-		},
-		read: getTerragruntOutputJSONFromRemoteStateAzurerm,
+		supported: azureDirectStateReadSupported,
+		read:      getTerragruntOutputJSONFromRemoteStateAzurerm,
 	},
 }
 

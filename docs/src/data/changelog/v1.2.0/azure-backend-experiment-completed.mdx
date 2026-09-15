@@ -1,0 +1,8 @@
+---
+version: "v1.2.0"
+category: "experiments-updated"
+---
+
+#### `azure-backend` experiment completed
+
+Terragrunt now bootstraps, deletes, and migrates Azure Storage (`azurerm`) state by default. If you already pass `--backend-bootstrap`, Terragrunt will now create Azure resources it previously skipped. The `--experiment azure-backend` flag and `TG_EXPERIMENT=azure-backend` are no longer needed. Passing either still works and logs a warning. See [State Backend](/features/units/state-backend#azure-storage-azurerm-backend) for configuration keys and authentication.
