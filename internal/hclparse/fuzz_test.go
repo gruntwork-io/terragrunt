@@ -454,7 +454,11 @@ func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
 			}
 		}()
 
-		_, _ = hclparse.UnitPathsFromStackDir(fs, stackDir, &hclparse.StackDirArgs{FuncsFor: noFuncs})
+		_, _ = hclparse.UnitPathsFromStackDir(
+			fs,
+			stackDir,
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
 	})
 }
 
@@ -607,6 +611,10 @@ func FuzzUnitPathsFromStackDir_AutoIncludeContent(f *testing.F) {
 			0644,
 		)
 
-		_, _ = hclparse.UnitPathsFromStackDir(fs, "/fuzz", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+		_, _ = hclparse.UnitPathsFromStackDir(
+			fs,
+			"/fuzz",
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
 	})
 }

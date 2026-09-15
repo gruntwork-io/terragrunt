@@ -139,8 +139,7 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 	for _, block := range blocks {
 		instances, err := pkghclparse.ExpandBlock(block, new(T), evalCtx)
 		if err != nil {
-			var blockDiags hcl.Diagnostics
-			if errors.As(err, &blockDiags) {
+			if blockDiags, ok := errors.AsType[hcl.Diagnostics](err); ok {
 				diags = append(diags, blockDiags...)
 				continue
 			}

@@ -383,8 +383,7 @@ func findExpansionBlock(body *hclsyntax.Body) *hclsyntax.Block {
 // expansionDiagnostics reports an expansion failure as diagnostics, the form autoinclude resolution
 // returns its errors in.
 func expansionDiagnostics(err error, subject hcl.Range) hcl.Diagnostics {
-	var diags hcl.Diagnostics
-	if errors.As(err, &diags) {
+	if diags, ok := errors.AsType[hcl.Diagnostics](err); ok {
 		return diags
 	}
 
@@ -558,7 +557,11 @@ func blockLabelsString(block *hclsyntax.Block) string {
 }
 
 // extractDepPath returns the resolved config_path for a dependency block. Caller must ensure the block has exactly one label.
-func extractDepPath(fsys vfs.FS, block *hclsyntax.Block, autoIncludePath, unitDir string) (string, error) {
+func extractDepPath(
+	fsys vfs.FS,
+	block *hclsyntax.Block,
+	autoIncludePath, unitDir string,
+) (string, error) {
 	name := block.Labels[0]
 
 	configPathAttr, exists := block.Body.Attributes[attrConfigPath]

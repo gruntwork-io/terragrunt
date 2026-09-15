@@ -477,7 +477,10 @@ func setupCAS(l log.Logger, pctx *ParsingContext, enabled bool) (casSetup, error
 		return casSetup{}, err
 	}
 
-	casOpts := []cas.Option{cas.WithCloneDepth(pctx.CASCloneDepth), cas.WithProbeTTL(pctx.CASProbeTTL)}
+	casOpts := []cas.Option{
+		cas.WithCloneDepth(pctx.CASCloneDepth),
+		cas.WithProbeTTL(pctx.CASProbeTTL),
+	}
 
 	if pctx.Experiments.Evaluate(experiment.OfflineCAS) {
 		casOpts = append(casOpts, cas.WithProbeCache())

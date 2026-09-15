@@ -95,7 +95,13 @@ func ParseStackFile(fsys vfs.FS, input *ParseStackFileInput) (*ParseResult, erro
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
 	// Phase 3 resolves include blocks and merges included Remain bodies.
-	mergedRemain, err := mergeIncludes(fsys, parsedStackFile, input.StackDir, evalCtx, srcByFilename)
+	mergedRemain, err := mergeIncludes(
+		fsys,
+		parsedStackFile,
+		input.StackDir,
+		evalCtx,
+		srcByFilename,
+	)
 	if err != nil {
 		return result, err
 	}

@@ -445,7 +445,9 @@ func TestCatalogJSONLFormatWithoutTTY(t *testing.T) {
 		}
 
 		require.NoError(t, closeErr)
-		t.Skip("a controlling terminal is available; a regression would launch the catalog TUI for real")
+		t.Skip(
+			"a controlling terminal is available; a regression would launch the catalog TUI for real",
+		)
 	}
 
 	workDir := catalogFixture(t)
@@ -467,7 +469,11 @@ func TestCatalogMDFormat(t *testing.T) {
 		"terragrunt catalog --experiment catalog-format --format md --working-dir "+workDir)
 	require.NoError(t, err)
 
-	assert.True(t, strings.HasPrefix(stdout, "# Terragrunt Catalog\n"), "the header opens the document")
+	assert.True(
+		t,
+		strings.HasPrefix(stdout, "# Terragrunt Catalog\n"),
+		"the header opens the document",
+	)
 
 	for _, want := range []string{
 		backticks(`## VPC

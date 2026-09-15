@@ -85,7 +85,10 @@ func TestNewCommandBeforeGatesNonInteractiveFormats(t *testing.T) {
 			cmd := catalog.NewCommand(logger.CreateLogger(), opts, venvtest.New())
 			require.NoError(
 				t,
-				cmd.Flags.Parse(clihelper.Args{"--" + catalog.FormatFlagName, tc.format}, map[string]string{}),
+				cmd.Flags.Parse(
+					clihelper.Args{"--" + catalog.FormatFlagName, tc.format},
+					map[string]string{},
+				),
 			)
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
@@ -184,7 +187,10 @@ func TestNewFlagsIgnoreFileAction(t *testing.T) {
 
 			// The action stats the path on the real filesystem.
 			dir := t.TempDir()
-			require.NoError(t, os.WriteFile(filepath.Join(dir, ignoreFileName), []byte("vendor\n"), 0o644))
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(dir, ignoreFileName), []byte("vendor\n"), 0o644),
+			)
 
 			opts := catalog.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
 			opts.RootWorkingDir = dir

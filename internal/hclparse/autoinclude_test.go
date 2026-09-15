@@ -260,7 +260,11 @@ inputs = {
 	// Dependency config_path resolved
 	require.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "vpc", result.Dependencies[0].Name)
-	assert.Equal(t, hclparse.SingleConfigPath("/abs/path/to/.terragrunt-stack/vpc"), result.Dependencies[0].ConfigPath)
+	assert.Equal(
+		t,
+		hclparse.SingleConfigPath("/abs/path/to/.terragrunt-stack/vpc"),
+		result.Dependencies[0].ConfigPath,
+	)
 
 	// RawBody preserved (contains inputs with dependency.vpc.outputs.val)
 	assert.NotNil(t, result.RawBody)

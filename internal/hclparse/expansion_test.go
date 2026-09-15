@@ -161,7 +161,9 @@ func TestParseStackFileResolvesAutoIncludePerExpandedInstance(t *testing.T) {
 				require.Len(t, resolved.Dependencies, 1)
 				assert.Equal(
 					t,
-					hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "repo")),
+					hclparse.SingleConfigPath(
+						filepath.Join(testStackDir, hclparse.StackDir, "repo"),
+					),
 					resolved.Dependencies[0].ConfigPath,
 				)
 
@@ -290,15 +292,31 @@ func TestBuildComponentRefMapKeysExpandedElements(t *testing.T) {
 
 	refs, err := hclparse.BuildComponentRefMap(hclparse.VarUnit, []hclparse.ComponentRef{
 		{Name: "repo", Path: "/stack/repo"},
-		{Name: "env", Path: "/stack/env/dev", Instance: pkghclparse.InstanceKey{EachKey: new("dev")}},
-		{Name: "env", Path: "/stack/env/prod", Instance: pkghclparse.InstanceKey{EachKey: new("prod")}},
-		{Name: "shard", Path: "/stack/shard/0", Instance: pkghclparse.InstanceKey{CountIndex: new(0)}},
+		{
+			Name:     "env",
+			Path:     "/stack/env/dev",
+			Instance: pkghclparse.InstanceKey{EachKey: new("dev")},
+		},
+		{
+			Name:     "env",
+			Path:     "/stack/env/prod",
+			Instance: pkghclparse.InstanceKey{EachKey: new("prod")},
+		},
+		{
+			Name:     "shard",
+			Path:     "/stack/shard/0",
+			Instance: pkghclparse.InstanceKey{CountIndex: new(0)},
+		},
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, "/stack/repo", refs.GetAttr("repo").GetAttr("path").AsString())
 	assert.Equal(t, "/stack/env/dev", refs.GetAttr("env").GetAttr("dev").GetAttr("path").AsString())
-	assert.Equal(t, "/stack/env/prod", refs.GetAttr("env").GetAttr("prod").GetAttr("path").AsString())
+	assert.Equal(
+		t,
+		"/stack/env/prod",
+		refs.GetAttr("env").GetAttr("prod").GetAttr("path").AsString(),
+	)
 	assert.Equal(t, "/stack/shard/0", refs.GetAttr("shard").GetAttr("0").GetAttr("path").AsString())
 }
 
@@ -327,7 +345,12 @@ func TestUnitPathsFromStackDirRejectsExpandedAndUnexpandedUnitSharingALabel(t *t
 	fs := vfs.NewMemMapFS()
 	require.NoError(
 		t,
-		vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(expandedAndUnexpandedEnvStack), 0644),
+		vfs.WriteFile(
+			fs,
+			"/test/terragrunt.stack.hcl",
+			[]byte(expandedAndUnexpandedEnvStack),
+			0644,
+		),
 	)
 
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
