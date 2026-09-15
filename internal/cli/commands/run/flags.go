@@ -270,13 +270,10 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 				Name:    DependencyFetchOutputFromStateFlagName,
 				EnvVars: tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
 				Usage:   "Read dependency outputs directly from the state file. Enabled by default; retained for backwards compatibility.",
-				Action: func(_ context.Context, _ *clihelper.Context, val bool) error {
+				Action: func(ctx context.Context, _ *clihelper.Context, val bool) error {
 					if val {
-						l.Warnf(
-							"The --%s flag no longer does anything, as reading dependency outputs from state is the default. Remove it, or pass --%s to opt out.",
-							DependencyFetchOutputFromStateFlagName,
-							NoDependencyFetchOutputFromStateFlagName,
-						)
+						return opts.StrictControls.FilterByNames(controls.DependencyFetchOutputFromState).
+							Evaluate(ctx)
 					}
 
 					return nil
