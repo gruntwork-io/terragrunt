@@ -2,6 +2,7 @@
 import { Image } from "astro:assets";
 import LandingLayout from "@layouts/LandingLayout.astro";
 import PiranhaPlant from "@assets/img/piranha-plant.jpg";
+import PiranhaHero from "@assets/img/piranha-hero.svg";
 import { scaleProducts } from "@data/site";
 import { driftDetection, patcher, pipelines } from "@data/terragrunt-scale";
 
@@ -77,10 +78,11 @@ const sections = [
         </div>
 
         <Image
-          src={PiranhaPlant}
-          alt="Super Mario Piranha Plant Lego Set"
+          src={PiranhaHero}
+          alt=""
+          aria-hidden="true"
           loading="eager"
-          class="w-full max-w-[400px] justify-self-center rounded-xl lg:justify-self-end"
+          class="w-full max-w-[420px] justify-self-center lg:justify-self-end"
         />
       </div>
     </section>
@@ -100,5 +102,12 @@ const sections = [
       And to prove our pipelines won&rsquo;t bite, we&rsquo;ll send you a Lego
       Piranha Plant set after you complete the demo!
     </p>
+
+    <Image
+      src={PiranhaPlant}
+      alt="Super Mario Piranha Plant Lego Set"
+      loading="lazy"
+      class="w-full max-w-[220px] rounded-lg"
+    />
   </Fragment>
 </LandingLayout>
