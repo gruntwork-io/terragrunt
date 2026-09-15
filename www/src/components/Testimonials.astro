@@ -12,7 +12,7 @@ import { testimonialsSection } from "@data/home";
 const { items } = testimonialsSection;
 ---
 
-<section class="px-4 py-[76px] md:px-8">
+<section class="mx-auto max-w-[900px] px-4 py-[76px] md:px-8">
   <SectionHeading
     eyebrow={testimonialsSection.eyebrow}
     words={[testimonialsSection.headlineAccent, testimonialsSection.headline]}
@@ -21,7 +21,7 @@ const { items } = testimonialsSection;
 
   <div class="relative" data-testimonials>
     <ul
-      class="m-0 grid max-h-[46rem] list-none grid-cols-1 gap-4 overflow-hidden p-0 md:grid-cols-2 lg:grid-cols-3"
+      class="m-0 grid max-h-[46rem] list-none grid-cols-1 gap-4 overflow-hidden p-0 md:grid-cols-2"
       data-testimonial-list
     >
       {
@@ -41,6 +41,11 @@ const { items } = testimonialsSection;
       }
     </ul>
 
+    <div
+      class="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-background to-transparent"
+      data-testimonial-fade
+    >
+    </div>
     <div
       class="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background to-transparent"
       data-testimonial-fade
@@ -63,7 +68,7 @@ const { items } = testimonialsSection;
 <script>
   const root = document.querySelector<HTMLElement>("[data-testimonials]");
   const list = root?.querySelector<HTMLElement>("[data-testimonial-list]");
-  const fade = root?.querySelector<HTMLElement>("[data-testimonial-fade]");
+  const fades = root?.querySelectorAll<HTMLElement>("[data-testimonial-fade]") ?? [];
   const toggle = document.querySelector<HTMLButtonElement>(
     "[data-testimonial-toggle]",
   );
@@ -76,7 +81,7 @@ const { items } = testimonialsSection;
     toggle.textContent = expanded ? `Show all ${total} reviews` : "Show fewer";
 
     if (list) list.classList.toggle("max-h-[46rem]", expanded);
-    if (fade) fade.hidden = !expanded;
+    for (const fade of fades) fade.hidden = !expanded;
 
     // Collapsing from below the fold would otherwise leave the viewport in the
     // middle of the next section with no visible cause.

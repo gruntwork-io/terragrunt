@@ -2,6 +2,7 @@
 import { Image } from "astro:assets";
 import LandingLayout from "@layouts/LandingLayout.astro";
 import PiranhaPlant from "@assets/img/piranha-plant.jpg";
+import { scaleProducts } from "@data/site";
 import { driftDetection, patcher, pipelines } from "@data/terragrunt-scale";
 
 const sections = [
@@ -33,25 +34,71 @@ const sections = [
   formName="Pipelines Contact Form"
   sections={sections}
 >
+  <Fragment slot="hero">
+    {/*
+      `.terragrunt-pipelines-hero` — a navy band above the form card carrying
+      the campaign headline and the three product tiles. It was missing
+      entirely, which is most of why this page ran a third short.
+    */}
+    <section class="relative z-[2] -mx-4 w-auto bg-bg-dark px-4 pt-[100px] md:-mx-8 md:px-8">
+      <div class="mx-auto grid max-w-[1180px] grid-cols-1 items-center gap-12 pb-[100px] lg:grid-cols-[1fr_auto]">
+        <div class="max-w-[620px]">
+          <h2
+            class="m-0 text-4xl font-medium leading-[1.05] text-white md:text-[60px] md:leading-[60px]"
+          >
+            Our Pipelines Won&rsquo;t Bite!
+          </h2>
+          <p class="mt-6 text-base leading-relaxed text-gray-1">
+            Terragrunt Scale standardizes infra operations without leaving your
+            pipeline. It operates intelligently on top of Terragrunt&rsquo;s
+            abstractions, runs in your pre-existing CI solution, and integrates
+            natively with your workflows.
+          </p>
+          <p class="mt-4 text-base leading-relaxed text-gray-1">
+            And we&rsquo;ll send you a free <strong class="font-semibold text-white"
+              >Lego Super Mario Piranha Plant</strong
+            > just for taking a demo.
+          </p>
+
+          <ul class="m-0 mt-10 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-3">
+            {
+              scaleProducts.map((product) => (
+                <li class="rounded-lg border border-stroke-dark bg-white/[0.04] p-4">
+                  <span class="block text-sm font-semibold text-white">
+                    {product.product}
+                  </span>
+                  <span class="mt-1 block text-xs text-gray-1">
+                    {product.title}
+                  </span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+
+        <Image
+          src={PiranhaPlant}
+          alt="Super Mario Piranha Plant Lego Set"
+          loading="eager"
+          class="w-full max-w-[400px] justify-self-center rounded-xl lg:justify-self-end"
+        />
+      </div>
+    </section>
+  </Fragment>
+
   <Fragment slot="offer">
     <h1
-      class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+      class="m-0 text-4xl font-medium leading-[1.05] text-background md:text-[60px] md:leading-[60px]"
     >
-      Ready to tame your <span class="text-accent-1">pipelines?</span>
+      Ready to tame your <span class="text-accent-4">pipelines?</span>
     </h1>
-    <p class="mt-5 text-lg leading-relaxed text-gray-2">
+    <p class="m-0 text-base leading-relaxed text-gray-1">
       Sign up for a demo with our team and we&rsquo;ll show you how you can
       scale your IaC estate with centralized pipelines.
     </p>
-    <p class="mt-4 text-lg leading-relaxed text-gray-2">
+    <p class="m-0 text-base leading-relaxed text-gray-1">
       And to prove our pipelines won&rsquo;t bite, we&rsquo;ll send you a Lego
       Piranha Plant set after you complete the demo!
     </p>
-    <Image
-      src={PiranhaPlant}
-      alt="Super Mario Piranha Plant Lego Set"
-      loading="eager"
-      class="mt-8 w-full max-w-[420px] rounded-xl border border-gray-4"
-    />
   </Fragment>
 </LandingLayout>

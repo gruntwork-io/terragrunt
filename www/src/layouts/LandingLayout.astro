@@ -8,11 +8,11 @@
  * compete for the same queries is how a product page loses its own ranking.
  */
 import BaseLayout from "@layouts/BaseLayout.astro";
-import FeatureList from "@components/FeatureList.astro";
+import ThreeColBand from "@components/ThreeColBand.astro";
+import VerticalGrid from "@components/VerticalGrid.astro";
 import Footer from "@components/Footer.astro";
 import HubspotForm from "@components/HubspotForm.astro";
 import Nav from "@components/Nav.astro";
-import SectionHeading from "@components/SectionHeading.astro";
 import { testimonial } from "@data/terragrunt-scale";
 
 export interface LandingSection {
@@ -47,19 +47,24 @@ const {
   path={path}
   noindex={noindex}
 >
+  <VerticalGrid />
   <Nav />
 
   <div class="global-page-container">
     <main class="mx-auto w-full max-w-[1310px]">
+      <slot name="hero" />
+      <slot name="before-form" />
+
       <section class="px-4 py-[76px] md:px-8">
-        <div class="grid grid-cols-1 items-start gap-12 lg:grid-cols-2">
-          <div class="max-w-[560px]">
+        <div class="grid grid-cols-1 items-start gap-[96px] rounded-3xl border-[6px] border-gray-5 bg-bg-dark p-8 lg:grid-cols-2 lg:p-12">
+          <div class="flex max-w-[560px] flex-col gap-8">
             <slot name="offer" />
           </div>
 
-          <div class="rounded-2xl border border-gray-4 bg-white p-6 md:p-8">
+          <div>
             <HubspotForm
               formName={formName}
+              tone="dark"
               submitLabel="Request a demo"
               successMessage="Thank you! Your submission has been received. We generally respond the same business day."
               fields={[
@@ -84,7 +89,7 @@ const {
                 },
               ]}
             />
-            <p class="mt-4 text-sm text-gray-2">
+            <p class="mt-4 text-center text-sm text-gray-1">
               We generally respond the same business day!
             </p>
           </div>
@@ -95,16 +100,12 @@ const {
 
       {
         sections.map((section) => (
-          <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
-            <SectionHeading
-              eyebrow={section.eyebrow}
-              words={[section.headlineLead, section.headlineAccent]}
-              accent={[section.headlineAccent]}
-            />
-            <div class="max-w-[820px]">
-              <FeatureList features={section.features} />
-            </div>
-          </section>
+          <ThreeColBand
+            eyebrow={section.eyebrow}
+            headlineAccent={section.headlineLead}
+            headline={section.headlineAccent}
+            features={section.features}
+          />
         ))
       }
 
@@ -121,6 +122,8 @@ const {
           </figcaption>
         </figure>
       </section>
+
+      <div class="h-[150px]"></div>
     </main>
   </div>
 

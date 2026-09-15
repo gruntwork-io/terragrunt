@@ -18,6 +18,7 @@ interface Frontmatter {
   cta?: boolean;
   newsletter?: boolean;
   openSource?: boolean;
+  prose?: "long" | "compact";
 }
 
 const { frontmatter } = Astro.props as { frontmatter: Frontmatter };
@@ -34,7 +35,7 @@ const { frontmatter } = Astro.props as { frontmatter: Frontmatter };
   newsletter={frontmatter.newsletter}
   openSource={frontmatter.openSource}
 >
-  <div class="prose-tg">
+  <div class:list={[frontmatter.prose === "compact" ? "prose-compact" : "prose-tg"]}>
     <slot />
   </div>
 </PageLayout>

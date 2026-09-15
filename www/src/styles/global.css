@@ -123,6 +123,69 @@
     line-height: 1.7;
   }
 
+  /*
+   * `/ai-info-page` is set at Webflow's default body scale — 14px/20px copy
+   * under 42px headings — not the 20px long-form measure. At 20px the page ran
+   * 78% taller than the live one.
+   */
+  .prose-compact {
+    color: var(--color-gray-7);
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .prose-compact > * + * {
+    margin-top: 1rem;
+  }
+
+  .prose-compact h2 {
+    color: var(--color-dark-blue-1);
+    font-size: 42px;
+    font-weight: 500;
+    line-height: 46.67px;
+    margin-top: 2.5rem;
+  }
+
+  .prose-compact h3 {
+    color: var(--color-dark-blue-1);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 32px;
+    margin-top: 2rem;
+  }
+
+  .prose-compact h4 {
+    color: var(--color-dark-blue-1);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 24px;
+    margin-top: 1.5rem;
+  }
+
+  .prose-compact a {
+    color: var(--color-accent-1);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .prose-compact strong {
+    color: var(--color-dark-blue-1);
+    font-weight: 600;
+  }
+
+  .prose-compact ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+  }
+
+  .prose-compact code {
+    background-color: var(--color-gray-6);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    padding: 0.15em 0.4em;
+  }
+
   .prose-tg > * + * {
     margin-top: 1.25em;
   }

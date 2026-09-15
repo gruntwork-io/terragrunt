@@ -3,6 +3,7 @@ import { Image } from "astro:assets";
 import FeaturedBrands from "@components/FeaturedBrands.astro";
 import LandingLayout from "@layouts/LandingLayout.astro";
 import SectionHeading from "@components/SectionHeading.astro";
+import ThreeColBand from "@components/ThreeColBand.astro";
 import Keychron from "@assets/img/keychron-1.png";
 import DgxSpark from "@assets/img/keychron-2.png";
 
@@ -14,6 +15,19 @@ const steps = [
   {
     title: "Get your Keychron keyboard + DGX Spark raffle entry",
     body: "After the demo, we ship your mechanical keyboard and enter you into the DGX Spark drawing. You can choose any Keychron keyboard up to $150, or we can send you a Keychron gift card to purchase your perfect keyboard.",
+  },
+];
+
+const prizes = [
+  {
+    title: "Keychron Mechanical Keyboard",
+    body: "Every person who books and completes a demo gets a Keychron mechanical keyboard shipped to their door.",
+    image: Keychron,
+  },
+  {
+    title: "NVIDIA DGX Spark",
+    body: "Completing the demo also enters you into a raffle for an NVIDIA DGX Spark! Drawing for the winner will be on July 15th.",
+    image: DgxSpark,
   },
 ];
 
@@ -54,17 +68,67 @@ const sections = [
   description="Take a demo of Terragrunt Scale and we'll ship you a Keychron mechanical keyboard, plus you'll be entered in a raffle for an NVIDIA DGX Spark."
   path="/lp/keychron"
   formName="Keychron Contact Form"
-  sections={sections}
+  sections={[]}
 >
+  <Fragment slot="hero">
+    {/* `.hero-section` — the milestone banner above the form card. */}
+    <section class="relative z-[2] -mx-4 w-auto bg-bg-dark px-4 pt-[100px] md:-mx-8 md:px-8">
+      <div class="mx-auto flex max-w-[1180px] flex-col gap-12 pb-[100px]">
+        <div class="max-w-[720px]">
+          <h2
+            class="m-0 text-4xl font-medium leading-[1.05] text-white md:text-[60px] md:leading-[60px]"
+          >
+            Terragrunt 1.0 is here. Check out <span class="text-accent-4"
+              >Terragrunt Scale!</span
+            >
+          </h2>
+          <p class="mt-6 text-base leading-relaxed text-gray-1">
+            We're celebrating the biggest Terragrunt milestone yet! If
+            you&rsquo;re using Terragrunt in production, we want to celebrate
+            with you!
+          </p>
+          <p class="mt-4 text-base leading-relaxed text-gray-1">
+            Take a demo of Terragrunt Scale and we&rsquo;ll ship you a Keychron
+            mechanical keyboard, plus you&rsquo;ll be entered in a raffle for an
+            NVIDIA DGX Spark.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          {
+            prizes.map((prize) => (
+              <div class="overflow-hidden rounded-xl border border-stroke-dark bg-white/[0.04]">
+                <div class="p-6">
+                  <h3 class="m-0 text-base font-semibold text-white">
+                    {prize.title}
+                  </h3>
+                  <p class="mt-2 text-sm leading-relaxed text-gray-1">
+                    {prize.body}
+                  </p>
+                </div>
+                <Image
+                  src={prize.image}
+                  alt={prize.title}
+                  loading="eager"
+                  class="w-full"
+                />
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+  </Fragment>
+
   <Fragment slot="offer">
     <h1
-      class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+      class="m-0 text-4xl font-medium leading-[1.05] text-background md:text-[60px] md:leading-[60px]"
     >
-      30 minutes. <span class="text-accent-1">A free keyboard.</span> A shot at a
+      30 minutes. <span class="text-accent-4">A free keyboard.</span> A shot at a
       DGX Spark.
     </h1>
 
-    <ol class="m-0 mt-8 flex list-none flex-col gap-6 p-0">
+    <ol class="m-0 flex list-none flex-col gap-6 p-0">
       {
         steps.map((step, i) => (
           <li class="flex gap-4">
@@ -72,34 +136,23 @@ const sections = [
               {String(i + 1).padStart(2, "0")}.
             </span>
             <div>
-              <h2 class="m-0 text-base font-semibold text-dark-blue-1">
+              <h2 class="m-0 text-base font-semibold text-white">
                 {step.title}
               </h2>
-              <p class="mt-1 text-sm leading-relaxed text-gray-2">{step.body}</p>
+              <p class="mt-1 text-sm leading-relaxed text-gray-1">{step.body}</p>
             </div>
           </li>
         ))
       }
     </ol>
 
-    <div class="mt-8 grid grid-cols-2 gap-4">
-      <Image
-        src={Keychron}
-        alt="Keychron keyboard"
-        loading="eager"
-        class="w-full rounded-xl border border-gray-4"
-      />
-      <Image
-        src={DgxSpark}
-        alt="NVIDIA DGX Spark"
-        loading="eager"
-        class="w-full rounded-xl border border-gray-4"
-      />
-    </div>
+  </Fragment>
+
+  <Fragment slot="before-form">
+    <FeaturedBrands />
   </Fragment>
 
   <Fragment slot="after-form">
-    <FeaturedBrands />
 
     <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
       <SectionHeading
@@ -120,6 +173,17 @@ const sections = [
         </p>
       </div>
     </section>
+
+    {
+      sections.map((section) => (
+        <ThreeColBand
+          eyebrow={section.eyebrow}
+          headlineAccent={section.headlineLead}
+          headline={section.headlineAccent}
+          features={section.features}
+        />
+      ))
+    }
 
     <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
       <SectionHeading

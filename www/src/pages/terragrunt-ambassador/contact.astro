@@ -3,41 +3,55 @@ import BaseLayout from "@layouts/BaseLayout.astro";
 import Footer from "@components/Footer.astro";
 import HubspotForm from "@components/HubspotForm.astro";
 import Nav from "@components/Nav.astro";
-import OpenSourceTools from "@components/OpenSourceTools.astro";
 
 const title = "Terragrunt Ambassador | Contact";
 const description =
   "Tell us why you'd make a great Terragrunt Ambassador. We're looking to hear from you.";
 ---
 
+{/*
+  Dark, like `/contact-tgs` — `body.dark` on the live site. Built light this was
+  the worst page in the whole diff at 93%.
+*/}
 <BaseLayout
   title={title}
   description={description}
   path="/terragrunt-ambassador/contact"
+  tone="dark"
 >
   <Nav active="/terragrunt-ambassador" />
 
-  <div class="global-page-container">
-    <main class="mx-auto w-full max-w-[1310px] px-4 py-[76px] md:px-8">
-      <div class="grid grid-cols-1 gap-12 lg:grid-cols-2">
-        <div class="max-w-[520px]">
+  <div class="global-page-container dark">
+    <main class="relative mx-auto w-full max-w-[1310px]">
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-x-0 top-0 hidden h-[425px] border-b border-gray-8 lg:block"
+      >
+      </div>
+
+      <div
+        class="relative grid grid-cols-1 gap-12 px-4 pb-16 pt-[60px] md:px-[50px] lg:grid-cols-2"
+      >
+        <div class="flex flex-col">
           <h1
-            class="m-0 text-3xl font-semibold leading-tight tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+            class="m-0 mb-8 max-w-[500px] text-[32px] font-medium leading-[1.12] text-white md:text-[42px] md:leading-[47px]"
           >
             Interested in being a Terragrunt Ambassador?
           </h1>
-          <p class="mt-5 text-lg leading-relaxed text-gray-2">
+          <p class="m-0 py-1 text-base leading-6 text-gray-1">
             Let us know why you think you&rsquo;d make a great Ambassador.
             We&rsquo;re looking to hear from you!
           </p>
-          <p class="mt-8 text-sm font-medium text-gray-3">
+
+          <p class="m-0 mt-auto pt-[120px] text-sm font-semibold text-white">
             Thousands of engineers build with Terragrunt
           </p>
         </div>
 
-        <div class="rounded-2xl border border-gray-4 bg-white p-6 md:p-8">
+        <div class="h-full w-full max-w-[500px] lg:ml-auto">
           <HubspotForm
             formName="Ambassador Contact Form"
+            tone="dark"
             submitLabel="Send message"
             successMessage="Thank you! Your submission has been received. We generally respond the same business day."
             fields={[
@@ -62,7 +76,7 @@ const description =
               },
             ]}
           />
-          <p class="mt-4 text-sm text-gray-2">
+          <p class="mt-4 text-center text-sm text-gray-1">
             We generally respond the same business day!
           </p>
         </div>
@@ -70,8 +84,5 @@ const description =
     </main>
   </div>
 
-  <div class="mt-16">
-    <OpenSourceTools />
-    <Footer />
-  </div>
+  <Footer tone="dark" />
 </BaseLayout>
