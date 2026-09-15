@@ -93,10 +93,6 @@ var ErrNoHooksRequiresExperiment = errors.New(
 	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
 )
 
-var ErrNoDependencyOutputsRequiresExperiment = errors.New(
-	"--no-dependency-outputs requires the 'optional-dependency-outputs' experiment to be enabled (e.g., --experiment=optional-dependency-outputs)",
-)
-
 // NewFlags creates and returns global flags.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
@@ -208,19 +204,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			Name:        NoDependencyOutputsFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoDependencyOutputsFlagName),
 			Destination: &opts.SkipOutput,
-			Usage: flags.ExperimentUsage(opts.Experiments, experiment.OptionalDependencyOutputs,
-				"Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output."),
-			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
-				if !value {
-					return nil
-				}
-
-				if opts.Experiments.Evaluate(experiment.OptionalDependencyOutputs) {
-					return nil
-				}
-
-				return ErrNoDependencyOutputsRequiresExperiment
-			},
+			Usage:       "Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output.",
 		}),
 
 		shared.NewDownloadDirFlag(opts, prefix),
