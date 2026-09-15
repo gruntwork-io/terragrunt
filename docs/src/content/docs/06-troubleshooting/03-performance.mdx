@@ -7,6 +7,8 @@ sidebar:
 ---
 
 import { Aside, Card } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 ## Easy Wins
 
@@ -122,12 +124,13 @@ Under the hood, Terragrunt dependency blocks leverage the OpenTofu/Terraform `ou
 
 The OpenTofu/Terraform `output -json` command does a bit more work than simply fetching output values from state, and a significant portion of that slowdown is loading providers, which it doesn't really need in most cases.
 
-You can significantly improve the performance of dependency blocks by using the [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment. When the experiment is active for a supported backend, Terragrunt resolves outputs by fetching and parsing the backend state object directly, avoiding any overhead incurred by calling the `output -json` command of OpenTofu/Terraform.
+<Before version="1.2.0">You can significantly improve the performance of dependency blocks by using the [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment. When the experiment is active for a supported backend, Terragrunt resolves outputs by fetching and parsing the backend state object directly, avoiding any overhead incurred by calling the `output -json` command of OpenTofu/Terraform.</Before>
+<Since version="1.2.0">On a supported backend, Terragrunt resolves dependency outputs by fetching and parsing the backend state object directly, avoiding the overhead of calling the `output -json` command of OpenTofu/Terraform. This is the default. Pass [`--no-dependency-fetch-output-from-state`](/reference/cli/commands/run#no-dependency-fetch-output-from-state) to go back to the output command.</Since>
 
 For example:
 
 ```bash
-terragrunt run --all plan --experiment=dependency-fetch-output-from-state
+terragrunt run --all plan
 ```
 
 #### Fetching Output From State - Gotchas
@@ -146,7 +149,7 @@ Outside `render` and `render-json`, Terragrunt retries a failed direct state rea
 
 <Card title="State file schemas may change" icon="warning">
 
-OpenTofu/Terraform may change the state schema. A compatible-looking schema change could affect direct-read results. Pin the OpenTofu/Terraform version when using this experiment.
+OpenTofu/Terraform may change the state schema. A compatible-looking schema change could affect direct-read results. Pin the OpenTofu/Terraform version, because compatible-looking schema changes can affect direct-read results.
 
 </Card>
 
@@ -279,7 +282,7 @@ You can use configurations like the `--warmup` flag to do some warmup runs befor
 Here's an example of how to use Hyperfine to benchmark the performance of Terragrunt with two different configurations:
 
 ```shell
-hyperfine -w 3 -r 5 'terragrunt run --all plan' 'terragrunt run --all plan --experiment=dependency-fetch-output-from-state'
+hyperfine -w 3 -r 5 'terragrunt run --all plan --no-dependency-fetch-output-from-state' 'terragrunt run --all plan'
 ```
 
 ### Terragrunt Developer

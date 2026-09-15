@@ -33,10 +33,10 @@ The cache server is built for runs that do many OpenTofu/Terraform operations at
 
 ## Stop initializing dependencies to read outputs
 
-By default, Terragrunt runs `output -json` against each dependency, which loads providers it does not need. The [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment reads the values straight out of the state file instead:
+By default, Terragrunt runs `output -json` against each dependency, which loads providers it does not need. <Before version="1.2.0">The [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment reads the values straight out of the state file instead:</Before><Since version="1.2.0">Terragrunt reads the values straight out of the state file instead, which is the default for supported backends:</Since>
 
 ```bash
-terragrunt run --all --experiment=dependency-fetch-output-from-state -- plan
+terragrunt run --all -- plan
 ```
 
 This applies to S3 and GCS backends. Azure Storage (`azurerm`) also supports it when the `azure-backend` experiment is enabled.

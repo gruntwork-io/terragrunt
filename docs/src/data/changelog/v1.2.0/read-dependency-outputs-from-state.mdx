@@ -1,0 +1,14 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Read dependency outputs from state by default
+
+Terragrunt reads dependency outputs straight from the remote state object on S3 and GCS, and on Azure Storage (`azurerm`) when the `azure-backend` experiment is enabled. That skips initializing each dependency to run `tofu output` or `terraform output` against it, which is the slowest part of a large `run --all`.
+
+A direct read that fails on permissions, the network, a parse error, or OpenTofu client-side state encryption retries through the output command, so only the speedup is lost. Backends and configurations the direct reader cannot reproduce use the output command too.
+
+To go back to the previous behavior, pass `--no-dependency-fetch-output-from-state` (env: `TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE`).
+
+Previously gated behind the `dependency-fetch-output-from-state` experiment, this no longer requires `--experiment dependency-fetch-output-from-state`. That flag is still accepted, and Terragrunt logs a warning that the experiment is completed.

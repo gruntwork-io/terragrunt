@@ -269,13 +269,20 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			&clihelper.BoolFlag{
 				Name:    DependencyFetchOutputFromStateFlagName,
 				EnvVars: tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
-				Usage:   "Enable the dependency-fetch-output-from-state experiment to fetch dependency output directly from the state file instead of using tofu/terraform output.",
+				Usage:   "Read dependency outputs directly from the state file. Enabled by default; retained for backwards compatibility.",
 				Action: func(_ context.Context, _ *clihelper.Context, val bool) error {
-					if val {
-						return opts.Experiments.EnableExperiment(
-							experiment.DependencyFetchOutputFromState,
-						)
+					if !val {
+						return nil
 					}
+
+					if err := opts.Experiments.EnableExperiment(
+						experiment.DependencyFetchOutputFromState,
+					); err != nil {
+						return err
+					}
+
+					// Matches --experiment, so either spelling tells the user the flag is now a no-op.
+					opts.Experiments.NotifyCompletedExperiments(l)
 
 					return nil
 				},
@@ -290,8 +297,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			Name:        NoDependencyFetchOutputFromStateFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoDependencyFetchOutputFromStateFlagName),
 			Destination: &opts.NoDependencyFetchOutputFromState,
-			Usage:       "Disable the dependency-fetch-output-from-state feature even when the experiment is enabled.",
-			Hidden:      true,
+			Usage:       "Read dependency outputs by running tofu/terraform output instead of reading the state file directly.",
 		}),
 
 		flags.NewFlag(
