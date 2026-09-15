@@ -10,6 +10,8 @@ interface Props {
   size?: "md" | "lg";
   /** `loose` is the 1.5em `.headline` scale; `tight` the 46.67px `.heading`. */
   leading?: "tight" | "loose";
+  /** Caps the headline measure so it breaks where the live one breaks. */
+  maxWidth?: string;
 }
 
 const {
@@ -20,6 +22,7 @@ const {
   tone = "light",
   size = "lg",
   leading = "tight",
+  maxWidth,
 } = Astro.props;
 ---
 
@@ -43,6 +46,7 @@ const {
     )
   }
   <h2
+    style={maxWidth ? `max-width:${maxWidth}` : undefined}
     class:list={[
       "m-0 font-medium tracking-[-0.02em]",
       size === "lg"

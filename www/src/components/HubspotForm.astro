@@ -30,6 +30,11 @@ interface Props {
   successMessage?: string;
   /** `dark` sits on the navy panels; `light` on the page background. */
   tone?: "light" | "dark";
+  /**
+   * `inline` is the newsletter shape: one unlabelled field with a square submit
+   * beside it, which is what `.newsletter-form-block` renders.
+   */
+  layout?: "stacked" | "inline";
   class?: string;
 }
 
@@ -39,11 +44,12 @@ const {
   submitLabel = "Submit",
   successMessage = "Thank you! Your submission has been received.",
   tone = "light",
+  layout = "stacked",
   class: className,
 } = Astro.props;
 
 const inputBase =
-  "mt-2.5 w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-form-focus-ring/60";
+  "w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-form-focus-ring/60";
 const inputTone =
   tone === "dark"
     ? "border-transparent bg-white/10 text-gray-4 placeholder:text-gray-1"
@@ -52,14 +58,23 @@ const labelTone = tone === "dark" ? "text-white" : "text-gray-3";
 ---
 
 <form
-  class:list={["flex flex-col gap-1", className]}
+  class:list={[
+    layout === "inline" ? "flex items-center gap-2" : "flex flex-col gap-1",
+    className,
+  ]}
   data-tg-form={formName}
   novalidate
 >
   {
     fields.map((field) => (
-      <label class="flex flex-col">
-        <span class:list={["text-sm font-medium", labelTone]}>
+      <label class:list={[layout === "inline" ? "flex-1" : "flex flex-col"]}>
+        <span
+          class:list={[
+            "text-sm font-medium",
+            labelTone,
+            layout === "inline" && "sr-only",
+          ]}
+        >
           {field.label}
           {field.required && (
             <span class="text-error" aria-hidden="true">
@@ -81,7 +96,7 @@ const labelTone = tone === "dark" ? "text-white" : "text-gray-3";
           <select
             name={field.name}
             required={field.required}
-            class:list={[inputBase, inputTone]}
+            class:list={[inputBase, inputTone, layout === "stacked" && "mt-2.5"]}
           >
             <option value="">{field.placeholder ?? "Select one"}</option>
             {field.options.map((option) => (
@@ -101,7 +116,7 @@ const labelTone = tone === "dark" ? "text-white" : "text-gray-3";
                   ? "tel"
                   : undefined
             }
-            class:list={[inputBase, inputTone]}
+            class:list={[inputBase, inputTone, layout === "stacked" && "mt-2.5"]}
           />
         )}
       </label>
@@ -110,9 +125,32 @@ const labelTone = tone === "dark" ? "text-white" : "text-gray-3";
 
   <button
     type="submit"
-    class="mt-2 inline-flex items-center justify-center rounded-lg border border-white/20 bg-accent-3 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-60"
+    aria-label={submitLabel}
+    class:list={[
+      "inline-flex items-center justify-center bg-accent-3 font-medium text-white transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-60",
+      layout === "inline"
+        ? "size-[42px] shrink-0 rounded-lg p-2"
+        : "mt-2 rounded-lg border border-white/20 px-6 py-3 text-sm",
+    ]}
   >
-    {submitLabel}
+    {
+      layout === "inline" ? (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-5"
+          aria-hidden="true"
+        >
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      ) : (
+        submitLabel
+      )
+    }
   </button>
 
   {/*

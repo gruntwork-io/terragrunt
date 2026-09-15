@@ -63,11 +63,24 @@ const criteria = [
   "Active community involvement",
 ];
 
-const socialLabels = {
-  github: "GitHub",
-  linkedin: "LinkedIn",
-  medium: "Medium",
-  website: "Website",
+/** 20px icon tiles, as `.ambassador-social-link-container` renders them. */
+const socialIcons = {
+  github: {
+    label: "GitHub",
+    path: "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8",
+  },
+  linkedin: {
+    label: "LinkedIn",
+    path: "M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854zm4.943 12.248V6.169H2.542v7.225zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248S2.4 3.226 2.4 3.934c0 .694.521 1.248 1.327 1.248zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016l.016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225z",
+  },
+  medium: {
+    label: "Medium",
+    path: "M9.025 8a4.513 4.513 0 0 1-4.513 4.512A4.513 4.513 0 0 1 0 8a4.513 4.513 0 1 1 9.025 0m4.95 0c0 2.33-1.01 4.22-2.256 4.22S9.463 10.33 9.463 8c0-2.33 1.01-4.22 2.256-4.22S13.975 5.67 13.975 8M16 8c0 2.087-.355 3.78-.794 3.78-.438 0-.793-1.693-.793-3.78s.355-3.78.793-3.78S16 5.913 16 8",
+  },
+  website: {
+    label: "Website",
+    path: "M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.96 6.96 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zm3.653 0v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7.03 7.03 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7.03 7.03 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a6.96 6.96 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7.03 7.03 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z",
+  },
 } as const;
 ---
 
@@ -107,6 +120,7 @@ const socialLabels = {
         <SectionHeading
           leading="loose"
           align="center"
+          maxWidth="620px"
           eyebrow="About the Program"
           words={["What it means to be a", "Terragrunt Ambassador"]}
           accent={["Terragrunt Ambassador"]}
@@ -203,20 +217,39 @@ const socialLabels = {
                   </details>
                 )}
 
-                <ul class="m-0 mt-auto flex list-none gap-3 p-0 pt-4">
+                {person.name === "You" && (
+                  <p class="m-0 mt-4">
+                    <Button href="/terragrunt-ambassador/contact" variant="primary">
+                      Become an Ambassador
+                    </Button>
+                  </p>
+                )}
+
+                <ul class="m-0 mt-auto flex list-none gap-2 p-0 pt-4">
                   {
-                    Object.entries(person.links).map(([kind, href]) => (
-                      <li>
-                        <a
-                          href={href}
-                          rel="noopener noreferrer"
-                          target="_blank"
-                          class="text-xs text-gray-2 no-underline hover:text-accent-1"
-                        >
-                          {socialLabels[kind as keyof typeof socialLabels]}
-                        </a>
-                      </li>
-                    ))
+                    Object.entries(person.links).map(([kind, href]) => {
+                      const icon = socialIcons[kind as keyof typeof socialIcons];
+                      return (
+                        <li>
+                          <a
+                            href={href}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                            aria-label={`${person.name} on ${icon.label}`}
+                            class="flex size-5 items-center justify-center rounded-sm text-gray-3 shadow-sm transition-colors hover:text-accent-1"
+                          >
+                            <svg
+                              viewBox="0 0 16 16"
+                              fill="currentColor"
+                              class="size-4"
+                              aria-hidden="true"
+                            >
+                              <path d={icon.path} />
+                            </svg>
+                          </a>
+                        </li>
+                      );
+                    })
                   }
                 </ul>
               </li>
@@ -225,67 +258,70 @@ const socialLabels = {
         </ul>
       </section>
 
-      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
-        <SectionHeading
-          leading="loose"
-          align="center"
-          eyebrow="Join the Program"
-          words={["Become a Terragrunt", "Ambassador"]}
-          accent={["Ambassador"]}
-        />
-        <div
-          class="mx-6 rounded-3xl border-[6px] border-gray-5 bg-bg-dark px-6 py-20"
-        >
-        <div class="mx-auto flex max-w-[850px] flex-col items-center gap-8 text-center">
-          <p class="m-0 max-w-[600px] text-base leading-[1.5em] text-gray-1">
-            We're looking for community members who are passionate, expert users
-            of Terragrunt and are (or willing to be) active in the community.
-          </p>
-          <p class="m-0 font-medium text-white">
-            To be considered, applicants should demonstrate
-          </p>
-          <ul class="m-0 mt-3 flex list-none flex-col gap-2 p-0">
-            {
-              criteria.map((item) => (
-                <li class="flex items-start gap-2.5 text-base text-gray-1">
-                  <svg
-                    class="mt-1 size-4 shrink-0 text-accent-3"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                  {item}
-                </li>
-              ))
-            }
-          </ul>
-          <p class="m-0 max-w-[700px] py-[60px] leading-relaxed text-gray-1">
-            We understand that not everyone wants to be active on social
-            channels or forums. If you show genuine enthusiasm for Terragrunt
-            and are willing to be an active member of the community in other
-            ways, we&rsquo;d love to consider you as well!
-          </p>
+      <section class="px-4 py-[76px] md:px-8">
+        <div class="mx-6 rounded-3xl border-[6px] border-gray-5 bg-bg-dark px-6 py-20">
+          <div class="mx-auto flex max-w-[850px] flex-col items-center gap-8 text-center">
+            <span class="inline-block bg-white/[0.07] px-2 py-0.5 font-mono text-xs uppercase leading-3 text-accent-4">
+              Join the Program
+            </span>
+            <h2 class="m-0 text-[2rem] font-medium leading-[1.5em] text-white md:text-[42px]">
+              Become a Terragrunt <span class="text-accent-4">Ambassador</span>
+            </h2>
+            <p class="m-0 max-w-[600px] text-base leading-[1.5em] text-gray-1">
+              We're looking for community members who are passionate, expert users
+              of Terragrunt and are (or willing to be) active in the community.
+            </p>
 
-          <p class="m-0 text-[30px] leading-9 text-white">
-            Think you're a <span class="text-accent-4">good fit?</span> We'd love
-            to hear from you.
-          </p>
-          <div>
-            <Button
-              href="/terragrunt-ambassador/contact"
-              variant="primary"
-              size="lg"
-            >
-              Become an Ambassador
-            </Button>
+            <div class="flex w-full max-w-[700px] flex-col gap-4">
+              <p class="my-6 text-xl text-white">
+                To be considered, applicants should demonstrate
+              </p>
+              {
+                criteria.map((item) => (
+                  <div class="flex w-full items-center gap-6 rounded border border-[#282a46] bg-[#0f0726] p-6">
+                    <span class="flex size-8 shrink-0 items-center justify-center rounded-sm bg-[#1c1833]">
+                      <svg
+                        class="size-4 text-accent-3"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    </span>
+                    <span class="my-4 text-left text-lg font-medium text-white">
+                      {item}
+                    </span>
+                  </div>
+                ))
+              }
+            </div>
+
+            <p class="m-0 max-w-[700px] py-[60px] leading-relaxed text-gray-1">
+              We understand that not everyone wants to be active on social
+              channels or forums. If you show genuine enthusiasm for Terragrunt
+              and are willing to be an active member of the community in other
+              ways, we&rsquo;d love to consider you as well!
+            </p>
+
+            <p class="m-0 text-[30px] leading-9 text-white">
+              Think you're a <span class="text-accent-4">good fit?</span> We'd love
+              to hear from you.
+            </p>
+            <div>
+              <Button
+                href="/terragrunt-ambassador/contact"
+                variant="primary"
+                size="lg"
+              >
+                Become an Ambassador
+              </Button>
+            </div>
           </div>
-        </div>
         </div>
       </section>
 

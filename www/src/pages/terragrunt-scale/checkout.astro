@@ -6,6 +6,8 @@ import Nav from "@components/Nav.astro";
 import VerticalGrid from "@components/VerticalGrid.astro";
 import { Image } from "astro:assets";
 import Cube from "@assets/img/cube-3d.png";
+import GithubMark from "@assets/icons/github-icon.svg";
+import GitlabMark from "@assets/icons/gitlab-icon.svg";
 
 const title = "Terragrunt Scale | Checkout";
 const description =
@@ -125,9 +127,13 @@ const jsonLd = {
           >
             <span>Works With:</span>
             {
-              ["Github", "Gitlab"].map((tool) => (
-                <span class="rounded-full border border-gray-4 px-3 py-1 normal-case tracking-normal text-dark-blue-1">
-                  {tool}
+              [
+                { label: "Github", mark: GithubMark },
+                { label: "Gitlab", mark: GitlabMark },
+              ].map((tool) => (
+                <span class="flex items-center gap-1.5 rounded border border-gray-4 py-1 pl-1 pr-2.5 normal-case tracking-normal text-dark-blue-1">
+                  <Image src={tool.mark} alt="" aria-hidden="true" class="size-5 rounded" />
+                  {tool.label}
                 </span>
               ))
             }
@@ -268,6 +274,7 @@ const jsonLd = {
     </main>
 
     <FeaturedBrands />
+    <div class="h-[150px]"></div>
   </div>
 
   <Footer />
