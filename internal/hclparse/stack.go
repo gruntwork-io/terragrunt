@@ -264,6 +264,7 @@ func (u *unitPathOnlyHCL) GeneratedPath(stackDir string) string {
 type unitPathOnlyHCL struct {
 	Remain   hcl.Body `hcl:",remain"`
 	NoStack  *bool    `hcl:"no_dot_terragrunt_stack,optional"`
+	Enabled  *bool    `hcl:"enabled,optional"`
 	Instance pkghclparse.InstanceKey
 	Path     string `hcl:"path,attr"`
 	Name     string `hcl:",label"`
@@ -274,10 +275,16 @@ func (u *unitPathOnlyHCL) bindInstance(instance pkghclparse.Instance) {
 	u.Instance = instance.InstanceKey
 }
 
+// isEnabled reports whether the unit generates. Only an explicit enabled = false drops it.
+func (u *unitPathOnlyHCL) isEnabled() bool {
+	return u.Enabled == nil || *u.Enabled
+}
+
 // stackPathOnlyHCL is the discovery shape for stack name, path, and source; Source is lazy so non-literal sources don't block decode.
 type stackPathOnlyHCL struct {
 	Remain   hcl.Body       `hcl:",remain"`
 	NoStack  *bool          `hcl:"no_dot_terragrunt_stack,optional"`
+	Enabled  *bool          `hcl:"enabled,optional"`
 	Source   hcl.Expression `hcl:"source,attr"`
 	Instance pkghclparse.InstanceKey
 	Path     string `hcl:"path,attr"`
@@ -287,6 +294,19 @@ type stackPathOnlyHCL struct {
 // bindInstance records the expansion element s was decoded from.
 func (s *stackPathOnlyHCL) bindInstance(instance pkghclparse.Instance) {
 	s.Instance = instance.InstanceKey
+}
+
+// isEnabled reports whether the stack generates. Only an explicit enabled = false drops it.
+func (s *stackPathOnlyHCL) isEnabled() bool {
+	return s.Enabled == nil || *s.Enabled
+}
+
+// enabledOnly returns a new slice holding the components of components that do not set
+// enabled = false.
+func enabledOnly[T interface{ isEnabled() bool }](components []T) []T {
+	return slices.DeleteFunc(slices.Clone(components), func(component T) bool {
+		return !component.isEnabled()
+	})
 }
 
 // GeneratedPath returns the on-disk path this stack generates to under stackDir.
@@ -358,8 +378,9 @@ func (args *StackDirArgs) maxDepth() int {
 	return DefaultMaxStackRecursionDepth
 }
 
-// UnitPathsFromStackDir returns generated unit paths from discovery parsing. Nested stacks
-// are expanded recursively so a stack composed of sub-stacks yields the sub-stacks' units.
+// UnitPathsFromStackDir returns the generated paths of the enabled units from discovery parsing.
+// Enabled nested stacks are expanded recursively so a stack composed of sub-stacks yields the
+// sub-stacks' units.
 // args.FuncsFor builds the dir-scoped HCL function map for each stack directory visited; it
 // must be non-nil and must return a non-nil map.
 func UnitPathsFromStackDir(
@@ -388,7 +409,7 @@ func UnitPathsFromStackDir(
 	return unitPathsFromStackDir(fsys, stackDir, args, make(map[string]struct{}), 0)
 }
 
-// DirectComponentPaths returns the generated on-disk paths of the direct unit and
+// DirectComponentPaths returns the generated on-disk paths of the direct enabled unit and
 // stack components declared in stackDir's terragrunt.stack.hcl, honoring
 // no_dot_terragrunt_stack. It does not recurse into nested stacks; an absent stack
 // file yields empty slices and a nil error. funcsFor must be non-nil and return a
@@ -521,7 +542,9 @@ func unitPathsFromStackDir(
 	return paths, nil
 }
 
-// decodeDiscovery parses discovery targets and returns path-only unit and stack data.
+// decodeDiscovery parses discovery targets and returns the path-only data of every enabled unit
+// and stack. A disabled component still publishes its unit.<name>.path or stack.<name>.path ref,
+// as it does in the full stack parse.
 //
 // funcs is the function map injected into the discovery eval context; callers
 // must supply a non-nil map (validated at the public entrypoint).
@@ -612,7 +635,7 @@ func decodeDiscovery(
 		return nil, nil, err
 	}
 
-	return decoded.Units, decoded.Stacks, nil
+	return enabledOnly(decoded.Units), enabledOnly(decoded.Stacks), nil
 }
 
 // readDiscoveryValues reads the generated terragrunt.values.hcl next to a stack file
