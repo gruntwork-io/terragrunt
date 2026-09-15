@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -1994,6 +1996,44 @@ func TestWalkDirParallel(t *testing.T) {
 		assert.Contains(t, seen, filepath.Join(root, "keep", "a.txt"))
 		assert.NotContains(t, seen, filepath.Join(root, "skip", "b.txt"))
 	})
+
+	t.Run("WithWorkers(1) never overlaps two callbacks", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		osFs := vfs.NewOSFS()
+
+		for i := range 32 {
+			require.NoError(t, vfs.WriteFile(
+				osFs,
+				filepath.Join(root, fmt.Sprintf("d%02d", i), "f.txt"),
+				[]byte("x"),
+				0o644,
+			))
+		}
+
+		var inFlight, overlaps, visited atomic.Int32
+
+		err := vfs.WalkDirParallel(osFs, root, func(_ string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if inFlight.Add(1) > 1 {
+				overlaps.Add(1)
+			}
+
+			visited.Add(1)
+			inFlight.Add(-1)
+
+			return nil
+		}, vfs.WithWorkers(1))
+
+		require.NoError(t, err)
+		assert.Zero(t, overlaps.Load())
+		// root, 32 dirs, 32 files.
+		assert.Equal(t, int32(65), visited.Load())
+	})
 }
 
 func TestCreateTemp(t *testing.T) {
@@ -2091,7 +2131,10 @@ func TestValidateResolvedSymlinkTarget(t *testing.T) {
 
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
 		require.NoError(t, os.WriteFile(outside, []byte("secret\n"), 0o600))
-		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "real.txt"), []byte("ok\n"), 0o644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(root, "sub", "real.txt"), []byte("ok\n"), 0o644),
+		)
 
 		return root, outside
 	}

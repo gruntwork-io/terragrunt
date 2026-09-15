@@ -124,6 +124,9 @@ const (
 	// OfflineCAS gates the CAS flags that control the persisted probe cache:
 	// --cas-offline, --cas-refresh, and --cas-probe-ttl.
 	OfflineCAS = "offline-cas"
+	// MCPCommand gates the `terragrunt mcp` command, which serves Terragrunt
+	// operations to AI agents over the Model Context Protocol.
+	MCPCommand = "mcp-command"
 )
 
 const (
@@ -255,6 +258,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OfflineCAS,
+		},
+		{
+			Name: MCPCommand,
 		},
 	}
 }

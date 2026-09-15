@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -76,6 +77,8 @@ func RunCommandWithOutput(
 	args ...string,
 ) (*util.CmdOutput, error) {
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
+
+	ctx = vexec.WithTrustedCommand(ctx)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
 		return fn(ctx, l, v, runOpts, args)
