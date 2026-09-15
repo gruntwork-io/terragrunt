@@ -403,7 +403,7 @@ func TestCatalogJSONLFormat(t *testing.T) {
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir)
+		"terragrunt catalog --format jsonl --working-dir "+workDir)
 	require.NoError(t, err)
 
 	byDir := parseCatalogJSONL(t, stdout)
@@ -451,7 +451,7 @@ func TestCatalogJSONLFormatWithoutTTY(t *testing.T) {
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir)
+		"terragrunt catalog --format jsonl --working-dir "+workDir)
 	require.NoError(t, err)
 	assert.Len(t, parseCatalogJSONL(t, stdout), 4)
 }
@@ -464,7 +464,7 @@ func TestCatalogMDFormat(t *testing.T) {
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format md --working-dir "+workDir)
+		"terragrunt catalog --format md --working-dir "+workDir)
 	require.NoError(t, err)
 
 	assert.True(t, strings.HasPrefix(stdout, "# Terragrunt Catalog\n"), "the header opens the document")
@@ -589,7 +589,7 @@ func TestCatalogPipeHelper(t *testing.T) {
 	}
 
 	err := helpers.RunTerragruntCommand(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir,
+		"terragrunt catalog --format jsonl --working-dir "+workDir,
 		os.Stdout, os.Stderr)
 
 	// Standard output is the broken pipe under test, so the marker goes to

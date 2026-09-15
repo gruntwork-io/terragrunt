@@ -21,13 +21,6 @@ const (
 	FormatMD = format.MD
 )
 
-// ErrFormatRequiresExperiment is returned when a non-interactive format is
-// requested without the 'catalog-format' experiment.
-var ErrFormatRequiresExperiment = errors.New(
-	"non-interactive catalog formats require usage of the 'catalog-format' experiment" +
-		" (e.g., --experiment=catalog-format)",
-)
-
 // Options holds the settings of a single `terragrunt catalog` invocation.
 type Options struct {
 	*options.TerragruntOptions

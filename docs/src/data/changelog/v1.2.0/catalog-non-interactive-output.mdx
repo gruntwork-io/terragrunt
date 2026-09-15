@@ -1,0 +1,26 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Non-interactive `terragrunt catalog` output with `--format`
+
+The [catalog TUI](/features/catalog/tui) needs a terminal. The `--format` flag (env: `TG_FORMAT`) writes what the catalog discovers to standard output, so a script or an agent can read the catalog without one.
+
+`--format=jsonl` writes one JSON object per catalog entry, following a [published JSON schema](https://docs.terragrunt.com/schemas/catalog/v1/schema.json):
+
+```bash
+terragrunt catalog --format=jsonl | jq -c '{kind, title, component_source}'
+```
+
+`--format=md` writes a Markdown document with a section per entry:
+
+```bash
+terragrunt catalog --format=md > catalog.md
+```
+
+Terragrunt writes each entry as it discovers it. See [Non-interactive catalog](/features/catalog/non-interactive) for the structure of each format and how streaming behaves.
+
+If your environment sets `TG_FORMAT` to `jsonl` or `md`, `terragrunt catalog` now writes the catalog to standard output. Without the experiment enabled, that setting made the command exit with an error.
+
+Previously gated behind the `catalog-format` experiment, non-interactive catalog output no longer requires `--experiment catalog-format`.

@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -91,17 +90,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 		Before: func(_ context.Context, _ *clihelper.Context) error {
 			if err := cmdOpts.Validate(); err != nil {
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
-			}
-
-			if cmdOpts.Format == FormatTUI {
-				return nil
-			}
-
-			if !cmdOpts.Experiments.Evaluate(experiment.CatalogFormat) {
-				return clihelper.NewExitError(
-					ErrFormatRequiresExperiment,
-					clihelper.ExitCodeGeneralError,
-				)
 			}
 
 			return nil

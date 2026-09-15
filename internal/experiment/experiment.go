@@ -87,9 +87,10 @@ const (
 	// records through the configured logs exporter and correlating them with
 	// traces via the active span.
 	OtelLogs = "otel-logs"
-	// CatalogFormat enables non-interactive output formats for the catalog
-	// command, rendering discovered components as JSON Lines or Markdown on
-	// standard output instead of launching the terminal user interface.
+	// CatalogFormat names the now-stable non-interactive output formats for the
+	// catalog command, which render discovered components as JSON Lines or
+	// Markdown on standard output instead of launching the terminal user
+	// interface. They are enabled by default.
 	CatalogFormat = "catalog-format"
 	// BoundedDiscovery gates the inline "(dir)" graph boundary operand and the
 	// --discovery-boundary flag, which enclose graph discovery within a
@@ -221,7 +222,8 @@ func NewExperiments() Experiments {
 			Name: OtelLogs,
 		},
 		{
-			Name: CatalogFormat,
+			Name:   CatalogFormat,
+			Status: StatusCompleted,
 		},
 		{
 			Name: BoundedDiscovery,

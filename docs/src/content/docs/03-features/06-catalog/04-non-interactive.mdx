@@ -7,12 +7,17 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+
+<Before version="1.2.0">
 
 <Aside type="tip" title="Experimental">
 The `--format` flag is gated behind the [`catalog-format`](/reference/experiments/active#catalog-format) experiment. Enable it with `--experiment=catalog-format` or `TG_EXPERIMENT=catalog-format`.
 
 The examples below omit it for brevity.
 </Aside>
+
+</Before>
 
 The [catalog TUI](/features/catalog/tui) needs a terminal, which leaves scripts, CI jobs, and agents with no way to read what the catalog discovers. The `--format` flag writes the same discovery to standard output instead, in one of two formats:
 
