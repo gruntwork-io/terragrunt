@@ -34,28 +34,32 @@ const portraitFor = (file: string): ImageMetadata => {
   return match.default;
 };
 
+/** `lead` is the `.benefits-span` phrase the live cards colour. */
 const benefits = [
   {
     title: "Visibility & Recognition",
-    body: "Stand out in the Terragrunt community as a trusted expert. We'll feature you on our website and in the Terragrunt Discord channel.",
+    body: "Stand out in the Terragrunt community as a trusted expert. We'll feature you on our website and in the {Terragrunt Discord channel}.",
   },
   {
     title: "Ambassador Swag & Discounts",
-    body: "Receive Terragrunt swag, exclusive gear, discounts on Gruntwork products, and event/travel support for speaking engagements.",
+    body: "Receive Terragrunt swag, exclusive gear, discounts on {Gruntwork products}, and event/travel support for speaking engagements.",
   },
   {
     title: "Direct Access to Terragrunt Team",
-    body: "Private channel with core Terragrunt team and fellow Ambassadors to ask questions, share insights, and shape the future of Terragrunt.",
+    body: "{Private channel} with core Terragrunt team and fellow Ambassadors to ask questions, share insights, and shape the future of Terragrunt.",
   },
   {
     title: "Beta Access",
-    body: "Get early access to new Terragrunt Scale features and provide critical feedback that helps shape the future of Terragrunt.",
+    body: "Get {early access} to new Terragrunt Scale features and provide critical feedback that helps shape the future of Terragrunt.",
   },
   {
     title: "Social Amplification",
-    body: "We'll promote your Terragrunt-related blog posts, videos, and talks through our official channels.",
+    body: "We'll promote your {Terragrunt-related} blog posts, videos, and talks through our official channels.",
   },
 ];
+
+/** Splits a benefit body on its braced phrase so it can be coloured. */
+const highlight = (body: string) => body.split(/(\{[^}]+\})/);
 
 const criteria = [
   "Technical expertise in Terragrunt and OpenTofu/Terraform",
@@ -156,7 +160,15 @@ const socialIcons = {
                   {benefit.title}
                 </h3>
                 <p class="mt-2 text-sm leading-relaxed text-gray-2">
-                  {benefit.body}
+                  {
+                    highlight(benefit.body).map((part) =>
+                      part.startsWith("{") ? (
+                        <span class="text-accent-1">{part.slice(1, -1)}</span>
+                      ) : (
+                        part
+                      ),
+                    )
+                  }
                 </p>
               </li>
             ))
@@ -193,15 +205,13 @@ const socialIcons = {
                     class="size-full object-cover"
                   />
                 </div>
-                <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+                <h3 class="m-0 mb-1.5 text-lg font-medium leading-7 text-[#777888]">
                   {person.name}
                 </h3>
-                <p class="m-0 mt-0.5 text-sm text-gray-2">{person.role}</p>
+                <p class="m-0 mb-1.5 text-sm leading-5 text-gray-1">{person.role}</p>
                 {person.since && (
-                  <p class="m-0 mt-2">
-                    <span class="inline-block rounded-full bg-accent-background px-2.5 py-0.5 text-xs font-medium text-accent-1">
-                      {person.since}
-                    </span>
+                  <p class="m-0 mb-1.5 text-xs font-bold text-gray-1">
+                    {person.since}
                   </p>
                 )}
 
@@ -225,7 +235,7 @@ const socialIcons = {
                   </p>
                 )}
 
-                <ul class="m-0 mt-auto flex list-none gap-2 p-0 pt-4">
+                <ul class="m-0 mt-4 flex list-none gap-2 p-0">
                   {
                     Object.entries(person.links).map(([kind, href]) => {
                       const icon = socialIcons[kind as keyof typeof socialIcons];

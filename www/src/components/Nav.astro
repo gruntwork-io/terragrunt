@@ -3,6 +3,8 @@ import { Image } from "astro:assets";
 import Button from "@components/Button.astro";
 import Search from "@components/Search.astro";
 import TerragruntLogo from "@assets/horizontal-logo-light.svg";
+import HeadsetIcon from "@assets/icons/headset-icon.svg";
+import PipelinesIcon from "@assets/icons/pipelines.svg";
 import {
   DISCORD_INVITE,
   ENTERPRISE_SUPPORT_URL,
@@ -125,16 +127,40 @@ const { active } = Astro.props;
 
     <div class="flex items-center gap-2 md:gap-3">
       <Search class="min-w-0 flex-1 lg:flex-none" />
-      <Button
-        href={ENTERPRISE_SUPPORT_URL}
-        variant="secondary"
-        class="hidden lg:inline-flex"
-      >
-        Enterprise Support
-      </Button>
-      <Button href="/terragrunt-scale" variant="primary" class="shrink-0">
-        Terragrunt Scale
-      </Button>
+      {/*
+        Below `lg` the live nav collapses both CTAs to icon buttons so the
+        search field can take the row. A `hidden` utility on the Button cannot
+        do this: `inline-flex` comes from the component's own base classes and
+        wins in Tailwind's output regardless of attribute order, so the two
+        full-width buttons sat on top of the search box.
+      */}
+      <span class="hidden lg:contents">
+        <Button href={ENTERPRISE_SUPPORT_URL} variant="secondary">
+          Enterprise Support
+        </Button>
+        <Button href="/terragrunt-scale" variant="primary">
+          Terragrunt Scale
+        </Button>
+      </span>
+
+      <span class="contents lg:hidden">
+        <Button
+          href={ENTERPRISE_SUPPORT_URL}
+          variant="secondary"
+          class="size-[38px] shrink-0 px-0 py-0"
+        >
+          <Image src={HeadsetIcon} alt="" aria-hidden="true" class="size-5" />
+          <span class="sr-only">Enterprise Support</span>
+        </Button>
+        <Button
+          href="/terragrunt-scale"
+          variant="primary"
+          class="size-[38px] shrink-0 px-0 py-0"
+        >
+          <Image src={PipelinesIcon} alt="" aria-hidden="true" class="size-5" />
+          <span class="sr-only">Terragrunt Scale</span>
+        </Button>
+      </span>
     </div>
   </nav>
 
