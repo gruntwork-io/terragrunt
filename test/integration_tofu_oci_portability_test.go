@@ -172,7 +172,6 @@ func terragruntOCIModuleTree(t *testing.T, v *venv.Venv, source string) map[stri
 	require.NoError(t, err)
 
 	opts.Experiments = experiment.NewExperiments()
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OCI))
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{

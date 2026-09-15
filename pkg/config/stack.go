@@ -235,13 +235,9 @@ func GenerateStackFile(
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      cs.Enabled,
 		casInstance:     cs.Instance,
-		ociEnabled:      pctx.Experiments.Evaluate(experiment.OCI),
 		strictControls:  pctx.StrictControls,
-	}
-
-	// One getter per stack, so every component shares its credential resolution.
-	if genOpts.ociEnabled {
-		genOpts.ociGetter = getter.NewOCIGetter(l, pctx.Venv)
+		// One getter per stack, so every component shares its credential resolution.
+		ociGetter: getter.NewOCIGetter(l, pctx.Venv),
 	}
 
 	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
@@ -540,7 +536,6 @@ type generateOpts struct {
 	logShowAbsPaths bool
 	noStackValidate bool
 	casEnabled      bool
-	ociEnabled      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -882,9 +877,6 @@ func fetchComponentSource(
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.strictControls)
 
 	isOCI := isOCISource(source)
-	if isOCI && !opts.ociEnabled {
-		return OCIExperimentRequiredError{Kind: kindStr, Name: cmp.name}
-	}
 
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
@@ -1121,20 +1113,6 @@ func copyFiles(
 	}
 
 	return nil
-}
-
-// OCIExperimentRequiredError reports an oci:// component source used without the oci experiment.
-type OCIExperimentRequiredError struct {
-	Kind string
-	Name string
-}
-
-func (err OCIExperimentRequiredError) Error() string {
-	return fmt.Sprintf(
-		"oci:// source on %s %q requires the oci experiment (e.g. --experiment=oci)",
-		err.Kind,
-		err.Name,
-	)
 }
 
 // isOCISource reports whether source is an oci reference, in the oci:// or oci:: form.
