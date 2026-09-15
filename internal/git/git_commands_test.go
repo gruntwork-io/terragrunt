@@ -49,34 +49,27 @@ func TestNewGitRunner(t *testing.T) {
 	})
 }
 
-func TestGitRunner_LatestReleaseTag(t *testing.T) {
+func TestGitRunner_LsRemoteTags(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		wantErr error
 		name    string
 		stdout  string
-		want    string
+		want    []git.LsRemoteResult
 		exit    int
 	}{
 		{
-			name: "highest stable tag",
-			stdout: "a\trefs/tags/v1.2.0\n" +
-				"b\trefs/tags/v2.0.0-rc1\n" +
-				"c\trefs/tags/not-semver\n" +
-				"d\trefs/tags/v1.10.0\n" +
-				"e\trefs/tags/v1.10.0^{}\n",
-			want: "v1.10.0",
+			name:   "tags",
+			stdout: "a\trefs/tags/v1.2.0\nb\trefs/tags/v1.2.0^{}\n",
+			want: []git.LsRemoteResult{
+				{Hash: "a", Ref: "refs/tags/v1.2.0"},
+				{Hash: "b", Ref: "refs/tags/v1.2.0^{}"},
+			},
 		},
 		{
 			name:   "no tags",
 			stdout: "",
-			want:   "",
-		},
-		{
-			name:   "no release tags",
-			stdout: "a\trefs/tags/not-semver\nb\trefs/tags/v2.0.0-beta1\n",
-			want:   "",
 		},
 		{
 			name:    "command failure",
@@ -95,7 +88,7 @@ func TestGitRunner_LatestReleaseTag(t *testing.T) {
 				return vexec.Result{Stdout: []byte(tc.stdout), ExitCode: tc.exit}
 			})
 
-			got, err := runner.LatestReleaseTag(t.Context(), "origin")
+			got, err := runner.LsRemoteTags(t.Context(), "origin")
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 				return
@@ -103,6 +96,96 @@ func TestGitRunner_LatestReleaseTag(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestGitRunner_LocalTags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("lists tags", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{"for-each-ref", "--format=%(objectname) %(refname)", "refs/tags/"}, inv.Args)
+
+			return vexec.Result{Stdout: []byte("a refs/tags/v1.0.0\nb refs/tags/v1.1.0\n")}
+		}).WithWorkDir("/repo")
+
+		got, err := runner.LocalTags(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, []git.LsRemoteResult{
+			{Hash: "a", Ref: "refs/tags/v1.0.0"},
+			{Hash: "b", Ref: "refs/tags/v1.1.0"},
+		}, got)
+	})
+
+	t.Run("command failure", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
+
+		_, err := runner.LocalTags(t.Context())
+		require.ErrorIs(t, err, git.ErrCommandSpawn)
+	})
+}
+
+func TestReleaseTags(t *testing.T) {
+	t.Parallel()
+
+	refs := []git.LsRemoteResult{
+		{Hash: "a", Ref: "refs/tags/v1.2.0"},
+		{Hash: "b", Ref: "refs/tags/v1.10.0"},
+		{Hash: "c", Ref: "refs/tags/v1.10.0^{}"},
+		{Hash: "d", Ref: "refs/tags/v2.0.0-rc1"},
+		{Hash: "e", Ref: "refs/tags/not-semver"},
+		{Hash: "f", Ref: "refs/heads/v9.0.0"},
+		{Hash: "g", Ref: "refs/tags/v0.9.0"},
+	}
+
+	assert.Equal(t, []git.LsRemoteResult{
+		{Hash: "b", Ref: "refs/tags/v1.10.0"},
+		{Hash: "a", Ref: "refs/tags/v1.2.0"},
+		{Hash: "g", Ref: "refs/tags/v0.9.0"},
+	}, git.ReleaseTags(refs))
+}
+
+func TestLatestReleaseTag(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		want string
+		refs []git.LsRemoteResult
+	}{
+		{
+			name: "highest stable tag",
+			refs: []git.LsRemoteResult{
+				{Hash: "a", Ref: "refs/tags/v1.2.0"},
+				{Hash: "b", Ref: "refs/tags/v2.0.0-rc1"},
+				{Hash: "c", Ref: "refs/tags/not-semver"},
+				{Hash: "d", Ref: "refs/tags/v1.10.0"},
+				{Hash: "e", Ref: "refs/tags/v1.10.0^{}"},
+			},
+			want: "v1.10.0",
+		},
+		{
+			name: "no tags",
+		},
+		{
+			name: "no release tags",
+			refs: []git.LsRemoteResult{
+				{Hash: "a", Ref: "refs/tags/not-semver"},
+				{Hash: "b", Ref: "refs/tags/v2.0.0-beta1"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, git.LatestReleaseTag(tc.refs))
 		})
 	}
 }
