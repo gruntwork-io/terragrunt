@@ -8,8 +8,11 @@ import Nav from "@components/Nav.astro";
 import NewsletterSignup from "@components/NewsletterSignup.astro";
 import OpenSourceTools from "@components/OpenSourceTools.astro";
 import SectionHeading from "@components/SectionHeading.astro";
-import { renderLede } from "@lib/lede";
 import StaggeredSteps from "@components/StaggeredSteps.astro";
+import SplitStack from "@components/SplitStack.astro";
+import QuoteCard from "@components/QuoteCard.astro";
+import BandPipelines from "@assets/icons/band-pipelines.svg";
+import BandPatcher from "@assets/icons/band-patcher.svg";
 import MediaFeatureBand from "@components/MediaFeatureBand.astro";
 import VerticalGrid from "@components/VerticalGrid.astro";
 import HeroCard from "@assets/img/tgs-hero-pr-card.png";
@@ -187,6 +190,7 @@ const headlineParts = (() => {
       </section>
 
       <StaggeredSteps
+        icon={BandPipelines}
         eyebrow={howItWorks.eyebrow}
         headlineAccent={howItWorks.headlineLead}
         headline={howItWorks.headlineAccent}
@@ -211,38 +215,13 @@ const headlineParts = (() => {
         ))
       }
 
-      <section class="px-4 py-[76px] md:px-8">
-        <div class="mx-auto grid max-w-[960px] grid-cols-1 gap-8 lg:grid-cols-2">
-          <div>
-            <span class="mb-8 inline-block bg-accent-background px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-accent-1">
-              {patcher.eyebrow}
-            </span>
-            <h2 class="m-0 max-w-[340px] text-[2rem] font-medium leading-[1.15] tracking-[-0.02em] text-dark-blue-1 md:text-[42px] md:leading-[46.67px]">
-              <span class="text-accent-1">{patcher.headlineLead}</span>{" "}{patcher.headlineAccent}
-            </h2>
-          </div>
-          <div class="flex flex-col">
-            {
-              patcher.features.map((feature, i) => (
-                <div
-                  class:list={[
-                    "flex flex-col gap-4 py-6",
-                    i > 0 && "border-t border-dashed border-gray-4",
-                  ]}
-                >
-                  <h3 class="m-0 text-base font-semibold text-dark-blue-1">
-                    {feature.title}
-                  </h3>
-                  <div
-                    class="text-sm leading-relaxed text-gray-2 [&_code]:rounded [&_code]:bg-gray-6 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:text-accent-1 [&_p]:m-0"
-                    set:html={renderLede(feature.body)}
-                  />
-                </div>
-              ))
-            }
-          </div>
-        </div>
-      </section>
+      <SplitStack
+        icon={BandPatcher}
+        eyebrow={patcher.eyebrow}
+        lead={patcher.headlineLead}
+        headline={patcher.headlineAccent}
+        features={patcher.features}
+      />
 
       <section
         id="view-plans"
@@ -352,36 +331,13 @@ const headlineParts = (() => {
         </p>
       </section>
 
-      {/*
-        `.testimonial-quote-*`: the quote in a framed card with the attribution
-        and the customer's mark on one row beneath it. Centred with no mark it
-        read as a pull quote rather than a customer reference.
-      */}
-      <section class="px-4 py-[76px] md:px-8">
-        <figure
-          class="mx-auto max-w-[900px] rounded-lg border-4 border-gray-6 bg-white p-8 md:p-10"
-        >
-          <blockquote class="m-0 text-lg leading-relaxed text-gray-7">
-            {testimonial.quote}
-          </blockquote>
-          <figcaption
-            class="mt-8 flex flex-wrap items-center justify-between gap-6"
-          >
-            <div>
-              <span class="block font-semibold text-dark-blue-1"
-                >{testimonial.name}</span
-              >
-              <span class="block text-sm text-gray-2">{testimonial.role}</span>
-            </div>
-            <Image
-              src={CaddiLogo}
-              alt="Logo for Caddi"
-              loading="lazy"
-              class="h-6 w-auto opacity-70"
-            />
-          </figcaption>
-        </figure>
-      </section>
+      <QuoteCard
+        quote={testimonial.quote}
+        name={testimonial.name}
+        role={testimonial.role}
+        logo={CaddiLogo}
+        logoAlt="Logo for Caddi"
+      />
 
       <section class="border-t border-gray-4 px-4 py-16 text-center md:px-8">
         <SectionHeading

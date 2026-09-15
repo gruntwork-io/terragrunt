@@ -1,0 +1,71 @@
+---
+/**
+ * `.terragrunt-products-grid` — the three (or two) dark tiles that close a
+ * landing hero.
+ *
+ * They sit at the full width of the hero, 112px below the copy, not inside the
+ * copy column: on the live page they are what makes the hero a band rather
+ * than a headline with a picture beside it.
+ */
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
+interface Tile {
+  icon?: ImageMetadata;
+  title: string;
+  body: string;
+  image?: ImageMetadata;
+  imageAlt?: string;
+}
+
+interface Props {
+  tiles: readonly Tile[];
+  columns?: 2 | 3;
+  class?: string;
+}
+
+const { tiles, columns = 3, class: className } = Astro.props;
+---
+
+<div
+  class:list={[
+    "mt-[112px] grid grid-cols-1 gap-8",
+    columns === 3 ? "md:grid-cols-3" : "md:grid-cols-2",
+    className,
+  ]}
+>
+  {
+    tiles.map((tile) => (
+      <div
+        class:list={[
+          "relative flex gap-6 overflow-hidden rounded-xl border border-[#7b7f94] bg-[#171e3c] px-8 py-6",
+          tile.image ? "flex-col items-start" : "flex-row items-center",
+        ]}
+      >
+        {tile.icon && (
+          <Image
+            src={tile.icon}
+            alt=""
+            aria-hidden="true"
+            loading="eager"
+            class="size-[22px] shrink-0"
+          />
+        )}
+        <div class="flex flex-col gap-2">
+          <span class="text-xl font-medium leading-5 text-white">
+            {tile.title}
+          </span>
+          <span class="text-sm leading-5 text-gray-1">{tile.body}</span>
+        </div>
+        {tile.image && (
+          <Image
+            src={tile.image}
+            alt={tile.imageAlt ?? ""}
+            loading="eager"
+            class="mx-auto mt-auto w-full max-w-[458px]"
+          />
+        )}
+      </div>
+    ))
+  }
+</div>

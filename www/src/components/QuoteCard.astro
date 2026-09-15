@@ -1,0 +1,56 @@
+---
+/**
+ * `.testimonial-quote-inner` — one customer quote in a white 850px card ruled
+ * top and bottom with the page's dashed hairline, the attribution and the
+ * customer's mark on one row beneath it.
+ *
+ * The quote is 14px, not display size. Set large and centred it read as a pull
+ * quote from the article rather than a reference from a named company, and it
+ * ran the band about 100px tall.
+ */
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
+interface Props {
+  quote: string;
+  name: string;
+  role: string;
+  logo?: ImageMetadata;
+  logoAlt?: string;
+  /** The Keychron page runs the same card in `--accent-4`. */
+  tone?: "white" | "accent";
+}
+
+const { quote, name, role, logo, logoAlt, tone = "white" } = Astro.props;
+---
+
+<section class="px-4 py-[76px] md:px-8">
+  <figure
+    class:list={[
+      "mx-auto m-0 max-w-[850px] border-y border-dashed border-gray-4 p-12 font-sans",
+      tone === "accent" ? "bg-accent-4" : "bg-white",
+    ]}
+  >
+    <blockquote class="m-0 max-w-[660px] text-sm leading-[20px] text-dark-blue-1">
+      {quote}
+    </blockquote>
+    <figcaption class="mt-6 flex flex-wrap items-center justify-between gap-6">
+      <div>
+        <span class="block text-sm font-semibold leading-5 text-dark-blue-1"
+          >{name}</span
+        >
+        <span class="block text-sm leading-5 text-gray-1">{role}</span>
+      </div>
+      {
+        logo && (
+          <Image
+            src={logo}
+            alt={logoAlt ?? ""}
+            loading="lazy"
+            class="h-6 w-auto"
+          />
+        )
+      }
+    </figcaption>
+  </figure>
+</section>

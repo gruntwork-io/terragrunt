@@ -1,25 +1,52 @@
 ---
 import { Image } from "astro:assets";
 import LandingLayout from "@layouts/LandingLayout.astro";
+import ProductTiles from "@components/ProductTiles.astro";
 import PiranhaPlant from "@assets/img/piranha-plant.jpg";
 import PiranhaHero from "@assets/img/piranha-hero.svg";
-import { scaleProducts } from "@data/site";
+import BandPipelines from "@assets/icons/band-pipelines.svg";
+import BandDrift from "@assets/icons/band-drift.svg";
+import BandPatcher from "@assets/icons/band-patcher.svg";
+import TilePipelines from "@assets/icons/tile-pipelines.svg";
+import TileDrift from "@assets/icons/tile-drift.svg";
+import TilePatcher from "@assets/icons/tile-patcher.svg";
 import { driftDetection, patcher, pipelines } from "@data/terragrunt-scale";
+
+const tiles = [
+  {
+    icon: TilePipelines,
+    title: "Terragrunt Pipelines",
+    body: "Automate your CI/CD",
+  },
+  {
+    icon: TileDrift,
+    title: "Terragrunt Drift Detection",
+    body: "Reconcile Infrastructure Drift",
+  },
+  {
+    icon: TilePatcher,
+    title: "Terragrunt Patcher",
+    body: "Keep your IaC up-to-date",
+  },
+];
 
 const sections = [
   {
+    icon: BandPipelines,
     eyebrow: "Terragrunt Pipelines",
     headlineLead: pipelines.headlineLead,
     headlineAccent: pipelines.headlineAccent,
     features: pipelines.features,
   },
   {
+    icon: BandDrift,
     eyebrow: "Terragrunt Drift Detection",
     headlineLead: driftDetection.headlineLead,
     headlineAccent: driftDetection.headlineAccent,
     features: driftDetection.features,
   },
   {
+    icon: BandPatcher,
     eyebrow: patcher.eyebrow,
     headlineLead: patcher.headlineLead,
     headlineAccent: patcher.headlineAccent,
@@ -37,68 +64,55 @@ const sections = [
 >
   <Fragment slot="hero">
     {/*
-      `.terragrunt-pipelines-hero` — a navy band above the form card carrying
-      the campaign headline and the three product tiles. It was missing
-      entirely, which is most of why this page ran a third short.
+      `.terragrunt-pipelines-hero` — a full-bleed navy band above the form card
+      carrying the campaign headline and the three product tiles. Built inside
+      the page container at the copy column's width it lost both the bleed and
+      about 200px of height, which is most of why this page ran a third short.
     */}
-    <section class="relative z-[2] bg-bg-dark px-4 pt-[100px] md:px-8">
-      <div class="mx-auto grid max-w-[1180px] grid-cols-1 items-center gap-12 pb-[100px] lg:grid-cols-[1fr_auto]">
-        <div class="max-w-[620px]">
+    <section class="relative z-[2] w-full bg-bg-dark pt-[100px]">
+      <div class="px-4 pb-20 md:px-20">
+        <div class="max-w-[589px]">
           <h2
-            class="m-0 text-4xl font-medium leading-[1.05] text-white md:text-[60px] md:leading-[60px]"
+            class="m-0 text-[40px] font-medium leading-[1.2] text-white md:text-[60px] md:leading-[90px]"
           >
             Our Pipelines Won&rsquo;t Bite!
           </h2>
-          <p class="mt-6 text-base leading-relaxed text-gray-1">
+          <p class="mb-5 mt-10 text-lg leading-7 text-gray-1">
             Terragrunt Scale standardizes infra operations without leaving your
             pipeline. It operates intelligently on top of Terragrunt&rsquo;s
             abstractions, runs in your pre-existing CI solution, and integrates
             natively with your workflows.
-          </p>
-          <p class="mt-4 text-base leading-relaxed text-gray-1">
-            And we&rsquo;ll send you a free <strong class="font-semibold text-white"
+            <br /><br />
+            And we&rsquo;ll send you a free <strong class="font-bold"
               >Lego Super Mario Piranha Plant</strong
             > just for taking a demo.
           </p>
-
-          <ul class="m-0 mt-10 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-3">
-            {
-              scaleProducts.map((product) => (
-                <li class="rounded-lg border border-stroke-dark bg-white/[0.04] p-4">
-                  <span class="block text-sm font-semibold text-white">
-                    {product.product}
-                  </span>
-                  <span class="mt-1 block text-xs text-gray-1">
-                    {product.title}
-                  </span>
-                </li>
-              ))
-            }
-          </ul>
         </div>
 
-        <Image
-          src={PiranhaHero}
-          alt=""
-          aria-hidden="true"
-          loading="eager"
-          class="w-full max-w-[420px] justify-self-center lg:justify-self-end"
-        />
+        <div class="relative">
+          <ProductTiles tiles={tiles} />
+          <Image
+            src={PiranhaHero}
+            alt=""
+            aria-hidden="true"
+            loading="eager"
+            class="pointer-events-none absolute -right-10 hidden w-[400px] max-w-none lg:-top-[350px] lg:block"
+          />
+        </div>
       </div>
     </section>
   </Fragment>
 
   <Fragment slot="offer">
     <h1
-      class="m-0 text-4xl font-medium leading-[1.05] text-background md:text-[60px] md:leading-[60px]"
+      class="m-0 text-[40px] font-medium leading-tight text-background md:text-[60px] md:leading-[60px]"
     >
-      Ready to tame your <span class="text-accent-4">pipelines?</span>
+      Ready to tame your pipelines?
     </h1>
-    <p class="m-0 text-base leading-relaxed text-gray-1">
+    <p class="m-0 text-sm leading-5 text-gray-1">
       Sign up for a demo with our team and we&rsquo;ll show you how you can
       scale your IaC estate with centralized pipelines.
-    </p>
-    <p class="m-0 text-base leading-relaxed text-gray-1">
+      <br /><br />
       And to prove our pipelines won&rsquo;t bite, we&rsquo;ll send you a Lego
       Piranha Plant set after you complete the demo!
     </p>
@@ -107,7 +121,7 @@ const sections = [
       src={PiranhaPlant}
       alt="Super Mario Piranha Plant Lego Set"
       loading="lazy"
-      class="w-full max-w-[220px] rounded-lg"
+      class="w-full max-w-[250px] rounded-lg"
     />
   </Fragment>
 </LandingLayout>

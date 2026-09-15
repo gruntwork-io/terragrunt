@@ -1,0 +1,64 @@
+---
+/**
+ * `._2-col-right-stack` — a headline pinned left against a stack of dashed
+ * blocks on the right, separated by 40px dotted dividers.
+ *
+ * Built as a third three-across band it read as a repeat of the Drift section;
+ * the live page deliberately changes rhythm here. The divider is a 40px strip,
+ * not a hairline: it carries the dashed left and right rules down past each
+ * block so the column reads as one framed run.
+ */
+import BandHeading from "@components/BandHeading.astro";
+import { renderLede } from "@lib/lede";
+import type { ImageMetadata } from "astro";
+
+interface Props {
+  icon?: ImageMetadata;
+  eyebrow?: string;
+  lead: string;
+  headline: string;
+  features: readonly { title: string; body: string }[];
+}
+
+const { icon, eyebrow, lead, headline, features } = Astro.props;
+---
+
+<section class="px-4 py-[76px] md:px-8">
+  <div
+    class="mx-auto flex max-w-[850px] flex-col justify-between gap-6 pl-6 md:flex-row md:items-stretch md:gap-0 md:pr-0"
+  >
+    <BandHeading
+      icon={icon}
+      eyebrow={eyebrow}
+      lead={lead}
+      headline={headline}
+      leading="tight"
+      class="md:w-[400px] md:shrink-0 md:pr-[10px]"
+    />
+
+    <div class="flex flex-col md:w-[406px]">
+      {
+        features.map((feature, i) => (
+          <>
+            {i > 0 && (
+              <div
+                class="h-10 border-x border-dashed border-gray-4 bg-[length:8px_1px] bg-repeat-x"
+                style="background-image:repeating-linear-gradient(to right,var(--color-gray-4) 0 4px,transparent 4px 8px);background-position:0 50%"
+                aria-hidden="true"
+              />
+            )}
+            <div class="flex flex-col gap-4 border border-dashed border-gray-4 border-r-transparent p-6">
+              <h3 class="m-0 text-xl font-medium leading-[1.5em] text-dark-blue-1">
+                {feature.title}
+              </h3>
+              <div
+                class="text-sm leading-[20px] text-gray-1 [&_code]:rounded [&_code]:bg-gray-6 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:text-accent-1 [&_p]:m-0"
+                set:html={renderLede(feature.body)}
+              />
+            </div>
+          </>
+        ))
+      }
+    </div>
+  </div>
+</section>

@@ -1,55 +1,56 @@
 ---
 /**
- * A heading over three dashed blocks across — `._3-col-block-container` on the
- * landing pages and the Drift band.
+ * `._3-col-block-container` — a band heading over three dashed blocks across.
  *
- * The landing pages render their feature groups this way, not as a vertical
- * list; as a stacked list they ran about a third shorter than the live pages.
+ * The blocks are white on the page's `--background` grey, with the dashed rule
+ * only between them and along the top and bottom: `.first` drops its left
+ * border and `.last` its right, so the run reads as one ruled strip rather
+ * than three separate cards. More than three features wrap into further rows,
+ * which is why the horizontal rule lives on the container and each block only
+ * carries its own bottom edge — a `border-y` per block doubles the line
+ * between rows.
  */
+import BandHeading from "@components/BandHeading.astro";
 import { renderLede } from "@lib/lede";
+import type { ImageMetadata } from "astro";
 
 interface Props {
+  icon?: ImageMetadata;
   eyebrow?: string;
   headlineAccent: string;
   headline: string;
   features: readonly { title: string; body: string }[];
 }
 
-const { eyebrow, headlineAccent, headline, features } = Astro.props;
+const { icon, eyebrow, headlineAccent, headline, features } = Astro.props;
 ---
 
 <section class="px-4 py-[76px] md:px-8">
-  <div class="mx-auto max-w-[900px]">
-    <div class="mb-[60px] px-6">
-      {
-        eyebrow && (
-          <span class="mb-8 inline-block bg-accent-background px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-accent-1">
-            {eyebrow}
-          </span>
-        )
-      }
-      <h2
-        class="m-0 text-[2rem] font-medium leading-[1.5em] text-dark-blue-1 md:text-[42px]"
-      >
-        <span class="text-accent-1">{headlineAccent}</span>{" "}{headline}
-      </h2>
-    </div>
+  <div class="mx-auto max-w-[850px]">
+    <BandHeading
+      icon={icon}
+      eyebrow={eyebrow}
+      lead={headlineAccent}
+      headline={headline}
+      class="mb-[60px] px-6"
+    />
 
-    <div class="grid grid-cols-1 border-y border-dashed border-gray-4 sm:grid-cols-3">
+    <div class="grid grid-cols-1 border-t border-dashed border-gray-4 sm:grid-cols-3">
       {
         features.map((feature, i) => (
           <div
             class:list={[
-              "flex flex-col gap-4 p-6",
-              i < features.length - 1 &&
+              "flex flex-col gap-4 border-b border-dashed border-gray-4 bg-white p-6",
+              (i + 1) % 3 !== 0 &&
+                i !== features.length - 1 &&
                 "sm:border-r sm:border-dashed sm:border-gray-4",
             ]}
           >
-            <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+            <h3 class="m-0 text-base font-semibold leading-5 text-dark-blue-1">
               {feature.title}
             </h3>
             <div
-              class="text-sm leading-relaxed text-gray-2 [&_code]:rounded [&_code]:bg-gray-6 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:text-accent-1 [&_p]:m-0"
+              class="text-sm leading-[20px] text-gray-1 [&_code]:rounded [&_code]:bg-gray-6 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:text-accent-1 [&_p]:m-0"
               set:html={renderLede(feature.body)}
             />
           </div>

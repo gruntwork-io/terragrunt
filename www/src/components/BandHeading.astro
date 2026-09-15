@@ -1,0 +1,64 @@
+---
+/**
+ * The heading block that opens every feature band: a 36px outlined icon beside
+ * a filled eyebrow chip, then a two-tone 42px headline.
+ *
+ * The icon is not decoration that can be dropped — on the live page it is the
+ * only thing distinguishing the Pipelines, Drift and Patcher bands from each
+ * other above the fold of each section, and the row it sits in carries 32px of
+ * the 92px gap between the eyebrow and the headline.
+ */
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
+interface Props {
+  icon?: ImageMetadata;
+  eyebrow?: string;
+  /** Rendered in `--accent-1`; the live `.accent-1` headline colour. */
+  lead: string;
+  headline: string;
+  /** `loose` is the 1.5em band scale, `tight` the 1.125em split-column one. */
+  leading?: "loose" | "tight";
+  class?: string;
+}
+
+const {
+  icon,
+  eyebrow,
+  lead,
+  headline,
+  leading = "loose",
+  class: className,
+} = Astro.props;
+---
+
+<div class:list={[className]}>
+  {
+    (icon || eyebrow) && (
+      <div class="mb-8 flex items-center">
+        {icon && (
+          <Image
+            src={icon}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            class="mr-2 size-9 shrink-0"
+          />
+        )}
+        {eyebrow && (
+          <span class="inline-block bg-accent-background px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-accent-1">
+            {eyebrow}
+          </span>
+        )}
+      </div>
+    )
+  }
+  <h2
+    class:list={[
+      "m-0 text-[2rem] font-medium text-dark-blue-1 md:text-[42px]",
+      leading === "loose" ? "leading-[1.5em]" : "leading-[1.125em]",
+    ]}
+  >
+    <span class="text-accent-1">{lead}</span>{" "}{headline}
+  </h2>
+</div>

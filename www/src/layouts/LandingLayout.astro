@@ -1,21 +1,34 @@
 ---
 /**
- * A demo-request landing page: offer and form at the top, product sections
+ * A demo-request landing page: offer and form in a navy card, product sections
  * below, testimonial last.
+ *
+ * The sections deliberately change shape as they go down — staggered cards,
+ * then a flat three-across run, then a split column. Rendering all three the
+ * same way (which is what they were) reads as one band repeated, and loses the
+ * cascade the first one is built around.
  *
  * These pages are `noindex` by default. They are campaign destinations whose
  * copy overlaps the Terragrunt Scale page almost entirely, and letting both
  * compete for the same queries is how a product page loses its own ranking.
  */
 import BaseLayout from "@layouts/BaseLayout.astro";
+import QuoteCard from "@components/QuoteCard.astro";
+import SplitStack from "@components/SplitStack.astro";
+import StaggeredSteps from "@components/StaggeredSteps.astro";
 import ThreeColBand from "@components/ThreeColBand.astro";
 import VerticalGrid from "@components/VerticalGrid.astro";
 import Footer from "@components/Footer.astro";
 import HubspotForm from "@components/HubspotForm.astro";
 import Nav from "@components/Nav.astro";
+import CaddiLogo from "@assets/img/caddi.webp";
+import type { ImageMetadata } from "astro";
 import { testimonial } from "@data/terragrunt-scale";
 
 export interface LandingSection {
+  /** Which band shape to use; defaults follow position on the live pages. */
+  kind?: "staggered" | "cols" | "split";
+  icon?: ImageMetadata;
   eyebrow?: string;
   headlineLead: string;
   headlineAccent: string;
@@ -28,6 +41,11 @@ interface Props {
   path: string;
   formName: string;
   sections: readonly LandingSection[];
+  /** `offer-narrow` caps the copy column at 440px, as the Piranha page does. */
+  contact?: "offer-narrow" | "offer-wide";
+  quoteTone?: "white" | "accent";
+  /** The 150px tail above the footer; the Keychron page ends without it. */
+  spacer?: boolean;
   noindex?: boolean;
 }
 
@@ -37,8 +55,14 @@ const {
   path,
   formName,
   sections,
+  contact = "offer-narrow",
+  quoteTone = "white",
+  spacer = true,
   noindex = true,
 } = Astro.props;
+
+const kindFor = (section: LandingSection, i: number) =>
+  section.kind ?? (["staggered", "cols", "split"] as const)[i] ?? "cols";
 ---
 
 <BaseLayout
@@ -50,14 +74,27 @@ const {
   <VerticalGrid />
   <Nav />
 
+  <slot name="hero" />
+
   <div class="global-page-container">
     <main class="mx-auto w-full max-w-[1310px]">
-      <slot name="hero" />
       <slot name="before-form" />
 
-      <section class="px-4 py-[76px] md:px-8">
-        <div class="grid grid-cols-1 items-start gap-[96px] rounded-3xl border-[6px] border-gray-5 bg-bg-dark p-8 lg:grid-cols-2 lg:p-12">
-          <div class="flex max-w-[560px] flex-col gap-8">
+      <section class="py-[76px]">
+        {/*
+          `.pipelines-contact-inner` / `.contact-inner`: 80px of padding inside
+          a 6px `--gray-5` frame, 20px clear of the page container. At 32px it
+          read as a form on a dark strip rather than the page's one card.
+        */}
+        <div
+          class:list={[
+            "mx-5 grid grid-cols-1 items-start rounded-3xl border-[6px] border-gray-5 bg-bg-dark p-8 md:p-20",
+            contact === "offer-narrow"
+              ? "gap-12 lg:grid-cols-[minmax(300px,440px)_1fr] lg:gap-24"
+              : "gap-8 lg:grid-cols-[1fr_minmax(300px,440px)]",
+          ]}
+        >
+          <div class="flex flex-col gap-8">
             <slot name="offer" />
           </div>
 
@@ -89,7 +126,7 @@ const {
                 },
               ]}
             />
-            <p class="mt-4 text-center text-sm text-gray-1">
+            <p class="mt-3 text-center text-xs text-gray-1">
               We generally respond the same business day!
             </p>
           </div>
@@ -99,31 +136,52 @@ const {
       <slot name="after-form" />
 
       {
-        sections.map((section) => (
-          <ThreeColBand
-            eyebrow={section.eyebrow}
-            headlineAccent={section.headlineLead}
-            headline={section.headlineAccent}
-            features={section.features}
-          />
-        ))
+        sections.map((section, i) => {
+          const kind = kindFor(section, i);
+          if (kind === "staggered") {
+            return (
+              <StaggeredSteps
+                icon={section.icon}
+                eyebrow={section.eyebrow!}
+                headlineAccent={section.headlineLead}
+                headline={section.headlineAccent}
+                steps={section.features}
+              />
+            );
+          }
+          if (kind === "split") {
+            return (
+              <SplitStack
+                icon={section.icon}
+                eyebrow={section.eyebrow}
+                lead={section.headlineLead}
+                headline={section.headlineAccent}
+                features={section.features}
+              />
+            );
+          }
+          return (
+            <ThreeColBand
+              icon={section.icon}
+              eyebrow={section.eyebrow}
+              headlineAccent={section.headlineLead}
+              headline={section.headlineAccent}
+              features={section.features}
+            />
+          );
+        })
       }
 
-      <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
-        <figure class="mx-auto max-w-[820px] text-center">
-          <blockquote class="m-0 text-xl leading-relaxed text-gray-7">
-            &ldquo;{testimonial.quote}&rdquo;
-          </blockquote>
-          <figcaption class="mt-6">
-            <span class="block font-semibold text-dark-blue-1"
-              >{testimonial.name}</span
-            >
-            <span class="block text-sm text-gray-2">{testimonial.role}</span>
-          </figcaption>
-        </figure>
-      </section>
+      <QuoteCard
+        quote={testimonial.quote}
+        name={testimonial.name}
+        role={testimonial.role}
+        logo={CaddiLogo}
+        logoAlt="Logo for Caddi"
+        tone={quoteTone}
+      />
 
-      <div class="h-[150px]"></div>
+      {spacer && <div class="h-[150px]" />}
     </main>
   </div>
 

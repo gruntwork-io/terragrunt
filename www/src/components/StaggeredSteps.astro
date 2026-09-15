@@ -10,6 +10,8 @@
  * loses both the cascade and about 200px of height.
  */
 import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+import BandHeading from "@components/BandHeading.astro";
 import col1Bottom from "@assets/img/col-1-bottom.jpg";
 import col2Top from "@assets/img/col-2-top.jpg";
 import col2Bottom from "@assets/img/col-2-bottom.jpg";
@@ -17,13 +19,14 @@ import col3Top from "@assets/img/col-3-top.jpg";
 import Grunty from "@assets/grunty/grunty.svg";
 
 interface Props {
+  icon?: ImageMetadata;
   eyebrow: string;
   headlineAccent: string;
   headline: string;
   steps: readonly { title: string; body: string }[];
 }
 
-const { eyebrow, headlineAccent, headline, steps } = Astro.props;
+const { icon, eyebrow, headlineAccent, headline, steps } = Astro.props;
 
 /** Spacers per column, in document order around the card. */
 const spacers = [
@@ -35,18 +38,13 @@ const spacers = [
 
 <section class="px-4 py-[76px] md:px-8">
   <div class="relative mx-auto max-w-[850px]">
-    <div class="px-6 pb-6">
-      <span
-        class="mb-8 inline-block bg-accent-background px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-accent-1"
-      >
-        {eyebrow}
-      </span>
-      <h2
-        class="m-0 mb-[60px] text-[2rem] font-medium leading-[1.5em] text-dark-blue-1 md:text-[42px]"
-      >
-        <span class="text-accent-1">{headlineAccent}</span>{" "}{headline}
-      </h2>
-    </div>
+    <BandHeading
+      icon={icon}
+      eyebrow={eyebrow}
+      lead={headlineAccent}
+      headline={headline}
+      class="mb-[60px] px-6 pb-6"
+    />
 
     <Image
       src={Grunty}
@@ -70,10 +68,10 @@ const spacers = [
               />
             )}
             <div class="flex flex-col gap-4 border border-dashed border-gray-4 bg-white p-6">
-              <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+              <h3 class="m-0 text-base font-semibold leading-5 text-dark-blue-1">
                 {step.title}
               </h3>
-              <p class="m-0 text-sm leading-relaxed text-gray-2">{step.body}</p>
+              <p class="m-0 text-sm leading-[20px] text-gray-1">{step.body}</p>
             </div>
             {spacers[i]?.below && (
               <Image
