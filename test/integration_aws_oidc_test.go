@@ -341,27 +341,17 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			t.Fatalf(
-				"OIDC token request to %s failed with status %s. Additionally, failed to read response body: %v",
-				requestURL,
-				resp.Status,
-				readErr,
-			)
-		}
-
-		t.Fatalf(
-			"OIDC token request to %s failed with status %s. Response: %s",
-			requestURL,
-			resp.Status,
-			string(bodyBytes),
-		)
-	}
-
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err, "Failed to read OIDC token response body from %s", requestURL)
+	require.NoError(t, err, "Failed to read OIDC token response body from %s (status %s)", requestURL, resp.Status)
+	require.Equal(
+		t,
+		http.StatusOK,
+		resp.StatusCode,
+		"OIDC token request to %s failed with status %s. Response: %s",
+		requestURL,
+		resp.Status,
+		string(body),
+	)
 
 	var tokenResp oidcTokenResponse
 

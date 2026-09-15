@@ -28,7 +28,7 @@ func extractHostServiceLine(t *testing.T, terraformrc, service string) string {
 		}
 	}
 
-	t.Fatalf("service %q not found in .terraformrc:\n%s", service, terraformrc)
+	require.FailNowf(t, "service not found", "service %q not found in .terraformrc:\n%s", service, terraformrc)
 
 	return ""
 }

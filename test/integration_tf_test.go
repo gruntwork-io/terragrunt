@@ -1181,9 +1181,7 @@ func TestTFTerraformSubcommandCliArgs(t *testing.T) {
 		// Call helpers.RunTerragruntCommand directly because this command
 		// contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-		if err == nil {
-			t.Fatalf("Failed to properly fail command: %v.", cmd)
-		}
+		require.Error(t, err, "Failed to properly fail command: %v.", cmd)
 
 		assert.True(
 			t,
@@ -1361,9 +1359,7 @@ func TestTFTerragruntExcludeExternalDependencies(t *testing.T) {
 
 	applyAllStdoutString := applyAllStdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Contains(t, applyAllStdoutString, "Hello World, "+includedModule)
 	assert.NotContains(t, applyAllStdoutString, "Hello World, "+excludedModule)
@@ -4425,9 +4421,7 @@ func TestTFInitSkipCache(t *testing.T) {
 
 	// verify that after adding new file, init is executed
 	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
-	if err := os.WriteFile(tfFile, []byte(""), 0o644); err != nil {
-		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
-	}
+	require.NoError(t, os.WriteFile(tfFile, []byte(""), 0o644), "Error writing new Terraform file to %s", tfFile)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,

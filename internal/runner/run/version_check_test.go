@@ -117,9 +117,7 @@ func testCheckTerraformVersionMeetsConstraint(
 	t.Helper()
 
 	current, err := semver.Parse(currentVersion)
-	if err != nil {
-		t.Fatalf("Invalid current version specified in test: %v", err)
-	}
+	require.NoError(t, err, "Invalid current version specified in test")
 
 	err = run.CheckTerraformVersionMeetsConstraint(current, versionConstraint)
 	if versionMeetsConstraint && err != nil {
@@ -145,9 +143,7 @@ func testParseTerraformVersion(
 
 	if expectedErr == nil {
 		expected, err := semver.Parse(expectedVersion)
-		if err != nil {
-			t.Fatalf("Invalid expected version specified in test: %v", err)
-		}
+		require.NoError(t, err, "Invalid expected version specified in test")
 
 		require.NoError(t, actualErr)
 		assert.Equal(t, expected, actualVersion)
@@ -275,19 +271,18 @@ func testCheckTerragruntVersionMeetsConstraint(
 	t.Helper()
 
 	current, err := semver.Parse(currentVersion)
-	if err != nil {
-		t.Fatalf("Invalid current version specified in test: %v", err)
-	}
+	require.NoError(t, err, "Invalid current version specified in test")
 
 	err = run.CheckTerragruntVersionMeetsConstraint(current, versionConstraint)
-	if versionMeetsConstraint && err != nil {
-		t.Fatalf("Expected Terragrunt version %s to meet constraint %s, but got error: %v",
-			currentVersion, versionConstraint, err)
-	} else if !versionMeetsConstraint && err == nil {
-		t.Fatalf(
-			"Expected Terragrunt version %s to NOT meet constraint %s, but got back a nil error",
-			currentVersion,
-			versionConstraint,
-		)
+	if versionMeetsConstraint {
+		require.NoError(t, err,
+			"Expected Terragrunt version %s to meet constraint %s",
+			currentVersion, versionConstraint)
+
+		return
 	}
+
+	require.Error(t, err,
+		"Expected Terragrunt version %s to NOT meet constraint %s",
+		currentVersion, versionConstraint)
 }

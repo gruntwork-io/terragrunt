@@ -74,9 +74,8 @@ func TestNestedModuleCredentials(t *testing.T) {
 		case "/v1/modules/private/lambda/aws/versions":
 			w.Header().Set("Content-Type", "application/json")
 
-			if _, err := io.WriteString(w, versionsBody); err != nil {
-				t.Errorf("upstream write failed: %v", err)
-			}
+			_, err := io.WriteString(w, versionsBody)
+			assert.NoError(t, err, "upstream write failed")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -142,8 +141,8 @@ func TestNestedModuleCredentials(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("listener close failed: %v", err)
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "listener close failed")
 		}
 	})
 

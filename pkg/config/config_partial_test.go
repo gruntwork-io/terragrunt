@@ -930,7 +930,7 @@ func forceModTimeChange(t *testing.T, path string, prev time.Time) {
 		time.Sleep(1 * time.Millisecond)
 	}
 
-	t.Fatalf("Failed to change modification time of %s within 5 seconds", path)
+	require.FailNow(t, "Failed to change modification time of "+path+" within 5 seconds")
 }
 
 // TestPartialParseConfigCacheDifferentCallers verifies that the partial parse config cache

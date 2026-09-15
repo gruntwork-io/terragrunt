@@ -80,7 +80,7 @@ func TestKeyLocksIndependentKeysDoNotBlock(t *testing.T) {
 		select {
 		case <-done:
 		case <-time.After(2 * time.Second):
-			t.Fatal(`locking independent key "b" was blocked by holder of "a"`)
+			require.FailNow(t, `locking independent key "b" was blocked by holder of "a"`)
 		}
 	})
 }

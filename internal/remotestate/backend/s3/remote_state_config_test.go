@@ -116,13 +116,14 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 			createdLoggingInput := extS3Cfg.CreateS3LoggingInput()
 
 			actual := reflect.DeepEqual(createdLoggingInput, tc.loggingInput)
-			if !assert.Equal(t, tc.shouldBeEqual, actual) {
-				t.Errorf(
-					"s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v",
-					createdLoggingInput,
-					tc.loggingInput,
-				)
-			}
+			assert.Equal(
+				t,
+				tc.shouldBeEqual,
+				actual,
+				"s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v",
+				createdLoggingInput,
+				tc.loggingInput,
+			)
 		})
 	}
 }

@@ -290,9 +290,7 @@ func TestWindowsProviderCacheWithRemoteURL(t *testing.T) {
 }
 
 func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
-	if err := os.MkdirAll(targetPath, 0o777); err != nil {
-		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
-	}
+	require.NoError(t, os.MkdirAll(targetPath, 0o777), "Failed to create temp dir %s", targetPath)
 
 	copyErr := util.CopyFolderContents(
 		createLogger(),
@@ -306,13 +304,10 @@ func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 
 func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 	currentDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
+	require.NoError(t, err, "Failed to get current directory")
+
 	tmpDir, err := os.MkdirTemp(currentDir, "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	require.NoError(t, err, "Failed to create temp dir")
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 

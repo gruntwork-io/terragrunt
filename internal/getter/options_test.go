@@ -84,7 +84,7 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 		return
 	}
 
-	t.Fatal("no getter matched cas:: source")
+	require.Fail(t, "no getter matched cas:: source")
 }
 
 // TestWithHTTPSAuthHeaderReachesServer verifies WithHTTPSAuth wires its
