@@ -80,6 +80,11 @@ type TerraformConfig struct {
 	// Defaults to false (copy the lock file) when not set
 	NoCopyTerraformLockFile bool
 
+	// NoCache, when true, skips copying local source to .terragrunt-cache
+	// and runs Terraform directly from the unit directory. Only applies when
+	// no external terraform.source is configured.
+	NoCache bool
+
 	// UpdateSourceWithCAS indicates the terraform.source is a relative path
 	// meant to be rewritten against a cloned repository by CAS. The run path
 	// rejects this when CAS is unavailable, since the relative path has no
