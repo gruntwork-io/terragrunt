@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -56,7 +57,7 @@ func generateStack(t *testing.T, dir string, args ...string) {
 	helpers.RunTerragrunt(
 		t,
 		strings.Join(append(
-			[]string{"terragrunt stack generate --experiment block-iteration --working-dir", dir},
+			[]string{"terragrunt stack generate --working-dir", dir},
 			args...,
 		), " "),
 	)
@@ -67,7 +68,7 @@ func applyStack(t *testing.T, dir string) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack run apply --experiment block-iteration --non-interactive"+
+		"terragrunt stack run apply --non-interactive"+
 			" --report-file "+helpers.ReportFile+" --working-dir "+dir+" -- -auto-approve",
 	)
 }
@@ -78,7 +79,7 @@ func stackOutputs(t *testing.T, dir string) map[string]any {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack output --format json --experiment block-iteration"+
+		"terragrunt stack output --format json"+
 			" --non-interactive --working-dir "+dir,
 	)
 	require.NoError(t, err)
@@ -245,4 +246,32 @@ func TestTFBlockIterationCountShiftAdoptsStateAtTheWrongAddress(t *testing.T) {
 	// index holds a second copy of gamma that the configuration no longer addresses.
 	assert.Equal(t, "gamma", appliedRole(t, live, filepath.Join("aurora", "1")))
 	assert.Equal(t, "gamma", appliedRole(t, live, filepath.Join("aurora", "2")))
+}
+
+// TestTFBlockIterationCountGrowthKeepsExistingState pins the safe direction of a count change.
+// Appending to the list a count reads adds the next index, and every earlier index keeps the
+// state it applied, since no position moved.
+func TestTFBlockIterationCountGrowthKeepsExistingState(t *testing.T) {
+	t.Parallel()
+
+	root := copyBlockIterationFixture(t, testFixtureBlockIterationUnits)
+	live := filepath.Join(root, "count")
+
+	applyStack(t, live)
+
+	switchStackConfig(t, root, "count", "count-grown")
+	applyStack(t, live)
+
+	assert.Equal(t, map[string]any{
+		"aurora": map[string]any{
+			"0": map[string]any{"role": "alpha"},
+			"1": map[string]any{"role": "beta"},
+			"2": map[string]any{"role": "gamma"},
+			"3": map[string]any{"role": "delta"},
+		},
+	}, stackOutputs(t, live))
+
+	for index, role := range []string{"alpha", "beta", "gamma", "delta"} {
+		assert.Equal(t, role, appliedRole(t, live, filepath.Join("aurora", strconv.Itoa(index))))
+	}
 }

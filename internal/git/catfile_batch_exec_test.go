@@ -326,7 +326,7 @@ func awaitPromptly(t *testing.T, fn func() error) error {
 	case err := <-done:
 		return err
 	case <-time.After(batchPromptness):
-		t.Fatal("call did not return after the context was canceled")
+		require.Fail(t, "call did not return after the context was canceled")
 
 		return nil
 	}

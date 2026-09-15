@@ -25,7 +25,7 @@ func applyExpansionOutputStack(t *testing.T) string {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack run apply --experiment block-iteration --non-interactive --working-dir "+
+		"terragrunt stack run apply --non-interactive --working-dir "+
 			rootPath+" -- -auto-approve",
 	)
 
@@ -38,7 +38,7 @@ func stackOutputAt(t *testing.T, rootPath, address string) string {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt stack output "+address+
-			" --experiment block-iteration --non-interactive --working-dir "+rootPath,
+			" --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -83,7 +83,7 @@ func TestTFStackOutputRawResolvesKeyedAddress(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		`terragrunt stack output 'aurora["web"].role' --format raw`+
-			" --experiment block-iteration --non-interactive --working-dir "+rootPath,
+			" --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "web", strings.TrimSpace(stdout))

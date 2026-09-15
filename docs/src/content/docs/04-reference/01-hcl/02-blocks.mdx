@@ -9,6 +9,8 @@ sidebar:
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import Before from '@components/Before.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -1310,9 +1312,13 @@ The `dependency` block supports the following arguments:
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
 - `expansion` (block, optional): Iterates the `dependency` block, producing one dependency per element of a `count` or `for_each`. Each instance is referenced by key, as in `dependency.aurora["web"].outputs.id`. See [`expansion`](#expansion).
 
+  <Before version="1.2.0">
+
   <Aside type="tip" title="Experimental">
     The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
   </Aside>
+
+  </Before>
 
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
   `mock_outputs` is configured, set `outputs` to the value of `mock_outputs`. Otherwise, `outputs` will be set to an
@@ -1913,15 +1919,23 @@ The `unit` block supports the following arguments:
 - `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the unit's configuration. When set to `true`, Terragrunt will skip validation checks for this unit.
 - `enabled` (attribute, optional): When `false`, the unit is skipped during stack generation and omitted from `terragrunt stack output`. Defaults to `true`. Toggling it leaves the unit's address and generated path unchanged. See [`enabled` vs `expansion`](#enabled-vs-expansion).
 
+  <Before version="1.2.0">
+
   <Aside type="tip" title="Experimental">
     The `enabled` attribute is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
   </Aside>
 
+  </Before>
+
 - `expansion` (block, optional): Iterates the `unit` block, generating one unit per element of a `count` or `for_each`. Each instance needs its own `path`. See [`expansion`](#expansion).
+
+  <Before version="1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
   </Aside>
+
+  </Before>
 
 Example:
 
@@ -2051,15 +2065,23 @@ The `stack` block supports the following arguments:
 - `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the stack's configuration. When set to `true`, Terragrunt will skip validation checks for this stack.
 - `enabled` (attribute, optional): When `false`, the stack is skipped during stack generation and omitted from `terragrunt stack output`. Defaults to `true`. Toggling it leaves the stack's address and generated path unchanged. See [`enabled` vs `expansion`](#enabled-vs-expansion).
 
+  <Before version="1.2.0">
+
   <Aside type="tip" title="Experimental">
     The `enabled` attribute is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
   </Aside>
 
+  </Before>
+
 - `expansion` (block, optional): Iterates the `stack` block, generating one stack per element of a `count` or `for_each`. Each instance needs its own `path`. See [`expansion`](#expansion).
+
+  <Before version="1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
   </Aside>
+
+  </Before>
 
 Example:
 
@@ -2098,9 +2120,13 @@ Terragrunt will recursively generate a stack using the contents of the `.terragr
 
 ## expansion
 
+<Before version="1.2.0">
+
 <Aside type="tip" title="Experimental">
   The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
 </Aside>
+
+</Before>
 
 The `expansion` block iterates a `dependency`, `unit`, or `stack` block, producing one instance of it per element of a collection.
 
@@ -2172,18 +2198,35 @@ A configuration that declares both an expanded and an unexpanded `dependency` un
 
 `terragrunt stack output` nests each element of an expanded unit under its key:
 
+<Before version="1.2.0">
+
 ```bash
 terragrunt stack output 'aurora["web"].role' --experiment block-iteration
 terragrunt stack output 'shard[0].role' --experiment block-iteration
 ```
 
+</Before>
+
+<Since version="1.2.0">
+
+```bash
+terragrunt stack output 'aurora["web"].role'
+terragrunt stack output 'shard[0].role'
+```
+
+</Since>
+
 Terragrunt parses an output address as an HCL traversal, so an iteration key containing a dot stays in one piece. Index keys are converted to strings, so `shard[0]` and `shard["0"]` reach the same element. A unit that declares no `expansion` is addressed by its bare name.
 
 ### `enabled` vs `expansion`
 
+<Before version="1.2.0">
+
 <Aside type="tip" title="Experimental">
   The `enabled` attribute on `unit` and `stack` blocks is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. The `enabled` attribute on `dependency` blocks predates the experiment and is not gated. See the [experiment documentation](/reference/experiments/active#block-iteration).
 </Aside>
+
+</Before>
 
 `enabled` decides whether a component exists at all. `expansion` decides how many of them exist.
 
@@ -2253,9 +2296,21 @@ Adding an `expansion` block to a block that did not have one changes that block'
 
 For the third, we recommend Git-based `--filter` expressions. Terragrunt evaluates a Git expression by building a worktree for each reference and discovering units in both, then runs the units that exist only on the "from" side with `-destroy` appended:
 
+<Before version="1.2.0">
+
 ```bash
 terragrunt run --all apply --filter '[main...HEAD]' --experiment block-iteration
 ```
+
+</Before>
+
+<Since version="1.2.0">
+
+```bash
+terragrunt run --all apply --filter '[main...HEAD]'
+```
+
+</Since>
 
 `run --all destroy --filter` is rejected. The worktree phase accepts `plan` and `apply`, along with argument-free discovery commands such as `find` and `list`, and it appends `-destroy` to the "from" side itself. See [Git Expressions](/features/filter/git) for how the worktrees are built.
 
@@ -2274,6 +2329,8 @@ Regenerating a stack does not delete directories for components it no longer pro
 ### `render` output is a preview
 
 `terragrunt render` shows an expanded block as it was written, followed by the elements it expanded into, commented out and with their bodies resolved:
+
+<Before version="1.2.0">
 
 ```bash
 $ terragrunt render --experiment block-iteration
@@ -2296,12 +2353,49 @@ dependency "aurora" {
 # }
 ```
 
+</Before>
+
+<Since version="1.2.0">
+
+```bash
+$ terragrunt render
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path = "../aurora-${each.key}"
+}
+
+# Expands to:
+#
+# dependency "aurora" {
+#   config_path = "../aurora-api"
+# }
+#
+# dependency "aurora" {
+#   config_path = "../aurora-web"
+# }
+```
+
+</Since>
+
 The elements stay commented out because they all repeat the block's label, which a Terragrunt configuration cannot do. Terragrunt acts on the block above them.
+
+<Before version="1.1.5">
 
 Two cases behave differently:
 
 - A JSON configuration (`terragrunt.hcl.json`) has no HCL text to quote back, so `render` emits one block per element, all under the same label. That output is a preview only. Reading it back gives you a single dependency, and under the `duplicate-dependency-labels` strict control it is an error.
 - `terragrunt render --format json` keys dependencies by their bare label and knows nothing about expansion, so every element of an expanded block collapses onto the last one and the `expansion` block disappears. Use the default HCL output to inspect an expanded configuration.
+
+</Before>
+
+<Since version="1.1.5">
+
+A JSON configuration (`terragrunt.hcl.json`) renders the same way. `render` writes the block as the HCL that means the same thing and previews the elements under it. `terragrunt render --format json` has nowhere to put a comment, so it emits the block as written, with its `expansion` block and references. Rendering either output again returns it unchanged. The [`render` command reference](/reference/cli/commands/render#expanded-dependencies) has examples of both.
+
+</Since>
 
 ## autoinclude
 

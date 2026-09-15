@@ -726,7 +726,7 @@ func TestGitRunner_GetDefaultBranch(t *testing.T) {
 				case "config":
 					return tc.config
 				default:
-					t.Errorf("unexpected git command: %v", inv.Args)
+					assert.Fail(t, "unexpected git command", "args=%v", inv.Args)
 
 					return vexec.Result{ExitCode: 1}
 				}
@@ -857,7 +857,7 @@ func failIfSpawned(t *testing.T) vexec.Handler {
 	t.Helper()
 
 	return func(context.Context, vexec.Invocation) vexec.Result {
-		t.Error("git must not be spawned when no working directory is set")
+		assert.Fail(t, "git must not be spawned when no working directory is set")
 
 		return vexec.Result{Stdout: []byte("value\n")}
 	}

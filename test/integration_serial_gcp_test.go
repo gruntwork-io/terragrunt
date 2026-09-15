@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -66,12 +67,12 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 
 func TestGcpWorksWithImpersonateBackend(t *testing.T) {
 	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
-	if impersonatorKey == "" {
-		t.Fatalf(
-			"required environment variable `%s` - not found",
-			"GCLOUD_SERVICE_KEY_IMPERSONATOR",
-		)
-	}
+	require.NotEmpty(
+		t,
+		impersonatorKey,
+		"required environment variable `%s` - not found",
+		"GCLOUD_SERVICE_KEY_IMPERSONATOR",
+	)
 
 	tmpImpersonatorCreds := helpers.CreateTmpTerragruntConfigContent(
 		t,

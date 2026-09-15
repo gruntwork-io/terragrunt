@@ -434,9 +434,7 @@ remote_state {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
@@ -489,9 +487,7 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
@@ -575,9 +571,7 @@ func TestParseIamRole(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -603,9 +597,7 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -631,9 +623,7 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -665,9 +655,7 @@ func TestParseIamWebIdentity(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -697,9 +685,7 @@ dependencies {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -736,9 +722,7 @@ dependencies {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -794,9 +778,7 @@ dependencies {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
@@ -862,9 +844,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
@@ -1154,9 +1134,7 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	configPath := absPath(t, configPathRel)
 
 	cfg, err := vfs.ReadFileAsString(vfs.NewOSFS(), configPathRel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	l := createLogger()
 
@@ -1187,9 +1165,7 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	configPath := absPath(t, configPathRel)
 
 	cfg, err := vfs.ReadFileAsString(vfs.NewOSFS(), configPathRel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	l := createLogger()
 
@@ -1261,9 +1237,7 @@ func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
 		cfgString,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, cfg.RemoteState)
 }
@@ -1287,9 +1261,7 @@ terraform {}
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
@@ -1319,9 +1291,7 @@ terraform {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
@@ -1361,9 +1331,7 @@ terraform {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
@@ -1840,9 +1808,7 @@ prevent_destroy = true
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -1869,9 +1835,7 @@ prevent_destroy = false
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -1950,9 +1914,7 @@ terraform {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Equal(t, "child", *terragruntConfig.Terraform.Source)
 }

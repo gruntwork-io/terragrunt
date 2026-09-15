@@ -330,7 +330,7 @@ func parseGCSExternalAccountFixture(
 		case "storage.googleapis.com":
 			return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
 		default:
-			t.Errorf("unexpected request to %s", req.URL.Host)
+			assert.Fail(t, "unexpected request to "+req.URL.Host)
 
 			return vhttp.Respond(http.StatusInternalServerError, nil, nil)
 		}

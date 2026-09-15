@@ -73,7 +73,7 @@ func TestGitRunner_Clone(t *testing.T) {
 		t.Parallel()
 
 		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
-			t.Error("git must not be spawned when no working directory is set")
+			assert.Fail(t, "git must not be spawned when no working directory is set")
 
 			return vexec.Result{}
 		})

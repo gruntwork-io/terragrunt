@@ -91,9 +91,7 @@ func TestDetectFSKind(t *testing.T) {
 					"kind %d reports itself as unknown", kind)
 			}
 
-			if other, ok := seen[name]; ok {
-				t.Errorf("kinds %d and %d share the name %q", other, kind, name)
-			}
+			assert.NotContains(t, seen, name, "kinds %d and %d share the name %q", seen[name], kind, name)
 
 			seen[name] = kind
 		}

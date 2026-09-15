@@ -79,14 +79,10 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 
 	// Write out a version file so we can test a cache hit
 	terraformSource, _, _, err := createConfig(t, canonicalURL, downloadDir, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = terraformSource.WriteVersionFile(logger.CreateLogger(), vfs.NewOSFS())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -117,9 +113,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 		}
 	})
 
-	if err := os.Chmod(stagedFixture, 0o000); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Chmod(stagedFixture, 0o000))
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -146,9 +140,8 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		0644,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	defer f.Close()
 
 	// Modify content of file to simulate change
@@ -749,9 +742,7 @@ func parseURL(t *testing.T, str string) *url.URL {
 	rawURL := strings.Join(strings.Split(str, string(filepath.Separator)), "/")
 
 	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return parsed
 }
@@ -760,9 +751,7 @@ func readFile(t *testing.T, path string) string {
 	t.Helper()
 
 	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return contents
 }

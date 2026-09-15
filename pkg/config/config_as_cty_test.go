@@ -411,7 +411,7 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 	case "Errors":
 		return "errors", true
 	default:
-		t.Fatalf("Unknown struct property: %s", fieldName)
+		require.FailNow(t, "Unknown struct property: "+fieldName)
 		// This should not execute
 		return "", false
 	}
@@ -434,7 +434,7 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 	case "Encryption":
 		return "encryption", true
 	default:
-		t.Fatalf("Unknown struct property: %s", fieldName)
+		require.FailNow(t, "Unknown struct property: "+fieldName)
 		// This should not execute
 		return "", false
 	}
