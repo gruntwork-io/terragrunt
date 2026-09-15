@@ -79,7 +79,9 @@ const (
 	OptionalHooks = "optional-hooks"
 	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
 	Profiling = "profiling"
-	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
+	// OCI names the now-stable support for downloading modules from OCI
+	// Distribution registries via oci:// sources. It is enabled by default and
+	// the flag is retained only for backwards compatibility.
 	OCI = "oci"
 	// VersionAttribute gates resolving a tfr:// registry module from a version
 	// constraint expressed through the version attribute on the terraform block.
@@ -97,9 +99,9 @@ const (
 	// directory instead of the git repository root: dependencies and dependents
 	// resolving outside it are not discovered.
 	BoundedDiscovery = "bounded-discovery"
-	// BlockIteration gates the expansion block, which iterates a dependency, unit,
-	// or stack block over a count or for_each, along with the enabled attribute on
-	// unit and stack blocks.
+	// BlockIteration names the now-stable expansion block, which iterates a
+	// dependency, unit, or stack block over a count or for_each, and the enabled
+	// attribute on unit and stack blocks. Both are enabled by default.
 	BlockIteration = "block-iteration"
 	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
 	BrowseTUI = "browse-tui"
@@ -214,7 +216,8 @@ func NewExperiments() Experiments {
 			Name: Profiling,
 		},
 		{
-			Name: OCI,
+			Name:   OCI,
+			Status: StatusCompleted,
 		},
 		{
 			Name: VersionAttribute,
@@ -229,7 +232,8 @@ func NewExperiments() Experiments {
 			Name: BoundedDiscovery,
 		},
 		{
-			Name: BlockIteration,
+			Name:   BlockIteration,
+			Status: StatusCompleted,
 		},
 		{
 			Name: BrowseTUI,

@@ -41,6 +41,16 @@ func TestOptOutAuthIsCompleted(t *testing.T) {
 	assert.True(t, got.Evaluate(), "opt-out-auth must be enabled by default")
 }
 
+func TestOCIIsCompleted(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.OCI)
+	require.NotNil(t, got, "oci experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "oci must be completed")
+	assert.True(t, got.Evaluate(), "oci must be enabled by default")
+}
+
 func TestAzureBackendIsCompleted(t *testing.T) {
 	t.Parallel()
 

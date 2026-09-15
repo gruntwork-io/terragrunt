@@ -287,8 +287,6 @@ func decodeDependencyBlocks(
 	evalContext *hcl.EvalContext,
 	opts ...hclparse.ExpandOption,
 ) (Dependencies, error) {
-	experiments := pctx.Experiments
-
 	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext, opts...)
 	if err != nil {
 		return nil, err
@@ -303,14 +301,6 @@ func decodeDependencyBlocks(
 	for _, instance := range instances {
 		dep := instance.Value.(*Dependency)
 		if dep.Expansion != nil {
-			if !experiments.Evaluate(experiment.BlockIteration) {
-				return nil, ExpansionRequiresExperimentError{
-					ConfigPath: file.ConfigPath,
-					BlockType:  MetadataDependency,
-					BlockLabel: dep.Name,
-				}
-			}
-
 			dep.Expansion.InstanceKey = instance.InstanceKey
 			dep.Expansion.Source = instance.Source
 		}
