@@ -22,11 +22,17 @@ const { active } = Astro.props;
 <header
   class="sticky top-0 z-50 w-full border-b border-stroke-dark bg-bg-dark"
 >
+  {/*
+    124px below `lg` and 96px above it, matching the live site. The extra height
+    is a SECOND ROW: brand and menu toggle above, search and the CTA below. On
+    one row at 390px the brand, search and both buttons came to 466px, so every
+    mobile page had a 498px-wide document and scrolled sideways.
+  */}
   <nav
-    class="mx-auto flex h-[124px] max-w-[1312px] items-center justify-between gap-4 px-4 lg:h-24 lg:px-6"
+    class="mx-auto flex h-[124px] max-w-[1312px] flex-col justify-center gap-3 px-4 lg:h-24 lg:flex-row lg:items-center lg:justify-between lg:gap-4 lg:px-6"
     aria-label="Main"
   >
-    <div class="flex items-center gap-6">
+    <div class="flex items-center justify-between gap-6 lg:justify-start">
       <a href="/" class="flex shrink-0 items-center" aria-label="Terragrunt home">
         <Image
           src={TerragruntLogo}
@@ -93,22 +99,10 @@ const { active } = Astro.props;
           </svg>
         </a>
       </div>
-    </div>
-
-    <div class="flex items-center gap-2 md:gap-3">
-      <Search />
-      <Button
-        href={ENTERPRISE_SUPPORT_URL}
-        variant="secondary"
-        class="hidden md:inline-flex"
-      >
-        Enterprise Support
-      </Button>
-      <Button href="/terragrunt-scale" variant="primary">Terragrunt Scale</Button>
 
       <button
         type="button"
-        class="text-nav-link transition-colors hover:text-white lg:hidden"
+        class="shrink-0 text-nav-link transition-colors hover:text-white lg:hidden"
         aria-label="Open menu"
         aria-expanded="false"
         aria-controls="mobile-nav"
@@ -127,6 +121,20 @@ const { active } = Astro.props;
           <path d="M3 6h18M3 12h18M3 18h18"></path>
         </svg>
       </button>
+    </div>
+
+    <div class="flex items-center gap-2 md:gap-3">
+      <Search class="min-w-0 flex-1 lg:flex-none" />
+      <Button
+        href={ENTERPRISE_SUPPORT_URL}
+        variant="secondary"
+        class="hidden lg:inline-flex"
+      >
+        Enterprise Support
+      </Button>
+      <Button href="/terragrunt-scale" variant="primary" class="shrink-0">
+        Terragrunt Scale
+      </Button>
     </div>
   </nav>
 

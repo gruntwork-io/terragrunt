@@ -11,13 +11,22 @@
  * Webflow build loads ~100KB of Pagefind CSS and JS from a second origin on
  * every page view, for a feature most visitors never touch.
  */
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+
 const BUNDLE = "https://docs.terragrunt.com/pagefind/";
 const BASE = "https://docs.terragrunt.com";
 ---
 
 <button
   type="button"
-  class="flex items-center gap-2 rounded-lg border border-stroke-dark bg-white/5 px-3 py-1.5 text-sm text-nav-link transition-colors hover:border-gray-3 hover:text-white"
+  class:list={[
+    "flex items-center gap-2 rounded-lg border border-stroke-dark bg-white/5 px-3 py-1.5 text-sm text-nav-link transition-colors hover:border-gray-3 hover:text-white",
+    className,
+  ]}
   data-search-open
   aria-label="Search the Terragrunt documentation"
 >
