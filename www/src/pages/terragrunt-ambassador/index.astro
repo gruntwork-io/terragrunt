@@ -105,33 +105,39 @@ const socialLabels = {
     <main class="mx-auto w-full max-w-[1310px]">
       <section class="px-4 py-[76px] md:px-8">
         <SectionHeading
+          leading="loose"
           align="center"
           eyebrow="About the Program"
           words={["What it means to be a", "Terragrunt Ambassador"]}
           accent={["Terragrunt Ambassador"]}
         />
-        <p class="mx-auto max-w-[800px] text-center text-lg leading-relaxed text-gray-2">
-          Ambassadors are passionate about Terragrunt and are experts at using
-          it to manage infrastructure at scale using IaC. They are an essential
-          part of the Terragrunt community&mdash;answering questions in forums,
-          authoring blog posts, speaking at conferences, and are the community
-          extension of the Terragrunt team at Gruntwork.
-        </p>
+        <div
+          class="mx-auto mt-[60px] w-full max-w-[900px] rounded-lg border-4 border-gray-6 bg-white px-6 py-11"
+        >
+          <p class="m-0 text-center text-xl font-medium leading-8 text-dark-blue-1">
+            Ambassadors are passionate about Terragrunt and are experts at using
+            it to manage infrastructure at scale using IaC. They are an essential
+            part of the Terragrunt community&mdash;answering questions in forums,
+            authoring blog posts, speaking at conferences, and are the community
+            extension of the Terragrunt team at Gruntwork.
+          </p>
+        </div>
       </section>
 
       <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <SectionHeading
+          leading="loose"
           align="center"
           eyebrow="Program Benefits"
           words={["Perks of being an", "Ambassador"]}
           accent={["Ambassador"]}
         />
         <ul
-          class="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 lg:grid-cols-3"
+          class="m-0 mx-auto grid max-w-[850px] list-none grid-cols-1 border-t border-dashed border-gray-4 p-0 md:grid-cols-2 lg:grid-cols-3"
         >
           {
             benefits.map((benefit) => (
-              <li class="rounded-xl border border-gray-4 bg-white p-6">
+              <li class="border-b border-dashed border-gray-4 bg-white p-6 md:border-r">
                 <h3 class="m-0 text-base font-semibold text-dark-blue-1">
                   {benefit.title}
                 </h3>
@@ -146,6 +152,7 @@ const socialLabels = {
 
       <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <SectionHeading
+          leading="loose"
           align="center"
           eyebrow="Ambassadors"
           words={["Meet the Terragrunt", "Ambassadors"]}
@@ -220,23 +227,27 @@ const socialLabels = {
 
       <section class="border-t border-gray-4 px-4 py-[76px] md:px-8">
         <SectionHeading
+          leading="loose"
           align="center"
           eyebrow="Join the Program"
           words={["Become a Terragrunt", "Ambassador"]}
           accent={["Ambassador"]}
         />
+        <div
+          class="mx-6 rounded-3xl border-[6px] border-gray-5 bg-bg-dark px-6 py-20"
+        >
         <div class="mx-auto flex max-w-[850px] flex-col items-center gap-8 text-center">
-          <p class="m-0 text-lg leading-relaxed text-gray-2">
+          <p class="m-0 max-w-[600px] text-base leading-[1.5em] text-gray-1">
             We're looking for community members who are passionate, expert users
             of Terragrunt and are (or willing to be) active in the community.
           </p>
-          <p class="mt-6 font-medium text-dark-blue-1">
+          <p class="m-0 font-medium text-white">
             To be considered, applicants should demonstrate
           </p>
           <ul class="m-0 mt-3 flex list-none flex-col gap-2 p-0">
             {
               criteria.map((item) => (
-                <li class="flex items-start gap-2.5 text-base text-gray-2">
+                <li class="flex items-start gap-2.5 text-base text-gray-1">
                   <svg
                     class="mt-1 size-4 shrink-0 text-accent-3"
                     viewBox="0 0 24 24"
@@ -254,18 +265,18 @@ const socialLabels = {
               ))
             }
           </ul>
-          <p class="mt-6 leading-relaxed text-gray-2">
+          <p class="m-0 max-w-[700px] py-[60px] leading-relaxed text-gray-1">
             We understand that not everyone wants to be active on social
             channels or forums. If you show genuine enthusiasm for Terragrunt
             and are willing to be an active member of the community in other
             ways, we&rsquo;d love to consider you as well!
           </p>
 
-          <p class="mt-8 text-lg font-medium text-dark-blue-1">
-            Think you're a <span class="text-accent-1">good fit?</span> We'd love
+          <p class="m-0 text-[30px] leading-9 text-white">
+            Think you're a <span class="text-accent-4">good fit?</span> We'd love
             to hear from you.
           </p>
-          <div class="mt-4">
+          <div>
             <Button
               href="/terragrunt-ambassador/contact"
               variant="primary"
@@ -275,22 +286,38 @@ const socialLabels = {
             </Button>
           </div>
         </div>
+        </div>
       </section>
 
-      <section class="border-t border-gray-4 px-4 py-16 text-center md:px-8">
-        <p class="m-0 text-lg text-gray-2">
-          Still have questions about the <span class="text-accent-1"
-            >Terragrunt Ambassador</span
-          > Program or just want to talk to the Terragrunt team?
-          <a
-            href={DISCORD_INVITE}
-            rel="noopener noreferrer"
-            target="_blank"
-            class="text-accent-1 underline underline-offset-2"
+      {/*
+        A white card with a 4px --gray-6 frame and 80px of padding, headline at
+        42px/51px — `.still-have-questions` on the live site. As a bare centred
+        paragraph this band was 185px against 646px.
+      */}
+      <section class="px-4 py-[76px] md:px-8">
+        <div class="mx-6 rounded-lg border-4 border-gray-6 bg-white px-6 py-20">
+          <div
+            class="mx-auto flex max-w-[900px] flex-col items-center gap-8 text-center"
           >
-            Connect with us on the Terragrunt Discord Channel.
-          </a>
-        </p>
+            <h2
+              class="m-0 text-[32px] font-medium leading-[1.2] text-dark-blue-1 md:text-[42px] md:leading-[51px]"
+            >
+              Still have questions about the <span class="text-accent-1"
+                >Terragrunt Ambassador</span
+              > Program or just want to talk to the Terragrunt team?
+            </h2>
+            <p class="m-0 text-lg leading-7 text-nav-link">
+              <a
+                href={DISCORD_INVITE}
+                rel="noopener noreferrer"
+                target="_blank"
+                class="text-accent-1 underline underline-offset-2"
+              >
+                Connect with us on the Terragrunt Discord Channel.
+              </a>
+            </p>
+          </div>
+        </div>
       </section>
 
       <NewsletterSignup />

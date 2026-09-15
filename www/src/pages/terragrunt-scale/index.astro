@@ -144,7 +144,7 @@ const headlineParts = (() => {
     <main class="mx-auto w-full max-w-[1310px]">
       <FeaturedBrands />
 
-      <section class="px-4 py-[76px] md:px-8">
+      <section class="mb-[75px] mt-[150px] px-4 md:px-8">
         <p class="m-0 mb-4 text-center text-sm text-gray-2">
           <strong class="font-semibold text-dark-blue-1">{video.duration}</strong>
           &nbsp;&bull;&nbsp;Watch a <code
@@ -153,8 +153,9 @@ const headlineParts = (() => {
           > run in response to a pull request
         </p>
         <div
-          class="mx-auto aspect-video w-full max-w-[900px] overflow-hidden rounded-xl border border-gray-4 bg-bg-dark"
+          class="mx-auto w-full max-w-[900px] rounded-xl border-[6px] border-[#e2e3e6] bg-background p-[18px]"
         >
+          <div class="aspect-video w-full overflow-hidden rounded-md bg-bg-dark">
           <iframe
             src={`https://player.vimeo.com/video/${video.vimeoId}`}
             title={video.caption}
@@ -162,6 +163,7 @@ const headlineParts = (() => {
             loading="lazy"
             allow="fullscreen; picture-in-picture"
             allowfullscreen></iframe>
+          </div>
         </div>
       </section>
 
@@ -171,11 +173,11 @@ const headlineParts = (() => {
           words={[howItWorks.headlineLead, howItWorks.headlineAccent]}
           accent={[howItWorks.headlineAccent]}
         />
-        <ol class="m-0 grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-3">
+        <ol class="m-0 mt-[60px] grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-3">
           {
             howItWorks.steps.map((step) => (
-              <li class="rounded-xl border border-gray-4 bg-white p-6">
-                <h3 class="m-0 text-base font-semibold text-dark-blue-1">
+              <li class="flex flex-col gap-4 rounded-lg border-4 border-gray-6 bg-white p-8 outline outline-2 outline-white">
+                <h3 class="m-0 text-lg font-semibold text-dark-blue-1">
                   {step.title}
                 </h3>
                 <p class="mt-2 text-sm leading-relaxed text-gray-2">
@@ -222,7 +224,7 @@ const headlineParts = (() => {
           words={[patcher.headlineLead, patcher.headlineAccent]}
           accent={[patcher.headlineAccent]}
         />
-        <div class="max-w-[820px]">
+        <div class="mt-[60px] max-w-[820px]">
           <FeatureList features={patcher.features} />
         </div>
       </section>
@@ -231,21 +233,22 @@ const headlineParts = (() => {
         id="view-plans"
         class="border-t border-gray-4 px-4 py-[76px] md:px-8"
       >
+        <div class="rounded-3xl border-[6px] border-gray-5 bg-bg-dark px-6 py-20 md:px-12">
         <div class="mb-10 text-center">
           <h2
-            class="m-0 text-3xl font-semibold tracking-[-0.01em] text-dark-blue-1 md:text-4xl"
+            class="m-0 text-[32px] font-medium leading-[1.5em] text-white md:text-[42px]"
           >
             <span class="text-accent-1">{pricing.headlineAccent}</span>{" "}
             {pricing.headline}
           </h2>
-          <p class="mt-3 text-base text-gray-2">
-            All plans include <strong class="font-semibold text-dark-blue-1"
+          <p class="mt-3 text-base text-gray-1">
+            All plans include <strong class="font-semibold text-white"
               >{pricing.subheadEmphasis}</strong
             > runs and resources.
           </p>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="grid grid-cols-1 gap-12 lg:grid-cols-3">
           {
             pricing.plans.map((plan) => (
               <div class="flex max-w-[400px] flex-col rounded-lg border border-[#2f3547] bg-bg-dark bg-gradient-to-b from-[#5862aa24] to-[#5862aa00] to-60% p-6">
@@ -313,6 +316,7 @@ const headlineParts = (() => {
           }
         </div>
 
+        </div>
         <p class="mt-8 text-center text-xs text-gray-2">
           {pricing.unitFootnote.before}
           <a

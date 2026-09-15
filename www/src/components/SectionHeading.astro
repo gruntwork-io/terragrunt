@@ -8,6 +8,8 @@ interface Props {
   tone?: "light" | "dark";
   /** `lg` is the homepage's section headings; `md` suits narrower columns. */
   size?: "md" | "lg";
+  /** `loose` is the 1.5em `.headline` scale; `tight` the 46.67px `.heading`. */
+  leading?: "tight" | "loose";
 }
 
 const {
@@ -17,6 +19,7 @@ const {
   align = "left",
   tone = "light",
   size = "lg",
+  leading = "tight",
 } = Astro.props;
 ---
 
@@ -43,7 +46,7 @@ const {
     class:list={[
       "m-0 font-medium tracking-[-0.02em]",
       size === "lg"
-        ? "text-[2rem] leading-[1.15] md:text-[42px] md:leading-[46.67px]"
+        ? `text-[2rem] md:text-[42px] ${leading === "loose" ? "leading-[1.5em]" : "leading-[1.15] md:leading-[46.67px]"}`
         : "text-2xl leading-[1.2] md:text-[32px] md:leading-[38px]",
       tone === "dark" ? "text-white" : "text-dark-blue-1",
     ]}
