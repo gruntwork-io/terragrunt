@@ -15,6 +15,9 @@ import VerticalGrid from "@components/VerticalGrid.astro";
 import HeroCard from "@assets/img/tgs-hero-pr-card.png";
 import Cube from "@assets/img/cube-3d.png";
 import CaddiLogo from "@assets/img/caddi.webp";
+import GithubMark from "@assets/icons/github-icon.svg";
+import GitlabMark from "@assets/icons/gitlab-icon.svg";
+import TerragruntMark from "@assets/icons/terragrunt-icon.svg";
 import PipelinesShot from "@assets/img/tgs-pipelines-plan.png";
 import DriftShot from "@assets/img/tgs-drift-detected.png";
 import {
@@ -38,6 +41,13 @@ const description =
  * sentence one string in the data file, rather than a list of fragments whose
  * spacing has to be reassembled correctly by whoever edits it next.
  */
+/** `.built-for-pill` carries the product mark, as on the homepage and panel. */
+const builtForMarks: Record<string, ImageMetadata> = {
+  Github: GithubMark,
+  Gitlab: GitlabMark,
+  Terragrunt: TerragruntMark,
+};
+
 const headlineParts = (() => {
   const pattern = new RegExp(`(${hero.accents.join("|")})`, "g");
   return hero.headline.split(pattern);
@@ -87,7 +97,13 @@ const headlineParts = (() => {
           >
           {
             hero.builtFor.map((tool) => (
-              <span class="rounded-full bg-background px-3 py-1 text-xs font-medium text-bg-dark">
+              <span class="flex items-center gap-1.5 rounded bg-background py-1 pl-1 pr-2.5 text-xs font-medium text-bg-dark">
+                <Image
+                  src={builtForMarks[tool]!}
+                  alt=""
+                  aria-hidden="true"
+                  class="size-4 rounded-sm"
+                />
                 {tool}
               </span>
             ))
@@ -137,7 +153,7 @@ const headlineParts = (() => {
           src={HeroCard}
           alt="A Terragrunt plan posted as a pull request comment"
           loading="eager"
-          class="w-full rounded-lg"
+          class="w-full max-w-[560px] rounded-lg"
         />
       </div>
     </div>
