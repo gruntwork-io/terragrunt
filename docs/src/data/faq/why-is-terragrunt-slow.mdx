@@ -33,7 +33,7 @@ The cache server is built for runs that do many OpenTofu/Terraform operations at
 
 ## Stop initializing dependencies to read outputs
 
-By default, Terragrunt runs `output -json` against each dependency, which loads providers it does not need. <Before version="1.2.0">The [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment reads the values straight out of the state file instead:</Before><Since version="1.2.0">Terragrunt reads the values straight out of the state file instead, which is the default for supported backends:</Since>
+<Before version="1.2.0">By default, Terragrunt runs `output -json` against each dependency, which loads providers it does not need. The [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment reads the values straight out of the state file instead:</Before><Since version="1.2.0">Terragrunt reads dependency outputs straight out of the state file, instead of running `output -json` against each dependency and loading providers it does not need. This is the default on supported backends:</Since>
 
 ```bash
 terragrunt run --all -- plan
@@ -46,7 +46,7 @@ OpenTofu client-side state encryption can make the direct reader resolve no outp
 </Before>
 
 <Since version="1.1.5">
-Outside `render` and `render-json`, direct-read failures other than a missing state object fall back to `tofu output` or `terraform output`; this includes OpenTofu client-side state encryption. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list. See [the gotchas](/troubleshooting/performance/#fetching-output-from-state---gotchas) for details.
+Outside `render` and `render-json`, direct-read failures other than a missing state object fall back to `tofu output` or `terraform output`; this includes OpenTofu client-side state encryption. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list.
 </Since>
 
 ## Cache repository clones

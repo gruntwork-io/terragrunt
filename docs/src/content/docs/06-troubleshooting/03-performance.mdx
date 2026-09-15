@@ -7,8 +7,6 @@ sidebar:
 ---
 
 import { Aside, Card } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 
 ## Easy Wins
 
@@ -115,47 +113,6 @@ The provider cache server is a single server that is used by all Terragrunt runs
 When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers (or using the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) feature). Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
 
 When in doubt, [measure the performance](#measuring-performance) before and after enabling the provider cache server to see if it's a net win for your use case.
-
-</Card>
-
-### Fetching Output From State
-
-Under the hood, Terragrunt dependency blocks leverage the OpenTofu/Terraform `output -json` command to fetch outputs from one unit and leverage them in another.
-
-The OpenTofu/Terraform `output -json` command does a bit more work than simply fetching output values from state, and a significant portion of that slowdown is loading providers, which it doesn't really need in most cases.
-
-<Before version="1.2.0">You can significantly improve the performance of dependency blocks by using the [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment. When the experiment is active for a supported backend, Terragrunt resolves outputs by fetching and parsing the backend state object directly, avoiding any overhead incurred by calling the `output -json` command of OpenTofu/Terraform.</Before>
-<Since version="1.2.0">On a supported backend, Terragrunt resolves dependency outputs by fetching and parsing the backend state object directly, avoiding the overhead of calling the `output -json` command of OpenTofu/Terraform. This is the default. Pass [`--no-dependency-fetch-output-from-state`](/reference/cli/commands/run#no-dependency-fetch-output-from-state) to go back to the output command.</Since>
-
-For example:
-
-```bash
-terragrunt run --all plan
-```
-
-#### Fetching Output From State - Gotchas
-
-<Card title="Supported backends" icon="information">
-
-The experiment supports S3 and GCS backends. Azure Storage (`azurerm`) is supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled. Unsupported backends, and supported backends whose configuration the direct reader cannot reproduce, fall back to the normal OpenTofu/Terraform output command.
-
-</Card>
-
-<Card title="Direct read failures" icon="warning">
-
-Outside `render` and `render-json`, Terragrunt retries a failed direct state read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the direct-read speedup is lost. Missing state and the two render commands retain their existing mock-output behavior.
-
-</Card>
-
-<Card title="State file schemas may change" icon="warning">
-
-OpenTofu/Terraform may change the state schema. A compatible-looking schema change could affect direct-read results. Pin the OpenTofu/Terraform version, because compatible-looking schema changes can affect direct-read results.
-
-</Card>
-
-<Card title="OpenTofu state encryption" icon="warning">
-
-The direct reader does not evaluate OpenTofu's encryption configuration or key providers. Outside `render` and `render-json`, Terragrunt recognizes the encrypted envelope and retries with `tofu output` or `terraform output`. If the configured binary can decrypt the state and native output retrieval succeeds, only the speedup is lost. The render commands retain their existing mock-output behavior. Disable the experiment when a render command must resolve real outputs from encrypted state.
 
 </Card>
 

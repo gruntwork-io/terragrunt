@@ -271,18 +271,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 				EnvVars: tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
 				Usage:   "Read dependency outputs directly from the state file. Enabled by default; retained for backwards compatibility.",
 				Action: func(_ context.Context, _ *clihelper.Context, val bool) error {
-					if !val {
-						return nil
+					if val {
+						l.Warnf(
+							"The --%s flag no longer does anything, as reading dependency outputs from state is the default. Remove it, or pass --%s to opt out.",
+							DependencyFetchOutputFromStateFlagName,
+							NoDependencyFetchOutputFromStateFlagName,
+						)
 					}
-
-					if err := opts.Experiments.EnableExperiment(
-						experiment.DependencyFetchOutputFromState,
-					); err != nil {
-						return err
-					}
-
-					// Matches --experiment, so either spelling tells the user the flag is now a no-op.
-					opts.Experiments.NotifyCompletedExperiments(l)
 
 					return nil
 				},

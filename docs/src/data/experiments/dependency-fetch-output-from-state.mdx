@@ -11,7 +11,7 @@ Reading dependency outputs directly from state files.
 ### `dependency-fetch-output-from-state` - What it does
 This experiment flag is no longer needed, as Terragrunt now reads dependency outputs directly from the remote state file by default. That skips initializing the dependency unit, which previously required running `tofu output` or `terraform output` against it.
 
-To go back to the previous behavior, pass `--no-dependency-fetch-output-from-state` (env: `TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE`).
+To opt-out of this behavior, pass `--no-dependency-fetch-output-from-state` (env: `TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE`).
 
 **Current Backend Support:**
 
