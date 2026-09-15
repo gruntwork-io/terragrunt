@@ -1146,6 +1146,7 @@ type TerraformConfig struct {
 	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
 
 	CopyTerraformLockFile *bool                     `hcl:"copy_terraform_lock_file,attr"`
+	NoCache               *bool                     `hcl:"no_cache,attr"`
 	ExtraArgs             []TerraformExtraArguments `hcl:"extra_arguments,block"`
 	BeforeHooks           []Hook                    `hcl:"before_hook,block"`
 	AfterHooks            []Hook                    `hcl:"after_hook,block"`
