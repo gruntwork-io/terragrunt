@@ -96,9 +96,9 @@ const (
 	// directory instead of the git repository root: dependencies and dependents
 	// resolving outside it are not discovered.
 	BoundedDiscovery = "bounded-discovery"
-	// BlockIteration gates the expansion block, which iterates a dependency, unit,
-	// or stack block over a count or for_each, along with the enabled attribute on
-	// unit and stack blocks.
+	// BlockIteration names the now-stable expansion block, which iterates a
+	// dependency, unit, or stack block over a count or for_each, and the enabled
+	// attribute on unit and stack blocks. Both are enabled by default.
 	BlockIteration = "block-iteration"
 	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
 	BrowseTUI = "browse-tui"
@@ -227,7 +227,8 @@ func NewExperiments() Experiments {
 			Name: BoundedDiscovery,
 		},
 		{
-			Name: BlockIteration,
+			Name:   BlockIteration,
+			Status: StatusCompleted,
 		},
 		{
 			Name: BrowseTUI,
