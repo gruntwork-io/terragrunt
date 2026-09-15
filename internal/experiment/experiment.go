@@ -110,8 +110,9 @@ const (
 	// content-addressable storage and hard-linked into each working directory
 	// rather than written per unit.
 	MutableGenerate = "mutable-generate"
-	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
-	// all dependency output resolution during a run.
+	// OptionalDependencyOutputs names the now-stable --no-dependency-outputs flag,
+	// which skips all dependency output resolution during a run. The flag is
+	// available without enabling the experiment.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
 	// TGLogin reserves the experiment flag for signing in to the Gruntwork
 	// Developer Portal from the CLI, so an admin can define a catalog in the
@@ -243,7 +244,8 @@ func NewExperiments() Experiments {
 			Name: MutableGenerate,
 		},
 		{
-			Name: OptionalDependencyOutputs,
+			Name:   OptionalDependencyOutputs,
+			Status: StatusCompleted,
 		},
 		{
 			Name: TGLogin,
