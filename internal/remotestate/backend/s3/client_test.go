@@ -3,6 +3,7 @@
 package s3_test
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,9 +14,11 @@ import (
 	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -353,4 +356,36 @@ func TestAwsCreateS3BucketWithTagsAtCreation(t *testing.T) {
 		actualTags,
 		"Tags should be present from creation-time CreateBucketConfiguration.Tags",
 	)
+}
+
+// TestAwsCreateS3BucketInAccountRegionalNamespace verifies that a bucket named for the caller's
+// account regional namespace is created there. S3 rejects that name in the shared global namespace,
+// so a successful create proves Terragrunt asked for the right one.
+func TestAwsCreateS3BucketInAccountRegionalNamespace(t *testing.T) {
+	t.Parallel()
+
+	client := CreateS3ClientForTest(t)
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(t.Context(), awsconfig.WithRegion(defaultTestRegion))
+	require.NoError(t, err)
+
+	accountID, err := awshelper.GetAWSAccountID(t.Context(), &awsCfg)
+	require.NoError(t, err)
+
+	bucketName := fmt.Sprintf(
+		"terragrunt-test-%s-%s-%s-an",
+		strings.ToLower(util.UniqueID()),
+		accountID,
+		defaultTestRegion,
+	)
+
+	l := logger.CreateLogger()
+
+	require.NoError(t, client.CreateS3Bucket(t.Context(), l, bucketName))
+
+	defer func() {
+		require.NoError(t, client.DeleteS3BucketWithAllObjects(t.Context(), l, bucketName))
+	}()
+
+	require.NoError(t, client.WaitUntilS3BucketExists(t.Context(), l, bucketName))
 }
