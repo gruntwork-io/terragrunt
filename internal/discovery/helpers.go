@@ -39,7 +39,11 @@ const (
 )
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
-var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
+var DefaultConfigFilenames = []string{
+	config.DefaultTerragruntConfigPath,
+	config.DefaultTerragruntJSONConfigPath,
+	config.DefaultStackFile,
+}
 
 // walkDirFunc returns the tree walk the discovery phases use, bound to the
 // venv filesystem so discovery only sees what the venv exposes. The symlinks
