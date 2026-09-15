@@ -2,7 +2,7 @@
 interface Props {
   href: string;
   variant?: "primary" | "secondary" | "ghost";
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
   class?: string;
   external?: boolean;
 }
@@ -34,6 +34,8 @@ const variants = {
 const sizes = {
   md: "px-5 py-2.5 text-sm",
   lg: "px-6 py-3 text-base",
+  /** The Terragrunt Scale hero's pair, which the live page runs 60px tall. */
+  xl: "px-8 py-[19px] text-sm leading-5",
 } as const;
 ---
 

@@ -25,10 +25,9 @@ const label = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
   It is set in the mono face at 12px uppercase, which is what `.featured-brands-text`
   specifies; in the sans face it reads as a heading rather than a rubric.
 */}
-<section
-  class="border-b border-gray-4 bg-background px-4 py-11 md:px-8"
->
-  <div class="mx-auto flex max-w-[1310px] items-center gap-8">
+{/* `.featured-brands-flex`: 80px in from the left, 40px from the right. */}
+<section class="border-b border-gray-4 bg-background">
+  <div class="flex items-center gap-6 px-4 py-11 md:pl-20 md:pr-10">
     <h2
       class="m-0 shrink-0 whitespace-nowrap font-mono text-xs uppercase leading-3 text-gray-2"
     >

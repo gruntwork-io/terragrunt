@@ -17,6 +17,12 @@ import MediaFeatureBand from "@components/MediaFeatureBand.astro";
 import VerticalGrid from "@components/VerticalGrid.astro";
 import HeroCard from "@assets/img/tgs-hero-pr-card.png";
 import Cube from "@assets/img/cube-3d.png";
+import BoxesBg from "@assets/img/boxes-bg.svg";
+import HeroBg from "@assets/img/hero-bg.png";
+import PlanFree from "@assets/icons/plan-free.svg";
+import PlanTeam from "@assets/icons/plan-team.svg";
+import PlanEnterprise from "@assets/icons/plan-enterprise.svg";
+import PurpleCheck from "@assets/icons/purple-check.svg";
 import CaddiLogo from "@assets/img/caddi.webp";
 import GithubMark from "@assets/icons/github-icon.svg";
 import GitlabMark from "@assets/icons/gitlab-icon.svg";
@@ -51,6 +57,13 @@ const builtForMarks: Record<string, ImageMetadata> = {
   Terragrunt: TerragruntMark,
 };
 
+/** The 64px plan marks, keyed by plan name. */
+const planMarks: Record<string, ImageMetadata> = {
+  Free: PlanFree,
+  Team: PlanTeam,
+  Enterprise: PlanEnterprise,
+};
+
 const headlineParts = (() => {
   const pattern = new RegExp(`(${hero.accents.join("|")})`, "g");
   return hero.headline.split(pattern);
@@ -66,26 +79,34 @@ const headlineParts = (() => {
   <Nav active="/terragrunt-scale" />
 
   {/*
-    Two columns: copy left, the product screenshot right. "Terragrunt Scale" is
-    the HEADING and the long sentence is body copy beneath it — setting the
-    whole sentence as an h1 made the page open on a wall of display type that
-    the live page does not have.
+    `.terragrunt-scale-hero`: 589px of copy against the PR-card plate, which
+    runs 80px past the right gutter. "Terragrunt Scale" is the HEADING and the
+    long sentence is body copy beneath it — setting the whole sentence as an h1
+    made the page open on a wall of display type the live page does not have,
+    and the sentence's emphasis is white, not accent.
   */}
   <section class="relative z-[2] w-full overflow-hidden bg-bg-dark pt-[100px]">
-    <div class="mx-auto grid max-w-[1310px] grid-cols-1 gap-12 px-4 pb-[76px] md:px-8 lg:grid-cols-2 lg:items-start">
-      <div>
+    {/*
+      `.terragrunt-scale-hero-inner` carries the boxes plate at 50%/200%, and
+      the plate is most of the texture in the lower half of the band.
+    */}
+    <div
+      class="mx-auto flex max-w-[1440px] flex-col gap-12 bg-[position:50%_200%] bg-[length:1440px] bg-no-repeat px-4 pb-20 md:px-20 lg:flex-row lg:items-start lg:justify-between lg:gap-[72px]"
+      style={`background-image:url(${BoxesBg.src})`}
+    >
+      <div class="max-w-[589px] lg:pt-9">
         <h1
-          class="m-0 text-4xl font-semibold leading-[1.05] tracking-[-0.02em] text-white md:text-6xl"
+          class="m-0 text-4xl font-medium leading-[1.05] text-white md:text-[60px] md:leading-[48px]"
         >
           Terragrunt <span class="text-accent-4">Scale</span>
         </h1>
 
-        <p class="mt-5 max-w-[46ch] text-base leading-relaxed text-gray-1">
+        <p class="mb-5 mt-10 text-lg leading-7 text-gray-1">
           {hero.headlineLead}{" "}
           {
             headlineParts.map((part) =>
               (hero.accents as readonly string[]).includes(part) ? (
-                <span class="font-medium text-white">{part}</span>
+                <span class="text-background">{part}</span>
               ) : (
                 part
               ),
@@ -93,72 +114,56 @@ const headlineParts = (() => {
           }
         </p>
 
-        <p class="mt-8 flex flex-wrap items-center gap-2">
-          <span
-            class="font-mono text-[11px] uppercase tracking-[0.08em] text-gray-1"
-            >{hero.builtForLabel}</span
-          >
+        {/* `.terragrunt-scale-built-for` — 24px of clearance either side. */}
+        <div class="flex flex-wrap items-center gap-y-2 py-6 font-mono text-xs uppercase leading-4 text-white">
+          <span class="mr-8">{hero.builtForLabel}</span>
           {
             hero.builtFor.map((tool) => (
-              <span class="flex items-center gap-1.5 rounded bg-background py-1 pl-1 pr-2.5 text-xs font-medium text-bg-dark">
+              <span class="mr-1 flex items-center gap-1.5 rounded border border-stroke-dark bg-bg-dark py-1 pl-1 pr-2.5 text-white">
                 <Image
                   src={builtForMarks[tool]!}
                   alt=""
                   aria-hidden="true"
-                  class="size-4 rounded-sm"
+                  class="size-5 rounded-sm"
                 />
                 {tool}
               </span>
             ))
           }
-        </p>
+        </div>
 
-        <ul class="m-0 mt-6 flex list-none flex-col gap-2 p-0">
+        <ul class="m-0 flex list-none flex-col p-0">
           {
             hero.assurances.map((item) => (
-              <li class="flex items-center gap-2.5 text-sm text-gray-1">
-                <svg
-                  class="size-4 shrink-0 text-accent-3"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+              <li class="my-[7px] flex items-center text-sm leading-[22px] text-accent-4">
+                <Image
+                  src={PurpleCheck}
+                  alt=""
                   aria-hidden="true"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
+                  class="mr-2 size-[18px] shrink-0"
+                />
                 {item}
               </li>
             ))
           }
         </ul>
 
-        <div class="mt-8 flex flex-wrap gap-3">
-          <Button href={hero.primary.href} variant="primary" size="lg">
+        <div class="mt-10 flex flex-wrap gap-5">
+          <Button href={hero.primary.href} variant="primary" size="xl">
             {hero.primary.label}
           </Button>
-          <Button href={hero.secondary.href} variant="secondary" size="lg">
+          <Button href={hero.secondary.href} variant="secondary" size="xl">
             {hero.secondary.label}
           </Button>
         </div>
       </div>
 
-      <div class="relative">
-        <Image
-          src={Cube}
-          alt=""
-          aria-hidden="true"
-          class="absolute -top-10 left-0 w-16 lg:-left-6"
-        />
-        <Image
-          src={HeroCard}
-          alt="A Terragrunt plan posted as a pull request comment"
-          loading="eager"
-          class="w-full max-w-[560px] rounded-lg"
-        />
-      </div>
+      <Image
+        src={HeroCard}
+        alt="A Terragrunt plan posted as a pull request comment"
+        loading="eager"
+        class="w-full max-w-[563px] shrink-0 rounded-lg lg:-mb-20 lg:self-end"
+      />
     </div>
   </section>
 
@@ -166,27 +171,29 @@ const headlineParts = (() => {
     <main class="mx-auto w-full max-w-[1310px]">
       <FeaturedBrands />
 
+      {/* `.video-container`: the caption sits inside the frame, under the
+          player, not above it as a section rubric. */}
       <section class="mb-[75px] mt-[150px] px-4 md:px-8">
-        <p class="m-0 mb-4 text-center text-sm text-gray-2">
-          <strong class="font-semibold text-dark-blue-1">{video.duration}</strong>
-          &nbsp;&bull;&nbsp;Watch a <code
-            class="rounded bg-gray-6 px-1 py-0.5 font-mono text-[0.85em] text-accent-1"
-            >terragrunt plan</code
-          > run in response to a pull request
-        </p>
-        <div
-          class="mx-auto w-full max-w-[900px] rounded-xl border-[6px] border-[#e2e3e6] bg-background p-[18px]"
+        <figure
+          class="mx-auto m-0 w-full max-w-[900px] rounded-xl border-[6px] border-[#e2e3e6] bg-background p-[18px]"
         >
           <div class="aspect-video w-full overflow-hidden rounded-md bg-bg-dark">
-          <iframe
-            src={`https://player.vimeo.com/video/${video.vimeoId}`}
-            title={video.caption}
-            class="size-full"
-            loading="lazy"
-            allow="fullscreen; picture-in-picture"
-            allowfullscreen></iframe>
+            <iframe
+              src={`https://player.vimeo.com/video/${video.vimeoId}`}
+              title={video.caption}
+              class="size-full"
+              loading="lazy"
+              allow="fullscreen; picture-in-picture"
+              allowfullscreen></iframe>
           </div>
-        </div>
+          <figcaption class="mt-3.5 text-center text-sm text-gray-2">
+            <strong class="font-semibold text-dark-blue-1">{video.duration}</strong>
+            &nbsp;&bull;&nbsp;Watch a <code
+              class="rounded bg-gray-6 px-1 py-0.5 font-mono text-[0.85em] text-accent-1"
+              >terragrunt plan</code
+            > run in response to a pull request
+          </figcaption>
+        </figure>
       </section>
 
       <StaggeredSteps
@@ -227,91 +234,108 @@ const headlineParts = (() => {
         id="view-plans"
         class="border-t border-gray-4 px-4 py-[76px] md:px-8"
       >
-        <div class="relative overflow-hidden rounded-3xl border-[6px] border-gray-5 bg-bg-dark px-6 py-20 md:px-12">
-        <Image
-          src={Cube}
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          class="pointer-events-none absolute left-10 top-16 hidden w-24 lg:block"
-        />
-        <div class="mb-10 text-center">
+        {/*
+          `.terragrunt-scale-pricing-inner`: the hero plate washed across the
+          bottom of a 6px --gray-5 frame, 80px of padding at the top and 100px
+          at the foot. Each card leads with its 64px plan mark and the price on
+          the same row, not with a label above a number.
+        */}
+        <div
+          class="relative mx-6 overflow-hidden rounded-3xl border-[6px] border-gray-5 bg-bg-dark bg-[position:0_100%] bg-[length:150%] bg-no-repeat px-6 pb-[100px] pt-20 md:px-12"
+          style={`background-image:url(${HeroBg.src})`}
+        >
+        <div class="mx-auto flex max-w-[850px] flex-col items-center gap-8 text-center">
           <h2
             class="m-0 text-[32px] font-medium leading-[1.5em] text-white md:text-[42px]"
           >
-            <span class="text-accent-1">{pricing.headlineAccent}</span>{" "}
+            <span class="text-accent-4">{pricing.headlineAccent}</span>{" "}
             {pricing.headline}
           </h2>
-          <p class="mt-3 text-base text-gray-1">
-            All plans include <strong class="font-semibold text-white"
+          <p class="m-0 text-base leading-6 text-gray-1">
+            All plans include <strong class="font-bold"
               >{pricing.subheadEmphasis}</strong
             > runs and resources.
           </p>
         </div>
 
-        <div class="grid grid-cols-1 gap-12 lg:grid-cols-3">
+        <Image
+          src={Cube}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          class="pointer-events-none absolute left-[162px] top-[159px] hidden w-[130px] lg:block"
+        />
+
+        <div class="grid grid-cols-1 items-stretch gap-12 pt-[60px] lg:grid-cols-3">
           {
             pricing.plans.map((plan) => (
-              <div class="flex max-w-[400px] flex-col rounded-lg border border-[#2f3547] bg-bg-dark bg-gradient-to-b from-[#5862aa24] to-[#5862aa00] to-60% p-6">
-                <p class="m-0 font-mono text-xs uppercase text-gray-3">{plan.priceLabel}</p>
-                {plan.price && (
-                  <p class="m-0 mt-1 text-4xl font-semibold text-accent-4">
-                    {plan.price}
-                    {plan.priceFootnote && (
-                      <sup class="ml-0.5 text-base text-gray-1">&dagger;</sup>
-                    )}
-                  </p>
-                )}
+              <div class="relative flex h-full max-w-[400px] flex-col rounded-lg border border-[#2f3547] bg-bg-dark bg-gradient-to-b from-[#5862aa24] to-[#5862aa00] to-60% p-6">
+                <div class="mb-6 flex items-center justify-between gap-4">
+                  <Image
+                    src={planMarks[plan.name]!}
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    class="size-16 shrink-0"
+                  />
+                  <div class="text-right">
+                    <p class="m-0 font-mono text-[11px] uppercase leading-4 tracking-[0.06em] text-gray-1">
+                      {plan.priceLabel}
+                    </p>
+                    <p class="m-0 text-[32px] leading-[44px] text-gray-1">
+                      {plan.price}
+                      {plan.priceFootnote && (
+                        <sup class="ml-0.5 align-super text-sm">&dagger;</sup>
+                      )}
+                    </p>
+                  </div>
+                </div>
 
-                <h3 class="mt-6 text-xl font-semibold text-white">
+                <h3 class="m-0 text-xl font-normal leading-5 text-white">
                   {plan.name}
                 </h3>
-                <p class="m-0 mt-1 text-sm font-medium text-accent-4">
+                <p class="m-0 mt-2 text-sm leading-5 text-accent-4">
                   {plan.units}
                 </p>
-                <p class="m-0 mt-2 text-sm text-gray-1">{plan.audience}</p>
+                <p class="m-0 mt-2 text-sm leading-5 text-gray-1">
+                  {plan.audience}
+                </p>
 
                 {plan.upsell && (
-                  <p class="m-0 mt-6 text-sm font-medium text-white">
+                  <p class="m-0 mt-2 text-sm leading-5 text-white">
                     {plan.upsell}
                   </p>
                 )}
 
-                <ul class="m-0 mt-6 flex list-none flex-col gap-3 p-0">
+                <ul class="m-0 mt-6 flex list-none flex-col p-0">
                   {plan.features.map((feature) => (
-                    <li class="flex items-start gap-2.5 text-sm text-gray-1">
-                      <svg
-                        class="mt-0.5 size-4 shrink-0 text-accent-3"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
+                    <li class="my-[11px] flex items-center text-sm leading-[22px] text-gray-1">
+                      <Image
+                        src={PurpleCheck}
+                        alt=""
                         aria-hidden="true"
-                      >
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
+                        loading="lazy"
+                        class="mr-2 size-[18px] shrink-0"
+                      />
                       {feature}
                     </li>
                   ))}
                 </ul>
 
-                <div class="mt-auto pt-8">
+                <div class="mt-auto flex items-center py-6">
                   {plan.footnote && (
-                    <p class="m-0 mb-4 text-xs text-gray-1">
+                    <p class="m-0 text-sm leading-5 text-gray-1">
                       <sup>&dagger;</sup> {plan.footnote}
                     </p>
                   )}
-                  <Button
-                    href={plan.cta.href}
-                    variant={plan.cta.variant}
-                    size="lg"
-                    class="w-full"
-                  >
-                    {plan.cta.label}
-                  </Button>
                 </div>
+                <Button
+                  href={plan.cta.href}
+                  variant={plan.cta.variant}
+                  class="w-full"
+                >
+                  {plan.cta.label}
+                </Button>
               </div>
             ))
           }
@@ -339,22 +363,26 @@ const headlineParts = (() => {
         logoAlt="Logo for Caddi"
       />
 
-      <section class="border-t border-gray-4 px-4 py-16 text-center md:px-8">
-        <SectionHeading
-          eyebrow={faqTeaser.eyebrow}
-          words={[faqTeaser.headlineAccent, faqTeaser.headline]}
-          accent={[faqTeaser.headlineAccent]}
-        />
-        <p class="m-0 text-base text-gray-2">
-          Still have questions? Check out the <a
-            href={faqTeaser.links.faq}
-            class="text-accent-1 underline underline-offset-2">FAQ section</a
-          > for answers or <a
-            href={faqTeaser.links.contact}
-            class="text-accent-1 underline underline-offset-2"
-            >contact us directly</a
-          >.
-        </p>
+      {/* `.faq-inner`: 850px, left aligned, 24px in — not a centred coda. */}
+      <section class="px-4 py-[76px] md:px-8">
+        <div class="mx-auto max-w-[850px] pl-6">
+          <SectionHeading
+            eyebrow={faqTeaser.eyebrow}
+            words={[faqTeaser.headlineAccent, faqTeaser.headline]}
+            accent={[faqTeaser.headlineAccent]}
+            leading="loose"
+          />
+          <p class="m-0 mt-[60px] text-sm leading-5 text-gray-1">
+            Still have questions? Check out the <a
+              href={faqTeaser.links.faq}
+              class="text-accent-1 underline underline-offset-2">FAQ section</a
+            > for answers or <a
+              href={faqTeaser.links.contact}
+              class="text-accent-1 underline underline-offset-2"
+              >contact us directly</a
+            >.
+          </p>
+        </div>
       </section>
 
       <NewsletterSignup />
@@ -363,6 +391,6 @@ const headlineParts = (() => {
 
   <div class="mt-16">
     <OpenSourceTools />
-    <Footer />
+    <Footer gradient={false} />
   </div>
 </BaseLayout>

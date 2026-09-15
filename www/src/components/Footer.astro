@@ -5,9 +5,14 @@ import { footerLinks } from "@data/site";
 
 interface Props {
   tone?: "light" | "dark";
+  /**
+   * The 13px rule above the footer. The newsletter band carries its own, so a
+   * page that has one turns this off rather than printing the rule twice.
+   */
+  gradient?: boolean;
 }
 
-const { tone = "light" } = Astro.props;
+const { tone = "light", gradient = true } = Astro.props;
 const year = new Date().getFullYear();
 ---
 
@@ -18,11 +23,14 @@ const year = new Date().getFullYear();
     on a site whose footer shares the page background; as a hairline border the
     two read as one continuous block.
   */}
-  <div
-    class="mx-auto h-[13px] max-w-[1312px] bg-[linear-gradient(90deg,var(--color-dark-blue-1)_50%,var(--color-accent-1))]"
-    aria-hidden="true"
-  >
-  </div>
+  {
+    gradient && (
+      <div
+        class="mx-auto h-[13px] max-w-[1312px] bg-[linear-gradient(90deg,var(--color-dark-blue-1)_50%,var(--color-accent-1))]"
+        aria-hidden="true"
+      />
+    )
+  }
 
   <div
     class="mx-auto flex max-w-[1312px] flex-col gap-6 px-4 py-10 md:flex-row md:items-center md:justify-between md:px-8"
