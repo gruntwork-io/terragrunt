@@ -135,6 +135,41 @@ func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 	assert.Contains(t, components.Filter(component.UnitKind).Paths(), stackHiddenDir)
 }
 
+// TestDiscovery_JSONConfigUnit tests that units configured via terragrunt.hcl.json (rather than
+// terragrunt.hcl) are discovered, since --filter and friends rely on this same discovery to build
+// the component graph.
+func TestDiscovery_JSONConfigUnit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	jsonUnitDir := filepath.Join(tmpDir, "json-unit")
+	hclUnitDir := filepath.Join(tmpDir, "hcl-unit")
+
+	require.NoError(t, os.MkdirAll(jsonUnitDir, 0755))
+	require.NoError(t, os.MkdirAll(hclUnitDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(jsonUnitDir, "terragrunt.hcl.json"), []byte("{}"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(hclUnitDir, "terragrunt.hcl"), []byte(""), 0644))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir: tmpDir,
+	}
+
+	ctx := t.Context()
+
+	d := discovery.NewDiscovery(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: tmpDir,
+	})
+
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	units := components.Filter(component.UnitKind).Paths()
+	assert.ElementsMatch(t, []string{jsonUnitDir, hclUnitDir}, units)
+}
+
 // TestDiscovery_WithDependencies tests dependency discovery and relationship building.
 func TestDiscovery_WithDependencies(t *testing.T) {
 	t.Parallel()
