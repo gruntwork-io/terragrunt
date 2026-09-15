@@ -46,15 +46,10 @@ See the [Azure Storage backend documentation](/features/units/state-backend#azur
 for configuration keys and known limitations.
 
 ### `azure-backend` - How to provide feedback
-Track and discuss this experiment in [gruntwork-io/terragrunt#4307](https://github.com/gruntwork-io/terragrunt/issues/4307).
-When reporting issues or providing feedback, please include:
-
-- The Azure authentication method you are using (Azure AD, MSI, service principal, SAS, access key).
-- The cloud environment (public, government, china).
-- Any errors encountered during `init`, `plan`, or backend bootstrap.
+Now that the `azure-backend` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
 
 ### `azure-backend` - Criteria for stabilization
-To transition the `azure-backend` feature to a stable release, the following were completed:
+To transition the `azure-backend` feature to a stable release, the following were addressed:
 
 - [x] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
 - [x] Bootstrap of storage accounts and blob containers, including versioning and soft delete convergence.
