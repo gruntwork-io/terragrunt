@@ -1,0 +1,118 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `expansion` works with `autoinclude` and stack dependencies
+
+`terragrunt stack generate` failed with `There is no variable named "each"` when a `unit` or `stack` block declared both an `expansion` block and an `autoinclude` block. The error pointed at `each.key` in `path`, even when `autoinclude` never referenced `each`.
+
+Generation now writes an autoinclude file for each element, and `each.key`, `each.value`, and `count.index` inside `autoinclude` resolve to that element:
+
+```hcl
+# terragrunt.stack.hcl
+unit "repo" {
+  source = "../units/repo"
+  path   = "repo"
+}
+
+unit "environment" {
+  expansion {
+    for_each = toset(["dev", "prod"])
+  }
+
+  source = "../units/environment"
+  path   = "environment/${each.key}"
+
+  autoinclude {
+    dependency "repo" {
+      config_path = unit.repo.path
+    }
+
+    inputs = {
+      environment = each.key
+      repository  = dependency.repo.outputs.name
+    }
+  }
+}
+```
+
+The `prod` element gets this `terragrunt.autoinclude.hcl`:
+
+```hcl
+dependency "repo" {
+  config_path = "../../repo"
+}
+
+inputs = {
+  environment = "prod"
+  repository  = dependency.repo.outputs.name
+}
+```
+
+A `dependency` block inside `autoinclude` that declared its own `expansion` block failed generation with the same error. A unit whose `terragrunt.autoinclude.hcl` contained one also failed to parse. An expanded unit could not be referenced from the stack file at all, since `unit.<name>.path` skipped it.
+
+Each element of an expanded unit or stack is now referenced as `unit.<name>[key].path`. The generated `dependency` block keeps its `expansion` block. Generation evaluates `for_each` or `count` in the stack file, where `local.*` and `values.*` are available, writes the result as a literal, and resolves `config_path` for each element. The generated unit expands the dependency when it is parsed:
+
+```hcl
+# terragrunt.stack.hcl
+locals {
+  regions = toset(["us-east-1", "us-west-1"])
+}
+
+unit "vpc" {
+  expansion {
+    for_each = local.regions
+  }
+
+  source = "../units/vpc"
+  path   = "vpc/${each.key}"
+
+  values = {
+    region = each.key
+  }
+}
+
+unit "app" {
+  source = "../units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      expansion {
+        for_each = local.regions
+      }
+
+      config_path  = unit.vpc[each.key].path
+      mock_outputs = { vpc_id = "vpc-mock-${each.key}" }
+    }
+
+    inputs = {
+      vpc_ids = { for region, vpc in dependency.vpc : region => vpc.outputs.vpc_id }
+    }
+  }
+}
+```
+
+```hcl
+# .terragrunt-stack/app/terragrunt.autoinclude.hcl
+dependency "vpc" {
+  expansion {
+    for_each = toset(["us-east-1", "us-west-1"])
+  }
+
+  config_path = {
+    us-east-1 = "../vpc/us-east-1"
+    us-west-1 = "../vpc/us-west-1"
+  }[each.key]
+  mock_outputs = { vpc_id = "vpc-mock-${each.key}" }
+}
+
+inputs = {
+  vpc_ids = { for region, vpc in dependency.vpc : region => vpc.outputs.vpc_id }
+}
+```
+
+A stack file that declares the same `unit` or `stack` label both with and without an `expansion` now fails to parse, because `unit.<name>` cannot refer to both.
+
+Discovery failed the same way on a `dependency` whose `config_path` pointed at a stack directory containing an expanded unit. It dropped the dependency instead of reporting the error, so `run --all` did not wait for the units in that stack. The dependency now covers every element of the expanded unit.

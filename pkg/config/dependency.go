@@ -2710,10 +2710,12 @@ func foldSiblingAutoIncludeDeps(
 		return nil, err
 	}
 
-	decoded := TerragruntDependency{}
-	if err := autoFile.Decode(&decoded, evalCtx); err != nil {
+	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, autoFile, evalCtx)
+	if err != nil {
 		return nil, err
 	}
+
+	decoded := TerragruntDependency{Dependencies: autoDependencies}
 
 	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
 	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {

@@ -21,6 +21,15 @@ var deferredRoots = map[string]bool{
 	varDependency: true,
 }
 
+// expandedDependencyDeferredRoots extends deferredRoots with the iteration roots of an expanded
+// dependency block, which the generated unit binds when it expands the block again.
+// This map must not be modified after package initialization.
+var expandedDependencyDeferredRoots = map[string]bool{
+	varDependency: true,
+	varEach:       true,
+	varCount:      true,
+}
+
 // defaultMaxPartialEvalDepth bounds recursion for pathological deeply-nested expressions; past this, fall back to source bytes.
 const defaultMaxPartialEvalDepth = 10000
 

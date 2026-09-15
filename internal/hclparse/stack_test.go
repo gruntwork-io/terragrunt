@@ -23,9 +23,10 @@ func noFuncs(string) (map[string]function.Function, error) {
 func TestBuildComponentRefMapExposesPath(t *testing.T) {
 	t.Parallel()
 
-	got := hclparse.BuildComponentRefMap([]hclparse.ComponentRef{
+	got, err := hclparse.BuildComponentRefMap(hclparse.VarStack, []hclparse.ComponentRef{
 		{Name: "networking", Path: ".terragrunt-stack/networking"},
 	})
+	require.NoError(t, err)
 
 	networking := got.AsValueMap()["networking"].AsValueMap()
 	assert.Equal(t, ".terragrunt-stack/networking", networking["path"].AsString())
@@ -964,7 +965,8 @@ unit "vpc" {
 func TestBuildComponentRefMap_Empty(t *testing.T) {
 	t.Parallel()
 
-	result := hclparse.BuildComponentRefMap(nil)
+	result, err := hclparse.BuildComponentRefMap(hclparse.VarUnit, nil)
+	require.NoError(t, err)
 	assert.True(t, result.Type().IsObjectType())
 }
 
@@ -976,7 +978,8 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 		{Name: "app", Path: "app-service"},
 	}
 
-	result := hclparse.BuildComponentRefMap(refs)
+	result, err := hclparse.BuildComponentRefMap(hclparse.VarUnit, refs)
+	require.NoError(t, err)
 
 	require.True(t, result.Type().IsObjectType())
 

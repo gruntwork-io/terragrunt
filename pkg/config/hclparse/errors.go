@@ -46,8 +46,8 @@ func (err ConflictingMetaArgsError) Error() string {
 	return fmt.Sprintf(
 		"%s: the expansion block sets both %s and %s; set exactly one",
 		err.Subject,
-		forEachAttrName,
-		countAttrName,
+		MetaArgForEach,
+		MetaArgCount,
 	)
 }
 
@@ -60,8 +60,8 @@ func (err MissingMetaArgError) Error() string {
 	return fmt.Sprintf(
 		"%s: the expansion block sets neither %s nor %s; set exactly one",
 		err.Subject,
-		forEachAttrName,
-		countAttrName,
+		MetaArgForEach,
+		MetaArgCount,
 	)
 }
 
@@ -72,7 +72,7 @@ type InvalidCountError struct {
 }
 
 func (err InvalidCountError) Error() string {
-	return fmt.Sprintf("%s: %s must be a whole number: %v", err.Subject, countAttrName, err.Err)
+	return fmt.Sprintf("%s: %s must be a whole number: %v", err.Subject, MetaArgCount, err.Err)
 }
 
 func (err InvalidCountError) Unwrap() error {
@@ -89,7 +89,7 @@ func (err NegativeCountError) Error() string {
 	return fmt.Sprintf(
 		"%s: %s is %d; it must not be negative",
 		err.Subject,
-		countAttrName,
+		MetaArgCount,
 		err.Count,
 	)
 }
@@ -153,7 +153,7 @@ func (err UnsupportedForEachTypeError) Error() string {
 	return fmt.Sprintf(
 		"%s: %s must be a set or a map, but got %s",
 		err.Subject,
-		forEachAttrName,
+		MetaArgForEach,
 		err.Type,
 	)
 }
@@ -169,7 +169,7 @@ func (err UnsupportedForEachKeyTypeError) Error() string {
 	return fmt.Sprintf(
 		"%s: %s keys must be strings or numbers, but got %s",
 		err.Subject,
-		forEachAttrName,
+		MetaArgForEach,
 		err.Type,
 	)
 }

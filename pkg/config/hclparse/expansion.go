@@ -18,9 +18,6 @@ const (
 	// dependency, unit, or stack block.
 	ExpansionBlockName = "expansion"
 
-	forEachAttrName = "for_each"
-	countAttrName   = "count"
-
 	eachVarName  = "each"
 	countVarName = "count"
 
@@ -28,9 +25,20 @@ const (
 	eachValueAttrName  = "value"
 	countIndexAttrName = "index"
 
-	forEachElementLabel = forEachAttrName + " element"
+	forEachElementLabel = string(MetaArgForEach) + " element"
 
 	labelTagKind = "label"
+)
+
+// MetaArg names an argument of an expansion block that sets how the block iterates. An expansion
+// block sets exactly one.
+type MetaArg string
+
+const (
+	// MetaArgForEach iterates over the elements of a set, map, or object.
+	MetaArgForEach MetaArg = "for_each"
+	// MetaArgCount iterates a whole number of times.
+	MetaArgCount MetaArg = "count"
 )
 
 // DefaultMaxInstances bounds how many instances a single block may expand into,
@@ -127,11 +135,22 @@ func (key InstanceKey) Expanded() bool {
 	return key.EachKey != nil || key.CountIndex != nil
 }
 
+// Address returns the address of this instance of the block labeled label: the label alone
+// for a block that was not expanded, and label[key] for one element of an expanded block.
+func (key InstanceKey) Address(label string) string {
+	if !key.Expanded() {
+		return label
+	}
+
+	return label + "[" + key.Key() + "]"
+}
+
 // Instance is one decoded product of expanding a block. A block with no expansion
 // block yields a single Instance with both keys nil.
 type Instance struct {
-	Value  any
-	Source *SourceBlock
+	Value       any
+	Source      *SourceBlock
+	EvalContext *hcl.EvalContext
 	InstanceKey
 }
 
@@ -312,6 +331,9 @@ func blockSource(src []byte, block *hcl.Block, out any) (*SourceBlock, error) {
 // A block with no expansion block decodes to exactly one Instance, so callers can
 // route expanded and unexpanded blocks through the same path.
 //
+// A block declaring more than one expansion block, or an expansion block that sets
+// both or neither of for_each and count, returns an error and no Instance.
+//
 // Expansion is driven by the presence of the statically-known expansion sub-block,
 // read before the surrounding body is evaluated. That ordering is what lets the
 // body reference each.value at all: the references are still unevaluated here, and
@@ -343,7 +365,7 @@ func ExpandBlock(
 			return nil, diags
 		}
 
-		return []Instance{{Value: instance}}, nil
+		return []Instance{{Value: instance, EvalContext: ctx}}, nil
 	}
 
 	forEach, count, err := expansionMetaArg(expansion)
@@ -388,16 +410,16 @@ func expansionMetaArg(expansion *hcl.Block) (forEach, count *hcl.Attribute, err 
 	// loud "unsupported argument" rather than a silently ignored attribute.
 	content, diags := expansion.Body.Content(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
-			{Name: forEachAttrName},
-			{Name: countAttrName},
+			{Name: string(MetaArgForEach)},
+			{Name: string(MetaArgCount)},
 		},
 	})
 	if diags.HasErrors() {
 		return nil, nil, diags
 	}
 
-	forEach = content.Attributes[forEachAttrName]
-	count = content.Attributes[countAttrName]
+	forEach = content.Attributes[string(MetaArgForEach)]
+	count = content.Attributes[string(MetaArgCount)]
 
 	switch {
 	case forEach != nil && count != nil:
@@ -421,7 +443,7 @@ func expandCount(
 		return nil, diags
 	}
 
-	if err := requireConcrete(value, countAttrName, &count.Range); err != nil {
+	if err := requireConcrete(value, string(MetaArgCount), &count.Range); err != nil {
 		return nil, err
 	}
 
@@ -437,7 +459,7 @@ func expandCount(
 	// Checked before the allocation below, which is what the ceiling protects.
 	if total > maxInstances {
 		return nil, ExpansionLimitExceededError{
-			Attr:    countAttrName,
+			Attr:    string(MetaArgCount),
 			Size:    total,
 			Limit:   maxInstances,
 			Subject: &count.Range,
@@ -474,7 +496,7 @@ func expandForEach(
 
 	// LengthInt and ElementIterator panic on unknown or null values, so these are
 	// rejected before the collection is touched rather than after the type check.
-	if err := requireConcrete(collection, forEachAttrName, &forEach.Range); err != nil {
+	if err := requireConcrete(collection, string(MetaArgForEach), &forEach.Range); err != nil {
 		return nil, err
 	}
 
@@ -490,7 +512,7 @@ func expandForEach(
 	size := collection.LengthInt()
 	if size > maxInstances {
 		return nil, ExpansionLimitExceededError{
-			Attr:    forEachAttrName,
+			Attr:    string(MetaArgForEach),
 			Size:    size,
 			Limit:   maxInstances,
 			Subject: &forEach.Range,
@@ -592,7 +614,10 @@ func (dec *elementDecoder) decode(
 ) {
 	value, diags := decodeInstance(block, outType, ctx)
 	if !diags.HasErrors() {
-		dec.instances = append(dec.instances, Instance{Value: value, InstanceKey: key})
+		dec.instances = append(
+			dec.instances,
+			Instance{Value: value, EvalContext: ctx, InstanceKey: key},
+		)
 
 		return
 	}
