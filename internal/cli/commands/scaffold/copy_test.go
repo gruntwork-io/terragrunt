@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -58,6 +59,21 @@ func TestScaffoldCopiesUnit(t *testing.T) {
 	assert.Contains(t, values, `name`)
 	assert.Contains(t, values, `ref`)
 	assert.Contains(t, values, `region = "us-east-1"`, "try() fallbacks seed the optional section")
+}
+
+// TestScaffoldCopiesUnitAddressedWithoutSubdirectory pins that a local unit
+// named by its own directory, with no "//" selector, arrives without the
+// manifest the local copy writes beside it.
+func TestScaffoldCopiesUnitAddressedWithoutSubdirectory(t *testing.T) {
+	t.Parallel()
+
+	source := helpers.TmpDirWOSymlinks(t)
+	writeFile(t, filepath.Join(source, "terragrunt.hcl"), "# unit\n")
+
+	outputDir := runScaffold(t, source)
+
+	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
+	assert.NoFileExists(t, filepath.Join(outputDir, getter.SourceManifestName))
 }
 
 func TestScaffoldCopiesStackWithItsSupportingFiles(t *testing.T) {
@@ -161,7 +177,7 @@ func writeComponent(t *testing.T, dir string, files map[string]string) string {
 		writeFile(t, filepath.Join(repoDir, filepath.FromSlash(dir), name), contents)
 	}
 
-	return repoDir + "//" + dir
+	return helpers.FileURL(repoDir) + "//" + dir
 }
 
 // runScaffold scaffolds source into a fresh output directory and returns it.

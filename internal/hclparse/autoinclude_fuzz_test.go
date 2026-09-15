@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/require"
@@ -14,9 +15,9 @@ import (
 	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
-const (
-	aiFuzzStackDir = "/fuzz/stack"
-	aiFuzzGenDir   = "/fuzz/stack/.terragrunt-stack/app"
+var (
+	aiFuzzStackDir = venvtest.Root("/fuzz/stack")
+	aiFuzzGenDir   = venvtest.Root("/fuzz/stack/.terragrunt-stack/app")
 )
 
 // aiFuzzFuncs is a small generate-time function set so function calls in autoinclude bodies can resolve.

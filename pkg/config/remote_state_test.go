@@ -18,7 +18,7 @@ import (
 func unitsVenv(t *testing.T, files map[string]string) (*venv.Venv, string) {
 	t.Helper()
 
-	root := filepath.Join("/units", t.Name())
+	root := filepath.Join(venvtest.Root("/units"), t.Name())
 
 	return venvtest.New().WithFS(venvtest.NewFS(t, root, files)), root
 }

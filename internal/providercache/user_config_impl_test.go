@@ -181,8 +181,16 @@ func TestTerraformCommandHookBypassesCacheOnImplementationMismatch(t *testing.T)
 
 	assert.Contains(t, output.String(), "skips the provider cache")
 	require.Len(t, invocations, 1, "the target command must run directly, exactly once")
-	assert.NotContains(t, strings.Join(invocations[0].Env, "\x00"), "TF_CLI_CONFIG_FILE=/virtual/work")
-	assert.False(t, vfs.Exists(v.FS, workDir+"/.terraformrc"), "no cache CLI config may be generated for a bypassed run")
+	assert.NotContains(
+		t,
+		strings.Join(invocations[0].Env, "\x00"),
+		"TF_CLI_CONFIG_FILE="+filepath.Join(workDir, ".terraformrc"),
+	)
+	assert.False(
+		t,
+		vfs.Exists(v.FS, filepath.Join(workDir, ".terraformrc")),
+		"no cache CLI config may be generated for a bypassed run",
+	)
 }
 
 // TestTerraformCommandHookUsesCacheWhenImplementationsShareConfig pins that a run under
@@ -231,7 +239,11 @@ func TestTerraformCommandHookUsesCacheWhenImplementationsShareConfig(t *testing.
 	require.NotEmpty(t, invocations)
 
 	for _, inv := range invocations {
-		assert.Contains(t, strings.Join(inv.Env, "\x00"), "TF_CLI_CONFIG_FILE="+workDir)
+		assert.Contains(
+			t,
+			strings.Join(inv.Env, "\x00"),
+			"TF_CLI_CONFIG_FILE="+filepath.Join(workDir, ".terraformrc"),
+		)
 	}
 }
 

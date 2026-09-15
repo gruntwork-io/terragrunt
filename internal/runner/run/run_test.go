@@ -668,6 +668,7 @@ func createTempFile(t *testing.T) string {
 
 	tmpFile, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "")
 	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
 
 	return tmpFile.Name()
 }

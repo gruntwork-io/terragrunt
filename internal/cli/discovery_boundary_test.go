@@ -67,7 +67,7 @@ func TestDiscoveryBoundaryBoundsGraphTraversal(t *testing.T) {
 		{
 			name: "dependency traversal leaves the working directory when unbounded",
 			args: []string{"--filter", "{./app}..."},
-			want: []string{"app", "db", "../shared/dns"},
+			want: []string{"app", "db", filepath.FromSlash("../shared/dns")},
 		},
 		{
 			name: "dependency traversal stops at the boundary",
@@ -82,7 +82,7 @@ func TestDiscoveryBoundaryBoundsGraphTraversal(t *testing.T) {
 		{
 			name: "inline operand reaches wider than the boundary it overrides",
 			args: []string{"--filter", "{./app}...(..)", "--discovery-boundary", "."},
-			want: []string{"app", "db", "../shared/dns"},
+			want: []string{"app", "db", filepath.FromSlash("../shared/dns")},
 		},
 	}
 
@@ -108,12 +108,12 @@ func TestDiscoveryBoundaryKeepsEdgesToWithheldDependencies(t *testing.T) {
 	out, err := runBounded(t, "prod", "dag", "graph", "--discovery-boundary", ".")
 	require.NoError(t, err)
 
-	assert.Contains(t, out, `"app" -> "../shared/dns"`)
+	assert.Contains(t, out, filepath.FromSlash(`"app" -> "../shared/dns"`))
 	assert.Contains(t, out, `"app" -> "db"`)
 
 	// DOT gives every component it reports a `"path" ;` line of its own.
 	// shared/dns has none, so the boundary dropped it.
-	assert.NotContains(t, out, `"../shared/dns" ;`)
+	assert.NotContains(t, out, filepath.FromSlash(`"../shared/dns" ;`))
 }
 
 // TestDiscoveryBoundaryRejectsDependentTraversalOutsideIt pins the refusal of

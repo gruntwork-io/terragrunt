@@ -123,6 +123,13 @@ type TerraformOutput struct {
 	Sensitive bool `json:"Sensitive"`
 }
 
+// nestUnder joins path beneath root even when path is absolute. Callers pass an
+// already-copied fixture back in as an absolute path, and on Windows its drive
+// letter would otherwise land in the middle of the joined path ("root\C:\...").
+func nestUnder(root, path string) string {
+	return filepath.Join(root, strings.TrimPrefix(path, filepath.VolumeName(path)))
+}
+
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
@@ -144,7 +151,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			logger.CreateLogger(),
 			vfs.NewOSFS(),
 			MustAbs(t, environmentPath),
-			filepath.Join(tmpDir, environmentPath),
+			nestUnder(tmpDir, environmentPath),
 			".terragrunt-test",
 			util.WithIncludeInCopy(includeInCopy...),
 			util.WithExcludeFromCopy(excludeFromCopy...),
@@ -1333,7 +1340,7 @@ func RunTerragruntValidateInputs(
 
 	// Terragrunt writes a .terragrunt-cache into whatever directory it runs in,
 	// so this runs against a copy rather than the fixture in the checked-out tree.
-	moduleDir = filepath.Join(CopyEnvironment(t, moduleDir), moduleDir)
+	moduleDir = nestUnder(CopyEnvironment(t, moduleDir), moduleDir)
 
 	maybeNested := filepath.Join(moduleDir, "module")
 	if vfs.Exists(vfs.NewOSFS(), maybeNested) {
