@@ -123,6 +123,105 @@ func TestScaffoldGeneratesForModuleCarryingAUnit(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(outputDir, "terragrunt.values.hcl"))
 }
 
+// TestGeneratedFilesIncludesBoilerplateDependencyFiles exercises the
+// template path with opts.Manifest true: a custom boilerplate template that
+// depends on a nested template must list the dependency's generated files
+// alongside the root template's outputs.
+func TestGeneratedFilesIncludesBoilerplateDependencyFiles(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+
+	// A module source so Prepare takes the render path, not the copy path.
+	writeFile(t, filepath.Join(repoDir, "modules", "vpc", "main.tf"), `variable "name" {
+  type = string
+}
+`)
+
+	writeFile(t, filepath.Join(repoDir, "templates", "root", "boilerplate.yml"), `
+dependencies:
+  - name: extra
+    template-url: ../extra
+    output-folder: ./config
+`)
+	writeFile(t, filepath.Join(repoDir, "templates", "root", "terragrunt.hcl"), `terraform {
+  source = "{{ .sourceUrl }}"
+}
+`)
+	writeFile(t, filepath.Join(repoDir, "templates", "extra", "boilerplate.yml"), "variables: []\n")
+	writeFile(t, filepath.Join(repoDir, "templates", "extra", "extra.hcl"), `locals {
+  from_dependency = true
+}
+`)
+
+	outputDir := helpers.TmpDirWOSymlinks(t)
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = outputDir
+	opts.NoShell = true
+	opts.NoHooks = true
+
+	v := venvtest.NewOSWithEmptyEnv()
+	l := logger.CreateLogger()
+
+	plan, err := scaffold.Prepare(
+		t.Context(),
+		l,
+		v,
+		opts,
+		repoDir+"//modules/vpc",
+		repoDir+"//templates/root",
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { plan.Cleanup(v.FS) })
+
+	require.NoError(t, plan.Generate(t.Context(), l, v, opts, nil))
+
+	got := plan.GeneratedFiles()
+	assert.Contains(t, got, "terragrunt.hcl")
+	assert.Contains(t, got, filepath.Join("config", "extra.hcl"),
+		"dependency files must be listed relative to the generation root")
+	assert.FileExists(t, filepath.Join(outputDir, "config", "extra.hcl"))
+	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
+}
+
+// TestGeneratedFilesEmptyAfterCopyingUnit pins the GeneratedFiles contract
+// for copyable kinds: Generate copies the unit but leaves the list empty,
+// because the catalog TUI reports those via CopyCmd.Result.
+func TestGeneratedFilesEmptyAfterCopyingUnit(t *testing.T) {
+	t.Parallel()
+
+	source := writeComponent(t, "units/app", map[string]string{
+		"terragrunt.hcl": unitConfig,
+		"extra.hcl":      "# carried along\n",
+	})
+
+	outputDir := helpers.TmpDirWOSymlinks(t)
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = outputDir
+
+	v := venvtest.NewOSWithEmptyEnv()
+	l := logger.CreateLogger()
+
+	plan, err := scaffold.Prepare(t.Context(), l, v, opts, source, "")
+	require.NoError(t, err)
+
+	t.Cleanup(func() { plan.Cleanup(v.FS) })
+
+	require.NoError(t, plan.Generate(t.Context(), l, v, opts, nil))
+
+	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
+	assert.FileExists(t, filepath.Join(outputDir, "extra.hcl"))
+	assert.Empty(t, plan.GeneratedFiles(),
+		"copyable scaffolds report via CopyCmd.Result, not GeneratedFiles")
+}
+
 // TestScaffoldRefusesToOverwriteWhenCopying covers a collision in the output
 // directory: the component is not scaffolded, and nothing is half-written.
 func TestScaffoldRefusesToOverwriteWhenCopying(t *testing.T) {
