@@ -12,7 +12,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -37,52 +36,30 @@ func TestNewCommandExposesTheCatalogFlags(t *testing.T) {
 	assert.NotNil(t, cmd.Flags.Get(catalog.IgnoreFileFlagName))
 }
 
-// TestNewCommandBeforeGatesNonInteractiveFormats pins the experiment gate on
-// the non-interactive formats: their output is a compatibility promise, so it
-// stays behind the experiment until the shape of it is settled.
-func TestNewCommandBeforeGatesNonInteractiveFormats(t *testing.T) {
+// TestNewCommandBeforeValidatesTheFormat pins which formats the command
+// accepts with no experiment enabled. An unknown format exits with the general
+// error status.
+func TestNewCommandBeforeValidatesTheFormat(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		wantErr        error
-		name           string
-		format         string
-		withExperiment bool
-		wantInvalid    bool
+		name        string
+		format      string
+		wantInvalid bool
 	}{
-		{name: "tui needs no experiment", format: catalog.FormatTUI},
-		{
-			name:    "jsonl without the experiment",
-			format:  catalog.FormatJSONL,
-			wantErr: catalog.ErrFormatRequiresExperiment,
-		},
-		{
-			name:    "md without the experiment",
-			format:  catalog.FormatMD,
-			wantErr: catalog.ErrFormatRequiresExperiment,
-		},
-		{name: "jsonl with the experiment", format: catalog.FormatJSONL, withExperiment: true},
-		{name: "md with the experiment", format: catalog.FormatMD, withExperiment: true},
+		{name: "tui", format: catalog.FormatTUI},
+		{name: "jsonl", format: catalog.FormatJSONL},
+		{name: "md", format: catalog.FormatMD},
 		{name: "unknown format", format: "yaml", wantInvalid: true},
-		{
-			name:           "unknown format with the experiment",
-			format:         "yaml",
-			withExperiment: true,
-			wantInvalid:    true,
-		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
-
-			if tc.withExperiment {
-				require.NoError(t, opts.Experiments.EnableExperiment(experiment.CatalogFormat))
-			}
-
-			cmd := catalog.NewCommand(logger.CreateLogger(), opts, venvtest.New())
+			cmd := catalog.NewCommand(
+				logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+			)
 			require.NoError(
 				t,
 				cmd.Flags.Parse(clihelper.Args{"--" + catalog.FormatFlagName, tc.format}, map[string]string{}),
@@ -90,17 +67,13 @@ func TestNewCommandBeforeGatesNonInteractiveFormats(t *testing.T) {
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
 
-			switch {
-			case tc.wantErr != nil:
-				require.ErrorIs(t, err, tc.wantErr)
-			case tc.wantInvalid:
-				require.Error(t, err)
-				require.NotErrorIs(t, err, catalog.ErrFormatRequiresExperiment,
-					"an unusable format must fail validation rather than the experiment gate")
+			if tc.wantInvalid {
 				assertGeneralError(t, err)
-			default:
-				require.NoError(t, err)
+
+				return
 			}
+
+			require.NoError(t, err)
 		})
 	}
 }
@@ -117,15 +90,36 @@ func TestNewCommandActionLoadsThePositionalSource(t *testing.T) {
 
 	writeLocalRepo(t, v, repoDir)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.CatalogFormat))
-
-	cmd := catalog.NewCommand(logger.CreateLogger(), opts, v)
+	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), v)
 
 	require.NoError(t, cmd.Flags.Parse(
 		clihelper.Args{"--" + catalog.FormatFlagName, catalog.FormatJSONL},
 		map[string]string{},
 	))
+	require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
+	require.NoError(t, cmd.Action(
+		t.Context(), clihelper.NewAppContext(nil, clihelper.Args{repoDir}),
+	))
+
+	assert.Equal(t, []string{"alpha", "bravo"}, sortedDirs(t, buf.String()))
+}
+
+// TestNewCommandDefaultsToJSONLWithoutATerminal pins that a run with no
+// terminal and no --format writes JSON Lines, so piping the command needs no
+// flag.
+func TestNewCommandDefaultsToJSONLWithoutATerminal(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithWriter(&buf)
+	repoDir := "/catalog-default-format/repo"
+
+	writeLocalRepo(t, v, repoDir)
+
+	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), v)
+
+	require.NoError(t, cmd.Flags.Parse(clihelper.Args{}, map[string]string{}))
 	require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
 	require.NoError(t, cmd.Action(
 		t.Context(), clihelper.NewAppContext(nil, clihelper.Args{repoDir}),
