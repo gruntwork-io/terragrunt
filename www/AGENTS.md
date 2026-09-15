@@ -67,6 +67,50 @@ matching `^/(.*)\.html/?$` ahead of the redirects array, shadowing rules below.
 16.4, below which the query matches nothing and a phone gets the desktop layout.
 Valid CSS, clean build, silent failure.
 
+## Matching the live site
+
+The pages here are rebuilt, not ported, so they are not pixel-identical — but
+every difference should be a consequence of that decision, not an invention.
+Values below were read off the live DOM with `getComputedStyle`, never guessed.
+
+**Two heading scales exist.** `.heading` is 42px/46.67 at weight 500 (homepage,
+Terragrunt Scale); `.headline` is 42px/1.5em (ambassador, checkout). Long-form
+`h2` is 30px/37.5. `SectionHeading` takes `leading` to pick between them.
+
+**Three prose scales exist.** Long-form bodies (FAQ, comparisons, guides) are
+20px/34 over an 800px measure — including the lede, which is NOT larger.
+`/ai-info-page` is Webflow's default 14px/20px under 42px headings, which is
+what `.prose-compact` is for. Putting it on the 20px scale ran that page 78%
+long.
+
+**Section rhythm is 76px top and bottom** (`.section`), the CTA band has 88px
+margins and 115px of bottom padding, and the feature grids are 850px wide.
+
+**The closing bands differ per route** and are explicit props on `PageLayout`:
+`/` has all three; `/faq/*` CTA + newsletter + open-source; `/comparisons/*`
+drops the CTA; `/guides/*` keeps only the newsletter; `/ai-info-page` only
+open-source; `/faqs-overview`, both index pages and `/contact-tgs` end at the
+footer. Assuming one tail added ~1,000px to pages that have none.
+
+**Only `/faq/*` carries the hero mascot**, and only `/faqs-overview` and
+`/contact-tgs` omit the dashed column overlay.
+
+**`/contact-tgs` and `/terragrunt-ambassador/contact` are dark pages**
+(`body.dark`), as is the Join the Program band and the whole Scale pricing
+block. Building a dark band light is the single largest diff a page can carry.
+
+**A `hidden` utility passed into a component as `class` cannot beat that
+component's own `inline-flex`.** Tailwind orders the two by its output, not by
+attribute order, so the mobile nav's CTAs rendered on top of the search box.
+Toggle display on a wrapper instead.
+
+**Astro collapses whitespace between a closing tag and the next expression**, so
+`<span>{a}</span>{b}` renders as "ab". Split headings need an explicit `{" "}`.
+
+**Check for horizontal overflow after any nav or hero change.** At 390px the
+document must be 390px wide. Three of the live pages overflow their own
+viewport on mobile; ours should not copy that.
+
 ## Gates
 
 A gate earns its place twice: it has to guard a failure something can still
