@@ -79,6 +79,7 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 				"accesslogging_target_object_partition_date_source": "EventTime",
 				"accesslogging_target_prefix":                       "test",
 				"skip_accesslogging_bucket_acl":                     false,
+				"skip_accesslogging_bucket_policy":                  false,
 				"skip_accesslogging_bucket_enforced_tls":            false,
 				"skip_accesslogging_bucket_public_access_blocking":  false,
 				"skip_accesslogging_bucket_ssencryption":            false,

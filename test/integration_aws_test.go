@@ -1335,17 +1335,77 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 	policyInBucket, err := awshelper.UnmarshalPolicy(*policy.Policy)
 	require.NoError(t, err)
 
-	enforceSSE := false
-
-	if policyInBucket.Statement != nil {
-		for _, statement := range policyInBucket.Statement {
-			if statement.Sid == s3backend.SidEnforcedTLSPolicy {
-				enforceSSE = true
-			}
-		}
+	sids := make([]string, 0, len(policyInBucket.Statement))
+	for _, statement := range policyInBucket.Statement {
+		sids = append(sids, statement.Sid)
 	}
 
-	assert.True(t, enforceSSE)
+	assert.Contains(t, sids, s3backend.SidEnforcedTLSPolicy)
+	assert.Contains(t, sids, s3backend.SidAccessLogDelivery)
+}
+
+// TestAwsBootstrapBackendLeavesExistingAccessLoggingBucketPolicyAlone pins that a logs bucket
+// that predates the run keeps whatever permissions it has, so bootstrapping never rewrites the
+// policy of a bucket someone else set up.
+func TestAwsBootstrapBackendLeavesExistingAccessLoggingBucketPolicyAlone(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3Backend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureS3Backend)
+
+	testID := strings.ToLower(helpers.UniqueID())
+
+	s3BucketName := "terragrunt-test-bucket-" + testID
+	s3AccessLogsBucketName := "terragrunt-test-bucket-" + testID + "-access-logs"
+	dynamoDBName := "terragrunt-test-dynamodb-" + testID
+
+	createS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3AccessLogsBucketName)
+
+	defer func() {
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3AccessLogsBucketName)
+		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+	}()
+
+	for _, name := range []string{
+		"common.hcl",
+		filepath.Join("use-lockfile", "terragrunt.hcl"),
+		filepath.Join("dual-locking", "terragrunt.hcl"),
+	} {
+		path := filepath.Join(rootPath, name)
+		helpers.CopyTerragruntConfigAndFillPlaceholders(
+			t,
+			path,
+			path,
+			s3BucketName,
+			dynamoDBName,
+			helpers.TerraformRemoteStateS3Region,
+		)
+	}
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+
+			rootPath+" --feature access_logging_bucket="+s3AccessLogsBucketName+
+			" apply --backend-bootstrap",
+	)
+	require.NoError(t, err)
+
+	// Terragrunt still enforces TLS on the logs bucket, so it does have a policy to read here.
+	policy, err := bucketPolicy(t, helpers.TerraformRemoteStateS3Region, s3AccessLogsBucketName)
+	require.NoError(t, err)
+	require.NotNil(t, policy.Policy)
+
+	policyInBucket, err := awshelper.UnmarshalPolicy(*policy.Policy)
+	require.NoError(t, err)
+
+	sids := make([]string, 0, len(policyInBucket.Statement))
+	for _, statement := range policyInBucket.Statement {
+		sids = append(sids, statement.Sid)
+	}
+
+	assert.NotContains(t, sids, s3backend.SidAccessLogDelivery)
 }
 
 // Regression test to ensure that `accesslogging_bucket_name` is taken into account
