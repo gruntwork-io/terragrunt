@@ -93,10 +93,10 @@ const (
 	// command, rendering discovered components as JSON Lines or Markdown on
 	// standard output instead of launching the terminal user interface.
 	CatalogFormat = "catalog-format"
-	// BoundedDiscovery gates the inline "(dir)" graph boundary operand and the
-	// --discovery-boundary flag, which enclose graph discovery within a
+	// BoundedDiscovery names the now-stable inline "(dir)" graph boundary operand
+	// and --discovery-boundary flag, which enclose graph discovery within a
 	// directory instead of the git repository root: dependencies and dependents
-	// resolving outside it are not discovered.
+	// resolving outside it are not discovered. Both are enabled by default.
 	BoundedDiscovery = "bounded-discovery"
 	// BlockIteration names the now-stable expansion block, which iterates a
 	// dependency, unit, or stack block over a count or for_each, and the enabled
@@ -227,7 +227,8 @@ func NewExperiments() Experiments {
 			Name: CatalogFormat,
 		},
 		{
-			Name: BoundedDiscovery,
+			Name:   BoundedDiscovery,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   BlockIteration,
