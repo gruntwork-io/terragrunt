@@ -2303,15 +2303,6 @@ func convertToTerragruntConfig(
 			continue
 		}
 
-		if block.Mutable != nil && !pctx.Experiments.Evaluate(experiment.MutableGenerate) {
-			errs = append(errs, MutableGenerateRequiresExperimentError{
-				ConfigPath: cfgPath,
-				BlockName:  block.Name,
-			})
-
-			continue
-		}
-
 		genConfig := codegen.GenerateConfig{
 			HclFmt:        block.HclFmt,
 			Mutable:       block.Mutable,

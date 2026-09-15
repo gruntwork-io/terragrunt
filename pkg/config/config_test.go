@@ -2200,8 +2200,7 @@ func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
 	assert.False(t, *generateConfig.HclFmt)
 }
 
-// TestParseConfigGenerateBlockWithMutable verifies that mutable is parsed from generate blocks
-// once the gating experiment is enabled.
+// TestParseConfigGenerateBlockWithMutable verifies that mutable is parsed from generate blocks.
 func TestParseConfigGenerateBlockWithMutable(t *testing.T) {
 	t.Parallel()
 
@@ -2214,7 +2213,6 @@ func TestParseConfigGenerateBlockWithMutable(t *testing.T) {
 
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MutableGenerate))
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
@@ -2248,7 +2246,6 @@ func TestParseConfigGenerateAttrWithMutable(t *testing.T) {
 
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MutableGenerate))
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
@@ -2265,35 +2262,6 @@ func TestParseConfigGenerateAttrWithMutable(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, generateConfig.Mutable)
 	assert.False(t, *generateConfig.Mutable)
-}
-
-// TestParseConfigGenerateBlockMutableRequiresExperiment verifies that mutable is rejected
-// until the experiment that gates it is enabled.
-func TestParseConfigGenerateBlockMutableRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	cfg := `generate "test" {
-  path = "test.tf"
-  if_exists = "overwrite"
-  contents = "test = 1"
-  mutable = false
-}`
-
-	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-
-	_, err := config.ParseConfigString(
-		ctx,
-		pctx,
-		l,
-		config.DefaultTerragruntConfigPath,
-		cfg,
-		nil,
-	)
-
-	var experimentErr config.MutableGenerateRequiresExperimentError
-	require.ErrorAs(t, err, &experimentErr)
-	assert.Equal(t, "test", experimentErr.BlockName)
 }
 
 // TestParseConfigWithMissingIfExists verifies that generate blocks require the if_exists attribute.

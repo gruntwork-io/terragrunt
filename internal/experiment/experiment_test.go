@@ -84,17 +84,14 @@ func TestVersionAttributeIsOngoing(t *testing.T) {
 	assert.True(t, got.Evaluate(), "version-attribute must be enabled once explicitly requested")
 }
 
-func TestMutableGenerateIsOngoing(t *testing.T) {
+func TestMutableGenerateIsCompleted(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
 	got := exps.Find(experiment.MutableGenerate)
 	require.NotNil(t, got, "mutable-generate experiment must be registered in NewExperiments()")
-	assert.Equal(t, experiment.StatusOngoing, got.Status, "mutable-generate must be ongoing")
-	assert.False(t, got.Evaluate(), "mutable-generate must be disabled by default")
-
-	require.NoError(t, exps.EnableExperiment(experiment.MutableGenerate))
-	assert.True(t, got.Evaluate(), "mutable-generate must be enabled once explicitly requested")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "mutable-generate must be completed")
+	assert.True(t, got.Evaluate(), "mutable-generate must be enabled by default")
 }
 
 func TestBase64GzipCompatIsOngoing(t *testing.T) {
