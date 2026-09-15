@@ -116,46 +116,6 @@ When in doubt, [measure the performance](#measuring-performance) before and afte
 
 </Card>
 
-### Fetching Output From State
-
-Under the hood, Terragrunt dependency blocks leverage the OpenTofu/Terraform `output -json` command to fetch outputs from one unit and leverage them in another.
-
-The OpenTofu/Terraform `output -json` command does a bit more work than simply fetching output values from state, and a significant portion of that slowdown is loading providers, which it doesn't really need in most cases.
-
-You can significantly improve the performance of dependency blocks by using the [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) experiment. When the experiment is active for a supported backend, Terragrunt resolves outputs by fetching and parsing the backend state object directly, avoiding any overhead incurred by calling the `output -json` command of OpenTofu/Terraform.
-
-For example:
-
-```bash
-terragrunt run --all plan --experiment=dependency-fetch-output-from-state
-```
-
-#### Fetching Output From State - Gotchas
-
-<Card title="Supported backends" icon="information">
-
-The experiment supports S3 and GCS backends. Azure Storage (`azurerm`) is supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled. Unsupported backends, and supported backends whose configuration the direct reader cannot reproduce, fall back to the normal OpenTofu/Terraform output command.
-
-</Card>
-
-<Card title="Direct read failures" icon="warning">
-
-Outside `render` and `render-json`, Terragrunt retries a failed direct state read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the direct-read speedup is lost. Missing state and the two render commands retain their existing mock-output behavior.
-
-</Card>
-
-<Card title="State file schemas may change" icon="warning">
-
-OpenTofu/Terraform may change the state schema. A compatible-looking schema change could affect direct-read results. Pin the OpenTofu/Terraform version when using this experiment.
-
-</Card>
-
-<Card title="OpenTofu state encryption" icon="warning">
-
-The direct reader does not evaluate OpenTofu's encryption configuration or key providers. Outside `render` and `render-json`, Terragrunt recognizes the encrypted envelope and retries with `tofu output` or `terraform output`. If the configured binary can decrypt the state and native output retrieval succeeds, only the speedup is lost. The render commands retain their existing mock-output behavior. Disable the experiment when a render command must resolve real outputs from encrypted state.
-
-</Card>
-
 ### Skipping Auth During Discovery
 
 If you use the [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) flag to fetch credentials at runtime, Terragrunt runs that command once per parsed component during the discovery phase, so that configuration parsing can reliably resolve HCL functions like `get_aws_account_id` and `run_cmd`.
@@ -279,7 +239,7 @@ You can use configurations like the `--warmup` flag to do some warmup runs befor
 Here's an example of how to use Hyperfine to benchmark the performance of Terragrunt with two different configurations:
 
 ```shell
-hyperfine -w 3 -r 5 'terragrunt run --all plan' 'terragrunt run --all plan --experiment=dependency-fetch-output-from-state'
+hyperfine -w 3 -r 5 'terragrunt run --all plan --no-dependency-fetch-output-from-state' 'terragrunt run --all plan'
 ```
 
 ### Terragrunt Developer

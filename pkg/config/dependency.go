@@ -1948,9 +1948,7 @@ func shouldFetchDependencyOutputFromState(
 	pctx *ParsingContext,
 	remoteState *remotestate.RemoteState,
 ) bool {
-	if remoteState == nil ||
-		!pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) ||
-		pctx.NoDependencyFetchOutputFromState {
+	if remoteState == nil || pctx.NoDependencyFetchOutputFromState {
 		return false
 	}
 

@@ -51,6 +51,16 @@ func TestOCIIsCompleted(t *testing.T) {
 	assert.True(t, got.Evaluate(), "oci must be enabled by default")
 }
 
+func TestDependencyFetchOutputFromStateIsCompleted(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.DependencyFetchOutputFromState)
+	require.NotNil(t, got, "dependency-fetch-output-from-state must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "dependency-fetch-output-from-state must be completed")
+	assert.True(t, got.Evaluate(), "dependency-fetch-output-from-state must be enabled by default")
+}
+
 func TestOptionalHooksIsOngoing(t *testing.T) {
 	t.Parallel()
 
