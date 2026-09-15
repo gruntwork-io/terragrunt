@@ -74,7 +74,9 @@ const (
 	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
 	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
 	HookContextEnv = "hook-context-env"
-	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
+	// OptionalHooks names the now-stable --no-hooks flag, which skips
+	// before_hook, after_hook, and error_hook blocks during a run. The flag is
+	// available without enabling the experiment.
 	OptionalHooks = "optional-hooks"
 	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
 	Profiling = "profiling"
@@ -210,7 +212,8 @@ func NewExperiments() Experiments {
 			Name: HookContextEnv,
 		},
 		{
-			Name: OptionalHooks,
+			Name:   OptionalHooks,
+			Status: StatusCompleted,
 		},
 		{
 			Name: Profiling,

@@ -89,10 +89,6 @@ const (
 	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
 )
 
-var ErrNoHooksRequiresExperiment = errors.New(
-	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
-)
-
 var ErrNoDependencyOutputsRequiresExperiment = errors.New(
 	"--no-dependency-outputs requires the 'optional-dependency-outputs' experiment to be enabled (e.g., --experiment=optional-dependency-outputs)",
 )
@@ -189,19 +185,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			Name:        NoHooksFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
 			Destination: &opts.NoRunHooks,
-			Usage: flags.ExperimentUsage(opts.Experiments, experiment.OptionalHooks,
-				"Disable Terragrunt hooks during run."),
-			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
-				if !value {
-					return nil
-				}
-
-				if opts.Experiments.Evaluate(experiment.OptionalHooks) {
-					return nil
-				}
-
-				return ErrNoHooksRequiresExperiment
-			},
+			Usage:       "Disable Terragrunt hooks during run.",
 		}),
 
 		flags.NewFlag(&clihelper.BoolFlag{

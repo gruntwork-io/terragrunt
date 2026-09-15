@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+import Since from "@components/Since.astro";
 
 _Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before/after running an `tofu`/`terraform` command.
 
@@ -48,6 +49,16 @@ In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu pl
 
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
 block](/reference/hcl/blocks#terraform).
+
+<Since version="1.2.0">
+
+To skip every hook for a single run without editing configuration, pass [`--no-hooks`](/reference/cli/commands/run#no-hooks):
+
+```bash
+terragrunt run --no-hooks -- plan
+```
+
+</Since>
 
 ## Hook Context
 
