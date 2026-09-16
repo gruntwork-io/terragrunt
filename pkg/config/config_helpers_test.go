@@ -1335,35 +1335,32 @@ func TestBase64GzipCompat(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
-		name             string
-		funcName         string
-		expected         string
-		enableControl    bool
-		enableExperiment bool
+		name          string
+		funcName      string
+		expected      string
+		enableControl bool
 	}{
 		{
-			name:     "base64gzip returns the v1.1.3 bytes by default",
+			name:     "base64gzip returns the current encoder bytes by default",
 			funcName: config.FuncNameBase64Gzip,
-			expected: legacyExpected,
+			expected: terraformExpected.AsString(),
 		},
 		{
-			name:          "base64gzip uses the current encoder with the strict control",
+			name:          "base64gzip is unaffected by the completed strict control",
 			funcName:      config.FuncNameBase64Gzip,
 			expected:      terraformExpected.AsString(),
 			enableControl: true,
 		},
 		{
-			name:             "base64gzip_compat returns the v1.1.3 bytes",
-			funcName:         config.FuncNameBase64GzipCompat,
-			expected:         legacyExpected,
-			enableExperiment: true,
+			name:     "base64gzip_compat returns the v1.1.3 bytes by default",
+			funcName: config.FuncNameBase64GzipCompat,
+			expected: legacyExpected,
 		},
 		{
-			name:             "base64gzip_compat ignores the strict control",
-			funcName:         config.FuncNameBase64GzipCompat,
-			expected:         legacyExpected,
-			enableControl:    true,
-			enableExperiment: true,
+			name:          "base64gzip_compat ignores the strict control",
+			funcName:      config.FuncNameBase64GzipCompat,
+			expected:      legacyExpected,
+			enableControl: true,
 		},
 	}
 
@@ -1377,10 +1374,6 @@ func TestBase64GzipCompat(t *testing.T) {
 
 			if tc.enableControl {
 				require.NoError(t, pctx.StrictControls.EnableControl(controls.LegacyBase64Gzip))
-			}
-
-			if tc.enableExperiment {
-				require.NoError(t, pctx.Experiments.EnableExperiment(experiment.Base64GzipCompat))
 			}
 
 			actual, err := config.ParseConfigString(
@@ -1397,19 +1390,6 @@ func TestBase64GzipCompat(t *testing.T) {
 			assert.Equal(t, tc.expected, actual.Inputs["test"])
 		})
 	}
-}
-
-func TestBase64GzipCompatRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	venv, rootDir := newMemTestDir(t)
-	ctx, pctx := newTestParsingContext(t, venv, filepath.Join(rootDir, config.DefaultTerragruntConfigPath))
-
-	funcs, err := config.EarlyStackParseFunctions(ctx, logger.CreateLogger(), rootDir, pctx)
-	require.NoError(t, err)
-
-	_, err = funcs[config.FuncNameBase64GzipCompat].Call([]cty.Value{cty.StringVal("some text")})
-	require.ErrorAs(t, err, &config.Base64GzipCompatRequiresExperimentError{})
 }
 
 func TestTerragruntDeepMergeFunction(t *testing.T) {

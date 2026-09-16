@@ -120,7 +120,9 @@ const (
 	// portal instead of local HCL. Nothing is gated on it yet; the login
 	// command and the portal-defined catalog land in follow-up PRs.
 	TGLogin = "tg-login"
-	// Base64GzipCompat enables the base64gzip_compat HCL function.
+	// Base64GzipCompat names the now-stable base64gzip_compat HCL function, which
+	// returns the bytes base64gzip returned in v1.1.3 and earlier. It is available
+	// by default.
 	Base64GzipCompat = "base64gzip-compat"
 	// OfflineCAS gates the CAS flags that control the persisted probe cache:
 	// --cas-offline, --cas-refresh, and --cas-probe-ttl.
@@ -253,7 +255,8 @@ func NewExperiments() Experiments {
 			Name: TGLogin,
 		},
 		{
-			Name: Base64GzipCompat,
+			Name:   Base64GzipCompat,
+			Status: StatusCompleted,
 		},
 		{
 			Name: OfflineCAS,

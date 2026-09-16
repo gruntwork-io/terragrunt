@@ -341,6 +341,7 @@ func New() strict.Controls {
 			Name:        LegacyBase64Gzip,
 			Description: "Stops `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. The v1.1.3 bytes are restored by default with a deprecation warning, and `base64gzip_compat()` (experiment `base64gzip-compat`) returns them permanently. Enable this control to use the current Go encoder, which becomes the default in Terragrunt 1.2, and silence the warning.",
 			Warning:     LegacyBase64GzipWarning,
+			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        OptionalHooks,

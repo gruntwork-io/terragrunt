@@ -1,0 +1,18 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### `base64gzip_compat()` keeps the pre-1.1.4 bytes
+
+`base64gzip_compat(str)` returns what `base64gzip(str)` returned in Terragrunt v1.1.3 and earlier, and keeps returning it now that `base64gzip()` uses the current Go encoder.
+
+```hcl
+inputs = {
+  user_data_base64 = base64gzip_compat(file("${get_terragrunt_dir()}/user-data.sh"))
+}
+```
+
+Its output does not depend on the Go toolchain Terragrunt is built with, so it stays stable across upgrades.
+
+This completes the `base64gzip-compat` experiment. You no longer have to use the experiment to benefit from this feature.

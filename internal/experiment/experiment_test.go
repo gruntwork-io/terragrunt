@@ -94,17 +94,14 @@ func TestMutableGenerateIsCompleted(t *testing.T) {
 	assert.True(t, got.Evaluate(), "mutable-generate must be enabled by default")
 }
 
-func TestBase64GzipCompatIsOngoing(t *testing.T) {
+func TestBase64GzipCompatIsCompleted(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
 	got := exps.Find(experiment.Base64GzipCompat)
 	require.NotNil(t, got, "base64gzip-compat experiment must be registered in NewExperiments()")
-	assert.Equal(t, experiment.StatusOngoing, got.Status, "base64gzip-compat must be ongoing")
-	assert.False(t, got.Evaluate(), "base64gzip-compat must be disabled by default")
-
-	require.NoError(t, exps.EnableExperiment(experiment.Base64GzipCompat))
-	assert.True(t, got.Evaluate(), "base64gzip-compat must be enabled once explicitly requested")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "base64gzip-compat must be completed")
+	assert.True(t, got.Evaluate(), "base64gzip-compat must be enabled by default")
 }
 
 func TestEvaluate(t *testing.T) {
