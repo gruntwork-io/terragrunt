@@ -31,6 +31,7 @@ const (
 	testFixtureCommandsThatNeedInput          = "fixtures/commands-that-need-input"
 	testFixtureConfigSingleJSONPath           = "fixtures/config-files/single-json-config"
 	testFixtureConfigWithNonDefaultNames      = "fixtures/config-files/with-non-default-names"
+	testFixtureConfigNonDefaultPlusDefaults   = "fixtures/config-files/non-default-names-alongside-defaults"
 	testFixtureDependenciesOptimisation       = "fixtures/dependency-optimisation"
 	testFixtureDependencyOutput               = "fixtures/dependency-output"
 	testFixtureDetailedExitCode               = "fixtures/detailed-exitcode"
