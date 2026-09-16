@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -99,6 +100,32 @@ func TestBasicDiscovery(t *testing.T) {
 
 	// Verify all expected paths are present
 	assert.ElementsMatch(t, expectedPaths, fields)
+}
+
+// TestRunPropagatesAmbiguousConfigError verifies that list returns a command error, rather than
+// silently succeeding with an empty result, when a directory has both terragrunt.hcl and
+// terragrunt.hcl.json.
+func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	unitDir := filepath.Join(tmpDir, "dual-unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl.json"), []byte("{}"), 0644))
+
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts.WorkingDir = tmpDir
+
+	opts := list.NewOptions(tgOpts)
+
+	err := list.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts)
+	require.Error(t, err)
+
+	var ambiguousErr discovery.AmbiguousConfigError
+	require.ErrorAs(t, err, &ambiguousErr)
+	assert.Equal(t, unitDir, ambiguousErr.ComponentPath)
 }
 
 func TestHiddenDiscovery(t *testing.T) {
