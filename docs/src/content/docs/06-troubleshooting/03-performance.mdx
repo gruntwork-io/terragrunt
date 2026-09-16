@@ -6,6 +6,7 @@ sidebar:
   order: 3
 ---
 
+import Before from '@components/Before.astro';
 import { Aside, Card } from '@astrojs/starlight/components';
 
 ## Easy Wins
@@ -270,9 +271,11 @@ Use profiling tools like [pprof](https://github.com/google/pprof) to get a more 
 
 ##### Runtime CPU Profiling with `TG_PROFILE_CPU`
 
+<Before version="1.2.0">
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
+</Before>
 
 You can profile Terragrunt during normal operation by setting `TG_PROFILE_CPU`:
 
@@ -292,9 +295,11 @@ TG_PROFILE_CPU=terragrunt_cpu.prof TOFU_CPU_PROFILE=tofu_cpu.prof terragrunt run
 
 ##### Directory Collection with `TG_PROFILE_DIR`
 
+<Before version="1.2.0">
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
+</Before>
 
 For `run --all`, point Terragrunt at a directory instead of individual files:
 
@@ -337,9 +342,11 @@ Behavior details:
 
 ##### Memory Profiling with `TG_PROFILE_MEM`
 
+<Before version="1.2.0">
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
+</Before>
 
 You can capture a heap memory profile of the Terragrunt process by setting:
 
@@ -357,9 +364,11 @@ TG_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
 
 ##### Goroutine Profiles with `TG_PROFILE_GOROUTINE`
 
+<Before version="1.2.0">
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
+</Before>
 
 You can capture a goroutine profile (stack traces of all goroutines) at the end of the run by setting:
 
@@ -371,9 +380,11 @@ For `run --all`, use `TG_PROFILE_DIR` to collect the goroutine profile alongside
 
 ##### CLI Flags for Profiling
 
+<Before version="1.2.0">
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
+</Before>
 
 You can also enable profiling using CLI flags:
 
@@ -398,17 +409,18 @@ The flags are:
 | `--profile-goroutine` | Path for a goroutine profile (stack traces of all goroutines). |
 | `--profile-dir`       | Directory for structured collection. Prevents file collisions when using `run --all` by creating per-unit subdirectories for OpenTofu CPU profiles. |
 
-The corresponding environment variables (`TG_PROFILE_CPU`, `TG_PROFILE_MEM`, `TG_PROFILE_GOROUTINE`, `TG_PROFILE_DIR`) are also supported and require the experiment.
+The corresponding environment variables (`TG_PROFILE_CPU`, `TG_PROFILE_MEM`, `TG_PROFILE_GOROUTINE`, `TG_PROFILE_DIR`) are also supported.
 
 ##### Environment Variable Reference
 
+<Before version="1.2.0">
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
+</Before>
 
 | Variable | Description |
 |----------|-------------|
-| `TG_EXPERIMENT=profiling` | Enables the `profiling` experiment, required for all profiling flags and `TG_PROFILE_*` variables (equivalent to `--experiment=profiling`). |
 | `TG_PROFILE_CPU` | Path for the Terragrunt CPU profile file. Terragrunt process only. |
 | `TG_PROFILE_MEM` | Path for the Terragrunt memory (heap) profile file. Terragrunt process only. |
 | `TG_PROFILE_GOROUTINE` | Path for the Terragrunt goroutine profile file. |

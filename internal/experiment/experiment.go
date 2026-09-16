@@ -78,7 +78,8 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
-	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
+	// Profiling names the now-stable collection of runtime profiles (CPU,
+	// memory/heap, goroutine) via CLI flags or env vars. It is enabled by default.
 	Profiling = "profiling"
 	// OCI names the now-stable support for downloading modules from OCI
 	// Distribution registries via oci:// sources. It is enabled by default and
@@ -91,9 +92,10 @@ const (
 	// records through the configured logs exporter and correlating them with
 	// traces via the active span.
 	OtelLogs = "otel-logs"
-	// CatalogFormat enables non-interactive output formats for the catalog
-	// command, rendering discovered components as JSON Lines or Markdown on
-	// standard output instead of launching the terminal user interface.
+	// CatalogFormat names the now-stable non-interactive output formats for the
+	// catalog command, which render discovered components as JSON Lines or
+	// Markdown on standard output instead of launching the terminal user
+	// interface. They are enabled by default.
 	CatalogFormat = "catalog-format"
 	// BoundedDiscovery names the now-stable inline "(dir)" graph boundary operand
 	// and --discovery-boundary flag, which enclose graph discovery within a
@@ -106,13 +108,15 @@ const (
 	BlockIteration = "block-iteration"
 	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
 	BrowseTUI = "browse-tui"
-	// MutableGenerate gates the mutable attribute on the generate block and the
-	// default it changes: generated files are deduplicated through
-	// content-addressable storage and hard-linked into each working directory
-	// rather than written per unit.
+	// MutableGenerate names the now-stable deduplication of generated files:
+	// generate block output is stored in content-addressable storage and
+	// hard-linked read-only into each working directory, unless the block sets
+	// the mutable attribute. It is enabled by default and can be disabled with
+	// the --no-cas flag.
 	MutableGenerate = "mutable-generate"
-	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
-	// all dependency output resolution during a run.
+	// OptionalDependencyOutputs names the now-stable --no-dependency-outputs flag,
+	// which skips all dependency output resolution during a run. The flag is
+	// available without enabling the experiment.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
 	// TGLogin reserves the experiment flag for signing in to the Gruntwork
 	// Developer Portal from the CLI, so an admin can define a catalog in the
@@ -214,7 +218,8 @@ func NewExperiments() Experiments {
 			Name: OptionalHooks,
 		},
 		{
-			Name: Profiling,
+			Name:   Profiling,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   OCI,
@@ -227,7 +232,8 @@ func NewExperiments() Experiments {
 			Name: OtelLogs,
 		},
 		{
-			Name: CatalogFormat,
+			Name:   CatalogFormat,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   BoundedDiscovery,
@@ -241,10 +247,12 @@ func NewExperiments() Experiments {
 			Name: BrowseTUI,
 		},
 		{
-			Name: MutableGenerate,
+			Name:   MutableGenerate,
+			Status: StatusCompleted,
 		},
 		{
-			Name: OptionalDependencyOutputs,
+			Name:   OptionalDependencyOutputs,
+			Status: StatusCompleted,
 		},
 		{
 			Name: TGLogin,

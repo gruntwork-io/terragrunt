@@ -1502,9 +1502,13 @@ The `generate` block supports the following arguments:
 
 - `mutable` (attribute): When `true`, the generated file is an ordinary writable file. Defaults to `false`. Optional.
 
+  <Before version="1.2.0">
+
   <Aside type="tip" title="Experimental">
     The `mutable` attribute is gated behind the `mutable-generate` experiment. Enable it with `--experiment mutable-generate` (or `TG_EXPERIMENT=mutable-generate`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#mutable-generate).
   </Aside>
+
+  </Before>
 
   At the default of `false`, the generated contents are stored in the
   [content-addressable storage (CAS)](/features/caching/cas) store, and the file written at `path` is a read-only link
