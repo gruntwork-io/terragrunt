@@ -199,16 +199,25 @@ func createComponentFromPath(
 	return nil
 }
 
-// validateNoCoexistence checks that no directory has both a unit and a stack config file.
-// Returns a CoexistenceError if a directory contains both.
+// validateNoCoexistence checks that no directory has more than one Terragrunt configuration
+// file. Returns a CoexistenceError if a directory has both a unit and a stack config file, or
+// an AmbiguousConfigError if a directory has two config files of the same kind (e.g. both
+// terragrunt.hcl and terragrunt.hcl.json), since which one applies would otherwise depend
+// silently on filesystem walk order and differ from the single-unit config loader's own
+// resolution (pkg/config.DefaultTerragruntConfigPaths).
 func validateNoCoexistence(results []DiscoveryResult) error {
 	seen := make(map[string]DiscoveryResult, len(results))
 
 	for _, result := range results {
 		path := result.Component.Path()
 
-		if existing, ok := seen[path]; ok && existing.Component.Kind() != result.Component.Kind() {
-			return NewCoexistenceError(existing.Component, result.Component)
+		if existing, ok := seen[path]; ok {
+			switch {
+			case existing.Component.Kind() != result.Component.Kind():
+				return NewCoexistenceError(existing.Component, result.Component)
+			case existing.Component.ConfigFile() != result.Component.ConfigFile():
+				return NewAmbiguousConfigError(existing.Component, result.Component)
+			}
 		}
 
 		seen[path] = result
