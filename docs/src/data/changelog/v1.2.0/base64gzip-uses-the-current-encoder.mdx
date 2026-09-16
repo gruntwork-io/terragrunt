@@ -5,9 +5,11 @@ category: "breaking-changes"
 
 #### `base64gzip()` returns the current encoder's bytes
 
-Go 1.27 changed the bytes its gzip encoder produces. Terragrunt v1.1.4 shipped those bytes, v1.1.5 restored the v1.1.3 bytes with a warning, and this release switches to the current encoder for good. The bytes decompress to the same content, but a resource that compares the encoded value plans a replacement on the first run after upgrading. An EC2 instance with `user_data_base64` and `user_data_replace_on_change = true` is the common case.
+Go 1.27 changed the bytes its gzip encoder produces. Terragrunt v1.1.5 kept returning the old bytes and warned that this would change. It now returns the new ones.
 
-Where the value must not change, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat). It returns the v1.1.3 bytes, needs no flag, and does not depend on the Go toolchain Terragrunt was built with:
+The bytes still decompress to the same content. But a resource that compares the encoded value plans a replacement on your first run after upgrading. The usual case is an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`.
+
+To keep the old bytes, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat) instead. It needs no flag:
 
 ```hcl
 inputs = {
@@ -15,6 +17,6 @@ inputs = {
 }
 ```
 
-A third-party module may call `base64gzip()` where you cannot edit the call. Put `lifecycle { ignore_changes = [...] }` on the affected argument, or apply the new value once during a maintenance window.
+If the call is inside a module you cannot edit, add `lifecycle { ignore_changes = [...] }` to the argument, or apply the new value once during a maintenance window.
 
-This completes the `base64gzip-compat` experiment and the `legacy-base64gzip` strict control. Passing either still works, and Terragrunt logs a warning that it is completed.
+This completes the `base64gzip-compat` experiment and the `legacy-base64gzip` strict control. Passing either still works and logs a warning.
