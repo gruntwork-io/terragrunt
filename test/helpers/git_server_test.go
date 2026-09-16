@@ -99,7 +99,7 @@ func TestGitServerSourceURL(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-//nolint:paralleltest // RequireSSH calls t.Setenv, which panics in parallel tests.
+//nolint:paralleltest // RequireSSH puts the key in the process environment, where the git subprocess below reads it.
 func TestGitServerSSHClone(t *testing.T) {
 	s := helpers.NewGitServer(t)
 	s.AddFixtures("test/fixtures/download/hello-world")
