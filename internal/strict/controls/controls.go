@@ -57,6 +57,11 @@ const (
 	// and will log a warning when using **/*
 	DoubleStar = "double-star"
 
+	// DependencyFetchOutputFromState is the control that prevents the use of the deprecated
+	// `--dependency-fetch-output-from-state` flag. Reading dependency outputs from state is
+	// the default as of v1.2.0.
+	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
+
 	// QueueExcludeExternal is the control that prevents the use of the deprecated `--queue-exclude-external` flag.
 	QueueExcludeExternal = "queue-exclude-external"
 
@@ -263,6 +268,14 @@ func New() strict.Controls {
 			),
 			Warning: "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 			Status:  strict.CompletedStatus,
+		},
+		&Control{
+			Name:        DependencyFetchOutputFromState,
+			Description: "Prevents the use of the deprecated `--dependency-fetch-output-from-state` flag.",
+			Error: errors.New(
+				"The `--dependency-fetch-output-from-state` flag is no longer supported. Dependency outputs are read from state by default as of v1.2.0. Remove the flag, or use --no-dependency-fetch-output-from-state to opt out.",
+			),
+			Warning: "The `--dependency-fetch-output-from-state` flag is deprecated. Dependency outputs are read from state by default as of v1.2.0. Remove the flag, or use --no-dependency-fetch-output-from-state to opt out.",
 		},
 		&Control{
 			Name:        QueueExcludeExternal,

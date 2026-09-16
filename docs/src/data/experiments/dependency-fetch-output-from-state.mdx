@@ -1,19 +1,22 @@
 ---
 name: dependency-fetch-output-from-state
+completedSince: "1.2.0"
 ---
 
 import Since from '@components/Since.astro';
 import Before from '@components/Before.astro';
 
-Support for fetching dependency outputs directly from state files.
+Reading dependency outputs directly from state files.
 
 ### `dependency-fetch-output-from-state` - What it does
-By default, Terragrunt retrieves dependency outputs by running `tofu output` or `terraform output` commands, which requires initializing the dependency unit and can be slow. When this experiment is enabled, Terragrunt will attempt to fetch dependency outputs directly from the remote state file, bypassing the need to initialize the dependency and significantly speeding up dependency processing.
+This experiment flag is no longer needed, as Terragrunt now reads dependency outputs directly from the remote state file by default. That skips initializing the dependency unit, which previously required running `tofu output` or `terraform output` against it.
+
+To opt-out of this behavior, pass `--no-dependency-fetch-output-from-state` (env: `TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE`).
 
 **Current Backend Support:**
 
 - S3 and GCS backends: Direct state reads are supported
-- Azure Storage (`azurerm`) backend: Direct state reads are supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled
+- Azure Storage (`azurerm`) backend: Direct state reads are supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is enabled
 - Other backends: Falls back to the normal method (using `tofu/terraform output`)
 
 Azure state protected with `customer_provided_key`, and Azure configurations that rely on native-only authentication, `metadata_host`, or `timeout_seconds`, also use the normal method.
@@ -50,27 +53,23 @@ The direct reader cannot decrypt state protected by OpenTofu's [client-side stat
 
 **Disabling the feature:**
 
-You can disable the dependency-fetch-output-from-state feature using the `--no-dependency-fetch-output-from-state` flag, even when the experiment is enabled:
+Pass `--no-dependency-fetch-output-from-state` to read outputs through `tofu output` or `terraform output` instead:
 
 ```bash
-terragrunt run --all --experiment-mode --no-dependency-fetch-output-from-state -- plan
+terragrunt run --all --no-dependency-fetch-output-from-state -- plan
 ```
 
 ### `dependency-fetch-output-from-state` - How to provide feedback
-Provide your feedback in the dedicated [GitHub discussion](https://github.com/gruntwork-io/terragrunt/discussions/5200) page. When reporting issues or providing feedback, please include:
-
-- The backend type you're using
-- Any performance improvements you've observed
-- Any issues or edge cases you've encountered
+Now that the `dependency-fetch-output-from-state` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
 
 ### `dependency-fetch-output-from-state` - Criteria for stabilization
-To transition the `dependency-fetch-output-from-state` feature to a stable release, the following must be addressed, at a minimum:
+To transition the `dependency-fetch-output-from-state` feature to a stable release, the following were addressed:
 
 - [x] Add support for additional backends (GCS and Azure Storage)
 - [x] Live direct-state-read integration coverage for S3, GCS, and Azure Storage
-- [ ] Comprehensive integration testing across backend authentication, encryption, workspace, and error scenarios
-- [ ] Performance benchmarking to validate speed improvements
+- [x] Comprehensive integration testing across backend authentication, encryption, workspace, and error scenarios
+- [x] Performance benchmarking to validate speed improvements
 - [x] Error handling and edge case testing
 - [x] Documentation of supported backends and limitations
 - [x] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
-- [ ] Community feedback on real-world usage
+- [x] Community feedback on real-world usage

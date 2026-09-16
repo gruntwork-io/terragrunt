@@ -34,10 +34,9 @@ Without the experiment enabled, these lifecycle operations return an error namin
 the experiment; normal state reading and writing is handled by the native
 OpenTofu/Terraform `azurerm` backend.
 
-When both this experiment and
-[`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state)
-are enabled, Terragrunt can read dependency outputs directly from the Azure state
-blob without initializing the dependency or running `tofu output`/`terraform output`.
+When this experiment is enabled, Terragrunt can read dependency outputs directly
+from the Azure state blob without initializing the dependency or running
+`tofu output`/`terraform output`.
 State protected with `customer_provided_key`, and configurations that rely on
 native-only authentication, `metadata_host`, or `timeout_seconds`, continue through
 the native backend path. This preserves the backend's identity, endpoint, and
