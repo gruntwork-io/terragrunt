@@ -5,10 +5,16 @@ category: "breaking-changes"
 
 #### `base64gzip()` returns the current encoder's bytes
 
-Go 1.27 changed the bytes its gzip encoder produces. Terragrunt v1.1.4 shipped those bytes, v1.1.5 restored the v1.1.3 bytes with a deprecation warning, and this release switches to the current encoder for good. The bytes decompress to the same content, but a resource that compares the encoded value, such as an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`, plans a replacement on the first run after upgrading.
+Go 1.27 changed the bytes its gzip encoder produces. Terragrunt v1.1.4 shipped those bytes, v1.1.5 restored the v1.1.3 bytes with a warning, and this release switches to the current encoder for good. The bytes decompress to the same content, but a resource that compares the encoded value plans a replacement on the first run after upgrading. An EC2 instance with `user_data_base64` and `user_data_replace_on_change = true` is the common case.
 
-Where the encoded value must not change, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat). It returns the v1.1.3 bytes permanently and needs no flag.
+Where the value must not change, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat). It returns the v1.1.3 bytes, needs no flag, and does not depend on the Go toolchain Terragrunt was built with:
 
-If a third-party module calls `base64gzip()` and you cannot edit it, use `lifecycle { ignore_changes = [...] }` on the affected argument, or apply the new value once during a maintenance window.
+```hcl
+inputs = {
+  user_data_base64 = base64gzip_compat(file("${get_terragrunt_dir()}/user-data.sh"))
+}
+```
 
-The `legacy-base64gzip` strict control is complete. Passing it still works and changes nothing.
+A third-party module may call `base64gzip()` where you cannot edit the call. Put `lifecycle { ignore_changes = [...] }` on the affected argument, or apply the new value once during a maintenance window.
+
+This completes the `base64gzip-compat` experiment and the `legacy-base64gzip` strict control. Passing either still works and changes nothing.
