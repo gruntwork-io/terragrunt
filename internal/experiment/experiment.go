@@ -76,7 +76,8 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
-	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
+	// Profiling names the now-stable collection of runtime profiles (CPU,
+	// memory/heap, goroutine) via CLI flags or env vars. It is enabled by default.
 	Profiling = "profiling"
 	// OCI names the now-stable support for downloading modules from OCI
 	// Distribution registries via oci:// sources. It is enabled by default and
@@ -120,9 +121,7 @@ const (
 	// portal instead of local HCL. Nothing is gated on it yet; the login
 	// command and the portal-defined catalog land in follow-up PRs.
 	TGLogin = "tg-login"
-	// Base64GzipCompat names the now-stable base64gzip_compat HCL function, which
-	// returns the bytes base64gzip returned in v1.1.3 and earlier. It is available
-	// by default.
+	// Base64GzipCompat enables the base64gzip_compat HCL function.
 	Base64GzipCompat = "base64gzip-compat"
 	// OfflineCAS gates the CAS flags that control the persisted probe cache:
 	// --cas-offline, --cas-refresh, and --cas-probe-ttl.
@@ -216,7 +215,8 @@ func NewExperiments() Experiments {
 			Name: OptionalHooks,
 		},
 		{
-			Name: Profiling,
+			Name:   Profiling,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   OCI,
@@ -255,8 +255,7 @@ func NewExperiments() Experiments {
 			Name: TGLogin,
 		},
 		{
-			Name:   Base64GzipCompat,
-			Status: StatusCompleted,
+			Name: Base64GzipCompat,
 		},
 		{
 			Name: OfflineCAS,

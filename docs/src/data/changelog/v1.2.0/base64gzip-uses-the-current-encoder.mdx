@@ -7,9 +7,13 @@ category: "breaking-changes"
 
 Go 1.27 changed the bytes its gzip encoder produces. Terragrunt v1.1.5 kept returning the old bytes and warned that this would change. It now returns the new ones.
 
-The bytes still decompress to the same content. But a resource that compares the encoded value plans a replacement on your first run after upgrading. The usual case is an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`.
+This does not break the [1.0 guarantees](/process/1-0-guarantees). `base64gzip()` still takes a string and returns valid gzipped base64, and the bytes decompress to the same content. We are calling it out because a resource that compares the encoded value plans a replacement on your first run after upgrading. The usual case is an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`.
 
-To keep the old bytes, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat) instead. It needs no flag:
+To keep the old bytes, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat) instead. It is behind the [`base64gzip-compat`](/reference/experiments/active#base64gzip-compat) experiment:
+
+```bash
+terragrunt run --all --experiment base64gzip-compat -- plan
+```
 
 ```hcl
 inputs = {
@@ -19,4 +23,4 @@ inputs = {
 
 If the call is inside a module you cannot edit, add `lifecycle { ignore_changes = [...] }` to the argument, or apply the new value once during a maintenance window.
 
-This completes the `base64gzip-compat` experiment and the `legacy-base64gzip` strict control. Passing either still works and logs a warning.
+This completes the `legacy-base64gzip` strict control. Passing it still works and logs a warning.
