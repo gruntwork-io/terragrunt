@@ -723,7 +723,7 @@ func runMutableGenerateUnit(t *testing.T, unitPath string) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt exec --experiment mutable-generate --working-dir "+unitPath+" -- true",
+		"terragrunt exec --working-dir "+unitPath+" -- true",
 	)
 	require.NoError(t, err)
 }

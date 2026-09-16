@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -21,17 +20,16 @@ import (
 )
 
 type dependencyStateEligibilityTestCase struct {
-	name                        string
-	backend                     string
-	backendConfig               map[string]string
-	env                         map[string]string
-	files                       map[string]string
-	filesystem                  vfs.FS
-	producerTerraformExtra      string
-	wantRequest                 string
-	disableDependencyExperiment bool
-	optOut                      bool
-	wantDirect                  bool
+	name                   string
+	backend                string
+	backendConfig          map[string]string
+	env                    map[string]string
+	files                  map[string]string
+	filesystem             vfs.FS
+	producerTerraformExtra string
+	wantRequest            string
+	optOut                 bool
+	wantDirect             bool
 }
 
 func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
@@ -156,12 +154,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			}),
 			wantRequest: "storage.googleapis.com/state-bucket/environment/service/default.tfstate",
 			wantDirect:  true,
-		},
-		{
-			name:                        "GCS dependency experiment gate falls back",
-			backend:                     "gcs",
-			backendConfig:               gcsConfig,
-			disableDependencyExperiment: true,
 		},
 		{
 			name:          "GCS explicit optimization opt-out falls back",
@@ -442,10 +434,6 @@ inputs = {
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.NoDependencyFetchOutputFromState = testCase.optOut
-
-	if !testCase.disableDependencyExperiment {
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState))
-	}
 
 	return config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), consumerPath, nil)
 }

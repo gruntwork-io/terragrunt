@@ -14,7 +14,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -1147,7 +1146,6 @@ inputs = {
 	ctx, pctx := newTestParsingContext(t, v, consumerPath)
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState))
 
 	return ctx, pctx, consumerPath
 }

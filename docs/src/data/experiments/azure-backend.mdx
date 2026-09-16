@@ -33,10 +33,8 @@ Authentication supports six methods, resolved in the following order:
 `ARM_*` and `AZURE_*` environment variable fallbacks are applied. Set `environment`
 (or `ARM_ENVIRONMENT`) to `usgovernment` for Azure Government.
 
-When
-[`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state)
-is enabled, Terragrunt can read dependency outputs directly from the Azure state
-blob without initializing the dependency or running `tofu output`/`terraform output`.
+Terragrunt reads dependency outputs directly from the Azure state blob without
+initializing the dependency or running `tofu output`/`terraform output`.
 State protected with `customer_provided_key`, and configurations that rely on
 native-only authentication, `metadata_host`, or `timeout_seconds`, continue through
 the native backend path. This preserves the backend's identity, endpoint, and

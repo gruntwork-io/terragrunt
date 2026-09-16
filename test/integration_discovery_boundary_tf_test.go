@@ -50,7 +50,7 @@ func TestTFDiscoveryBoundaryBoundsWhatRunAllApplies(t *testing.T) {
 
 			_, _, err := helpers.RunTerragruntCommandWithOutput(
 				t,
-				"terragrunt run --all --non-interactive --experiment bounded-discovery --working-dir "+prodDir+
+				"terragrunt run --all --non-interactive --working-dir "+prodDir+
 					" "+tc.args+" --report-file "+reportFile+" --report-format json -- apply -auto-approve",
 			)
 			require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestTFDiscoveryBoundaryRunAllConsumesWithheldDependency(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --non-interactive --experiment bounded-discovery --working-dir "+prodDir+
+		"terragrunt run --all --non-interactive --working-dir "+prodDir+
 			" --filter '{./app}...' --discovery-boundary . --report-file "+reportFile+
 			" --report-format json -- apply -auto-approve",
 	)

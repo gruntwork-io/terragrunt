@@ -51,6 +51,16 @@ func TestOCIIsCompleted(t *testing.T) {
 	assert.True(t, got.Evaluate(), "oci must be enabled by default")
 }
 
+func TestDependencyFetchOutputFromStateIsCompleted(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.DependencyFetchOutputFromState)
+	require.NotNil(t, got, "dependency-fetch-output-from-state must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "dependency-fetch-output-from-state must be completed")
+	assert.True(t, got.Evaluate(), "dependency-fetch-output-from-state must be enabled by default")
+}
+
 func TestAzureBackendIsCompleted(t *testing.T) {
 	t.Parallel()
 
@@ -71,14 +81,14 @@ func TestOptionalHooksIsOngoing(t *testing.T) {
 	assert.False(t, got.Evaluate(), "optional-hooks must be disabled by default")
 }
 
-func TestProfilingIsOngoing(t *testing.T) {
+func TestProfilingIsCompleted(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
 	got := exps.Find(experiment.Profiling)
 	require.NotNil(t, got, "profiling experiment must be registered in NewExperiments()")
-	assert.Equal(t, experiment.StatusOngoing, got.Status, "profiling must be ongoing")
-	assert.False(t, got.Evaluate(), "profiling must be disabled by default")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "profiling must be completed")
+	assert.True(t, got.Evaluate(), "profiling must be enabled by default")
 }
 
 func TestVersionAttributeIsOngoing(t *testing.T) {
@@ -94,17 +104,14 @@ func TestVersionAttributeIsOngoing(t *testing.T) {
 	assert.True(t, got.Evaluate(), "version-attribute must be enabled once explicitly requested")
 }
 
-func TestMutableGenerateIsOngoing(t *testing.T) {
+func TestMutableGenerateIsCompleted(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
 	got := exps.Find(experiment.MutableGenerate)
 	require.NotNil(t, got, "mutable-generate experiment must be registered in NewExperiments()")
-	assert.Equal(t, experiment.StatusOngoing, got.Status, "mutable-generate must be ongoing")
-	assert.False(t, got.Evaluate(), "mutable-generate must be disabled by default")
-
-	require.NoError(t, exps.EnableExperiment(experiment.MutableGenerate))
-	assert.True(t, got.Evaluate(), "mutable-generate must be enabled once explicitly requested")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "mutable-generate must be completed")
+	assert.True(t, got.Evaluate(), "mutable-generate must be enabled by default")
 }
 
 func TestBase64GzipCompatIsOngoing(t *testing.T) {

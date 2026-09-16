@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 OpenTofu/Terraform supports [remote state storage](https://opentofu.org/docs/language/state/remote/) via various [backends](https://opentofu.org/docs/language/settings/backends/configuration/) that you normally configure in your `.tf` files as follows:
@@ -362,7 +363,7 @@ Otherwise, these operations return an error. OpenTofu/Terraform's native azurerm
 </Before>
 
 <Aside type="note">
-When [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) is enabled<Before version="1.2.0"> along with `azure-backend`</Before>, and the Azure backend configuration is supported by the direct reader, Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
+<Before version="1.2.0">When `azure-backend` is enabled and the</Before><Since version="1.2.0">When the</Since> Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
 </Aside>
 
 Example configuration:
