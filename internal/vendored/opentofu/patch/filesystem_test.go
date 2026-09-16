@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/patch"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
@@ -84,6 +85,24 @@ func TestFileFailsWhenTheFileIsMissing(t *testing.T) {
 	_, err := patch.FileFunc(v, baseDir, false).
 		Call([]cty.Value{cty.StringVal("absent.txt")})
 	require.Error(t, err)
+}
+
+func TestFileLeavesARelativeBaseDirToTheFilesystem(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, "data.txt", []byte("beside the root\n"), 0o644),
+	)
+
+	v := venvtest.New().WithFS(fsys)
+	v.Platform.Getwd = func() (string, error) { return "/elsewhere", nil }
+
+	got, err := patch.FileFunc(v, ".", false).
+		Call([]cty.Value{cty.StringVal("data.txt")})
+	require.NoError(t, err)
+	assert.Equal(t, cty.StringVal("beside the root\n"), got)
 }
 
 func TestFileExistsReportsWhatTheVenvHolds(t *testing.T) {

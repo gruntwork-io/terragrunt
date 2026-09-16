@@ -21,7 +21,6 @@ import (
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
-	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -41,6 +40,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/patch"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -187,9 +188,17 @@ func createTerragruntEvalContext(
 	l log.Logger,
 	cfgPath string,
 ) (*hcl.EvalContext, error) {
-	tfscope := tflang.Scope{
-		BaseDir: filepath.Dir(cfgPath),
-	}
+	baseDir := filepath.Dir(cfgPath)
+	tfFunctions := lang.MakeBaseFunctionTable(baseDir)
+
+	// Patch with our version of OpenTofu functions with
+	// venv and the logger threaded through.
+	maps.Copy(tfFunctions, patch.Functions(
+		pctx.Venv,
+		l,
+		baseDir,
+		func() map[string]function.Function { return tfFunctions },
+	))
 
 	terragruntFunctions := map[string]function.Function{
 		FuncNameFindInParentFolders: wrapStringSliceToStringAsFuncImpl(
@@ -383,7 +392,7 @@ func createTerragruntEvalContext(
 
 	functions := map[string]function.Function{}
 
-	maps.Copy(functions, tfscope.Functions())
+	maps.Copy(functions, tfFunctions)
 	maps.Copy(functions, terragruntFunctions)
 	maps.Copy(functions, pctx.PredefinedFunctions)
 
