@@ -1208,22 +1208,14 @@ func (cfg *TerraformConfig) ValidateHooks() error {
 	return nil
 }
 
-// ValidateVersion checks the optional version attribute. The attribute is gated behind
-// the version-attribute experiment, and once enabled a version constraint only has
+// ValidateVersion checks the optional version attribute. A version constraint only has
 // meaning for a tfr:// registry source and must not duplicate a constraint already
 // pinned inline via ?version= on that source. version and the source it constrains can
 // come from different files via include, so this must run on the merged config rather
 // than per file.
-func (cfg *TerraformConfig) ValidateVersion(
-	experiments experiment.Experiments,
-	cfgPath string,
-) error {
+func (cfg *TerraformConfig) ValidateVersion(cfgPath string) error {
 	if cfg == nil || cfg.Version == nil {
 		return nil
-	}
-
-	if !experiments.Evaluate(experiment.VersionAttribute) {
-		return VersionAttributeRequiresExperimentError{ConfigPath: cfgPath}
 	}
 
 	var source string
@@ -1804,7 +1796,7 @@ func ParseConfig(
 	// A non-nil includeFromChild means this parse is itself an included parent, not a
 	// final config; the including child validates the merged result.
 	if includeFromChild == nil && config != nil {
-		if err := config.Terraform.ValidateVersion(pctx.Experiments, file.ConfigPath); err != nil {
+		if err := config.Terraform.ValidateVersion(file.ConfigPath); err != nil {
 			errs = append(errs, err)
 		}
 	}

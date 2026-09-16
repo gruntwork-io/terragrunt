@@ -5,10 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +26,6 @@ terraform {
 	l := logger.CreateLogger()
 
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
@@ -146,7 +143,6 @@ include "root" {
 			l := logger.CreateLogger()
 
 			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
-			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 			terragruntConfig, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
 
@@ -161,25 +157,6 @@ include "root" {
 			assert.Equal(t, tc.expectedVersion, *terragruntConfig.Terraform.Version)
 		})
 	}
-}
-
-// TestTerraformConfigValidateVersionRequiresExperiment pins that the version
-// attribute is rejected unless the version-attribute experiment is enabled.
-func TestTerraformConfigValidateVersionRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	helpers.SkipInExperimentMode(t, experiment.VersionAttribute)
-
-	cfg := &config.TerraformConfig{
-		Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
-		Version: new("~> 3.3"),
-	}
-
-	err := cfg.ValidateVersion(experiment.NewExperiments(), "terragrunt.hcl")
-
-	var typed config.VersionAttributeRequiresExperimentError
-
-	require.ErrorAs(t, err, &typed)
 }
 
 func TestTerraformConfigValidateVersion(t *testing.T) {
@@ -232,10 +209,7 @@ func TestTerraformConfigValidateVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			experiments := experiment.NewExperiments()
-			require.NoError(t, experiments.EnableExperiment(experiment.VersionAttribute))
-
-			err := tc.cfg.ValidateVersion(experiments, "terragrunt.hcl")
+			err := tc.cfg.ValidateVersion("terragrunt.hcl")
 
 			if tc.expectedErr == nil {
 				require.NoError(t, err)

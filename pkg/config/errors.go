@@ -624,19 +624,6 @@ func (err Base64GzipCompatRequiresExperimentError) Error() string {
 	)
 }
 
-// VersionAttributeRequiresExperimentError is returned when the terraform block sets the
-// version attribute without the version-attribute experiment enabled.
-type VersionAttributeRequiresExperimentError struct {
-	ConfigPath string
-}
-
-func (err VersionAttributeRequiresExperimentError) Error() string {
-	return fmt.Sprintf(
-		"the terraform block in %s sets the version attribute, which requires the 'version-attribute' experiment; enable it with --experiment version-attribute",
-		err.ConfigPath,
-	)
-}
-
 // VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
 // version attribute but its source is not a tfr:// registry URL, where a version
 // constraint has no meaning.
