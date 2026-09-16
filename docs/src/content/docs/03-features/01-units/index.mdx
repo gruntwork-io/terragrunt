@@ -9,6 +9,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 Consider the following file structure in a typical OpenTofu/Terraform project, which defines three environments (prod, qa, stage) with the same infrastructure in each one (an app, a MySQL database, and a VPC):
 
@@ -343,6 +344,12 @@ include "env" {
 The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `env.hcl` file
 specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the
 included file `generate` configuration into the child, but this approach is much easier to maintain!
+
+<Since version="1.2.0">
+
+Every unit that includes `env.hcl` generates the same `provider.tf` content, so Terragrunt stores that content once in the [Content Addressable Store (CAS)](/features/caching/cas) and hard links it into each unit's working directory. The linked file is read-only. If a hook or script writes to a generated file, set [`mutable = true`](/reference/hcl/blocks#generate) on its `generate` block to give each unit a writable file of its own. With `--no-cas`, Terragrunt writes generated files directly.
+
+</Since>
 
 ## Further Reading
 

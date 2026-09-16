@@ -381,19 +381,6 @@ func createTerragruntEvalContext(
 		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, pctx, l, TimeCmp),
 	}
 
-	if ctrl := pctx.StrictControls.Find(
-		controls.LegacyBase64Gzip,
-	); ctrl == nil ||
-		!ctrl.GetEnabled() {
-		terragruntFunctions[FuncNameBase64Gzip] = gzipcompat.Func(func() error {
-			if ctrl == nil {
-				return nil
-			}
-
-			return ctrl.Evaluate(log.ContextWithLogger(ctx, l))
-		})
-	}
-
 	functions := map[string]function.Function{}
 
 	maps.Copy(functions, tfscope.Functions())

@@ -475,7 +475,7 @@ func NewProfileFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 	}
 }
 
-// profileFlagUsage names the experiment every profiling flag is gated on.
+// profileFlagUsage keeps the experiment note on profiling flags until the experiment completes.
 func profileFlagUsage(opts *options.TerragruntOptions, usage string) string {
 	return flags.ExperimentUsage(opts.Experiments, experiment.Profiling, usage)
 }

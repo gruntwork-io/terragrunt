@@ -49,7 +49,7 @@ func TestRunUnwindsCleanlyWhenContextCancelledWithRacing(t *testing.T) {
 	case err := <-done:
 		require.NoError(t, err)
 	case <-time.After(30 * time.Second):
-		t.Fatal("browse.Run did not return; the discovery goroutine likely never unwound")
+		require.Fail(t, "browse.Run did not return; the discovery goroutine likely never unwound")
 	}
 }
 

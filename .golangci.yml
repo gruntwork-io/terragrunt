@@ -177,6 +177,9 @@ linters:
         - pattern: ^storage\.NewClient$
           pkg: ^cloud.google.com/go/storage$
           msg: build the GCS client via gcphelper.NewGCPConfigBuilder so requests ride the venv's HTTP client
+        - pattern: ^testing\.(T|B|F|TB)\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)$
+          pkg: ^testing$
+          msg: fail through testify's require or assert instead of the testing.TB failure methods
     errcheck:
       check-type-assertions: false
       check-blank: false
@@ -235,16 +238,20 @@ linters:
           - wsl
         path: _test\.go
       # Tests frequently drive real fixtures on disk, so tests
-      # are allowed to bypass venv.
+      # are allowed to bypass venv. The text match lifts only the venv rules,
+      # so the testify rule still applies here.
       - linters:
           - forbidigo
+        text: venv|vfs\.DetectFSKind|process arguments
         path: (_test\.go|^test/|^internal/git/server\.go)
       # The packages that implement venv, plus the pty layer they sit on, are
       # where the real OS calls are supposed to live. internal/os/signal and
       # internal/os/stdout are deliberately outside this list: neither reaches
-      # the real OS any more, so neither should be able to start.
+      # the real OS any more, so neither should be able to start. The text
+      # match keeps the testify rule in force for their tests.
       - linters:
           - forbidigo
+        text: venv|vfs\.DetectFSKind|process arguments
         path: ^internal/(vfs|vexec|vhttp|vsops|vbrowser|venv)/|^internal/os/exec/
       # A pty is the real terminal by definition, so the two callers that
       # decide whether to allocate one read the real descriptor to do it.

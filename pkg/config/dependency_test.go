@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -130,9 +129,6 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), filename)
-	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
-	require.NoError(t, err)
-
 	pctx.Venv.Env = venvtest.NewOSWithEmptyEnv().Env
 	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
@@ -366,7 +362,7 @@ func TestDependencyDeepMergeExpansion(t *testing.T) {
 func parseDependencyStringStrict(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(tb, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
 	require.NotNil(tb, control)

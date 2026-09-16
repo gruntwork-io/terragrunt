@@ -2,11 +2,9 @@ package shared
 
 import (
 	"context"
-	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -21,12 +19,6 @@ const (
 	DiscoveryBoundaryFlagName  = "discovery-boundary"
 	FilterFileFlagName         = "filters-file"
 	NoFilterFileFlagName       = "no-filters-file"
-)
-
-// ErrDiscoveryBoundaryRequiresExperiment is returned when --discovery-boundary is
-// set without the bounded-discovery experiment enabled.
-var ErrDiscoveryBoundaryRequiresExperiment = errors.New(
-	"--discovery-boundary requires the 'bounded-discovery' experiment to be enabled (e.g., --experiment=bounded-discovery)",
 )
 
 // NewFilterFlags creates flags for specifying filter queries.
@@ -113,19 +105,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
 				Name:        DiscoveryBoundaryFlagName,
 				EnvVars:     tgPrefix.EnvVars(DiscoveryBoundaryFlagName),
 				Destination: &opts.DiscoveryBoundary,
-				Usage: flags.ExperimentUsage(opts.Experiments, experiment.BoundedDiscovery,
-					"Bound --filter discovery to a directory, not git root."),
-				Action: func(_ context.Context, _ *clihelper.Context, value string) error {
-					if value == "" {
-						return nil
-					}
-
-					if opts.Experiments.Evaluate(experiment.BoundedDiscovery) {
-						return nil
-					}
-
-					return ErrDiscoveryBoundaryRequiresExperiment
-				},
+				Usage:       "Bound --filter discovery to a directory, not git root.",
 			},
 		),
 		flags.NewFlag(

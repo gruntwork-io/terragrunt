@@ -21,10 +21,7 @@ const testFixtureAwsAuthProviderRoleReuse = "fixtures/auth-provider-cmd/role-ses
 func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	if len(assumeRole) == 0 {
-		t.Error("AWS_TEST_S3_ASSUME_ROLE environment variable not set")
-		return
-	}
+	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
 
 	helpers.CleanupTerraformFolder(t, testFixtureAwsAuthProviderRoleReuse)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAwsAuthProviderRoleReuse)
@@ -54,10 +51,7 @@ func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 func TestAwsAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	if len(assumeRole) == 0 {
-		t.Error("AWS_TEST_S3_ASSUME_ROLE environment variable not set")
-		return
-	}
+	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
 
 	helpers.CleanupTerraformFolder(t, testFixtureAwsAuthProviderRoleReuse)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAwsAuthProviderRoleReuse)

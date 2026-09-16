@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -638,21 +637,6 @@ func (err VersionAttributeRequiresExperimentError) Error() string {
 	)
 }
 
-// MutableGenerateRequiresExperimentError is returned when a generate block sets the
-// mutable attribute without the mutable-generate experiment enabled.
-type MutableGenerateRequiresExperimentError struct {
-	ConfigPath string
-	BlockName  string
-}
-
-func (err MutableGenerateRequiresExperimentError) Error() string {
-	return fmt.Sprintf(
-		"the generate block %q in %s sets the mutable attribute, which requires the 'mutable-generate' experiment; enable it with --experiment mutable-generate",
-		err.BlockName,
-		err.ConfigPath,
-	)
-}
-
 // VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
 // version attribute but its source is not a tfr:// registry URL, where a version
 // constraint has no meaning.
@@ -680,29 +664,6 @@ func (err VersionAttributeSourceConstraintConflictError) Error() string {
 	)
 }
 
-// ExpansionRequiresExperimentError is returned when a dependency, unit, or stack block
-// carries an expansion block without the block-iteration experiment enabled.
-type ExpansionRequiresExperimentError struct {
-	ConfigPath string
-	BlockType  string
-	BlockLabel string
-}
-
-func (err ExpansionRequiresExperimentError) Error() string {
-	block := err.BlockType
-	if err.BlockLabel != "" {
-		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
-	}
-
-	return fmt.Sprintf(
-		"the %s block in %s uses an expansion block, which requires the '%s' experiment; enable it with --experiment %s",
-		block,
-		err.ConfigPath,
-		experiment.BlockIteration,
-		experiment.BlockIteration,
-	)
-}
-
 // MisspelledExpansionBlockError is returned when a dependency, unit, or stack block nests a
 // block whose name is a near miss of expansion.
 type MisspelledExpansionBlockError struct {
@@ -724,29 +685,6 @@ func (err MisspelledExpansionBlockError) Error() string {
 		err.ConfigPath,
 		err.BlockName,
 		hclparse.ExpansionBlockName,
-	)
-}
-
-// EnabledRequiresExperimentError is returned when a unit or stack block carries a bare
-// enabled attribute while the block-iteration experiment is off.
-type EnabledRequiresExperimentError struct {
-	ConfigPath string
-	BlockType  string
-	BlockLabel string
-}
-
-func (err EnabledRequiresExperimentError) Error() string {
-	block := err.BlockType
-	if err.BlockLabel != "" {
-		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
-	}
-
-	return fmt.Sprintf(
-		"the %s block in %s uses an enabled attribute, which requires the '%s' experiment; enable it with --experiment %s",
-		block,
-		err.ConfigPath,
-		experiment.BlockIteration,
-		experiment.BlockIteration,
 	)
 }
 

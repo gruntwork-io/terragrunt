@@ -101,7 +101,7 @@ func TestStore_LockSerializesSameHash(t *testing.T) {
 
 	select {
 	case <-acquired:
-		t.Fatal("second holder acquired the hash while the first still held it")
+		require.Fail(t, "second holder acquired the hash while the first still held it")
 	case <-time.After(50 * time.Millisecond):
 	}
 
@@ -110,7 +110,7 @@ func TestStore_LockSerializesSameHash(t *testing.T) {
 	select {
 	case <-acquired:
 	case <-time.After(5 * time.Second):
-		t.Fatal("second holder never acquired the hash after release")
+		require.Fail(t, "second holder never acquired the hash after release")
 	}
 }
 
@@ -220,7 +220,7 @@ func TestStore_EnsureWithWait(t *testing.T) {
 		// An answer arriving here would mean two holders were inside.
 		select {
 		case <-answers:
-			t.Fatal("waiter answered while another holder still held the hash")
+			require.Fail(t, "waiter answered while another holder still held the hash")
 		case <-time.After(50 * time.Millisecond):
 		}
 
@@ -236,7 +236,7 @@ func TestStore_EnsureWithWait(t *testing.T) {
 		case needsWrite := <-answers:
 			assert.False(t, needsWrite, "waiter must not be told to rewrite content published while it waited")
 		case <-time.After(5 * time.Second):
-			t.Fatal("waiter never returned")
+			require.Fail(t, "waiter never returned")
 		}
 	})
 }

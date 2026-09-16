@@ -153,7 +153,7 @@ func TestSOPSDecryptDistinctPathsOverlapWithRacing(t *testing.T) {
 		case <-time.After(10 * time.Second):
 			close(release)
 			wg.Wait()
-			t.Fatal("decrypts of distinct files did not overlap")
+			require.FailNow(t, "decrypts of distinct files did not overlap")
 		}
 	}
 

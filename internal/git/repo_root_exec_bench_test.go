@@ -63,9 +63,8 @@ func BenchmarkRepoRootSingle(b *testing.B) {
 
 		b.Run(name+"/fork", func(b *testing.B) {
 			for b.Loop() {
-				if _, err := forkRepoRoot(b.Context(), unitDir); err != nil {
-					b.Fatal(err)
-				}
+				_, err := forkRepoRoot(b.Context(), unitDir)
+				require.NoError(b, err)
 			}
 		})
 
@@ -73,13 +72,12 @@ func BenchmarkRepoRootSingle(b *testing.B) {
 			for b.Loop() {
 				// A fresh cache per op: the memo is per run, so the first
 				// resolution never starts warm.
-				if _, err := git.GoRepoRoot(
+				_, err := git.GoRepoRoot(
 					cache.ContextWithCache(b.Context()),
 					v,
 					unitDir,
-				); err != nil {
-					b.Fatal(err)
-				}
+				)
+				require.NoError(b, err)
 			}
 		})
 	}
@@ -107,9 +105,8 @@ func BenchmarkRepoRootRun(b *testing.B) {
 			b.Run(name+"/fork", func(b *testing.B) {
 				for b.Loop() {
 					for _, unitDir := range unitDirs {
-						if _, err := forkRepoRoot(b.Context(), unitDir); err != nil {
-							b.Fatal(err)
-						}
+						_, err := forkRepoRoot(b.Context(), unitDir)
+						require.NoError(b, err)
 					}
 				}
 			})
@@ -120,9 +117,8 @@ func BenchmarkRepoRootRun(b *testing.B) {
 				ctx := cache.ContextWithCache(b.Context())
 
 				for _, unitDir := range unitDirs {
-					if _, err := git.GoRepoRoot(ctx, v, unitDir); err != nil {
-						b.Fatal(err)
-					}
+					_, err := git.GoRepoRoot(ctx, v, unitDir)
+					require.NoError(b, err)
 				}
 			}
 		})
@@ -130,13 +126,12 @@ func BenchmarkRepoRootRun(b *testing.B) {
 		b.Run(name+"/go-uncached", func(b *testing.B) {
 			for b.Loop() {
 				for _, unitDir := range unitDirs {
-					if _, err := git.GoRepoRoot(
+					_, err := git.GoRepoRoot(
 						cache.ContextWithCache(b.Context()),
 						v,
 						unitDir,
-					); err != nil {
-						b.Fatal(err)
-					}
+					)
+					require.NoError(b, err)
 				}
 			}
 		})
