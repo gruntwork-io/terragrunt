@@ -6,6 +6,7 @@ sidebar:
   order: 1
 ---
 
+import Before from '@components/Before.astro';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
 
@@ -185,9 +186,11 @@ we should be golden!
 
 ## Profiling
 
+<Before version="1.2.0">
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
+</Before>
 
 If you need to diagnose performance bottlenecks, collect CPU, memory, and goroutine profiles:
 
