@@ -182,13 +182,14 @@ func createTerragruntEvalContext(
 	baseDir := filepath.Dir(cfgPath)
 	tfFunctions := lang.MakeBaseFunctionTable(baseDir)
 
-	// Patch with our version of OpenTofu functions with
-	// venv and the logger threaded through.
+	// Patch with our version of these OpenTofu functions
+	// so we can thread venv and the logger through.
 	maps.Copy(tfFunctions, patch.Functions(
 		pctx.Venv,
 		l,
 		baseDir,
 		func() map[string]function.Function { return tfFunctions },
+		pctx.FilesRead.Add,
 	))
 
 	terragruntFunctions := map[string]function.Function{

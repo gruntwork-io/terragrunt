@@ -55,33 +55,47 @@ const (
 // of the vendored function table, each going through the Terragrunt venv or
 // logger. funcsCb returns the table templatefile renders a template with,
 // which is the table these functions are registered in.
+//
+// Each of these functions reports every file it reaches to onRead, as the path
+// the venv's filesystem sees, before it touches the file. A template rendered
+// by another template reports its own file the same way.
 func Functions(
 	v *venv.Venv,
 	l log.Logger,
 	baseDir string,
 	funcsCb func() map[string]function.Function,
+	onRead func(path string),
 ) map[string]function.Function {
 	return map[string]function.Function{
-		"abspath":          AbsPathFunc(v),
-		"base64decode":     Base64DecodeFunc(l),
-		"pathexpand":       PathExpandFunc(v),
-		"file":             FileFunc(v, baseDir, false),
-		"filebase64":       FileFunc(v, baseDir, true),
-		"fileexists":       FileExistsFunc(v, baseDir),
-		"fileset":          FileSetFunc(v, baseDir),
-		"filebase64sha256": FileHashFunc(v, baseDir, sha256.New, base64.StdEncoding.EncodeToString),
-		"filebase64sha512": FileHashFunc(v, baseDir, sha512.New, base64.StdEncoding.EncodeToString),
-		"filemd5":          FileHashFunc(v, baseDir, md5.New, hex.EncodeToString),
-		"filesha1":         FileHashFunc(v, baseDir, sha1.New, hex.EncodeToString),
-		"filesha256":       FileHashFunc(v, baseDir, sha256.New, hex.EncodeToString),
-		"filesha512":       FileHashFunc(v, baseDir, sha512.New, hex.EncodeToString),
-		"templatefile":     TemplateFileFunc(v, l, baseDir, funcsCb),
+		"abspath":      AbsPathFunc(v),
+		"base64decode": Base64DecodeFunc(l),
+		"pathexpand":   PathExpandFunc(v),
+		"file":         FileFunc(v, baseDir, false, onRead),
+		"filebase64":   FileFunc(v, baseDir, true, onRead),
+		"fileexists":   FileExistsFunc(v, baseDir, onRead),
+		"fileset":      FileSetFunc(v, baseDir, onRead),
+		"filebase64sha256": FileHashFunc(
+			v, baseDir, sha256.New, base64.StdEncoding.EncodeToString, onRead,
+		),
+		"filebase64sha512": FileHashFunc(
+			v, baseDir, sha512.New, base64.StdEncoding.EncodeToString, onRead,
+		),
+		"filemd5":      FileHashFunc(v, baseDir, md5.New, hex.EncodeToString, onRead),
+		"filesha1":     FileHashFunc(v, baseDir, sha1.New, hex.EncodeToString, onRead),
+		"filesha256":   FileHashFunc(v, baseDir, sha256.New, hex.EncodeToString, onRead),
+		"filesha512":   FileHashFunc(v, baseDir, sha512.New, hex.EncodeToString, onRead),
+		"templatefile": TemplateFileFunc(v, l, baseDir, funcsCb, onRead),
 	}
 }
 
 // FileFunc returns a function that reads the file at a path relative to
 // baseDir, as a string when encBase64 is false and as base64 when it is true.
-func FileFunc(v *venv.Venv, baseDir string, encBase64 bool) function.Function {
+func FileFunc(
+	v *venv.Venv,
+	baseDir string,
+	encBase64 bool,
+	onRead func(path string),
+) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
 			{
@@ -96,7 +110,7 @@ func FileFunc(v *venv.Venv, baseDir string, encBase64 bool) function.Function {
 			pathArg, pathMarks := args[0].Unmark()
 			path := pathArg.AsString()
 
-			src, err := readFileBytes(v, baseDir, path, pathMarks)
+			src, err := readFileBytes(v, baseDir, path, pathMarks, onRead)
 			if err != nil {
 				return cty.UnknownVal(cty.String), function.NewArgError(0, err)
 			}
@@ -124,7 +138,7 @@ func FileFunc(v *venv.Venv, baseDir string, encBase64 bool) function.Function {
 
 // FileExistsFunc returns a function that reports whether a regular file exists
 // at a path relative to baseDir.
-func FileExistsFunc(v *venv.Venv, baseDir string) function.Function {
+func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
 			{
@@ -142,6 +156,8 @@ func FileExistsFunc(v *venv.Venv, baseDir string) function.Function {
 			if err != nil {
 				return cty.UnknownVal(cty.Bool), err
 			}
+
+			onRead(path)
 
 			fi, err := v.FS.Stat(path)
 			if err != nil {
@@ -165,7 +181,7 @@ func FileExistsFunc(v *venv.Venv, baseDir string) function.Function {
 
 // FileSetFunc returns a function that enumerates the files under a path
 // relative to baseDir whose paths match a glob pattern.
-func FileSetFunc(v *venv.Venv, baseDir string) function.Function {
+func FileSetFunc(v *venv.Venv, baseDir string, onRead func(path string)) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
 			{
@@ -199,6 +215,10 @@ func FileSetFunc(v *venv.Venv, baseDir string) function.Function {
 					redact(filepath.Join(path, pattern), valueMarks...),
 					err,
 				)
+			}
+
+			for _, match := range matches {
+				onRead(filepath.Join(path, match.AsString()))
 			}
 
 			if len(matches) == 0 {
@@ -269,6 +289,7 @@ func FileHashFunc(
 	baseDir string,
 	hf func() hash.Hash,
 	enc func([]byte) string,
+	onRead func(path string),
 ) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -280,7 +301,7 @@ func FileHashFunc(
 		Type:         function.StaticReturnType(cty.String),
 		RefineResult: refineNotNull,
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-			sum, err := hashFile(v, baseDir, args[0].AsString(), hf)
+			sum, err := hashFile(v, baseDir, args[0].AsString(), hf, onRead)
 			if err != nil {
 				return cty.UnknownVal(cty.String), err
 			}
@@ -298,8 +319,9 @@ func TemplateFileFunc(
 	l log.Logger,
 	baseDir string,
 	funcsCb func() map[string]function.Function,
+	onRead func(path string),
 ) function.Function {
-	return templateFileFunc(v, l, baseDir, funcsCb, 0)
+	return templateFileFunc(v, l, baseDir, funcsCb, onRead, 0)
 }
 
 // templateFileFunc builds the templatefile function that a template nested
@@ -310,6 +332,7 @@ func templateFileFunc(
 	l log.Logger,
 	baseDir string,
 	funcsCb func() map[string]function.Function,
+	onRead func(path string),
 	depth int,
 ) function.Function {
 	loadTmpl := func(path string, valueMarks cty.ValueMarks) (hcl.Expression, error) {
@@ -329,7 +352,7 @@ func templateFileFunc(
 			return nil, funcs.ErrorTemplateRecursionLimit{}
 		}
 
-		src, err := readFileBytes(v, baseDir, path, valueMarks)
+		src, err := readFileBytes(v, baseDir, path, valueMarks, onRead)
 		if err != nil {
 			return nil, err
 		}
@@ -354,7 +377,7 @@ func templateFileFunc(
 
 		for name, fn := range given {
 			if name == "templatefile" {
-				fn = templateFileFunc(v, l, baseDir, funcsCb, depth+1)
+				fn = templateFileFunc(v, l, baseDir, funcsCb, onRead, depth+1)
 			}
 
 			nested[name] = fn
@@ -426,11 +449,14 @@ func hashFile(
 	v *venv.Venv,
 	baseDir, path string,
 	hf func() hash.Hash,
+	onRead func(path string),
 ) (_ []byte, err error) {
 	name, err := resolvePath(v, baseDir, path)
 	if err != nil {
 		return nil, err
 	}
+
+	onRead(name)
 
 	f, err := v.FS.Open(name)
 	if err != nil {
@@ -498,11 +524,14 @@ func readFileBytes(
 	v *venv.Venv,
 	baseDir, path string,
 	valueMarks cty.ValueMarks,
+	onRead func(path string),
 ) ([]byte, error) {
 	name, err := resolvePath(v, baseDir, path)
 	if err != nil {
 		return nil, err
 	}
+
+	onRead(name)
 
 	src, err := vfs.ReadFile(v.FS, name)
 	if err != nil {

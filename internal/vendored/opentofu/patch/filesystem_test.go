@@ -44,7 +44,7 @@ func TestFileReadsThroughTheVenv(t *testing.T) {
 
 	v := memVenv(t, map[string]string{"user-data.sh": "#!/bin/sh\necho hi\n"})
 
-	got, err := patch.FileFunc(v, baseDir, false).
+	got, err := patch.FileFunc(v, baseDir, false, noRead).
 		Call([]cty.Value{cty.StringVal("user-data.sh")})
 	require.NoError(t, err)
 	assert.Equal(t, cty.StringVal("#!/bin/sh\necho hi\n"), got)
@@ -57,7 +57,7 @@ func TestFileBase64EncodesContents(t *testing.T) {
 
 	v := memVenv(t, map[string]string{"blob.bin": contents})
 
-	got, err := patch.FileFunc(v, baseDir, true).
+	got, err := patch.FileFunc(v, baseDir, true, noRead).
 		Call([]cty.Value{cty.StringVal("blob.bin")})
 	require.NoError(t, err)
 	assert.Equal(
@@ -72,7 +72,7 @@ func TestFileRejectsContentsThatAreNotUTF8(t *testing.T) {
 
 	v := memVenv(t, map[string]string{"blob.bin": "\xff\xfe binary"})
 
-	_, err := patch.FileFunc(v, baseDir, false).
+	_, err := patch.FileFunc(v, baseDir, false, noRead).
 		Call([]cty.Value{cty.StringVal("blob.bin")})
 	require.Error(t, err)
 }
@@ -82,7 +82,7 @@ func TestFileFailsWhenTheFileIsMissing(t *testing.T) {
 
 	v := memVenv(t, map[string]string{"present.txt": "here"})
 
-	_, err := patch.FileFunc(v, baseDir, false).
+	_, err := patch.FileFunc(v, baseDir, false, noRead).
 		Call([]cty.Value{cty.StringVal("absent.txt")})
 	require.Error(t, err)
 }
@@ -99,7 +99,7 @@ func TestFileLeavesARelativeBaseDirToTheFilesystem(t *testing.T) {
 	v := venvtest.New().WithFS(fsys)
 	v.Platform.Getwd = func() (string, error) { return "/elsewhere", nil }
 
-	got, err := patch.FileFunc(v, ".", false).
+	got, err := patch.FileFunc(v, ".", false, noRead).
 		Call([]cty.Value{cty.StringVal("data.txt")})
 	require.NoError(t, err)
 	assert.Equal(t, cty.StringVal("beside the root\n"), got)
@@ -110,7 +110,7 @@ func TestFileExistsReportsWhatTheVenvHolds(t *testing.T) {
 
 	v := memVenv(t, map[string]string{"present.txt": "here"})
 
-	fn := patch.FileExistsFunc(v, baseDir)
+	fn := patch.FileExistsFunc(v, baseDir, noRead)
 
 	got, err := fn.Call([]cty.Value{cty.StringVal("present.txt")})
 	require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestFileExistsFailsOnADirectory(t *testing.T) {
 
 	v := memVenv(t, map[string]string{"modules/main.tf": "# module"})
 
-	_, err := patch.FileExistsFunc(v, baseDir).
+	_, err := patch.FileExistsFunc(v, baseDir, noRead).
 		Call([]cty.Value{cty.StringVal("modules")})
 	require.Error(t, err)
 }
@@ -142,7 +142,7 @@ func TestFileSetMatchesRelativePaths(t *testing.T) {
 		"modules/b/notes.md": "# notes",
 	})
 
-	fn := patch.FileSetFunc(v, baseDir)
+	fn := patch.FileSetFunc(v, baseDir, noRead)
 
 	got, err := fn.Call([]cty.Value{cty.StringVal("."), cty.StringVal("*.tf")})
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestFileSetReturnsAnEmptySetWhenNothingMatches(t *testing.T) {
 
 	v := memVenv(t, map[string]string{"main.tf": "# root"})
 
-	got, err := patch.FileSetFunc(v, baseDir).
+	got, err := patch.FileSetFunc(v, baseDir, noRead).
 		Call([]cty.Value{cty.StringVal("."), cty.StringVal("*.json")})
 	require.NoError(t, err)
 	assert.Equal(t, cty.SetValEmpty(cty.String), got)
@@ -176,7 +176,7 @@ func TestFileHashSumsTheVenvContents(t *testing.T) {
 
 	v := memVenv(t, map[string]string{"data.txt": contents})
 
-	got, err := patch.FileHashFunc(v, baseDir, sha256.New, hex.EncodeToString).
+	got, err := patch.FileHashFunc(v, baseDir, sha256.New, hex.EncodeToString, noRead).
 		Call([]cty.Value{cty.StringVal("data.txt")})
 	require.NoError(t, err)
 
@@ -254,6 +254,7 @@ func TestTemplateFileRendersFromTheVenv(t *testing.T) {
 		l,
 		baseDir,
 		func() map[string]function.Function { return nil },
+		noRead,
 	)
 
 	got, err := fn.Call([]cty.Value{
@@ -280,6 +281,7 @@ func TestTemplateFileStopsAtTheRecursionCap(t *testing.T) {
 		l,
 		baseDir,
 		func() map[string]function.Function { return table },
+		noRead,
 	)
 	table = map[string]function.Function{"templatefile": fn}
 
@@ -289,3 +291,6 @@ func TestTemplateFileStopsAtTheRecursionCap(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+// noRead is the read observer for tests that do not inspect what was read.
+func noRead(string) {}
