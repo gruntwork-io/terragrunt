@@ -1078,6 +1078,8 @@ This is useful for situations when you want to mark a file as read, but are not 
 
 For example:
 
+<Before version="1.2.0">
+
 ```hcl
 # terragrunt.hcl
 
@@ -1091,6 +1093,28 @@ inputs = {
   many_files = local.many_files
 }
 ```
+
+</Before>
+
+<Since version="1.2.0">
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  filename   = mark_as_read("/path/to/my/file-read-by-tofu.txt")
+  many_files = [for f in fileset("./config", "*.yaml") : file("${get_terragrunt_dir()}/config/${f}")]
+}
+
+inputs = {
+  filename   = local.filename
+  many_files = local.many_files
+}
+```
+
+`fileset` and `file` record the files they read, so `mark_as_read` is needed only for a file Terragrunt does not read itself, such as `file-read-by-tofu.txt` above.
+
+</Since>
 
 By using `mark_as_read` on `file-read-by-tofu.txt`, you can ensure that the `terragrunt.hcl` file passing in the `file-read-by-tofu.txt` file as an input will be included in
 any `run --all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
