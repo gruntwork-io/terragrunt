@@ -51,10 +51,6 @@ require (
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/hcl v1.0.1-vault-7
 	github.com/hashicorp/hcl/v2 v2.24.0
-
-	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
-	// can't use terraform as a library after v0.15.3, so we pull that in here.
-	github.com/hashicorp/terraform v0.15.3
 	github.com/hashicorp/terraform-svchost v0.2.1
 	github.com/huandu/go-clone v1.7.3
 	github.com/invopop/jsonschema v0.14.0
@@ -161,7 +157,6 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
-	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/buger/jsonparser v1.2.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -313,14 +308,6 @@ replace (
 	// which breaks decryption of INI files encrypted with earlier sops versions.
 	// See https://github.com/getsops/sops/issues/2188
 	github.com/getsops/sops/v3 => github.com/getsops/sops/v3 v3.12.2
-
-	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
-	// can't use terraform as a library after v0.15.3, so we pull that in here.
-	github.com/hashicorp/terraform => github.com/hashicorp/terraform v0.15.3
-
-	// This is necessary to workaround go modules error with terraform importing vault incorrectly.
-	// See https://github.com/hashicorp/vault/issues/7848 for more info
-	github.com/hashicorp/vault => github.com/hashicorp/vault v1.4.2
 
 	// Fix for missing tencentcloud v3.0.82 tag
 	github.com/tencentcloud/tencentcloud-sdk-go v3.0.82+incompatible => github.com/tencentcloud/tencentcloud-sdk-go v0.0.0-20190816164403-f8fa457a3c72

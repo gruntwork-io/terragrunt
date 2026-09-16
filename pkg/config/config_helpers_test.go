@@ -18,12 +18,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-	tffuncs "github.com/hashicorp/terraform/lang/funcs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -1335,7 +1335,7 @@ func TestBase64GzipCompat(t *testing.T) {
 		legacyExpected = "H4sIAAAAAAAA/yrOz01VKEmtKAEAAAD//wEAAP//ur26TwkAAAA="
 	)
 
-	terraformExpected, err := tffuncs.Base64Gzip(cty.StringVal(input))
+	currentExpected, err := funcs.Base64Gzip(cty.StringVal(input))
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -1353,7 +1353,7 @@ func TestBase64GzipCompat(t *testing.T) {
 		{
 			name:          "base64gzip is unaffected by the completed strict control",
 			funcName:      config.FuncNameBase64Gzip,
-			expected:      terraformExpected.AsString(),
+			expected:      currentExpected.AsString(),
 			enableControl: true,
 		},
 		{
