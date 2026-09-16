@@ -88,7 +88,7 @@ func TestRenderTemplate(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 
-			got, err := renderTemplate(test.Expr, test.Vars, map[string]function.Function{})
+			got, err := RenderTemplate(test.Expr, test.Vars, map[string]function.Function{})
 
 			if err != nil {
 				if test.Err == "" {

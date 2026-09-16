@@ -219,7 +219,7 @@ func MakeTemplateStringFunc(content string, funcsCb func() map[string]function.F
 
 			// This is safe even if args[1] contains unknowns because the HCL
 			// template renderer itself knows how to short-circuit those.
-			val, err := renderTemplate(expr, varsArg, funcsCb())
+			val, err := RenderTemplate(expr, varsArg, funcsCb())
 			return val.Type(), err
 		},
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
@@ -229,7 +229,7 @@ func MakeTemplateStringFunc(content string, funcsCb func() map[string]function.F
 			if err != nil {
 				return cty.DynamicVal, err
 			}
-			result, err := renderTemplate(expr, varsArg, funcsCb())
+			result, err := RenderTemplate(expr, varsArg, funcsCb())
 			return result.WithMarks(dataMarks, varsMarks), err
 		},
 	})

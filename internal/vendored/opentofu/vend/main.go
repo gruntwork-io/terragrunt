@@ -72,6 +72,23 @@ var extractions = []extraction{
 	{
 		from:  "internal/lang/functions.go",
 		decls: []string{"makeBaseFunctionTable"},
+		// The patch package registers replacements for these. The upstream ones
+		// bypass the Terragrunt venv or logger.
+		commentOut: []string{
+			"abspath",
+			"base64decode",
+			"file",
+			"filebase64",
+			"filebase64sha256",
+			"filebase64sha512",
+			"fileexists",
+			"filemd5",
+			"fileset",
+			"filesha1",
+			"filesha256",
+			"filesha512",
+			"pathexpand",
+		},
 		replacements: []replacement{
 			// Terragrunt builds its function table from this, so it has to be
 			// reachable from outside the package.
@@ -80,6 +97,20 @@ var extractions = []extraction{
 			// HCL defines.
 			{old: "baseDir string, typeCtx *typeexpr.TypeContext)", with: "baseDir string)"},
 			{old: "\t\t\"convert\":             makeConvertFunc(typeCtx),\n", with: ""},
+			{
+				old: `	ret["templatefile"] = funcs.MakeTemplateFileFunc(baseDir, func() map[string]function.Function {
+		// The templatefile function prevents recursive calls to itself
+		// by copying this map and overwriting the "templatefile" entry.
+		return ret
+	})
+`,
+				with: `	// The patch package registers a vfs-backed replacement for this:
+	//
+	// ret["templatefile"] = funcs.MakeTemplateFileFunc(baseDir, func() map[string]function.Function {
+	// 	return ret
+	// })
+`,
+			},
 		},
 	},
 	{
@@ -90,11 +121,47 @@ var extractions = []extraction{
 	},
 }
 
+// patches lists the text vend replaces in the copied files.
+var patches = []patch{
+	{
+		// The patch package's templatefile renders through this, so it has to be
+		// reachable from outside the funcs package.
+		path: "internal/lang/funcs",
+		old:  "renderTemplate",
+		with: "RenderTemplate",
+	},
+	{
+		// This error reaches Terragrunt through the patch package's
+		// templatefile, which logs the template stack through Terragrunt's
+		// logger. An Error method has nothing to log through.
+		path: "internal/lang/funcs/filesystem.go",
+		old: `	log.Printf("[DEBUG] Template Stack (%d): %s", len(err.sources)-1, err.sources[len(err.sources)-1])
+
+`,
+		with: "",
+	},
+	{
+		// The line above was the only use of log in this file.
+		path: "internal/lang/funcs/filesystem.go",
+		old:  "\t\"log\"\n",
+		with: "",
+	},
+}
+
+// patch replaces every occurrence of one piece of text in a copied upstream
+// file, or in the Go files of a copied upstream directory.
+type patch struct {
+	path string
+	old  string
+	with string
+}
+
 // extraction vendors some top-level declarations of an upstream file.
 type extraction struct {
 	from         string
 	decls        []string
 	replacements []replacement
+	commentOut   []string
 }
 
 // replacement replaces every occurrence of one exact piece of text.
@@ -283,6 +350,10 @@ func regenerate(
 		}
 	}
 
+	if err := applyPatches(dst); err != nil {
+		return release{}, err
+	}
+
 	rewrite := func(data []byte) ([]byte, error) { return rewriteImports(dst, data) }
 	if err := transformGoFiles(dst, rewrite); err != nil {
 		return release{}, err
@@ -435,6 +506,11 @@ func extract(e *extraction, data []byte) ([]byte, error) {
 		decls = strings.ReplaceAll(decls, r.old, r.with)
 	}
 
+	decls, err = commentOutEntries(decls, e.commentOut)
+	if err != nil {
+		return nil, err
+	}
+
 	used, err := qualifiers(decls)
 	if err != nil {
 		return nil, err
@@ -487,6 +563,22 @@ func declInfo(decl ast.Decl) (string, *ast.CommentGroup) {
 	}
 
 	return "", nil
+}
+
+// commentOutEntries comments out the function table entry of each of keys,
+// found by its name so that the padding gofmt gives the table does not matter.
+func commentOutEntries(decls string, keys []string) (string, error) {
+	for _, key := range keys {
+		row := regexp.MustCompile(`(?m)^(\t\t)("` + regexp.QuoteMeta(key) + `":.*)$`)
+
+		if n := len(row.FindAllStringIndex(decls, -1)); n != 1 {
+			return "", fmt.Errorf("%d entries named %q to comment out, want 1", n, key)
+		}
+
+		decls = row.ReplaceAllString(decls, "${1}// ${2}")
+	}
+
+	return decls, nil
 }
 
 // qualifiers parses Go top-level declarations and returns the identifiers on
@@ -588,6 +680,43 @@ func importName(spec *ast.ImportSpec) (string, error) {
 	return name, nil
 }
 
+// applyPatches applies each of [patches] to the copied files under dst,
+// failing when one matches nothing.
+func applyPatches(dst string) error {
+	for _, p := range patches {
+		found := 0
+
+		replace := func(data []byte) ([]byte, error) {
+			found += bytes.Count(data, []byte(p.old))
+
+			return bytes.ReplaceAll(data, []byte(p.old), []byte(p.with)), nil
+		}
+
+		target := filepath.Join(dst, filepath.FromSlash(vendoredRel(p.path)))
+
+		info, err := os.Stat(target)
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			err = transformGoFiles(target, replace)
+		} else {
+			err = transformFile(target, replace)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if found == 0 {
+			return fmt.Errorf("%s: nothing to patch matches %q", p.path, p.old)
+		}
+	}
+
+	return nil
+}
+
 // rewriteImports points every import of an upstream package in a Go file at
 // its vendored copy under dst, failing on an upstream package that is not
 // vendored there.
@@ -674,26 +803,32 @@ func transformGoFiles(dir string, fn func([]byte) ([]byte, error)) error {
 	}
 
 	for _, file := range files {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return err
-		}
-
-		out, err := fn(data)
-		if err != nil {
-			return fmt.Errorf("%s: %w", file, err)
-		}
-
-		if bytes.Equal(out, data) {
-			continue
-		}
-
-		if err := os.WriteFile(file, out, filePerms); err != nil {
+		if err := transformFile(file, fn); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// transformFile replaces the content of the file at name with the result of
+// fn.
+func transformFile(name string, fn func([]byte) ([]byte, error)) error {
+	data, err := os.ReadFile(name)
+	if err != nil {
+		return err
+	}
+
+	out, err := fn(data)
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+
+	if bytes.Equal(out, data) {
+		return nil
+	}
+
+	return os.WriteFile(name, out, filePerms)
 }
 
 // writeRelease writes the VENDOR.md content doc to name with its Source table

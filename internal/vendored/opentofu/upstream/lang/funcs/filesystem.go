@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -93,8 +92,6 @@ func (err ErrorTemplateRecursionLimit) Error() string {
 			break
 		}
 	}
-
-	log.Printf("[DEBUG] Template Stack (%d): %s", len(err.sources)-1, err.sources[len(err.sources)-1])
 
 	return fmt.Sprintf("maximum recursion depth %d reached in %s ... ", len(err.sources)-1, strings.Join(trace, ", "))
 }
@@ -188,7 +185,7 @@ func makeTemplateFileFuncImpl(baseDir string, funcsCb func() map[string]function
 
 			// This is safe even if args[1] contains unknowns because the HCL
 			// template renderer itself knows how to short-circuit those.
-			val, err := renderTemplate(expr, args[1], funcsCbDepth())
+			val, err := RenderTemplate(expr, args[1], funcsCbDepth())
 			return val.Type(), err
 		},
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
@@ -198,7 +195,7 @@ func makeTemplateFileFuncImpl(baseDir string, funcsCb func() map[string]function
 				return cty.DynamicVal, err
 			}
 
-			result, err := renderTemplate(expr, args[1], funcsCbDepth())
+			result, err := RenderTemplate(expr, args[1], funcsCbDepth())
 			return result.WithMarks(pathMarks), err
 		},
 	})
