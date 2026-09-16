@@ -116,12 +116,6 @@ const LegacyGCSDeprecationWarning = "Plain `https://www.googleapis.com/storage/.
 	"silence this warning, or enable the `legacy-gcs-public-prefix` strict control to download anonymously instead." +
 	" This will be the default behavior of Terragrunt in the future."
 
-// LegacyBase64GzipWarning is the warning text emitted when base64gzip() returns the v1.1.3 bytes.
-const LegacyBase64GzipWarning = "`base64gzip()` returns the gzip bytes produced by Terragrunt v1.1.3 and earlier (Go 1.26) for " +
-	"backward compatibility. Terragrunt 1.2 will switch it to the current Go encoder. Use `base64gzip_compat()` " +
-	"(experiment `base64gzip-compat`) to keep these bytes, or enable the `legacy-base64gzip` strict control to use " +
-	"the current Go encoder now and silence this warning."
-
 // IsFastCopyEnabled reports whether the `fast-copy` strict control is enabled.
 func IsFastCopyEnabled(strictControls strict.Controls) bool {
 	return len(strictControls.FilterByNames(FastCopy).FilterByEnabled()) > 0
@@ -352,8 +346,8 @@ func New() strict.Controls {
 		},
 		&Control{
 			Name:        LegacyBase64Gzip,
-			Description: "Stops `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. The v1.1.3 bytes are restored by default with a deprecation warning, and `base64gzip_compat()` (experiment `base64gzip-compat`) returns them permanently. Enable this control to use the current Go encoder, which becomes the default in Terragrunt 1.2, and silence the warning.",
-			Warning:     LegacyBase64GzipWarning,
+			Description: "Stopped `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. Terragrunt 1.2 made the current encoder the default, so this control has nothing left to switch. `base64gzip_compat()` returns the v1.1.3 bytes and needs no flag.",
+			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        OptionalHooks,
