@@ -70,6 +70,21 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		return discoverErr
 	})
 	if err != nil {
+		// CoexistenceError and AmbiguousConfigError are structural discovery failures that
+		// bypass suppressParseErrors inside Discover itself (see discovery.go), leaving
+		// components nil rather than partial. Surface them as command errors instead of
+		// silently reporting an empty/incomplete result; ordinary suppressed parse errors
+		// still just get logged so discovery of other components isn't blocked.
+		var coexistenceErr discovery.CoexistenceError
+		if errors.As(err, &coexistenceErr) {
+			return coexistenceErr
+		}
+
+		var ambiguousErr discovery.AmbiguousConfigError
+		if errors.As(err, &ambiguousErr) {
+			return ambiguousErr
+		}
+
 		l.Debugf("Errors encountered while discovering components:\n%s", err)
 	}
 
