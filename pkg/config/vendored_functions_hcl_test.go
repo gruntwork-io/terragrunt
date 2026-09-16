@@ -4,6 +4,7 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -91,7 +93,7 @@ func TestHCLTemplateFileReadsThroughTheVenv(t *testing.T) {
 	assert.Equal(t, "Hello, world! a%2Fb", out.Locals["greeting"])
 }
 
-func TestHCLBase64GzipKeepsTheLegacyOutput(t *testing.T) {
+func TestHCLBase64GzipUsesTheCurrentEncoder(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -103,8 +105,13 @@ func TestHCLBase64GzipKeepsTheLegacyOutput(t *testing.T) {
   encoded = base64gzip("test")
 }`
 
+	// Computed rather than written out, so that a Go release changing the bytes
+	// its gzip encoder produces does not turn into a failure here.
+	expected, err := funcs.Base64Gzip(cty.StringVal("test"))
+	require.NoError(t, err)
+
 	out, err := config.ParseConfigString(ctx, pctx, l, memConfigPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
-	assert.Equal(t, "H4sIAAAAAAAA/ypJLS4BAAAA//8BAAD//wx+f9gEAAAA", out.Locals["encoded"])
+	assert.Equal(t, expected.AsString(), out.Locals["encoded"])
 }

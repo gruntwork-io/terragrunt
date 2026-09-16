@@ -1348,7 +1348,7 @@ func TestBase64GzipCompat(t *testing.T) {
 		{
 			name:     "base64gzip returns the current encoder bytes by default",
 			funcName: config.FuncNameBase64Gzip,
-			expected: terraformExpected.AsString(),
+			expected: currentExpected.AsString(),
 		},
 		{
 			name:          "base64gzip is unaffected by the completed strict control",
