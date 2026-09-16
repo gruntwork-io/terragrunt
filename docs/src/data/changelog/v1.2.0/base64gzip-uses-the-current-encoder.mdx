@@ -17,4 +17,4 @@ inputs = {
 
 A third-party module may call `base64gzip()` where you cannot edit the call. Put `lifecycle { ignore_changes = [...] }` on the affected argument, or apply the new value once during a maintenance window.
 
-This completes the `base64gzip-compat` experiment and the `legacy-base64gzip` strict control. Passing either still works and changes nothing.
+This completes the `base64gzip-compat` experiment and the `legacy-base64gzip` strict control. Passing either still works, and Terragrunt logs a warning that it is completed.
