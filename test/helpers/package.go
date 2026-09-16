@@ -1160,13 +1160,52 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
+// envCtxKey keys the environment a run should see, so a test can adjust it
+// without touching the process and can therefore still run in parallel.
+type envCtxKey struct{}
+
+// RunEnv returns the environment a Terragrunt run would start with, for a test
+// to adjust and hand back through [ContextWithEnv].
+func RunEnv(t *testing.T) map[string]string {
+	t.Helper()
+
+	return venv.ParseEnviron(os.Environ())
+}
+
+// ContextWithEnv returns a context that runs started with the helpers in this
+// package resolve their environment against, in place of the process environment.
+func ContextWithEnv(ctx context.Context, env map[string]string) context.Context {
+	return context.WithValue(ctx, envCtxKey{}, env)
+}
+
+// envFromContext returns the environment stored by [ContextWithEnv], or nil.
+func envFromContext(ctx context.Context) map[string]string {
+	env, _ := ctx.Value(envCtxKey{}).(map[string]string)
+
+	return env
+}
+
 func RunTerragruntCommandWithContext(
 	t *testing.T,
 	ctx context.Context,
 	command string,
 	writer,
 	errwriter io.Writer,
-	extraArgs ...string,
+) error {
+	t.Helper()
+
+	return runTerragruntCommand(t, ctx, version.GetVersion(), command, writer, errwriter)
+}
+
+// runTerragruntCommand runs command through an app reporting itself as ver, so a
+// test can pin the Terragrunt version a run sees without touching the process.
+func runTerragruntCommand(
+	t *testing.T,
+	ctx context.Context,
+	ver string,
+	command string,
+	writer,
+	errwriter io.Writer,
 ) error {
 	t.Helper()
 
@@ -1206,6 +1245,10 @@ func RunTerragruntCommandWithContext(
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 	v := venv.OSVenv()
+	if env := envFromContext(ctx); env != nil {
+		v = v.WithEnv(env)
+	}
+
 	v.Writers = &writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
 
 	l := log.New(
@@ -1215,6 +1258,7 @@ func RunTerragruntCommandWithContext(
 	)
 
 	app := cli.NewApp(l, opts, v)
+	app.Version = ver
 
 	ctx = log.ContextWithLogger(ctx, l)
 
@@ -1232,6 +1276,8 @@ func RunTerragruntCommand(
 	return RunTerragruntCommandWithContext(t, t.Context(), command, writer, errwriter)
 }
 
+// RunTerragruntVersionCommand runs command against an app that reports itself as
+// ver, which is what version constraints in the config are checked against.
 func RunTerragruntVersionCommand(
 	t *testing.T,
 	ver string,
@@ -1241,9 +1287,7 @@ func RunTerragruntVersionCommand(
 ) error {
 	t.Helper()
 
-	version.Version = ver
-
-	return RunTerragruntCommand(t, command, writer, errwriter)
+	return runTerragruntCommand(t, t.Context(), ver, command, writer, errwriter)
 }
 
 func RunTerragrunt(t *testing.T, command string) {
