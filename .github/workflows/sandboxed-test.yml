@@ -73,5 +73,5 @@ jobs:
         shell: bash
 
       - name: Run Tests
-        run: go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" -timeout 45m ./...
+        run: ./.github/scripts/ci/sandbox-test.sh
         shell: bash

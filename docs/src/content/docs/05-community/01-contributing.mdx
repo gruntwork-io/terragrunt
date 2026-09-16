@@ -346,7 +346,7 @@ A test can break that in ways that never show up as a test failure:
 To check for all of them, run the suite through the sandbox wrapper:
 
 ```bash
-go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" ./...
+./.github/scripts/ci/sandbox-test.sh
 ```
 
 <Aside type="tip">
