@@ -983,7 +983,11 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestParsingContext(
+				t,
+				venvtest.NewWithOSFS(),
+				config.DefaultTerragruntConfigPath,
+			)
 			pctx.TerraformCliArgs = iacargs.New(cliArgs...)
 
 			actualOut, actualErr := config.ParseConfigString(
@@ -1403,7 +1407,11 @@ func TestBase64GzipCompatRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
 	venv, rootDir := newMemTestDir(t)
-	ctx, pctx := newTestParsingContext(t, venv, filepath.Join(rootDir, config.DefaultTerragruntConfigPath))
+	ctx, pctx := newTestParsingContext(
+		t,
+		venv,
+		filepath.Join(rootDir, config.DefaultTerragruntConfigPath),
+	)
 
 	funcs, err := config.EarlyStackParseFunctions(ctx, logger.CreateLogger(), rootDir, pctx)
 	require.NoError(t, err)
@@ -1691,7 +1699,11 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		venvtest.NewWithOSFS(),
+		config.DefaultTerragruntConfigPath,
+	)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -1746,7 +1758,11 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		venvtest.NewWithOSFS(),
+		config.DefaultTerragruntConfigPath,
+	)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -1788,7 +1804,11 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		venvtest.NewWithOSFS(),
+		config.DefaultTerragruntConfigPath,
+	)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -1838,7 +1858,11 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		venvtest.NewWithOSFS(),
+		config.DefaultTerragruntConfigPath,
+	)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -1969,173 +1993,15 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 	}
 }
 
-func TestStartsWith(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		args     []string
-		expected bool
-	}{
-		{args: []string{"hello world", "hello"}, expected: true},
-		{args: []string{"hello world", "world"}, expected: false},
-		{args: []string{"hello world", ""}, expected: true},
-		{args: []string{"hello world", " "}, expected: false},
-		{args: []string{"", ""}, expected: true},
-		{args: []string{"", " "}, expected: false},
-		{args: []string{" ", ""}, expected: true},
-		{args: []string{"", "hello"}, expected: false},
-		{args: []string{" ", "hello"}, expected: false},
-	}
-
-	for id, tc := range testCases {
-		t.Run(fmt.Sprintf("%v %v", id, tc.args), func(t *testing.T) {
-			t.Parallel()
-
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
-			actual, err := config.StartsWith(ctx, pctx, tc.args)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
-func TestEndsWith(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		args     []string
-		expected bool
-	}{
-		{args: []string{"hello world", "world"}, expected: true},
-		{args: []string{"hello world", "hello"}, expected: false},
-		{args: []string{"hello world", ""}, expected: true},
-		{args: []string{"hello world", " "}, expected: false},
-		{args: []string{"", ""}, expected: true},
-		{args: []string{"", " "}, expected: false},
-		{args: []string{" ", ""}, expected: true},
-		{args: []string{"", "hello"}, expected: false},
-		{args: []string{" ", "hello"}, expected: false},
-	}
-
-	for id, tc := range testCases {
-		t.Run(fmt.Sprintf("%v %v", id, tc.args), func(t *testing.T) {
-			t.Parallel()
-
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
-			actual, err := config.EndsWith(ctx, pctx, tc.args)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
-func TestTimeCmp(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		err   string
-		args  []string
-		value int64
-	}{
-		{
-			args: []string{"2017-11-22T00:00:00Z", "2017-11-22T00:00:00Z"},
-		},
-		{
-			args: []string{"2017-11-22T00:00:00Z", "2017-11-22T01:00:00+01:00"},
-		},
-		{
-			args:  []string{"2017-11-22T00:00:01Z", "2017-11-22T01:00:00+01:00"},
-			value: 1,
-		},
-		{
-			args:  []string{"2017-11-22T01:00:00Z", "2017-11-22T00:59:00-01:00"},
-			value: -1,
-		},
-		{
-			args:  []string{"2017-11-22T01:00:00+01:00", "2017-11-22T01:00:00-01:00"},
-			value: -1,
-		},
-		{
-			args:  []string{"2017-11-22T01:00:00-01:00", "2017-11-22T01:00:00+01:00"},
-			value: 1,
-		},
-		{
-			args: []string{"2017-11-22T00:00:00Z", "bloop"},
-			err:  `could not parse second parameter "bloop": not a valid RFC3339 timestamp: cannot use "bloop" as year`,
-		},
-		{
-			args: []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"},
-			err:  `could not parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing required time introducer 'T'`,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("TimeCmp(%#v, %#v)", tc.args[0], tc.args[1]), func(t *testing.T) {
-			t.Parallel()
-
-			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
-
-			actual, err := config.TimeCmp(ctx, pctx, l, tc.args)
-			if tc.err != "" {
-				require.EqualError(t, err, tc.err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			assert.Equal(t, tc.value, actual)
-		})
-	}
-}
-
-func TestStrContains(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		err   string
-		args  []string
-		value bool
-	}{
-		{
-			args:  []string{"hello world", "hello"},
-			value: true,
-		},
-		{
-			args:  []string{"hello world", "world"},
-			value: true,
-		},
-		{
-			args:  []string{"hello world0", "0"},
-			value: true,
-		},
-		{
-			args: []string{"hello world", "test"},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("StrContains %v", tc.args), func(t *testing.T) {
-			t.Parallel()
-
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
-
-			actual, err := config.StrContains(ctx, pctx, tc.args)
-			if tc.err != "" {
-				require.EqualError(t, err, tc.err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			assert.Equal(t, tc.value, actual)
-		})
-	}
-}
-
 func TestReadTFVarsFiles(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(
+		t,
+		venvtest.NewWithOSFS(),
+		config.DefaultTerragruntConfigPath,
+	)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
 		pctx,
@@ -2262,90 +2128,6 @@ func TestConstraintCheck(t *testing.T) {
 				assert.Equal(t, tc.value, actual)
 			},
 		)
-	}
-}
-
-// TestStartsWithArityRegression: startswith with wrong arity must return WrongNumberOfParamsError, not panic.
-func TestStartsWithArityRegression(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name string
-		args []string
-	}{
-		{name: "no args", args: []string{}},
-		{name: "one arg (the bug trigger)", args: []string{"foo"}},
-		{name: "three args", args: []string{"foo", "bar", "baz"}},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
-
-			require.NotPanics(t, func() {
-				_, err := config.StartsWith(ctx, pctx, tc.args)
-				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
-				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
-			}, "startswith with %d args must not panic", len(tc.args))
-		})
-	}
-}
-
-// TestEndsWithArityRegression: endswith with wrong arity must return WrongNumberOfParamsError, not panic.
-func TestEndsWithArityRegression(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name string
-		args []string
-	}{
-		{name: "no args", args: []string{}},
-		{name: "one arg (the bug trigger)", args: []string{"foo"}},
-		{name: "three args", args: []string{"foo", "bar", "baz"}},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
-
-			require.NotPanics(t, func() {
-				_, err := config.EndsWith(ctx, pctx, tc.args)
-				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
-				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
-			}, "endswith with %d args must not panic", len(tc.args))
-		})
-	}
-}
-
-// TestStrContainsArityRegression: strcontains with wrong arity must return WrongNumberOfParamsError, not panic.
-func TestStrContainsArityRegression(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name string
-		args []string
-	}{
-		{name: "no args", args: []string{}},
-		{name: "one arg (the bug trigger)", args: []string{"hello"}},
-		{name: "three args", args: []string{"hello", "world", "extra"}},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
-
-			require.NotPanics(t, func() {
-				_, err := config.StrContains(ctx, pctx, tc.args)
-				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
-				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
-			}, "strcontains with %d args must not panic", len(tc.args))
-		})
 	}
 }
 

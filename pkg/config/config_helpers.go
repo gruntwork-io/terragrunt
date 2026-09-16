@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -50,10 +49,6 @@ import (
 const (
 	noMatchedPats = 1
 	matchedPats   = 2
-
-	// stringCompParams is the exact number of arguments expected by the
-	// startswith, endswith, and strcontains helpers (haystack + needle).
-	stringCompParams = 2
 )
 
 // RunCmdCacheEntry stores run_cmd results including output for replay.
@@ -103,10 +98,6 @@ const (
 	FuncNameGetDefaultRetryableErrors               = "get_default_retryable_errors"
 	FuncNameReadTfvarsFile                          = "read_tfvars_file"
 	FuncNameGetWorkingDir                           = "get_working_dir"
-	FuncNameStartsWith                              = "startswith"
-	FuncNameEndsWith                                = "endswith"
-	FuncNameStrContains                             = "strcontains"
-	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
 	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
@@ -381,13 +372,6 @@ func createTerragruntEvalContext(
 
 			return Base64GzipCompatRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath}
 		}),
-
-		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
-		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
-		FuncNameStartsWith:  wrapStringSliceToBoolAsFuncImpl(ctx, pctx, StartsWith),
-		FuncNameEndsWith:    wrapStringSliceToBoolAsFuncImpl(ctx, pctx, EndsWith),
-		FuncNameStrContains: wrapStringSliceToBoolAsFuncImpl(ctx, pctx, StrContains),
-		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, pctx, l, TimeCmp),
 	}
 
 	functions := map[string]function.Function{}
@@ -1473,77 +1457,6 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 	}
 
 	return &imported, nil
-}
-
-// StartsWith Implementation of Terraform's StartsWith function
-func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) != stringCompParams {
-		return false, WrongNumberOfParamsError{
-			Func:     "startswith",
-			Expected: strconv.Itoa(stringCompParams),
-			Actual:   len(args),
-		}
-	}
-
-	return strings.HasPrefix(args[0], args[1]), nil
-}
-
-// EndsWith Implementation of Terraform's EndsWith function
-func EndsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) != stringCompParams {
-		return false, WrongNumberOfParamsError{
-			Func:     "endswith",
-			Expected: strconv.Itoa(stringCompParams),
-			Actual:   len(args),
-		}
-	}
-
-	return strings.HasSuffix(args[0], args[1]), nil
-}
-
-// TimeCmp implements Terraform's `timecmp` function that compares two timestamps.
-func TimeCmp(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	args []string,
-) (int64, error) {
-	if len(args) != matchedPats {
-		return 0, errors.New("function can take only two parameters: timestamp_a and timestamp_b")
-	}
-
-	tsA, err := util.ParseTimestamp(args[0])
-	if err != nil {
-		return 0, fmt.Errorf("could not parse first parameter %q: %w", args[0], err)
-	}
-
-	tsB, err := util.ParseTimestamp(args[1])
-	if err != nil {
-		return 0, fmt.Errorf("could not parse second parameter %q: %w", args[1], err)
-	}
-
-	switch {
-	case tsA.Equal(tsB):
-		return 0, nil
-	case tsA.Before(tsB):
-		return -1, nil
-	default:
-		// By elimination, tsA must be after tsB.
-		return 1, nil
-	}
-}
-
-// StrContains Implementation of Terraform's StrContains function
-func StrContains(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) != stringCompParams {
-		return false, WrongNumberOfParamsError{
-			Func:     "strcontains",
-			Expected: strconv.Itoa(stringCompParams),
-			Actual:   len(args),
-		}
-	}
-
-	return strings.Contains(args[0], args[1]), nil
 }
 
 // readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string
