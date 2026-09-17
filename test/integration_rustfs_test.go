@@ -543,18 +543,7 @@ func assertDependencyOutputFromBackend(t *testing.T, commands []helpers.Recorded
 func runTerragruntRustFS(t *testing.T, command string) (string, string, error) {
 	t.Helper()
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	v := rustfsVenv()
-	v.Writers = &writer.Writers{Writer: &stdout, ErrWriter: &stderr}
-
-	err := helpers.RunTerragruntCommandWithVenv(t, t.Context(), v, command)
-
-	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
-	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
-
-	return stdout.String(), stderr.String(), err
+	return helpers.RunTerragruntCommandWithOutputWithVenv(t, rustfsVenv(), command)
 }
 
 // rustfsVenv returns an OS venv whose environment carries the RustFS

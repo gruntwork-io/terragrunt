@@ -1300,6 +1300,25 @@ func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 	return RunTerragruntCommandWithOutputWithContext(t, t.Context(), command)
 }
 
+// RunTerragruntCommandWithOutputWithVenv runs command in-process against a copy
+// of v whose writers capture output, and returns its stdout and stderr.
+func RunTerragruntCommandWithOutputWithVenv(
+	t *testing.T,
+	v *venv.Venv,
+	command string,
+) (string, string, error) {
+	t.Helper()
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := RunTerragruntCommandWithVenv(t, t.Context(), v.WithWriter(&stdout).WithErrWriter(&stderr), command)
+	LogBufferContentsLineByLine(t, stdout, "stdout")
+	LogBufferContentsLineByLine(t, stderr, "stderr")
+
+	return stdout.String(), stderr.String(), err
+}
+
 func RunTerragruntRedirectOutput(
 	t *testing.T,
 	command string,

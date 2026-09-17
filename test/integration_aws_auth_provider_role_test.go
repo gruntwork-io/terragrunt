@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,8 @@ const testFixtureAwsAuthProviderRoleReuse = "fixtures/auth-provider-cmd/role-ses
 
 // TestAWSAuthProviderRoleIsAssumedWithCallerIdentity checks real STS gets the caller's own credentials.
 func TestAWSAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
-	// t.Parallel() cannot be used together with t.Setenv()
+	t.Parallel()
+
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
 	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
 
@@ -28,12 +30,13 @@ func TestAWSAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAwsAuthProviderRoleReuse)
 	authCmd := filepath.Join(rootPath, "auth-provider.sh")
 
-	// The script exits non-zero without this, so set it before validating.
-	t.Setenv("TG_TEST_ROLE_ARN", assumeRole)
+	// The script exits non-zero without this.
+	v := venv.OSVenv()
+	v.Env["TG_TEST_ROLE_ARN"] = assumeRole
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authCmd)
+	helpers.ValidateAuthProviderScript(t, v, rootPath, authCmd)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v, fmt.Sprintf(
 		"terragrunt run --all plan --non-interactive --log-level debug --working-dir %s --auth-provider-cmd %s",
 		rootPath, authCmd,
 	))
@@ -49,7 +52,8 @@ func TestAWSAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 
 // TestAWSAuthProviderRoleWithJSONOutDir covers the --json-out-dir path, which runs each unit twice.
 func TestAWSAuthProviderRoleWithJSONOutDir(t *testing.T) {
-	// t.Parallel() cannot be used together with t.Setenv()
+	t.Parallel()
+
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
 	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
 
@@ -58,15 +62,16 @@ func TestAWSAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAwsAuthProviderRoleReuse)
 	authCmd := filepath.Join(rootPath, "auth-provider.sh")
 
-	// The script exits non-zero without this, so set it before validating.
-	t.Setenv("TG_TEST_ROLE_ARN", assumeRole)
+	// The script exits non-zero without this.
+	v := venv.OSVenv()
+	v.Env["TG_TEST_ROLE_ARN"] = assumeRole
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authCmd)
+	helpers.ValidateAuthProviderScript(t, v, rootPath, authCmd)
 
 	outDir := filepath.Join(t.TempDir(), "plans")
 	jsonOutDir := filepath.Join(t.TempDir(), "json")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v, fmt.Sprintf(
 		"terragrunt run --all plan --non-interactive --log-level debug --working-dir %s --auth-provider-cmd %s --out-dir %s --json-out-dir %s",
 		rootPath, authCmd, outDir, jsonOutDir,
 	))
