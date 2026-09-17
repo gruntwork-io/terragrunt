@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -128,27 +129,30 @@ func TestAWSAssumeRoleWebIdentityFlag(t *testing.T) {
 }
 
 func TestAWSReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
-	// t.Parallel() cannot be used together with t.Setenv()
-	// t.Parallel()
+	t.Parallel()
+
 	token := fetchGitHubOIDCToken(t)
 
-	t.Setenv("OIDC_TOKEN", token)
+	v := venv.OSVenv()
+	v.Env["OIDC_TOKEN"] = token
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	oidcPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
 	helpers.CleanupTerraformFolder(t, oidcPath)
 	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, oidcPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, v, oidcPath, mockAuthCmd)
 
-	helpers.RunTerragrunt(
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
+		v,
 		fmt.Sprintf(
 			`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`,
 			oidcPath,
 			mockAuthCmd,
 		),
 	)
+	require.NoError(t, err)
 }
 
 func TestAWSReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
@@ -174,7 +178,7 @@ func TestAWSReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, remoteStateOIDCPath)
 	mockAuthCmd := filepath.Join(remoteStateOIDCPath, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, remoteStateOIDCPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), remoteStateOIDCPath, mockAuthCmd)
 
 	// Create a temporary terragrunt config with actual values
 	tmpTerragruntConfigFile := filepath.Join(remoteStateOIDCPath, "terragrunt.hcl")
@@ -251,7 +255,7 @@ func TestAWSReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T)
 	// set before the script is validated below.
 	t.Setenv("OIDC_TOKEN", token)
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	tmpTerragruntConfigFile := filepath.Join(rootPath, "terragrunt.hcl")
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())

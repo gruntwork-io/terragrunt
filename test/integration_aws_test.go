@@ -1139,9 +1139,9 @@ func TestAWSSetsAccessLoggingForTFStateS3BucketToADifferentBucketWithDefaultTarg
 	assert.Equal(t, s3backend.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
 }
 
-func TestAWSStackCommands(t *testing.T) { //nolint:paralleltest // parallel runs trip a CircleCI bucket-policy error
-	// It seems that disabling parallel test execution helps avoid the CircleCi error: "NoSuchBucket Policy: The bucket policy does not exist."
-	// t.Parallel()
+func TestAWSStackCommands(t *testing.T) {
+	t.Parallel()
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
 
@@ -1773,10 +1773,9 @@ func TestAWSRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 	)
 }
 
-func TestAWSOutputFromRemoteState(t *testing.T) { //nolint:paralleltest // config.ClearOutputCache mutates a global these tests share
-	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
-	// t.Parallel()
+func TestAWSOutputFromRemoteState(t *testing.T) {
+	t.Parallel()
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
@@ -2010,7 +2009,7 @@ func TestAWSReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := filepath.Join(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, appPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), appPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t,
@@ -2054,7 +2053,7 @@ func TestAWSReadTerragruntAuthProviderCmdWithSOPS(t *testing.T) {
 		"__FILL_AWS_SESSION_TOKEN__":     os.Getenv("AWS_SESSION_TOKEN"),
 	})
 
-	helpers.ValidateAuthProviderScript(t, sopsPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), sopsPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t, fmt.Sprintf(

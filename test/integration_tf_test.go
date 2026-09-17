@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -3886,7 +3887,7 @@ func TestTFReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := filepath.Join(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t,
@@ -3960,7 +3961,7 @@ func TestTFReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4020,7 +4021,7 @@ func TestTFNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
