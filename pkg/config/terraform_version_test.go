@@ -165,16 +165,10 @@ include "root" {
 
 // TestTerraformConfigValidateVersionRequiresExperiment pins that the version
 // attribute is rejected unless the version-attribute experiment is enabled.
-// TG_EXPERIMENT_MODE forces every experiment on, which defeats the
-// disabled-state assertion, so skip it there.
 func TestTerraformConfigValidateVersionRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces the version-attribute experiment on, so its disabled-state error can't be verified",
-		)
-	}
+	helpers.SkipInExperimentMode(t, experiment.VersionAttribute)
 
 	cfg := &config.TerraformConfig{
 		Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),

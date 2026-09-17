@@ -191,9 +191,10 @@ func (b *bodyReader) wrap(err error) error {
 	return fmt.Errorf("%w: %w", ErrMalformedResponse, err)
 }
 
-// checkBrowsable rejects a verification URL a browser must not open. Login
-// opens these directly, so a file: or javascript: scheme would turn a
-// compromised or misconfigured portal into local code execution.
+// checkBrowsable rejects a verification URL that is not a web page. Login has
+// nowhere to send the user, so it fails here rather than printing a dead URL
+// and waiting for an approval that cannot arrive. What such a URL would do to
+// the host is the browser opener's concern, and it refuses them too.
 func checkBrowsable(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {

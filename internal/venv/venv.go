@@ -26,6 +26,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -58,6 +59,11 @@ var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
 // nil. Production callers build the Venv through [OSVenv], so it points at a
 // test that forgot to set HTTP rather than a runtime condition.
 var ErrVenvHTTPUnset = errors.New("venv.Venv.HTTP is required but unset")
+
+// ErrVenvBrowserUnset is the panic value [Venv.RequireBrowser] raises when
+// Browser is nil. Production callers build the Venv through [OSVenv], so it
+// points at a test that forgot to set Browser rather than a runtime condition.
+var ErrVenvBrowserUnset = errors.New("venv.Venv.Browser is required but unset")
 
 // ErrVenvStdinUnset is the panic value [Venv.RequireStdin] raises when Stdin is
 // nil. Production callers build the Venv through [OSVenv], so it points at a
@@ -99,19 +105,24 @@ var ErrVenvUserHomeDirUnset = errors.New("venv.Venv.Platform.UserHomeDir is requ
 // when UserCacheDir is nil.
 var ErrVenvUserCacheDirUnset = errors.New("venv.Venv.Platform.UserCacheDir is required but unset")
 
+// ErrVenvUserConfigDirUnset is the panic value [Venv.RequireUserConfigDir]
+// raises when UserConfigDir is nil.
+var ErrVenvUserConfigDirUnset = errors.New("venv.Venv.Platform.UserConfigDir is required but unset")
+
 // ErrVenvTempDirUnset is the panic value [Venv.RequireTempDir] raises when
 // TempDir is nil.
 var ErrVenvTempDirUnset = errors.New("venv.Venv.Platform.TempDir is required but unset")
 
 // Platform carries the operating-system handles used below the CLI boundary.
 type Platform struct {
-	UserHomeDir  func() (string, error)
-	UserCacheDir func() (string, error)
-	TempDir      func() string
-	Getwd        func() (string, error)
-	GetPID       func() int
-	GOOS         string
-	GOARCH       string
+	UserHomeDir   func() (string, error)
+	UserCacheDir  func() (string, error)
+	UserConfigDir func() (string, error)
+	TempDir       func() string
+	Getwd         func() (string, error)
+	GetPID        func() int
+	GOOS          string
+	GOARCH        string
 }
 
 // Terminal reports the console a run's output is adapting to: whether each
@@ -126,8 +137,8 @@ type Terminal struct {
 }
 
 // Venv is the root virtualized environment. It carries the filesystem,
-// process-execution, HTTP, SOPS-decryption, environment-variable, platform,
-// and writer handles that every Terragrunt operation needs. Env is shared by
+// process-execution, HTTP, SOPS-decryption, browser, environment-variable,
+// platform, and writer handles that every Terragrunt operation needs. Env is shared by
 // reference across the run and mutated in place as provider-cache, hook, and
 // inputs contributions resolve. Writers is held as a pointer so per-call
 // overrides via [writer.Writers.WithWriter] and [writer.Writers.WithErrWriter]
@@ -146,6 +157,7 @@ type Venv struct {
 	Exec     vexec.Exec
 	HTTP     vhttp.Client
 	Sops     vsops.Decrypter
+	Browser  vbrowser.Opener
 	Listen   Listener
 	Stdin    io.Reader
 	Env      map[string]string
@@ -213,6 +225,14 @@ func (v *Venv) WithHTTP(c vhttp.Client) *Venv {
 	return &cp
 }
 
+// WithBrowser returns a copy of v whose browser opener is o.
+func (v *Venv) WithBrowser(o vbrowser.Opener) *Venv {
+	c := *v
+	c.Browser = o
+
+	return &c
+}
+
 // WithSops returns a copy of v whose SOPS decrypter is d.
 func (v *Venv) WithSops(d vsops.Decrypter) *Venv {
 	c := *v
@@ -261,6 +281,32 @@ func (v *Venv) WithUserHomeDir(userHomeDir func() (string, error)) *Venv {
 
 	platform := *v.Platform
 	platform.UserHomeDir = userHomeDir
+
+	c := *v
+	c.Platform = &platform
+
+	return &c
+}
+
+// WithUserCacheDir returns a copy of v whose cache-directory lookup is userCacheDir.
+func (v *Venv) WithUserCacheDir(userCacheDir func() (string, error)) *Venv {
+	v.RequirePlatform()
+
+	platform := *v.Platform
+	platform.UserCacheDir = userCacheDir
+
+	c := *v
+	c.Platform = &platform
+
+	return &c
+}
+
+// WithUserConfigDir returns a copy of v whose config-directory lookup is userConfigDir.
+func (v *Venv) WithUserConfigDir(userConfigDir func() (string, error)) *Venv {
+	v.RequirePlatform()
+
+	platform := *v.Platform
+	platform.UserConfigDir = userConfigDir
 
 	c := *v
 	c.Platform = &platform
@@ -354,6 +400,13 @@ func (v *Venv) RequireHTTP() {
 	}
 }
 
+// RequireBrowser panics with [ErrVenvBrowserUnset] when Browser is nil.
+func (v *Venv) RequireBrowser() {
+	if v.Browser == nil {
+		panic(ErrVenvBrowserUnset)
+	}
+}
+
 // RequireTerminal panics with [ErrVenvTerminalUnset] when Terminal is nil.
 // Functions that size or color their output call this as their first
 // statement so a missing handle panics at the offending call site instead of
@@ -434,6 +487,13 @@ func (v *Venv) RequireUserCacheDir() {
 	}
 }
 
+// RequireUserConfigDir panics with [ErrVenvUserConfigDirUnset] when UserConfigDir is nil.
+func (v *Venv) RequireUserConfigDir() {
+	if v.Platform == nil || v.Platform.UserConfigDir == nil {
+		panic(ErrVenvUserConfigDirUnset)
+	}
+}
+
 // RequireTempDir panics with [ErrVenvTempDirUnset] when TempDir is nil.
 func (v *Venv) RequireTempDir() {
 	if v.Platform == nil || v.Platform.TempDir == nil {
@@ -454,21 +514,23 @@ func (v *Venv) RequireTempDir() {
 // [writer.Writers.WithWriter] returns a fresh copy.
 func OSVenv() *Venv {
 	return &Venv{
-		FS:     vfs.NewOSFS(),
-		Exec:   vexec.NewOSExec(),
-		HTTP:   vhttp.NewOSClient(),
-		Sops:   vsops.NewOSDecrypter(),
-		Listen: (&net.ListenConfig{}).Listen,
-		Stdin:  os.Stdin,
-		Env:    ParseEnviron(os.Environ()),
+		FS:      vfs.NewOSFS(),
+		Exec:    vexec.NewOSExec(),
+		HTTP:    vhttp.NewOSClient(),
+		Sops:    vsops.NewOSDecrypter(),
+		Browser: vbrowser.NewOSOpener(),
+		Listen:  (&net.ListenConfig{}).Listen,
+		Stdin:   os.Stdin,
+		Env:     ParseEnviron(os.Environ()),
 		Platform: &Platform{
-			UserHomeDir:  os.UserHomeDir,
-			UserCacheDir: os.UserCacheDir,
-			TempDir:      os.TempDir,
-			Getwd:        os.Getwd,
-			GetPID:       os.Getpid,
-			GOOS:         runtime.GOOS,
-			GOARCH:       runtime.GOARCH,
+			UserHomeDir:   os.UserHomeDir,
+			UserCacheDir:  os.UserCacheDir,
+			UserConfigDir: os.UserConfigDir,
+			TempDir:       os.TempDir,
+			Getwd:         os.Getwd,
+			GetPID:        os.Getpid,
+			GOOS:          runtime.GOOS,
+			GOARCH:        runtime.GOARCH,
 		},
 		Terminal: &Terminal{
 			StdinIsTTY:  func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },

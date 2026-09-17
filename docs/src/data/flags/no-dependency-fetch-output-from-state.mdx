@@ -1,12 +1,12 @@
 ---
 name: no-dependency-fetch-output-from-state
-description: Disable the dependency-fetch-output-from-state feature even when the experiment is enabled.
+description: Read dependency outputs by running tofu/terraform output instead of reading the state file directly.
 type: bool
 env:
   - TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE
 ---
 
-When enabled, Terragrunt will disable the `dependency-fetch-output-from-state` feature. This flag allows you to selectively opt-out of fetching dependency outputs directly from state files.
+Terragrunt reads dependency outputs directly from the remote state file by default. This flag opts out of that, so Terragrunt initializes each dependency and runs `tofu output` or `terraform output` against it, as it did before `v1.2.0`.
 
-This is useful when you want to maintain control over dependency output retrieval in specific environments or scenarios, even when the experiment is enabled globally.
+Use it when a unit needs the native output path, for example a `render` command resolving real outputs from state encrypted with OpenTofu client-side encryption.
 

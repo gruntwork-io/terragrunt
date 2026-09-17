@@ -28,3 +28,17 @@ func StripGitURLParams(u *url.URL) (*url.URL, string) {
 
 	return stripped, ref
 }
+
+// RedactURL returns rawURL with any userinfo removed, so a token embedded
+// in an https URL never reaches an error or a log line. Input net/url
+// cannot parse (SCP form, which carries no secret) comes back unchanged.
+func RedactURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.User == nil {
+		return rawURL
+	}
+
+	u.User = nil
+
+	return u.String()
+}

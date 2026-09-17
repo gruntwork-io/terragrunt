@@ -1,0 +1,18 @@
+---
+version: "v1.1.5"
+category: "experiments-added"
+---
+
+#### `offline-cas` gates the CAS probe cache
+
+The `offline-cas` experiment has been added as the gate for the probe cache the [CAS](/features/caching/cas) keeps, in which it records what each source resolved to so a later run can skip asking the remote.
+
+Enabling the experiment turns the cache on and unlocks three flags that change how its answers are used: `--cas-offline`, `--cas-refresh`, and `--cas-probe-ttl`. Setting one of them without the experiment returns an error naming the flag.
+
+```bash
+terragrunt run --experiment offline-cas --all --cas-offline -- plan
+```
+
+Without the experiment nothing is recorded or served, and every run probes every source, as before.
+
+See the [experiment documentation](/reference/experiments/active#offline-cas) for what each flag does and what has to land before it stabilizes.

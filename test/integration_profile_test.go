@@ -32,7 +32,6 @@ func TestTGProfileEnvVarsCreateProfileFiles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			profilePath := filepath.Join(helpers.TmpDirWOSymlinks(t), tc.fileName)
 
-			t.Setenv("TG_EXPERIMENT", "profiling")
 			t.Setenv(tc.envName, profilePath)
 
 			helpers.RunTerragrunt(t, "terragrunt version")
@@ -47,11 +46,11 @@ func TestProfileFlagsCreateProfileFiles(t *testing.T) {
 		name string
 		args string
 	}{
-		{name: "cpu", args: "terragrunt --experiment profiling --profile-cpu %s version"},
-		{name: "cpu equals form", args: "terragrunt --experiment=profiling --profile-cpu=%s version"},
-		{name: "cpu flags after command", args: "terragrunt version --experiment profiling --profile-cpu %s"},
-		{name: "mem", args: "terragrunt --experiment profiling --profile-mem %s version"},
-		{name: "goroutine", args: "terragrunt --experiment profiling --profile-goroutine %s version"},
+		{name: "cpu", args: "terragrunt --profile-cpu %s version"},
+		{name: "cpu equals form", args: "terragrunt --profile-cpu=%s version"},
+		{name: "cpu flags after command", args: "terragrunt version --profile-cpu %s"},
+		{name: "mem", args: "terragrunt --profile-mem %s version"},
+		{name: "goroutine", args: "terragrunt --profile-goroutine %s version"},
 	}
 
 	for _, tc := range testCases {
@@ -78,7 +77,6 @@ func TestTGProfileDirDoesNotOverrideExplicitTofuCPUProfile(t *testing.T) {
 	profileDir := filepath.Join(tmpDir, "profiles")
 	tofuProfilePath := filepath.Join(tmpDir, "tofu_cpu.prof")
 
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_DIR", profileDir)
 	t.Setenv("TOFU_CPU_PROFILE", tofuProfilePath)
 
@@ -103,7 +101,6 @@ func TestTGProfileDirRespectsExplicitTofuProfileInsideDir(t *testing.T) {
 	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles")
 	customProfile := filepath.Join(profileDir, "custom_tofu.prof")
 
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_DIR", profileDir)
 	t.Setenv("TOFU_CPU_PROFILE", customProfile)
 
@@ -126,7 +123,6 @@ func TestTGProfileDirRespectsExtraArgsTofuProfile(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProfileExtraArgsEnv)
 
 	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles")
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_DIR", profileDir)
 
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
@@ -149,7 +145,6 @@ func TestTGProfileDirCollectsProfiles(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
 	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles")
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_DIR", profileDir)
 
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
@@ -169,7 +164,6 @@ func TestTGProfileDirPerUnitTofuProfiles(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProfileMultiUnit)
 
 	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles")
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_DIR", profileDir)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
@@ -191,7 +185,6 @@ func TestTGProfileDirRelativePathResolvesAgainstWorkingDir(t *testing.T) {
 	cwd := helpers.TmpDirWOSymlinks(t)
 	t.Chdir(cwd)
 
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_DIR", "profiles")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
@@ -210,7 +203,6 @@ func TestTGProfileDirWithExplicitTGProfileCPU(t *testing.T) {
 	profileDir := filepath.Join(tmpDir, "profiles")
 	customProfile := filepath.Join(tmpDir, "my_custom.prof")
 
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_DIR", profileDir)
 	t.Setenv("TG_PROFILE_CPU", customProfile)
 
@@ -224,7 +216,7 @@ func TestTGProfileDirWithExplicitTGProfileCPU(t *testing.T) {
 func TestProfileDirFlagCollectsProfiles(t *testing.T) {
 	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles_from_flag")
 
-	helpers.RunTerragrunt(t, "terragrunt --experiment profiling --profile-dir "+profileDir+" version")
+	helpers.RunTerragrunt(t, "terragrunt --profile-dir "+profileDir+" version")
 
 	for _, name := range []string{"terragrunt_cpu.prof", "terragrunt_mem.prof", "terragrunt_goroutine.prof"} {
 		requireNonEmptyFile(t, filepath.Join(profileDir, name))
@@ -235,14 +227,14 @@ func TestProfileDirFlagPointingAtFileErrors(t *testing.T) {
 	filePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "not_a_dir")
 	require.NoError(t, os.WriteFile(filePath, []byte("x"), 0o600))
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment profiling --profile-dir "+filePath+" version")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --profile-dir "+filePath+" version")
 	require.ErrorContains(t, err, "could not create profile directory")
 }
 
 func TestProfileMemFlagBadPathErrors(t *testing.T) {
 	profilePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "missing", "mem.prof")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment profiling --profile-mem "+profilePath+" version")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --profile-mem "+profilePath+" version")
 	require.ErrorContains(t, err, "could not create memory profile")
 	assert.NoFileExists(t, profilePath)
 }

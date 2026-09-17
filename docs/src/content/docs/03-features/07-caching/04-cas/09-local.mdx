@@ -6,15 +6,6 @@ sidebar:
   order: 9
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
-
-<Before version="1.1.0">
-<Aside type="tip" title="Experimental">
-CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
-</Aside>
-
-</Before>
 ## Overview
 
 A local source is a directory on the machine running Terragrunt. There is nothing remote to probe, so Terragrunt reads the directory directly and keys it by the content hash of its tree.
@@ -38,4 +29,3 @@ When the tree hash is already present, Terragrunt links the cached tree into the
 ## Fallback behavior
 
 There is no network step to fall back from. When materializing content into the target, the usual hard-link-to-copy fallback applies if the host cannot hard link from the store.
-

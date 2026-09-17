@@ -25,7 +25,7 @@ func TestRelationshipPhase_SortsDependencies(t *testing.T) {
 
 	appDir := filepath.Join(tmpDir, "app")
 
-	v := memGitTopLevelVenv(t, tmpDir)
+	v := memRepoRootVenv(t, tmpDir)
 
 	writeUnits(t, v.FS, map[string]string{
 		filepath.Join(tmpDir, "a-unit"): ``,

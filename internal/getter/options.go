@@ -12,11 +12,6 @@ import (
 // Option mutates a Client builder.
 type Option func(*builder)
 
-// WithLogger sets a default logger used by getters that don't carry their own.
-func WithLogger(l log.Logger) Option {
-	return func(b *builder) { b.logger = l }
-}
-
 // WithFileCopy substitutes the default file-protocol getter with the supplied
 // FileCopyGetter, which copies directories instead of symlinking them. Use
 // NewFileCopyGetter to build one with sensible defaults.

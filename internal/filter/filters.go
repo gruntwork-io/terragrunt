@@ -16,14 +16,6 @@ import (
 // within one filter string separated by |, which are intersected).
 type Filters []*Filter
 
-// ErrBoundaryRequiresExperiment is returned when a filter expression uses the
-// inline "(dir)" graph boundary operand without the bounded-discovery experiment
-// enabled.
-var ErrBoundaryRequiresExperiment = errors.New(
-	"the inline '(dir)' graph boundary requires the 'bounded-discovery' experiment " +
-		"to be enabled (e.g., --experiment=bounded-discovery)",
-)
-
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.
 // Collects all parse errors and returns them as a joined error if any occur.
 // Returns an empty Filters if filterStrings is empty.
@@ -122,6 +114,18 @@ func (f Filters) RequiresParse() (Expression, bool) {
 	}
 
 	return nil, false
+}
+
+// RequiresReading returns true if any filter matches on what a component reads,
+// which is only knowable once parsing records the files each component read.
+func (f Filters) RequiresReading() bool {
+	for _, filter := range f {
+		if containsReadingExpression(filter.expr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // PartitionReadingFilters splits the filters by whether their top-level expression is a reading
@@ -347,6 +351,23 @@ func (f Filters) String() string {
 	}
 
 	return string(jsonBytes)
+}
+
+// containsReadingExpression returns true if the expression tree contains a reading
+// attribute filter.
+func containsReadingExpression(expr Expression) bool {
+	found := false
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if attr, ok := e.(*AttributeExpression); ok && attr.Key == AttributeReading {
+			found = true
+			return false
+		}
+
+		return true
+	})
+
+	return found
 }
 
 // containsGitExpression returns true if the expression tree contains a GitExpression.

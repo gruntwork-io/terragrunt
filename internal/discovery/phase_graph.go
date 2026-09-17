@@ -695,7 +695,13 @@ func (p *GraphPhase) processUpstreamCandidate(
 	state *upstreamDiscoveryState,
 	candidate component.Component,
 ) component.Component {
-	if loaded := state.checkedForTarget.LoadOrStore(candidate.Path()); loaded {
+	unit, ok := candidate.(*component.Unit)
+	if !ok {
+		return nil
+	}
+
+	claim := filepath.Join(candidate.Path(), unit.ConfigFile())
+	if loaded := state.checkedForTarget.LoadOrStore(claim); loaded {
 		return nil
 	}
 
@@ -703,31 +709,25 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	if _, ok := candidate.(*component.Stack); ok {
-		return nil
-	}
-
 	if candidate.Path() == state.target.Path() {
-		return nil
-	}
-
-	unit, ok := candidate.(*component.Unit)
-	if !ok {
 		return nil
 	}
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
 	graphState := state.graphTraversalState
 
+	published := graphState.threadSafeComponents.FindByPath(v.FS, candidate.Path())
+	parseUnit := upstreamParseUnit(published, unit)
+
 	if err := ensureParsed(
 		ctx,
 		l,
 		v,
-		candidate,
+		parseUnit,
 		graphState.opts,
 		graphState.discovery,
 	); err != nil {
-		if !state.graphTraversalState.discovery.suppressParseErrors {
+		if !graphState.discovery.suppressParseErrors {
 			state.errMu.Lock()
 
 			*state.errs = append(*state.errs, err)
@@ -738,7 +738,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	cfg := unit.Config()
+	cfg := parseUnit.Config()
 
 	deps, err := extractDependencyPaths(v.FS, cfg, candidate)
 	if err != nil {
@@ -753,7 +753,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	var stackErr error
 
-	deps, stackErr = stackDependencyPaths(ctx, l, v, state.graphTraversalState.opts, deps)
+	deps, stackErr = stackDependencyPaths(ctx, l, v, graphState.opts, deps)
 	if stackErr != nil {
 		state.errMu.Lock()
 		*state.errs = append(*state.errs, stackErr)
@@ -773,7 +773,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 		candidate.SetDiscoveryContext(copiedCtx)
 	}
 
-	canonicalCandidate, _ := state.graphTraversalState.threadSafeComponents.EnsureComponent(
+	canonicalCandidate, _ := graphState.threadSafeComponents.EnsureComponent(
 		v.FS,
 		candidate,
 	)
@@ -832,6 +832,23 @@ func (p *GraphPhase) processUpstreamCandidate(
 	}
 
 	return nil
+}
+
+// upstreamParseUnit returns the unit to parse for candidate. It is the unit the
+// shared set already holds for candidate's path when parsing that unit reads the
+// same config file, and candidate itself otherwise.
+func upstreamParseUnit(published component.Component, candidate *component.Unit) *component.Unit {
+	publishedUnit, ok := published.(*component.Unit)
+	if !ok {
+		return candidate
+	}
+
+	if publishedUnit.Path() != candidate.Path() ||
+		publishedUnit.ConfigFile() != candidate.ConfigFile() {
+		return candidate
+	}
+
+	return publishedUnit
 }
 
 // resolveDependency resolves a dependency path to a component.

@@ -1,15 +1,14 @@
 ---
 name: block-iteration
 since: "1.1.3"
+completedSince: "1.2.0"
 ---
 
 The `expansion` block, which iterates a `dependency`, `unit`, or `stack` block over a `count` or `for_each`, and the `enabled` attribute on `unit` and `stack` blocks.
 
 ### `block-iteration` - What it does
 
-Terragrunt has no way to declare one block and have several components come out of it. Running the same unit in three environments means writing the `unit` block three times in `terragrunt.stack.hcl`, and depending on one unit per region means writing one `dependency` block per region.
-
-This experiment enables an `expansion` block on `dependency`, `unit`, and `stack` blocks. It declares either a `count` or a `for_each`, and Terragrunt reads the block it sits in once per element:
+This experiment flag is no longer needed, as Terragrunt now accepts an `expansion` block on `dependency`, `unit`, and `stack` blocks by default. It declares either a `count` or a `for_each`, and Terragrunt reads the block it sits in once per element:
 
 ```hcl
 # terragrunt.stack.hcl
@@ -29,37 +28,22 @@ unit "aurora" {
 
 That generates two units, at `.terragrunt-stack/aurora/web` and `.terragrunt-stack/aurora/api`. You address each element by its key. An expanded `dependency` is read as `dependency.aurora["web"].outputs.id`, and `terragrunt stack output 'aurora["web"].role'` reaches one element of an expanded unit.
 
-The experiment also enables an `enabled` attribute on `unit` and `stack` blocks. Setting it to `false` drops the component from stack generation and leaves every other address alone. `dependency` blocks accept `enabled` without the experiment.
-
-Without the experiment, an `expansion` block on any of the three block types, or an `enabled` attribute on a `unit` or `stack`, is an error that names the flag:
-
-```text
-the unit "app" block in /path/to/terragrunt.stack.hcl uses an expansion block, which requires the 'block-iteration' experiment; enable it with --experiment block-iteration
-```
+`unit` and `stack` blocks also accept an `enabled` attribute. Setting it to `false` drops the component from stack generation and leaves every other address alone.
 
 See the [`expansion` block reference](/reference/hcl/blocks#expansion) for the full set of rules, the addressing scheme, and what changing an expansion does to existing state.
 
-### `block-iteration` - How to enable it
-
-```bash
-# Via CLI flag
-terragrunt --experiment block-iteration stack generate
-
-# Via environment variable
-export TG_EXPERIMENT=block-iteration
-terragrunt stack generate
-```
-
 ### `block-iteration` - How to provide feedback
 
-Track and discuss this experiment in [gruntwork-io/terragrunt#4504](https://github.com/gruntwork-io/terragrunt/issues/4504).
+Now that the `block-iteration` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
 
 ### `block-iteration` - Criteria for stabilization
 
-To transition the `block-iteration` feature to a stable release, the following must be addressed:
+To transition the `block-iteration` feature to a stable release, the following were addressed. Unchecked items remain open.
 
-- [ ] The lifecycle matrix holds for every block type: adding, growing, shrinking, and removing an expansion on `dependency`, `unit`, and `stack` blocks behaves as documented.
-- [ ] Keyed addressing works in `inputs` and in `stack output`, including keys containing characters such as dots and quotes.
-- [ ] The `render` preview of an expanded configuration reads clearly enough for users to tell what a block expanded into.
-- [ ] Cleaning up state orphaned by a shrunk expansion works as documented with Git-based `--filter` expressions, and its limits are documented.
+- [x] Adding an expansion to a `dependency`, `unit`, or `stack` block, shrinking it, removing it, and setting `enabled = false` behave as the [`expansion` reference](/reference/hcl/blocks#expansion) documents for each block type.
+- [x] Growing an expansion adds only the new elements. Adding a `for_each` key, or appending to the list a `count` reads, leaves every existing `dependency` address, generated `unit` directory, and generated `stack` tree as it was, and an applied unit keeps its state.
+- [x] Keyed addressing works in `inputs` and in `stack output`. `stack output` reads an address as an HCL traversal, so a key containing a dot stays one segment, and `shard[0]` reaches the same element as `shard["0"]`.
+- [x] A key containing a quote resolves in `inputs` when written with HCL's escape, as in `dependency.aurora["a\"b"]`, and `stack output` reads the same escaped address.
+- [x] `render` prints an expanded block as written, followed by its elements as resolved, commented-out blocks. A JSON configuration renders the same way, and `--format json` emits the block as written.
+- [x] Git-based `--filter` expressions select the components an expansion orphaned when it shrank. The reference documents that `run --all destroy --filter` is rejected, that orphans are found only when the stack file or a file it reads appears in the diff, and that a selecting filter drops them.
 - [ ] Positive feedback from users replacing repeated blocks with iteration.

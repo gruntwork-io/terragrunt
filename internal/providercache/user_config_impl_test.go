@@ -135,19 +135,25 @@ func TestImplementationMismatchWarning(t *testing.T) {
 func TestTerraformCommandHookBypassesCacheOnImplementationMismatch(t *testing.T) {
 	t.Parallel()
 
-	const workDir = "/virtual/work"
+	const (
+		home    = "/virtual/home"
+		workDir = "/virtual/work"
+	)
 
 	var invocations []vexec.Invocation
 
 	v := venvtest.New().
 		WithGOOS("linux").
-		WithUserHomeDir(func() (string, error) { return "/virtual/home", nil }).
+		WithUserHomeDir(func() (string, error) { return home, nil }).
 		WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 			invocations = append(invocations, inv)
 			return vexec.Result{}
 		})
 
 	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	// Only OpenTofu reads .tofurc, so the two implementations load different files.
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte(""), 0o600))
 
 	pc := providercache.NewProviderCache()
 	require.NoError(t, pc.Init(
@@ -177,6 +183,56 @@ func TestTerraformCommandHookBypassesCacheOnImplementationMismatch(t *testing.T)
 	require.Len(t, invocations, 1, "the target command must run directly, exactly once")
 	assert.NotContains(t, strings.Join(invocations[0].Env, "\x00"), "TF_CLI_CONFIG_FILE=/virtual/work")
 	assert.False(t, vfs.Exists(v.FS, workDir+"/.terraformrc"), "no cache CLI config may be generated for a bypassed run")
+}
+
+// TestTerraformCommandHookUsesCacheWhenImplementationsShareConfig pins that a run under
+// the other implementation still goes through the cache when both implementations read
+// the same CLI config files, as they do on a machine with no implementation-specific file.
+// A unit setting terraform_binary to the binary the PATH lookup did not pick relies on it.
+func TestTerraformCommandHookUsesCacheWhenImplementationsShareConfig(t *testing.T) {
+	t.Parallel()
+
+	const workDir = "/virtual/work"
+
+	var invocations []vexec.Invocation
+
+	v := venvtest.New().
+		WithGOOS("linux").
+		WithUserHomeDir(func() (string, error) { return "/virtual/home", nil }).
+		WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			invocations = append(invocations, inv)
+			return vexec.Result{}
+		})
+
+	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
+
+	pc := providercache.NewProviderCache()
+	require.NoError(t, pc.Init(
+		logger.CreateLogger(),
+		v,
+		tfimpl.OpenTofu,
+		&pcoptions.ProviderCacheOptions{
+			Dir:           "/virtual/provider-cache",
+			Token:         "11111111-2222-3333-4444-555555555555",
+			RegistryNames: pcoptions.DefaultRegistryNames,
+		},
+		workDir,
+	))
+
+	tfOpts := &tf.TFOptions{
+		TerraformCliArgs:   iacargs.New(),
+		ShellOptions:       shell.NewShellOptions(map[string]string{}).WithTFPath("terraform").WithWorkingDir(workDir),
+		TofuImplementation: tfimpl.Terraform,
+	}
+
+	_, err := pc.TerraformCommandHook(t.Context(), logger.CreateLogger(), v, tfOpts, clihelper.Args{"init"})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, invocations)
+
+	for _, inv := range invocations {
+		assert.Contains(t, strings.Join(inv.Env, "\x00"), "TF_CLI_CONFIG_FILE="+workDir)
+	}
 }
 
 // newBufferLogger returns a logger whose output the test can assert on.

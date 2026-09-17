@@ -1064,9 +1064,7 @@ func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
 	)
 	output := stdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Equal(
 		t,
@@ -1118,9 +1116,7 @@ func TestAwsInitHookWithSourceWithBackend(t *testing.T) {
 	)
 	output := stdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	// `init` hook should execute only once
 	assert.Equal(
@@ -1746,16 +1742,12 @@ func TestAwsGetAccountAliasFunctions(t *testing.T) {
 
 	// Get values from STS
 	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger(), venv.OSVenv())
-	if err != nil {
-		t.Fatalf("Error while creating AWS config: %v", err)
-	}
+	require.NoError(t, err, "Error while creating AWS config")
 
 	iamClient := iam.NewFromConfig(awsCfg)
 
 	aliases, err := iamClient.ListAccountAliases(t.Context(), &iam.ListAccountAliasesInput{})
-	if err != nil {
-		t.Fatalf("Error while getting AWS account aliases: %v", err)
-	}
+	require.NoError(t, err, "Error while getting AWS account aliases")
 
 	alias := ""
 	if len(aliases.AccountAliases) == 1 {
@@ -1792,16 +1784,12 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 
 	// Get values from STS
 	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger(), venv.OSVenv())
-	if err != nil {
-		t.Fatalf("Error while creating AWS config: %v", err)
-	}
+	require.NoError(t, err, "Error while creating AWS config")
 
 	stsClient := sts.NewFromConfig(awsCfg)
 
 	identity, err := stsClient.GetCallerIdentity(t.Context(), &sts.GetCallerIdentityInput{})
-	if err != nil {
-		t.Fatalf("Error while getting AWS caller identity: %v", err)
-	}
+	require.NoError(t, err, "Error while getting AWS caller identity")
 
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
@@ -2211,10 +2199,7 @@ func TestAwsAssumeRoleDuration(t *testing.T) {
 	}
 
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	if len(assumeRole) == 0 {
-		t.Error("AWS_TEST_S3_ASSUME_ROLE environment variable not set")
-		return
-	}
+	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleDuration)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -2278,10 +2263,7 @@ func TestAwsIamRoleAttrWithAmbientCredentials(t *testing.T) {
 	t.Parallel()
 
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	if len(assumeRole) == 0 {
-		t.Error("AWS_TEST_S3_ASSUME_ROLE environment variable not set")
-		return
-	}
+	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIamRoleAttrEnvCreds)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -2326,10 +2308,7 @@ func TestAwsIamRoleFlagWithAmbientCredentials(t *testing.T) {
 	t.Parallel()
 
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	if len(assumeRole) == 0 {
-		t.Error("AWS_TEST_S3_ASSUME_ROLE environment variable not set")
-		return
-	}
+	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIamRoleFlagEnvCreds)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -3336,9 +3315,7 @@ func assertS3Tags(
 	}
 
 	var tags, err2 = client.GetBucketTagging(ctx, &in)
-	if err2 != nil {
-		t.Fatal(err2)
-	}
+	require.NoError(t, err2)
 
 	var actualTags = make(map[string]string)
 
@@ -3597,17 +3574,16 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 			return
 		}
 
-		t.Errorf("Failed to describe DynamoDB table %s: %v", tableName, err)
+		assert.NoError(t, err, "Failed to describe DynamoDB table %s", tableName)
 
 		return
 	}
 
-	if _, err := client.DeleteTable(
+	_, err = client.DeleteTable(
 		ctx,
 		&dynamodb.DeleteTableInput{TableName: aws.String(tableName)},
-	); err != nil {
-		t.Errorf("Failed to delete DynamoDB table %s: %v", tableName, err)
-	}
+	)
+	assert.NoError(t, err, "Failed to delete DynamoDB table %s", tableName)
 }
 
 func bucketPolicy(

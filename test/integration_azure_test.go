@@ -602,7 +602,13 @@ func waitForRoleAssignment(ctx context.Context, t *testing.T, c *azurehelper.RBA
 		time.Sleep(azureRBACPollInterval)
 	}
 
-	t.Fatalf("role assignment did not converge to present=%v within %s", want, azureRBACPropagationTimeout)
+	require.FailNowf(
+		t,
+		"role assignment did not converge",
+		"role assignment did not converge to present=%v within %s",
+		want,
+		azureRBACPropagationTimeout,
+	)
 }
 
 // setupAzureBackendFixture copies the fixture, fills in the live account

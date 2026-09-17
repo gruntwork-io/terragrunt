@@ -173,3 +173,62 @@ func (err UnsupportedForEachKeyTypeError) Error() string {
 		err.Type,
 	)
 }
+
+// JSONBlockSourceError is returned when a block written in JSON cannot be rendered back as the
+// HCL that means the same thing.
+type JSONBlockSourceError struct {
+	Subject *hcl.Range
+	Err     error
+}
+
+func (err JSONBlockSourceError) Error() string {
+	return fmt.Sprintf(
+		"%s: `render` cannot rewrite this JSON block as HCL: %v. The configuration is fine. "+
+			"This is a bug in Terragrunt, so please open an issue at "+
+			"https://github.com/gruntwork-io/terragrunt/issues",
+		err.Subject,
+		err.Err,
+	)
+}
+
+func (err JSONBlockSourceError) Unwrap() error {
+	return err.Err
+}
+
+// UnsupportedJSONBlockError is returned for a nested block that JSON writes as one object per
+// label, which does not map onto a single HCL block.
+type UnsupportedJSONBlockError struct {
+	BlockType string
+}
+
+func (err UnsupportedJSONBlockError) Error() string {
+	return "the " + err.BlockType + " block takes labels, which cannot be recovered from JSON"
+}
+
+// UnquotableBlockError is returned when a block cannot be written back out as the object a
+// JSON config would hold it in.
+type UnquotableBlockError struct {
+	Subject *hcl.Range
+}
+
+func (err UnquotableBlockError) Error() string {
+	return fmt.Sprintf("%s: cannot render this block as JSON", err.Subject)
+}
+
+// UnsupportedJSONValueError is returned for JSON that is not the object, array, string, number,
+// boolean or null the decoder expected.
+type UnsupportedJSONValueError struct {
+	Value string
+}
+
+func (err UnsupportedJSONValueError) Error() string {
+	return "unsupported JSON value: " + err.Value
+}
+
+// UnlocatableJSONBlockError is returned when the array a JSON config wrote a block in holds no
+// element ending where the block's body does, leaving no text to render the block from.
+type UnlocatableJSONBlockError struct{}
+
+func (err UnlocatableJSONBlockError) Error() string {
+	return "no element of the array holding this block ends where its body does"
+}

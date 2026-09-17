@@ -1,0 +1,23 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Bound discovery with `--discovery-boundary` and `(dir)` filters
+
+Graph filters search up to the Git repository root for dependents and follow dependencies wherever they point, so in a monorepo they can parse sibling environments a command never needed.
+
+A `(dir)` operand in a [graph filter](/features/filter/graph#bounded-traversal) stops traversal at that directory:
+
+```bash
+cd environments/staging
+terragrunt find --filter '(.)...vpc'
+```
+
+From the same directory, the [`--discovery-boundary`](/reference/cli/commands/find#discovery-boundary) flag (env: `TG_DISCOVERY_BOUNDARY`) applies one boundary to every `--filter` expression on the command:
+
+```bash
+terragrunt run --all --filter '...vpc' --discovery-boundary . -- plan
+```
+
+Previously gated behind the `bounded-discovery` experiment, bounded discovery no longer requires `--experiment bounded-discovery`.

@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
+	"slices"
 	"strconv"
+	"sync/atomic"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -20,8 +24,7 @@ import (
 const unixPermMask = os.FileMode(0o777)
 
 // defaultMaxTreeDepth stops a descent that the repository being materialized
-// would otherwise decide the length of, growing the stack and the worker count
-// together as every level opens an errgroup of its own.
+// would otherwise decide the length of.
 const defaultMaxTreeDepth = 64
 
 // Git stores the entry type in the high bits of a six-digit octal mode;
@@ -32,19 +35,54 @@ const (
 	gitTypeSymlink = uint64(0o120000)
 )
 
+// LinkFallback classifies why a tree could not be materialized in the mode it
+// was asked for. It is the fallback attribute on the cas_link_tree span.
+type LinkFallback string
+
+const (
+	// LinkFallbackNone reports that the requested mode served the whole tree.
+	LinkFallbackNone LinkFallback = ""
+
+	// LinkFallbackCloneUnsupported reports that the filesystem holding the
+	// target has no copy-on-write clone, so files were copied instead.
+	LinkFallbackCloneUnsupported LinkFallback = "clone_unsupported"
+
+	// LinkFallbackHardlinkUnavailable reports that some files could not be
+	// hard linked and were copied, because the target sits on another
+	// filesystem, the filesystem has no hard links, or a stored blob's
+	// permissions differ from the ones requested.
+	LinkFallbackHardlinkUnavailable LinkFallback = "hardlink_unavailable"
+)
+
+// linkFallbackByMode names the fallback a tree reports when the mode it was
+// asked for did not serve every file in it. [LinkModeCopy] never falls back,
+// so it has no entry.
+var linkFallbackByMode = map[LinkMode]LinkFallback{
+	LinkModeHardlink: LinkFallbackHardlinkUnavailable,
+	LinkModeClone:    LinkFallbackCloneUnsupported,
+}
+
 // LinkTreeOption configures a LinkTree call.
 type LinkTreeOption func(*linkTreeOpts)
 
 type linkTreeOpts struct {
 	maxDepth  int
-	forceCopy bool
+	mode      LinkMode
+	mutable   bool
+	fsWorkers int
 }
 
-// WithForceCopy makes LinkTree copy blobs from the CAS store into the target
-// directory instead of hardlinking them. The destination tree becomes safe to
-// mutate without affecting the shared store, at the cost of extra I/O.
-func WithForceCopy() LinkTreeOption {
-	return func(o *linkTreeOpts) { o.forceCopy = true }
+// WithMutableTree tells LinkTree the target directory is going to be edited,
+// so a tree asked for in [LinkModeHardlink] is cloned and every file in it is
+// writable.
+func WithMutableTree() LinkTreeOption {
+	return func(o *linkTreeOpts) { o.mutable = true }
+}
+
+// WithTreeLinkMode selects how blobs reach the target directory. Without it
+// LinkTree uses [DefaultLinkMode].
+func WithTreeLinkMode(mode LinkMode) LinkTreeOption {
+	return func(o *linkTreeOpts) { o.mode = mode }
 }
 
 // WithMaxTreeDepth sets how deep a tree is followed before materialization
@@ -63,8 +101,30 @@ func (o *linkTreeOpts) maxTreeDepth() int {
 	return defaultMaxTreeDepth
 }
 
+// treeEntryKind names what a git tree entry becomes on disk.
+type treeEntryKind uint8
+
+const (
+	entryLink treeEntryKind = iota
+	entrySymlink
+	entrySubtree
+	entrySubmodule
+)
+
+// treeWork is one entry waiting to be materialized, paired with the nesting
+// depth of the tree that listed it.
+type treeWork struct {
+	entry git.TreeEntry
+	path  string
+	kind  treeEntryKind
+	depth int
+}
+
 // LinkTree writes the tree to a target directory.
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
+//
+// The whole tree, subtrees included, is reported as one cas_link_tree span
+// with the requested mode and how many files each mode served.
 func LinkTree(
 	ctx context.Context,
 	l log.Logger,
@@ -75,53 +135,97 @@ func LinkTree(
 	targetDir string,
 	opts ...LinkTreeOption,
 ) error {
-	var o linkTreeOpts
+	o := linkTreeOpts{mode: DefaultLinkMode}
 	for _, opt := range opts {
 		opt(&o)
 	}
 
-	return linkTree(ctx, l, v, blobStore, treeStore, t, targetDir, targetDir, 0, &o)
+	// Probed once here rather than per subtree to avoid paying the
+	// probe cost on every subtree.
+	o.fsWorkers = vfs.FSWorkersFor(v.FS, targetDir)
+
+	mode := resolveLinkMode(o.mode, o.mutable)
+
+	linker := &treeLinker{
+		blobContent: NewContent(blobStore),
+		treeContent: NewContent(treeStore),
+		treeStore:   treeStore,
+		rootDir:     targetDir,
+		maxDepth:    o.maxTreeDepth(),
+		mode:        mode,
+		mutable:     o.mutable,
+	}
+
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, "cas_link_tree", map[string]any{
+		"path": targetDir,
+		"mode": mode.String(),
+	}, telemetry.WithoutLogger(func(childCtx context.Context) error {
+		err := linkTree(l, v, linker, t, targetDir, o.fsWorkers)
+
+		linker.report(childCtx)
+
+		return err
+	}))
 }
 
-// linkTree is the recursive implementation behind LinkTree. rootDir is the
-// top-level target the caller asked to materialize and stays constant across
-// subtree recursion; targetDir is the directory the current tree is being
-// written into. Splitting them lets symlink validation reject targets that
-// resolve outside the original tree even when the link sits in a subdirectory.
+// linkTree materializes t and everything nested below it, one level of the
+// tree at a time.
 func linkTree(
-	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	blobStore *Store,
-	treeStore *Store,
+	linker *treeLinker,
 	t *git.Tree,
-	rootDir string,
 	targetDir string,
-	depth int,
-	o *linkTreeOpts,
+	fsWorkers int,
 ) error {
-	if maxDepth := o.maxTreeDepth(); depth > maxDepth {
-		return &TreeDepthExceededError{MaxDepth: maxDepth, Path: targetDir}
+	level, err := planTree(v, t, targetDir, 0)
+	if err != nil {
+		return err
 	}
 
-	blobContent := NewContent(blobStore)
-	treeContent := NewContent(treeStore)
+	for len(level) > 0 {
+		if idx := linker.probeIndex(level); idx >= 0 {
+			if err := linker.probe(l, v, &level[idx]); err != nil {
+				return err
+			}
 
-	var linkOpts []LinkOption
-	if o.forceCopy {
-		linkOpts = append(linkOpts, WithLinkForceCopy())
+			level = slices.Delete(level, idx, idx+1)
+		}
+
+		opened := make([][]treeWork, len(level))
+
+		var g errgroup.Group
+
+		g.SetLimit(fsWorkers)
+
+		for i := range level {
+			g.Go(func() error {
+				children, err := linker.materialize(l, v, &level[i])
+				if err != nil {
+					return err
+				}
+
+				opened[i] = children
+
+				return nil
+			})
+		}
+
+		if err := g.Wait(); err != nil {
+			return err
+		}
+
+		level = slices.Concat(opened...)
 	}
 
+	return nil
+}
+
+// planTree creates the directories t's entries need and returns the work each
+// entry represents at t's own nesting depth.
+func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWork, error) {
 	dirsToCreate := make(map[string]struct{}, len(t.Entries()))
-
-	type workItem struct {
-		itemType string
-		entry    git.TreeEntry
-		path     string
-		dirPath  string
-	}
-
-	workItems := make([]workItem, 0, len(t.Entries()))
+	work := make([]treeWork, 0, len(t.Entries()))
 
 	for _, entry := range t.Entries() {
 		entryPath := filepath.Join(targetDir, entry.Path)
@@ -132,141 +236,281 @@ func linkTree(
 		// If the parent directory is in dirsToCreate,
 		// we can remove it, since it will be created
 		// when creating the subtree anyways.
-		parentDirPath := filepath.Dir(dirPath)
-		delete(dirsToCreate, parentDirPath)
+		delete(dirsToCreate, filepath.Dir(dirPath))
 
-		// Git encodes a symlink as a blob whose body is the link target; the
-		// entry mode (120000) is the only signal that distinguishes it from a
-		// regular file, so dispatch on the mode rather than the type.
-		switch entry.Type {
-		case git.EntryTypeBlob:
-			itemType := "link"
-			if gitEntryIsSymlink(entry.Mode) {
-				itemType = "symlink"
-			}
-
-			workItems = append(workItems, workItem{
-				itemType: itemType,
-				entry:    entry,
-				path:     entryPath,
-				dirPath:  dirPath,
-			})
-		case git.EntryTypeTree:
-			workItems = append(workItems, workItem{
-				itemType: "subtree",
-				entry:    entry,
-				path:     entryPath,
-				dirPath:  dirPath,
-			})
-		case git.EntryTypeCommit:
-			workItems = append(workItems, workItem{
-				itemType: "submodule",
-				entry:    entry,
-				path:     entryPath,
-				dirPath:  dirPath,
-			})
+		kind, ok := treeEntryKindOf(entry)
+		if !ok {
+			continue
 		}
+
+		work = append(work, treeWork{
+			entry: entry,
+			path:  entryPath,
+			kind:  kind,
+			depth: depth,
+		})
 	}
 
 	for dirPath := range dirsToCreate {
 		if err := v.FS.MkdirAll(dirPath, DefaultDirPerms); err != nil {
-			return fmt.Errorf("mkdir %s: %w", dirPath, err)
+			return nil, fmt.Errorf("mkdir %s: %w", dirPath, err)
 		}
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	return work, nil
+}
 
-	// Use half the available CPUs (at least 1) to avoid saturating I/O during tree materialization.
-	scalingFactor := 2
-	maxWorkers := max(1, runtime.GOMAXPROCS(0)/scalingFactor)
-	g.SetLimit(maxWorkers)
+// treeEntryKindOf reports how to materialize entry, and false for an entry
+// type that materialization skips.
+func treeEntryKindOf(entry git.TreeEntry) (treeEntryKind, bool) {
+	switch entry.Type {
+	case git.EntryTypeBlob:
+		// Git encodes a symlink as a blob whose body is the link target, so
+		// the mode is the only thing separating it from a regular file.
+		if gitEntryIsSymlink(entry.Mode) {
+			return entrySymlink, true
+		}
 
-	for _, work := range workItems {
-		g.Go(func() error {
-			switch work.itemType {
-			case "link":
-				err := blobContent.Link(
-					ctx,
-					l,
-					v,
-					work.entry.Hash,
-					work.path,
-					gitFilePerm(work.entry.Mode),
-					linkOpts...)
-				if err != nil {
-					return fmt.Errorf("link blob %s: %w", work.path, err)
-				}
-			case "symlink":
-				target, err := blobContent.Read(v, work.entry.Hash)
-				if err != nil {
-					return fmt.Errorf("read symlink blob %s: %w", work.entry.Hash, err)
-				}
-
-				if err := vfs.ValidateSymlinkTarget(
-					rootDir,
-					work.path,
-					string(target),
-				); err != nil {
-					return err
-				}
-
-				if err := v.FS.RemoveAll(work.path); err != nil {
-					return fmt.Errorf("clear existing entry before symlink %s: %w", work.path, err)
-				}
-
-				if err := vfs.Symlink(v.FS, string(target), work.path); err != nil {
-					return fmt.Errorf("symlink %s -> %s: %w", work.path, string(target), err)
-				}
-			case "subtree":
-				treeData, err := treeContent.Read(v, work.entry.Hash)
-				if err != nil {
-					return fmt.Errorf("read tree %s: %w", work.entry.Hash, err)
-				}
-
-				subTree, err := git.ParseTree(treeData, work.path)
-				if err != nil {
-					return fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
-				}
-
-				err = linkTree(ctx, l, v, blobStore, treeStore, subTree, rootDir, work.path, depth+1, o)
-				if err != nil {
-					return fmt.Errorf("link subtree %s: %w", work.path, err)
-				}
-			case "submodule":
-				// A gitlink stands in for the submodule's whole working
-				// tree, which ingestion stored keyed by the pinned commit
-				// hash. The directory is created up front: a gitlink with
-				// no stored tree had no .gitmodules entry to fetch it by,
-				// and `git clone` leaves an empty directory there too.
-				if err := v.FS.MkdirAll(work.path, DefaultDirPerms); err != nil {
-					return fmt.Errorf("mkdir submodule %s: %w", work.path, err)
-				}
-
-				if treeStore.NeedsWrite(v, work.entry.Hash) {
-					return nil
-				}
-
-				treeData, err := treeContent.Read(v, work.entry.Hash)
-				if err != nil {
-					return fmt.Errorf("read submodule tree %s: %w", work.entry.Hash, err)
-				}
-
-				subTree, err := git.ParseTree(treeData, work.path)
-				if err != nil {
-					return fmt.Errorf("parse submodule tree %s: %w", work.entry.Hash, err)
-				}
-
-				err = linkTree(ctx, l, v, blobStore, treeStore, subTree, rootDir, work.path, depth+1, o)
-				if err != nil {
-					return fmt.Errorf("link submodule %s: %w", work.path, err)
-				}
-			}
-
-			return nil
-		})
+		return entryLink, true
+	case git.EntryTypeTree:
+		return entrySubtree, true
+	case git.EntryTypeCommit:
+		return entrySubmodule, true
 	}
 
-	return g.Wait()
+	return entryLink, false
+}
+
+// treeLinker is the state one [LinkTree] call shares across every entry it
+// materializes. Its counters are shared across the workers every level runs,
+// so LinkTree can report the tree as a single span.
+type treeLinker struct {
+	blobContent      *Content
+	treeContent      *Content
+	treeStore        *Store
+	rootDir          string
+	maxDepth         int
+	linked           atomic.Int64
+	cloned           atomic.Int64
+	copied           atomic.Int64
+	bytesCopied      atomic.Int64
+	mode             LinkMode
+	cloneUnsupported atomic.Bool
+	mutable          bool
+}
+
+// materialize writes work to disk. For a subtree or submodule it opens the
+// tree the entry stands for and returns the work its own entries represent.
+func (tl *treeLinker) materialize(l log.Logger, v *venv.Venv, work *treeWork) ([]treeWork, error) {
+	switch work.kind {
+	case entryLink:
+		_, err := tl.link(l, v, work)
+
+		return nil, err
+	case entrySymlink:
+		return nil, tl.symlink(v, work)
+	case entrySubtree:
+		return tl.subtree(v, work)
+	case entrySubmodule:
+		return tl.submodule(v, work)
+	}
+
+	return nil, nil
+}
+
+// link materializes one blob entry and counts how it arrived.
+func (tl *treeLinker) link(l log.Logger, v *venv.Venv, work *treeWork) (LinkOutcome, error) {
+	outcome, err := tl.blobContent.Link(
+		l,
+		v,
+		work.entry.Hash,
+		work.path,
+		gitFilePerm(work.entry.Mode),
+		tl.linkOptions()...)
+	if err != nil {
+		return LinkOutcome{}, fmt.Errorf("link blob %s: %w", work.path, err)
+	}
+
+	tl.record(outcome)
+
+	return outcome, nil
+}
+
+// probe links work ahead of the rest of its level. A blob that comes back as
+// anything but a clone stops the rest of the tree from attempting one.
+func (tl *treeLinker) probe(l log.Logger, v *venv.Venv, work *treeWork) error {
+	outcome, err := tl.link(l, v, work)
+	if err != nil {
+		return err
+	}
+
+	if outcome.Mode != LinkModeClone {
+		tl.cloneUnsupported.Store(true)
+	}
+
+	return nil
+}
+
+func (tl *treeLinker) symlink(v *venv.Venv, work *treeWork) error {
+	target, err := tl.blobContent.Read(v, work.entry.Hash)
+	if err != nil {
+		return fmt.Errorf("read symlink blob %s: %w", work.entry.Hash, err)
+	}
+
+	if err := vfs.ValidateSymlinkTarget(tl.rootDir, work.path, string(target)); err != nil {
+		return err
+	}
+
+	if err := v.FS.RemoveAll(work.path); err != nil {
+		return fmt.Errorf("clear existing entry before symlink %s: %w", work.path, err)
+	}
+
+	if err := vfs.Symlink(v.FS, string(target), work.path); err != nil {
+		return fmt.Errorf("symlink %s -> %s: %w", work.path, string(target), err)
+	}
+
+	return nil
+}
+
+func (tl *treeLinker) subtree(v *venv.Venv, work *treeWork) ([]treeWork, error) {
+	depth := work.depth + 1
+	if depth > tl.maxDepth {
+		return nil, &TreeDepthExceededError{MaxDepth: tl.maxDepth, Path: work.path}
+	}
+
+	treeData, err := tl.treeContent.Read(v, work.entry.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("read tree %s: %w", work.entry.Hash, err)
+	}
+
+	subTree, err := git.ParseTree(treeData, work.path)
+	if err != nil {
+		return nil, fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
+	}
+
+	children, err := planTree(v, subTree, work.path, depth)
+	if err != nil {
+		return nil, fmt.Errorf("link subtree %s: %w", work.path, err)
+	}
+
+	return children, nil
+}
+
+func (tl *treeLinker) submodule(v *venv.Venv, work *treeWork) ([]treeWork, error) {
+	depth := work.depth + 1
+	if depth > tl.maxDepth {
+		return nil, &TreeDepthExceededError{MaxDepth: tl.maxDepth, Path: work.path}
+	}
+
+	// A gitlink stands in for the submodule's whole working tree, which
+	// ingestion stored keyed by the pinned commit hash. The directory is
+	// created up front: a gitlink with no stored tree had no .gitmodules
+	// entry to fetch it by, and `git clone` leaves an empty directory there
+	// too.
+	//
+	// Which is also why a submodule tree deleted from the store reads as that
+	// same skip and leaves an empty directory rather than a
+	// [MissingObjectError] that repair could act on. Telling the two apart
+	// needs the .gitmodules blob parsed here, at materialization time.
+	if err := v.FS.MkdirAll(work.path, DefaultDirPerms); err != nil {
+		return nil, fmt.Errorf("mkdir submodule %s: %w", work.path, err)
+	}
+
+	if tl.treeStore.NeedsWrite(v, work.entry.Hash) {
+		return nil, nil
+	}
+
+	treeData, err := tl.treeContent.Read(v, work.entry.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("read submodule tree %s: %w", work.entry.Hash, err)
+	}
+
+	subTree, err := git.ParseTree(treeData, work.path)
+	if err != nil {
+		return nil, fmt.Errorf("parse submodule tree %s: %w", work.entry.Hash, err)
+	}
+
+	children, err := planTree(v, subTree, work.path, depth)
+	if err != nil {
+		return nil, fmt.Errorf("link submodule %s: %w", work.path, err)
+	}
+
+	return children, nil
+}
+
+// probeIndex returns the index of the blob in level to [treeLinker.probe]
+// before the level fans out, or -1 when the tree is not cloned or an earlier
+// probe already came back uncloned.
+func (tl *treeLinker) probeIndex(level []treeWork) int {
+	if tl.mode != LinkModeClone || tl.cloneUnsupported.Load() {
+		return -1
+	}
+
+	return slices.IndexFunc(level, func(work treeWork) bool {
+		return work.kind == entryLink
+	})
+}
+
+// linkOptions returns the options one blob is materialized with. Once a probe
+// has come back uncloned, every later blob copies without attempting a clone.
+func (tl *treeLinker) linkOptions() []LinkOption {
+	opts := []LinkOption{WithFileLinkMode(tl.mode)}
+
+	if tl.mutable {
+		opts = append(opts, WithLinkMutable())
+	}
+
+	if tl.cloneUnsupported.Load() {
+		opts = append(opts, WithoutCloneAttempt())
+	}
+
+	return opts
+}
+
+// record counts one materialized blob.
+func (tl *treeLinker) record(outcome LinkOutcome) {
+	switch outcome.Mode {
+	case LinkModeHardlink:
+		tl.linked.Add(1)
+	case LinkModeClone:
+		tl.cloned.Add(1)
+	case LinkModeCopy:
+		tl.copied.Add(1)
+		tl.bytesCopied.Add(outcome.BytesCopied)
+	}
+}
+
+// report sets the per-mode file counts, the bytes copied, and the fallback on
+// the span in ctx.
+func (tl *treeLinker) report(ctx context.Context) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	counts := map[LinkMode]int64{
+		LinkModeHardlink: tl.linked.Load(),
+		LinkModeClone:    tl.cloned.Load(),
+		LinkModeCopy:     tl.copied.Load(),
+	}
+
+	var total int64
+	for _, n := range counts {
+		total += n
+	}
+
+	fallback := LinkFallbackNone
+	if counts[tl.mode] < total {
+		fallback = linkFallbackByMode[tl.mode]
+	}
+
+	span.SetAttributes(
+		attribute.Int64("files_linked", counts[LinkModeHardlink]),
+		attribute.Int64("files_cloned", counts[LinkModeClone]),
+		attribute.Int64("files_copied", counts[LinkModeCopy]),
+		attribute.Int64("bytes_copied", tl.bytesCopied.Load()),
+		attribute.String("fallback", string(fallback)),
+	)
 }
 
 // gitFilePerm extracts the unix permission bits from a git tree entry mode

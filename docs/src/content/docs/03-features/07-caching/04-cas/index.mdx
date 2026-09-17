@@ -10,19 +10,6 @@ sidebar:
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside, Steps } from '@astrojs/starlight/components';
 import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
-
-<Before version="1.1.0">
-<Aside type="tip" title="Experimental">
-CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas` to opt in before it becomes the default in 1.1.
-</Aside>
-</Before>
-
-<Since version="1.1.0">
-<Aside type="note">
-CAS source fetching is enabled by default as of 1.1. Upgrade to 1.1 or later to use it; disable it with `--no-cas`.
-</Aside>
-</Since>
 
 Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations.
 
@@ -31,6 +18,8 @@ The CAS is used to speed up catalog cloning, OpenTofu/Terraform source fetching,
 You can disable the CAS at any time using the `--no-cas` flag. This flag is available on the [`run`](/reference/cli/commands/run), [`stack generate`](/reference/cli/commands/stack/generate), [`stack run`](/reference/cli/commands/stack/run), and [`catalog`](/reference/cli/commands/catalog) commands.
 
 The same commands accept the `--cas-clone-depth` flag, which controls the `git clone --depth` value the CAS uses when cloning a Git source (default `1`; `-1` clones the full history).
+
+They accept three more flags, gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment: `--cas-offline` resolves every source from the local store without contacting a remote, `--cas-refresh` asks every remote again instead of trusting a recorded probe, and `--cas-probe-ttl` sets how long a recorded probe of a source that can change upstream is trusted. See [Recorded probes](#recorded-probes) for how recorded answers are used.
 
 ## Supported sources
 
@@ -51,6 +40,23 @@ Each getter has a dedicated page describing its exact mechanics:
 | [Local paths](/features/caching/cas/local) | None; always copies | Content-addressed on the copied tree |
 
 Regardless of the probe, every getter shares the same back half: download (or copy) the source, hash its files into the store as content-addressed blobs, record a tree describing their layout, and hard link the result into the target directory. Identical files therefore occupy disk space once no matter which getter fetched them or how many configurations use them.
+
+
+## Recorded probes
+
+Units in one run that resolve the same source at the same time share a single probe, and the answer the first one gets is the answer they all use.
+
+Recording those answers for later runs is gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment. With it enabled, every probe answer is written under `probes/` in the store, keyed by the source URL, so a later run can resolve a source without asking its remote again. Whether a recorded answer is served in place of a fresh probe depends on whether the source can change upstream:
+
+- **Pinned sources are trusted for 24 hours.** A source is pinned when its URL names a specific revision that a publisher does not reissue: a Git semantic version tag, an S3 object version, an OCI manifest digest, an exact registry module version, or a full Mercurial changeset node.
+- **Everything else is probed on every run.** A push or an upload is seen immediately. That covers Git branches and `HEAD`, HTTP endpoints, GCS objects, OCI tags, and Mercurial branch names. [`--cas-probe-ttl`](/reference/cli/commands/run#cas-probe-ttl) trusts these answers for a chosen duration, for example `--cas-probe-ttl 10m` for a batch of runs that need not each pay for a probe.
+
+Two flags change how the recorded answers are used:
+
+- [`--cas-offline`](/reference/cli/commands/run#cas-offline) never contacts a remote. Every source is resolved from its recorded answer, however old, and linked from the store. A source with no recorded answer, or whose content is not in the store, fails with an error naming it rather than being fetched. Run once without the flag to fill the store first.
+- [`--cas-refresh`](/reference/cli/commands/run#cas-refresh) ignores the recorded answers and asks every remote again, then records what it learns. Use it when a version tag has been moved and the cache still remembers the previous revision.
+
+The two flags cannot be combined, and both need the experiment. A source with no cheap probe, such as an SMB share or a local path, has no answer to record and is fetched on every run, `--cas-offline` included. Recorded answers that have expired stay on disk until the store is deleted.
 
 ## Usage
 
@@ -79,12 +85,6 @@ terraform {
 ```
 
 ### Stack Usage
-
-<Before version="1.1.0">
-<Aside type="tip">
-This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
-</Aside>
-</Before>
 
 When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions. The `source` must be a literal string: interpolation, function calls, and references such as `local.foo` cause stack generation to fail.
 
@@ -118,23 +118,17 @@ The catalog source can be either a remote Git URL or a local filesystem path (ab
 
 For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
 
-<Before version="1.1.0">
-<Aside type="caution">
-Setting `update_source_with_cas = true` requires that the `cas` experiment is enabled and that `--no-cas` is not set. Terragrunt errors out otherwise, since the relative source must be updated to a synthetic tree stored in the CAS.
-</Aside>
-</Before>
-
-<Since version="1.1.0">
 <Aside type="caution">
 Setting `update_source_with_cas = true` requires that `--no-cas` is not set. Terragrunt errors out otherwise, since the relative source must be updated to a synthetic tree stored in the CAS.
 </Aside>
-</Since>
 
 When Terragrunt fetches a Git source while using the CAS, if the content is not found in the CAS, Terragrunt fetches into the central bare repository for that remote URL and stores the resulting blobs and trees in the CAS for future use. If the central store is unavailable, Terragrunt falls back to cloning the repository from the original URL into a temporary directory. Other getters follow the equivalent pattern for their source type, described on the [per-getter pages](#supported-sources).
 
 When materializing content from the CAS, Terragrunt will hard link entries from the CAS into the target directory. This allows Terragrunt to deduplicate content across multiple sources.
 
 In the event that hard linking fails due to some operating system / host incompatibility with hard links, Terragrunt will fall back to performing copies of the content from the CAS.
+
+A source marked [`mutable = true`](#immutable-by-default) is the exception: it cannot be hard linked, so Terragrunt asks the filesystem for a copy-on-write clone of each entry and copies where the filesystem has none to give.
 
 ## Storage
 
@@ -175,7 +169,6 @@ The CAS store is organized into namespaced directories:
   - blobs/ (file content from every fetched source, plus synthetic sources)
     - ab/
       - abc123...xyz
-      - abc123...xyz.lock
     - cd/
       - cd7890...xyz
   - trees/ (tree structures describing the layout of a fetched source)
@@ -185,14 +178,21 @@ The CAS store is organized into namespaced directories:
     - trees/ (synthetic trees created during CAS-backed stack generation)
       - de/
         - def456...xyz
+  - gitfiles/ (records of the `.git` files a source asked to preserve)
+    - 9a/
+      - 9a1b2c...xyz
   - git/ (one bare repository per remote URL, used for incremental fetches)
     - 1a2b3c4d5e6f7890/
       - repo/
       - lock
+  - probes/ (recorded probe answers, one file per source)
+    - sha256/
+      - 1a2b3c4d5e6f7890/
+        - 0d6e4079e36703eb.json
 
 </FileTree>
 
-The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores the tree structures that describe the layout of files in a fetched source, whether that source is a Git ref, an object store download, or a local directory. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the source reference and path. The `git/` directory holds one bare Git repository per remote URL, keyed by a hash of the URL, so cache misses for Git sources can fetch only the new objects instead of re-cloning the repository. Non-Git getters do not use `git/`; they download into a temporary directory and ingest the result.
+The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores the tree structures that describe the layout of files in a fetched source, whether that source is a Git ref, an object store download, or a local directory. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the source reference and path. The `gitfiles/` directory records the files a source asked Terragrunt to preserve from a repository's `.git` directory, one record per commit and file name. The `git/` directory holds one bare Git repository per remote URL, keyed by a hash of the URL, so cache misses for Git sources can fetch only the new objects instead of re-cloning the repository. Non-Git getters do not use `git/`; they download into a temporary directory and ingest the result. The `probes/` directory holds the answer to each probe, one file per source, so a later run can resolve a source without querying its remote again. Entries sit under the hash algorithm that named them, so a later algorithm gets its own subtree instead of colliding with what is already there. [Recorded probes](#recorded-probes) covers when a recorded answer is served and when a fresh query is made.
 
 Each content object within a namespace is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory to avoid degraded file system performance from large flat directories.
 
@@ -220,7 +220,7 @@ When the content is not already in the CAS:
 3. **Fetch the source.** Terragrunt downloads (or, for local paths, copies) the source into a temporary location.
 
    <Aside type="note" title="Git sources">
-   Terragrunt fetches into a persisted bare repository kept per remote URL under `git/`. Branch and tag refs use a shallow fetch; a bare commit SHA uses a full-history fetch so it can be resolved locally. Subsequent misses against the same URL reuse the repository and transfer only new objects, and concurrent units targeting the same URL share a single fetch instead of cloning in parallel.
+   Terragrunt fetches into a persisted bare repository kept per remote URL under `git/`. Branch and tag refs use a shallow fetch. A full commit SHA is asked for on its own, one commit deep, and remotes that will not serve a commit by name fall back to a full-history fetch of every branch and tag. Subsequent misses against the same URL reuse the repository and transfer only new objects, and concurrent units targeting the same URL share a single fetch instead of cloning in parallel, coordinated by a per-URL lock that works across processes.
    </Aside>
 
 4. **Ingest into the store.** Each file is hashed and stored as a content-addressed blob addressed by its hash, and a tree file describing the layout in the filesystem under its own cache key.
@@ -256,7 +256,7 @@ When the content is already in the CAS:
 
 Stored blobs are written read-only, and the link step hard links them into the target directory instead of copying. The working copy and the stored blob are the same file on disk, so the content cannot be edited in place: writing to a linked file fails with a permission error. This is deliberate. A single stored blob is shared by every target that references it, so permitting edits would corrupt the content other configurations depend on.
 
-When you need an editable working copy, set `mutable = true`. Terragrunt then copies the content into the target with its write permissions intact rather than hard linking it, producing a tree that is independent of the store and safe to modify. This trades the disk savings of shared inodes for a writable copy, since each `mutable` target keeps its own. The attribute is available on the `terraform` block, and on the `unit` and `stack` blocks of a stack configuration.
+When you need an editable working copy, set `mutable = true`. Terragrunt then gives the target a file of its own, with its write permissions intact, instead of hard linking the stored one. The attribute is available on the `terraform` block, and on the `unit` and `stack` blocks of a stack configuration.
 
 ```hcl
 # terragrunt.hcl
@@ -268,11 +268,21 @@ terraform {
 }
 ```
 
+On APFS, btrfs, and XFS volumes with reflink support, that file is a copy-on-write clone, so the filesystem shares the stored content until you edit it and the target occupies disk space only for the parts you change. Everywhere else it is a full copy, which trades the disk savings of a shared inode for a writable file.
+
 Outside the CAS, fetched sources are already plain writable copies, so `mutable` only takes effect when the CAS is enabled.
+
+<Since version="1.2.0">
+
+Files produced by [`generate`](/reference/hcl/blocks#generate) blocks are stored in the CAS too. Terragrunt hard links the stored content read-only into each working directory, so units generating identical content share one file. A `generate` block with `mutable = true` gets an ordinary writable file of its own. The backend file generated by a `remote_state` block is written directly and is not stored in the CAS.
+
+</Since>
 
 #### Graceful Fallbacks
 
 If hard linking fails (for example across a filesystem boundary, or on a host that does not support hard links), Terragrunt copies the content from the store instead.
+
+A [`mutable = true`](#immutable-by-default) source on a filesystem with no copy-on-write clone is copied the same way.
 
 If a Git fetch through the central repository hangs or fails, Terragrunt logs a warning and falls back to a clone in a temporary directory.
 
@@ -333,6 +343,8 @@ CAS achieves deduplication through hard links, which allows multiple files to us
 
 - **Hard Links**: When the same content is requested multiple times, CAS creates hard links from the read-only store to each target directory
 - **Automatic Fallback**: If hard linking fails (e.g., cross-filesystem boundaries, operating system limitations), CAS automatically falls back to copying the content instead
+
+A [`mutable = true`](#immutable-by-default) source cannot share the stored file. Where the filesystem offers reflinks, Terragrunt clones it, so the target shares the stored content except for the parts you edit and is writable from the start.
 
 ### Performance Benefits
 

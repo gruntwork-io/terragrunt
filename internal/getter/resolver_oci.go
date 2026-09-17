@@ -39,6 +39,17 @@ func NewOCIResolver(l log.Logger, newStore OCINewStoreFunc) *OCIResolver {
 // Scheme returns "oci".
 func (r *OCIResolver) Scheme() string { return SchemeOCI }
 
+// Pinned reports whether rawURL names a manifest digest, which addresses
+// the manifest content itself. A tag can be moved to another manifest.
+func (r *OCIResolver) Pinned(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	return u.Query().Has(ociDigestQueryKey)
+}
+
 // Probe returns the manifest digest of rawURL as a content-addressed cache
 // key. Any failure returns [cas.ErrNoVersionMetadata] so the fetch falls
 // through to the download-then-content-hash path, surfacing the underlying

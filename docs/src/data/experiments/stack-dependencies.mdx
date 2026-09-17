@@ -4,21 +4,11 @@ since: "1.0.1"
 completedSince: "1.1.0"
 ---
 
-import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
-import { Aside } from '@astrojs/starlight/components';
-
 Support for the `autoinclude` block in `terragrunt.stack.hcl` files, enabling dependency relationships and configuration overrides during stack generation.
 
 ### `stack-dependencies` - What it does
 
-<Before version="1.1.0">
-When enabled, this experiment adds support for the `autoinclude` block nested inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files.
-</Before>
-
-<Since version="1.1.0">
 This experiment flag is no longer needed, as the `autoinclude` block is now available by default. The block nests inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files.
-</Since>
 
 The `autoinclude` block allows users to define `dependency` blocks and arbitrary configuration that gets generated into an autoinclude file during stack generation. This file is automatically merged into the unit/stack configuration when parsed.
 
@@ -84,37 +74,17 @@ unit "app" {
 }
 ```
 
-<Before version="1.1.0">
-
-```bash
-terragrunt run --all --experiment stack-dependencies -- plan
-```
-
-</Before>
-
 ### `stack-dependencies` - How to provide feedback
 
-<Before version="1.1.0">
-Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwork-io/terragrunt/issues/5663) GitHub Issue.
-</Before>
-
-<Since version="1.1.0">
 Now that the `stack-dependencies` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
-</Since>
 
 ### `stack-dependencies` - Implementation roadmap
-
-<Since version="1.0.5">
 
 - [x] Phased parser for `terragrunt.stack.hcl`: parse the file body, evaluate locals and values, apply include merges, then decode unit/stack blocks and resolve autoinclude. This lets unit/stack blocks use `local.*`, `values.*`, and Terragrunt functions.
 - [x] `terragrunt run --all` discovery can scan generated nested stack files without evaluating the unit `source`.
 - [x] Unify strict and permissive parser into a single code path
 - [x] Add integration tests and test fixtures for end-to-end validation
 - [x] Add E2E validation with `stack run apply` and `stack run destroy`
-
-</Since>
-
-<Since version="1.0.6">
 
 - [x] Catalog source preservation across stack copy: nested stack files copied into `.terragrunt-stack/<name>/` get a `.terragrunt-stack-origin` marker file, so bare relative `../../units/...` paths resolve against the original catalog, not the copy. Only applies to local stack sources; remote and CAS-fetched stacks are unchanged.
 - [x] `PartialEval` depth guard (`maxPartialEvalDepth = 10000`) and `IsWhollyKnown` / `IsNull` checks on the fast path and traversal/template/conditional/parens branches, preventing crashes on unknown values or pathological nesting.
@@ -123,12 +93,6 @@ Now that the `stack-dependencies` experiment is complete, please provide feedbac
 - [x] `resolveStackFilePath` returns `(string, bool)`: callers branch on `isStackCandidate` instead of a sentinel empty string. Backed by a two-arg fuzz that exercises raw/target independently.
 - [x] Removed Unicode from `internal/hclparse` source files (ASCII-only); intentional Unicode test fixtures remain.
 
-</Since>
-
-<Since version="1.0.7">
-
-- [x] The `.terragrunt-stack-origin` marker file is no longer written when nested stack files are copied into `.terragrunt-stack/<name>/`. Use `update_source_with_cas = true` <Before version="1.1.0">(with the `cas` experiment enabled) </Before>on `unit` and `stack` blocks to keep relative `source` paths working in catalog stack files; relative attributes are rewritten to `cas::` references at generation time so the generated tree is self-contained.
+- [x] The `.terragrunt-stack-origin` marker file is no longer written when nested stack files are copied into `.terragrunt-stack/<name>/`. Use `update_source_with_cas = true` on `unit` and `stack` blocks to keep relative `source` paths working in catalog stack files; relative attributes are rewritten to `cas::` references at generation time so the generated tree is self-contained.
 - [x] Community feedback on `autoinclude` syntax and merge behavior
 - [x] Validate performance at scale
-
-</Since>

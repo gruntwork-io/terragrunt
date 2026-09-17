@@ -6,9 +6,10 @@ import (
 	"github.com/spf13/afero"
 )
 
-// NoSymlinkFS wraps an afero.Fs and implements the afero.Linker interface,
-// but always returns an error on symlink operations. This simulates a system
-// where symlinking is not permitted, such as Windows without developer mode.
+// NoSymlinkFS wraps a filesystem so it refuses to create symbolic links, as
+// Windows does for a process without the symlink privilege. It embeds only
+// the FS interface, so the optional hard link and copy-on-write clone
+// interfaces are unavailable too.
 type NoSymlinkFS struct {
 	FS
 }

@@ -1,6 +1,7 @@
 package cas_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,11 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -28,18 +32,15 @@ func BenchmarkClone(b *testing.B) {
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
 
-		b.ResetTimer()
+		i := 0
 
-		for i := 0; b.Loop(); i++ {
-			b.StopTimer()
-
+		for b.Loop() {
 			storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
+			i++
 
 			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(b, err)
-
-			b.StartTimer()
 
 			require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
 				cas.WithDepth(-1)))
@@ -60,22 +61,112 @@ func BenchmarkClone(b *testing.B) {
 				cas.WithDepth(-1)),
 		)
 
-		b.ResetTimer()
+		i := 0
 
-		for i := 0; b.Loop(); i++ {
-			b.StopTimer()
-
+		for b.Loop() {
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
+			i++
 
 			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(b, err)
-
-			b.StartTimer()
 
 			require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
 				cas.WithDepth(-1)))
 		}
 	})
+}
+
+// BenchmarkConcurrentClone measures the `run --all` shape: many units,
+// each with its own CAS over one shared store, cloning the same branch of
+// one source at the same time. "warm tree" pre-populates the store so only
+// the probe sits on the hot path; "cold store" starts each iteration from
+// an empty store so the ingest does too.
+func BenchmarkConcurrentClone(b *testing.B) {
+	repoURL := startBenchServer(b)
+
+	l := logger.CreateLogger()
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	callerCounts := []int{8, 32, 128}
+
+	b.Run("warm tree", func(b *testing.B) {
+		for _, callers := range callerCounts {
+			b.Run(strconv.Itoa(callers)+" callers", func(b *testing.B) {
+				tempDir := b.TempDir()
+				storePath := filepath.Join(tempDir, "store")
+
+				require.NoError(b, cloneConcurrently(b.Context(), l, v, storePath, repoURL,
+					filepath.Join(tempDir, "warm"), 1))
+
+				b.ReportAllocs()
+				b.ResetTimer()
+
+				for i := 0; b.Loop(); i++ {
+					b.StopTimer()
+
+					targetRoot := filepath.Join(tempDir, "repo", strconv.Itoa(i))
+
+					b.StartTimer()
+
+					require.NoError(b, cloneConcurrently(b.Context(), l, v, storePath, repoURL,
+						targetRoot, callers))
+				}
+			})
+		}
+	})
+
+	b.Run("cold store", func(b *testing.B) {
+		for _, callers := range callerCounts {
+			b.Run(strconv.Itoa(callers)+" callers", func(b *testing.B) {
+				tempDir := b.TempDir()
+
+				b.ReportAllocs()
+				b.ResetTimer()
+
+				for i := 0; b.Loop(); i++ {
+					b.StopTimer()
+
+					storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
+					targetRoot := filepath.Join(tempDir, "repo", strconv.Itoa(i))
+
+					b.StartTimer()
+
+					require.NoError(b, cloneConcurrently(b.Context(), l, v, storePath, repoURL,
+						targetRoot, callers))
+				}
+			})
+		}
+	})
+}
+
+// cloneConcurrently runs callers clones of main at once, each through a CAS
+// of its own over storePath and into its own directory under targetRoot,
+// and returns the first error any of them hit.
+func cloneConcurrently(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	storePath, repoURL, targetRoot string,
+	callers int,
+) error {
+	g, ctx := errgroup.WithContext(ctx)
+
+	for i := range callers {
+		g.Go(func() error {
+			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+			if err != nil {
+				return err
+			}
+
+			return c.Clone(ctx, l, v, repoURL,
+				cas.WithDir(filepath.Join(targetRoot, strconv.Itoa(i))),
+				cas.WithBranch("main"),
+				cas.WithDepth(-1))
+		})
+	}
+
+	return g.Wait()
 }
 
 func BenchmarkContent(b *testing.B) {
@@ -91,12 +182,11 @@ func BenchmarkContent(b *testing.B) {
 	v := venvtest.NewOSWithEmptyEnv()
 
 	b.Run("store", func(b *testing.B) {
-		for i := 0; b.Loop(); i++ {
-			b.StopTimer()
+		i := 0
 
+		for b.Loop() {
 			hash := "benchmark" + strconv.Itoa(i)
-
-			b.StartTimer()
+			i++
 
 			require.NoError(b, content.Store(l, v, hash, testData, cas.StoredFilePerms))
 		}
@@ -124,8 +214,8 @@ func BenchmarkContent(b *testing.B) {
 
 				mu.Unlock()
 
-				if err := content.Store(l, v, hash, testData, cas.StoredFilePerms); err != nil {
-					b.Fatal(err)
+				if !assert.NoError(b, content.Store(l, v, hash, testData, cas.StoredFilePerms)) {
+					return
 				}
 
 				i++

@@ -584,7 +584,7 @@ func TestRunTflintWithOpts_MissingConfigSurfacesNotFound(t *testing.T) {
 
 	fsys := vfs.NewMemMapFS()
 	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		t.Fatal("subprocess invoked despite missing config")
+		require.FailNow(t, "subprocess invoked despite missing config")
 		return vexec.Result{}
 	})
 

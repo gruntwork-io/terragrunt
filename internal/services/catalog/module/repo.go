@@ -62,9 +62,13 @@ type Repo struct {
 	LatestTag  string
 
 	casCloneDepth int
+	casProbeTTL   time.Duration
 
 	walkWithSymlinks bool
 	allowCAS         bool
+	casOffline       bool
+	casRefresh       bool
+	casProbeCache    bool
 	slowReporting    bool
 	isLocal          bool
 }
@@ -75,8 +79,12 @@ type RepoOpts struct {
 	Path             string
 	RootWorkingDir   string
 	CASCloneDepth    int
+	CASProbeTTL      time.Duration
 	WalkWithSymlinks bool
 	AllowCAS         bool
+	CASOffline       bool
+	CASRefresh       bool
+	CASProbeCache    bool
 	SlowReporting    bool
 }
 
@@ -99,6 +107,10 @@ func NewRepo(ctx context.Context, l log.Logger, v *venv.Venv, opts *RepoOpts) (*
 		walkWithSymlinks: opts.WalkWithSymlinks,
 		allowCAS:         opts.AllowCAS,
 		casCloneDepth:    opts.CASCloneDepth,
+		casProbeTTL:      opts.CASProbeTTL,
+		casOffline:       opts.CASOffline,
+		casRefresh:       opts.CASRefresh,
+		casProbeCache:    opts.CASProbeCache,
 		slowReporting:    opts.SlowReporting,
 		rootWorkingDir:   opts.RootWorkingDir,
 	}
@@ -498,7 +510,21 @@ func (repo *Repo) performClone(
 			return err
 		}
 
-		casStore, err := cas.New(v, cas.WithCloneDepth(cloneDepth))
+		casOpts := []cas.Option{cas.WithCloneDepth(cloneDepth), cas.WithProbeTTL(repo.casProbeTTL)}
+
+		if repo.casProbeCache {
+			casOpts = append(casOpts, cas.WithProbeCache())
+		}
+
+		if repo.casOffline {
+			casOpts = append(casOpts, cas.WithOffline())
+		}
+
+		if repo.casRefresh {
+			casOpts = append(casOpts, cas.WithProbeRefresh())
+		}
+
+		casStore, err := cas.New(v, casOpts...)
 		if err != nil {
 			return err
 		}
@@ -518,7 +544,7 @@ func (repo *Repo) performClone(
 		)
 	}
 
-	client := getter.NewClient(v, clientOpts...)
+	client := getter.NewClient(l, v, clientOpts...)
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {

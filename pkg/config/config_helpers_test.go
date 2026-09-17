@@ -24,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	tffuncs "github.com/hashicorp/terraform/lang/funcs"
-	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -1105,7 +1104,7 @@ func newTestParsingContext(
 	pctx.Experiments = experiment.NewExperiments()
 	pctx.Telemetry = new(telemetry.Options)
 	pctx.EngineOptions = new(engine.EngineOptions)
-	pctx.FeatureFlags = xsync.NewMap[string, string]()
+	pctx.FeatureFlags = map[string]string{}
 
 	return ctx, pctx
 }

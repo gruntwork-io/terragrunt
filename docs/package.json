@@ -14,16 +14,16 @@
     "spell:fix": "cd .. && codespell -w"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.2.4",
-    "@astrojs/mdx": "^7.0.8",
-    "@astrojs/node": "^11.1.4",
+    "@astrojs/markdown-remark": "^7.3.0",
+    "@astrojs/mdx": "^8.0.0",
+    "@astrojs/node": "^11.1.5",
     "@astrojs/partytown": "^2.1.7",
-    "@astrojs/sitemap": "3.7.3",
+    "@astrojs/sitemap": "3.7.4",
     "@astrojs/starlight": "0.41.3",
     "@astrojs/starlight-tailwind": "5.0.0",
-    "@astrojs/vercel": "11.0.8",
+    "@astrojs/vercel": "11.0.10",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "7.2.7",
+    "astro": "7.2.8",
     "astro-d2": "^0.13.1",
     "gray-matter": "^4.0.3",
     "hast-util-select": "^6.0.4",
@@ -31,14 +31,14 @@
     "rehype-remark": "^10.0.1",
     "remark-gfm": "^4.0.1",
     "remark-stringify": "^11.0.0",
-    "starlight-links-validator": "^0.25.3",
+    "starlight-links-validator": "^0.26.0",
     "starlight-llms-txt": "^0.11.0",
     "typescript": "^7.0.2",
     "unified": "^11.0.5",
     "unist-util-remove": "^4.0.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.0",
+    "@types/bun": "^1.4.1",
     "@types/hast": "^3.0.5"
   },
   "overrides": {

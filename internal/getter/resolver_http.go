@@ -56,6 +56,12 @@ func (r *HTTPResolver) Scheme() string {
 	return r.scheme
 }
 
+// Pinned always reports false. A ?checksum= pin looks like it should
+// qualify, but the parameter is stripped before probing, so two URLs
+// pinning different checksums share one recorded answer keyed on the
+// ETag the endpoint currently serves.
+func (r *HTTPResolver) Pinned(_ string) bool { return false }
+
 // Probe HEADs rawURL and returns a URL-scoped opaque cache key derived
 // from the ETag (preferred) or Last-Modified header.
 //

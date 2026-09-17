@@ -184,10 +184,8 @@ func (role *AWSRole) Envs(
 		return nil
 	}
 
+	// Left empty for AssumeIamRole to fill at call time; a per-fetch name would break the STS cache key.
 	sessionName := role.RoleSessionName
-	if sessionName == "" {
-		sessionName = iam.GetDefaultAssumeRoleSessionName()
-	}
 
 	duration := role.Duration
 	if duration == 0 {

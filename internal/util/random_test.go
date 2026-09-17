@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetRandomTime(t *testing.T) {
@@ -36,21 +37,8 @@ func TestGetRandomTime(t *testing.T) {
 					actual := util.GetRandomTime(tc.lowerBound, tc.upperBound)
 
 					if tc.lowerBound > 0 && tc.upperBound > 0 {
-						if actual < tc.lowerBound {
-							t.Fatalf(
-								"Randomly computed time %v should not be less than lowerBound %v",
-								actual,
-								tc.lowerBound,
-							)
-						}
-
-						if actual > tc.upperBound {
-							t.Fatalf(
-								"Randomly computed time %v should not be greater than upperBound %v",
-								actual,
-								tc.upperBound,
-							)
-						}
+						require.GreaterOrEqual(t, actual, tc.lowerBound)
+						require.LessOrEqual(t, actual, tc.upperBound)
 					}
 				})
 			}

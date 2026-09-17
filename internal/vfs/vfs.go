@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"iter"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -67,17 +68,119 @@ type ContextLocker interface {
 	LockContext(ctx context.Context, name string) (Unlocker, error)
 }
 
-// FSWorkers bounds how many goroutines may run filesystem metadata
-// operations at once.
+// APFSWorkers is APFS's ceiling for concurrent per-file work.
 //
-// Measurement on APFS (the default for macOS) puts the ceiling at four
-// before performance starts to degrade. Until we have more granular
-// concurrency controls than `--parallelism`, we should use this as the
-// ceiling for filesystem workers.
+// Measurement on APFS (the default for macOS) puts it at four before
+// performance starts to degrade, and three separate workloads agree:
+// walking a tree while writing a file per entry, ingesting blobs into
+// the store, and materializing a tree out of it.
 //
-// Callers that fan out over per-file work should cap their errgroup here
-// rather than at GOMAXPROCS.
-const FSWorkers = 4
+// Reach for [FSWorkersFor] rather than this constant unless the code is
+// specifically about APFS.
+const APFSWorkers = 4
+
+// DefaultFSWorkers is what a filesystem with no measurement behind it
+// gets: the most conservative ceiling any measured filesystem wanted.
+// It matches [APFSWorkers] today and is named separately because a
+// change to APFS's measurement should not quietly move the fallback for
+// everything unmeasured.
+const DefaultFSWorkers = APFSWorkers
+
+// MaxFSWorkers is the ceiling for filesystems that keep answering more
+// concurrent per-file work with more throughput: ext4, tmpfs and
+// overlayfs were still gaining at sixteen. It is a fixed number rather
+// than a multiple of GOMAXPROCS because the work these bounds govern
+// waits on the disk, not on a core, and a large host must not answer a
+// large tree with a worker per core.
+const MaxFSWorkers = 16
+
+// XFSWorkers is XFS's ceiling, past which its allocator contends.
+const XFSWorkers = 8
+
+// BTRFSWorkers is btrfs's ceiling. Copy-on-write metadata makes it the
+// one measured filesystem that works fastest at two concurrent writers
+// and degrades steeply above four.
+const BTRFSWorkers = 2
+
+// fsWorkersByKind is what each filesystem was measured to absorb for
+// per-file work. It is the starting point for any bound the filesystem
+// governs; a site that has measured its own workload may deviate, and
+// should say so where it does.
+//
+// A kind that is absent has no measurement behind it and gets
+// [DefaultFSWorkers], the most conservative ceiling any measured
+// filesystem wanted.
+var fsWorkersByKind = map[FSKind]int{
+	FSAPFS:    APFSWorkers,
+	FSExt4:    MaxFSWorkers,
+	FSTmpfs:   MaxFSWorkers,
+	FSOverlay: MaxFSWorkers,
+	FSXFS:     XFSWorkers,
+	FSBtrfs:   BTRFSWorkers,
+}
+
+// maxAncestorProbes bounds how far [FSWorkersFor] climbs looking for a
+// path that exists.
+const maxAncestorProbes = 64
+
+// FSWorkersFor returns the concurrency the filesystem under path was
+// measured to absorb for per-file work.
+//
+// A path that does not exist yet is answered by its nearest existing
+// ancestor, so a destination can be sized before it is created.
+func FSWorkersFor(fsys FS, path string) int {
+	for range maxAncestorProbes {
+		if kind := DetectFSKind(fsys, path); kind != FSUnprobed {
+			return FSWorkersForKind(kind)
+		}
+
+		parent := filepath.Dir(path)
+		if parent == path {
+			break
+		}
+
+		path = parent
+	}
+
+	return DefaultFSWorkers
+}
+
+// FSWorkersForKind is [FSWorkersFor] for a filesystem already probed.
+func FSWorkersForKind(kind FSKind) int {
+	if workers, ok := fsWorkersByKind[kind]; ok {
+		return workers
+	}
+
+	return DefaultFSWorkers
+}
+
+// walkWorkersDefault leaves the count to fastwalk, whose own default
+// scales with GOMAXPROCS and never drops below four.
+const walkWorkersDefault = 0
+
+// walkWorkersByKind is what a write-heavy walk was measured to want,
+// where that differs from the filesystem's general ceiling in
+// [FSWorkersForKind]. XFS is the one deviation: it absorbs eight
+// concurrent writers elsewhere but peaks at four under a walk.
+//
+// The kinds absent here keep fastwalk's own default, which already
+// scales with GOMAXPROCS. Raising them to [MaxFSWorkers] measured
+// faster still on ext4 and overlayfs, but only on virtualized storage,
+// so that wants confirmation on real hardware first.
+var walkWorkersByKind = map[FSKind]int{
+	FSAPFS:  APFSWorkers,
+	FSXFS:   APFSWorkers,
+	FSBtrfs: BTRFSWorkers,
+}
+
+// walkWorkers sizes a parallel walk to the filesystem under root.
+func walkWorkers(fsys FS, root string) int {
+	if workers, ok := walkWorkersByKind[DetectFSKind(fsys, root)]; ok {
+		return workers
+	}
+
+	return walkWorkersDefault
+}
 
 const maxSymlinkEvaluations = 255
 
@@ -300,6 +403,24 @@ func ReadFileLimit(fsys FS, filename string, limit int64) (data []byte, err erro
 	return io.ReadAll(io.LimitReader(f, limit))
 }
 
+// Ancestors yields path, then each directory above it, ending at the root that
+// contains it. Each step is shorter than the last, so the sequence is finite
+// for any path.
+func Ancestors(path string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		current := filepath.Clean(path)
+
+		for yield(current) {
+			parent := filepath.Dir(current)
+			if parent == current {
+				return
+			}
+
+			current = parent
+		}
+	}
+}
+
 // EvalSymlinks returns path after evaluating symlinks using the supplied filesystem.
 func EvalSymlinks(fsys FS, path string) (string, error) {
 	if evaluator, ok := fsys.(symlinkEvaluator); ok {
@@ -494,10 +615,11 @@ func WithFollowSymlinks() WalkDirParallelOption {
 // [fastwalk.Walk]. On any other FS, including [NewMemMapFS], it falls
 // back to the sequential [WalkDir].
 //
-// The parallel walk calls fn concurrently from multiple goroutines and
-// gives no ordering guarantee across directories. Callers that depend
-// on deterministic order, or that write to shared state from fn, must
-// use [WalkDir] or serialize access themselves.
+// The walk fans out over as many goroutines as the filesystem under
+// root was measured to absorb (see [walkWorkersByKind]), and gives no
+// ordering guarantee across directories. Callers that depend on
+// deterministic order, or that write to shared state from fn, must use
+// [WalkDir] or serialize access themselves.
 func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirParallelOption) error {
 	if _, ok := fsys.(*osFS); !ok {
 		return WalkDir(fsys, root, fn)
@@ -508,9 +630,9 @@ func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirPar
 		opt(&cfg)
 	}
 
-	var fwCfg *fastwalk.Config
-	if cfg.followSymlinks {
-		fwCfg = &fastwalk.Config{Follow: true}
+	fwCfg := &fastwalk.Config{
+		Follow:     cfg.followSymlinks,
+		NumWorkers: walkWorkers(fsys, root),
 	}
 
 	err := fastwalk.Walk(fwCfg, root, fn)
@@ -738,41 +860,131 @@ func (fsys *osFS) LockContext(ctx context.Context, name string) (Unlocker, error
 // memMapFS wraps afero.MemMapFs with in-memory symlink support.
 type memMapFS struct {
 	afero.Fs
-	symlinks map[string]string
-	locks    map[string]*memLock
-	locksMu  sync.Mutex
+	symlinks   map[string]string
+	locks      map[string]*memLock
+	locksMu    sync.Mutex
+	symlinksMu sync.RWMutex
 }
 
 func (fsys *memMapFS) SymlinkIfPossible(oldname, newname string) error {
-	if _, exists := fsys.symlinks[newname]; exists {
+	link := fsys.resolveParent(newname)
+
+	fsys.symlinksMu.Lock()
+	defer fsys.symlinksMu.Unlock()
+
+	if _, exists := fsys.symlinks[link]; exists {
 		return &os.LinkError{Op: "symlink", Old: oldname, New: newname, Err: os.ErrExist}
 	}
 
-	fsys.symlinks[newname] = oldname
+	fsys.symlinks[link] = oldname
 
 	return nil
 }
 
+func (fsys *memMapFS) Open(name string) (afero.File, error) {
+	return fsys.Fs.Open(fsys.resolve(name))
+}
+
+func (fsys *memMapFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	return fsys.Fs.OpenFile(fsys.resolve(name), flag, perm)
+}
+
+func (fsys *memMapFS) Create(name string) (afero.File, error) {
+	return fsys.Fs.Create(fsys.resolve(name))
+}
+
+func (fsys *memMapFS) Stat(name string) (os.FileInfo, error) {
+	return fsys.Fs.Stat(fsys.resolve(name))
+}
+
+func (fsys *memMapFS) Mkdir(name string, perm os.FileMode) error {
+	return fsys.Fs.Mkdir(fsys.resolve(name), perm)
+}
+
+func (fsys *memMapFS) MkdirAll(path string, perm os.FileMode) error {
+	return fsys.Fs.MkdirAll(fsys.resolve(path), perm)
+}
+
+// resolve returns name with every symlinked component replaced by what it
+// points at, which is how the operations that read and write through a path
+// follow a link. [memMapFS.resolveParent] serves the ones that act on the link
+// itself.
+func (fsys *memMapFS) resolve(name string) string {
+	resolved := filepath.Clean(name)
+
+	for range maxSymlinkEvaluations {
+		prefix, target, ok := fsys.symlinkedPrefix(resolved)
+		if !ok {
+			return resolved
+		}
+
+		rest := strings.TrimPrefix(resolved, prefix)
+
+		if filepath.IsAbs(target) {
+			resolved = filepath.Join(target, rest)
+
+			continue
+		}
+
+		resolved = filepath.Join(filepath.Dir(prefix), target, rest)
+	}
+
+	return resolved
+}
+
+// resolveParent returns name with every symlinked component of its parent
+// replaced, leaving the last element alone, so an operation on a link reaches
+// the link and not its target.
+func (fsys *memMapFS) resolveParent(name string) string {
+	clean := filepath.Clean(name)
+
+	return filepath.Join(fsys.resolve(filepath.Dir(clean)), filepath.Base(clean))
+}
+
+// symlinkedPrefix returns the outermost ancestor of path recorded as a symlink,
+// or path itself, along with its target. The outermost one wins because a
+// filesystem resolves a path one component at a time, and a link nearer the
+// root decides where the components after it are looked for.
+func (fsys *memMapFS) symlinkedPrefix(path string) (prefix, target string, found bool) {
+	fsys.symlinksMu.RLock()
+	defer fsys.symlinksMu.RUnlock()
+
+	if len(fsys.symlinks) == 0 {
+		return "", "", false
+	}
+
+	for current := range Ancestors(path) {
+		if recorded, ok := fsys.symlinks[current]; ok {
+			prefix, target, found = current, recorded, true
+		}
+	}
+
+	return prefix, target, found
+}
+
 func (fsys *memMapFS) LinkIfPossible(oldname, newname string) error {
-	if _, err := fsys.Fs.Stat(newname); err == nil {
+	oldResolved := fsys.resolve(oldname)
+	newResolved := fsys.resolveParent(newname)
+
+	if fsys.pathTaken(newResolved) {
 		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: os.ErrExist}
 	}
 
-	data, err := afero.ReadFile(fsys.Fs, oldname)
+	data, err := afero.ReadFile(fsys.Fs, oldResolved)
 	if err != nil {
 		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: err}
 	}
 
-	info, err := fsys.Fs.Stat(oldname)
+	info, err := fsys.Fs.Stat(oldResolved)
 	if err != nil {
 		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: err}
 	}
 
-	return afero.WriteFile(fsys.Fs, newname, data, info.Mode())
+	return afero.WriteFile(fsys.Fs, newResolved, data, info.Mode())
 }
 
 func (fsys *memMapFS) ReadlinkIfPossible(name string) (string, error) {
-	target, ok := fsys.symlinks[name]
+	target, ok := fsys.readSymlink(fsys.resolveParent(name))
 	if !ok {
 		return "", &os.PathError{Op: "readlink", Path: name, Err: os.ErrInvalid}
 	}
@@ -781,11 +993,13 @@ func (fsys *memMapFS) ReadlinkIfPossible(name string) (string, error) {
 }
 
 func (fsys *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
-	if _, ok := fsys.symlinks[name]; ok {
+	resolved := fsys.resolveParent(name)
+
+	if _, ok := fsys.readSymlink(resolved); ok {
 		return symlinkFileInfo{name: filepath.Base(name)}, true, nil
 	}
 
-	info, err := fsys.Fs.Stat(name)
+	info, err := fsys.Fs.Stat(resolved)
 
 	return info, false, err
 }
@@ -794,24 +1008,96 @@ func (fsys *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 // that the embedded afero.MemMapFs does not see, so they are handled here
 // before delegating to the underlying filesystem.
 func (fsys *memMapFS) Remove(name string) error {
-	if _, ok := fsys.symlinks[name]; ok {
-		delete(fsys.symlinks, name)
+	resolved := fsys.resolveParent(name)
+
+	if fsys.removeSymlink(resolved) {
 		return nil
 	}
 
-	return fsys.Fs.Remove(name)
+	return fsys.Fs.Remove(resolved)
 }
 
 // RemoveAll deletes path and any children it contains. Symlinks live in a
 // side table that the embedded afero.MemMapFs does not see, so they are
 // handled here before delegating to the underlying filesystem.
 func (fsys *memMapFS) RemoveAll(path string) error {
-	if _, ok := fsys.symlinks[path]; ok {
-		delete(fsys.symlinks, path)
+	resolved := fsys.resolveParent(path)
+
+	if fsys.removeSymlink(resolved) {
 		return nil
 	}
 
-	return fsys.Fs.RemoveAll(path)
+	return fsys.Fs.RemoveAll(resolved)
+}
+
+// readSymlink returns the target recorded for name, and whether there is one.
+func (fsys *memMapFS) readSymlink(name string) (string, bool) {
+	fsys.symlinksMu.RLock()
+	defer fsys.symlinksMu.RUnlock()
+
+	target, ok := fsys.symlinks[name]
+
+	return target, ok
+}
+
+// removeSymlink drops the record for name and reports whether there was one.
+func (fsys *memMapFS) removeSymlink(name string) bool {
+	fsys.symlinksMu.Lock()
+	defer fsys.symlinksMu.Unlock()
+
+	if _, ok := fsys.symlinks[name]; !ok {
+		return false
+	}
+
+	delete(fsys.symlinks, name)
+
+	return true
+}
+
+// pathTaken reports whether the resolved path name is a file, a directory, or
+// a symlink.
+func (fsys *memMapFS) pathTaken(name string) bool {
+	if _, ok := fsys.readSymlink(name); ok {
+		return true
+	}
+
+	_, err := fsys.Fs.Stat(name)
+
+	return err == nil
+}
+
+// Rename moves the file or symlink at oldname to newname, replacing anything
+// at newname. Symlinks live in a side table that the embedded afero.MemMapFs
+// does not see. A renamed file drops any link recorded at newname, and a
+// renamed link removes the file at newname and takes over its name in the
+// side table.
+func (fsys *memMapFS) Rename(oldname, newname string) error {
+	// Resolved before the write lock, since resolving takes the read lock.
+	oldResolved := fsys.resolveParent(oldname)
+	newResolved := fsys.resolveParent(newname)
+
+	fsys.symlinksMu.Lock()
+	defer fsys.symlinksMu.Unlock()
+
+	target, isLink := fsys.symlinks[oldResolved]
+	if !isLink {
+		if err := fsys.Fs.Rename(oldResolved, newResolved); err != nil {
+			return err
+		}
+
+		delete(fsys.symlinks, newResolved)
+
+		return nil
+	}
+
+	if err := fsys.Fs.Remove(newResolved); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	delete(fsys.symlinks, oldResolved)
+	fsys.symlinks[newResolved] = target
+
+	return nil
 }
 
 // symlinkFileInfo reports symlink metadata for links stored in memMapFS's side table.

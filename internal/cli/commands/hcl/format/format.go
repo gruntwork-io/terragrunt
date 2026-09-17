@@ -41,6 +41,25 @@ var excludePaths = []string{
 	config.StackDir,
 }
 
+// maxFormatWorkers caps the default format fan-out.
+//
+// Experimentally, a good ceiling for this was
+// determined to be 8 workers even on a 16 core machine.
+//
+// Might require additional tuning.
+const maxFormatWorkers = 8
+
+// formatWorkers bounds how many files are formatted at once. An
+// explicit --parallelism is honored as given; the default is the
+// smaller of the machine's cores and [maxFormatWorkers].
+func formatWorkers(parallelism int) int {
+	if parallelism != options.DefaultParallelism {
+		return parallelism
+	}
+
+	return min(runtime.GOMAXPROCS(0), maxFormatWorkers)
+}
+
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
@@ -116,11 +135,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	g, _ := errgroup.WithContext(ctx)
 
-	// Use user-specified parallelism, falling back to available CPUs.
-	limit := opts.Parallelism
-	if limit == options.DefaultParallelism {
-		limit = runtime.GOMAXPROCS(0)
-	}
+	limit := formatWorkers(opts.Parallelism)
 
 	g.SetLimit(limit)
 
@@ -157,11 +172,7 @@ func RunForFiles(
 ) error {
 	g, _ := errgroup.WithContext(ctx)
 
-	// Use user-specified parallelism, falling back to available CPUs.
-	limit := opts.Parallelism
-	if limit == options.DefaultParallelism {
-		limit = runtime.GOMAXPROCS(0)
-	}
+	limit := formatWorkers(opts.Parallelism)
 
 	g.SetLimit(limit)
 

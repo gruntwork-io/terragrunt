@@ -1,0 +1,20 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### Faster dependents filters
+
+A filter with `...` before its target, such as `...vpc`, finds [dependents](/features/filter/graph#include-dependents) by walking the directory tree around the target and parsing each configuration it passes to see whether it depends on the target. That walk parsed every configuration from scratch, even one Terragrunt had earlier in the same command, and it runs again from each dependent it finds. On a large repository, one query could read and parse the same unrelated unit once per dependent it selected.
+
+Terragrunt now reuses a configuration it has already parsed, so each unit is read from disk about once per query.
+
+In [benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/discovery/benchmark_dependents_test.go) on an Apple M3 Max, querying the dependents of a unit from its own directory, where every other unit depends on it:
+
+| units | before | after |
+| --- | --- | --- |
+| 10 | 15.3ms | 10.0ms |
+| 50 | 235ms | 150ms |
+| 200 | 3.19s | 2.09s |
+
+From the repository root, where the walk only has to rule out the units that do not depend on the target, the same query over a 1,024-unit repository went from 250ms to 131ms.

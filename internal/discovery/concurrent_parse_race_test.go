@@ -33,7 +33,7 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 
 	repoRoot := string(filepath.Separator) + "repo"
 
-	v := memGitTopLevelVenv(t, repoRoot)
+	v := memRepoRootVenv(t, repoRoot)
 
 	// remote_state is partially decoded during discovery, so a large block is
 	// walked during parse rather than skipped, which lengthens the parse.

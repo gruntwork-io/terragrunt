@@ -2,9 +2,11 @@ package config_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -13,21 +15,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestHCLGetRepoRoot drives `get_repo_root()` through full HCL
-// evaluation. The mem-backed exec stubs `git rev-parse --show-toplevel`
-// so the test runs independently of any real git repository.
+// TestHCLGetRepoRoot drives `get_repo_root()` through full HCL evaluation
+// against an in-memory repository, so the test runs independently of any
+// checkout on the machine.
 func TestHCLGetRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		assert.Equal(t, "git", inv.Name)
-		assert.Equal(t, []string{"rev-parse", "--show-toplevel"}, inv.Args)
-
-		return vexec.Result{Stdout: []byte("/synthetic/repo/root\n")}
-	})
-
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/synthetic/repo/root/unit/terragrunt.hcl")
+	v := venvtest.New().WithFS(memRepoFS(t, "/synthetic/repo/root", "unit"))
+	ctx, pctx := newTestParsingContext(t, v, "/synthetic/repo/root/unit/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
 
 	const hcl = `locals {
@@ -51,12 +47,9 @@ terraform {
 func TestHCLGetPathFromRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		return vexec.Result{Stdout: []byte("/repo\n")}
-	})
-
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/repo/services/api/terragrunt.hcl")
+	v := venvtest.New().WithFS(memRepoFS(t, "/repo", "services/api"))
+	ctx, pctx := newTestParsingContext(t, v, "/repo/services/api/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
 	pctx.WorkingDir = "/repo/services/api"
 
@@ -75,12 +68,9 @@ func TestHCLGetPathFromRepoRoot(t *testing.T) {
 func TestHCLGetPathToRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		return vexec.Result{Stdout: []byte("/repo\n")}
-	})
-
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/repo/services/api/terragrunt.hcl")
+	v := venvtest.New().WithFS(memRepoFS(t, "/repo", "services/api"))
+	ctx, pctx := newTestParsingContext(t, v, "/repo/services/api/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
 	pctx.WorkingDir = "/repo/services/api"
 
@@ -93,18 +83,16 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
 	assert.Equal(t, "../..", out.Locals["up"])
 }
 
-// TestHCLGetRepoRootPropagatesGitError pins the contract that a failing
-// `git rev-parse` surfaces as an error from ParseConfigString rather
-// than silently producing an empty string.
-func TestHCLGetRepoRootPropagatesGitError(t *testing.T) {
+// TestHCLGetRepoRootPropagatesLookupFailure pins the contract that a working
+// directory outside any repository surfaces as an error from
+// ParseConfigString rather than silently producing an empty string.
+func TestHCLGetRepoRootPropagatesLookupFailure(t *testing.T) {
 	t.Parallel()
 
-	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		return vexec.Result{ExitCode: 128, Stderr: []byte("fatal: not a git repository\n")}
-	})
-
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), "/not/a/repo/terragrunt.hcl")
+	v := venvtest.New().
+		WithFS(venvtest.NewFS(t, "/not/a/repo", map[string]string{"terragrunt.hcl": ""}))
+	ctx, pctx := newTestParsingContext(t, v, "/not/a/repo/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
 
 	const hcl = `locals {
@@ -129,7 +117,11 @@ func TestHCLRunCmd(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), t.TempDir()+"/terragrunt.hcl")
+	ctx, pctx := newTestParsingContext(
+		t,
+		venvtest.New().WithExec(exec),
+		t.TempDir()+"/terragrunt.hcl",
+	)
 	ctx = config.WithConfigValues(ctx)
 
 	const hcl = `locals {
@@ -139,4 +131,16 @@ func TestHCLRunCmd(t *testing.T) {
 	out, err := config.ParseConfigString(ctx, pctx, l, "test.hcl", hcl, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "account-1234", out.Locals["account"])
+}
+
+// memRepoFS returns an in-memory repository rooted at root, with unitDir
+// beneath it. `.git` is written as a file, the shape a submodule and a linked
+// worktree both use.
+func memRepoFS(t *testing.T, root, unitDir string) vfs.FS {
+	t.Helper()
+
+	return venvtest.NewFS(t, root, map[string]string{
+		".git":                                   "gitdir: /elsewhere/.git\n",
+		filepath.Join(unitDir, "terragrunt.hcl"): "",
+	})
 }

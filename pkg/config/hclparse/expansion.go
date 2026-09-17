@@ -74,16 +74,26 @@ type ExpansionBlock struct {
 	InstanceKey
 }
 
-// SourceBlock is a block as it was written, before expansion decoded it once per
-// element. Every instance of one block points at the same SourceBlock, so a caller can
-// group instances back together by [SourceBlock.Range].
+// SourceBlock is the HCL text of a block, before expansion decoded it once per element. Every
+// instance of one block points at the same SourceBlock, so a caller can group instances back
+// together by [SourceBlock.Range].
 //
-// Only [ExpandBlocks] fills it in, and only for native HCL syntax: a block handed to
-// [ExpandBlock] on its own carries no file to slice, and a JSON config has no HCL text
-// to quote back.
+// Only [ExpandBlocks] fills it in, and only for a block that expansion split into elements. A
+// block handed to [ExpandBlock] on its own carries no file to read it out of.
 type SourceBlock struct {
-	Text  string
+	err   error
+	text  string
 	Range hcl.Range
+}
+
+// NewSourceBlock builds a block over text that was not read out of a file.
+func NewSourceBlock(text string, rng hcl.Range) *SourceBlock {
+	return &SourceBlock{text: text, Range: rng}
+}
+
+// Body returns the block's HCL text, or the error that stopped Terragrunt from recovering it.
+func (src *SourceBlock) Body() (string, error) {
+	return src.text, src.err
 }
 
 // InstanceKey identifies which expansion element produced a decoded block. It carries
@@ -162,10 +172,7 @@ func (file *File) ExpandBlocks(
 
 		expanded, err := ExpandBlock(block, out, ctx, opts...)
 		if err == nil {
-			source := blockSource(file.Bytes, block)
-			for i := range expanded {
-				expanded[i].Source = source
-			}
+			attachSource(file.Bytes, block, out, expanded)
 
 			instances = append(instances, expanded...)
 
@@ -254,13 +261,36 @@ func skipBlock(block *hcl.Block, skipLabels map[string]struct{}) bool {
 	return err == nil && expansion == nil
 }
 
+// attachSource records the text of a block that expansion split into elements, so a caller can
+// quote the block rather than the elements it produced.
+//
+// A block that expanded into nothing, and one that never declared expansion, has no elements to
+// group and gets no text. Recovering the text of a block written in JSON means transcoding it,
+// and blocks that would throw the text away stay off that path.
+func attachSource(src []byte, block *hcl.Block, out any, instances []Instance) {
+	if len(instances) == 0 || !instances[0].Expanded() {
+		return
+	}
+
+	source, err := blockSource(src, block, out)
+	if err != nil {
+		// Only render reads this text, so the failure rides along on the block rather than
+		// failing the parse that every command performs.
+		source = &SourceBlock{err: err, Range: block.DefRange}
+	}
+
+	for i := range instances {
+		instances[i].Source = source
+	}
+}
+
 // blockSource slices block back out of the file it was parsed from, so a caller can quote
-// the block as written rather than as decoded. A body that is not native HCL syntax has
-// no such text and yields nil.
-func blockSource(src []byte, block *hcl.Block) *SourceBlock {
+// the block as written rather than as decoded. A block written in JSON becomes the equivalent
+// HCL instead, since the preview of its elements has to hang off a block.
+func blockSource(src []byte, block *hcl.Block, out any) (*SourceBlock, error) {
 	body, ok := block.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil
+		return jsonBlockSource(src, block, out)
 	}
 
 	rng := hcl.Range{
@@ -270,9 +300,9 @@ func blockSource(src []byte, block *hcl.Block) *SourceBlock {
 	}
 
 	return &SourceBlock{
-		Text:  string(src[rng.Start.Byte:rng.End.Byte]),
+		text:  string(src[rng.Start.Byte:rng.End.Byte]),
 		Range: rng,
-	}
+	}, nil
 }
 
 // ExpandBlock decodes block once per iteration element, returning one Instance per

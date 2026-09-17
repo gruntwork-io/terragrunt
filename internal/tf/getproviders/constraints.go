@@ -10,10 +10,10 @@ import (
 
 	"errors"
 
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -276,7 +276,7 @@ func normalizeSingleConstraint(constraint string) string {
 
 	const justVersionParts = 1
 	if len(fields) == justVersionParts {
-		if v, err := version.NewVersion(fields[0]); err == nil {
+		if v, err := semver.Parse(fields[0]); err == nil {
 			return v.String()
 		}
 
@@ -288,7 +288,7 @@ func normalizeSingleConstraint(constraint string) string {
 		operator := fields[0]
 		versionStr := fields[1]
 
-		if v, err := version.NewVersion(versionStr); err == nil {
+		if v, err := semver.Parse(versionStr); err == nil {
 			return fmt.Sprintf("%s %s", operator, v.String())
 		}
 	}

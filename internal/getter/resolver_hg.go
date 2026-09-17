@@ -40,6 +40,36 @@ func NewHgResolver(e vexec.Exec) *HgResolver { return &HgResolver{Exec: e} }
 // Scheme returns "hg".
 func (r *HgResolver) Scheme() string { return "hg" }
 
+// Pinned reports whether rawURL names a full changeset node, which
+// addresses one changeset for good.
+func (r *HgResolver) Pinned(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	return isHgNode(u.Query().Get("rev"))
+}
+
+// isHgNode reports whether rev is a full 40-character changeset node
+// rather than a name or an abbreviation, which can both come to mean a
+// different changeset.
+func isHgNode(rev string) bool {
+	const hgNodeLen = 40
+
+	if len(rev) != hgNodeLen {
+		return false
+	}
+
+	for _, r := range rev {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Probe runs `hg identify --template '{node}\n'` against rawURL and
 // returns the 40-char node hash as a content-addressed cache key. The
 // ref comes from the URL's `rev` query parameter; absent or empty

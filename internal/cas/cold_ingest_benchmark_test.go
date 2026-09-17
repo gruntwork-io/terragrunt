@@ -50,18 +50,16 @@ func BenchmarkColdIngest(b *testing.B) {
 			tempDir := b.TempDir()
 
 			b.ReportAllocs()
-			b.ResetTimer()
 
-			for i := 0; b.Loop(); i++ {
-				b.StopTimer()
+			i := 0
 
+			for b.Loop() {
 				storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
 				targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
+				i++
 
 				c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 				require.NoError(b, err)
-
-				b.StartTimer()
 
 				require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
 					cas.WithDepth(-1)))

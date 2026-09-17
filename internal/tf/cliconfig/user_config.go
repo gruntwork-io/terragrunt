@@ -63,7 +63,7 @@ func LoadUserConfig(v *venv.Venv, impl tfimpl.Type, opts ...ConfigOption) (*Conf
 	v.RequireFS()
 	v.RequirePlatform()
 
-	paths, err := userConfigPaths(v, impl)
+	paths, err := UserConfigPaths(v, impl)
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +114,10 @@ func UserProviderDir(v *venv.Venv, impl tfimpl.Type) (string, error) {
 	return filepath.Join(configDir, userProviderDirName), nil
 }
 
-// userConfigPaths lists the CLI config files to load, most general first, honoring the env-var override.
-func userConfigPaths(v *venv.Venv, impl tfimpl.Type) ([]string, error) {
+// UserConfigPaths lists the CLI config files [LoadUserConfig] reads for impl, most general
+// first, honoring the env-var override. Only files that exist are listed, so two
+// implementations with equal lists load the same configuration.
+func UserConfigPaths(v *venv.Venv, impl tfimpl.Type) ([]string, error) {
 	// An override names the file outright, so an unreadable one is the user's error and the config dir is skipped.
 	if override, envName := UserConfigOverride(v); override != "" {
 		exists, err := vfs.FileExists(v.FS, override)

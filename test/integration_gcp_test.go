@@ -558,10 +558,7 @@ func TestGcpNoPrefixBucket(t *testing.T) {
 func TestGcpParallelStateInit(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test") //nolint:usetesting // TODO: check whether t.TempDir works here
-	if err != nil {
-		require.NoError(t, err)
-	}
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	for i := range 20 {
 		err := util.CopyFolderContents(
@@ -592,7 +589,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 		gcsBucketName,
 		"root.hcl",
 	)
-	err = vfs.CopyFile(vfs.NewOSFS(), tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
+	err := vfs.CopyFile(vfs.NewOSFS(), tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
 	require.NoError(t, err)
 
 	helpers.RunTerragrunt(
@@ -611,10 +608,7 @@ func createTmpTerragruntGCSConfig(
 ) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test") //nolint:usetesting // TODO: check whether t.TempDir works here
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
+	tmpFolder := helpers.TmpDirWOSymlinks(t)
 
 	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
 	originalTerragruntConfigPath := filepath.Join(templatesPath, configFileName)
@@ -772,9 +766,7 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 	handle := bucket.Object(objectName)
 
 	attrs, err := handle.Attrs(ctx)
-	if err != nil {
-		t.Fatalf("Error reading object attributes %s %v", objectName, err)
-	}
+	require.NoError(t, err, "Error reading object attributes %s", objectName)
 
 	return attrs
 }
@@ -791,9 +783,7 @@ func assertGCSLabels(
 	bucket := client.Bucket(bucketName)
 
 	attrs, err := bucket.Attrs(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	var actualLabels = make(map[string]string)
 
@@ -836,9 +826,7 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 		VersioningEnabled: true,
 	}
 
-	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
-		t.Fatalf("Failed to create GCS bucket %s: %v", bucketName, err)
-	}
+	require.NoError(t, bucket.Create(ctx, projectID, bucketAttrs), "Failed to create GCS bucket %s", bucketName)
 }
 
 // Delete the specified GCS bucket to clean up after a test
@@ -886,7 +874,7 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 		}
 
 		if err != nil {
-			t.Errorf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
+			assert.NoError(t, err, "Failed to list objects and versions in GCS bucket %s", bucketName)
 			return
 		}
 
@@ -894,7 +882,7 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 		if err := bucket.Object(objectAttrs.Name).
 			Generation(objectAttrs.Generation).
 			Delete(ctx); err != nil {
-			t.Errorf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
+			assert.NoError(t, err, "Failed to delete GCS bucket object %s", objectAttrs.Name)
 			return
 		}
 	}
@@ -906,6 +894,6 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 			return
 		}
 
-		t.Errorf("Failed to delete GCS bucket %s: %v", bucketName, err)
+		assert.NoError(t, err, "Failed to delete GCS bucket %s", bucketName)
 	}
 }

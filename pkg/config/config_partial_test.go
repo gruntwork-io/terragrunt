@@ -3,6 +3,7 @@ package config_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -929,7 +930,7 @@ func forceModTimeChange(t *testing.T, path string, prev time.Time) {
 		time.Sleep(1 * time.Millisecond)
 	}
 
-	t.Fatalf("Failed to change modification time of %s within 5 seconds", path)
+	require.FailNow(t, "Failed to change modification time of "+path+" within 5 seconds")
 }
 
 // TestPartialParseConfigCacheDifferentCallers verifies that the partial parse config cache
@@ -1505,9 +1506,7 @@ exclude {
 			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 			pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
 
-			for name, value := range tc.cliFlags {
-				pctx.FeatureFlags.Store(name, value)
-			}
+			maps.Copy(pctx.FeatureFlags, tc.cliFlags)
 
 			terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
 			if tc.expectedErr != "" {

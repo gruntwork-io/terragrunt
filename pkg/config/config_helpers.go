@@ -17,8 +17,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
@@ -184,10 +185,10 @@ func createTerragruntEvalContext(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) (*hcl.EvalContext, error) {
 	tfscope := tflang.Scope{
-		BaseDir: filepath.Dir(configPath),
+		BaseDir: filepath.Dir(cfgPath),
 	}
 
 	terragruntFunctions := map[string]function.Function{
@@ -380,7 +381,10 @@ func createTerragruntEvalContext(
 		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, pctx, l, TimeCmp),
 	}
 
-	if ctrl := pctx.StrictControls.Find(controls.LegacyBase64Gzip); ctrl == nil || !ctrl.GetEnabled() {
+	if ctrl := pctx.StrictControls.Find(
+		controls.LegacyBase64Gzip,
+	); ctrl == nil ||
+		!ctrl.GetEnabled() {
 		terragruntFunctions[FuncNameBase64Gzip] = gzipcompat.Func(func() error {
 			if ctrl == nil {
 				return nil
@@ -424,7 +428,7 @@ func createTerragruntEvalContext(
 		if err != nil && len(pctx.PartialParseDecodeList) == 0 {
 			return nil, fmt.Errorf(
 				"could not resolve exposed includes for eval context in %s: %w",
-				configPath,
+				cfgPath,
 				err,
 			)
 		}
@@ -436,7 +440,7 @@ func createTerragruntEvalContext(
 			// and the system will fall back to full parsing when needed.
 			l.Debugf(
 				"Could not resolve exposed includes for eval context in %s (partial parse): %v",
-				configPath,
+				cfgPath,
 				err,
 			)
 		}
@@ -457,13 +461,13 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 }
 
 // Return the repository root as an absolute path
-func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
+func getRepoRoot(ctx context.Context, pctx *ParsingContext, _ log.Logger) (string, error) {
+	return git.GoRepoRoot(ctx, pctx.Venv, pctx.WorkingDir)
 }
 
 // Return the path from the repository root
-func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
+func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, _ log.Logger) (string, error) {
+	repoAbsPath, err := git.GoRepoRoot(ctx, pctx.Venv, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -477,8 +481,8 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 }
 
 // Return the path to the repository root
-func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
+func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, _ log.Logger) (string, error) {
+	repoAbsPath, err := git.GoRepoRoot(ctx, pctx.Venv, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -962,7 +966,7 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 	}
 
-	terragruntConfig, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
+	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -971,7 +975,7 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 		pctx.Source,
 		pctx.SourceMap,
 		pctx.OriginalTerragruntConfigPath,
-		terragruntConfig,
+		cfg,
 	)
 	if err != nil {
 		return "", err
@@ -984,7 +988,14 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 	// source resolves to a different cache directory.
 	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
-	source, err := tf.NewSource(l, pctx.Venv.FS, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
+	source, err := tf.NewSource(
+		l,
+		pctx.Venv.FS,
+		sourceURL,
+		pctx.DownloadDir,
+		pctx.WorkingDir,
+		walkWithSymlinks,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -1077,13 +1088,13 @@ func ParseTerragruntConfig(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 	defaultVal *cty.Value,
 ) (cty.Value, error) {
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(pctx.Venv.FS, configPath, pctx.TerragruntConfigPath)
+	targetConfig := getCleanedTargetConfigPath(pctx.Venv.FS, cfgPath, pctx.TerragruntConfigPath)
 
 	targetConfigFileExists := vfs.Exists(pctx.Venv.FS, targetConfig)
 
@@ -1222,10 +1233,10 @@ func readTerragruntConfigAsFuncImpl(
 // Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
 // paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
 // path is a directory.
-func getCleanedTargetConfigPath(fsys vfs.FS, configPath string, workingPath string) string {
+func getCleanedTargetConfigPath(fsys vfs.FS, cfgPath string, workingPath string) string {
 	cwd := filepath.Dir(workingPath)
 
-	targetConfig := configPath
+	targetConfig := cfgPath
 	if !filepath.IsAbs(targetConfig) {
 		targetConfig = filepath.Join(cwd, targetConfig)
 	}
@@ -1670,15 +1681,10 @@ func markGlobAsRead(
 	}
 
 	if boundary == "" {
-		// Default to the enclosing Git repository root. GitTopLevelDir errors
-		// when the working directory is not inside a repository (or git is
-		// unavailable); treat that as "no boundary" rather than a failure.
-		if repoRoot, repoErr := shell.GitTopLevelDir(
-			ctx,
-			l,
-			pctx.Venv,
-			pctx.WorkingDir,
-		); repoErr == nil {
+		// Default to the enclosing Git repository root. [git.GoRepoRoot] errors
+		// when the working directory is not inside a repository; treat that as
+		// "no boundary" rather than a failure.
+		if repoRoot, repoErr := git.GoRepoRoot(ctx, pctx.Venv, pctx.WorkingDir); repoErr == nil {
 			boundary = repoRoot
 		}
 	}
@@ -1837,15 +1843,5 @@ func ConstraintCheck(ctx context.Context, pctx *ParsingContext, args []string) (
 		}
 	}
 
-	v, err := version.NewSemver(args[0])
-	if err != nil {
-		return false, fmt.Errorf("invalid version %s: %w", args[0], err)
-	}
-
-	c, err := version.NewConstraint(args[1])
-	if err != nil {
-		return false, fmt.Errorf("invalid constraint %s: %w", args[1], err)
-	}
-
-	return c.Check(v), nil
+	return semver.CheckConstraint(args[0], args[1])
 }

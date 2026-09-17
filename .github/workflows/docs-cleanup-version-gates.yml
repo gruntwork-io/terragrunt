@@ -40,6 +40,7 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
         with:
+          sign-commits: true
           branch: docs/cleanup-version-gates
           commit-message: 'docs: clean up released version gates for ${{ github.event.release.tag_name || inputs.tag_name }}'
           title: 'docs: clean up released version gates for ${{ github.event.release.tag_name || inputs.tag_name }}'

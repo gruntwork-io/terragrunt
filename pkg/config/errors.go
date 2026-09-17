@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -407,8 +406,8 @@ func (err StackUnitOutputFetchError) Unwrap() error {
 	return err.Err
 }
 
-// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs that
-// isn't keyed by unit name, so no unit can be matched against it.
+// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs, or a
+// nested stack's entry in it, that isn't keyed by name, so no unit can be matched against it.
 type StackMockOutputsTypeError struct {
 	DependencyName string
 	UnitName       string
@@ -417,10 +416,26 @@ type StackMockOutputsTypeError struct {
 
 func (err StackMockOutputsTypeError) Error() string {
 	return fmt.Sprintf(
-		"mock_outputs for dependency %s must be a map or object keyed by stack unit name (e.g. { %s = { ... } }), but got %s",
+		"mock_outputs for dependency %s must be a map or object keyed by stack unit or nested stack name (e.g. { %s = { ... } }), but got %s",
 		err.DependencyName,
 		err.UnitName,
 		err.Actual,
+	)
+}
+
+// StackOutputAddressCollisionError is returned when a unit and a nested stack declared in one
+// stack file share a name. A dependency on that stack reads both at the same address, so keeping
+// either would drop the other's outputs.
+type StackOutputAddressCollisionError struct {
+	StackDir string
+	Name     string
+}
+
+func (err StackOutputAddressCollisionError) Error() string {
+	return fmt.Sprintf(
+		"a unit and a nested stack in %s are both named %q, so a dependency on the stack cannot address their outputs separately",
+		err.StackDir,
+		err.Name,
 	)
 }
 
@@ -622,21 +637,6 @@ func (err VersionAttributeRequiresExperimentError) Error() string {
 	)
 }
 
-// MutableGenerateRequiresExperimentError is returned when a generate block sets the
-// mutable attribute without the mutable-generate experiment enabled.
-type MutableGenerateRequiresExperimentError struct {
-	ConfigPath string
-	BlockName  string
-}
-
-func (err MutableGenerateRequiresExperimentError) Error() string {
-	return fmt.Sprintf(
-		"the generate block %q in %s sets the mutable attribute, which requires the 'mutable-generate' experiment; enable it with --experiment mutable-generate",
-		err.BlockName,
-		err.ConfigPath,
-	)
-}
-
 // VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
 // version attribute but its source is not a tfr:// registry URL, where a version
 // constraint has no meaning.
@@ -664,29 +664,6 @@ func (err VersionAttributeSourceConstraintConflictError) Error() string {
 	)
 }
 
-// ExpansionRequiresExperimentError is returned when a dependency, unit, or stack block
-// carries an expansion block without the block-iteration experiment enabled.
-type ExpansionRequiresExperimentError struct {
-	ConfigPath string
-	BlockType  string
-	BlockLabel string
-}
-
-func (err ExpansionRequiresExperimentError) Error() string {
-	block := err.BlockType
-	if err.BlockLabel != "" {
-		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
-	}
-
-	return fmt.Sprintf(
-		"the %s block in %s uses an expansion block, which requires the '%s' experiment; enable it with --experiment %s",
-		block,
-		err.ConfigPath,
-		experiment.BlockIteration,
-		experiment.BlockIteration,
-	)
-}
-
 // MisspelledExpansionBlockError is returned when a dependency, unit, or stack block nests a
 // block whose name is a near miss of expansion.
 type MisspelledExpansionBlockError struct {
@@ -708,29 +685,6 @@ func (err MisspelledExpansionBlockError) Error() string {
 		err.ConfigPath,
 		err.BlockName,
 		hclparse.ExpansionBlockName,
-	)
-}
-
-// EnabledRequiresExperimentError is returned when a unit or stack block carries a bare
-// enabled attribute while the block-iteration experiment is off.
-type EnabledRequiresExperimentError struct {
-	ConfigPath string
-	BlockType  string
-	BlockLabel string
-}
-
-func (err EnabledRequiresExperimentError) Error() string {
-	block := err.BlockType
-	if err.BlockLabel != "" {
-		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
-	}
-
-	return fmt.Sprintf(
-		"the %s block in %s uses an enabled attribute, which requires the '%s' experiment; enable it with --experiment %s",
-		block,
-		err.ConfigPath,
-		experiment.BlockIteration,
-		experiment.BlockIteration,
 	)
 }
 

@@ -101,7 +101,7 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	gitStoreRoot := filepath.Join(storePath, "git")
 	require.NoError(t, os.MkdirAll(gitStoreRoot, 0o755))
 
-	entry := cas.EntryPathForURL(gitStoreRoot, repoURL)
+	entry := cas.EntryPathForURL(gitStoreRoot, repoURL, cas.HashSHA256)
 	require.NoError(t, os.WriteFile(entry, []byte("not a directory"), 0o644))
 
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))

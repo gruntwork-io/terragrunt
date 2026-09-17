@@ -49,7 +49,7 @@ func (g *CASProtocolGetter) Get(ctx context.Context, req *getter.Request) error 
 
 	var linkOpts []cas.LinkTreeOption
 	if g.Mutable {
-		linkOpts = append(linkOpts, cas.WithForceCopy())
+		linkOpts = append(linkOpts, cas.WithMutableTree())
 	}
 
 	return g.CAS.MaterializeTree(ctx, g.Logger, g.Venv, hash, req.Dst, linkOpts...)

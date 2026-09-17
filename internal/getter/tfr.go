@@ -181,7 +181,7 @@ func (r *RegistryGetter) GetFile(_ context.Context, _ *getter.Request) error {
 func (r *RegistryGetter) delegateGet(ctx context.Context, dst, src string) error {
 	parent := getter.ClientFromContext(ctx)
 	if parent == nil {
-		parent = NewClient(r.Venv)
+		parent = NewClient(r.Logger, r.Venv)
 	}
 
 	_, err := parent.Get(ctx, &getter.Request{

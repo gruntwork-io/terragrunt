@@ -166,7 +166,7 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 		// Local directory.
 		var linkOpts []cas.LinkTreeOption
 		if g.Opts.Mutable {
-			linkOpts = append(linkOpts, cas.WithForceCopy())
+			linkOpts = append(linkOpts, cas.WithMutableTree())
 		}
 
 		return g.CAS.StoreLocalDirectory(ctx, g.Logger, g.Venv, req.Src, req.Dst, linkOpts...)
@@ -455,6 +455,9 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 
 	opts := *g.Opts
 	opts.Dir = req.Dst
+	// A non-git source has no git directory to draw the files from, and
+	// leaving the list set would make every probe hit look like a miss.
+	opts.IncludedGitFiles = nil
 
 	return g.CAS.FetchSource(ctx, g.Logger, g.Venv, &opts, cas.SourceRequest{
 		Scheme:   scheme,
@@ -475,8 +478,18 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 // s3 and gcs getters reject `http://`/`gs://` URLs unless Forced matches
 // their validScheme; without this the inner client falls through with a
 // generic "error downloading".
+//
+// The ingest mode is ignored: this shape downloads and re-ingests every
+// time it runs, and ingesting content already writes each object the
+// store lacks, so a repair pass needs nothing extra from it.
 func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) cas.SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string) (string, error) {
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		suggestedKey string,
+		_ cas.IngestMode,
+	) (string, error) {
 		tempDir, cleanup, err := g.CAS.MakeFetchTempDir(l, v)
 		if err != nil {
 			return "", err
@@ -553,10 +566,11 @@ func pinnedOCIURL(rawURL, digestValue string) string {
 // default protocol set is available for [RegistryGetter]'s delegated
 // archive download. Every other scheme uses a single-getter client.
 func defaultInnerClientBuilder(bare getter.Getter, scheme string) *getter.Client {
-	// The bare tfr getter carries the venv its delegated archive download
-	// needs; the fallback client builds s3 and gcs getters that require one.
+	// The bare tfr getter carries the logger and venv its delegated archive
+	// download needs; the fallback client builds s3 and gcs getters that
+	// require the venv.
 	if tfr, ok := bare.(*RegistryGetter); ok && scheme == SchemeTFR {
-		return NewClient(tfr.Venv, WithCustomGettersPrepended(bare))
+		return NewClient(tfr.Logger, tfr.Venv, WithCustomGettersPrepended(bare))
 	}
 
 	return &getter.Client{Getters: []getter.Getter{bare}}

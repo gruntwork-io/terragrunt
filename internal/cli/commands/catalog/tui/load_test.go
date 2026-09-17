@@ -103,7 +103,7 @@ func TestLoadURLKeepsTempDirAfterEmittingComponentOnCancel(t *testing.T) {
 	select {
 	case <-componentCh:
 	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for first component")
+		require.Fail(t, "timed out waiting for first component")
 	}
 
 	cancel()
@@ -112,7 +112,7 @@ func TestLoadURLKeepsTempDirAfterEmittingComponentOnCancel(t *testing.T) {
 	case err := <-errCh:
 		require.NoError(t, err)
 	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for LoadURL to return")
+		require.Fail(t, "timed out waiting for LoadURL to return")
 	}
 
 	catalogDirs := catalogTempDirs(t, tempRoot)

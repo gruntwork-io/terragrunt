@@ -39,7 +39,7 @@ func newGraphBoundaryFixture(t *testing.T) (graphBoundaryFixture, *venv.Venv) {
 
 	repoRoot := string(filepath.Separator) + "repo"
 
-	v := memGitTopLevelVenv(t, repoRoot)
+	v := memRepoRootVenv(t, repoRoot)
 
 	f := graphBoundaryFixture{
 		stagingDir:  filepath.Join(repoRoot, "environments", "staging"),
@@ -73,7 +73,11 @@ dependency "external" {
 	return f, v
 }
 
-func (f *graphBoundaryFixture) discover(t *testing.T, v *venv.Venv, query string) component.Components {
+func (f *graphBoundaryFixture) discover(
+	t *testing.T,
+	v *venv.Venv,
+	query string,
+) component.Components {
 	t.Helper()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
@@ -187,7 +191,7 @@ func TestDiscoveryGraphBoundary_PathWithLiteralParens(t *testing.T) {
 
 	repoRoot := string(filepath.Separator) + "repo"
 
-	v := memGitTopLevelVenv(t, repoRoot)
+	v := memRepoRootVenv(t, repoRoot)
 
 	// vpc(prod) has literal parentheses in its directory name; app depends on it.
 	vpcDir := filepath.Join(repoRoot, "vpc(prod)")
@@ -231,7 +235,11 @@ dependency "vpc" {
 		t.Parallel()
 
 		configs := discover("...{" + vpcDir + "}")
-		assert.ElementsMatch(t, []string{vpcDir, appDir}, configs.Filter(component.UnitKind).Paths())
+		assert.ElementsMatch(
+			t,
+			[]string{vpcDir, appDir},
+			configs.Filter(component.UnitKind).Paths(),
+		)
 	})
 
 	t.Run("parens boundary alongside a braced parens target", func(t *testing.T) {
@@ -239,6 +247,10 @@ dependency "vpc" {
 
 		// Boundary parens are a delimiter; the braced target parens are literal.
 		configs := discover("(" + repoRoot + ")...{" + vpcDir + "}")
-		assert.ElementsMatch(t, []string{vpcDir, appDir}, configs.Filter(component.UnitKind).Paths())
+		assert.ElementsMatch(
+			t,
+			[]string{vpcDir, appDir},
+			configs.Filter(component.UnitKind).Paths(),
+		)
 	})
 }

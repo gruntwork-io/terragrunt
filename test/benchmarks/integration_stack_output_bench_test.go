@@ -88,8 +88,6 @@ func BenchmarkStackOutputParallelism(b *testing.B) {
 		seen[level] = struct{}{}
 
 		b.Run("parallelism="+strconv.Itoa(level), func(b *testing.B) {
-			b.ResetTimer()
-
 			for b.Loop() {
 				helpers.RunTerragruntCommand(
 					b,
@@ -99,8 +97,6 @@ func BenchmarkStackOutputParallelism(b *testing.B) {
 					"--working-dir", livePath,
 				)
 			}
-
-			b.StopTimer()
 		})
 	}
 }
