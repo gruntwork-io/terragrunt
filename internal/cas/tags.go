@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -35,10 +36,10 @@ type probeTag struct {
 }
 
 // StoreTags records the release tags among refs, as [git.ReleaseTags] picks
-// them, as the tags of url. It keeps a bounded number of the highest, each with
+// them, as the tags of u. It keeps a bounded number of the highest, each with
 // a full object name and a bounded name length. The entry is written to a
 // temporary file and renamed into place.
-func (p *ProbeCache) StoreTags(fsys vfs.FS, url string, refs []git.LsRemoteResult) error {
+func (p *ProbeCache) StoreTags(fsys vfs.FS, u redact.URL, refs []git.LsRemoteResult) error {
 	var entry probeTagsEntry
 
 	for _, ref := range git.ReleaseTags(refs) {
@@ -53,10 +54,10 @@ func (p *ProbeCache) StoreTags(fsys vfs.FS, url string, refs []git.LsRemoteResul
 
 	data, err := json.Marshal(entry)
 	if err != nil {
-		return fmt.Errorf("encode tags entry for %s: %w", RedactURL(url), err)
+		return fmt.Errorf("encode tags entry for %s: %w", u, err)
 	}
 
-	path := p.TagsPath(url)
+	path := p.TagsPath(u)
 	dir := filepath.Dir(path)
 
 	if err := fsys.MkdirAll(dir, DefaultDirPerms); err != nil {
@@ -70,11 +71,11 @@ func (p *ProbeCache) StoreTags(fsys vfs.FS, url string, refs []git.LsRemoteResul
 	return nil
 }
 
-// LookupTags returns the tags [ProbeCache.StoreTags] recorded for url, in the
+// LookupTags returns the tags [ProbeCache.StoreTags] recorded for u, in the
 // shape [git.GitRunner.LsRemote] reports them. It returns none when nothing was
 // recorded or the entry cannot be read or decoded.
-func (p *ProbeCache) LookupTags(fsys vfs.FS, url string) []git.LsRemoteResult {
-	data, err := vfs.ReadFileLimit(fsys, p.TagsPath(url), probeTagsMaxEntrySize)
+func (p *ProbeCache) LookupTags(fsys vfs.FS, u redact.URL) []git.LsRemoteResult {
+	data, err := vfs.ReadFileLimit(fsys, p.TagsPath(u), probeTagsMaxEntrySize)
 	if err != nil {
 		return nil
 	}
@@ -96,23 +97,23 @@ func (p *ProbeCache) LookupTags(fsys vfs.FS, url string) []git.LsRemoteResult {
 	return refs
 }
 
-// TagsPath returns the file [ProbeCache.StoreTags] records the tags of url in,
-// in the directory that holds the entries [ProbeCache.EntryPath] names for url.
-func (p *ProbeCache) TagsPath(url string) string {
-	return filepath.Join(filepath.Dir(p.EntryPath(url, "")), probeTagsFileName)
+// TagsPath returns the file [ProbeCache.StoreTags] records the tags of u in,
+// in the directory that holds the entries [ProbeCache.EntryPath] names for u.
+func (p *ProbeCache) TagsPath(u redact.URL) string {
+	return filepath.Join(filepath.Dir(p.EntryPath(u, "")), probeTagsFileName)
 }
 
-// StoredTags lists the tags in the bare repository for url, and none when the
-// store holds no repository for url. Like [GitStore.ProbeCachedCommit], it
+// StoredTags lists the tags in the bare repository for u, and none when the
+// store holds no repository for u. Like [GitStore.ProbeCachedCommit], it
 // takes no lock.
 //
 // Panics when v.FS is not OS-backed; git only sees the real disk.
-func (s *GitStore) StoredTags(ctx context.Context, v *venv.Venv, url string) ([]git.LsRemoteResult, error) {
+func (s *GitStore) StoredTags(ctx context.Context, v *venv.Venv, u redact.URL) ([]git.LsRemoteResult, error) {
 	if !vfs.IsOSFS(v.FS) {
 		panic(ErrGitStoreFSNotOS)
 	}
 
-	_, repoPath, _ := s.repoPaths(url)
+	_, repoPath, _ := s.repoPaths(u)
 
 	initialized, err := bareRepoInitialized(v.FS, repoPath)
 	if err != nil {
@@ -131,35 +132,35 @@ func (s *GitStore) StoredTags(ctx context.Context, v *venv.Venv, url string) ([]
 	return runner.WithWorkDir(repoPath).LocalTags(ctx)
 }
 
-// RecordTags records refs, a tag listing of url's remote, so [CAS.StoredTags]
-// can answer for url offline. It records nothing unless the probe cache is
+// RecordTags records refs, a tag listing of u's remote, so [CAS.StoredTags]
+// can answer for u offline. It records nothing unless the probe cache is
 // enabled, and logs a failed write.
-func (c *CAS) RecordTags(l log.Logger, v *venv.Venv, url string, refs []git.LsRemoteResult) {
+func (c *CAS) RecordTags(l log.Logger, v *venv.Venv, u redact.URL, refs []git.LsRemoteResult) {
 	if !c.probeCacheEnabled {
 		return
 	}
 
-	if err := c.probeCache.StoreTags(v.FS, url, refs); err != nil {
-		l.Debugf("cas: tag cache write for %s failed: %v", RedactURL(url), err)
+	if err := c.probeCache.StoreTags(v.FS, u, refs); err != nil {
+		l.Debugf("cas: tag cache write for %s failed: %v", u, err)
 	}
 }
 
-// StoredTags returns the tags of url the store holds, without contacting its
+// StoredTags returns the tags of u the store holds, without contacting its
 // remote: those [CAS.RecordTags] recorded, and those in the bare repository
-// the git store keeps for url. A bare repository that cannot be listed adds
+// the git store keeps for u. A bare repository that cannot be listed adds
 // none.
 //
 // Panics when v.FS is not OS-backed; git only sees the real disk.
-func (c *CAS) StoredTags(ctx context.Context, l log.Logger, v *venv.Venv, url string) []git.LsRemoteResult {
+func (c *CAS) StoredTags(ctx context.Context, l log.Logger, v *venv.Venv, u redact.URL) []git.LsRemoteResult {
 	var refs []git.LsRemoteResult
 
 	if c.probeCacheEnabled {
-		refs = c.probeCache.LookupTags(v.FS, url)
+		refs = c.probeCache.LookupTags(v.FS, u)
 	}
 
-	stored, err := c.gitStore.StoredTags(ctx, v, url)
+	stored, err := c.gitStore.StoredTags(ctx, v, u)
 	if err != nil {
-		l.Debugf("cas: listing tags stored for %s failed: %v", RedactURL(url), err)
+		l.Debugf("cas: listing tags stored for %s failed: %v", u, err)
 
 		return refs
 	}
