@@ -1170,6 +1170,23 @@ func RunTerragruntCommandWithContext(
 ) error {
 	t.Helper()
 
+	v := venv.OSVenv()
+	v.Writers = &writerpkg.Writers{Writer: writer, ErrWriter: errwriter}
+
+	return RunTerragruntCommandWithVenv(t, ctx, v, command)
+}
+
+// RunTerragruntCommandWithVenv runs command in-process against v, writing
+// through v.Writers. Tests swap a handle on v, such as the exec, to observe or
+// fake what the command reaches.
+func RunTerragruntCommandWithVenv(
+	t *testing.T,
+	ctx context.Context,
+	v *venv.Venv,
+	command string,
+) error {
+	t.Helper()
+
 	parser := shellwords.NewParser()
 
 	// Convert backslashes to forward slashes before parsing.
@@ -1200,13 +1217,12 @@ func RunTerragruntCommandWithContext(
 
 	// Wrap writers with SyncWriter to prevent race conditions when multiple
 	// goroutines write concurrently (e.g., during "run --all" operations).
-	syncWriter := util.NewSyncWriter(writer)
-	syncErrWriter := util.NewSyncWriter(errwriter)
+	syncWriter := util.NewSyncWriter(v.Writers.Writer)
+	syncErrWriter := util.NewSyncWriter(v.Writers.ErrWriter)
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-	v := venv.OSVenv()
-	v.Writers = &writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
+	v = v.WithWriter(syncWriter).WithErrWriter(syncErrWriter)
 
 	l := log.New(
 		log.WithOutput(syncErrWriter),
