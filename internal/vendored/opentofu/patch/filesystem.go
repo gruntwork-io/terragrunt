@@ -485,12 +485,16 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 
 	var matches []cty.Value
 
-	err := vfs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDirWithSymlinks(fsys, dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+
+			return nil
 		}
 
-		if d.IsDir() || !d.Type().IsRegular() {
+		if d.IsDir() {
 			return nil
 		}
 
@@ -506,9 +510,11 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 			return err
 		}
 
-		if ok {
-			matches = append(matches, cty.StringVal(rel))
+		if !ok || !isRegularFile(fsys, path, d) {
+			return nil
 		}
+
+		matches = append(matches, cty.StringVal(rel))
 
 		return nil
 	})
@@ -517,6 +523,18 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 	}
 
 	return matches, nil
+}
+
+// isRegularFile reports whether the entry d at path is a regular file, or a
+// symbolic link that resolves to one.
+func isRegularFile(fsys vfs.FS, path string, d fs.DirEntry) bool {
+	if d.Type()&fs.ModeSymlink == 0 {
+		return d.Type().IsRegular()
+	}
+
+	fi, err := fsys.Stat(path)
+
+	return err == nil && fi.Mode().IsRegular()
 }
 
 // readFileBytes returns the contents of the file at a path relative to

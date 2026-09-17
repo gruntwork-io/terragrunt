@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -167,6 +168,75 @@ func TestFileSetReturnsAnEmptySetWhenNothingMatches(t *testing.T) {
 		Call([]cty.Value{cty.StringVal("."), cty.StringVal("*.json")})
 	require.NoError(t, err)
 	assert.Equal(t, cty.SetValEmpty(cty.String), got)
+}
+
+func TestFileSetReturnsAnEmptySetForAMissingDirectory(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(t, map[string]string{"main.tf": "# root"})
+
+	got, err := patch.FileSetFunc(v, baseDir, noRead).
+		Call([]cty.Value{cty.StringVal("missing"), cty.StringVal("*.tf")})
+	require.NoError(t, err)
+	assert.Equal(t, cty.SetValEmpty(cty.String), got)
+}
+
+// The in-memory filesystem does not list symlinks when reading a directory, so
+// the symlink tests run against a temp dir on disk.
+//
+// TODO: Fix this.
+func TestFileSetFollowsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "modules", "a"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "modules", "a", "main.tf"), nil, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "shared.tf"), nil, 0o644))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "modules", "a"), filepath.Join(dir, "linked")))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "shared.tf"), filepath.Join(dir, "alias.tf")))
+
+	got, err := patch.FileSetFunc(venvtest.NewWithOSFS(), dir, noRead).
+		Call([]cty.Value{cty.StringVal("."), cty.StringVal("**/*.tf")})
+	require.NoError(t, err)
+	assert.Equal(t, cty.SetVal([]cty.Value{
+		cty.StringVal("alias.tf"),
+		cty.StringVal("linked/main.tf"),
+		cty.StringVal("modules/a/main.tf"),
+		cty.StringVal("shared.tf"),
+	}), got)
+}
+
+func TestFileSetSkipsABrokenSymlink(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	require.NoError(t, os.Symlink(filepath.Join(dir, "missing.tf"), filepath.Join(dir, "a-broken.tf")))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), nil, 0o644))
+
+	got, err := patch.FileSetFunc(venvtest.NewWithOSFS(), dir, noRead).
+		Call([]cty.Value{cty.StringVal("."), cty.StringVal("*.tf")})
+	require.NoError(t, err)
+	assert.Equal(t, cty.SetVal([]cty.Value{cty.StringVal("main.tf")}), got)
+}
+
+func TestFileSetStopsAtASymlinkCycle(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "a"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a", "main.tf"), nil, 0o644))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "a"), filepath.Join(dir, "a", "loop")))
+
+	got, err := patch.FileSetFunc(venvtest.NewWithOSFS(), dir, noRead).
+		Call([]cty.Value{cty.StringVal("."), cty.StringVal("**/*.tf")})
+	require.NoError(t, err)
+	assert.Equal(t, cty.SetVal([]cty.Value{
+		cty.StringVal("a/loop/main.tf"),
+		cty.StringVal("a/main.tf"),
+	}), got)
 }
 
 func TestFileHashSumsTheVenvContents(t *testing.T) {
